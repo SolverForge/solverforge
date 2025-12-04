@@ -62,6 +62,9 @@ pub use score::{
     HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
 };
 pub use solver::{
-    DiminishedReturnsConfig, EnvironmentMode, MoveThreadCount, SolverConfig, TerminationConfig,
+    AsyncSolveResponse, DiminishedReturnsConfig, DomainObjectDto, EnvironmentMode,
+    InverseRelationShadowDto, ListAccessorDto, MemberDto, MoveThreadCount, PlanningListVariableDto,
+    PlanningScoreDto, PlanningVariableDto, ScoreDto, SolveHandle, SolveRequest, SolveResponse,
+    SolveState, SolveStatus, SolverConfig, TerminationConfig, ValueRangeProviderDto,
 };
 pub use value::Value;

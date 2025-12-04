@@ -23,5 +23,8 @@ rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+# HTTP client
+reqwest.workspace = true
+
 [dev-dependencies]
 proptest.workspace = true

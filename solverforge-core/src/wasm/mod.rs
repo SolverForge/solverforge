@@ -6,6 +6,8 @@ mod memory;
 
 pub use expr_builder::{Expr, FieldAccessExt};
 pub use expression::Expression;
-pub use generator::{Comparison, FieldAccess, PredicateDefinition, WasmModuleBuilder};
+pub use generator::{
+    Comparison, FieldAccess, PredicateBody, PredicateDefinition, WasmModuleBuilder,
+};
 pub use host_functions::{HostFunctionDef, HostFunctionRegistry, WasmType};
 pub use memory::{FieldLayout, LayoutCalculator, MemoryLayout, WasmMemoryType};

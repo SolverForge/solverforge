@@ -1,5 +1,6 @@
 use crate::domain::DomainModel;
 use crate::error::{SolverForgeError, SolverForgeResult};
+use crate::wasm::expression::Expression;
 use crate::wasm::memory::{LayoutCalculator, WasmMemoryType};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::HashMap;
@@ -24,10 +25,16 @@ struct FunctionSignature {
 }
 
 #[derive(Debug, Clone)]
+pub enum PredicateBody {
+    Comparison(Comparison),
+    Expression(Expression),
+}
+
+#[derive(Debug, Clone)]
 pub struct PredicateDefinition {
     pub name: String,
     pub arity: u32,
-    pub comparison: Comparison,
+    pub body: PredicateBody,
 }
 
 impl PredicateDefinition {
@@ -35,7 +42,15 @@ impl PredicateDefinition {
         Self {
             name: name.into(),
             arity,
-            comparison,
+            body: PredicateBody::Comparison(comparison),
+        }
+    }
+
+    pub fn from_expression(name: impl Into<String>, arity: u32, expression: Expression) -> Self {
+        Self {
+            name: name.into(),
+            arity,
+            body: PredicateBody::Expression(expression),
         }
     }
 
@@ -410,42 +425,47 @@ impl WasmModuleBuilder {
     ) -> SolverForgeResult<Function> {
         let mut func = Function::new([]);
 
-        match &predicate.comparison {
-            Comparison::AlwaysTrue => {
-                func.instruction(&Instruction::I32Const(1));
-            }
-            Comparison::AlwaysFalse => {
-                func.instruction(&Instruction::I32Const(0));
-            }
-            Comparison::Equal(left, right) => {
-                self.generate_field_load(&mut func, left, model)?;
-                self.generate_field_load(&mut func, right, model)?;
-                func.instruction(&Instruction::I32Eq);
-            }
-            Comparison::NotEqual(left, right) => {
-                self.generate_field_load(&mut func, left, model)?;
-                self.generate_field_load(&mut func, right, model)?;
-                func.instruction(&Instruction::I32Ne);
-            }
-            Comparison::LessThan(left, right) => {
-                self.generate_field_load(&mut func, left, model)?;
-                self.generate_field_load(&mut func, right, model)?;
-                func.instruction(&Instruction::I32LtS);
-            }
-            Comparison::LessThanOrEqual(left, right) => {
-                self.generate_field_load(&mut func, left, model)?;
-                self.generate_field_load(&mut func, right, model)?;
-                func.instruction(&Instruction::I32LeS);
-            }
-            Comparison::GreaterThan(left, right) => {
-                self.generate_field_load(&mut func, left, model)?;
-                self.generate_field_load(&mut func, right, model)?;
-                func.instruction(&Instruction::I32GtS);
-            }
-            Comparison::GreaterThanOrEqual(left, right) => {
-                self.generate_field_load(&mut func, left, model)?;
-                self.generate_field_load(&mut func, right, model)?;
-                func.instruction(&Instruction::I32GeS);
+        match &predicate.body {
+            PredicateBody::Comparison(comparison) => match comparison {
+                Comparison::AlwaysTrue => {
+                    func.instruction(&Instruction::I32Const(1));
+                }
+                Comparison::AlwaysFalse => {
+                    func.instruction(&Instruction::I32Const(0));
+                }
+                Comparison::Equal(left, right) => {
+                    self.generate_field_load(&mut func, left, model)?;
+                    self.generate_field_load(&mut func, right, model)?;
+                    func.instruction(&Instruction::I32Eq);
+                }
+                Comparison::NotEqual(left, right) => {
+                    self.generate_field_load(&mut func, left, model)?;
+                    self.generate_field_load(&mut func, right, model)?;
+                    func.instruction(&Instruction::I32Ne);
+                }
+                Comparison::LessThan(left, right) => {
+                    self.generate_field_load(&mut func, left, model)?;
+                    self.generate_field_load(&mut func, right, model)?;
+                    func.instruction(&Instruction::I32LtS);
+                }
+                Comparison::LessThanOrEqual(left, right) => {
+                    self.generate_field_load(&mut func, left, model)?;
+                    self.generate_field_load(&mut func, right, model)?;
+                    func.instruction(&Instruction::I32LeS);
+                }
+                Comparison::GreaterThan(left, right) => {
+                    self.generate_field_load(&mut func, left, model)?;
+                    self.generate_field_load(&mut func, right, model)?;
+                    func.instruction(&Instruction::I32GtS);
+                }
+                Comparison::GreaterThanOrEqual(left, right) => {
+                    self.generate_field_load(&mut func, left, model)?;
+                    self.generate_field_load(&mut func, right, model)?;
+                    func.instruction(&Instruction::I32GeS);
+                }
+            },
+            PredicateBody::Expression(expression) => {
+                self.compile_expression(&mut func, expression, model)?;
             }
         }
 
@@ -523,6 +543,212 @@ impl WasmModuleBuilder {
                     align: 2,
                     memory_index: 0,
                 }));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Compile an expression tree into WASM instructions
+    ///
+    /// Generates WASM code that evaluates the expression and leaves the result
+    /// on the stack.
+    fn compile_expression(
+        &self,
+        func: &mut Function,
+        expr: &Expression,
+        model: &DomainModel,
+    ) -> SolverForgeResult<()> {
+        match expr {
+            // ===== Literals =====
+            Expression::IntLiteral { value } => {
+                if *value >= i32::MIN as i64 && *value <= i32::MAX as i64 {
+                    func.instruction(&Instruction::I32Const(*value as i32));
+                } else {
+                    func.instruction(&Instruction::I64Const(*value));
+                    func.instruction(&Instruction::I32WrapI64);
+                }
+            }
+            Expression::BoolLiteral { value } => {
+                func.instruction(&Instruction::I32Const(if *value { 1 } else { 0 }));
+            }
+            Expression::Null => {
+                func.instruction(&Instruction::I32Const(0));
+            }
+
+            // ===== Parameter Access =====
+            Expression::Param { index } => {
+                func.instruction(&Instruction::LocalGet(*index));
+            }
+
+            // ===== Field Access =====
+            Expression::FieldAccess {
+                object,
+                class_name,
+                field_name,
+            } => {
+                // Compile the object expression to get the pointer
+                self.compile_expression(func, object, model)?;
+
+                // Load the field from memory
+                let class = model.classes.get(class_name).ok_or_else(|| {
+                    SolverForgeError::WasmGeneration(format!("Class not found: {}", class_name))
+                })?;
+
+                let layout = self
+                    .layout_calculator
+                    .get_layout(&class.name)
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(format!(
+                            "Layout not found for class: {}",
+                            class.name
+                        ))
+                    })?;
+
+                let field_layout = layout.field_offsets.get(field_name).ok_or_else(|| {
+                    SolverForgeError::WasmGeneration(format!(
+                        "Field not found: {}.{}",
+                        class_name, field_name
+                    ))
+                })?;
+
+                match field_layout.wasm_type {
+                    WasmMemoryType::I32 | WasmMemoryType::Pointer => {
+                        func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: field_layout.offset as u64,
+                            align: 2,
+                            memory_index: 0,
+                        }));
+                    }
+                    WasmMemoryType::I64 => {
+                        func.instruction(&Instruction::I64Load(wasm_encoder::MemArg {
+                            offset: field_layout.offset as u64,
+                            align: 3,
+                            memory_index: 0,
+                        }));
+                        func.instruction(&Instruction::I32WrapI64);
+                    }
+                    WasmMemoryType::F32 => {
+                        func.instruction(&Instruction::F32Load(wasm_encoder::MemArg {
+                            offset: field_layout.offset as u64,
+                            align: 2,
+                            memory_index: 0,
+                        }));
+                        func.instruction(&Instruction::I32TruncF32S);
+                    }
+                    WasmMemoryType::F64 => {
+                        func.instruction(&Instruction::F64Load(wasm_encoder::MemArg {
+                            offset: field_layout.offset as u64,
+                            align: 3,
+                            memory_index: 0,
+                        }));
+                        func.instruction(&Instruction::I32TruncF64S);
+                    }
+                    WasmMemoryType::ArrayPointer => {
+                        func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                            offset: field_layout.offset as u64,
+                            align: 2,
+                            memory_index: 0,
+                        }));
+                    }
+                }
+            }
+
+            // ===== Comparisons =====
+            Expression::Eq { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32Eq);
+            }
+            Expression::Ne { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32Ne);
+            }
+            Expression::Lt { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32LtS);
+            }
+            Expression::Le { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32LeS);
+            }
+            Expression::Gt { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32GtS);
+            }
+            Expression::Ge { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32GeS);
+            }
+
+            // ===== Logical Operations =====
+            Expression::And { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32And);
+            }
+            Expression::Or { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32Or);
+            }
+            Expression::Not { operand } => {
+                self.compile_expression(func, operand, model)?;
+                func.instruction(&Instruction::I32Eqz); // ! in WASM is i32.eqz
+            }
+            Expression::IsNull { operand } => {
+                self.compile_expression(func, operand, model)?;
+                func.instruction(&Instruction::I32Eqz); // null check is ptr == 0
+            }
+            Expression::IsNotNull { operand } => {
+                self.compile_expression(func, operand, model)?;
+                func.instruction(&Instruction::I32Const(0));
+                func.instruction(&Instruction::I32Ne); // not null is ptr != 0
+            }
+
+            // ===== Arithmetic Operations =====
+            Expression::Add { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32Add);
+            }
+            Expression::Sub { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32Sub);
+            }
+            Expression::Mul { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32Mul);
+            }
+            Expression::Div { left, right } => {
+                self.compile_expression(func, left, model)?;
+                self.compile_expression(func, right, model)?;
+                func.instruction(&Instruction::I32DivS);
+            }
+
+            // ===== Host Function Calls =====
+            Expression::HostCall {
+                function_name,
+                args,
+            } => {
+                // Compile all arguments
+                for arg in args {
+                    self.compile_expression(func, arg, model)?;
+                }
+
+                // For now, return error - host function calling requires import section
+                // which will be implemented when we integrate with PredicateDefinition
+                return Err(SolverForgeError::WasmGeneration(format!(
+                    "Host function calls not yet integrated - need import section support. Function: {}",
+                    function_name
+                )));
             }
         }
 

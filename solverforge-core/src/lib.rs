@@ -51,5 +51,8 @@ pub use score::{
     SimpleDecimalScore, HardSoftDecimalScore, HardMediumSoftDecimalScore,
     BendableScore, BendableDecimalScore,
 };
-pub use domain::{PlanningAnnotation, ShadowAnnotation};
+pub use domain::{
+    PlanningAnnotation, ShadowAnnotation,
+    ConstraintWeight, ConstraintConfiguration, DeepPlanningClone,
+};
 pub use value::Value;

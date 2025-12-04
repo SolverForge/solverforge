@@ -3,7 +3,10 @@
 //! Tests employee scheduling with skill and time-based constraints:
 //! - Employees with skills (NURSE, DOCTOR, ADMIN)
 //! - Shifts with requiredSkill and start/end times (3 shifts per day)
-//! - Constraints: requiredSkill (skill matching), noOverlappingShifts (time overlap)
+//! - HardSoftScore: hard constraints must be satisfied for feasibility
+//! - Hard Constraints:
+//!   - requiredSkill: Employee skill must match shift's requiredSkill
+//!   - noOverlappingShifts: Same employee can't work overlapping shifts
 //! - Configurable scale via EMPLOYEE_COUNT, SHIFT_COUNT env vars
 //!
 //! The Java HostFunctionProvider dynamically parses domain models from DTOs.
@@ -401,7 +404,7 @@ fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
             )
             .with_field(
                 "score",
-                FieldDescriptor::new("SimpleScore").with_annotation(PA::planning_score()),
+                FieldDescriptor::new("HardSoftScore").with_annotation(PA::planning_score()),
             )
             .with_mapper(DomainObjectMapper::new("parseSchedule", "scheduleString")),
     );
@@ -413,19 +416,19 @@ fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
 fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamComponent>> {
     let mut constraints = IndexMap::new();
 
-    // Constraint 1: Employee must have the skill required by the shift
-    // forEach(Shift).filter(skillMismatch).penalize(1)
+    // Constraint 1: Employee must have the skill required by the shift (HARD)
+    // forEach(Shift).filter(skillMismatch).penalize(1hard/0soft)
     constraints.insert(
         "requiredSkill".to_string(),
         vec![
             StreamComponent::for_each("Shift"),
             StreamComponent::filter(WasmFunction::new("skillMismatch")),
-            StreamComponent::penalize("1"),
+            StreamComponent::penalize("1hard/0soft"),
         ],
     );
 
-    // Constraint 2: No overlapping shifts for same employee
-    // forEach(Shift).join(Shift).filter(shiftsOverlap).penalize(1)
+    // Constraint 2: No overlapping shifts for same employee (HARD)
+    // forEach(Shift).join(Shift).filter(shiftsOverlap).penalize(1hard/0soft)
     // shiftsOverlap checks: same employee AND time ranges overlap AND shift1 < shift2
     constraints.insert(
         "noOverlappingShifts".to_string(),
@@ -433,7 +436,7 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
             StreamComponent::for_each("Shift"),
             StreamComponent::join("Shift"),
             StreamComponent::filter(WasmFunction::new("shiftsOverlap")),
-            StreamComponent::penalize("1"),
+            StreamComponent::penalize("1hard/0soft"),
         ],
     );
 
@@ -608,19 +611,54 @@ fn test_employee_scheduling_solve() {
     println!("Assignment counts: {:?}", assignment_counts);
     println!("Skill mismatches: {}", skill_mismatches);
 
+    // Parse HardSoftScore format: "0hard/-5soft" or "-2hard/-3soft"
     // The score reflects constraint violations:
-    // - requiredSkill: penalizes skill mismatches
-    // - noOverlappingShifts: penalizes time overlaps for same employee
-    let score: i64 = score_str.parse().unwrap_or(-999);
+    // - requiredSkill (HARD): penalizes skill mismatches
+    // - noOverlappingShifts (HARD): penalizes time overlaps for same employee
+    let (hard_score, soft_score) = parse_hard_soft_score(&score_str);
 
     println!("\n=== Summary ===");
     println!(
         "Scale: {} employees, {} shifts",
         employee_count, shift_count
     );
-    println!("Score: {} (constraint violations)", score);
+    println!("Hard Score: {} (hard constraint violations)", hard_score);
+    println!("Soft Score: {} (soft constraint violations)", soft_score);
     println!("Skill mismatches: {}", skill_mismatches);
+
+    // Check feasibility - a feasible solution has hard score >= 0
+    if hard_score >= 0 {
+        println!("Solution is FEASIBLE (no hard constraint violations)");
+    } else {
+        println!(
+            "Solution is INFEASIBLE ({} hard constraint violations)",
+            -hard_score
+        );
+    }
+
     println!("Test completed successfully - solver found a solution!");
+}
+
+/// Parse HardSoftScore format: "0hard/-5soft" or "-2hard/-3soft" or "-2/-3"
+fn parse_hard_soft_score(score_str: &str) -> (i64, i64) {
+    // Try format with labels: "0hard/-5soft"
+    if score_str.contains("hard") {
+        let parts: Vec<&str> = score_str.split('/').collect();
+        if parts.len() == 2 {
+            let hard = parts[0].trim_end_matches("hard").parse().unwrap_or(-999);
+            let soft = parts[1].trim_end_matches("soft").parse().unwrap_or(0);
+            return (hard, soft);
+        }
+    }
+    // Try simple format: "-2/-3"
+    let parts: Vec<&str> = score_str.split('/').collect();
+    if parts.len() == 2 {
+        let hard = parts[0].parse().unwrap_or(-999);
+        let soft = parts[1].parse().unwrap_or(0);
+        return (hard, soft);
+    }
+    // Fallback: single number as hard score
+    (score_str.parse().unwrap_or(-999), 0)
 }
 
 #[test]

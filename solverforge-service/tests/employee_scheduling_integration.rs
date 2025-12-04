@@ -428,7 +428,8 @@ fn build_employee_scheduling_wasm() -> Vec<u8> {
     WasmModuleBuilder::new()
         .with_domain_model(model)
         .with_host_functions(registry)
-        .with_initial_memory(1024) // 64MB
+        .with_initial_memory(16) // 16 pages = 1MB initial
+        .with_max_memory(Some(1024)) // 1024 pages = 64MB max
         .add_predicate(build_skill_mismatch_predicate())
         .add_predicate(build_shifts_overlap_predicate())
         .add_predicate(build_same_employee_same_day_predicate())

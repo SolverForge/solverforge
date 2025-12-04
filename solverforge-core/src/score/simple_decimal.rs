@@ -18,15 +18,21 @@ impl SimpleDecimalScore {
     }
 
     pub fn of_i64(score: i64) -> Self {
-        Self { score: Decimal::from(score) }
+        Self {
+            score: Decimal::from(score),
+        }
     }
 
     pub fn zero() -> Self {
-        Self { score: Decimal::ZERO }
+        Self {
+            score: Decimal::ZERO,
+        }
     }
 
     pub fn one() -> Self {
-        Self { score: Decimal::ONE }
+        Self {
+            score: Decimal::ONE,
+        }
     }
 
     pub fn parse(text: &str) -> Result<Self, SolverForgeError> {
@@ -48,7 +54,9 @@ impl Score for SimpleDecimalScore {
     }
 
     fn zero() -> Self {
-        Self { score: Decimal::ZERO }
+        Self {
+            score: Decimal::ZERO,
+        }
     }
 
     fn negate(&self) -> Self {
@@ -56,11 +64,15 @@ impl Score for SimpleDecimalScore {
     }
 
     fn add(&self, other: &Self) -> Self {
-        Self { score: self.score + other.score }
+        Self {
+            score: self.score + other.score,
+        }
     }
 
     fn subtract(&self, other: &Self) -> Self {
-        Self { score: self.score - other.score }
+        Self {
+            score: self.score - other.score,
+        }
     }
 }
 
@@ -144,19 +156,33 @@ mod tests {
 
     #[test]
     fn test_comparison() {
-        assert!(SimpleDecimalScore::of(Decimal::new(100, 1)) > SimpleDecimalScore::of(Decimal::new(50, 1)));
-        assert!(SimpleDecimalScore::of(Decimal::new(-50, 1)) < SimpleDecimalScore::of(Decimal::ZERO));
+        assert!(
+            SimpleDecimalScore::of(Decimal::new(100, 1))
+                > SimpleDecimalScore::of(Decimal::new(50, 1))
+        );
+        assert!(
+            SimpleDecimalScore::of(Decimal::new(-50, 1)) < SimpleDecimalScore::of(Decimal::ZERO)
+        );
     }
 
     #[test]
     fn test_parse() {
-        assert_eq!(SimpleDecimalScore::parse("3.14").unwrap().score, Decimal::new(314, 2));
-        assert_eq!(SimpleDecimalScore::parse("-10").unwrap().score, Decimal::new(-10, 0));
+        assert_eq!(
+            SimpleDecimalScore::parse("3.14").unwrap().score,
+            Decimal::new(314, 2)
+        );
+        assert_eq!(
+            SimpleDecimalScore::parse("-10").unwrap().score,
+            Decimal::new(-10, 0)
+        );
         assert!(SimpleDecimalScore::parse("invalid").is_err());
     }
 
     #[test]
     fn test_display() {
-        assert_eq!(format!("{}", SimpleDecimalScore::of(Decimal::new(314, 2))), "3.14");
+        assert_eq!(
+            format!("{}", SimpleDecimalScore::of(Decimal::new(314, 2))),
+            "3.14"
+        );
     }
 }

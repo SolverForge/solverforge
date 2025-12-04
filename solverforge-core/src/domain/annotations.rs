@@ -96,7 +96,10 @@ impl PlanningAnnotation {
     }
 
     pub fn is_shadow_variable(&self) -> bool {
-        matches!(self, PlanningAnnotation::InverseRelationShadowVariable { .. })
+        matches!(
+            self,
+            PlanningAnnotation::InverseRelationShadowVariable { .. }
+        )
     }
 }
 
@@ -114,7 +117,10 @@ mod tests {
     fn test_planning_variable() {
         let ann = PlanningAnnotation::planning_variable(vec!["rooms".to_string()]);
         match ann {
-            PlanningAnnotation::PlanningVariable { value_range_provider_refs, allows_unassigned } => {
+            PlanningAnnotation::PlanningVariable {
+                value_range_provider_refs,
+                allows_unassigned,
+            } => {
                 assert_eq!(value_range_provider_refs, vec!["rooms"]);
                 assert!(!allows_unassigned);
             }
@@ -126,7 +132,10 @@ mod tests {
     fn test_planning_variable_unassigned() {
         let ann = PlanningAnnotation::planning_variable_unassigned(vec!["slots".to_string()]);
         match ann {
-            PlanningAnnotation::PlanningVariable { value_range_provider_refs, allows_unassigned } => {
+            PlanningAnnotation::PlanningVariable {
+                value_range_provider_refs,
+                allows_unassigned,
+            } => {
                 assert_eq!(value_range_provider_refs, vec!["slots"]);
                 assert!(allows_unassigned);
             }
@@ -138,7 +147,9 @@ mod tests {
     fn test_planning_list_variable() {
         let ann = PlanningAnnotation::planning_list_variable(vec!["tasks".to_string()]);
         match ann {
-            PlanningAnnotation::PlanningListVariable { value_range_provider_refs } => {
+            PlanningAnnotation::PlanningListVariable {
+                value_range_provider_refs,
+            } => {
                 assert_eq!(value_range_provider_refs, vec!["tasks"]);
             }
             _ => panic!("Expected PlanningListVariable"),
@@ -149,7 +160,10 @@ mod tests {
     fn test_planning_score() {
         let ann = PlanningAnnotation::planning_score();
         match ann {
-            PlanningAnnotation::PlanningScore { bendable_hard_levels, bendable_soft_levels } => {
+            PlanningAnnotation::PlanningScore {
+                bendable_hard_levels,
+                bendable_soft_levels,
+            } => {
                 assert!(bendable_hard_levels.is_none());
                 assert!(bendable_soft_levels.is_none());
             }
@@ -161,7 +175,10 @@ mod tests {
     fn test_planning_score_bendable() {
         let ann = PlanningAnnotation::planning_score_bendable(2, 3);
         match ann {
-            PlanningAnnotation::PlanningScore { bendable_hard_levels, bendable_soft_levels } => {
+            PlanningAnnotation::PlanningScore {
+                bendable_hard_levels,
+                bendable_soft_levels,
+            } => {
                 assert_eq!(bendable_hard_levels, Some(2));
                 assert_eq!(bendable_soft_levels, Some(3));
             }
@@ -184,7 +201,9 @@ mod tests {
     fn test_inverse_relation_shadow() {
         let ann = PlanningAnnotation::inverse_relation_shadow("visits");
         match ann {
-            PlanningAnnotation::InverseRelationShadowVariable { source_variable_name } => {
+            PlanningAnnotation::InverseRelationShadowVariable {
+                source_variable_name,
+            } => {
                 assert_eq!(source_variable_name, "visits");
             }
             _ => panic!("Expected InverseRelationShadowVariable"),
@@ -228,7 +247,8 @@ mod tests {
 
     #[test]
     fn test_json_serialization_planning_variable() {
-        let ann = PlanningAnnotation::planning_variable(vec!["rooms".to_string(), "slots".to_string()]);
+        let ann =
+            PlanningAnnotation::planning_variable(vec!["rooms".to_string(), "slots".to_string()]);
         let json = serde_json::to_string(&ann).unwrap();
         assert!(json.contains("\"type\":\"PlanningVariable\""));
         assert!(json.contains("\"value_range_provider_refs\""));
@@ -253,7 +273,10 @@ mod tests {
         let json = r#"{"type":"PlanningVariable"}"#;
         let parsed: PlanningAnnotation = serde_json::from_str(json).unwrap();
         match parsed {
-            PlanningAnnotation::PlanningVariable { value_range_provider_refs, allows_unassigned } => {
+            PlanningAnnotation::PlanningVariable {
+                value_range_provider_refs,
+                allows_unassigned,
+            } => {
                 assert!(value_range_provider_refs.is_empty());
                 assert!(!allows_unassigned);
             }

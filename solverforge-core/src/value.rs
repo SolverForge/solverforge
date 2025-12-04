@@ -26,10 +26,11 @@ use std::collections::HashMap;
 /// let str_val = Value::from("hello");
 /// assert_eq!(str_val.as_str(), Some("hello"));
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Value {
     /// Null/None value
+    #[default]
     Null,
     /// Boolean value
     Bool(bool),
@@ -141,12 +142,6 @@ impl Value {
     }
 }
 
-impl Default for Value {
-    fn default() -> Self {
-        Value::Null
-    }
-}
-
 impl From<bool> for Value {
     fn from(b: bool) -> Self {
         Value::Bool(b)
@@ -209,7 +204,11 @@ impl From<ObjectHandle> for Value {
 
 impl<K: Into<String>, V: Into<Value>> FromIterator<(K, V)> for Value {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
-        Value::Object(iter.into_iter().map(|(k, v)| (k.into(), v.into())).collect())
+        Value::Object(
+            iter.into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+        )
     }
 }
 
@@ -334,18 +333,12 @@ mod tests {
 
     #[test]
     fn test_json_deserialization() {
-        assert_eq!(
-            serde_json::from_str::<Value>("null").unwrap(),
-            Value::Null
-        );
+        assert_eq!(serde_json::from_str::<Value>("null").unwrap(), Value::Null);
         assert_eq!(
             serde_json::from_str::<Value>("true").unwrap(),
             Value::Bool(true)
         );
-        assert_eq!(
-            serde_json::from_str::<Value>("42").unwrap(),
-            Value::Int(42)
-        );
+        assert_eq!(serde_json::from_str::<Value>("42").unwrap(), Value::Int(42));
         assert_eq!(
             serde_json::from_str::<Value>("\"hello\"").unwrap(),
             Value::String("hello".to_string())

@@ -12,40 +12,68 @@ pub struct HardSoftScore {
 }
 
 impl HardSoftScore {
-    pub const ZERO: HardSoftScore = HardSoftScore { hard_score: 0, soft_score: 0 };
-    pub const ONE_HARD: HardSoftScore = HardSoftScore { hard_score: 1, soft_score: 0 };
-    pub const ONE_SOFT: HardSoftScore = HardSoftScore { hard_score: 0, soft_score: 1 };
+    pub const ZERO: HardSoftScore = HardSoftScore {
+        hard_score: 0,
+        soft_score: 0,
+    };
+    pub const ONE_HARD: HardSoftScore = HardSoftScore {
+        hard_score: 1,
+        soft_score: 0,
+    };
+    pub const ONE_SOFT: HardSoftScore = HardSoftScore {
+        hard_score: 0,
+        soft_score: 1,
+    };
 
     pub fn of(hard_score: i64, soft_score: i64) -> Self {
-        Self { hard_score, soft_score }
+        Self {
+            hard_score,
+            soft_score,
+        }
     }
 
     pub fn of_hard(hard_score: i64) -> Self {
-        Self { hard_score, soft_score: 0 }
+        Self {
+            hard_score,
+            soft_score: 0,
+        }
     }
 
     pub fn of_soft(soft_score: i64) -> Self {
-        Self { hard_score: 0, soft_score }
+        Self {
+            hard_score: 0,
+            soft_score,
+        }
     }
 
     pub fn parse(text: &str) -> Result<Self, SolverForgeError> {
         let text = text.trim();
         let parts: Vec<&str> = text.split('/').collect();
         if parts.len() != 2 {
-            return Err(SolverForgeError::Serialization(
-                format!("Invalid HardSoftScore format: expected 'hard/soft', got '{}'", text)
-            ));
+            return Err(SolverForgeError::Serialization(format!(
+                "Invalid HardSoftScore format: expected 'hard/soft', got '{}'",
+                text
+            )));
         }
 
-        let hard = parts[0].trim().trim_end_matches("hard").trim()
+        let hard = parts[0]
+            .trim()
+            .trim_end_matches("hard")
+            .trim()
             .parse::<i64>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid hard score: {}", e)))?;
 
-        let soft = parts[1].trim().trim_end_matches("soft").trim()
+        let soft = parts[1]
+            .trim()
+            .trim_end_matches("soft")
+            .trim()
             .parse::<i64>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid soft score: {}", e)))?;
 
-        Ok(Self { hard_score: hard, soft_score: soft })
+        Ok(Self {
+            hard_score: hard,
+            soft_score: soft,
+        })
     }
 }
 
@@ -142,49 +170,95 @@ pub struct HardMediumSoftScore {
 }
 
 impl HardMediumSoftScore {
-    pub const ZERO: HardMediumSoftScore = HardMediumSoftScore { hard_score: 0, medium_score: 0, soft_score: 0 };
-    pub const ONE_HARD: HardMediumSoftScore = HardMediumSoftScore { hard_score: 1, medium_score: 0, soft_score: 0 };
-    pub const ONE_MEDIUM: HardMediumSoftScore = HardMediumSoftScore { hard_score: 0, medium_score: 1, soft_score: 0 };
-    pub const ONE_SOFT: HardMediumSoftScore = HardMediumSoftScore { hard_score: 0, medium_score: 0, soft_score: 1 };
+    pub const ZERO: HardMediumSoftScore = HardMediumSoftScore {
+        hard_score: 0,
+        medium_score: 0,
+        soft_score: 0,
+    };
+    pub const ONE_HARD: HardMediumSoftScore = HardMediumSoftScore {
+        hard_score: 1,
+        medium_score: 0,
+        soft_score: 0,
+    };
+    pub const ONE_MEDIUM: HardMediumSoftScore = HardMediumSoftScore {
+        hard_score: 0,
+        medium_score: 1,
+        soft_score: 0,
+    };
+    pub const ONE_SOFT: HardMediumSoftScore = HardMediumSoftScore {
+        hard_score: 0,
+        medium_score: 0,
+        soft_score: 1,
+    };
 
     pub fn of(hard_score: i64, medium_score: i64, soft_score: i64) -> Self {
-        Self { hard_score, medium_score, soft_score }
+        Self {
+            hard_score,
+            medium_score,
+            soft_score,
+        }
     }
 
     pub fn of_hard(hard_score: i64) -> Self {
-        Self { hard_score, medium_score: 0, soft_score: 0 }
+        Self {
+            hard_score,
+            medium_score: 0,
+            soft_score: 0,
+        }
     }
 
     pub fn of_medium(medium_score: i64) -> Self {
-        Self { hard_score: 0, medium_score, soft_score: 0 }
+        Self {
+            hard_score: 0,
+            medium_score,
+            soft_score: 0,
+        }
     }
 
     pub fn of_soft(soft_score: i64) -> Self {
-        Self { hard_score: 0, medium_score: 0, soft_score }
+        Self {
+            hard_score: 0,
+            medium_score: 0,
+            soft_score,
+        }
     }
 
     pub fn parse(text: &str) -> Result<Self, SolverForgeError> {
         let text = text.trim();
         let parts: Vec<&str> = text.split('/').collect();
         if parts.len() != 3 {
-            return Err(SolverForgeError::Serialization(
-                format!("Invalid HardMediumSoftScore format: expected 'hard/medium/soft', got '{}'", text)
-            ));
+            return Err(SolverForgeError::Serialization(format!(
+                "Invalid HardMediumSoftScore format: expected 'hard/medium/soft', got '{}'",
+                text
+            )));
         }
 
-        let hard = parts[0].trim().trim_end_matches("hard").trim()
+        let hard = parts[0]
+            .trim()
+            .trim_end_matches("hard")
+            .trim()
             .parse::<i64>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid hard score: {}", e)))?;
 
-        let medium = parts[1].trim().trim_end_matches("medium").trim()
+        let medium = parts[1]
+            .trim()
+            .trim_end_matches("medium")
+            .trim()
             .parse::<i64>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid medium score: {}", e)))?;
 
-        let soft = parts[2].trim().trim_end_matches("soft").trim()
+        let soft = parts[2]
+            .trim()
+            .trim_end_matches("soft")
+            .trim()
             .parse::<i64>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid soft score: {}", e)))?;
 
-        Ok(Self { hard_score: hard, medium_score: medium, soft_score: soft })
+        Ok(Self {
+            hard_score: hard,
+            medium_score: medium,
+            soft_score: soft,
+        })
     }
 }
 
@@ -246,7 +320,11 @@ impl Ord for HardMediumSoftScore {
 
 impl fmt::Display for HardMediumSoftScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}hard/{}medium/{}soft", self.hard_score, self.medium_score, self.soft_score)
+        write!(
+            f,
+            "{}hard/{}medium/{}soft",
+            self.hard_score, self.medium_score, self.soft_score
+        )
     }
 }
 
@@ -324,9 +402,18 @@ mod tests {
 
         #[test]
         fn test_parse() {
-            assert_eq!(HardSoftScore::parse("0hard/0soft").unwrap(), HardSoftScore::ZERO);
-            assert_eq!(HardSoftScore::parse("-5hard/10soft").unwrap(), HardSoftScore::of(-5, 10));
-            assert_eq!(HardSoftScore::parse("-5/-10").unwrap(), HardSoftScore::of(-5, -10));
+            assert_eq!(
+                HardSoftScore::parse("0hard/0soft").unwrap(),
+                HardSoftScore::ZERO
+            );
+            assert_eq!(
+                HardSoftScore::parse("-5hard/10soft").unwrap(),
+                HardSoftScore::of(-5, 10)
+            );
+            assert_eq!(
+                HardSoftScore::parse("-5/-10").unwrap(),
+                HardSoftScore::of(-5, -10)
+            );
             assert!(HardSoftScore::parse("invalid").is_err());
         }
 
@@ -358,9 +445,18 @@ mod tests {
         #[test]
         fn test_constants() {
             assert_eq!(HardMediumSoftScore::ZERO, HardMediumSoftScore::of(0, 0, 0));
-            assert_eq!(HardMediumSoftScore::ONE_HARD, HardMediumSoftScore::of(1, 0, 0));
-            assert_eq!(HardMediumSoftScore::ONE_MEDIUM, HardMediumSoftScore::of(0, 1, 0));
-            assert_eq!(HardMediumSoftScore::ONE_SOFT, HardMediumSoftScore::of(0, 0, 1));
+            assert_eq!(
+                HardMediumSoftScore::ONE_HARD,
+                HardMediumSoftScore::of(1, 0, 0)
+            );
+            assert_eq!(
+                HardMediumSoftScore::ONE_MEDIUM,
+                HardMediumSoftScore::of(0, 1, 0)
+            );
+            assert_eq!(
+                HardMediumSoftScore::ONE_SOFT,
+                HardMediumSoftScore::of(0, 0, 1)
+            );
         }
 
         #[test]
@@ -388,14 +484,23 @@ mod tests {
 
         #[test]
         fn test_parse() {
-            assert_eq!(HardMediumSoftScore::parse("0hard/0medium/0soft").unwrap(), HardMediumSoftScore::ZERO);
-            assert_eq!(HardMediumSoftScore::parse("-5hard/3medium/10soft").unwrap(), HardMediumSoftScore::of(-5, 3, 10));
+            assert_eq!(
+                HardMediumSoftScore::parse("0hard/0medium/0soft").unwrap(),
+                HardMediumSoftScore::ZERO
+            );
+            assert_eq!(
+                HardMediumSoftScore::parse("-5hard/3medium/10soft").unwrap(),
+                HardMediumSoftScore::of(-5, 3, 10)
+            );
             assert!(HardMediumSoftScore::parse("invalid").is_err());
         }
 
         #[test]
         fn test_display() {
-            assert_eq!(format!("{}", HardMediumSoftScore::of(-5, 3, 10)), "-5hard/3medium/10soft");
+            assert_eq!(
+                format!("{}", HardMediumSoftScore::of(-5, 3, 10)),
+                "-5hard/3medium/10soft"
+            );
         }
     }
 }

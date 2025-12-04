@@ -30,11 +30,15 @@ impl DomainClass {
     }
 
     pub fn is_planning_entity(&self) -> bool {
-        self.annotations.iter().any(|a| matches!(a, PlanningAnnotation::PlanningEntity))
+        self.annotations
+            .iter()
+            .any(|a| matches!(a, PlanningAnnotation::PlanningEntity))
     }
 
     pub fn is_planning_solution(&self) -> bool {
-        self.annotations.iter().any(|a| matches!(a, PlanningAnnotation::PlanningSolution))
+        self.annotations
+            .iter()
+            .any(|a| matches!(a, PlanningAnnotation::PlanningSolution))
     }
 
     pub fn get_planning_variables(&self) -> impl Iterator<Item = &FieldDescriptor> {
@@ -42,11 +46,15 @@ impl DomainClass {
     }
 
     pub fn get_planning_id_field(&self) -> Option<&FieldDescriptor> {
-        self.fields.iter().find(|f| f.has_annotation(|a| matches!(a, PlanningAnnotation::PlanningId)))
+        self.fields
+            .iter()
+            .find(|f| f.has_annotation(|a| matches!(a, PlanningAnnotation::PlanningId)))
     }
 
     pub fn get_score_field(&self) -> Option<&FieldDescriptor> {
-        self.fields.iter().find(|f| f.has_annotation(|a| matches!(a, PlanningAnnotation::PlanningScore { .. })))
+        self.fields
+            .iter()
+            .find(|f| f.has_annotation(|a| matches!(a, PlanningAnnotation::PlanningScore { .. })))
     }
 }
 
@@ -89,7 +97,9 @@ impl FieldDescriptor {
     }
 
     pub fn is_planning_variable(&self) -> bool {
-        self.planning_annotations.iter().any(|a| a.is_any_variable())
+        self.planning_annotations
+            .iter()
+            .any(|a| a.is_any_variable())
     }
 
     pub fn is_shadow_variable(&self) -> bool {
@@ -139,29 +149,48 @@ fn capitalize_first(s: &str) -> String {
 #[serde(tag = "kind")]
 pub enum FieldType {
     Primitive(PrimitiveType),
-    Object { class_name: String },
-    Array { element_type: Box<FieldType> },
-    List { element_type: Box<FieldType> },
-    Set { element_type: Box<FieldType> },
-    Map { key_type: Box<FieldType>, value_type: Box<FieldType> },
+    Object {
+        class_name: String,
+    },
+    Array {
+        element_type: Box<FieldType>,
+    },
+    List {
+        element_type: Box<FieldType>,
+    },
+    Set {
+        element_type: Box<FieldType>,
+    },
+    Map {
+        key_type: Box<FieldType>,
+        value_type: Box<FieldType>,
+    },
     Score(ScoreType),
 }
 
 impl FieldType {
     pub fn object(class_name: impl Into<String>) -> Self {
-        FieldType::Object { class_name: class_name.into() }
+        FieldType::Object {
+            class_name: class_name.into(),
+        }
     }
 
     pub fn array(element_type: FieldType) -> Self {
-        FieldType::Array { element_type: Box::new(element_type) }
+        FieldType::Array {
+            element_type: Box::new(element_type),
+        }
     }
 
     pub fn list(element_type: FieldType) -> Self {
-        FieldType::List { element_type: Box::new(element_type) }
+        FieldType::List {
+            element_type: Box::new(element_type),
+        }
     }
 
     pub fn set(element_type: FieldType) -> Self {
-        FieldType::Set { element_type: Box::new(element_type) }
+        FieldType::Set {
+            element_type: Box::new(element_type),
+        }
     }
 
     pub fn map(key_type: FieldType, value_type: FieldType) -> Self {
@@ -172,7 +201,10 @@ impl FieldType {
     }
 
     pub fn is_collection(&self) -> bool {
-        matches!(self, FieldType::Array { .. } | FieldType::List { .. } | FieldType::Set { .. })
+        matches!(
+            self,
+            FieldType::Array { .. } | FieldType::List { .. } | FieldType::Set { .. }
+        )
     }
 }
 
@@ -194,8 +226,14 @@ pub enum ScoreType {
     SimpleDecimal,
     HardSoftDecimal,
     HardMediumSoftDecimal,
-    Bendable { hard_levels: usize, soft_levels: usize },
-    BendableDecimal { hard_levels: usize, soft_levels: usize },
+    Bendable {
+        hard_levels: usize,
+        soft_levels: usize,
+    },
+    BendableDecimal {
+        hard_levels: usize,
+        soft_levels: usize,
+    },
 }
 
 #[cfg(test)]
@@ -216,11 +254,12 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningEntity)
             .with_field(
                 FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                    .with_planning_annotation(PlanningAnnotation::PlanningId)
+                    .with_planning_annotation(PlanningAnnotation::PlanningId),
             )
             .with_field(
-                FieldDescriptor::new("room", FieldType::object("Room"))
-                    .with_planning_annotation(PlanningAnnotation::planning_variable(vec!["rooms".to_string()]))
+                FieldDescriptor::new("room", FieldType::object("Room")).with_planning_annotation(
+                    PlanningAnnotation::planning_variable(vec!["rooms".to_string()]),
+                ),
             );
 
         assert!(class.is_planning_entity());
@@ -232,7 +271,9 @@ mod tests {
     #[test]
     fn test_field_descriptor() {
         let field = FieldDescriptor::new("room", FieldType::object("Room"))
-            .with_planning_annotation(PlanningAnnotation::planning_variable(vec!["rooms".to_string()]))
+            .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
+                "rooms".to_string()
+            ]))
             .with_accessor(DomainAccessor::from_field_name("room"));
 
         assert!(field.is_planning_variable());
@@ -275,12 +316,18 @@ mod tests {
     fn test_field_type_nested() {
         let map = FieldType::map(
             FieldType::Primitive(PrimitiveType::String),
-            FieldType::list(FieldType::object("Lesson"))
+            FieldType::list(FieldType::object("Lesson")),
         );
 
         match map {
-            FieldType::Map { key_type, value_type } => {
-                assert!(matches!(*key_type, FieldType::Primitive(PrimitiveType::String)));
+            FieldType::Map {
+                key_type,
+                value_type,
+            } => {
+                assert!(matches!(
+                    *key_type,
+                    FieldType::Primitive(PrimitiveType::String)
+                ));
                 assert!(matches!(*value_type, FieldType::List { .. }));
             }
             _ => panic!("Expected Map"),
@@ -289,9 +336,15 @@ mod tests {
 
     #[test]
     fn test_score_type() {
-        let bendable = ScoreType::Bendable { hard_levels: 2, soft_levels: 3 };
+        let bendable = ScoreType::Bendable {
+            hard_levels: 2,
+            soft_levels: 3,
+        };
         match bendable {
-            ScoreType::Bendable { hard_levels, soft_levels } => {
+            ScoreType::Bendable {
+                hard_levels,
+                soft_levels,
+            } => {
                 assert_eq!(hard_levels, 2);
                 assert_eq!(soft_levels, 3);
             }
@@ -312,7 +365,7 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningSolution)
             .with_field(
                 FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                    .with_planning_annotation(PlanningAnnotation::planning_score())
+                    .with_planning_annotation(PlanningAnnotation::planning_score()),
             );
 
         assert!(solution.is_planning_solution());
@@ -325,7 +378,7 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningEntity)
             .with_field(
                 FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                    .with_planning_annotation(PlanningAnnotation::PlanningId)
+                    .with_planning_annotation(PlanningAnnotation::PlanningId),
             );
 
         let json = serde_json::to_string(&class).unwrap();

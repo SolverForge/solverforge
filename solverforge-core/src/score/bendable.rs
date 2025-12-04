@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct BendableScore {
     pub hard_scores: Vec<i64>,
     pub soft_scores: Vec<i64>,
@@ -14,7 +14,10 @@ pub struct BendableScore {
 
 impl BendableScore {
     pub fn of(hard_scores: Vec<i64>, soft_scores: Vec<i64>) -> Self {
-        Self { hard_scores, soft_scores }
+        Self {
+            hard_scores,
+            soft_scores,
+        }
     }
 
     pub fn zero(hard_levels: usize, soft_levels: usize) -> Self {
@@ -70,22 +73,31 @@ impl BendableScore {
         let hard_scores = if hard_part.is_empty() {
             vec![]
         } else {
-            hard_part.split('/')
+            hard_part
+                .split('/')
                 .map(|s| s.trim().parse::<i64>())
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| SolverForgeError::Serialization(format!("Invalid hard score: {}", e)))?
+                .map_err(|e| {
+                    SolverForgeError::Serialization(format!("Invalid hard score: {}", e))
+                })?
         };
 
         let soft_scores = if soft_part.is_empty() {
             vec![]
         } else {
-            soft_part.split('/')
+            soft_part
+                .split('/')
                 .map(|s| s.trim().parse::<i64>())
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| SolverForgeError::Serialization(format!("Invalid soft score: {}", e)))?
+                .map_err(|e| {
+                    SolverForgeError::Serialization(format!("Invalid soft score: {}", e))
+                })?
         };
 
-        Ok(Self { hard_scores, soft_scores })
+        Ok(Self {
+            hard_scores,
+            soft_scores,
+        })
     }
 }
 
@@ -114,11 +126,15 @@ impl Score for BendableScore {
 
     fn add(&self, other: &Self) -> Self {
         Self {
-            hard_scores: self.hard_scores.iter()
+            hard_scores: self
+                .hard_scores
+                .iter()
                 .zip(other.hard_scores.iter())
                 .map(|(&a, &b)| a + b)
                 .collect(),
-            soft_scores: self.soft_scores.iter()
+            soft_scores: self
+                .soft_scores
+                .iter()
                 .zip(other.soft_scores.iter())
                 .map(|(&a, &b)| a + b)
                 .collect(),
@@ -127,11 +143,15 @@ impl Score for BendableScore {
 
     fn subtract(&self, other: &Self) -> Self {
         Self {
-            hard_scores: self.hard_scores.iter()
+            hard_scores: self
+                .hard_scores
+                .iter()
                 .zip(other.hard_scores.iter())
                 .map(|(&a, &b)| a - b)
                 .collect(),
-            soft_scores: self.soft_scores.iter()
+            soft_scores: self
+                .soft_scores
+                .iter()
                 .zip(other.soft_scores.iter())
                 .map(|(&a, &b)| a - b)
                 .collect(),
@@ -165,11 +185,15 @@ impl Ord for BendableScore {
 
 impl fmt::Display for BendableScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let hard = self.hard_scores.iter()
+        let hard = self
+            .hard_scores
+            .iter()
             .map(|s| s.to_string())
             .collect::<Vec<_>>()
             .join("/");
-        let soft = self.soft_scores.iter()
+        let soft = self
+            .soft_scores
+            .iter()
             .map(|s| s.to_string())
             .collect::<Vec<_>>()
             .join("/");
@@ -198,18 +222,9 @@ impl Neg for BendableScore {
     }
 }
 
-impl Default for BendableScore {
-    fn default() -> Self {
-        Self {
-            hard_scores: vec![],
-            soft_scores: vec![],
-        }
-    }
-}
-
 // BendableDecimalScore
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct BendableDecimalScore {
     pub hard_scores: Vec<Decimal>,
     pub soft_scores: Vec<Decimal>,
@@ -217,7 +232,10 @@ pub struct BendableDecimalScore {
 
 impl BendableDecimalScore {
     pub fn of(hard_scores: Vec<Decimal>, soft_scores: Vec<Decimal>) -> Self {
-        Self { hard_scores, soft_scores }
+        Self {
+            hard_scores,
+            soft_scores,
+        }
     }
 
     pub fn zero(hard_levels: usize, soft_levels: usize) -> Self {
@@ -239,7 +257,10 @@ impl BendableDecimalScore {
         let text = text.trim();
 
         let hard_end = text.find("]hard/[").ok_or_else(|| {
-            SolverForgeError::Serialization(format!("Invalid BendableDecimalScore format: {}", text))
+            SolverForgeError::Serialization(format!(
+                "Invalid BendableDecimalScore format: {}",
+                text
+            ))
         })?;
 
         let hard_part = &text[1..hard_end];
@@ -250,22 +271,31 @@ impl BendableDecimalScore {
         let hard_scores = if hard_part.is_empty() {
             vec![]
         } else {
-            hard_part.split('/')
+            hard_part
+                .split('/')
                 .map(|s| s.trim().parse::<Decimal>())
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| SolverForgeError::Serialization(format!("Invalid hard score: {}", e)))?
+                .map_err(|e| {
+                    SolverForgeError::Serialization(format!("Invalid hard score: {}", e))
+                })?
         };
 
         let soft_scores = if soft_part.is_empty() {
             vec![]
         } else {
-            soft_part.split('/')
+            soft_part
+                .split('/')
                 .map(|s| s.trim().parse::<Decimal>())
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| SolverForgeError::Serialization(format!("Invalid soft score: {}", e)))?
+                .map_err(|e| {
+                    SolverForgeError::Serialization(format!("Invalid soft score: {}", e))
+                })?
         };
 
-        Ok(Self { hard_scores, soft_scores })
+        Ok(Self {
+            hard_scores,
+            soft_scores,
+        })
     }
 }
 
@@ -294,11 +324,15 @@ impl Score for BendableDecimalScore {
 
     fn add(&self, other: &Self) -> Self {
         Self {
-            hard_scores: self.hard_scores.iter()
+            hard_scores: self
+                .hard_scores
+                .iter()
                 .zip(other.hard_scores.iter())
                 .map(|(&a, &b)| a + b)
                 .collect(),
-            soft_scores: self.soft_scores.iter()
+            soft_scores: self
+                .soft_scores
+                .iter()
                 .zip(other.soft_scores.iter())
                 .map(|(&a, &b)| a + b)
                 .collect(),
@@ -307,11 +341,15 @@ impl Score for BendableDecimalScore {
 
     fn subtract(&self, other: &Self) -> Self {
         Self {
-            hard_scores: self.hard_scores.iter()
+            hard_scores: self
+                .hard_scores
+                .iter()
                 .zip(other.hard_scores.iter())
                 .map(|(&a, &b)| a - b)
                 .collect(),
-            soft_scores: self.soft_scores.iter()
+            soft_scores: self
+                .soft_scores
+                .iter()
                 .zip(other.soft_scores.iter())
                 .map(|(&a, &b)| a - b)
                 .collect(),
@@ -345,11 +383,15 @@ impl Ord for BendableDecimalScore {
 
 impl fmt::Display for BendableDecimalScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let hard = self.hard_scores.iter()
+        let hard = self
+            .hard_scores
+            .iter()
             .map(|s| s.to_string())
             .collect::<Vec<_>>()
             .join("/");
-        let soft = self.soft_scores.iter()
+        let soft = self
+            .soft_scores
+            .iter()
             .map(|s| s.to_string())
             .collect::<Vec<_>>()
             .join("/");
@@ -375,15 +417,6 @@ impl Neg for BendableDecimalScore {
     type Output = Self;
     fn neg(self) -> Self {
         Score::negate(&self)
-    }
-}
-
-impl Default for BendableDecimalScore {
-    fn default() -> Self {
-        Self {
-            hard_scores: vec![],
-            soft_scores: vec![],
-        }
     }
 }
 
@@ -425,9 +458,15 @@ mod tests {
 
         #[test]
         fn test_comparison() {
-            assert!(BendableScore::of(vec![1, 0], vec![0]) > BendableScore::of(vec![0, 100], vec![100]));
-            assert!(BendableScore::of(vec![0, 1], vec![0]) > BendableScore::of(vec![0, 0], vec![100]));
-            assert!(BendableScore::of(vec![0, 0], vec![10]) > BendableScore::of(vec![0, 0], vec![5]));
+            assert!(
+                BendableScore::of(vec![1, 0], vec![0]) > BendableScore::of(vec![0, 100], vec![100])
+            );
+            assert!(
+                BendableScore::of(vec![0, 1], vec![0]) > BendableScore::of(vec![0, 0], vec![100])
+            );
+            assert!(
+                BendableScore::of(vec![0, 0], vec![10]) > BendableScore::of(vec![0, 0], vec![5])
+            );
         }
 
         #[test]
@@ -489,7 +528,10 @@ mod tests {
 
         #[test]
         fn test_is_feasible() {
-            assert!(BendableDecimalScore::of(vec![Decimal::ZERO], vec![Decimal::new(-100, 0)]).is_feasible());
+            assert!(
+                BendableDecimalScore::of(vec![Decimal::ZERO], vec![Decimal::new(-100, 0)])
+                    .is_feasible()
+            );
             assert!(!BendableDecimalScore::of(vec![Decimal::new(-1, 0)], vec![]).is_feasible());
         }
 

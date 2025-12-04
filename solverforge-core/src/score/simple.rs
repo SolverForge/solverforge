@@ -20,9 +20,9 @@ impl SimpleScore {
 
     pub fn parse(text: &str) -> Result<Self, SolverForgeError> {
         let text = text.trim();
-        let score = text.parse::<i64>().map_err(|e| {
-            SolverForgeError::Serialization(format!("Invalid SimpleScore: {}", e))
-        })?;
+        let score = text
+            .parse::<i64>()
+            .map_err(|e| SolverForgeError::Serialization(format!("Invalid SimpleScore: {}", e)))?;
         Ok(Self { score })
     }
 }
@@ -45,11 +45,15 @@ impl Score for SimpleScore {
     }
 
     fn add(&self, other: &Self) -> Self {
-        Self { score: self.score + other.score }
+        Self {
+            score: self.score + other.score,
+        }
     }
 
     fn subtract(&self, other: &Self) -> Self {
-        Self { score: self.score - other.score }
+        Self {
+            score: self.score - other.score,
+        }
     }
 }
 

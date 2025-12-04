@@ -16,7 +16,10 @@ pub struct HardSoftDecimalScore {
 
 impl HardSoftDecimalScore {
     pub fn of(hard_score: Decimal, soft_score: Decimal) -> Self {
-        Self { hard_score, soft_score }
+        Self {
+            hard_score,
+            soft_score,
+        }
     }
 
     pub fn of_i64(hard_score: i64, soft_score: i64) -> Self {
@@ -27,43 +30,68 @@ impl HardSoftDecimalScore {
     }
 
     pub fn of_hard(hard_score: Decimal) -> Self {
-        Self { hard_score, soft_score: Decimal::ZERO }
+        Self {
+            hard_score,
+            soft_score: Decimal::ZERO,
+        }
     }
 
     pub fn of_soft(soft_score: Decimal) -> Self {
-        Self { hard_score: Decimal::ZERO, soft_score }
+        Self {
+            hard_score: Decimal::ZERO,
+            soft_score,
+        }
     }
 
     pub fn zero() -> Self {
-        Self { hard_score: Decimal::ZERO, soft_score: Decimal::ZERO }
+        Self {
+            hard_score: Decimal::ZERO,
+            soft_score: Decimal::ZERO,
+        }
     }
 
     pub fn one_hard() -> Self {
-        Self { hard_score: Decimal::ONE, soft_score: Decimal::ZERO }
+        Self {
+            hard_score: Decimal::ONE,
+            soft_score: Decimal::ZERO,
+        }
     }
 
     pub fn one_soft() -> Self {
-        Self { hard_score: Decimal::ZERO, soft_score: Decimal::ONE }
+        Self {
+            hard_score: Decimal::ZERO,
+            soft_score: Decimal::ONE,
+        }
     }
 
     pub fn parse(text: &str) -> Result<Self, SolverForgeError> {
         let text = text.trim();
         let parts: Vec<&str> = text.split('/').collect();
         if parts.len() != 2 {
-            return Err(SolverForgeError::Serialization(
-                format!("Invalid HardSoftDecimalScore format: expected 'hard/soft', got '{}'", text)
-            ));
+            return Err(SolverForgeError::Serialization(format!(
+                "Invalid HardSoftDecimalScore format: expected 'hard/soft', got '{}'",
+                text
+            )));
         }
 
-        let hard = parts[0].trim().trim_end_matches("hard").trim()
+        let hard = parts[0]
+            .trim()
+            .trim_end_matches("hard")
+            .trim()
             .parse::<Decimal>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid hard score: {}", e)))?;
 
-        let soft = parts[1].trim().trim_end_matches("soft").trim()
+        let soft = parts[1]
+            .trim()
+            .trim_end_matches("soft")
+            .trim()
             .parse::<Decimal>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid soft score: {}", e)))?;
 
-        Ok(Self { hard_score: hard, soft_score: soft })
+        Ok(Self {
+            hard_score: hard,
+            soft_score: soft,
+        })
     }
 }
 
@@ -77,7 +105,10 @@ impl Score for HardSoftDecimalScore {
     }
 
     fn zero() -> Self {
-        Self { hard_score: Decimal::ZERO, soft_score: Decimal::ZERO }
+        Self {
+            hard_score: Decimal::ZERO,
+            soft_score: Decimal::ZERO,
+        }
     }
 
     fn negate(&self) -> Self {
@@ -164,7 +195,11 @@ pub struct HardMediumSoftDecimalScore {
 
 impl HardMediumSoftDecimalScore {
     pub fn of(hard_score: Decimal, medium_score: Decimal, soft_score: Decimal) -> Self {
-        Self { hard_score, medium_score, soft_score }
+        Self {
+            hard_score,
+            medium_score,
+            soft_score,
+        }
     }
 
     pub fn of_i64(hard_score: i64, medium_score: i64, soft_score: i64) -> Self {
@@ -211,24 +246,38 @@ impl HardMediumSoftDecimalScore {
         let text = text.trim();
         let parts: Vec<&str> = text.split('/').collect();
         if parts.len() != 3 {
-            return Err(SolverForgeError::Serialization(
-                format!("Invalid HardMediumSoftDecimalScore format: expected 'hard/medium/soft', got '{}'", text)
-            ));
+            return Err(SolverForgeError::Serialization(format!(
+                "Invalid HardMediumSoftDecimalScore format: expected 'hard/medium/soft', got '{}'",
+                text
+            )));
         }
 
-        let hard = parts[0].trim().trim_end_matches("hard").trim()
+        let hard = parts[0]
+            .trim()
+            .trim_end_matches("hard")
+            .trim()
             .parse::<Decimal>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid hard score: {}", e)))?;
 
-        let medium = parts[1].trim().trim_end_matches("medium").trim()
+        let medium = parts[1]
+            .trim()
+            .trim_end_matches("medium")
+            .trim()
             .parse::<Decimal>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid medium score: {}", e)))?;
 
-        let soft = parts[2].trim().trim_end_matches("soft").trim()
+        let soft = parts[2]
+            .trim()
+            .trim_end_matches("soft")
+            .trim()
             .parse::<Decimal>()
             .map_err(|e| SolverForgeError::Serialization(format!("Invalid soft score: {}", e)))?;
 
-        Ok(Self { hard_score: hard, medium_score: medium, soft_score: soft })
+        Ok(Self {
+            hard_score: hard,
+            medium_score: medium,
+            soft_score: soft,
+        })
     }
 }
 
@@ -294,7 +343,11 @@ impl Ord for HardMediumSoftDecimalScore {
 
 impl fmt::Display for HardMediumSoftDecimalScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}hard/{}medium/{}soft", self.hard_score, self.medium_score, self.soft_score)
+        write!(
+            f,
+            "{}hard/{}medium/{}soft",
+            self.hard_score, self.medium_score, self.soft_score
+        )
     }
 }
 
@@ -334,10 +387,7 @@ mod tests {
 
         #[test]
         fn test_of() {
-            let score = HardSoftDecimalScore::of(
-                Decimal::new(-50, 1),
-                Decimal::new(100, 1),
-            );
+            let score = HardSoftDecimalScore::of(Decimal::new(-50, 1), Decimal::new(100, 1));
             assert_eq!(score.hard_score, Decimal::new(-50, 1));
             assert_eq!(score.soft_score, Decimal::new(100, 1));
         }
@@ -345,7 +395,9 @@ mod tests {
         #[test]
         fn test_is_feasible() {
             assert!(HardSoftDecimalScore::of(Decimal::ZERO, Decimal::new(-100, 0)).is_feasible());
-            assert!(!HardSoftDecimalScore::of(Decimal::new(-1, 0), Decimal::new(100, 0)).is_feasible());
+            assert!(
+                !HardSoftDecimalScore::of(Decimal::new(-1, 0), Decimal::new(100, 0)).is_feasible()
+            );
         }
 
         #[test]
@@ -396,14 +448,25 @@ mod tests {
 
         #[test]
         fn test_is_feasible() {
-            assert!(HardMediumSoftDecimalScore::of(Decimal::ZERO, Decimal::new(-100, 0), Decimal::new(-100, 0)).is_feasible());
-            assert!(!HardMediumSoftDecimalScore::of(Decimal::new(-1, 0), Decimal::new(100, 0), Decimal::new(100, 0)).is_feasible());
+            assert!(HardMediumSoftDecimalScore::of(
+                Decimal::ZERO,
+                Decimal::new(-100, 0),
+                Decimal::new(-100, 0)
+            )
+            .is_feasible());
+            assert!(!HardMediumSoftDecimalScore::of(
+                Decimal::new(-1, 0),
+                Decimal::new(100, 0),
+                Decimal::new(100, 0)
+            )
+            .is_feasible());
         }
 
         #[test]
         fn test_comparison() {
             let a = HardMediumSoftDecimalScore::of(Decimal::ZERO, Decimal::ONE, Decimal::ZERO);
-            let b = HardMediumSoftDecimalScore::of(Decimal::ZERO, Decimal::ZERO, Decimal::new(100, 0));
+            let b =
+                HardMediumSoftDecimalScore::of(Decimal::ZERO, Decimal::ZERO, Decimal::new(100, 0));
             assert!(a > b);
         }
 

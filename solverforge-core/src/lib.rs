@@ -38,21 +38,20 @@
 //! map.insert(obj_handle, "object 1");
 //! ```
 
+pub mod domain;
 mod error;
 mod handles;
 pub mod score;
-pub mod domain;
 mod value;
 
+pub use domain::{
+    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
+    ShadowAnnotation,
+};
 pub use error::{SolverForgeError, SolverForgeResult};
 pub use handles::{FunctionHandle, ObjectHandle};
 pub use score::{
-    Score, SimpleScore, HardSoftScore, HardMediumSoftScore,
-    SimpleDecimalScore, HardSoftDecimalScore, HardMediumSoftDecimalScore,
-    BendableScore, BendableDecimalScore,
-};
-pub use domain::{
-    PlanningAnnotation, ShadowAnnotation,
-    ConstraintWeight, ConstraintConfiguration, DeepPlanningClone,
+    BendableDecimalScore, BendableScore, HardMediumSoftDecimalScore, HardMediumSoftScore,
+    HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
 };
 pub use value::Value;

@@ -1,9 +1,13 @@
 mod annotations;
-mod shadow;
-mod constraint_config;
 mod class;
+mod constraint_config;
+mod model;
+mod shadow;
 
 pub use annotations::*;
+pub use class::{
+    DomainAccessor, DomainClass, FieldDescriptor, FieldType, PrimitiveType, ScoreType,
+};
+pub use constraint_config::{ConstraintConfiguration, ConstraintWeight, DeepPlanningClone};
+pub use model::{DomainModel, DomainModelBuilder};
 pub use shadow::ShadowAnnotation;
-pub use constraint_config::{ConstraintWeight, ConstraintConfiguration, DeepPlanningClone};
-pub use class::{DomainClass, FieldDescriptor, DomainAccessor, FieldType, PrimitiveType, ScoreType};

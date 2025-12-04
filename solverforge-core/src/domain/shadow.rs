@@ -93,12 +93,25 @@ impl ShadowAnnotation {
 
     pub fn source_variable_name(&self) -> Option<&str> {
         match self {
-            ShadowAnnotation::ShadowVariable { source_variable_name, .. } => Some(source_variable_name),
-            ShadowAnnotation::InverseRelationShadowVariable { source_variable_name } => Some(source_variable_name),
-            ShadowAnnotation::IndexShadowVariable { source_variable_name } => Some(source_variable_name),
-            ShadowAnnotation::PreviousElementShadowVariable { source_variable_name } => Some(source_variable_name),
-            ShadowAnnotation::NextElementShadowVariable { source_variable_name } => Some(source_variable_name),
-            ShadowAnnotation::AnchorShadowVariable { source_variable_name } => Some(source_variable_name),
+            ShadowAnnotation::ShadowVariable {
+                source_variable_name,
+                ..
+            } => Some(source_variable_name),
+            ShadowAnnotation::InverseRelationShadowVariable {
+                source_variable_name,
+            } => Some(source_variable_name),
+            ShadowAnnotation::IndexShadowVariable {
+                source_variable_name,
+            } => Some(source_variable_name),
+            ShadowAnnotation::PreviousElementShadowVariable {
+                source_variable_name,
+            } => Some(source_variable_name),
+            ShadowAnnotation::NextElementShadowVariable {
+                source_variable_name,
+            } => Some(source_variable_name),
+            ShadowAnnotation::AnchorShadowVariable {
+                source_variable_name,
+            } => Some(source_variable_name),
             ShadowAnnotation::PiggybackShadowVariable { .. } => None,
             ShadowAnnotation::CascadingUpdateShadowVariable { .. } => None,
         }
@@ -123,7 +136,10 @@ mod tests {
     fn test_shadow_variable() {
         let ann = ShadowAnnotation::shadow_variable("room");
         match ann {
-            ShadowAnnotation::ShadowVariable { source_variable_name, source_entity_class } => {
+            ShadowAnnotation::ShadowVariable {
+                source_variable_name,
+                source_entity_class,
+            } => {
                 assert_eq!(source_variable_name, "room");
                 assert!(source_entity_class.is_none());
             }
@@ -135,7 +151,10 @@ mod tests {
     fn test_shadow_variable_with_class() {
         let ann = ShadowAnnotation::shadow_variable_with_class("room", "Lesson");
         match ann {
-            ShadowAnnotation::ShadowVariable { source_variable_name, source_entity_class } => {
+            ShadowAnnotation::ShadowVariable {
+                source_variable_name,
+                source_entity_class,
+            } => {
                 assert_eq!(source_variable_name, "room");
                 assert_eq!(source_entity_class, Some("Lesson".to_string()));
             }
@@ -147,7 +166,9 @@ mod tests {
     fn test_inverse_relation() {
         let ann = ShadowAnnotation::inverse_relation("visits");
         match ann {
-            ShadowAnnotation::InverseRelationShadowVariable { source_variable_name } => {
+            ShadowAnnotation::InverseRelationShadowVariable {
+                source_variable_name,
+            } => {
                 assert_eq!(source_variable_name, "visits");
             }
             _ => panic!("Expected InverseRelationShadowVariable"),
@@ -158,7 +179,9 @@ mod tests {
     fn test_index() {
         let ann = ShadowAnnotation::index("taskList");
         match ann {
-            ShadowAnnotation::IndexShadowVariable { source_variable_name } => {
+            ShadowAnnotation::IndexShadowVariable {
+                source_variable_name,
+            } => {
                 assert_eq!(source_variable_name, "taskList");
             }
             _ => panic!("Expected IndexShadowVariable"),
@@ -169,7 +192,9 @@ mod tests {
     fn test_previous_element() {
         let ann = ShadowAnnotation::previous_element("taskList");
         match ann {
-            ShadowAnnotation::PreviousElementShadowVariable { source_variable_name } => {
+            ShadowAnnotation::PreviousElementShadowVariable {
+                source_variable_name,
+            } => {
                 assert_eq!(source_variable_name, "taskList");
             }
             _ => panic!("Expected PreviousElementShadowVariable"),
@@ -180,7 +205,9 @@ mod tests {
     fn test_next_element() {
         let ann = ShadowAnnotation::next_element("taskList");
         match ann {
-            ShadowAnnotation::NextElementShadowVariable { source_variable_name } => {
+            ShadowAnnotation::NextElementShadowVariable {
+                source_variable_name,
+            } => {
                 assert_eq!(source_variable_name, "taskList");
             }
             _ => panic!("Expected NextElementShadowVariable"),
@@ -191,7 +218,9 @@ mod tests {
     fn test_anchor() {
         let ann = ShadowAnnotation::anchor("taskList");
         match ann {
-            ShadowAnnotation::AnchorShadowVariable { source_variable_name } => {
+            ShadowAnnotation::AnchorShadowVariable {
+                source_variable_name,
+            } => {
                 assert_eq!(source_variable_name, "taskList");
             }
             _ => panic!("Expected AnchorShadowVariable"),
@@ -202,7 +231,9 @@ mod tests {
     fn test_piggyback() {
         let ann = ShadowAnnotation::piggyback("arrivalTime");
         match ann {
-            ShadowAnnotation::PiggybackShadowVariable { shadow_variable_name } => {
+            ShadowAnnotation::PiggybackShadowVariable {
+                shadow_variable_name,
+            } => {
                 assert_eq!(shadow_variable_name, "arrivalTime");
             }
             _ => panic!("Expected PiggybackShadowVariable"),
@@ -222,14 +253,38 @@ mod tests {
 
     #[test]
     fn test_source_variable_name() {
-        assert_eq!(ShadowAnnotation::shadow_variable("room").source_variable_name(), Some("room"));
-        assert_eq!(ShadowAnnotation::inverse_relation("visits").source_variable_name(), Some("visits"));
-        assert_eq!(ShadowAnnotation::index("tasks").source_variable_name(), Some("tasks"));
-        assert_eq!(ShadowAnnotation::previous_element("tasks").source_variable_name(), Some("tasks"));
-        assert_eq!(ShadowAnnotation::next_element("tasks").source_variable_name(), Some("tasks"));
-        assert_eq!(ShadowAnnotation::anchor("tasks").source_variable_name(), Some("tasks"));
-        assert_eq!(ShadowAnnotation::piggyback("time").source_variable_name(), None);
-        assert_eq!(ShadowAnnotation::cascading_update("update").source_variable_name(), None);
+        assert_eq!(
+            ShadowAnnotation::shadow_variable("room").source_variable_name(),
+            Some("room")
+        );
+        assert_eq!(
+            ShadowAnnotation::inverse_relation("visits").source_variable_name(),
+            Some("visits")
+        );
+        assert_eq!(
+            ShadowAnnotation::index("tasks").source_variable_name(),
+            Some("tasks")
+        );
+        assert_eq!(
+            ShadowAnnotation::previous_element("tasks").source_variable_name(),
+            Some("tasks")
+        );
+        assert_eq!(
+            ShadowAnnotation::next_element("tasks").source_variable_name(),
+            Some("tasks")
+        );
+        assert_eq!(
+            ShadowAnnotation::anchor("tasks").source_variable_name(),
+            Some("tasks")
+        );
+        assert_eq!(
+            ShadowAnnotation::piggyback("time").source_variable_name(),
+            None
+        );
+        assert_eq!(
+            ShadowAnnotation::cascading_update("update").source_variable_name(),
+            None
+        );
     }
 
     #[test]

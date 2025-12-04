@@ -1,11 +1,11 @@
-//! Employee Scheduling integration test with larger problem
+//! Employee Scheduling integration test
 //!
-//! Tests a larger employee scheduling scenario with:
-//! - Multiple employees (5) and shifts (10)
-//! - Multiple constraints (penalizeId0, oneShiftPerEmployee)
+//! Tests employee scheduling with time-based constraints:
+//! - Employees and shifts with configurable scale (EMPLOYEE_COUNT, SHIFT_COUNT env vars)
+//! - Shifts have start/end times (3 shifts per day: morning, afternoon, night)
+//! - Constraints: penalizeId0, noOverlappingShifts (time-based overlap detection)
 //!
-//! The Java HostFunctionProvider now dynamically parses domain models,
-//! so we can use realistic fields matching the demo data structure.
+//! The Java HostFunctionProvider dynamically parses domain models from DTOs.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use indexmap::IndexMap;
@@ -16,17 +16,68 @@ use solverforge_core::{
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
 use std::collections::HashMap;
+use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
 const JAVA_24_HOME: &str = "/usr/lib64/jvm/java-24-openjdk-24";
 const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wasm-service");
 
+/// Generate problem JSON with configurable scale.
+/// Shifts are distributed across days with 3 shifts per day (morning, afternoon, night).
+///
+/// # Arguments
+/// * `employee_count` - Number of employees
+/// * `shift_count` - Number of shifts (will be rounded to multiple of 3)
+fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
+    let employees: Vec<String> = (0..employee_count)
+        .map(|id| format!(r#"{{"id": {}}}"#, id))
+        .collect();
+
+    // Generate shifts with times: 3 shifts per day (8-hour shifts)
+    // Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00
+    let shifts_per_day = 3;
+    let days = (shift_count + shifts_per_day - 1) / shifts_per_day;
+
+    let mut shifts = Vec::new();
+
+    for day in 0..days {
+        let day_offset = day * 24; // Hours since start
+
+        // Morning shift: 06:00-14:00
+        if shifts.len() < shift_count {
+            let start = day_offset + 6;
+            let end = day_offset + 14;
+            shifts.push(format!(r#"{{"start": {}, "end": {}}}"#, start, end));
+        }
+
+        // Afternoon shift: 14:00-22:00
+        if shifts.len() < shift_count {
+            let start = day_offset + 14;
+            let end = day_offset + 22;
+            shifts.push(format!(r#"{{"start": {}, "end": {}}}"#, start, end));
+        }
+
+        // Night shift: 22:00-06:00 (next day)
+        if shifts.len() < shift_count {
+            let start = day_offset + 22;
+            let end = day_offset + 30; // 06:00 next day
+            shifts.push(format!(r#"{{"start": {}, "end": {}}}"#, start, end));
+        }
+    }
+
+    format!(
+        r#"{{"employees": [{}], "shifts": [{}]}}"#,
+        employees.join(", "),
+        shifts.join(", ")
+    )
+}
+
 /// Employee Scheduling WASM module with constraint predicates.
 ///
 /// Memory layout (using Integer.SIZE = 32 byte offsets for compatibility):
 /// - Employee: [id: i32] (32 bytes per field)
-/// - Shift: [employee: i32] (32 bytes per field, pointer to Employee)
+/// - Shift: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8] (12 bytes total)
 /// - Schedule: [employees: i32 @ 0, shifts: i32 @ 32, score @ 64]
 const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 (module
@@ -115,7 +166,7 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
     )
 
     ;; ============== Shift Accessors ==============
-    ;; Memory layout: [employee: i32] (4 bytes, pointer to Employee)
+    ;; Memory layout: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8]
 
     (func (export "getEmployee") (param $shift i32) (result i32)
         (local.get $shift) (i32.load)
@@ -123,6 +174,14 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 
     (func (export "setEmployee") (param $shift i32) (param $employee i32)
         (local.get $shift) (local.get $employee) (i32.store)
+    )
+
+    (func (export "getShiftStart") (param $shift i32) (result i32)
+        (i32.load (i32.add (local.get $shift) (i32.const 4)))
+    )
+
+    (func (export "getShiftEnd") (param $shift i32) (result i32)
+        (i32.load (i32.add (local.get $shift) (i32.const 8)))
     )
 
     ;; Helper to get employee ID from shift (for constraint predicates)
@@ -176,12 +235,13 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
         (i32.eq (local.get $emp1) (local.get $emp2))
     )
 
-    ;; Check if two shifts have same employee AND are different shifts
-    ;; (To avoid self-comparison in join without unique pairs)
-    ;; Also only count when shift1 < shift2 to avoid double counting
-    (func (export "sameEmployeeAndDifferent") (param $shift1 i32) (param $shift2 i32) (result i32)
-        (local $emp1 i32)
-        (local $emp2 i32)
+    ;; Check if two shifts overlap in time AND have the same employee
+    ;; Returns 1 if: same employee AND time ranges overlap
+    ;; Only counts when shift1 < shift2 to avoid double counting
+    (func (export "shiftsOverlap") (param $shift1 i32) (param $shift2 i32) (result i32)
+        (local $emp1 i32) (local $emp2 i32)
+        (local $start1 i32) (local $end1 i32)
+        (local $start2 i32) (local $end2 i32)
 
         ;; Only count when shift1 address < shift2 address (avoid double counting)
         (if (i32.ge_u (local.get $shift1) (local.get $shift2))
@@ -192,13 +252,22 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
         (local.set $emp1 (i32.load (local.get $shift1)))
         (local.set $emp2 (i32.load (local.get $shift2)))
 
-        ;; If either is null (0), return 0 (no match)
-        (if (i32.or (i32.eqz (local.get $emp1)) (i32.eqz (local.get $emp2)))
+        ;; If different employees or either is null, no overlap conflict
+        (if (i32.or (i32.eqz (local.get $emp1)) (i32.ne (local.get $emp1) (local.get $emp2)))
             (then (return (i32.const 0)))
         )
 
-        ;; Return 1 if same employee pointer
-        (i32.eq (local.get $emp1) (local.get $emp2))
+        ;; Get times: start @ offset 4, end @ offset 8
+        (local.set $start1 (i32.load (i32.add (local.get $shift1) (i32.const 4))))
+        (local.set $end1 (i32.load (i32.add (local.get $shift1) (i32.const 8))))
+        (local.set $start2 (i32.load (i32.add (local.get $shift2) (i32.const 4))))
+        (local.set $end2 (i32.load (i32.add (local.get $shift2) (i32.const 8))))
+
+        ;; Overlap if: start1 < end2 AND start2 < end1
+        (i32.and
+            (i32.lt_s (local.get $start1) (local.get $end2))
+            (i32.lt_s (local.get $start2) (local.get $end1))
+        )
     )
 
     ;; Utility predicates
@@ -225,15 +294,24 @@ fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
         ),
     );
 
-    // Shift with PlanningVariable
+    // Shift with PlanningVariable and time fields
     domain.insert(
         "Shift".to_string(),
-        DomainObjectDto::new().with_field(
-            "employee",
-            FieldDescriptor::new("Employee")
-                .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                .with_annotation(PA::planning_variable()),
-        ),
+        DomainObjectDto::new()
+            .with_field(
+                "employee",
+                FieldDescriptor::new("Employee")
+                    .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
+                    .with_annotation(PA::planning_variable()),
+            )
+            .with_field(
+                "start",
+                FieldDescriptor::new("int").with_accessor(DomainAccessor::new("getShiftStart")),
+            )
+            .with_field(
+                "end",
+                FieldDescriptor::new("int").with_accessor(DomainAccessor::new("getShiftEnd")),
+            ),
     );
 
     // Schedule (solution) with collections and score
@@ -282,16 +360,15 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
         ],
     );
 
-    // Constraint 2: One shift per employee (no double booking)
-    // forEach(Shift).join(Shift).filter(sameEmployee).penalize(1)
-    // Uses join instead of forEachUniquePair since Shift has no PlanningId
-    // This will count each conflict twice, so penalty is doubled
+    // Constraint 2: No overlapping shifts for same employee
+    // forEach(Shift).join(Shift).filter(shiftsOverlap).penalize(1)
+    // shiftsOverlap checks: same employee AND time ranges overlap AND shift1 < shift2
     constraints.insert(
-        "oneShiftPerEmployee".to_string(),
+        "noOverlappingShifts".to_string(),
         vec![
             StreamComponent::for_each("Shift"),
             StreamComponent::join("Shift"),
-            StreamComponent::filter(WasmFunction::new("sameEmployeeAndDifferent")),
+            StreamComponent::filter(WasmFunction::new("shiftsOverlap")),
             StreamComponent::penalize("1"),
         ],
     );
@@ -327,36 +404,27 @@ fn test_employee_scheduling_solve() {
         "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
     );
 
-    // Larger problem: 5 employees, 10 shifts
-    // Employees: id 0, 1, 2, 3, 4
+    // Configurable problem scale via environment variables
+    let employee_count: usize = env::var("EMPLOYEE_COUNT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5);
+    let shift_count: usize = env::var("SHIFT_COUNT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
+
+    println!("\n=== Problem Scale ===");
+    println!("Employees: {}", employee_count);
+    println!("Shifts: {}", shift_count);
+
     // Constraints:
     // - penalizeId0: Avoid assigning employee 0 (id=0)
-    // - oneShiftPerEmployee: Each employee should work at most one shift
+    // - noOverlappingShifts: Same employee can't work overlapping time slots
     //
-    // With 5 employees and 10 shifts, some employees MUST work multiple shifts,
-    // so the oneShiftPerEmployee constraint will have violations.
-    // The solver should minimize violations while avoiding employee 0.
-    let problem_json = r#"{
-        "employees": [
-            {"id": 0},
-            {"id": 1},
-            {"id": 2},
-            {"id": 3},
-            {"id": 4}
-        ],
-        "shifts": [
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {}
-        ]
-    }"#;
+    // With 3 non-overlapping shifts per day and multiple days, employees CAN
+    // work multiple shifts as long as they don't overlap in time.
+    let problem_json = generate_problem_json(employee_count, shift_count);
 
     let request = SolveRequest::new(
         domain,
@@ -367,8 +435,15 @@ fn test_employee_scheduling_solve() {
         list_accessor,
         problem_json.to_string(),
     )
-    .with_environment_mode("FULL_ASSERT")
-    .with_termination(TerminationConfig::new().with_move_count_limit(1000));
+    .with_environment_mode(env::var("SOLVER_MODE").unwrap_or_else(|_| "FULL_ASSERT".to_string()))
+    .with_termination(
+        TerminationConfig::new().with_move_count_limit(
+            env::var("MOVE_LIMIT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1000),
+        ),
+    );
 
     // Send to solver
     let client = reqwest::blocking::Client::builder()
@@ -425,7 +500,12 @@ fn test_employee_scheduling_solve() {
     // Verify solution structure
     let shifts = solution.get("shifts").expect("Solution should have shifts");
     let shifts_array = shifts.as_array().expect("shifts should be an array");
-    assert_eq!(shifts_array.len(), 10, "Should have 10 shifts");
+    assert_eq!(
+        shifts_array.len(),
+        shift_count,
+        "Should have {} shifts",
+        shift_count
+    );
 
     // Verify each shift has an employee assigned
     for (i, shift) in shifts_array.iter().enumerate() {
@@ -454,26 +534,21 @@ fn test_employee_scheduling_solve() {
     println!("Employee 0 assigned {} shifts", employee0_count);
 
     // With the penalizeId0 constraint, the solver should minimize assignments to employee 0
-    // Since we have 5 employees and 10 shifts, optimal would assign 2-3 shifts each to
-    // employees 1-4, with minimal/no shifts to employee 0
+    // The oneShiftPerEmployee constraint penalizes multiple shifts per employee
 
     // The score should reflect the penalties incurred
     // SimpleScore format is just an integer
     let score: i64 = score_str.parse().unwrap_or(-999);
 
-    // The optimal solution:
-    // - penalizeId0: 0 if employee 0 has no shifts
-    // - oneShiftPerEmployee: For 10 shifts with 5 employees (excluding emp 0 = 4 employees),
-    //   if we use only 4 employees, each has 2-3 shifts, so pairs penalty =
-    //   sum of (n choose 2) for n=2,2,3,3 = 1+1+3+3 = 8, or if n=2,2,2,4 = 1+1+1+6 = 9
-    //   With 5 employees each having 2 shifts = 5 * 1 = 5
-    //
-    // Score should be negative (penalties) or close to 0
-
     println!("\n=== Summary ===");
     println!(
-        "Score: {} (oneShiftPerEmployee constraint violations)",
-        score
+        "Scale: {} employees, {} shifts",
+        employee_count, shift_count
+    );
+    println!("Score: {} (constraint violations)", score);
+    println!(
+        "Employee 0 assignments: {} (should be minimized)",
+        employee0_count
     );
     println!("Test completed successfully - solver found a solution!");
 }

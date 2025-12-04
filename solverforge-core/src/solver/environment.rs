@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EnvironmentMode {
     NonReproducible,
-    NoAssert,
     #[default]
+    Reproducible,
+    NoAssert,
     PhaseAssert,
     StepAssert,
     FullAssert,
@@ -16,7 +17,9 @@ impl EnvironmentMode {
     pub fn is_asserted(&self) -> bool {
         !matches!(
             self,
-            EnvironmentMode::NonReproducible | EnvironmentMode::NoAssert
+            EnvironmentMode::NonReproducible
+                | EnvironmentMode::Reproducible
+                | EnvironmentMode::NoAssert
         )
     }
 
@@ -68,12 +71,13 @@ mod tests {
     #[test]
     fn test_environment_mode_default() {
         let mode: EnvironmentMode = Default::default();
-        assert_eq!(mode, EnvironmentMode::PhaseAssert);
+        assert_eq!(mode, EnvironmentMode::Reproducible);
     }
 
     #[test]
     fn test_environment_mode_is_asserted() {
         assert!(!EnvironmentMode::NonReproducible.is_asserted());
+        assert!(!EnvironmentMode::Reproducible.is_asserted());
         assert!(!EnvironmentMode::NoAssert.is_asserted());
         assert!(EnvironmentMode::PhaseAssert.is_asserted());
         assert!(EnvironmentMode::StepAssert.is_asserted());
@@ -84,6 +88,7 @@ mod tests {
     #[test]
     fn test_environment_mode_is_reproducible() {
         assert!(!EnvironmentMode::NonReproducible.is_reproducible());
+        assert!(EnvironmentMode::Reproducible.is_reproducible());
         assert!(EnvironmentMode::NoAssert.is_reproducible());
         assert!(EnvironmentMode::PhaseAssert.is_reproducible());
         assert!(EnvironmentMode::StepAssert.is_reproducible());
@@ -94,6 +99,7 @@ mod tests {
     #[test]
     fn test_environment_mode_is_tracked() {
         assert!(!EnvironmentMode::NonReproducible.is_tracked());
+        assert!(!EnvironmentMode::Reproducible.is_tracked());
         assert!(!EnvironmentMode::PhaseAssert.is_tracked());
         assert!(EnvironmentMode::TrackedFullAssert.is_tracked());
     }

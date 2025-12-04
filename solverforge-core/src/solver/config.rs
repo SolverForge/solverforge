@@ -128,7 +128,7 @@ mod tests {
         let config = SolverConfig::new();
         assert_eq!(
             config.environment_mode_or_default(),
-            EnvironmentMode::PhaseAssert
+            EnvironmentMode::Reproducible
         );
 
         let config = SolverConfig::new().with_environment_mode(EnvironmentMode::FullAssert);

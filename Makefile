@@ -95,6 +95,29 @@ debug-test:
 solve-test:
 	RUST_LOG=info cargo test -p solverforge-service --test employee_scheduling_integration $(TEST) -- --nocapture 2>&1 | grep -E "(Solving|score|Solution|Test)"
 
+# Benchmark solver performance (no assertions, more moves)
+# Usage: make bench
+# Usage: make bench SOLVER_MODE=FULL_ASSERT  (for debug mode)
+# Usage: make bench EMPLOYEE_COUNT=50 SHIFT_COUNT=500
+SOLVER_MODE ?= REPRODUCIBLE
+MOVE_LIMIT ?= 1000000
+EMPLOYEE_COUNT ?= 5
+SHIFT_COUNT ?= 10
+bench:
+	SOLVER_MODE=$(SOLVER_MODE) MOVE_LIMIT=$(MOVE_LIMIT) EMPLOYEE_COUNT=$(EMPLOYEE_COUNT) SHIFT_COUNT=$(SHIFT_COUNT) \
+		RUST_LOG=info cargo test -p solverforge-service test_employee_scheduling_solve -- --nocapture 2>&1 \
+		| grep -E "(Problem Scale|speed|Performance|Summary)"
+
+# Benchmark presets
+bench-small:
+	$(MAKE) bench EMPLOYEE_COUNT=15 SHIFT_COUNT=150
+
+bench-large:
+	$(MAKE) bench EMPLOYEE_COUNT=50 SHIFT_COUNT=500
+
+bench-xlarge:
+	$(MAKE) bench EMPLOYEE_COUNT=100 SHIFT_COUNT=1000
+
 # ============== Submodule ==============
 
 submodule-update:

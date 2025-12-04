@@ -38,12 +38,14 @@
 //! map.insert(obj_handle, "object 1");
 //! ```
 
+mod bridge;
 pub mod domain;
 mod error;
 mod handles;
 pub mod score;
 mod value;
 
+pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
 pub use domain::{
     ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
     ShadowAnnotation,

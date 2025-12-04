@@ -80,6 +80,53 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+
+    // ===== Logical Operations =====
+    /// Logical AND (&&)
+    And {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Logical OR (||)
+    Or {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Logical NOT (!)
+    Not { operand: Box<Expression> },
+
+    /// Null check (is null)
+    IsNull { operand: Box<Expression> },
+
+    /// Not-null check (is not null)
+    IsNotNull { operand: Box<Expression> },
+
+    // ===== Arithmetic Operations =====
+    /// Addition (+)
+    Add {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Subtraction (-)
+    Sub {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Multiplication (*)
+    Mul {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Division (/)
+    Div {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
 }
 
 #[cfg(test)]
@@ -186,6 +233,217 @@ mod tests {
                 field_name: "employee".into(),
             }),
             right: Box::new(Expression::Null),
+        };
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    // ===== Logical Operations Tests =====
+
+    #[test]
+    fn test_logical_and() {
+        let expr = Expression::And {
+            left: Box::new(Expression::BoolLiteral { value: true }),
+            right: Box::new(Expression::BoolLiteral { value: false }),
+        };
+
+        match expr {
+            Expression::And { left, right } => {
+                assert_eq!(*left, Expression::BoolLiteral { value: true });
+                assert_eq!(*right, Expression::BoolLiteral { value: false });
+            }
+            _ => panic!("Expected And"),
+        }
+    }
+
+    #[test]
+    fn test_logical_or() {
+        let expr = Expression::Or {
+            left: Box::new(Expression::BoolLiteral { value: true }),
+            right: Box::new(Expression::BoolLiteral { value: false }),
+        };
+
+        match expr {
+            Expression::Or { left, right } => {
+                assert_eq!(*left, Expression::BoolLiteral { value: true });
+                assert_eq!(*right, Expression::BoolLiteral { value: false });
+            }
+            _ => panic!("Expected Or"),
+        }
+    }
+
+    #[test]
+    fn test_logical_not() {
+        let expr = Expression::Not {
+            operand: Box::new(Expression::BoolLiteral { value: true }),
+        };
+
+        match expr {
+            Expression::Not { operand } => {
+                assert_eq!(*operand, Expression::BoolLiteral { value: true });
+            }
+            _ => panic!("Expected Not"),
+        }
+    }
+
+    #[test]
+    fn test_is_null() {
+        let expr = Expression::IsNull {
+            operand: Box::new(Expression::Param { index: 0 }),
+        };
+
+        match expr {
+            Expression::IsNull { operand } => {
+                assert_eq!(*operand, Expression::Param { index: 0 });
+            }
+            _ => panic!("Expected IsNull"),
+        }
+    }
+
+    #[test]
+    fn test_is_not_null() {
+        let expr = Expression::IsNotNull {
+            operand: Box::new(Expression::Param { index: 0 }),
+        };
+
+        match expr {
+            Expression::IsNotNull { operand } => {
+                assert_eq!(*operand, Expression::Param { index: 0 });
+            }
+            _ => panic!("Expected IsNotNull"),
+        }
+    }
+
+    #[test]
+    fn test_serialize_logical_and() {
+        let expr = Expression::And {
+            left: Box::new(Expression::BoolLiteral { value: true }),
+            right: Box::new(Expression::BoolLiteral { value: false }),
+        };
+
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    // ===== Arithmetic Operations Tests =====
+
+    #[test]
+    fn test_arithmetic_add() {
+        let expr = Expression::Add {
+            left: Box::new(Expression::IntLiteral { value: 10 }),
+            right: Box::new(Expression::IntLiteral { value: 20 }),
+        };
+
+        match expr {
+            Expression::Add { left, right } => {
+                assert_eq!(*left, Expression::IntLiteral { value: 10 });
+                assert_eq!(*right, Expression::IntLiteral { value: 20 });
+            }
+            _ => panic!("Expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_arithmetic_sub() {
+        let expr = Expression::Sub {
+            left: Box::new(Expression::IntLiteral { value: 30 }),
+            right: Box::new(Expression::IntLiteral { value: 10 }),
+        };
+
+        match expr {
+            Expression::Sub { left, right } => {
+                assert_eq!(*left, Expression::IntLiteral { value: 30 });
+                assert_eq!(*right, Expression::IntLiteral { value: 10 });
+            }
+            _ => panic!("Expected Sub"),
+        }
+    }
+
+    #[test]
+    fn test_arithmetic_mul() {
+        let expr = Expression::Mul {
+            left: Box::new(Expression::IntLiteral { value: 5 }),
+            right: Box::new(Expression::IntLiteral { value: 3 }),
+        };
+
+        match expr {
+            Expression::Mul { left, right } => {
+                assert_eq!(*left, Expression::IntLiteral { value: 5 });
+                assert_eq!(*right, Expression::IntLiteral { value: 3 });
+            }
+            _ => panic!("Expected Mul"),
+        }
+    }
+
+    #[test]
+    fn test_arithmetic_div() {
+        let expr = Expression::Div {
+            left: Box::new(Expression::IntLiteral { value: 100 }),
+            right: Box::new(Expression::IntLiteral { value: 5 }),
+        };
+
+        match expr {
+            Expression::Div { left, right } => {
+                assert_eq!(*left, Expression::IntLiteral { value: 100 });
+                assert_eq!(*right, Expression::IntLiteral { value: 5 });
+            }
+            _ => panic!("Expected Div"),
+        }
+    }
+
+    #[test]
+    fn test_serialize_arithmetic() {
+        let expr = Expression::Add {
+            left: Box::new(Expression::IntLiteral { value: 10 }),
+            right: Box::new(Expression::IntLiteral { value: 20 }),
+        };
+
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_complex_logical_expression() {
+        // Build: (param(0).employee != null) && (param(0).skill == "Java")
+        let expr = Expression::And {
+            left: Box::new(Expression::IsNotNull {
+                operand: Box::new(Expression::FieldAccess {
+                    object: Box::new(Expression::Param { index: 0 }),
+                    class_name: "Shift".into(),
+                    field_name: "employee".into(),
+                }),
+            }),
+            right: Box::new(Expression::Eq {
+                left: Box::new(Expression::FieldAccess {
+                    object: Box::new(Expression::Param { index: 0 }),
+                    class_name: "Employee".into(),
+                    field_name: "skill".into(),
+                }),
+                right: Box::new(Expression::IntLiteral { value: 42 }), // Placeholder
+            }),
+        };
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_time_calculation_expression() {
+        // Build: (shift.start / 24) to calculate day from hour
+        let expr = Expression::Div {
+            left: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 0 }),
+                class_name: "Shift".into(),
+                field_name: "start".into(),
+            }),
+            right: Box::new(Expression::IntLiteral { value: 24 }),
         };
 
         // Serialize and deserialize

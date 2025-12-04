@@ -105,6 +105,13 @@ impl ConstraintSet {
     pub fn iter(&self) -> impl Iterator<Item = &Constraint> {
         self.constraints.iter()
     }
+
+    pub fn to_dto(&self) -> std::collections::HashMap<String, Vec<StreamComponent>> {
+        self.constraints
+            .iter()
+            .map(|c| (c.full_name(), c.components.clone()))
+            .collect()
+    }
 }
 
 impl FromIterator<Constraint> for ConstraintSet {

@@ -65,7 +65,7 @@ pub use solver::{
     AsyncSolveResponse, DiminishedReturnsConfig, DomainObjectDto, EnvironmentMode,
     HttpSolverService, InverseRelationShadowDto, ListAccessorDto, MemberDto, MoveThreadCount,
     PlanningListVariableDto, PlanningScoreDto, PlanningVariableDto, ScoreDto, SolveHandle,
-    SolveRequest, SolveResponse, SolveState, SolveStatus, SolverConfig, SolverService,
-    TerminationConfig, ValueRangeProviderDto,
+    SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverConfig, SolverFactory,
+    SolverService, TerminationConfig, ValueRangeProviderDto,
 };
 pub use value::Value;

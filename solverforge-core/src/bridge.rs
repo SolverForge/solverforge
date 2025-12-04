@@ -73,27 +73,27 @@ impl FieldInfo {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::domain::PrimitiveType;
     use crate::SolverForgeError;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    struct MockBridge {
+    pub struct MockBridge {
         objects: Arc<Mutex<HashMap<u64, Value>>>,
         next_handle: Arc<Mutex<u64>>,
     }
 
     impl MockBridge {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 objects: Arc::new(Mutex::new(HashMap::new())),
                 next_handle: Arc::new(Mutex::new(1)),
             }
         }
 
-        fn store_object(&self, value: Value) -> ObjectHandle {
+        pub fn store_object(&self, value: Value) -> ObjectHandle {
             let mut objects = self.objects.lock().unwrap();
             let mut next = self.next_handle.lock().unwrap();
             let handle = *next;
@@ -102,7 +102,7 @@ mod tests {
             ObjectHandle::new(handle)
         }
 
-        fn get_object(&self, handle: ObjectHandle) -> Option<Value> {
+        pub fn get_object(&self, handle: ObjectHandle) -> Option<Value> {
             self.objects.lock().unwrap().get(&handle.id()).cloned()
         }
     }

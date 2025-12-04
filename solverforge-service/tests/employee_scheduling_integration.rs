@@ -536,6 +536,34 @@ fn build_shifts_overlap_predicate() -> solverforge_core::wasm::PredicateDefiniti
     solverforge_core::wasm::PredicateDefinition::from_expression("shiftsOverlap", 2, predicate)
 }
 
+/// Build sameEmployeeSameDay predicate: same employee AND same day
+/// Pattern: arithmetic expressions with division for day calculation
+fn build_same_employee_same_day_predicate() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift1 = Expr::param(0);
+    let shift2 = Expr::param(1);
+
+    let emp1 = shift1.clone().get("Shift", "employee");
+    let emp2 = shift2.clone().get("Shift", "employee");
+
+    // Same employee check
+    let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
+
+    // Same day: start1 / 24 == start2 / 24 (integer division)
+    let day1 = Expr::div(shift1.get("Shift", "start"), Expr::int(24));
+    let day2 = Expr::div(shift2.get("Shift", "start"), Expr::int(24));
+    let same_day = Expr::eq(day1, day2);
+
+    let predicate = Expr::and(same_employee, same_day);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "sameEmployeeSameDay",
+        2,
+        predicate,
+    )
+}
+
 /// Build the employee scheduling domain model
 /// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
 /// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.

@@ -26,5 +26,11 @@ serde_json.workspace = true
 # HTTP client
 reqwest.workspace = true
 
+# WASM generation
+wasm-encoder.workspace = true
+
+# Base64 encoding
+base64.workspace = true
+
 [dev-dependencies]
 proptest.workspace = true

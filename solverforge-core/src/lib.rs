@@ -46,6 +46,7 @@ mod handles;
 pub mod score;
 pub mod solver;
 mod value;
+pub mod wasm;
 
 pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
 pub use constraints::{
@@ -69,3 +70,7 @@ pub use solver::{
     SolverService, TerminationConfig, ValueRangeProviderDto,
 };
 pub use value::Value;
+pub use wasm::{
+    Comparison, FieldAccess, FieldLayout, LayoutCalculator, MemoryLayout, PredicateDefinition,
+    WasmMemoryType, WasmModuleBuilder,
+};

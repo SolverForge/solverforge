@@ -125,6 +125,7 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
     (import "host" "hinsert" (func $hinsert (type 3)))
     (import "host" "hremove" (func $hremove (type 4)))
     (import "host" "hround" (func $hround (type 6)))
+    (import "host" "hstringEquals" (func $hstringEquals (type 2)))
 
     (memory 1024)  ;; 1024 pages = 64MB, supports large problem sizes
 
@@ -303,7 +304,7 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 
     ;; Check if shift's assigned employee skill mismatches shift's requiredSkill
     ;; Returns 1 if: employee is assigned AND skill != requiredSkill
-    ;; Used for skill matching constraint
+    ;; Uses hstringEquals host function for proper string content comparison
     (func (export "skillMismatch") (param $shift i32) (result i32)
         (local $employee i32)
         (local $empSkill i32)
@@ -323,8 +324,9 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
         ;; Get shift's requiredSkill (offset 12 in Shift)
         (local.set $reqSkill (i32.load (i32.add (local.get $shift) (i32.const 12))))
 
-        ;; Return 1 if skills don't match (string pointers are equal if same string)
-        (i32.ne (local.get $empSkill) (local.get $reqSkill))
+        ;; Return 1 if skills don't match (use host function for string comparison)
+        ;; hstringEquals returns 1 if equal, so we return the inverse (1 if NOT equal)
+        (i32.eqz (call $hstringEquals (local.get $empSkill) (local.get $reqSkill)))
     )
 
     ;; Utility predicates

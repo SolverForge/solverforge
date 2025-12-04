@@ -40,8 +40,10 @@
 
 mod error;
 mod handles;
+pub mod score;
 mod value;
 
 pub use error::{SolverForgeError, SolverForgeResult};
 pub use handles::{FunctionHandle, ObjectHandle};
+pub use score::{Score, SimpleScore, HardSoftScore, HardMediumSoftScore};
 pub use value::Value;

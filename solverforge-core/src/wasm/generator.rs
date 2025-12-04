@@ -9,6 +9,8 @@ use wasm_encoder::{
     GlobalType, Instruction, MemorySection, MemoryType, Module, TypeSection, ValType,
 };
 
+use crate::wasm::host_functions::{HostFunctionRegistry, WasmType};
+
 pub struct WasmModuleBuilder {
     layout_calculator: LayoutCalculator,
     domain_model: Option<DomainModel>,
@@ -16,6 +18,8 @@ pub struct WasmModuleBuilder {
     function_types: Vec<FunctionSignature>,
     initial_memory_pages: u32,
     max_memory_pages: Option<u32>,
+    host_functions: HostFunctionRegistry,
+    host_function_indices: HashMap<String, u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -111,7 +115,14 @@ impl WasmModuleBuilder {
             function_types: Vec::new(),
             initial_memory_pages: 16,
             max_memory_pages: Some(256),
+            host_functions: HostFunctionRegistry::new(),
+            host_function_indices: HashMap::new(),
         }
+    }
+
+    pub fn with_host_functions(mut self, registry: HostFunctionRegistry) -> Self {
+        self.host_functions = registry;
+        self
     }
 
     pub fn with_domain_model(mut self, model: DomainModel) -> Self {
@@ -146,6 +157,7 @@ impl WasmModuleBuilder {
         let mut module = Module::new();
 
         let mut type_section = TypeSection::new();
+        let mut import_section = wasm_encoder::ImportSection::new();
         let mut function_section = FunctionSection::new();
         let mut code_section = CodeSection::new();
         let mut export_section = ExportSection::new();
@@ -170,7 +182,43 @@ impl WasmModuleBuilder {
             &ConstExpr::i32_const(1024),
         );
 
+        // Generate host function imports
         let mut func_idx: u32 = 0;
+        let func_names: Vec<String> = self
+            .host_functions
+            .function_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        for func_name in func_names {
+            if let Some(host_func) = self.host_functions.lookup(&func_name).cloned() {
+                // Add function type for the import
+                let params: Vec<ValType> = host_func
+                    .params
+                    .iter()
+                    .map(|t| wasm_type_to_val_type(*t))
+                    .collect();
+                let results: Vec<ValType> = if matches!(host_func.return_type, WasmType::Void) {
+                    vec![]
+                } else {
+                    vec![wasm_type_to_val_type(host_func.return_type)]
+                };
+
+                let type_idx = self.add_function_type(&mut type_section, params, results);
+
+                // Add import
+                import_section.import(
+                    "host",
+                    &host_func.name,
+                    wasm_encoder::EntityType::Function(type_idx),
+                );
+
+                // Track the function index for call instructions
+                self.host_function_indices
+                    .insert(func_name.clone(), func_idx);
+                func_idx += 1;
+            }
+        }
 
         // allocate(size: i32) -> i32
         let alloc_type_idx =
@@ -256,6 +304,9 @@ impl WasmModuleBuilder {
         export_section.export("memory", ExportKind::Memory, 0);
 
         module.section(&type_section);
+        if !self.host_function_indices.is_empty() {
+            module.section(&import_section);
+        }
         module.section(&function_section);
         module.section(&memory_section);
         module.section(&global_section);
@@ -743,12 +794,20 @@ impl WasmModuleBuilder {
                     self.compile_expression(func, arg, model)?;
                 }
 
-                // For now, return error - host function calling requires import section
-                // which will be implemented when we integrate with PredicateDefinition
-                return Err(SolverForgeError::WasmGeneration(format!(
-                    "Host function calls not yet integrated - need import section support. Function: {}",
-                    function_name
-                )));
+                // Get the function index for the imported function
+                let func_idx = self
+                    .host_function_indices
+                    .get(function_name)
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(format!(
+                            "Host function '{}' not found in registry. Available functions: {:?}",
+                            function_name,
+                            self.host_function_indices.keys().collect::<Vec<_>>()
+                        ))
+                    })?;
+
+                // Generate call instruction
+                func.instruction(&Instruction::Call(*func_idx));
             }
         }
 
@@ -1040,6 +1099,16 @@ impl WasmModuleBuilder {
         // No-op for bump allocator
         func.instruction(&Instruction::End);
         func
+    }
+}
+
+fn wasm_type_to_val_type(wasm_type: WasmType) -> ValType {
+    match wasm_type {
+        WasmType::I32 | WasmType::Ptr => ValType::I32,
+        WasmType::I64 => ValType::I64,
+        WasmType::F32 => ValType::F32,
+        WasmType::F64 => ValType::F64,
+        WasmType::Void => panic!("Void type cannot be converted to ValType"),
     }
 }
 

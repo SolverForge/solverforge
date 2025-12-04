@@ -38,6 +38,7 @@
 //! map.insert(obj_handle, "object 1");
 //! ```
 
+pub mod analysis;
 mod bridge;
 pub mod constraints;
 pub mod domain;
@@ -48,6 +49,7 @@ pub mod solver;
 mod value;
 pub mod wasm;
 
+pub use analysis::{ConstraintMatch, Indictment, ScoreExplanation, SolutionManager};
 pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
 pub use constraints::{
     Collector, Constraint, ConstraintSet, Joiner, StreamComponent, WasmFunction,

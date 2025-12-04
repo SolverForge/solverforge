@@ -4,6 +4,8 @@
 //! reference objects and functions in the host language without knowing
 //! their concrete types.
 
+use serde::{Deserialize, Serialize};
+
 /// Opaque handle to a language-specific object
 ///
 /// This is used to reference objects in the host language without
@@ -18,7 +20,7 @@
 /// let handle = ObjectHandle::new(42);
 /// assert_eq!(handle.id(), 42);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ObjectHandle(pub u64);
 
 impl ObjectHandle {

@@ -126,6 +126,22 @@ impl<B: LanguageBridge> Solver<B> {
         &self.bridge
     }
 
+    pub fn service(&self) -> &Arc<dyn SolverService> {
+        &self.service
+    }
+
+    pub fn domain_model(&self) -> &DomainModel {
+        &self.domain_model
+    }
+
+    pub fn constraints(&self) -> &ConstraintSet {
+        &self.constraints
+    }
+
+    pub fn wasm_module(&self) -> &str {
+        &self.wasm_module
+    }
+
     fn build_request(&self, problem: ObjectHandle) -> SolverForgeResult<SolveRequest> {
         let problem_json = self
             .bridge

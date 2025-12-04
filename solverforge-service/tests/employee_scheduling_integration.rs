@@ -30,8 +30,14 @@ const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wa
 /// * `employee_count` - Number of employees
 /// * `shift_count` - Number of shifts (will be rounded to multiple of 3)
 fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
+    // Skills rotate through employees
+    let skills = ["NURSE", "DOCTOR", "ADMIN"];
+
     let employees: Vec<String> = (0..employee_count)
-        .map(|id| format!(r#"{{"id": {}}}"#, id))
+        .map(|id| {
+            let skill = skills[id % skills.len()];
+            format!(r#"{{"id": {}, "skill": "{}"}}"#, id, skill)
+        })
         .collect();
 
     // Generate shifts with times: 3 shifts per day (8-hour shifts)
@@ -75,8 +81,8 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
 
 /// Employee Scheduling WASM module with constraint predicates.
 ///
-/// Memory layout (using Integer.SIZE = 32 byte offsets for compatibility):
-/// - Employee: [id: i32] (32 bytes per field)
+/// Memory layout:
+/// - Employee: [id: i32 @ 0, skill: i32 @ 4] (8 bytes total, skill is string ptr)
 /// - Shift: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8] (12 bytes total)
 /// - Schedule: [employees: i32 @ 0, shifts: i32 @ 32, score @ 64]
 const EMPLOYEE_SCHEDULING_WAT: &str = r#"
@@ -159,10 +165,14 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
     )
 
     ;; ============== Employee Accessors ==============
-    ;; Memory layout: [id: i32] (4 bytes total)
+    ;; Memory layout: [id: i32 @ 0, skill: i32 @ 4] (8 bytes total)
 
     (func (export "getEmployeeId") (param $employee i32) (result i32)
         (local.get $employee) (i32.load)
+    )
+
+    (func (export "getEmployeeSkill") (param $employee i32) (result i32)
+        (i32.load (i32.add (local.get $employee) (i32.const 4)))
     )
 
     ;; ============== Shift Accessors ==============
@@ -283,15 +293,21 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
     let mut domain = IndexMap::new();
 
-    // Employee with PlanningId
+    // Employee with PlanningId and skill
     domain.insert(
         "Employee".to_string(),
-        DomainObjectDto::new().with_field(
-            "id",
-            FieldDescriptor::new("int")
-                .with_accessor(DomainAccessor::new("getEmployeeId"))
-                .with_annotation(PA::planning_id()),
-        ),
+        DomainObjectDto::new()
+            .with_field(
+                "id",
+                FieldDescriptor::new("int")
+                    .with_accessor(DomainAccessor::new("getEmployeeId"))
+                    .with_annotation(PA::planning_id()),
+            )
+            .with_field(
+                "skill",
+                FieldDescriptor::new("String")
+                    .with_accessor(DomainAccessor::new("getEmployeeSkill")),
+            ),
     );
 
     // Shift with PlanningVariable and time fields

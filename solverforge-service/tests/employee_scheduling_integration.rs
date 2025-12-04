@@ -42,6 +42,7 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
 
     // Generate shifts with times: 3 shifts per day (8-hour shifts)
     // Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00
+    // Each shift requires a skill (cycling through the same skills as employees)
     let shifts_per_day = 3;
     let days = (shift_count + shifts_per_day - 1) / shifts_per_day;
 
@@ -50,25 +51,37 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
     for day in 0..days {
         let day_offset = day * 24; // Hours since start
 
-        // Morning shift: 06:00-14:00
+        // Morning shift: 06:00-14:00 (requires NURSE)
         if shifts.len() < shift_count {
             let start = day_offset + 6;
             let end = day_offset + 14;
-            shifts.push(format!(r#"{{"start": {}, "end": {}}}"#, start, end));
+            let skill = skills[shifts.len() % skills.len()];
+            shifts.push(format!(
+                r#"{{"start": {}, "end": {}, "requiredSkill": "{}"}}"#,
+                start, end, skill
+            ));
         }
 
-        // Afternoon shift: 14:00-22:00
+        // Afternoon shift: 14:00-22:00 (requires DOCTOR)
         if shifts.len() < shift_count {
             let start = day_offset + 14;
             let end = day_offset + 22;
-            shifts.push(format!(r#"{{"start": {}, "end": {}}}"#, start, end));
+            let skill = skills[shifts.len() % skills.len()];
+            shifts.push(format!(
+                r#"{{"start": {}, "end": {}, "requiredSkill": "{}"}}"#,
+                start, end, skill
+            ));
         }
 
-        // Night shift: 22:00-06:00 (next day)
+        // Night shift: 22:00-06:00 (requires ADMIN)
         if shifts.len() < shift_count {
             let start = day_offset + 22;
             let end = day_offset + 30; // 06:00 next day
-            shifts.push(format!(r#"{{"start": {}, "end": {}}}"#, start, end));
+            let skill = skills[shifts.len() % skills.len()];
+            shifts.push(format!(
+                r#"{{"start": {}, "end": {}, "requiredSkill": "{}"}}"#,
+                start, end, skill
+            ));
         }
     }
 
@@ -82,8 +95,8 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
 /// Employee Scheduling WASM module with constraint predicates.
 ///
 /// Memory layout:
-/// - Employee: [id: i32 @ 0, skill: i32 @ 4] (8 bytes total, skill is string ptr)
-/// - Shift: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8] (12 bytes total)
+/// - Employee: [id: i32 @ 0, skill: i32 @ 4] (8 bytes, skill is string ptr)
+/// - Shift: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8, requiredSkill: i32 @ 12] (16 bytes)
 /// - Schedule: [employees: i32 @ 0, shifts: i32 @ 32, score @ 64]
 const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 (module
@@ -176,7 +189,7 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
     )
 
     ;; ============== Shift Accessors ==============
-    ;; Memory layout: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8]
+    ;; Memory layout: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8, requiredSkill: i32 @ 12]
 
     (func (export "getEmployee") (param $shift i32) (result i32)
         (local.get $shift) (i32.load)
@@ -192,6 +205,10 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 
     (func (export "getShiftEnd") (param $shift i32) (result i32)
         (i32.load (i32.add (local.get $shift) (i32.const 8)))
+    )
+
+    (func (export "getShiftRequiredSkill") (param $shift i32) (result i32)
+        (i32.load (i32.add (local.get $shift) (i32.const 12)))
     )
 
     ;; Helper to get employee ID from shift (for constraint predicates)
@@ -310,7 +327,7 @@ fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
             ),
     );
 
-    // Shift with PlanningVariable and time fields
+    // Shift with PlanningVariable, time fields, and requiredSkill
     domain.insert(
         "Shift".to_string(),
         DomainObjectDto::new()
@@ -327,6 +344,11 @@ fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
             .with_field(
                 "end",
                 FieldDescriptor::new("int").with_accessor(DomainAccessor::new("getShiftEnd")),
+            )
+            .with_field(
+                "requiredSkill",
+                FieldDescriptor::new("String")
+                    .with_accessor(DomainAccessor::new("getShiftRequiredSkill")),
             ),
     );
 

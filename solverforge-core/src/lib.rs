@@ -44,6 +44,7 @@ pub mod domain;
 mod error;
 mod handles;
 pub mod score;
+pub mod solver;
 mod value;
 
 pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
@@ -59,5 +60,8 @@ pub use handles::{FunctionHandle, ObjectHandle};
 pub use score::{
     BendableDecimalScore, BendableScore, HardMediumSoftDecimalScore, HardMediumSoftScore,
     HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
+};
+pub use solver::{
+    DiminishedReturnsConfig, EnvironmentMode, MoveThreadCount, SolverConfig, TerminationConfig,
 };
 pub use value::Value;

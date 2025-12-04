@@ -45,5 +45,8 @@ mod value;
 
 pub use error::{SolverForgeError, SolverForgeResult};
 pub use handles::{FunctionHandle, ObjectHandle};
-pub use score::{Score, SimpleScore, HardSoftScore, HardMediumSoftScore};
+pub use score::{
+    Score, SimpleScore, HardSoftScore, HardMediumSoftScore,
+    SimpleDecimalScore, HardSoftDecimalScore, HardMediumSoftDecimalScore,
+};
 pub use value::Value;

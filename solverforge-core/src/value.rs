@@ -213,8 +213,7 @@ impl<K: Into<String>, V: Into<Value>> FromIterator<(K, V)> for Value {
     }
 }
 
-/// Custom serialization for Decimal to handle JSON representation
-mod decimal_serde {
+pub mod decimal_serde {
     use rust_decimal::Decimal;
     use serde::{self, Deserialize, Deserializer, Serializer};
 

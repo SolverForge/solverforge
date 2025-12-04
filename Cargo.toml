@@ -1,5 +1,5 @@
 [workspace]
-members = ["solverforge-core"]
+members = ["solverforge-core", "solverforge-service"]
 resolver = "2"
 
 [workspace.package]
@@ -42,6 +42,9 @@ pyo3 = { version = "0.23", features = ["extension-module"] }
 
 # Unix-specific
 libc = "0.2"
+
+# Filesystem
+dirs = "5.0"
 
 # Testing
 criterion = "0.5"

@@ -1,0 +1,3 @@
+[submodule "timefold-wasm-service"]
+	path = timefold-wasm-service
+	url = https://github.com/SolverForge/timefold-wasm-service.git

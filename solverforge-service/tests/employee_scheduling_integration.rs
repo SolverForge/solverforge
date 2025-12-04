@@ -358,6 +358,61 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
         (i32.eq (local.get $day1) (local.get $day2))
     )
 
+    ;; Check if two shifts have less than 10 hours between them for same employee
+    ;; Returns 1 if: same employee AND gap between shifts < 10 hours
+    ;; Gap is: min(|end1 - start2|, |end2 - start1|) for the shift that ends first
+    ;; Only counts when shift1 < shift2 to avoid double counting
+    (func (export "lessThan10HoursBetween") (param $shift1 i32) (param $shift2 i32) (result i32)
+        (local $emp1 i32) (local $emp2 i32)
+        (local $end1 i32) (local $start2 i32)
+        (local $end2 i32) (local $start1 i32)
+        (local $gap i32)
+
+        ;; Only count when shift1 address < shift2 address (avoid double counting)
+        (if (i32.ge_u (local.get $shift1) (local.get $shift2))
+            (then (return (i32.const 0)))
+        )
+
+        ;; Get employee pointers from each shift
+        (local.set $emp1 (i32.load (local.get $shift1)))
+        (local.set $emp2 (i32.load (local.get $shift2)))
+
+        ;; If different employees or either is null, no conflict
+        (if (i32.or (i32.eqz (local.get $emp1)) (i32.ne (local.get $emp1) (local.get $emp2)))
+            (then (return (i32.const 0)))
+        )
+
+        ;; Get times
+        (local.set $start1 (i32.load (i32.add (local.get $shift1) (i32.const 4))))
+        (local.set $end1 (i32.load (i32.add (local.get $shift1) (i32.const 8))))
+        (local.set $start2 (i32.load (i32.add (local.get $shift2) (i32.const 4))))
+        (local.set $end2 (i32.load (i32.add (local.get $shift2) (i32.const 8))))
+
+        ;; Calculate gap: if shift1 ends before shift2 starts, gap = start2 - end1
+        ;; if shift2 ends before shift1 starts, gap = start1 - end2
+        ;; if they overlap, gap is negative (handled by shiftsOverlap constraint)
+        (if (i32.le_s (local.get $end1) (local.get $start2))
+            (then
+                (local.set $gap (i32.sub (local.get $start2) (local.get $end1)))
+            )
+            (else
+                (if (i32.le_s (local.get $end2) (local.get $start1))
+                    (then
+                        (local.set $gap (i32.sub (local.get $start1) (local.get $end2)))
+                    )
+                    (else
+                        ;; Shifts overlap - this is handled by shiftsOverlap constraint
+                        ;; Return 0 here to avoid double penalty
+                        (return (i32.const 0))
+                    )
+                )
+            )
+        )
+
+        ;; Return 1 if gap < 10 hours
+        (i32.lt_s (local.get $gap) (i32.const 10))
+    )
+
     ;; Utility predicates
     (func (export "scaleByCount") (param $count i32) (result i32)
         (local.get $count)
@@ -480,6 +535,19 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
             StreamComponent::for_each("Shift"),
             StreamComponent::join("Shift"),
             StreamComponent::filter(WasmFunction::new("sameEmployeeSameDay")),
+            StreamComponent::penalize("1hard/0soft"),
+        ],
+    );
+
+    // Constraint 4: At least 10 hours between shifts for same employee (HARD)
+    // forEach(Shift).join(Shift).filter(lessThan10HoursBetween).penalize(1hard/0soft)
+    // lessThan10HoursBetween checks: same employee AND gap < 10 hours AND shift1 < shift2
+    constraints.insert(
+        "atLeast10HoursBetweenTwoShifts".to_string(),
+        vec![
+            StreamComponent::for_each("Shift"),
+            StreamComponent::join("Shift"),
+            StreamComponent::filter(WasmFunction::new("lessThan10HoursBetween")),
             StreamComponent::penalize("1hard/0soft"),
         ],
     );

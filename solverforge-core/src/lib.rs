@@ -39,6 +39,7 @@
 //! ```
 
 mod bridge;
+pub mod constraints;
 pub mod domain;
 mod error;
 mod handles;
@@ -46,6 +47,7 @@ pub mod score;
 mod value;
 
 pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
+pub use constraints::{Joiner, WasmFunction};
 pub use domain::{
     ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
     ShadowAnnotation,

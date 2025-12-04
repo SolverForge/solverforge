@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-core"
-version = "0.1.0"
+version = "0.1.21"
 dependencies = [
  "base64",
  "log",
@@ -1494,7 +1494,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-service"
-version = "0.1.0"
+version = "0.1.21"
 dependencies = [
  "base64",
  "dirs",

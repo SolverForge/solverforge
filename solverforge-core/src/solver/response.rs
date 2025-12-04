@@ -1,15 +1,114 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Performance statistics from a solver run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolverStats {
+    pub time_spent_millis: u64,
+    pub score_calculation_count: u64,
+    pub score_calculation_speed: u64,
+    pub move_evaluation_count: u64,
+    pub move_evaluation_speed: u64,
+}
+
+impl SolverStats {
+    pub fn new(
+        time_spent_millis: u64,
+        score_calculation_count: u64,
+        score_calculation_speed: u64,
+        move_evaluation_count: u64,
+        move_evaluation_speed: u64,
+    ) -> Self {
+        Self {
+            time_spent_millis,
+            score_calculation_count,
+            score_calculation_speed,
+            move_evaluation_count,
+            move_evaluation_speed,
+        }
+    }
+
+    /// Returns a formatted summary of the solver statistics.
+    pub fn summary(&self) -> String {
+        format!(
+            "Time: {}ms | Moves: {} ({}/sec) | Score calcs: {} ({}/sec)",
+            self.time_spent_millis,
+            self.move_evaluation_count,
+            self.move_evaluation_speed,
+            self.score_calculation_count,
+            self.score_calculation_speed
+        )
+    }
+}
+
+/// Custom deserializer for score that handles both string format (e.g., "-8")
+/// and object format (e.g., {"SimpleScore": "-8"})
+fn deserialize_score<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::{Error, Visitor};
+
+    struct ScoreVisitor;
+
+    impl<'de> Visitor<'de> for ScoreVisitor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string or an object with score type key")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+        where
+            M: serde::de::MapAccess<'de>,
+        {
+            // Expect a single entry like {"SimpleScore": "-8"} or {"HardSoftScore": "0hard/-5soft"}
+            if let Some((_score_type, score_value)) = map.next_entry::<String, String>()? {
+                // For SimpleScore, HardSoftScore, etc., return just the value
+                Ok(score_value)
+            } else {
+                Err(Error::custom("expected score object to have one entry"))
+            }
+        }
+    }
+
+    deserializer.deserialize_any(ScoreVisitor)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolveResponse {
     pub solution: String,
-    pub score: ScoreDto,
+    /// The score as a string (e.g., "-8" for SimpleScore, "0hard/-5soft" for HardSoftScore)
+    /// Handles both string and object formats from the server.
+    #[serde(deserialize_with = "deserialize_score")]
+    pub score: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<SolverStats>,
 }
 
 impl SolveResponse {
-    pub fn new(solution: String, score: ScoreDto) -> Self {
-        Self { solution, score }
+    pub fn new(solution: String, score: impl Into<String>) -> Self {
+        Self {
+            solution,
+            score: score.into(),
+            stats: None,
+        }
+    }
+
+    pub fn with_stats(solution: String, score: impl Into<String>, stats: SolverStats) -> Self {
+        Self {
+            solution,
+            score: score.into(),
+            stats: Some(stats),
+        }
     }
 }
 
@@ -168,11 +267,10 @@ mod tests {
 
     #[test]
     fn test_solve_response_new() {
-        let score = ScoreDto::hard_soft(0, -10);
-        let response = SolveResponse::new(r#"{"lessons": []}"#.to_string(), score);
+        let response = SolveResponse::new(r#"{"lessons": []}"#.to_string(), "0hard/-10soft");
 
         assert_eq!(response.solution, r#"{"lessons": []}"#);
-        assert!(response.score.is_feasible);
+        assert_eq!(response.score, "0hard/-10soft");
     }
 
     #[test]
@@ -285,14 +383,11 @@ mod tests {
 
     #[test]
     fn test_solve_response_json_serialization() {
-        let score = ScoreDto::hard_soft(0, -15);
-        let response = SolveResponse::new(r#"{"data": "test"}"#.to_string(), score);
+        let response = SolveResponse::new(r#"{"data": "test"}"#.to_string(), "0hard/-15soft");
 
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"solution\""));
-        assert!(json.contains("\"score\""));
-        assert!(json.contains("\"hardScore\":0"));
-        assert!(json.contains("\"isFeasible\":true"));
+        assert!(json.contains("\"score\":\"0hard/-15soft\""));
 
         let parsed: SolveResponse = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, response);
@@ -350,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_solve_response_debug() {
-        let response = SolveResponse::new("{}".to_string(), ScoreDto::simple(0));
+        let response = SolveResponse::new("{}".to_string(), "0");
         let debug = format!("{:?}", response);
         assert!(debug.contains("SolveResponse"));
     }

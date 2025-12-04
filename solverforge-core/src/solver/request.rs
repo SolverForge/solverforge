@@ -1,14 +1,15 @@
 use crate::constraints::StreamComponent;
 use crate::solver::TerminationConfig;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Solve request matching timefold-wasm-service's PlanningProblem schema
+/// Uses IndexMap for domain and constraints to preserve insertion order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolveRequest {
-    pub domain: HashMap<String, DomainObjectDto>,
-    pub constraints: HashMap<String, Vec<StreamComponent>>,
+    pub domain: IndexMap<String, DomainObjectDto>,
+    pub constraints: IndexMap<String, Vec<StreamComponent>>,
     pub wasm: String,
     pub allocator: String,
     pub deallocator: String,
@@ -24,8 +25,8 @@ pub struct SolveRequest {
 
 impl SolveRequest {
     pub fn new(
-        domain: HashMap<String, DomainObjectDto>,
-        constraints: HashMap<String, Vec<StreamComponent>>,
+        domain: IndexMap<String, DomainObjectDto>,
+        constraints: IndexMap<String, Vec<StreamComponent>>,
         wasm: String,
         allocator: String,
         deallocator: String,
@@ -63,9 +64,11 @@ impl SolveRequest {
 }
 
 /// Domain object definition with fields and optional mapper
+/// Fields use IndexMap to preserve insertion order, which is critical
+/// for correct WASM memory layout alignment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DomainObjectDto {
-    pub fields: HashMap<String, FieldDescriptor>,
+    pub fields: IndexMap<String, FieldDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mapper: Option<DomainObjectMapper>,
 }
@@ -73,7 +76,7 @@ pub struct DomainObjectDto {
 impl DomainObjectDto {
     pub fn new() -> Self {
         Self {
-            fields: HashMap::new(),
+            fields: IndexMap::new(),
             mapper: None,
         }
     }
@@ -281,8 +284,8 @@ mod tests {
     #[test]
     fn test_solve_request_new() {
         let request = SolveRequest::new(
-            HashMap::new(),
-            HashMap::new(),
+            IndexMap::new(),
+            IndexMap::new(),
             "AGFzbQ==".to_string(),
             "allocate".to_string(),
             "deallocate".to_string(),
@@ -301,8 +304,8 @@ mod tests {
     fn test_solve_request_with_options() {
         let termination = TerminationConfig::new().with_spent_limit("PT5M");
         let request = SolveRequest::new(
-            HashMap::new(),
-            HashMap::new(),
+            IndexMap::new(),
+            IndexMap::new(),
             "AGFzbQ==".to_string(),
             "allocate".to_string(),
             "deallocate".to_string(),
@@ -417,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_solve_request_json_serialization() {
-        let mut domain = HashMap::new();
+        let mut domain = IndexMap::new();
         domain.insert(
             "Employee".to_string(),
             DomainObjectDto::new().with_field(
@@ -430,7 +433,7 @@ mod tests {
 
         let request = SolveRequest::new(
             domain,
-            HashMap::new(),
+            IndexMap::new(),
             "AGFzbQ==".to_string(),
             "allocate".to_string(),
             "deallocate".to_string(),
@@ -453,8 +456,8 @@ mod tests {
     #[test]
     fn test_solve_request_omits_none_fields() {
         let request = SolveRequest::new(
-            HashMap::new(),
-            HashMap::new(),
+            IndexMap::new(),
+            IndexMap::new(),
             "AGFzbQ==".to_string(),
             "allocate".to_string(),
             "deallocate".to_string(),
@@ -533,7 +536,7 @@ mod tests {
     #[test]
     fn test_full_domain_json_structure() {
         // Build a domain matching Java's test case
-        let mut domain = HashMap::new();
+        let mut domain = IndexMap::new();
 
         // Employee with PlanningId
         domain.insert(

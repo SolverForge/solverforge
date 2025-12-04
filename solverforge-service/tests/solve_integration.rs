@@ -4,12 +4,12 @@
 //! Run with: cargo test -p solverforge-service --test solve_integration -- --ignored
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use indexmap::IndexMap;
 use solverforge_core::{
     DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor, ListAccessorDto,
-    SolveRequest, SolverPlanningAnnotation as PA, TerminationConfig,
+    SolveRequest, SolveResponse, SolverPlanningAnnotation as PA, TerminationConfig,
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -143,8 +143,9 @@ const TEST_WAT: &str = r#"
 "#;
 
 /// Build the domain model for the test
-fn build_test_domain() -> HashMap<String, DomainObjectDto> {
-    let mut domain = HashMap::new();
+/// Uses IndexMap to preserve field insertion order for WASM memory layout.
+fn build_test_domain() -> IndexMap<String, DomainObjectDto> {
+    let mut domain = IndexMap::new();
 
     // Employee with PlanningId
     domain.insert(
@@ -199,10 +200,10 @@ fn build_test_domain() -> HashMap<String, DomainObjectDto> {
 }
 
 /// Build constraints for the test
-fn build_test_constraints() -> HashMap<String, Vec<solverforge_core::StreamComponent>> {
+fn build_test_constraints() -> IndexMap<String, Vec<solverforge_core::StreamComponent>> {
     use solverforge_core::{StreamComponent, WasmFunction};
 
-    let mut constraints = HashMap::new();
+    let mut constraints = IndexMap::new();
 
     // penalizeId0: forEach(Shift).join(Employee).filter(isEmployeeId0).penalize(1)
     constraints.insert(
@@ -279,7 +280,7 @@ fn test_solve_simple_problem() {
     let status = response.status();
     let response_text = response.text().unwrap_or_default();
     println!("Response status: {}", status);
-    println!("Response body:\n{}", response_text);
+    println!("Response body: {}", response_text);
 
     // Verify successful response
     assert!(
@@ -289,26 +290,26 @@ fn test_solve_simple_problem() {
         response_text
     );
 
-    let result: serde_json::Value =
+    let result: SolveResponse =
         serde_json::from_str(&response_text).expect("Failed to parse response JSON");
 
-    // Verify response structure
-    assert!(
-        result.get("solution").is_some(),
-        "Response should contain 'solution'"
-    );
-    assert!(
-        result.get("score").is_some(),
-        "Response should contain 'score'"
-    );
-
     // Parse the solution JSON
-    let solution_str = result.get("solution").unwrap().as_str().unwrap();
     let solution: serde_json::Value =
-        serde_json::from_str(solution_str).expect("Failed to parse solution JSON");
+        serde_json::from_str(&result.solution).expect("Failed to parse solution JSON");
 
-    println!("Solution: {}", solution);
-    println!("Score: {}", result.get("score").unwrap());
+    println!("\n=== Solver Results ===");
+    println!("Score: {}", result.score);
+
+    // Print stats if available
+    if let Some(stats) = &result.stats {
+        println!("\n=== Performance Stats ===");
+        println!("{}", stats.summary());
+    }
+
+    println!(
+        "\nSolution: {}",
+        serde_json::to_string_pretty(&solution).unwrap()
+    );
 
     // Verify solution structure
     let shifts = solution.get("shifts").expect("Solution should have shifts");
@@ -327,8 +328,10 @@ fn test_solve_simple_problem() {
 
     // With only the penalizeId0 constraint, optimal solution avoids employee 0
     // Score should be 0 (no penalties) when both shifts use employee 1
-    let score_str = result.get("score").unwrap().as_str().unwrap();
-    assert_eq!(score_str, "0", "Score should be 0 when avoiding employee 0");
+    assert_eq!(
+        result.score, "0",
+        "Score should be 0 when avoiding employee 0"
+    );
 }
 
 #[test]

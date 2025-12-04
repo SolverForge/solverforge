@@ -39,14 +39,14 @@ impl DomainModel {
         self.solution_class.as_deref()
     }
 
-    pub fn to_dto(&self) -> std::collections::HashMap<String, crate::solver::DomainObjectDto> {
+    pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
         use crate::domain::PlanningAnnotation as DomainAnnotation;
         use crate::solver::{
             DomainAccessor, DomainObjectDto, FieldDescriptor,
             PlanningAnnotation as SolverAnnotation,
         };
 
-        let mut result = std::collections::HashMap::new();
+        let mut result = indexmap::IndexMap::new();
 
         for (name, class) in &self.classes {
             let mut dto = DomainObjectDto::new();

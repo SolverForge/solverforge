@@ -22,6 +22,7 @@ rust_decimal.workspace = true
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
+indexmap.workspace = true
 
 # HTTP client
 reqwest.workspace = true

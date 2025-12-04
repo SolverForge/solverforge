@@ -15,6 +15,6 @@ pub use request::{
     PlanningAnnotation, SolveRequest,
 };
 pub use response::{
-    AsyncSolveResponse, ScoreDto, SolveHandle, SolveResponse, SolveState, SolveStatus,
+    AsyncSolveResponse, ScoreDto, SolveHandle, SolveResponse, SolveState, SolveStatus, SolverStats,
 };
 pub use termination::{DiminishedReturnsConfig, TerminationConfig};

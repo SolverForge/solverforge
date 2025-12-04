@@ -61,7 +61,7 @@ impl<B: LanguageBridge> SolutionManager<B> {
     pub fn update(&self, bridge: &B, solution: ObjectHandle) -> SolverForgeResult<ScoreDto> {
         let request = self.build_update_request(bridge, solution)?;
         let response = self.service.solve(&request)?;
-        Ok(response.score)
+        Ok(parse_score_string(&response.score))
     }
 
     fn build_explain_request(
@@ -118,9 +118,10 @@ impl<B: LanguageBridge> SolutionManager<B> {
     }
 
     fn parse_explanation(&self, response: SolveResponse) -> SolverForgeResult<ScoreExplanation> {
-        // For now, create a basic explanation from the response score
-        // Full constraint match parsing would require additional service response data
-        Ok(ScoreExplanation::new(response.score))
+        // Parse the score string into a ScoreDto
+        // Score format: "0" for simple, "0hard/-5soft" for hard/soft
+        let score = parse_score_string(&response.score);
+        Ok(ScoreExplanation::new(score))
     }
 
     pub fn config(&self) -> &SolverConfig {
@@ -134,6 +135,34 @@ impl<B: LanguageBridge> SolutionManager<B> {
     pub fn constraints(&self) -> &ConstraintSet {
         &self.constraints
     }
+}
+
+/// Parse a score string from Java into a ScoreDto.
+fn parse_score_string(s: &str) -> ScoreDto {
+    // Try to parse as hard/soft first: "0hard/-5soft"
+    if let Some((hard_str, rest)) = s.split_once("hard/") {
+        if let Some((soft_str, _)) = rest.split_once("soft") {
+            if let (Ok(hard), Ok(soft)) = (hard_str.parse(), soft_str.parse()) {
+                return ScoreDto::hard_soft(hard, soft);
+            }
+        }
+        // Try hard/medium/soft: "0hard/-10medium/-5soft"
+        if let Some((medium_str, rest2)) = rest.split_once("medium/") {
+            if let Some((soft_str, _)) = rest2.split_once("soft") {
+                if let (Ok(hard), Ok(medium), Ok(soft)) =
+                    (hard_str.parse(), medium_str.parse(), soft_str.parse())
+                {
+                    return ScoreDto::hard_medium_soft(hard, medium, soft);
+                }
+            }
+        }
+    }
+    // Try to parse as simple score
+    if let Ok(score) = s.parse() {
+        return ScoreDto::simple(score);
+    }
+    // Fallback to 0
+    ScoreDto::simple(0)
 }
 
 #[cfg(test)]
@@ -229,7 +258,7 @@ mod tests {
             "AGFzbQ==".to_string(),
         );
 
-        let response = SolveResponse::new("{}".to_string(), ScoreDto::hard_soft(-2, -15));
+        let response = SolveResponse::new("{}".to_string(), "-2hard/-15soft");
 
         let explanation = manager.parse_explanation(response).unwrap();
 
@@ -250,7 +279,7 @@ mod tests {
             "AGFzbQ==".to_string(),
         );
 
-        let response = SolveResponse::new("{}".to_string(), ScoreDto::hard_soft(0, -5));
+        let response = SolveResponse::new("{}".to_string(), "0hard/-5soft");
 
         let explanation = manager.parse_explanation(response).unwrap();
 

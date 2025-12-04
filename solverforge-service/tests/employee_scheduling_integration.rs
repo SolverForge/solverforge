@@ -8,9 +8,11 @@
 //! so we can use realistic fields matching the demo data structure.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use indexmap::IndexMap;
 use solverforge_core::{
     DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor, ListAccessorDto,
-    SolveRequest, SolverPlanningAnnotation as PA, StreamComponent, TerminationConfig, WasmFunction,
+    SolveRequest, SolveResponse, SolverPlanningAnnotation as PA, StreamComponent,
+    TerminationConfig, WasmFunction,
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
 use std::collections::HashMap;
@@ -208,8 +210,9 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 
 /// Build the employee scheduling domain model
 /// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
-fn build_employee_scheduling_domain() -> HashMap<String, DomainObjectDto> {
-    let mut domain = HashMap::new();
+/// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.
+fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
+    let mut domain = IndexMap::new();
 
     // Employee with PlanningId
     domain.insert(
@@ -264,8 +267,8 @@ fn build_employee_scheduling_domain() -> HashMap<String, DomainObjectDto> {
 }
 
 /// Build constraints for employee scheduling
-fn build_employee_scheduling_constraints() -> HashMap<String, Vec<StreamComponent>> {
-    let mut constraints = HashMap::new();
+fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamComponent>> {
+    let mut constraints = IndexMap::new();
 
     // Constraint 1: Penalize assignments to employee 0
     // forEach(Shift).join(Employee).filter(isEmployeeId0).penalize(1)
@@ -386,7 +389,7 @@ fn test_employee_scheduling_solve() {
     let status = response.status();
     let response_text = response.text().unwrap_or_default();
     println!("Response status: {}", status);
-    println!("Response body:\n{}", response_text);
+    println!("Response JSON: {}", response_text);
 
     // Verify successful response
     assert!(
@@ -396,31 +399,28 @@ fn test_employee_scheduling_solve() {
         response_text
     );
 
-    let result: serde_json::Value =
+    let result: SolveResponse =
         serde_json::from_str(&response_text).expect("Failed to parse response JSON");
 
-    // Verify response structure
-    assert!(
-        result.get("solution").is_some(),
-        "Response should contain 'solution'"
-    );
-    assert!(
-        result.get("score").is_some(),
-        "Response should contain 'score'"
-    );
-
     // Parse the solution JSON
-    let solution_str = result.get("solution").unwrap().as_str().unwrap();
     let solution: serde_json::Value =
-        serde_json::from_str(solution_str).expect("Failed to parse solution JSON");
+        serde_json::from_str(&result.solution).expect("Failed to parse solution JSON");
+
+    println!("\n=== Solver Results ===");
+    println!("Score: {}", result.score);
+
+    // Print stats if available
+    if let Some(stats) = &result.stats {
+        println!("\n=== Performance Stats ===");
+        println!("{}", stats.summary());
+    }
 
     println!(
-        "Solution: {}",
+        "\nSolution: {}",
         serde_json::to_string_pretty(&solution).unwrap()
     );
 
-    let score_str = result.get("score").unwrap().as_str().unwrap();
-    println!("Score: {}", score_str);
+    let score_str = &result.score;
 
     // Verify solution structure
     let shifts = solution.get("shifts").expect("Solution should have shifts");
@@ -460,7 +460,6 @@ fn test_employee_scheduling_solve() {
     // The score should reflect the penalties incurred
     // SimpleScore format is just an integer
     let score: i64 = score_str.parse().unwrap_or(-999);
-    println!("Parsed score: {}", score);
 
     // The optimal solution:
     // - penalizeId0: 0 if employee 0 has no shifts
@@ -471,11 +470,12 @@ fn test_employee_scheduling_solve() {
     //
     // Score should be negative (penalties) or close to 0
 
-    println!("Test completed successfully - solver found a solution!");
+    println!("\n=== Summary ===");
     println!(
-        "Note: Score of {} reflects oneShiftPerEmployee constraint violations",
+        "Score: {} (oneShiftPerEmployee constraint violations)",
         score
     );
+    println!("Test completed successfully - solver found a solution!");
 }
 
 #[test]

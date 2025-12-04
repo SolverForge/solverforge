@@ -69,7 +69,7 @@ pub use solver::{
     DomainObjectMapper, EnvironmentMode, FieldDescriptor, HttpSolverService, ListAccessorDto,
     MoveThreadCount, PlanningAnnotation as SolverPlanningAnnotation, ScoreDto, SolveHandle,
     SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverConfig, SolverFactory,
-    SolverService, TerminationConfig,
+    SolverService, SolverStats, TerminationConfig,
 };
 pub use value::Value;
 pub use wasm::{

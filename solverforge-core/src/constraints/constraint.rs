@@ -106,7 +106,7 @@ impl ConstraintSet {
         self.constraints.iter()
     }
 
-    pub fn to_dto(&self) -> std::collections::HashMap<String, Vec<StreamComponent>> {
+    pub fn to_dto(&self) -> indexmap::IndexMap<String, Vec<StreamComponent>> {
         self.constraints
             .iter()
             .map(|c| (c.full_name(), c.components.clone()))

@@ -1,9 +1,10 @@
 //! Employee Scheduling integration test
 //!
-//! Tests employee scheduling with time-based constraints:
-//! - Employees and shifts with configurable scale (EMPLOYEE_COUNT, SHIFT_COUNT env vars)
-//! - Shifts have start/end times (3 shifts per day: morning, afternoon, night)
-//! - Constraints: penalizeId0, noOverlappingShifts (time-based overlap detection)
+//! Tests employee scheduling with skill and time-based constraints:
+//! - Employees with skills (NURSE, DOCTOR, ADMIN)
+//! - Shifts with requiredSkill and start/end times (3 shifts per day)
+//! - Constraints: requiredSkill (skill matching), noOverlappingShifts (time overlap)
+//! - Configurable scale via EMPLOYEE_COUNT, SHIFT_COUNT env vars
 //!
 //! The Java HostFunctionProvider dynamically parses domain models from DTOs.
 
@@ -297,6 +298,32 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
         )
     )
 
+    ;; Check if shift's assigned employee skill mismatches shift's requiredSkill
+    ;; Returns 1 if: employee is assigned AND skill != requiredSkill
+    ;; Used for skill matching constraint
+    (func (export "skillMismatch") (param $shift i32) (result i32)
+        (local $employee i32)
+        (local $empSkill i32)
+        (local $reqSkill i32)
+
+        ;; Get assigned employee pointer from shift (offset 0)
+        (local.set $employee (i32.load (local.get $shift)))
+
+        ;; If no employee assigned, no mismatch (skip)
+        (if (i32.eqz (local.get $employee))
+            (then (return (i32.const 0)))
+        )
+
+        ;; Get employee's skill (offset 4 in Employee)
+        (local.set $empSkill (i32.load (i32.add (local.get $employee) (i32.const 4))))
+
+        ;; Get shift's requiredSkill (offset 12 in Shift)
+        (local.set $reqSkill (i32.load (i32.add (local.get $shift) (i32.const 12))))
+
+        ;; Return 1 if skills don't match (string pointers are equal if same string)
+        (i32.ne (local.get $empSkill) (local.get $reqSkill))
+    )
+
     ;; Utility predicates
     (func (export "scaleByCount") (param $count i32) (result i32)
         (local.get $count)
@@ -386,14 +413,13 @@ fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
 fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamComponent>> {
     let mut constraints = IndexMap::new();
 
-    // Constraint 1: Penalize assignments to employee 0
-    // forEach(Shift).join(Employee).filter(isEmployeeId0).penalize(1)
+    // Constraint 1: Employee must have the skill required by the shift
+    // forEach(Shift).filter(skillMismatch).penalize(1)
     constraints.insert(
-        "penalizeId0".to_string(),
+        "requiredSkill".to_string(),
         vec![
             StreamComponent::for_each("Shift"),
-            StreamComponent::join("Employee"),
-            StreamComponent::filter(WasmFunction::new("isEmployeeId0")),
+            StreamComponent::filter(WasmFunction::new("skillMismatch")),
             StreamComponent::penalize("1"),
         ],
     );
@@ -457,11 +483,12 @@ fn test_employee_scheduling_solve() {
     println!("Shifts: {}", shift_count);
 
     // Constraints:
-    // - penalizeId0: Avoid assigning employee 0 (id=0)
+    // - requiredSkill: Employee's skill must match shift's requiredSkill
     // - noOverlappingShifts: Same employee can't work overlapping time slots
     //
     // With 3 non-overlapping shifts per day and multiple days, employees CAN
     // work multiple shifts as long as they don't overlap in time.
+    // The solver should try to assign employees with matching skills.
     let problem_json = generate_problem_json(employee_count, shift_count);
 
     let request = SolveRequest::new(
@@ -555,27 +582,29 @@ fn test_employee_scheduling_solve() {
         );
     }
 
-    // Count how many shifts are assigned to each employee
+    // Count skill mismatches and assignments
+    let mut skill_mismatches = 0;
     let mut assignment_counts: HashMap<i64, i32> = HashMap::new();
-    let mut employee0_count = 0;
 
     for shift in shifts_array {
         let employee = shift.get("employee").unwrap();
         let emp_id = employee.get("id").unwrap().as_i64().unwrap();
         *assignment_counts.entry(emp_id).or_insert(0) += 1;
-        if emp_id == 0 {
-            employee0_count += 1;
+
+        // Check skill mismatch
+        let emp_skill = employee.get("skill").and_then(|v| v.as_str());
+        let req_skill = shift.get("requiredSkill").and_then(|v| v.as_str());
+        if emp_skill != req_skill {
+            skill_mismatches += 1;
         }
     }
 
     println!("Assignment counts: {:?}", assignment_counts);
-    println!("Employee 0 assigned {} shifts", employee0_count);
+    println!("Skill mismatches: {}", skill_mismatches);
 
-    // With the penalizeId0 constraint, the solver should minimize assignments to employee 0
-    // The oneShiftPerEmployee constraint penalizes multiple shifts per employee
-
-    // The score should reflect the penalties incurred
-    // SimpleScore format is just an integer
+    // The score reflects constraint violations:
+    // - requiredSkill: penalizes skill mismatches
+    // - noOverlappingShifts: penalizes time overlaps for same employee
     let score: i64 = score_str.parse().unwrap_or(-999);
 
     println!("\n=== Summary ===");
@@ -584,10 +613,7 @@ fn test_employee_scheduling_solve() {
         employee_count, shift_count
     );
     println!("Score: {} (constraint violations)", score);
-    println!(
-        "Employee 0 assignments: {} (should be minimized)",
-        employee0_count
-    );
+    println!("Skill mismatches: {}", skill_mismatches);
     println!("Test completed successfully - solver found a solution!");
 }
 

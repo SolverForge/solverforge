@@ -96,330 +96,6 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
     )
 }
 
-/// Employee Scheduling WASM module with constraint predicates.
-///
-/// Memory layout:
-/// - Employee: [id: i32 @ 0, skill: i32 @ 4] (8 bytes, skill is string ptr)
-/// - Shift: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8, requiredSkill: i32 @ 12] (16 bytes)
-/// - Schedule: [employees: i32 @ 0, shifts: i32 @ 32, score @ 64]
-const EMPLOYEE_SCHEDULING_WAT: &str = r#"
-(module
-    ;; Type definitions
-    (type (;0;) (func (param i32) (result i32)))
-    (type (;1;) (func (result i32)))
-    (type (;2;) (func (param i32 i32) (result i32)))
-    (type (;3;) (func (param i32 i32 i32)))
-    (type (;4;) (func (param i32 i32)))
-    (type (;5;) (func (param i32) (result i32)))
-    (type (;6;) (func (param f32) (result i32)))
-    (type (;7;) (func))
-
-    ;; Host function imports
-    (import "host" "hparseSchedule" (func $hparseSchedule (type 2)))
-    (import "host" "hscheduleString" (func $hscheduleString (type 5)))
-    (import "host" "hnewList" (func $hnewList (type 1)))
-    (import "host" "hgetItem" (func $hgetItem (type 2)))
-    (import "host" "hsetItem" (func $hsetItem (type 3)))
-    (import "host" "hsize" (func $hsize (type 0)))
-    (import "host" "happend" (func $happend (type 4)))
-    (import "host" "hinsert" (func $hinsert (type 3)))
-    (import "host" "hremove" (func $hremove (type 4)))
-    (import "host" "hround" (func $hround (type 6)))
-    (import "host" "hstringEquals" (func $hstringEquals (type 2)))
-
-    (memory 1024)  ;; 1024 pages = 64MB, supports large problem sizes
-
-    ;; ============== Core Infrastructure ==============
-
-    ;; Memory allocator (bump allocator)
-    (func (export "alloc") (param $size i32) (result i32)
-        (local $out i32)
-        (i32.const 0) (i32.load) (local.set $out)
-        (i32.const 0) (i32.add (local.get $out) (local.get $size)) (i32.store)
-        (local.get $out)
-    )
-
-    (func (export "dealloc") (param $pointer i32)
-        return
-    )
-
-    (func (export "_start")
-        (i32.const 0) (i32.const 32) (i32.store)  ;; Start heap at 32
-    )
-
-    ;; ============== Solution Mapper ==============
-
-    (func (export "parseSchedule") (param $length i32) (param $schedule i32) (result i32)
-        (local.get $length) (local.get $schedule) (call $hparseSchedule)
-    )
-
-    (func (export "scheduleString") (param $schedule i32) (result i32)
-        (local.get $schedule) (call $hscheduleString)
-    )
-
-    ;; ============== List Operations ==============
-
-    (func (export "newList") (result i32) (call $hnewList))
-    (func (export "getItem") (param $list i32) (param $index i32) (result i32)
-        (local.get $list) (local.get $index) (call $hgetItem)
-    )
-    (func (export "setItem") (param $list i32) (param $index i32) (param $item i32)
-        (local.get $list) (local.get $index) (local.get $item) (call $hsetItem)
-    )
-    (func (export "size") (param $list i32) (result i32)
-        (local.get $list) (call $hsize)
-    )
-    (func (export "append") (param $list i32) (param $item i32)
-        (local.get $list) (local.get $item) (call $happend)
-    )
-    (func (export "insert") (param $list i32) (param $index i32) (param $item i32)
-        (local.get $list) (local.get $index) (local.get $item) (call $hinsert)
-    )
-    (func (export "remove") (param $list i32) (param $index i32)
-        (local.get $list) (local.get $index) (call $hremove)
-    )
-    (func (export "round") (param $value f32) (result i32)
-        (local.get $value) (call $hround)
-    )
-
-    ;; ============== Employee Accessors ==============
-    ;; Memory layout: [id: i32 @ 0, skill: i32 @ 4] (8 bytes total)
-
-    (func (export "getEmployeeId") (param $employee i32) (result i32)
-        (local.get $employee) (i32.load)
-    )
-
-    (func (export "getEmployeeSkill") (param $employee i32) (result i32)
-        (i32.load (i32.add (local.get $employee) (i32.const 4)))
-    )
-
-    ;; ============== Shift Accessors ==============
-    ;; Memory layout: [employee: i32 @ 0, start: i32 @ 4, end: i32 @ 8, requiredSkill: i32 @ 12]
-
-    (func (export "getEmployee") (param $shift i32) (result i32)
-        (local.get $shift) (i32.load)
-    )
-
-    (func (export "setEmployee") (param $shift i32) (param $employee i32)
-        (local.get $shift) (local.get $employee) (i32.store)
-    )
-
-    (func (export "getShiftStart") (param $shift i32) (result i32)
-        (i32.load (i32.add (local.get $shift) (i32.const 4)))
-    )
-
-    (func (export "getShiftEnd") (param $shift i32) (result i32)
-        (i32.load (i32.add (local.get $shift) (i32.const 8)))
-    )
-
-    (func (export "getShiftRequiredSkill") (param $shift i32) (result i32)
-        (i32.load (i32.add (local.get $shift) (i32.const 12)))
-    )
-
-    ;; Helper to get employee ID from shift (for constraint predicates)
-    (func (export "getShiftEmployeeId") (param $shift i32) (result i32)
-        (local.get $shift) (i32.load) (i32.load)
-    )
-
-    ;; ============== Schedule Accessors ==============
-    ;; Memory layout: [employees: i32 @ 0, shifts: i32 @ 32]
-
-    (func (export "getEmployees") (param $schedule i32) (result i32)
-        (local.get $schedule) (i32.load)
-    )
-
-    (func (export "setEmployees") (param $schedule i32) (param $employees i32)
-        (local.get $schedule) (local.get $employees) (i32.store)
-    )
-
-    (func (export "getShifts") (param $schedule i32) (result i32)
-        (i32.load (i32.add (local.get $schedule) (i32.const 32)))
-    )
-
-    (func (export "setShifts") (param $schedule i32) (param $shifts i32)
-        (i32.store (i32.add (local.get $schedule) (i32.const 32)) (local.get $shifts))
-    )
-
-    ;; ============== Constraint Predicates ==============
-
-    ;; Check if shift's employee has id == 0 (penalize this assignment)
-    ;; Returns 1 (true) if employee id is 0
-    (func (export "isEmployeeId0") (param $shift i32) (param $employee i32) (result i32)
-        (i32.eq (local.get $shift) (i32.load) (i32.load) (i32.const 0))
-    )
-
-    ;; Check if two shifts have the same employee assigned
-    ;; Used for unique pair constraint to prevent double booking
-    (func (export "sameEmployee") (param $shift1 i32) (param $shift2 i32) (result i32)
-        (local $emp1 i32)
-        (local $emp2 i32)
-
-        ;; Get employee pointers from each shift
-        (local.set $emp1 (i32.load (local.get $shift1)))
-        (local.set $emp2 (i32.load (local.get $shift2)))
-
-        ;; If either is null (0), return 0 (no match)
-        (if (i32.or (i32.eqz (local.get $emp1)) (i32.eqz (local.get $emp2)))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Return 1 if same employee pointer
-        (i32.eq (local.get $emp1) (local.get $emp2))
-    )
-
-    ;; Check if two shifts overlap in time AND have the same employee
-    ;; Returns 1 if: same employee AND time ranges overlap
-    ;; Only counts when shift1 < shift2 to avoid double counting
-    (func (export "shiftsOverlap") (param $shift1 i32) (param $shift2 i32) (result i32)
-        (local $emp1 i32) (local $emp2 i32)
-        (local $start1 i32) (local $end1 i32)
-        (local $start2 i32) (local $end2 i32)
-
-        ;; Only count when shift1 address < shift2 address (avoid double counting)
-        (if (i32.ge_u (local.get $shift1) (local.get $shift2))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get employee pointers from each shift
-        (local.set $emp1 (i32.load (local.get $shift1)))
-        (local.set $emp2 (i32.load (local.get $shift2)))
-
-        ;; If different employees or either is null, no overlap conflict
-        (if (i32.or (i32.eqz (local.get $emp1)) (i32.ne (local.get $emp1) (local.get $emp2)))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get times: start @ offset 4, end @ offset 8
-        (local.set $start1 (i32.load (i32.add (local.get $shift1) (i32.const 4))))
-        (local.set $end1 (i32.load (i32.add (local.get $shift1) (i32.const 8))))
-        (local.set $start2 (i32.load (i32.add (local.get $shift2) (i32.const 4))))
-        (local.set $end2 (i32.load (i32.add (local.get $shift2) (i32.const 8))))
-
-        ;; Overlap if: start1 < end2 AND start2 < end1
-        (i32.and
-            (i32.lt_s (local.get $start1) (local.get $end2))
-            (i32.lt_s (local.get $start2) (local.get $end1))
-        )
-    )
-
-    ;; Check if shift's assigned employee skill mismatches shift's requiredSkill
-    ;; Returns 1 if: employee is assigned AND skill != requiredSkill
-    ;; Uses hstringEquals host function for proper string content comparison
-    (func (export "skillMismatch") (param $shift i32) (result i32)
-        (local $employee i32)
-        (local $empSkill i32)
-        (local $reqSkill i32)
-
-        ;; Get assigned employee pointer from shift (offset 0)
-        (local.set $employee (i32.load (local.get $shift)))
-
-        ;; If no employee assigned, no mismatch (skip)
-        (if (i32.eqz (local.get $employee))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get employee's skill (offset 4 in Employee)
-        (local.set $empSkill (i32.load (i32.add (local.get $employee) (i32.const 4))))
-
-        ;; Get shift's requiredSkill (offset 12 in Shift)
-        (local.set $reqSkill (i32.load (i32.add (local.get $shift) (i32.const 12))))
-
-        ;; Return 1 if skills don't match (use host function for string comparison)
-        ;; hstringEquals returns 1 if equal, so we return the inverse (1 if NOT equal)
-        (i32.eqz (call $hstringEquals (local.get $empSkill) (local.get $reqSkill)))
-    )
-
-    ;; Check if two shifts are on the same day AND have the same employee
-    ;; Returns 1 if: same employee AND same day (start / 24)
-    ;; Only counts when shift1 < shift2 to avoid double counting
-    (func (export "sameEmployeeSameDay") (param $shift1 i32) (param $shift2 i32) (result i32)
-        (local $emp1 i32) (local $emp2 i32)
-        (local $day1 i32) (local $day2 i32)
-
-        ;; Only count when shift1 address < shift2 address (avoid double counting)
-        (if (i32.ge_u (local.get $shift1) (local.get $shift2))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get employee pointers from each shift
-        (local.set $emp1 (i32.load (local.get $shift1)))
-        (local.set $emp2 (i32.load (local.get $shift2)))
-
-        ;; If different employees or either is null, no conflict
-        (if (i32.or (i32.eqz (local.get $emp1)) (i32.ne (local.get $emp1) (local.get $emp2)))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get days: start_hour / 24 (integer division)
-        (local.set $day1 (i32.div_s (i32.load (i32.add (local.get $shift1) (i32.const 4))) (i32.const 24)))
-        (local.set $day2 (i32.div_s (i32.load (i32.add (local.get $shift2) (i32.const 4))) (i32.const 24)))
-
-        ;; Return 1 if same day
-        (i32.eq (local.get $day1) (local.get $day2))
-    )
-
-    ;; Check if two shifts have less than 10 hours between them for same employee
-    ;; Returns 1 if: same employee AND gap between shifts < 10 hours
-    ;; Gap is: min(|end1 - start2|, |end2 - start1|) for the shift that ends first
-    ;; Only counts when shift1 < shift2 to avoid double counting
-    (func (export "lessThan10HoursBetween") (param $shift1 i32) (param $shift2 i32) (result i32)
-        (local $emp1 i32) (local $emp2 i32)
-        (local $end1 i32) (local $start2 i32)
-        (local $end2 i32) (local $start1 i32)
-        (local $gap i32)
-
-        ;; Only count when shift1 address < shift2 address (avoid double counting)
-        (if (i32.ge_u (local.get $shift1) (local.get $shift2))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get employee pointers from each shift
-        (local.set $emp1 (i32.load (local.get $shift1)))
-        (local.set $emp2 (i32.load (local.get $shift2)))
-
-        ;; If different employees or either is null, no conflict
-        (if (i32.or (i32.eqz (local.get $emp1)) (i32.ne (local.get $emp1) (local.get $emp2)))
-            (then (return (i32.const 0)))
-        )
-
-        ;; Get times
-        (local.set $start1 (i32.load (i32.add (local.get $shift1) (i32.const 4))))
-        (local.set $end1 (i32.load (i32.add (local.get $shift1) (i32.const 8))))
-        (local.set $start2 (i32.load (i32.add (local.get $shift2) (i32.const 4))))
-        (local.set $end2 (i32.load (i32.add (local.get $shift2) (i32.const 8))))
-
-        ;; Calculate gap: if shift1 ends before shift2 starts, gap = start2 - end1
-        ;; if shift2 ends before shift1 starts, gap = start1 - end2
-        ;; if they overlap, gap is negative (handled by shiftsOverlap constraint)
-        (if (i32.le_s (local.get $end1) (local.get $start2))
-            (then
-                (local.set $gap (i32.sub (local.get $start2) (local.get $end1)))
-            )
-            (else
-                (if (i32.le_s (local.get $end2) (local.get $start1))
-                    (then
-                        (local.set $gap (i32.sub (local.get $start1) (local.get $end2)))
-                    )
-                    (else
-                        ;; Shifts overlap - this is handled by shiftsOverlap constraint
-                        ;; Return 0 here to avoid double penalty
-                        (return (i32.const 0))
-                    )
-                )
-            )
-        )
-
-        ;; Return 1 if gap < 10 hours
-        (i32.lt_s (local.get $gap) (i32.const 10))
-    )
-
-    ;; Utility predicates
-    (func (export "scaleByCount") (param $count i32) (result i32)
-        (local.get $count)
-    )
-)
-"#;
-
 /// Build the domain model declaratively using DomainModel API
 /// This demonstrates how users will define domain models programmatically
 fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
@@ -742,10 +418,28 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     constraints
 }
 
-/// Compile WAT to WASM and base64 encode
+/// Build WASM module using WasmModuleBuilder and expression-based predicates
+fn build_employee_scheduling_wasm() -> Vec<u8> {
+    use solverforge_core::wasm::{HostFunctionRegistry, WasmModuleBuilder};
+
+    let model = build_employee_scheduling_model();
+    let registry = HostFunctionRegistry::with_standard_functions();
+
+    WasmModuleBuilder::new()
+        .with_domain_model(model)
+        .with_host_functions(registry)
+        .with_initial_memory(1024) // 64MB
+        .add_predicate(build_skill_mismatch_predicate())
+        .add_predicate(build_shifts_overlap_predicate())
+        .add_predicate(build_same_employee_same_day_predicate())
+        .add_predicate(build_less_than_10_hours_between_predicate())
+        .build()
+        .expect("Failed to generate WASM module")
+}
+
+/// Compile expression-based WASM and base64 encode
 fn compile_employee_scheduling_wasm() -> String {
-    let wasm_bytes =
-        wat::parse_str(EMPLOYEE_SCHEDULING_WAT).expect("Failed to parse Employee Scheduling WAT");
+    let wasm_bytes = build_employee_scheduling_wasm();
     BASE64.encode(&wasm_bytes)
 }
 
@@ -797,8 +491,8 @@ fn test_employee_scheduling_solve() {
         domain,
         constraints,
         wasm_base64,
-        "alloc".to_string(),
-        "dealloc".to_string(),
+        "allocate".to_string(),
+        "deallocate".to_string(),
         list_accessor,
         problem_json.to_string(),
     )
@@ -961,16 +655,9 @@ fn parse_hard_soft_score(score_str: &str) -> (i64, i64) {
 }
 
 #[test]
-fn test_employee_scheduling_wat_compiles() {
-    // Quick sanity check that the WAT is valid
-    let wasm_bytes = wat::parse_str(EMPLOYEE_SCHEDULING_WAT);
-    assert!(
-        wasm_bytes.is_ok(),
-        "WAT should compile: {:?}",
-        wasm_bytes.err()
-    );
-
-    let bytes = wasm_bytes.unwrap();
-    assert!(!bytes.is_empty(), "WASM should not be empty");
-    assert_eq!(&bytes[0..4], b"\0asm", "Should have WASM magic number");
+fn test_employee_scheduling_wasm_builds() {
+    // Validate WASM module builder generates valid WASM
+    let wasm_bytes = build_employee_scheduling_wasm();
+    assert!(!wasm_bytes.is_empty(), "WASM should not be empty");
+    assert_eq!(&wasm_bytes[0..4], b"\0asm", "Should have WASM magic number");
 }

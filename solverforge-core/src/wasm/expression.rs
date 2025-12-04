@@ -127,6 +127,14 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+
+    // ===== Host Function Calls =====
+    /// Call a host-provided function
+    /// Example: hstringEquals(left, right)
+    HostCall {
+        function_name: String,
+        args: Vec<Expression>,
+    },
 }
 
 #[cfg(test)]
@@ -444,6 +452,100 @@ mod tests {
                 field_name: "start".into(),
             }),
             right: Box::new(Expression::IntLiteral { value: 24 }),
+        };
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    // ===== Host Function Call Tests =====
+
+    #[test]
+    fn test_host_call() {
+        let expr = Expression::HostCall {
+            function_name: "hstringEquals".into(),
+            args: vec![
+                Expression::FieldAccess {
+                    object: Box::new(Expression::Param { index: 0 }),
+                    class_name: "Employee".into(),
+                    field_name: "skill".into(),
+                },
+                Expression::FieldAccess {
+                    object: Box::new(Expression::Param { index: 1 }),
+                    class_name: "Shift".into(),
+                    field_name: "requiredSkill".into(),
+                },
+            ],
+        };
+
+        match expr {
+            Expression::HostCall {
+                function_name,
+                args,
+            } => {
+                assert_eq!(function_name, "hstringEquals");
+                assert_eq!(args.len(), 2);
+            }
+            _ => panic!("Expected HostCall"),
+        }
+    }
+
+    #[test]
+    fn test_serialize_host_call() {
+        let expr = Expression::HostCall {
+            function_name: "hstringEquals".into(),
+            args: vec![
+                Expression::IntLiteral { value: 1 },
+                Expression::IntLiteral { value: 2 },
+            ],
+        };
+
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_host_call_with_no_args() {
+        let expr = Expression::HostCall {
+            function_name: "hnewList".into(),
+            args: vec![],
+        };
+
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_complex_host_call_expression() {
+        // Build: hstringEquals(employee.skill, shift.requiredSkill)
+        // nested in a logical expression: employee != null && hstringEquals(...)
+        let expr = Expression::And {
+            left: Box::new(Expression::IsNotNull {
+                operand: Box::new(Expression::FieldAccess {
+                    object: Box::new(Expression::Param { index: 0 }),
+                    class_name: "Shift".into(),
+                    field_name: "employee".into(),
+                }),
+            }),
+            right: Box::new(Expression::HostCall {
+                function_name: "hstringEquals".into(),
+                args: vec![
+                    Expression::FieldAccess {
+                        object: Box::new(Expression::Param { index: 0 }),
+                        class_name: "Employee".into(),
+                        field_name: "skill".into(),
+                    },
+                    Expression::FieldAccess {
+                        object: Box::new(Expression::Param { index: 1 }),
+                        class_name: "Shift".into(),
+                        field_name: "requiredSkill".into(),
+                    },
+                ],
+            }),
         };
 
         // Serialize and deserialize

@@ -135,6 +135,15 @@ pub enum Expression {
         function_name: String,
         args: Vec<Expression>,
     },
+
+    // ===== Conditional =====
+    /// If-then-else conditional expression
+    /// Example: if condition { then_branch } else { else_branch }
+    IfThenElse {
+        condition: Box<Expression>,
+        then_branch: Box<Expression>,
+        else_branch: Box<Expression>,
+    },
 }
 
 #[cfg(test)]

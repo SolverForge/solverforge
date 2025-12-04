@@ -195,6 +195,21 @@ impl Expr {
     ) -> Expression {
         Self::and(Self::lt(start1, end2), Self::lt(start2, end1))
     }
+
+    // ===== Conditional =====
+
+    /// If-then-else conditional expression
+    pub fn if_then_else(
+        condition: Expression,
+        then_branch: Expression,
+        else_branch: Expression,
+    ) -> Expression {
+        Expression::IfThenElse {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: Box::new(else_branch),
+        }
+    }
 }
 
 /// Extension trait for chaining field access
@@ -428,6 +443,54 @@ mod tests {
                 assert_eq!(*right, Expression::IntLiteral { value: 24 });
             }
             _ => panic!("Expected Div"),
+        }
+    }
+
+    #[test]
+    fn test_if_then_else() {
+        // Build: if x > 0 { 1 } else { 0 }
+        let expr = Expr::if_then_else(
+            Expr::gt(Expr::param(0), Expr::int(0)),
+            Expr::int(1),
+            Expr::int(0),
+        );
+
+        match expr {
+            Expression::IfThenElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                match *condition {
+                    Expression::Gt { .. } => {}
+                    _ => panic!("Expected Gt"),
+                }
+                assert_eq!(*then_branch, Expression::IntLiteral { value: 1 });
+                assert_eq!(*else_branch, Expression::IntLiteral { value: 0 });
+            }
+            _ => panic!("Expected IfThenElse"),
+        }
+    }
+
+    #[test]
+    fn test_nested_if_then_else() {
+        // Build: if x > 0 { if x > 10 { 2 } else { 1 } } else { 0 }
+        let expr = Expr::if_then_else(
+            Expr::gt(Expr::param(0), Expr::int(0)),
+            Expr::if_then_else(
+                Expr::gt(Expr::param(0), Expr::int(10)),
+                Expr::int(2),
+                Expr::int(1),
+            ),
+            Expr::int(0),
+        );
+
+        match expr {
+            Expression::IfThenElse { then_branch, .. } => match *then_branch {
+                Expression::IfThenElse { .. } => {}
+                _ => panic!("Expected nested IfThenElse"),
+            },
+            _ => panic!("Expected IfThenElse"),
         }
     }
 }

@@ -809,6 +809,31 @@ impl WasmModuleBuilder {
                 // Generate call instruction
                 func.instruction(&Instruction::Call(*func_idx));
             }
+
+            // ===== Conditional =====
+            Expression::IfThenElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                // Compile condition
+                self.compile_expression(func, condition, model)?;
+
+                // WASM if-else structure
+                func.instruction(&Instruction::If(wasm_encoder::BlockType::Result(
+                    ValType::I32,
+                )));
+
+                // Compile then branch
+                self.compile_expression(func, then_branch, model)?;
+
+                func.instruction(&Instruction::Else);
+
+                // Compile else branch
+                self.compile_expression(func, else_branch, model)?;
+
+                func.instruction(&Instruction::End);
+            }
         }
 
         Ok(())
@@ -1377,5 +1402,29 @@ mod tests {
 
         let wasm_bytes = builder.build().unwrap();
         assert!(!wasm_bytes.is_empty());
+    }
+
+    #[test]
+    fn test_expression_with_if_then_else() {
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let model = create_test_model();
+
+        // Build: if param(0).id > 0 { param(0).roomId } else { 0 }
+        let expr = Expr::if_then_else(
+            Expr::gt(Expr::param(0).get("Lesson", "id"), Expr::int(0)),
+            Expr::param(0).get("Lesson", "roomId"),
+            Expr::int(0),
+        );
+
+        let predicate = PredicateDefinition::from_expression("conditional_pred", 1, expr);
+
+        let builder = WasmModuleBuilder::new()
+            .with_domain_model(model)
+            .add_predicate(predicate);
+
+        let wasm_bytes = builder.build().unwrap();
+        assert!(!wasm_bytes.is_empty());
+        assert_eq!(&wasm_bytes[0..4], b"\0asm");
     }
 }

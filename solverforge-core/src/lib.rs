@@ -41,6 +41,7 @@
 mod error;
 mod handles;
 pub mod score;
+pub mod domain;
 mod value;
 
 pub use error::{SolverForgeError, SolverForgeResult};
@@ -50,4 +51,5 @@ pub use score::{
     SimpleDecimalScore, HardSoftDecimalScore, HardMediumSoftDecimalScore,
     BendableScore, BendableDecimalScore,
 };
+pub use domain::PlanningAnnotation;
 pub use value::Value;

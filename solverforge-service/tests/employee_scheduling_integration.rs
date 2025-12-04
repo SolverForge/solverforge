@@ -420,6 +420,75 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
 )
 "#;
 
+/// Build the domain model declaratively using DomainModel API
+/// This demonstrates how users will define domain models programmatically
+fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
+    use solverforge_core::domain::{
+        DomainClass, DomainModel, FieldDescriptor, FieldType, PlanningAnnotation, PrimitiveType,
+        ScoreType,
+    };
+
+    DomainModel::builder()
+        .add_class(
+            DomainClass::new("Employee")
+                .with_field(
+                    FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::Int))
+                        .with_planning_annotation(PlanningAnnotation::PlanningId),
+                )
+                .with_field(FieldDescriptor::new(
+                    "skill",
+                    FieldType::Primitive(PrimitiveType::String),
+                )),
+        )
+        .add_class(
+            DomainClass::new("Shift")
+                .with_annotation(PlanningAnnotation::PlanningEntity)
+                .with_field(
+                    FieldDescriptor::new("employee", FieldType::object("Employee"))
+                        .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
+                            "employees".to_string(),
+                        ])),
+                )
+                .with_field(FieldDescriptor::new(
+                    "start",
+                    FieldType::Primitive(PrimitiveType::Int),
+                ))
+                .with_field(FieldDescriptor::new(
+                    "end",
+                    FieldType::Primitive(PrimitiveType::Int),
+                ))
+                .with_field(FieldDescriptor::new(
+                    "requiredSkill",
+                    FieldType::Primitive(PrimitiveType::String),
+                )),
+        )
+        .add_class(
+            DomainClass::new("Schedule")
+                .with_annotation(PlanningAnnotation::PlanningSolution)
+                .with_field(
+                    FieldDescriptor::new(
+                        "employees",
+                        FieldType::list(FieldType::object("Employee")),
+                    )
+                    .with_planning_annotation(PlanningAnnotation::ProblemFactCollectionProperty)
+                    .with_planning_annotation(
+                        PlanningAnnotation::value_range_provider("employees"),
+                    ),
+                )
+                .with_field(
+                    FieldDescriptor::new("shifts", FieldType::list(FieldType::object("Shift")))
+                        .with_planning_annotation(
+                            PlanningAnnotation::PlanningEntityCollectionProperty,
+                        ),
+                )
+                .with_field(
+                    FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
+                        .with_planning_annotation(PlanningAnnotation::planning_score()),
+                ),
+        )
+        .build()
+}
+
 /// Build the employee scheduling domain model
 /// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
 /// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.

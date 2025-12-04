@@ -489,6 +489,26 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
         .build()
 }
 
+/// Build skillMismatch predicate: employee.skill != shift.requiredSkill
+/// Pattern: single-parameter constraint with null checks and string comparison
+fn build_skill_mismatch_predicate() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let employee = shift.clone().get("Shift", "employee");
+
+    // employee != null AND employee.skill != shift.requiredSkill
+    let predicate = Expr::and(
+        Expr::is_not_null(employee.clone()),
+        Expr::not(Expr::string_equals(
+            employee.get("Employee", "skill"),
+            shift.get("Shift", "requiredSkill"),
+        )),
+    );
+
+    solverforge_core::wasm::PredicateDefinition::from_expression("skillMismatch", 1, predicate)
+}
+
 /// Build the employee scheduling domain model
 /// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
 /// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.

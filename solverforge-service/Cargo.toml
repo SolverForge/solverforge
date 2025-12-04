@@ -20,3 +20,6 @@ libc = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 env_logger = "0.11"
+serde_json = { workspace = true }
+wat = "1.219"
+base64 = "0.22"

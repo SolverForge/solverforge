@@ -33,6 +33,7 @@ __pycache__
 /.*
 !/.github
 !/.ci
+!/.cargo
 !.gitignore
 !.gitattributes
 !/.mvn

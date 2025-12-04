@@ -77,6 +77,31 @@ impl EmbeddedService {
             ))
         })?;
 
+        // Capture stdout (solver metrics)
+        if let Some(stdout) = process.stdout.take() {
+            let shutdown = shutdown_flag_clone.clone();
+            thread::spawn(move || {
+                let reader = BufReader::new(stdout);
+                for line in reader.lines() {
+                    if shutdown.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    if let Ok(line) = line {
+                        if line.contains("ERROR") {
+                            error!("[solver] {}", line);
+                        } else if line.contains("WARN") {
+                            warn!("[solver] {}", line);
+                        } else if line.contains("INFO") {
+                            info!("[solver] {}", line);
+                        } else {
+                            debug!("[solver] {}", line);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Capture stderr (JVM warnings, errors)
         if let Some(stderr) = process.stderr.take() {
             let shutdown = shutdown_flag_clone;
             thread::spawn(move || {
@@ -90,6 +115,8 @@ impl EmbeddedService {
                             error!("[solver-service] {}", line);
                         } else if line.contains("WARN") {
                             warn!("[solver-service] {}", line);
+                        } else if line.contains("INFO") {
+                            info!("[solver-service] {}", line);
                         } else {
                             debug!("[solver-service] {}", line);
                         }

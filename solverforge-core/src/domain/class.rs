@@ -206,6 +206,44 @@ impl FieldType {
             FieldType::Array { .. } | FieldType::List { .. } | FieldType::Set { .. }
         )
     }
+
+    /// Returns a Java-compatible type string for the field type
+    pub fn to_type_string(&self) -> String {
+        match self {
+            FieldType::Primitive(p) => match p {
+                PrimitiveType::Bool => "boolean".to_string(),
+                PrimitiveType::Int => "int".to_string(),
+                PrimitiveType::Long => "long".to_string(),
+                PrimitiveType::Float => "float".to_string(),
+                PrimitiveType::Double => "double".to_string(),
+                PrimitiveType::String => "String".to_string(),
+            },
+            FieldType::Object { class_name } => class_name.clone(),
+            FieldType::Array { element_type } => format!("{}[]", element_type.to_type_string()),
+            FieldType::List { element_type } => format!("{}[]", element_type.to_type_string()),
+            FieldType::Set { element_type } => format!("{}[]", element_type.to_type_string()),
+            FieldType::Map {
+                key_type,
+                value_type,
+            } => {
+                format!(
+                    "Map<{}, {}>",
+                    key_type.to_type_string(),
+                    value_type.to_type_string()
+                )
+            }
+            FieldType::Score(s) => match s {
+                ScoreType::Simple => "SimpleScore".to_string(),
+                ScoreType::HardSoft => "HardSoftScore".to_string(),
+                ScoreType::HardMediumSoft => "HardMediumSoftScore".to_string(),
+                ScoreType::SimpleDecimal => "SimpleDecimalScore".to_string(),
+                ScoreType::HardSoftDecimal => "HardSoftDecimalScore".to_string(),
+                ScoreType::HardMediumSoftDecimal => "HardMediumSoftDecimalScore".to_string(),
+                ScoreType::Bendable { .. } => "BendableScore".to_string(),
+                ScoreType::BendableDecimal { .. } => "BendableDecimalScore".to_string(),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

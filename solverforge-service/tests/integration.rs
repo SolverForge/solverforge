@@ -1,7 +1,4 @@
 //! Integration tests for solverforge-service
-//!
-//! These tests require Java 24 and Maven to be installed.
-//! Run with: cargo test -p solverforge-service --test integration -- --ignored
 
 use solverforge_service::{EmbeddedService, ServiceConfig, SolverService};
 use std::path::PathBuf;
@@ -10,7 +7,6 @@ use std::time::Duration;
 const JAVA_24_HOME: &str = "/usr/lib64/jvm/java-24-openjdk-24";
 
 #[test]
-#[ignore] // Requires Java 24 + Maven
 fn test_embedded_service_lifecycle() {
     let config = ServiceConfig::new()
         .with_startup_timeout(Duration::from_secs(120))
@@ -30,7 +26,6 @@ fn test_embedded_service_lifecycle() {
 }
 
 #[test]
-#[ignore] // Requires Java 24 + Maven
 fn test_service_auto_port_selection() {
     let config1 = ServiceConfig::new()
         .with_startup_timeout(Duration::from_secs(120))
@@ -52,7 +47,6 @@ fn test_service_auto_port_selection() {
 }
 
 #[test]
-#[ignore] // Requires Java 24 + Maven
 fn test_service_with_fixed_port() {
     let config = ServiceConfig::new()
         .with_port(18080)

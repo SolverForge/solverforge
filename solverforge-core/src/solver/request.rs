@@ -3,6 +3,7 @@ use crate::solver::TerminationConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Solve request matching timefold-wasm-service's PlanningProblem schema
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolveRequest {
@@ -61,49 +62,29 @@ impl SolveRequest {
     }
 }
 
+/// Domain object definition with fields and optional mapper
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DomainObjectDto {
+    pub fields: HashMap<String, FieldDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_entity: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_solution: Option<bool>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub members: Vec<MemberDto>,
+    pub mapper: Option<DomainObjectMapper>,
 }
 
 impl DomainObjectDto {
     pub fn new() -> Self {
         Self {
-            planning_entity: None,
-            planning_solution: None,
-            members: Vec::new(),
+            fields: HashMap::new(),
+            mapper: None,
         }
     }
 
-    pub fn planning_entity() -> Self {
-        Self {
-            planning_entity: Some(true),
-            planning_solution: None,
-            members: Vec::new(),
-        }
-    }
-
-    pub fn planning_solution() -> Self {
-        Self {
-            planning_entity: None,
-            planning_solution: Some(true),
-            members: Vec::new(),
-        }
-    }
-
-    pub fn with_member(mut self, member: MemberDto) -> Self {
-        self.members.push(member);
+    pub fn with_field(mut self, name: impl Into<String>, field: FieldDescriptor) -> Self {
+        self.fields.insert(name.into(), field);
         self
     }
 
-    pub fn with_members(mut self, members: Vec<MemberDto>) -> Self {
-        self.members = members;
+    pub fn with_mapper(mut self, mapper: DomainObjectMapper) -> Self {
+        self.mapper = Some(mapper);
         self
     }
 }
@@ -114,45 +95,55 @@ impl Default for DomainObjectDto {
     }
 }
 
+/// Field descriptor with type, accessor, and annotations
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MemberDto {
-    pub name: String,
+pub struct FieldDescriptor {
+    #[serde(rename = "type")]
+    pub field_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accessor: Option<DomainAccessor>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub annotations: Vec<PlanningAnnotation>,
+}
+
+impl FieldDescriptor {
+    pub fn new(field_type: impl Into<String>) -> Self {
+        Self {
+            field_type: field_type.into(),
+            accessor: None,
+            annotations: Vec::new(),
+        }
+    }
+
+    pub fn with_accessor(mut self, accessor: DomainAccessor) -> Self {
+        self.accessor = Some(accessor);
+        self
+    }
+
+    pub fn with_annotation(mut self, annotation: PlanningAnnotation) -> Self {
+        self.annotations.push(annotation);
+        self
+    }
+
+    pub fn with_annotations(mut self, annotations: Vec<PlanningAnnotation>) -> Self {
+        self.annotations = annotations;
+        self
+    }
+}
+
+/// Getter/setter accessor for a field
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DomainAccessor {
     pub getter: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_variable: Option<PlanningVariableDto>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_list_variable: Option<PlanningListVariableDto>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_id: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_score: Option<PlanningScoreDto>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub value_range_provider: Option<ValueRangeProviderDto>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub problem_fact_collection_property: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_entity_collection_property: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub inverse_relation_shadow_variable: Option<InverseRelationShadowDto>,
 }
 
-impl MemberDto {
-    pub fn new(name: impl Into<String>, getter: impl Into<String>) -> Self {
+impl DomainAccessor {
+    pub fn new(getter: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
             getter: getter.into(),
             setter: None,
-            planning_variable: None,
-            planning_list_variable: None,
-            planning_id: None,
-            planning_score: None,
-            value_range_provider: None,
-            problem_fact_collection_property: None,
-            planning_entity_collection_property: None,
-            inverse_relation_shadow_variable: None,
         }
     }
 
@@ -161,193 +152,96 @@ impl MemberDto {
         self
     }
 
-    pub fn with_planning_variable(mut self, variable: PlanningVariableDto) -> Self {
-        self.planning_variable = Some(variable);
-        self
-    }
-
-    pub fn with_planning_list_variable(mut self, variable: PlanningListVariableDto) -> Self {
-        self.planning_list_variable = Some(variable);
-        self
-    }
-
-    pub fn with_planning_id(mut self) -> Self {
-        self.planning_id = Some(true);
-        self
-    }
-
-    pub fn with_planning_score(mut self, score: PlanningScoreDto) -> Self {
-        self.planning_score = Some(score);
-        self
-    }
-
-    pub fn with_value_range_provider(mut self, provider: ValueRangeProviderDto) -> Self {
-        self.value_range_provider = Some(provider);
-        self
-    }
-
-    pub fn with_problem_fact_collection_property(mut self) -> Self {
-        self.problem_fact_collection_property = Some(true);
-        self
-    }
-
-    pub fn with_planning_entity_collection_property(mut self) -> Self {
-        self.planning_entity_collection_property = Some(true);
-        self
-    }
-
-    pub fn with_inverse_relation_shadow_variable(
-        mut self,
-        shadow: InverseRelationShadowDto,
-    ) -> Self {
-        self.inverse_relation_shadow_variable = Some(shadow);
-        self
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PlanningVariableDto {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub value_range_provider_refs: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allows_unassigned: Option<bool>,
-}
-
-impl PlanningVariableDto {
-    pub fn new() -> Self {
+    pub fn getter_setter(getter: impl Into<String>, setter: impl Into<String>) -> Self {
         Self {
-            value_range_provider_refs: Vec::new(),
-            allows_unassigned: None,
-        }
-    }
-
-    pub fn with_value_range_provider_ref(mut self, ref_id: impl Into<String>) -> Self {
-        self.value_range_provider_refs.push(ref_id.into());
-        self
-    }
-
-    pub fn with_allows_unassigned(mut self, allows: bool) -> Self {
-        self.allows_unassigned = Some(allows);
-        self
-    }
-}
-
-impl Default for PlanningVariableDto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PlanningListVariableDto {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub value_range_provider_refs: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allows_unassigned_values: Option<bool>,
-}
-
-impl PlanningListVariableDto {
-    pub fn new() -> Self {
-        Self {
-            value_range_provider_refs: Vec::new(),
-            allows_unassigned_values: None,
-        }
-    }
-
-    pub fn with_value_range_provider_ref(mut self, ref_id: impl Into<String>) -> Self {
-        self.value_range_provider_refs.push(ref_id.into());
-        self
-    }
-
-    pub fn with_allows_unassigned_values(mut self, allows: bool) -> Self {
-        self.allows_unassigned_values = Some(allows);
-        self
-    }
-}
-
-impl Default for PlanningListVariableDto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PlanningScoreDto {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bendable_hard_levels_size: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bendable_soft_levels_size: Option<usize>,
-}
-
-impl PlanningScoreDto {
-    pub fn new() -> Self {
-        Self {
-            bendable_hard_levels_size: None,
-            bendable_soft_levels_size: None,
-        }
-    }
-
-    pub fn bendable(hard_levels: usize, soft_levels: usize) -> Self {
-        Self {
-            bendable_hard_levels_size: Some(hard_levels),
-            bendable_soft_levels_size: Some(soft_levels),
+            getter: getter.into(),
+            setter: Some(setter.into()),
         }
     }
 }
 
-impl Default for PlanningScoreDto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
+/// Mapper for parsing/serializing solution objects
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ValueRangeProviderDto {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+pub struct DomainObjectMapper {
+    #[serde(rename = "fromString")]
+    pub from_string: String,
+    #[serde(rename = "toString")]
+    pub to_string: String,
 }
 
-impl ValueRangeProviderDto {
-    pub fn new() -> Self {
-        Self { id: None }
-    }
-
-    pub fn with_id(mut self, id: impl Into<String>) -> Self {
-        self.id = Some(id.into());
-        self
-    }
-}
-
-impl Default for ValueRangeProviderDto {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InverseRelationShadowDto {
-    pub source_variable_name: String,
-}
-
-impl InverseRelationShadowDto {
-    pub fn new(source_variable_name: impl Into<String>) -> Self {
+impl DomainObjectMapper {
+    pub fn new(from_string: impl Into<String>, to_string: impl Into<String>) -> Self {
         Self {
-            source_variable_name: source_variable_name.into(),
+            from_string: from_string.into(),
+            to_string: to_string.into(),
         }
     }
 }
 
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// Planning annotation types matching Java's PlanningAnnotation hierarchy
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "annotation")]
+pub enum PlanningAnnotation {
+    PlanningVariable {
+        #[serde(default, rename = "allowsUnassigned", skip_serializing_if = "is_false")]
+        allows_unassigned: bool,
+    },
+    PlanningId,
+    PlanningScore,
+    ValueRangeProvider,
+    ProblemFactCollectionProperty,
+    PlanningEntityCollectionProperty,
+}
+
+impl PlanningAnnotation {
+    pub fn planning_variable() -> Self {
+        PlanningAnnotation::PlanningVariable {
+            allows_unassigned: false,
+        }
+    }
+
+    pub fn planning_variable_allows_unassigned() -> Self {
+        PlanningAnnotation::PlanningVariable {
+            allows_unassigned: true,
+        }
+    }
+
+    pub fn planning_id() -> Self {
+        PlanningAnnotation::PlanningId
+    }
+
+    pub fn planning_score() -> Self {
+        PlanningAnnotation::PlanningScore
+    }
+
+    pub fn value_range_provider() -> Self {
+        PlanningAnnotation::ValueRangeProvider
+    }
+
+    pub fn problem_fact_collection_property() -> Self {
+        PlanningAnnotation::ProblemFactCollectionProperty
+    }
+
+    pub fn planning_entity_collection_property() -> Self {
+        PlanningAnnotation::PlanningEntityCollectionProperty
+    }
+}
+
+/// List accessor for WASM list operations
+/// JSON field names match Java's DomainListAccessor
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListAccessorDto {
+    #[serde(rename = "new")]
     pub create: String,
+    #[serde(rename = "get")]
     pub get_item: String,
+    #[serde(rename = "set")]
     pub set_item: String,
+    #[serde(rename = "length")]
     pub get_size: String,
     pub append: String,
     pub insert: String,
@@ -393,14 +287,7 @@ mod tests {
             "allocate".to_string(),
             "deallocate".to_string(),
             ListAccessorDto::new(
-                "create_list",
-                "get_item",
-                "set_item",
-                "get_size",
-                "append",
-                "insert",
-                "remove",
-                "deallocate_list",
+                "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
             ),
             "{}".to_string(),
         );
@@ -420,7 +307,7 @@ mod tests {
             "allocate".to_string(),
             "deallocate".to_string(),
             ListAccessorDto::new(
-                "create", "get", "set", "size", "append", "insert", "remove", "free",
+                "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
             ),
             "{}".to_string(),
         )
@@ -432,92 +319,113 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_object_dto_planning_entity() {
-        let dto = DomainObjectDto::planning_entity().with_member(
-            MemberDto::new("room", "getRoom").with_planning_variable(
-                PlanningVariableDto::new().with_value_range_provider_ref("roomRange"),
-            ),
-        );
+    fn test_domain_object_dto_with_fields() {
+        let dto = DomainObjectDto::new()
+            .with_field(
+                "id",
+                FieldDescriptor::new("int")
+                    .with_accessor(DomainAccessor::new("getId"))
+                    .with_annotation(PlanningAnnotation::planning_id()),
+            )
+            .with_field(
+                "employee",
+                FieldDescriptor::new("Employee")
+                    .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
+                    .with_annotation(PlanningAnnotation::planning_variable()),
+            );
 
-        assert_eq!(dto.planning_entity, Some(true));
-        assert!(dto.planning_solution.is_none());
-        assert_eq!(dto.members.len(), 1);
+        assert_eq!(dto.fields.len(), 2);
+        assert!(dto.fields.contains_key("id"));
+        assert!(dto.fields.contains_key("employee"));
     }
 
     #[test]
-    fn test_domain_object_dto_planning_solution() {
-        let dto = DomainObjectDto::planning_solution();
-        assert!(dto.planning_entity.is_none());
-        assert_eq!(dto.planning_solution, Some(true));
+    fn test_domain_object_dto_with_mapper() {
+        let dto = DomainObjectDto::new()
+            .with_mapper(DomainObjectMapper::new("parseSchedule", "scheduleString"));
+
+        assert!(dto.mapper.is_some());
+        let mapper = dto.mapper.unwrap();
+        assert_eq!(mapper.from_string, "parseSchedule");
+        assert_eq!(mapper.to_string, "scheduleString");
     }
 
     #[test]
-    fn test_member_dto_builder() {
-        let member = MemberDto::new("id", "getId")
-            .with_setter("setId")
-            .with_planning_id();
+    fn test_field_descriptor() {
+        let field = FieldDescriptor::new("Employee")
+            .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
+            .with_annotation(PlanningAnnotation::PlanningVariable {
+                allows_unassigned: false,
+            });
 
-        assert_eq!(member.name, "id");
-        assert_eq!(member.getter, "getId");
-        assert_eq!(member.setter, Some("setId".to_string()));
-        assert_eq!(member.planning_id, Some(true));
+        assert_eq!(field.field_type, "Employee");
+        assert!(field.accessor.is_some());
+        assert_eq!(field.annotations.len(), 1);
     }
 
     #[test]
-    fn test_planning_variable_dto() {
-        let variable = PlanningVariableDto::new()
-            .with_value_range_provider_ref("roomRange")
-            .with_value_range_provider_ref("timeslotRange")
-            .with_allows_unassigned(true);
+    fn test_domain_accessor() {
+        let accessor = DomainAccessor::new("getRoom").with_setter("setRoom");
+        assert_eq!(accessor.getter, "getRoom");
+        assert_eq!(accessor.setter, Some("setRoom".to_string()));
 
-        assert_eq!(variable.value_range_provider_refs.len(), 2);
-        assert_eq!(variable.allows_unassigned, Some(true));
+        let accessor2 = DomainAccessor::getter_setter("getRoom", "setRoom");
+        assert_eq!(accessor2.getter, "getRoom");
+        assert_eq!(accessor2.setter, Some("setRoom".to_string()));
     }
 
     #[test]
-    fn test_planning_score_dto_bendable() {
-        let score = PlanningScoreDto::bendable(3, 2);
-        assert_eq!(score.bendable_hard_levels_size, Some(3));
-        assert_eq!(score.bendable_soft_levels_size, Some(2));
-    }
-
-    #[test]
-    fn test_value_range_provider_dto() {
-        let provider = ValueRangeProviderDto::new().with_id("roomRange");
-        assert_eq!(provider.id, Some("roomRange".to_string()));
-    }
-
-    #[test]
-    fn test_inverse_relation_shadow_dto() {
-        let shadow = InverseRelationShadowDto::new("lessons");
-        assert_eq!(shadow.source_variable_name, "lessons");
+    fn test_planning_annotation_constructors() {
+        assert!(matches!(
+            PlanningAnnotation::planning_variable(),
+            PlanningAnnotation::PlanningVariable {
+                allows_unassigned: false
+            }
+        ));
+        assert!(matches!(
+            PlanningAnnotation::planning_variable_allows_unassigned(),
+            PlanningAnnotation::PlanningVariable {
+                allows_unassigned: true
+            }
+        ));
+        assert!(matches!(
+            PlanningAnnotation::planning_id(),
+            PlanningAnnotation::PlanningId
+        ));
+        assert!(matches!(
+            PlanningAnnotation::planning_score(),
+            PlanningAnnotation::PlanningScore
+        ));
+        assert!(matches!(
+            PlanningAnnotation::value_range_provider(),
+            PlanningAnnotation::ValueRangeProvider
+        ));
     }
 
     #[test]
     fn test_list_accessor_dto() {
         let accessor = ListAccessorDto::new(
-            "create_list",
-            "get_item",
-            "set_item",
-            "get_size",
-            "append",
-            "insert",
-            "remove",
-            "deallocate_list",
+            "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
         );
 
-        assert_eq!(accessor.create, "create_list");
-        assert_eq!(accessor.get_item, "get_item");
-        assert_eq!(accessor.deallocator, "deallocate_list");
+        assert_eq!(accessor.create, "newList");
+        assert_eq!(accessor.get_item, "getItem");
+        assert_eq!(accessor.set_item, "setItem");
+        assert_eq!(accessor.get_size, "size");
+        assert_eq!(accessor.deallocator, "dealloc");
     }
 
     #[test]
     fn test_solve_request_json_serialization() {
         let mut domain = HashMap::new();
         domain.insert(
-            "Lesson".to_string(),
-            DomainObjectDto::planning_entity()
-                .with_member(MemberDto::new("id", "getId").with_planning_id()),
+            "Employee".to_string(),
+            DomainObjectDto::new().with_field(
+                "id",
+                FieldDescriptor::new("int")
+                    .with_accessor(DomainAccessor::new("getEmployeeId"))
+                    .with_annotation(PlanningAnnotation::planning_id()),
+            ),
         );
 
         let request = SolveRequest::new(
@@ -527,15 +435,16 @@ mod tests {
             "allocate".to_string(),
             "deallocate".to_string(),
             ListAccessorDto::new(
-                "create", "get", "set", "size", "append", "insert", "remove", "free",
+                "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
             ),
-            r#"{"lessons": []}"#.to_string(),
+            r#"{"employees": []}"#.to_string(),
         );
 
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("\"domain\""));
         assert!(json.contains("\"listAccessor\""));
-        assert!(json.contains("\"planningEntity\":true"));
+        assert!(json.contains("\"type\":\"int\""));
+        assert!(json.contains("\"annotation\":\"PlanningId\""));
 
         let parsed: SolveRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, request);
@@ -550,7 +459,7 @@ mod tests {
             "allocate".to_string(),
             "deallocate".to_string(),
             ListAccessorDto::new(
-                "create", "get", "set", "size", "append", "insert", "remove", "free",
+                "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
             ),
             "{}".to_string(),
         );
@@ -562,37 +471,167 @@ mod tests {
     }
 
     #[test]
-    fn test_member_dto_json_serialization() {
-        let member = MemberDto::new("room", "getRoom")
-            .with_setter("setRoom")
-            .with_planning_variable(
-                PlanningVariableDto::new()
-                    .with_value_range_provider_ref("roomRange")
-                    .with_allows_unassigned(false),
-            );
+    fn test_planning_annotation_json_serialization() {
+        let variable = PlanningAnnotation::PlanningVariable {
+            allows_unassigned: false,
+        };
+        let json = serde_json::to_string(&variable).unwrap();
+        assert!(json.contains("\"annotation\":\"PlanningVariable\""));
+        // allows_unassigned: false should be omitted
+        assert!(!json.contains("allowsUnassigned"));
 
-        let json = serde_json::to_string(&member).unwrap();
-        assert!(json.contains("\"name\":\"room\""));
-        assert!(json.contains("\"getter\":\"getRoom\""));
-        assert!(json.contains("\"setter\":\"setRoom\""));
-        assert!(json.contains("\"planningVariable\""));
-        assert!(json.contains("\"valueRangeProviderRefs\":[\"roomRange\"]"));
+        let variable_unassigned = PlanningAnnotation::PlanningVariable {
+            allows_unassigned: true,
+        };
+        let json2 = serde_json::to_string(&variable_unassigned).unwrap();
+        assert!(json2.contains("\"allowsUnassigned\":true"));
 
-        let parsed: MemberDto = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed, member);
+        let planning_id = PlanningAnnotation::PlanningId;
+        let json3 = serde_json::to_string(&planning_id).unwrap();
+        assert!(json3.contains("\"annotation\":\"PlanningId\""));
+    }
+
+    #[test]
+    fn test_list_accessor_json_field_names() {
+        let accessor = ListAccessorDto::new(
+            "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
+        );
+
+        let json = serde_json::to_string(&accessor).unwrap();
+        // Verify Java-compatible field names
+        assert!(json.contains("\"new\":\"newList\""));
+        assert!(json.contains("\"get\":\"getItem\""));
+        assert!(json.contains("\"set\":\"setItem\""));
+        assert!(json.contains("\"length\":\"size\""));
+        assert!(json.contains("\"append\":\"append\""));
+    }
+
+    #[test]
+    fn test_domain_object_mapper_json_serialization() {
+        let mapper = DomainObjectMapper::new("parseSchedule", "scheduleString");
+        let json = serde_json::to_string(&mapper).unwrap();
+        assert!(json.contains("\"fromString\":\"parseSchedule\""));
+        assert!(json.contains("\"toString\":\"scheduleString\""));
+    }
+
+    #[test]
+    fn test_field_descriptor_json_serialization() {
+        let field = FieldDescriptor::new("Employee")
+            .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
+            .with_annotation(PlanningAnnotation::planning_variable());
+
+        let json = serde_json::to_string(&field).unwrap();
+        assert!(json.contains("\"type\":\"Employee\""));
+        assert!(json.contains("\"getter\":\"getEmployee\""));
+        assert!(json.contains("\"setter\":\"setEmployee\""));
+        assert!(json.contains("\"annotation\":\"PlanningVariable\""));
+
+        let parsed: FieldDescriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, field);
+    }
+
+    #[test]
+    fn test_full_domain_json_structure() {
+        // Build a domain matching Java's test case
+        let mut domain = HashMap::new();
+
+        // Employee with PlanningId
+        domain.insert(
+            "Employee".to_string(),
+            DomainObjectDto::new().with_field(
+                "id",
+                FieldDescriptor::new("int")
+                    .with_accessor(DomainAccessor::new("getEmployeeId"))
+                    .with_annotation(PlanningAnnotation::planning_id()),
+            ),
+        );
+
+        // Shift with PlanningVariable
+        domain.insert(
+            "Shift".to_string(),
+            DomainObjectDto::new().with_field(
+                "employee",
+                FieldDescriptor::new("Employee")
+                    .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
+                    .with_annotation(PlanningAnnotation::planning_variable()),
+            ),
+        );
+
+        // Schedule (solution) with collections and score
+        domain.insert(
+            "Schedule".to_string(),
+            DomainObjectDto::new()
+                .with_field(
+                    "employees",
+                    FieldDescriptor::new("Employee[]")
+                        .with_accessor(DomainAccessor::getter_setter(
+                            "getEmployees",
+                            "setEmployees",
+                        ))
+                        .with_annotation(PlanningAnnotation::problem_fact_collection_property())
+                        .with_annotation(PlanningAnnotation::value_range_provider()),
+                )
+                .with_field(
+                    "shifts",
+                    FieldDescriptor::new("Shift[]")
+                        .with_accessor(DomainAccessor::getter_setter("getShifts", "setShifts"))
+                        .with_annotation(PlanningAnnotation::planning_entity_collection_property()),
+                )
+                .with_field(
+                    "score",
+                    FieldDescriptor::new("SimpleScore")
+                        .with_annotation(PlanningAnnotation::planning_score()),
+                )
+                .with_mapper(DomainObjectMapper::new("parseSchedule", "scheduleString")),
+        );
+
+        let json = serde_json::to_string_pretty(&domain).unwrap();
+
+        // Verify structure
+        assert!(json.contains("\"Employee\""));
+        assert!(json.contains("\"Shift\""));
+        assert!(json.contains("\"Schedule\""));
+        // Type is serialized under "type" field
+        assert!(json.contains("\"type\": \"int\"") || json.contains("\"type\":\"int\""));
+        assert!(json.contains("\"Employee\""));
+        assert!(json.contains("\"Employee[]\""));
+        assert!(json.contains("\"SimpleScore\""));
+        // Annotations use PascalCase for variant names
+        assert!(
+            json.contains("\"annotation\": \"PlanningId\"")
+                || json.contains("\"annotation\":\"PlanningId\"")
+        );
+        assert!(
+            json.contains("\"annotation\": \"PlanningVariable\"")
+                || json.contains("\"annotation\":\"PlanningVariable\"")
+        );
+        assert!(
+            json.contains("\"annotation\": \"PlanningScore\"")
+                || json.contains("\"annotation\":\"PlanningScore\"")
+        );
+        assert!(
+            json.contains("\"annotation\": \"ValueRangeProvider\"")
+                || json.contains("\"annotation\":\"ValueRangeProvider\"")
+        );
+        assert!(
+            json.contains("\"fromString\": \"parseSchedule\"")
+                || json.contains("\"fromString\":\"parseSchedule\"")
+        );
     }
 
     #[test]
     fn test_domain_object_dto_clone() {
-        let dto = DomainObjectDto::planning_entity()
-            .with_member(MemberDto::new("id", "getId").with_planning_id());
+        let dto = DomainObjectDto::new().with_field(
+            "id",
+            FieldDescriptor::new("int").with_annotation(PlanningAnnotation::planning_id()),
+        );
         let cloned = dto.clone();
         assert_eq!(dto, cloned);
     }
 
     #[test]
     fn test_domain_object_dto_debug() {
-        let dto = DomainObjectDto::planning_entity();
+        let dto = DomainObjectDto::new();
         let debug = format!("{:?}", dto);
         assert!(debug.contains("DomainObjectDto"));
     }

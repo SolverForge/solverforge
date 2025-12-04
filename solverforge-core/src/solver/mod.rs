@@ -11,8 +11,8 @@ pub use config::SolverConfig;
 pub use environment::{EnvironmentMode, MoveThreadCount};
 pub use factory::{Solver, SolverFactory};
 pub use request::{
-    DomainObjectDto, InverseRelationShadowDto, ListAccessorDto, MemberDto, PlanningListVariableDto,
-    PlanningScoreDto, PlanningVariableDto, SolveRequest, ValueRangeProviderDto,
+    DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor, ListAccessorDto,
+    PlanningAnnotation, SolveRequest,
 };
 pub use response::{
     AsyncSolveResponse, ScoreDto, SolveHandle, SolveResponse, SolveState, SolveStatus,

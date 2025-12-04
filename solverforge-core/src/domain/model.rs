@@ -40,22 +40,16 @@ impl DomainModel {
     }
 
     pub fn to_dto(&self) -> std::collections::HashMap<String, crate::solver::DomainObjectDto> {
-        use crate::domain::PlanningAnnotation;
+        use crate::domain::PlanningAnnotation as DomainAnnotation;
         use crate::solver::{
-            DomainObjectDto, MemberDto, PlanningListVariableDto, PlanningScoreDto,
-            PlanningVariableDto, ValueRangeProviderDto,
+            DomainAccessor, DomainObjectDto, FieldDescriptor,
+            PlanningAnnotation as SolverAnnotation,
         };
 
         let mut result = std::collections::HashMap::new();
 
         for (name, class) in &self.classes {
-            let mut dto = if class.is_planning_solution() {
-                DomainObjectDto::planning_solution()
-            } else if class.is_planning_entity() {
-                DomainObjectDto::planning_entity()
-            } else {
-                DomainObjectDto::new()
-            };
+            let mut dto = DomainObjectDto::new();
 
             for field in &class.fields {
                 let getter = field
@@ -65,72 +59,56 @@ impl DomainModel {
                     .unwrap_or_else(|| format!("get_{}", field.name));
                 let setter = field.accessor.as_ref().map(|a| a.setter.clone());
 
-                let mut member = MemberDto::new(&field.name, getter);
-                if let Some(s) = setter {
-                    member = member.with_setter(s);
-                }
+                let accessor = if let Some(s) = setter {
+                    DomainAccessor::getter_setter(getter, s)
+                } else {
+                    DomainAccessor::new(getter)
+                };
 
+                // Convert domain annotations to solver annotations
+                let mut annotations = Vec::new();
                 for ann in &field.planning_annotations {
                     match ann {
-                        PlanningAnnotation::PlanningId => {
-                            member = member.with_planning_id();
+                        DomainAnnotation::PlanningId => {
+                            annotations.push(SolverAnnotation::PlanningId);
                         }
-                        PlanningAnnotation::PlanningVariable {
-                            value_range_provider_refs,
-                            allows_unassigned,
+                        DomainAnnotation::PlanningVariable {
+                            allows_unassigned, ..
                         } => {
-                            let mut var_dto = PlanningVariableDto::new();
-                            for ref_id in value_range_provider_refs {
-                                var_dto = var_dto.with_value_range_provider_ref(ref_id);
-                            }
-                            if *allows_unassigned {
-                                var_dto = var_dto.with_allows_unassigned(true);
-                            }
-                            member = member.with_planning_variable(var_dto);
+                            annotations.push(SolverAnnotation::PlanningVariable {
+                                allows_unassigned: *allows_unassigned,
+                            });
                         }
-                        PlanningAnnotation::PlanningListVariable {
-                            value_range_provider_refs,
-                        } => {
-                            let mut var_dto = PlanningListVariableDto::new();
-                            for ref_id in value_range_provider_refs {
-                                var_dto = var_dto.with_value_range_provider_ref(ref_id);
-                            }
-                            member = member.with_planning_list_variable(var_dto);
+                        DomainAnnotation::PlanningListVariable { .. } => {
+                            // List variables use the same PlanningVariable annotation
+                            annotations.push(SolverAnnotation::PlanningVariable {
+                                allows_unassigned: false,
+                            });
                         }
-                        PlanningAnnotation::PlanningScore {
-                            bendable_hard_levels,
-                            bendable_soft_levels,
-                        } => {
-                            let score_dto = if bendable_hard_levels.is_some()
-                                || bendable_soft_levels.is_some()
-                            {
-                                PlanningScoreDto::bendable(
-                                    bendable_hard_levels.unwrap_or(0),
-                                    bendable_soft_levels.unwrap_or(0),
-                                )
-                            } else {
-                                PlanningScoreDto::new()
-                            };
-                            member = member.with_planning_score(score_dto);
+                        DomainAnnotation::PlanningScore { .. } => {
+                            annotations.push(SolverAnnotation::PlanningScore);
                         }
-                        PlanningAnnotation::ValueRangeProvider { id } => {
-                            let mut provider = ValueRangeProviderDto::new();
-                            if let Some(id) = id {
-                                provider = provider.with_id(id);
-                            }
-                            member = member.with_value_range_provider(provider);
+                        DomainAnnotation::ValueRangeProvider { .. } => {
+                            annotations.push(SolverAnnotation::ValueRangeProvider);
                         }
-                        PlanningAnnotation::ProblemFactCollectionProperty => {
-                            member = member.with_problem_fact_collection_property();
+                        DomainAnnotation::ProblemFactCollectionProperty => {
+                            annotations.push(SolverAnnotation::ProblemFactCollectionProperty);
                         }
-                        PlanningAnnotation::PlanningEntityCollectionProperty => {
-                            member = member.with_planning_entity_collection_property();
+                        DomainAnnotation::PlanningEntityCollectionProperty => {
+                            annotations.push(SolverAnnotation::PlanningEntityCollectionProperty);
                         }
                         _ => {}
                     }
                 }
 
-                dto = dto.with_member(member);
+                // Derive field type from domain type
+                let field_type = field.field_type.to_type_string();
+
+                let field_descriptor = FieldDescriptor::new(field_type)
+                    .with_accessor(accessor)
+                    .with_annotations(annotations);
+
+                dto = dto.with_field(&field.name, field_descriptor);
             }
 
             result.insert(name.clone(), dto);

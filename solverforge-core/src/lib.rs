@@ -65,11 +65,11 @@ pub use score::{
     HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
 };
 pub use solver::{
-    AsyncSolveResponse, DiminishedReturnsConfig, DomainObjectDto, EnvironmentMode,
-    HttpSolverService, InverseRelationShadowDto, ListAccessorDto, MemberDto, MoveThreadCount,
-    PlanningListVariableDto, PlanningScoreDto, PlanningVariableDto, ScoreDto, SolveHandle,
+    AsyncSolveResponse, DiminishedReturnsConfig, DomainAccessor, DomainObjectDto,
+    DomainObjectMapper, EnvironmentMode, FieldDescriptor, HttpSolverService, ListAccessorDto,
+    MoveThreadCount, PlanningAnnotation as SolverPlanningAnnotation, ScoreDto, SolveHandle,
     SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverConfig, SolverFactory,
-    SolverService, TerminationConfig, ValueRangeProviderDto,
+    SolverService, TerminationConfig,
 };
 pub use value::Value;
 pub use wasm::{

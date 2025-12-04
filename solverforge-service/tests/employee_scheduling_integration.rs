@@ -329,6 +329,35 @@ const EMPLOYEE_SCHEDULING_WAT: &str = r#"
         (i32.eqz (call $hstringEquals (local.get $empSkill) (local.get $reqSkill)))
     )
 
+    ;; Check if two shifts are on the same day AND have the same employee
+    ;; Returns 1 if: same employee AND same day (start / 24)
+    ;; Only counts when shift1 < shift2 to avoid double counting
+    (func (export "sameEmployeeSameDay") (param $shift1 i32) (param $shift2 i32) (result i32)
+        (local $emp1 i32) (local $emp2 i32)
+        (local $day1 i32) (local $day2 i32)
+
+        ;; Only count when shift1 address < shift2 address (avoid double counting)
+        (if (i32.ge_u (local.get $shift1) (local.get $shift2))
+            (then (return (i32.const 0)))
+        )
+
+        ;; Get employee pointers from each shift
+        (local.set $emp1 (i32.load (local.get $shift1)))
+        (local.set $emp2 (i32.load (local.get $shift2)))
+
+        ;; If different employees or either is null, no conflict
+        (if (i32.or (i32.eqz (local.get $emp1)) (i32.ne (local.get $emp1) (local.get $emp2)))
+            (then (return (i32.const 0)))
+        )
+
+        ;; Get days: start_hour / 24 (integer division)
+        (local.set $day1 (i32.div_s (i32.load (i32.add (local.get $shift1) (i32.const 4))) (i32.const 24)))
+        (local.set $day2 (i32.div_s (i32.load (i32.add (local.get $shift2) (i32.const 4))) (i32.const 24)))
+
+        ;; Return 1 if same day
+        (i32.eq (local.get $day1) (local.get $day2))
+    )
+
     ;; Utility predicates
     (func (export "scaleByCount") (param $count i32) (result i32)
         (local.get $count)
@@ -438,6 +467,19 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
             StreamComponent::for_each("Shift"),
             StreamComponent::join("Shift"),
             StreamComponent::filter(WasmFunction::new("shiftsOverlap")),
+            StreamComponent::penalize("1hard/0soft"),
+        ],
+    );
+
+    // Constraint 3: One shift per day per employee (HARD)
+    // forEach(Shift).join(Shift).filter(sameEmployeeSameDay).penalize(1hard/0soft)
+    // sameEmployeeSameDay checks: same employee AND same day AND shift1 < shift2
+    constraints.insert(
+        "oneShiftPerDay".to_string(),
+        vec![
+            StreamComponent::for_each("Shift"),
+            StreamComponent::join("Shift"),
+            StreamComponent::filter(WasmFunction::new("sameEmployeeSameDay")),
             StreamComponent::penalize("1hard/0soft"),
         ],
     );

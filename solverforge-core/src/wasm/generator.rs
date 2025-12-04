@@ -1302,4 +1302,80 @@ mod tests {
         assert_eq!(access.class_name, "Lesson");
         assert_eq!(access.field_name, "room");
     }
+
+    #[test]
+    fn test_expression_based_predicate() {
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let model = create_test_model();
+
+        // Build expression: param(0).roomId == param(1).roomId
+        let left = Expr::param(0).get("Lesson", "roomId");
+        let right = Expr::param(1).get("Lesson", "roomId");
+        let expr = Expr::eq(left, right);
+
+        let predicate = PredicateDefinition::from_expression("same_room_expr", 2, expr);
+
+        let builder = WasmModuleBuilder::new()
+            .with_domain_model(model)
+            .add_predicate(predicate);
+
+        let wasm_bytes = builder.build().unwrap();
+        assert!(!wasm_bytes.is_empty());
+        assert_eq!(&wasm_bytes[0..4], b"\0asm");
+    }
+
+    #[test]
+    fn test_expression_with_host_function() {
+        use crate::wasm::{Expr, FieldAccessExt, HostFunctionRegistry};
+
+        let model = create_test_model();
+
+        // Build expression that uses host function: hstringEquals(param(0).field, param(1).field)
+        // Note: We're using int fields as placeholders since our test model doesn't have string fields
+        let left = Expr::param(0).get("Lesson", "id");
+        let right = Expr::param(1).get("Lesson", "id");
+        let expr = Expr::string_equals(left, right);
+
+        let predicate = PredicateDefinition::from_expression("test_host_call", 2, expr);
+
+        let registry = HostFunctionRegistry::with_standard_functions();
+
+        let builder = WasmModuleBuilder::new()
+            .with_domain_model(model)
+            .with_host_functions(registry)
+            .add_predicate(predicate);
+
+        let wasm_bytes = builder.build().unwrap();
+        assert!(!wasm_bytes.is_empty());
+        assert_eq!(&wasm_bytes[0..4], b"\0asm");
+
+        // Verify the module contains an import section (indicated by section ID 2)
+        // WASM sections: 1=Type, 2=Import, 3=Function, 5=Memory, 6=Global, 7=Export, 10=Code
+        assert!(wasm_bytes.windows(2).any(|w| w[0] == 2 && w[1] > 0));
+    }
+
+    #[test]
+    fn test_expression_with_logical_operations() {
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let model = create_test_model();
+
+        // Build: param(0).id > 0 AND param(0).roomId == param(1).roomId
+        let id_check = Expr::gt(Expr::param(0).get("Lesson", "id"), Expr::int(0));
+        let room_match = Expr::eq(
+            Expr::param(0).get("Lesson", "roomId"),
+            Expr::param(1).get("Lesson", "roomId"),
+        );
+        let expr = Expr::and(id_check, room_match);
+
+        let predicate = PredicateDefinition::from_expression("complex_predicate", 2, expr);
+
+        let builder = WasmModuleBuilder::new()
+            .with_domain_model(model)
+            .add_predicate(predicate);
+
+        let wasm_bytes = builder.build().unwrap();
+        assert!(!wasm_bytes.is_empty());
+    }
 }

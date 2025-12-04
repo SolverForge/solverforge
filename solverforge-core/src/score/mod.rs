@@ -2,11 +2,13 @@ mod simple;
 mod hard_soft;
 mod simple_decimal;
 mod hard_soft_decimal;
+mod bendable;
 
 pub use simple::SimpleScore;
 pub use hard_soft::{HardSoftScore, HardMediumSoftScore};
 pub use simple_decimal::SimpleDecimalScore;
 pub use hard_soft_decimal::{HardSoftDecimalScore, HardMediumSoftDecimalScore};
+pub use bendable::{BendableScore, BendableDecimalScore};
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;

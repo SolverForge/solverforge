@@ -48,5 +48,6 @@ pub use handles::{FunctionHandle, ObjectHandle};
 pub use score::{
     Score, SimpleScore, HardSoftScore, HardMediumSoftScore,
     SimpleDecimalScore, HardSoftDecimalScore, HardMediumSoftDecimalScore,
+    BendableScore, BendableDecimalScore,
 };
 pub use value::Value;

@@ -509,6 +509,33 @@ fn build_skill_mismatch_predicate() -> solverforge_core::wasm::PredicateDefiniti
     solverforge_core::wasm::PredicateDefinition::from_expression("skillMismatch", 1, predicate)
 }
 
+/// Build shiftsOverlap predicate: same employee AND time ranges overlap
+/// Pattern: two-parameter constraint with reference equality and range checking
+fn build_shifts_overlap_predicate() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift1 = Expr::param(0);
+    let shift2 = Expr::param(1);
+
+    let emp1 = shift1.clone().get("Shift", "employee");
+    let emp2 = shift2.clone().get("Shift", "employee");
+
+    // Same employee: emp1 != null AND emp1 == emp2
+    let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
+
+    // Time ranges overlap: start1 < end2 AND start2 < end1
+    let ranges_overlap = Expr::ranges_overlap(
+        shift1.clone().get("Shift", "start"),
+        shift1.clone().get("Shift", "end"),
+        shift2.clone().get("Shift", "start"),
+        shift2.get("Shift", "end"),
+    );
+
+    let predicate = Expr::and(same_employee, ranges_overlap);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression("shiftsOverlap", 2, predicate)
+}
+
 /// Build the employee scheduling domain model
 /// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
 /// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.

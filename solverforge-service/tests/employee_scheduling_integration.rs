@@ -564,6 +564,49 @@ fn build_same_employee_same_day_predicate() -> solverforge_core::wasm::Predicate
     )
 }
 
+/// Build lessThan10HoursBetween predicate: gap between shifts < 10 hours
+/// Pattern: nested conditional logic with if-then-else for complex calculations
+fn build_less_than_10_hours_between_predicate() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift1 = Expr::param(0);
+    let shift2 = Expr::param(1);
+
+    let emp1 = shift1.clone().get("Shift", "employee");
+    let emp2 = shift2.clone().get("Shift", "employee");
+
+    // Same employee check
+    let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
+
+    let start1 = shift1.clone().get("Shift", "start");
+    let end1 = shift1.clone().get("Shift", "end");
+    let start2 = shift2.clone().get("Shift", "start");
+    let end2 = shift2.get("Shift", "end");
+
+    // Gap calculation with nested if-then-else:
+    // if end1 <= start2 then start2 - end1
+    // else if end2 <= start1 then start1 - end2
+    // else 999 (overlapping - handled by shiftsOverlap)
+    let gap = Expr::if_then_else(
+        Expr::le(end1.clone(), start2.clone()),
+        Expr::sub(start2.clone(), end1.clone()),
+        Expr::if_then_else(
+            Expr::le(end2.clone(), start1.clone()),
+            Expr::sub(start1, end2),
+            Expr::int(999), // Large number for overlapping case
+        ),
+    );
+
+    let gap_too_small = Expr::lt(gap, Expr::int(10));
+    let predicate = Expr::and(same_employee, gap_too_small);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "lessThan10HoursBetween",
+        2,
+        predicate,
+    )
+}
+
 /// Build the employee scheduling domain model
 /// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
 /// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.

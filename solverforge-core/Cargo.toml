@@ -1,0 +1,27 @@
+[package]
+name = "solverforge-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Language-agnostic wrapper for the Timefold JVM"
+repository.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# Error handling
+thiserror.workspace = true
+
+# Logging
+log.workspace = true
+
+# Decimal arithmetic for value ranges and scores
+rust_decimal.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

@@ -47,7 +47,7 @@ pub mod score;
 mod value;
 
 pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
-pub use constraints::{Joiner, WasmFunction};
+pub use constraints::{Collector, Joiner, WasmFunction};
 pub use domain::{
     ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
     ShadowAnnotation,

@@ -354,19 +354,49 @@ impl WasmModuleBuilder {
     }
 
     fn generate_allocator(&self) -> Function {
-        let mut func = Function::new([(1, ValType::I32)]);
+        // Locals: 0=size (param), 1=result, 2=new_end, 3=current_memory_bytes
+        let mut func = Function::new([(3, ValType::I32)]);
 
-        // result = global[0]
+        // result = global[0] (current heap pointer)
         func.instruction(&Instruction::GlobalGet(0));
         func.instruction(&Instruction::LocalSet(1));
 
-        // global[0] += size (param 0)
-        func.instruction(&Instruction::GlobalGet(0));
+        // new_end = result + size
+        func.instruction(&Instruction::LocalGet(1));
         func.instruction(&Instruction::LocalGet(0));
         func.instruction(&Instruction::I32Add);
+        func.instruction(&Instruction::LocalSet(2));
+
+        // current_memory_bytes = memory.size * 65536
+        func.instruction(&Instruction::MemorySize(0));
+        func.instruction(&Instruction::I32Const(65536));
+        func.instruction(&Instruction::I32Mul);
+        func.instruction(&Instruction::LocalSet(3));
+
+        // if new_end > current_memory_bytes: try to grow
+        func.instruction(&Instruction::LocalGet(2));
+        func.instruction(&Instruction::LocalGet(3));
+        func.instruction(&Instruction::I32GtU);
+        func.instruction(&Instruction::If(wasm_encoder::BlockType::Empty));
+
+        // Grow by 16 pages (1MB) at a time
+        func.instruction(&Instruction::I32Const(16));
+        func.instruction(&Instruction::MemoryGrow(0));
+        // memory.grow returns -1 on failure
+        func.instruction(&Instruction::I32Const(-1));
+        func.instruction(&Instruction::I32Eq);
+        func.instruction(&Instruction::If(wasm_encoder::BlockType::Empty));
+        // OOM - trap
+        func.instruction(&Instruction::Unreachable);
+        func.instruction(&Instruction::End);
+
+        func.instruction(&Instruction::End);
+
+        // Update heap pointer: global[0] = new_end
+        func.instruction(&Instruction::LocalGet(2));
         func.instruction(&Instruction::GlobalSet(0));
 
-        // return result
+        // Return result (original heap pointer before allocation)
         func.instruction(&Instruction::LocalGet(1));
         func.instruction(&Instruction::End);
         func

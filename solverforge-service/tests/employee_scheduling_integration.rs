@@ -350,17 +350,28 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
 }
 
 /// Build WASM module using WasmModuleBuilder and expression-based predicates
-fn build_employee_scheduling_wasm() -> Vec<u8> {
+/// Memory is scaled based on problem size to avoid OOM for large benchmarks.
+fn build_employee_scheduling_wasm_with_scale(employee_count: usize, shift_count: usize) -> Vec<u8> {
     use solverforge_core::wasm::{HostFunctionRegistry, WasmModuleBuilder};
 
     let model = build_employee_scheduling_model();
     let registry = HostFunctionRegistry::with_standard_functions();
 
+    // Estimate memory requirements:
+    // - Each Employee: ~32 bytes (id + skill pointer + padding + list overhead)
+    // - Each Shift: ~64 bytes (employee ptr + start/end dates + skill ptr + padding)
+    // - Working memory during solving: ~10x headroom for temporary allocations
+    let estimated_bytes = (employee_count * 32 + shift_count * 64) * 10;
+    let pages_needed = ((estimated_bytes / 65536) + 1) as u32;
+
+    let initial_pages = pages_needed.max(16).min(256); // At least 16, at most 256 pages
+    let max_pages = (pages_needed * 4).max(256).min(4096); // 4x headroom, max 256MB
+
     WasmModuleBuilder::new()
         .with_domain_model(model)
         .with_host_functions(registry)
-        .with_initial_memory(16) // 16 pages = 1MB initial
-        .with_max_memory(Some(1024)) // 1024 pages = 64MB max
+        .with_initial_memory(initial_pages)
+        .with_max_memory(Some(max_pages))
         .add_predicate(build_skill_mismatch_predicate())
         .add_predicate(build_shifts_overlap_predicate())
         .add_predicate(build_same_employee_same_day_predicate())
@@ -369,9 +380,17 @@ fn build_employee_scheduling_wasm() -> Vec<u8> {
         .expect("Failed to generate WASM module")
 }
 
-/// Compile expression-based WASM and base64 encode
-fn compile_employee_scheduling_wasm() -> String {
-    let wasm_bytes = build_employee_scheduling_wasm();
+/// Build WASM module with default memory configuration (for small problems)
+fn build_employee_scheduling_wasm() -> Vec<u8> {
+    build_employee_scheduling_wasm_with_scale(5, 10)
+}
+
+/// Compile expression-based WASM and base64 encode with memory scaled for problem size
+fn compile_employee_scheduling_wasm_with_scale(
+    employee_count: usize,
+    shift_count: usize,
+) -> String {
+    let wasm_bytes = build_employee_scheduling_wasm_with_scale(employee_count, shift_count);
     BASE64.encode(&wasm_bytes)
 }
 
@@ -379,24 +398,8 @@ fn compile_employee_scheduling_wasm() -> String {
 fn test_employee_scheduling_solve() {
     env_logger::try_init().ok();
 
-    // Start the service
-    let config = ServiceConfig::new()
-        .with_startup_timeout(Duration::from_secs(120))
-        .with_java_home(PathBuf::from(JAVA_24_HOME))
-        .with_submodule_dir(PathBuf::from(SUBMODULE_DIR));
-
-    let service = EmbeddedService::start(config).expect("Failed to start service");
-    println!("Service started on {}", service.url());
-
-    let domain = build_employee_scheduling_domain();
-    let constraints = build_employee_scheduling_constraints();
-    let wasm_base64 = compile_employee_scheduling_wasm();
-
-    let list_accessor = ListAccessorDto::new(
-        "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
-    );
-
     // Configurable problem scale via environment variables
+    // Read these first so we can scale WASM memory appropriately
     let employee_count: usize = env::var("EMPLOYEE_COUNT")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -409,6 +412,24 @@ fn test_employee_scheduling_solve() {
     println!("\n=== Problem Scale ===");
     println!("Employees: {}", employee_count);
     println!("Shifts: {}", shift_count);
+
+    // Start the service
+    let config = ServiceConfig::new()
+        .with_startup_timeout(Duration::from_secs(120))
+        .with_java_home(PathBuf::from(JAVA_24_HOME))
+        .with_submodule_dir(PathBuf::from(SUBMODULE_DIR));
+
+    let service = EmbeddedService::start(config).expect("Failed to start service");
+    println!("Service started on {}", service.url());
+
+    let domain = build_employee_scheduling_domain();
+    let constraints = build_employee_scheduling_constraints();
+    // Use scaled WASM module based on problem size
+    let wasm_base64 = compile_employee_scheduling_wasm_with_scale(employee_count, shift_count);
+
+    let list_accessor = ListAccessorDto::new(
+        "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
+    );
 
     // Constraints:
     // - requiredSkill: Employee's skill must match shift's requiredSkill

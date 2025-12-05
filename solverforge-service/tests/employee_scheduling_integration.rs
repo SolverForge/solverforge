@@ -78,47 +78,51 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
         })
         .collect();
 
-    // Generate shifts with times: 3 shifts per day (8-hour shifts)
+    // Generate shifts with ISO-8601 datetime: 3 shifts per day (8-hour shifts)
     // Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00
     // Each shift requires a skill (cycling through the same skills as employees)
+    // Start date: 2025-01-01
+    let locations = ["LOCATION_A", "LOCATION_B", "LOCATION_C"];
     let shifts_per_day = 3;
     let days = (shift_count + shifts_per_day - 1) / shifts_per_day;
 
     let mut shifts = Vec::new();
+    let shift_id = |idx: usize| format!("SHIFT{}", idx);
 
     for day in 0..days {
-        let day_offset = day * 24; // Hours since start
+        let date = format!("2025-01-{:02}", day + 1);
 
         // Morning shift: 06:00-14:00
         if shifts.len() < shift_count {
-            let start = day_offset + 6;
-            let end = day_offset + 14;
-            let skill = skills[shifts.len() % skills.len()];
+            let idx = shifts.len();
+            let skill = skills[idx % skills.len()];
+            let location = locations[idx % locations.len()];
             shifts.push(format!(
-                r#"{{"start": {}, "end": {}, "requiredSkill": "{}"}}"#,
-                start, end, skill
+                r#"{{"id": "{}", "start": "{}T06:00:00", "end": "{}T14:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
+                shift_id(idx), date, date, location, skill
             ));
         }
 
         // Afternoon shift: 14:00-22:00
         if shifts.len() < shift_count {
-            let start = day_offset + 14;
-            let end = day_offset + 22;
-            let skill = skills[shifts.len() % skills.len()];
+            let idx = shifts.len();
+            let skill = skills[idx % skills.len()];
+            let location = locations[idx % locations.len()];
             shifts.push(format!(
-                r#"{{"start": {}, "end": {}, "requiredSkill": "{}"}}"#,
-                start, end, skill
+                r#"{{"id": "{}", "start": "{}T14:00:00", "end": "{}T22:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
+                shift_id(idx), date, date, location, skill
             ));
         }
 
-        // Night shift: 22:00-06:00
+        // Night shift: 22:00-06:00 (next day)
         if shifts.len() < shift_count {
-            let start = day_offset + 22;
-            let end = day_offset + 30; // 06:00 next day
-            let skill = skills[shifts.len() % skills.len()];
+            let idx = shifts.len();
+            let skill = skills[idx % skills.len()];
+            let location = locations[idx % locations.len()];
+            let next_date = format!("2025-01-{:02}", day + 2);
             shifts.push(format!(
-                r#"{{"start": {}, "end": {}, "requiredSkill": "{}"}}"#,
-                start, end, skill
+                r#"{{"id": "{}", "start": "{}T22:00:00", "end": "{}T06:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
+                shift_id(idx), date, next_date, location, skill
             ));
         }
     }
@@ -166,18 +170,26 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
             DomainClass::new("Shift")
                 .with_annotation(PlanningAnnotation::PlanningEntity)
                 .with_field(
+                    FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
+                        .with_planning_annotation(PlanningAnnotation::PlanningId),
+                )
+                .with_field(
                     FieldDescriptor::new("employee", FieldType::object("Employee"))
                         .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
                             "employees".to_string(),
                         ])),
                 )
                 .with_field(FieldDescriptor::new(
+                    "location",
+                    FieldType::Primitive(PrimitiveType::String),
+                ))
+                .with_field(FieldDescriptor::new(
                     "start",
-                    FieldType::Primitive(PrimitiveType::Int),
+                    FieldType::Primitive(PrimitiveType::DateTime),
                 ))
                 .with_field(FieldDescriptor::new(
                     "end",
-                    FieldType::Primitive(PrimitiveType::Int),
+                    FieldType::Primitive(PrimitiveType::DateTime),
                 ))
                 .with_field(FieldDescriptor::new(
                     "requiredSkill",
@@ -272,9 +284,9 @@ fn build_same_employee_same_day_predicate() -> solverforge_core::wasm::Predicate
     // Same employee check
     let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
 
-    // Same day: start1 / 24 == start2 / 24 (integer division)
-    let day1 = Expr::div(shift1.get("Shift", "start"), Expr::int(24));
-    let day2 = Expr::div(shift2.get("Shift", "start"), Expr::int(24));
+    // Same day: start1 / 86400 == start2 / 86400 (86400 seconds in a day)
+    let day1 = Expr::div(shift1.get("Shift", "start"), Expr::int(86400));
+    let day2 = Expr::div(shift2.get("Shift", "start"), Expr::int(86400));
     let same_day = Expr::eq(day1, day2);
 
     let predicate = Expr::and(same_employee, same_day);
@@ -305,21 +317,23 @@ fn build_less_than_10_hours_between_predicate() -> solverforge_core::wasm::Predi
     let start2 = shift2.clone().get("Shift", "start");
     let end2 = shift2.get("Shift", "end");
 
-    // Gap calculation with nested if-then-else:
+    // Gap calculation with nested if-then-else (in seconds):
     // if end1 <= start2 then start2 - end1
     // else if end2 <= start1 then start1 - end2
-    // else 999 (overlapping - handled by shiftsOverlap)
-    let gap = Expr::if_then_else(
+    // else 999999 (large number for overlapping case - handled by shiftsOverlap)
+    let gap_seconds = Expr::if_then_else(
         Expr::le(end1.clone(), start2.clone()),
         Expr::sub(start2.clone(), end1.clone()),
         Expr::if_then_else(
             Expr::le(end2.clone(), start1.clone()),
             Expr::sub(start1, end2),
-            Expr::int(999), // Large number for overlapping case
+            Expr::int(999999), // Large number for overlapping case
         ),
     );
 
-    let gap_too_small = Expr::lt(gap, Expr::int(10));
+    // Convert to hours: gap_seconds / 3600
+    let gap_hours = Expr::div(gap_seconds, Expr::int(3600));
+    let gap_too_small = Expr::lt(gap_hours, Expr::int(10));
     let predicate = Expr::and(same_employee, gap_too_small);
 
     solverforge_core::wasm::PredicateDefinition::from_expression(

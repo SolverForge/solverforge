@@ -238,11 +238,11 @@ impl FieldType {
                 ScoreType::Simple => "SimpleScore".to_string(),
                 ScoreType::HardSoft => "HardSoftScore".to_string(),
                 ScoreType::HardMediumSoft => "HardMediumSoftScore".to_string(),
-                ScoreType::SimpleDecimal => "SimpleDecimalScore".to_string(),
-                ScoreType::HardSoftDecimal => "HardSoftDecimalScore".to_string(),
-                ScoreType::HardMediumSoftDecimal => "HardMediumSoftDecimalScore".to_string(),
+                ScoreType::SimpleDecimal => "SimpleBigDecimalScore".to_string(),
+                ScoreType::HardSoftDecimal => "HardSoftBigDecimalScore".to_string(),
+                ScoreType::HardMediumSoftDecimal => "HardMediumSoftBigDecimalScore".to_string(),
                 ScoreType::Bendable { .. } => "BendableScore".to_string(),
-                ScoreType::BendableDecimal { .. } => "BendableDecimalScore".to_string(),
+                ScoreType::BendableDecimal { .. } => "BendableBigDecimalScore".to_string(),
             },
         }
     }

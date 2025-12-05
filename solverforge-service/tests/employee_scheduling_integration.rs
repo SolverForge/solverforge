@@ -14,8 +14,8 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use indexmap::IndexMap;
 use solverforge_core::{
-    DomainObjectDto, Joiner, ListAccessorDto, SolveRequest, SolveResponse, StreamComponent,
-    TerminationConfig, WasmFunction,
+    Collector, DomainObjectDto, Joiner, ListAccessorDto, SolveRequest, SolveResponse,
+    StreamComponent, TerminationConfig, WasmFunction,
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
 use std::collections::HashMap;
@@ -411,6 +411,185 @@ fn build_get_rest_deficit_weigher() -> solverforge_core::wasm::PredicateDefiniti
     solverforge_core::wasm::PredicateDefinition::from_expression("getRestDeficit", 2, rest_deficit)
 }
 
+/// Build shiftOverlapsDate predicate: checks if a shift overlaps with a given date (epoch day)
+/// A shift overlaps a date if: shift.start's day == date OR shift.end's day == date
+fn build_shift_overlaps_date_predicate() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let date = Expr::param(1); // LocalDate as epoch day (i64)
+
+    // shift.start and shift.end are epoch seconds
+    // Convert to epoch day by dividing by 86400
+    let start_day = Expr::div(shift.clone().get("Shift", "start"), Expr::int(86400));
+    let end_day = Expr::div(shift.get("Shift", "end"), Expr::int(86400));
+
+    // shift overlaps date if start_day == date OR end_day == date
+    let overlaps = Expr::or(Expr::eq(start_day, date.clone()), Expr::eq(end_day, date));
+
+    solverforge_core::wasm::PredicateDefinition::from_expression("shiftOverlapsDate", 2, overlaps)
+}
+
+/// Build getShiftDateOverlapMinutes weigher: calculates overlap minutes between a shift and a date
+/// The date is considered as [date 00:00:00, date 23:59:59]
+/// Formula: max(0, min(shift_end, day_end) - max(shift_start, day_start)) / 60
+fn build_get_shift_date_overlap_minutes_weigher() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let date = Expr::param(1); // LocalDate as epoch day (i64)
+
+    // Day boundaries in epoch seconds
+    let day_start = Expr::mul(date.clone(), Expr::int(86400)); // date * 86400
+    let day_end = Expr::add(
+        Expr::mul(date, Expr::int(86400)),
+        Expr::int(86399), // date * 86400 + 86399 (23:59:59)
+    );
+
+    let shift_start = shift.clone().get("Shift", "start");
+    let shift_end = shift.get("Shift", "end");
+
+    // overlap_start = max(shift_start, day_start)
+    let overlap_start = Expr::if_then_else(
+        Expr::gt(shift_start.clone(), day_start.clone()),
+        shift_start,
+        day_start,
+    );
+
+    // overlap_end = min(shift_end, day_end)
+    let overlap_end = Expr::if_then_else(
+        Expr::lt(shift_end.clone(), day_end.clone()),
+        shift_end,
+        day_end,
+    );
+
+    // overlap_seconds = max(0, overlap_end - overlap_start)
+    let overlap_diff = Expr::sub(overlap_end, overlap_start);
+    let overlap_seconds = Expr::if_then_else(
+        Expr::gt(overlap_diff.clone(), Expr::int(0)),
+        overlap_diff,
+        Expr::int(0),
+    );
+
+    // overlap_minutes = overlap_seconds / 60
+    let overlap_minutes = Expr::div(overlap_seconds, Expr::int(60));
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "getShiftDateOverlapMinutes",
+        2,
+        overlap_minutes,
+    )
+}
+
+/// Build get_Shift_employee_unavailableDates mapper: shift -> shift.employee.unavailableDates
+/// Returns the employee's unavailable dates list from a shift, or null if no employee assigned
+fn build_get_shift_employee_unavailable_dates() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let employee = shift.clone().get("Shift", "employee");
+    let dates = employee.clone().get("Employee", "unavailableDates");
+
+    // If employee is null, return null (which flattenLast should handle gracefully)
+    // Otherwise return the dates list
+    let result = Expr::if_then_else(Expr::is_not_null(employee), dates, Expr::null());
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "get_Shift_employee_unavailableDates",
+        1,
+        result,
+    )
+}
+
+/// Build get_Shift_employee_undesiredDates mapper: shift -> shift.employee.undesiredDates
+fn build_get_shift_employee_undesired_dates() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let dates = shift
+        .get("Shift", "employee")
+        .get("Employee", "undesiredDates");
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "get_Shift_employee_undesiredDates",
+        1,
+        dates,
+    )
+}
+
+/// Build get_Shift_employee_desiredDates mapper: shift -> shift.employee.desiredDates
+fn build_get_shift_employee_desired_dates() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let dates = shift
+        .get("Shift", "employee")
+        .get("Employee", "desiredDates");
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "get_Shift_employee_desiredDates",
+        1,
+        dates,
+    )
+}
+
+/// Build shiftHasEmployee predicate: checks if shift has an assigned employee (not null)
+fn build_shift_has_employee_predicate() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift = Expr::param(0);
+    let employee = shift.get("Shift", "employee");
+    let has_employee = Expr::is_not_null(employee);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "shiftHasEmployee",
+        1,
+        has_employee,
+    )
+}
+
+/// Build pick1 function: extracts first element from a 2-tuple (e.g., from groupBy result)
+/// Used after groupBy(employee, count()) to get the employee from (Employee, count) tuple
+fn build_pick1_function() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::Expr;
+
+    // param(0) is the first element of the tuple
+    let first = Expr::param(0);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression("pick1", 2, first)
+}
+
+/// Build pick2 function: extracts second element from a 2-tuple (e.g., from groupBy result)
+/// Used after groupBy(employee, count()) to get the count from (Employee, count) tuple
+fn build_pick2_function() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::Expr;
+
+    // param(1) is the second element of the tuple
+    let second = Expr::param(1);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression("pick2", 2, second)
+}
+
+/// Build scaleByFloat function: rounds a float value to an integer for scoring
+/// Used for penalizing/rewarding by LoadBalance unfairness (which is a BigDecimal/float)
+fn build_scale_by_float_function() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, ValType};
+
+    // param(0) is the float value - use hround host function to convert to int
+    // For unfairness penalty, we round to the nearest integer
+    let float_val = Expr::param(0);
+
+    // Call hround host function to round float to int
+    let int_val = Expr::host_call("hround", vec![float_val]);
+
+    // The LoadBalance unfairness is passed as f32, so we need explicit param type
+    solverforge_core::wasm::PredicateDefinition::from_expression_with_types(
+        "scaleByFloat",
+        vec![ValType::F32],
+        int_val,
+    )
+}
+
 /// Build the employee scheduling domain DTO from the domain model.
 /// Uses model.to_dto() which:
 /// - Preserves field insertion order via IndexMap
@@ -492,6 +671,33 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
         ],
     );
 
+    // Constraint 5: Balance employee shift assignments (SOFT)
+    // Groups by employee with count, adds unassigned employees with 0 count,
+    // then computes loadBalance unfairness as the penalty.
+    // This encourages fair distribution of shifts across all employees.
+    constraints.insert(
+        "balanceEmployeeShiftAssignments".to_string(),
+        vec![
+            StreamComponent::for_each("Shift"),
+            StreamComponent::group_by(
+                vec![WasmFunction::new("get_Shift_employee")],
+                vec![Collector::count()],
+            ),
+            StreamComponent::complement("Employee"),
+            StreamComponent::group_by(
+                vec![],
+                vec![Collector::load_balance_with_load(
+                    WasmFunction::new("pick1"),
+                    WasmFunction::new("pick2"),
+                )],
+            ),
+            StreamComponent::penalize_with_weigher(
+                "0hard/1soft",
+                WasmFunction::new("scaleByFloat"),
+            ),
+        ],
+    );
+
     constraints
 }
 
@@ -524,6 +730,15 @@ fn build_employee_scheduling_wasm_with_scale(employee_count: usize, shift_count:
         .add_predicate(build_same_employee_same_day_predicate())
         .add_predicate(build_less_than_10_hours_between_predicate())
         .add_predicate(build_get_rest_deficit_weigher())
+        .add_predicate(build_shift_overlaps_date_predicate())
+        .add_predicate(build_get_shift_date_overlap_minutes_weigher())
+        .add_predicate(build_get_shift_employee_unavailable_dates())
+        .add_predicate(build_get_shift_employee_undesired_dates())
+        .add_predicate(build_get_shift_employee_desired_dates())
+        .add_predicate(build_shift_has_employee_predicate())
+        .add_predicate(build_pick1_function())
+        .add_predicate(build_pick2_function())
+        .add_predicate(build_scale_by_float_function())
         .build()
         .expect("Failed to generate WASM module")
 }

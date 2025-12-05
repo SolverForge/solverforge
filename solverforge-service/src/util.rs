@@ -49,7 +49,12 @@ pub fn find_maven() -> ServiceResult<PathBuf> {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path.is_empty() {
-                return Ok(PathBuf::from(path));
+                // Canonicalize the path to resolve symlinks.
+                // Maven's startup script uses $0 to derive MAVEN_HOME, so calling
+                // it via a symlink like /bin/mvn (which points to ../share/maven/bin/mvn)
+                // can fail if /bin doesn't have a /share sibling directory.
+                let path_buf = PathBuf::from(&path);
+                return Ok(path_buf.canonicalize().unwrap_or(path_buf));
             }
         }
     }

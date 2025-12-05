@@ -39,6 +39,8 @@ pub struct PredicateDefinition {
     pub name: String,
     pub arity: u32,
     pub body: PredicateBody,
+    /// Parameter types for the predicate function. If None, defaults to all i32.
+    pub param_types: Option<Vec<ValType>>,
 }
 
 impl PredicateDefinition {
@@ -47,6 +49,7 @@ impl PredicateDefinition {
             name: name.into(),
             arity,
             body: PredicateBody::Comparison(comparison),
+            param_types: None,
         }
     }
 
@@ -55,6 +58,22 @@ impl PredicateDefinition {
             name: name.into(),
             arity,
             body: PredicateBody::Expression(expression),
+            param_types: None,
+        }
+    }
+
+    /// Create a predicate from an expression with explicit parameter types.
+    /// Useful for functions that take non-i32 parameters (e.g., f32 for loadBalance unfairness).
+    pub fn from_expression_with_types(
+        name: impl Into<String>,
+        param_types: Vec<ValType>,
+        expression: Expression,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            arity: param_types.len() as u32,
+            body: PredicateBody::Expression(expression),
+            param_types: Some(param_types),
         }
     }
 
@@ -283,7 +302,11 @@ impl WasmModuleBuilder {
             .collect();
 
         for (name, predicate) in &predicates {
-            let params: Vec<ValType> = (0..predicate.arity).map(|_| ValType::I32).collect();
+            // Use explicit param_types if specified, otherwise default to all i32
+            let params: Vec<ValType> = predicate
+                .param_types
+                .clone()
+                .unwrap_or_else(|| (0..predicate.arity).map(|_| ValType::I32).collect());
             let pred_type_idx =
                 self.add_function_type(&mut type_section, params, vec![ValType::I32]);
             function_section.function(pred_type_idx);

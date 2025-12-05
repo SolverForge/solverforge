@@ -11,3 +11,6 @@ pub use generator::{
 };
 pub use host_functions::{HostFunctionDef, HostFunctionRegistry, WasmType};
 pub use memory::{FieldLayout, LayoutCalculator, MemoryLayout, WasmMemoryType};
+
+// Re-export wasm_encoder::ValType for use in predicate parameter type specifications
+pub use wasm_encoder::ValType;

@@ -605,19 +605,25 @@ fn test_employee_scheduling_solve() {
 
     // Count skill mismatches and assignments (only for assigned shifts)
     let mut skill_mismatches = 0;
-    let mut assignment_counts: HashMap<i64, i32> = HashMap::new();
+    let mut assignment_counts: HashMap<String, i32> = HashMap::new();
 
     for shift in shifts_array {
         if let Some(employee) = shift.get("employee") {
             if !employee.is_null() {
-                if let Some(emp_id) = employee.get("id").and_then(|v| v.as_i64()) {
-                    *assignment_counts.entry(emp_id).or_insert(0) += 1;
+                if let Some(emp_name) = employee.get("name").and_then(|v| v.as_str()) {
+                    *assignment_counts.entry(emp_name.to_string()).or_insert(0) += 1;
 
-                    // Check skill mismatch
-                    let emp_skill = employee.get("skill").and_then(|v| v.as_str());
+                    // Check skill mismatch - employee.skills must contain shift.requiredSkill
+                    let emp_skills = employee
+                        .get("skills")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                        .unwrap_or_default();
                     let req_skill = shift.get("requiredSkill").and_then(|v| v.as_str());
-                    if emp_skill != req_skill {
-                        skill_mismatches += 1;
+                    if let Some(required) = req_skill {
+                        if !emp_skills.contains(&required) {
+                            skill_mismatches += 1;
+                        }
                     }
                 }
             }

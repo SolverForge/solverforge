@@ -270,6 +270,37 @@ fn build_shifts_overlap_predicate() -> solverforge_core::wasm::PredicateDefiniti
     solverforge_core::wasm::PredicateDefinition::from_expression("shiftsOverlap", 2, predicate)
 }
 
+/// Build getMinuteOverlap weigher: returns minutes of overlap between two shifts
+/// Formula: (min(end1, end2) - max(start1, start2)) / 60
+fn build_get_minute_overlap_weigher() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift1 = Expr::param(0);
+    let shift2 = Expr::param(1);
+
+    let start1 = shift1.clone().get("Shift", "start");
+    let end1 = shift1.get("Shift", "end");
+    let start2 = shift2.clone().get("Shift", "start");
+    let end2 = shift2.get("Shift", "end");
+
+    // overlap_start = max(start1, start2)
+    let overlap_start =
+        Expr::if_then_else(Expr::gt(start1.clone(), start2.clone()), start1, start2);
+
+    // overlap_end = min(end1, end2)
+    let overlap_end = Expr::if_then_else(Expr::lt(end1.clone(), end2.clone()), end1, end2);
+
+    // overlap_minutes = (overlap_end - overlap_start) / 60
+    let overlap_seconds = Expr::sub(overlap_end, overlap_start);
+    let overlap_minutes = Expr::div(overlap_seconds, Expr::int(60));
+
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "getMinuteOverlap",
+        2,
+        overlap_minutes,
+    )
+}
+
 /// Build sameEmployeeSameDay predicate: same employee AND same day
 /// Pattern: arithmetic expressions with division for day calculation
 fn build_same_employee_same_day_predicate() -> solverforge_core::wasm::PredicateDefinition {
@@ -371,6 +402,7 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     // Constraint 2: No overlapping shifts for same employee (HARD)
     // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
     // shiftsOverlap checks: time ranges overlap (same employee is handled by joiner)
+    // Penalizes by minutes of overlap (matching reference implementation)
     constraints.insert(
         "noOverlappingShifts".to_string(),
         vec![
@@ -380,7 +412,10 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
                 vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
             ),
             StreamComponent::filter(WasmFunction::new("shiftsOverlap")),
-            StreamComponent::penalize("1hard/0soft"),
+            StreamComponent::penalize_with_weigher(
+                "1hard/0soft",
+                WasmFunction::new("getMinuteOverlap"),
+            ),
         ],
     );
 
@@ -444,6 +479,7 @@ fn build_employee_scheduling_wasm_with_scale(employee_count: usize, shift_count:
         .with_max_memory(Some(max_pages))
         .add_predicate(build_skill_mismatch_predicate())
         .add_predicate(build_shifts_overlap_predicate())
+        .add_predicate(build_get_minute_overlap_weigher())
         .add_predicate(build_same_employee_same_day_predicate())
         .add_predicate(build_less_than_10_hours_between_predicate())
         .build()

@@ -1,11 +1,11 @@
 use crate::domain::{DomainClass, FieldType, PrimitiveType};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
 pub struct MemoryLayout {
     pub total_size: u32,
     pub alignment: u32,
-    pub field_offsets: HashMap<String, FieldLayout>,
+    pub field_offsets: IndexMap<String, FieldLayout>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,7 +33,8 @@ impl WasmMemoryType {
             WasmMemoryType::F32 => 4,
             WasmMemoryType::F64 => 8,
             WasmMemoryType::Pointer => 4,
-            WasmMemoryType::ArrayPointer => 8,
+            // Arrays are host-managed references (pointers) in WASM32 - 4 bytes
+            WasmMemoryType::ArrayPointer => 4,
         }
     }
 
@@ -51,7 +52,7 @@ impl WasmMemoryType {
 
 #[derive(Debug, Default)]
 pub struct LayoutCalculator {
-    class_layouts: HashMap<String, MemoryLayout>,
+    class_layouts: IndexMap<String, MemoryLayout>,
 }
 
 impl LayoutCalculator {
@@ -64,7 +65,7 @@ impl LayoutCalculator {
             return layout.clone();
         }
 
-        let mut field_offsets = HashMap::new();
+        let mut field_offsets = IndexMap::new();
         let mut current_offset: u32 = 0;
         let mut max_alignment: u32 = 4;
 
@@ -224,7 +225,7 @@ mod tests {
         assert_eq!(WasmMemoryType::F32.size(), 4);
         assert_eq!(WasmMemoryType::F64.size(), 8);
         assert_eq!(WasmMemoryType::Pointer.size(), 4);
-        assert_eq!(WasmMemoryType::ArrayPointer.size(), 8);
+        assert_eq!(WasmMemoryType::ArrayPointer.size(), 4);
     }
 
     #[test]

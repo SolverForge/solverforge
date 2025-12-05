@@ -1,11 +1,11 @@
 use super::DomainClass;
 use crate::SolverForgeError;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DomainModel {
-    pub classes: HashMap<String, DomainClass>,
+    pub classes: IndexMap<String, DomainClass>,
     pub solution_class: Option<String>,
     pub entity_classes: Vec<String>,
 }
@@ -42,7 +42,7 @@ impl DomainModel {
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
         use crate::domain::PlanningAnnotation as DomainAnnotation;
         use crate::solver::{
-            DomainAccessor, DomainObjectDto, FieldDescriptor,
+            DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor,
             PlanningAnnotation as SolverAnnotation,
         };
 
@@ -52,12 +52,34 @@ impl DomainModel {
             let mut dto = DomainObjectDto::new();
 
             for field in &class.fields {
-                let getter = field
-                    .accessor
-                    .as_ref()
-                    .map(|a| a.getter.clone())
-                    .unwrap_or_else(|| format!("get_{}", field.name));
-                let setter = field.accessor.as_ref().map(|a| a.setter.clone());
+                // Generate accessor names that match WasmModuleBuilder exports:
+                // get_{Class}_{field} and set_{Class}_{field}
+                let (getter, setter) = if let Some(a) = &field.accessor {
+                    // Use explicitly defined accessor
+                    (a.getter.clone(), Some(a.setter.clone()))
+                } else {
+                    // Generate defaults
+                    let getter = format!("get_{}_{}", name, field.name);
+                    // Generate setter for fields that need to be modified:
+                    // - PlanningVariable: solver assigns values
+                    // - PlanningListVariable: solver modifies lists
+                    // - ProblemFactCollectionProperty: solution class collections
+                    // - PlanningEntityCollectionProperty: solution class entity collections
+                    let setter = if field.planning_annotations.iter().any(|a| {
+                        matches!(
+                            a,
+                            DomainAnnotation::PlanningVariable { .. }
+                                | DomainAnnotation::PlanningListVariable { .. }
+                                | DomainAnnotation::ProblemFactCollectionProperty
+                                | DomainAnnotation::PlanningEntityCollectionProperty
+                        )
+                    }) {
+                        Some(format!("set_{}_{}", name, field.name))
+                    } else {
+                        None
+                    };
+                    (getter, setter)
+                };
 
                 let accessor = if let Some(s) = setter {
                     DomainAccessor::getter_setter(getter, s)
@@ -109,6 +131,12 @@ impl DomainModel {
                     .with_annotations(annotations);
 
                 dto = dto.with_field(&field.name, field_descriptor);
+            }
+
+            // Add mapper for solution class (PlanningSolution)
+            // Uses parseSchedule/scheduleString which are exported by WasmModuleBuilder
+            if class.is_planning_solution() {
+                dto = dto.with_mapper(DomainObjectMapper::new("parseSchedule", "scheduleString"));
             }
 
             result.insert(name.clone(), dto);
@@ -182,7 +210,7 @@ impl DomainModel {
 
 #[derive(Debug, Default)]
 pub struct DomainModelBuilder {
-    classes: HashMap<String, DomainClass>,
+    classes: IndexMap<String, DomainClass>,
     solution_class: Option<String>,
     entity_classes: Vec<String>,
 }

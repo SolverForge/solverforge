@@ -1,5 +1,5 @@
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// WASM value types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,9 +40,10 @@ impl HostFunctionDef {
 }
 
 /// Registry of host functions available for import into WASM modules
+/// Uses IndexMap to preserve insertion order for deterministic function indices
 #[derive(Debug, Clone, Default)]
 pub struct HostFunctionRegistry {
-    functions: HashMap<String, HostFunctionDef>,
+    functions: IndexMap<String, HostFunctionDef>,
 }
 
 impl HostFunctionRegistry {
@@ -78,10 +79,28 @@ impl HostFunctionRegistry {
             WasmType::Void,
         ));
 
+        registry.register(HostFunctionDef::new(
+            "hsetItem",
+            vec![WasmType::Ptr, WasmType::I32, WasmType::Ptr],
+            WasmType::Void,
+        ));
+
+        registry.register(HostFunctionDef::new(
+            "hinsert",
+            vec![WasmType::Ptr, WasmType::I32, WasmType::Ptr],
+            WasmType::Void,
+        ));
+
+        registry.register(HostFunctionDef::new(
+            "hremove",
+            vec![WasmType::Ptr, WasmType::I32],
+            WasmType::Void,
+        ));
+
         // Schedule operations
         registry.register(HostFunctionDef::new(
             "hparseSchedule",
-            vec![WasmType::Ptr],
+            vec![WasmType::I32, WasmType::Ptr], // (length: i32, json: ptr) -> ptr
             WasmType::Ptr,
         ));
 
@@ -94,8 +113,8 @@ impl HostFunctionRegistry {
         // Math operations
         registry.register(HostFunctionDef::new(
             "hround",
-            vec![WasmType::F64],
-            WasmType::I64,
+            vec![WasmType::F32],
+            WasmType::I32,
         ));
 
         registry

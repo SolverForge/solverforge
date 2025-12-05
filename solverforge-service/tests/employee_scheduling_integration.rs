@@ -14,8 +14,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use indexmap::IndexMap;
 use solverforge_core::{
-    DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor, ListAccessorDto,
-    SolveRequest, SolveResponse, SolverPlanningAnnotation as PA, StreamComponent,
+    DomainObjectDto, ListAccessorDto, SolveRequest, SolveResponse, StreamComponent,
     TerminationConfig, WasmFunction,
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
@@ -283,82 +282,14 @@ fn build_less_than_10_hours_between_predicate() -> solverforge_core::wasm::Predi
     )
 }
 
-/// Build the employee scheduling domain model
-/// Uses the same simple layout as the original test (since HostFunctionProvider is hardcoded)
-/// Uses IndexMap to preserve field insertion order, which is critical for WASM memory layout.
+/// Build the employee scheduling domain DTO from the domain model.
+/// Uses model.to_dto() which:
+/// - Preserves field insertion order via IndexMap
+/// - Generates accessor names matching WasmModuleBuilder: get_{Class}_{field}
+/// - Adds setters for PlanningVariable and collection fields
+/// - Adds mapper for the solution class
 fn build_employee_scheduling_domain() -> IndexMap<String, DomainObjectDto> {
-    let mut domain = IndexMap::new();
-
-    // Employee with PlanningId and skill
-    domain.insert(
-        "Employee".to_string(),
-        DomainObjectDto::new()
-            .with_field(
-                "id",
-                FieldDescriptor::new("int")
-                    .with_accessor(DomainAccessor::new("getEmployeeId"))
-                    .with_annotation(PA::planning_id()),
-            )
-            .with_field(
-                "skill",
-                FieldDescriptor::new("String")
-                    .with_accessor(DomainAccessor::new("getEmployeeSkill")),
-            ),
-    );
-
-    // Shift with PlanningVariable, time fields, and requiredSkill
-    domain.insert(
-        "Shift".to_string(),
-        DomainObjectDto::new()
-            .with_field(
-                "employee",
-                FieldDescriptor::new("Employee")
-                    .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                    .with_annotation(PA::planning_variable()),
-            )
-            .with_field(
-                "start",
-                FieldDescriptor::new("int").with_accessor(DomainAccessor::new("getShiftStart")),
-            )
-            .with_field(
-                "end",
-                FieldDescriptor::new("int").with_accessor(DomainAccessor::new("getShiftEnd")),
-            )
-            .with_field(
-                "requiredSkill",
-                FieldDescriptor::new("String")
-                    .with_accessor(DomainAccessor::new("getShiftRequiredSkill")),
-            ),
-    );
-
-    // Schedule (solution) with collections and score
-    domain.insert(
-        "Schedule".to_string(),
-        DomainObjectDto::new()
-            .with_field(
-                "employees",
-                FieldDescriptor::new("Employee[]")
-                    .with_accessor(DomainAccessor::getter_setter(
-                        "getEmployees",
-                        "setEmployees",
-                    ))
-                    .with_annotation(PA::problem_fact_collection_property())
-                    .with_annotation(PA::value_range_provider()),
-            )
-            .with_field(
-                "shifts",
-                FieldDescriptor::new("Shift[]")
-                    .with_accessor(DomainAccessor::getter_setter("getShifts", "setShifts"))
-                    .with_annotation(PA::planning_entity_collection_property()),
-            )
-            .with_field(
-                "score",
-                FieldDescriptor::new("HardSoftScore").with_annotation(PA::planning_score()),
-            )
-            .with_mapper(DomainObjectMapper::new("parseSchedule", "scheduleString")),
-    );
-
-    domain
+    build_employee_scheduling_model().to_dto()
 }
 
 /// Build constraints for employee scheduling
@@ -492,8 +423,8 @@ fn test_employee_scheduling_solve() {
         domain,
         constraints,
         wasm_base64,
-        "allocate".to_string(),
-        "deallocate".to_string(),
+        "alloc".to_string(),
+        "dealloc".to_string(),
         list_accessor,
         problem_json.to_string(),
     )

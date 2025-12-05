@@ -55,7 +55,7 @@ where
         type Value = String;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a string or an object with score type key")
+            formatter.write_str("a string, null, or an object with score type key")
         }
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -63,6 +63,14 @@ where
             E: Error,
         {
             Ok(value.to_string())
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            // Handle null as an uninitialized score
+            Ok("uninitialized".to_string())
         }
 
         fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>

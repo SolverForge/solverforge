@@ -3,7 +3,7 @@ use crate::error::{SolverForgeError, SolverForgeResult};
 use crate::wasm::expression::Expression;
 use crate::wasm::memory::{LayoutCalculator, WasmMemoryType};
 use base64::{engine::general_purpose::STANDARD, Engine};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use wasm_encoder::{
     CodeSection, ConstExpr, ExportKind, ExportSection, Function, FunctionSection, GlobalSection,
     GlobalType, Instruction, MemorySection, MemoryType, Module, TypeSection, ValType,
@@ -14,12 +14,12 @@ use crate::wasm::host_functions::{HostFunctionRegistry, WasmType};
 pub struct WasmModuleBuilder {
     layout_calculator: LayoutCalculator,
     domain_model: Option<DomainModel>,
-    predicates: HashMap<String, PredicateDefinition>,
+    predicates: IndexMap<String, PredicateDefinition>,
     function_types: Vec<FunctionSignature>,
     initial_memory_pages: u32,
     max_memory_pages: Option<u32>,
     host_functions: HostFunctionRegistry,
-    host_function_indices: HashMap<String, u32>,
+    host_function_indices: IndexMap<String, u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -111,12 +111,12 @@ impl WasmModuleBuilder {
         Self {
             layout_calculator: LayoutCalculator::new(),
             domain_model: None,
-            predicates: HashMap::new(),
+            predicates: IndexMap::new(),
             function_types: Vec::new(),
             initial_memory_pages: 16,
             max_memory_pages: Some(256),
             host_functions: HostFunctionRegistry::new(),
-            host_function_indices: HashMap::new(),
+            host_function_indices: IndexMap::new(),
         }
     }
 
@@ -220,20 +220,20 @@ impl WasmModuleBuilder {
             }
         }
 
-        // allocate(size: i32) -> i32
+        // alloc(size: i32) -> i32
         let alloc_type_idx =
             self.add_function_type(&mut type_section, vec![ValType::I32], vec![ValType::I32]);
         function_section.function(alloc_type_idx);
         code_section.function(&self.generate_allocator());
-        export_section.export("allocate", ExportKind::Func, func_idx);
+        export_section.export("alloc", ExportKind::Func, func_idx);
         func_idx += 1;
 
-        // deallocate(ptr: i32, size: i32)
+        // dealloc(ptr: i32) - Java expects single argument
         let dealloc_type_idx =
-            self.add_function_type(&mut type_section, vec![ValType::I32, ValType::I32], vec![]);
+            self.add_function_type(&mut type_section, vec![ValType::I32], vec![]);
         function_section.function(dealloc_type_idx);
         code_section.function(&self.generate_deallocator());
-        export_section.export("deallocate", ExportKind::Func, func_idx);
+        export_section.export("dealloc", ExportKind::Func, func_idx);
         func_idx += 1;
 
         // Generate getter/setter functions for each class field
@@ -291,6 +291,15 @@ impl WasmModuleBuilder {
             export_section.export(name, ExportKind::Func, func_idx);
             func_idx += 1;
         }
+
+        // Solution mapper wrapper functions
+        self.generate_solution_mappers(
+            &mut type_section,
+            &mut function_section,
+            &mut code_section,
+            &mut export_section,
+            &mut func_idx,
+        );
 
         // List accessor functions
         self.generate_list_accessors(
@@ -839,6 +848,53 @@ impl WasmModuleBuilder {
         Ok(())
     }
 
+    fn generate_solution_mappers(
+        &mut self,
+        type_section: &mut TypeSection,
+        function_section: &mut FunctionSection,
+        code_section: &mut CodeSection,
+        export_section: &mut ExportSection,
+        func_idx: &mut u32,
+    ) {
+        // parseSchedule(length: i32, json: i32) -> i32
+        // Wrapper that calls hparseSchedule host function
+        if let Some(&host_idx) = self.host_function_indices.get("hparseSchedule") {
+            let parse_type = self.add_function_type(
+                type_section,
+                vec![ValType::I32, ValType::I32],
+                vec![ValType::I32],
+            );
+            function_section.function(parse_type);
+
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // length
+            func.instruction(&Instruction::LocalGet(1)); // json ptr
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("parseSchedule", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
+
+        // scheduleString(schedule: i32) -> i32
+        // Wrapper that calls hscheduleString host function
+        if let Some(&host_idx) = self.host_function_indices.get("hscheduleString") {
+            let string_type =
+                self.add_function_type(type_section, vec![ValType::I32], vec![ValType::I32]);
+            function_section.function(string_type);
+
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // schedule ptr
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("scheduleString", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
+    }
+
     fn generate_list_accessors(
         &mut self,
         type_section: &mut TypeSection,
@@ -847,80 +903,131 @@ impl WasmModuleBuilder {
         export_section: &mut ExportSection,
         func_idx: &mut u32,
     ) {
-        // create_list(capacity: i32) -> i32 (ptr)
-        let create_type =
-            self.add_function_type(type_section, vec![ValType::I32], vec![ValType::I32]);
-        function_section.function(create_type);
-        code_section.function(&self.generate_create_list());
-        export_section.export("create_list", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+        // newList() -> i32 (ptr) - Wrapper that calls hnewList host function
+        if let Some(&host_idx) = self.host_function_indices.get("hnewList") {
+            let create_type = self.add_function_type(type_section, vec![], vec![ValType::I32]);
+            function_section.function(create_type);
 
-        // get_item(list: i32, index: i32) -> i32
-        let get_type = self.add_function_type(
-            type_section,
-            vec![ValType::I32, ValType::I32],
-            vec![ValType::I32],
-        );
-        function_section.function(get_type);
-        code_section.function(&self.generate_get_item());
-        export_section.export("get_item", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
 
-        // set_item(list: i32, index: i32, value: i32)
-        let set_type = self.add_function_type(
-            type_section,
-            vec![ValType::I32, ValType::I32, ValType::I32],
-            vec![],
-        );
-        function_section.function(set_type);
-        code_section.function(&self.generate_set_item());
-        export_section.export("set_item", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+            code_section.function(&func);
+            export_section.export("newList", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
 
-        // get_size(list: i32) -> i32
-        let size_type =
-            self.add_function_type(type_section, vec![ValType::I32], vec![ValType::I32]);
-        function_section.function(size_type);
-        code_section.function(&self.generate_get_size());
-        export_section.export("get_size", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+        // getItem(list: i32, index: i32) -> i32 - Wrapper for hgetItem
+        if let Some(&host_idx) = self.host_function_indices.get("hgetItem") {
+            let get_type = self.add_function_type(
+                type_section,
+                vec![ValType::I32, ValType::I32],
+                vec![ValType::I32],
+            );
+            function_section.function(get_type);
 
-        // append(list: i32, value: i32)
-        let append_type =
-            self.add_function_type(type_section, vec![ValType::I32, ValType::I32], vec![]);
-        function_section.function(append_type);
-        code_section.function(&self.generate_append());
-        export_section.export("append", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // list
+            func.instruction(&Instruction::LocalGet(1)); // index
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
 
-        // insert(list: i32, index: i32, value: i32)
-        let insert_type = self.add_function_type(
-            type_section,
-            vec![ValType::I32, ValType::I32, ValType::I32],
-            vec![],
-        );
-        function_section.function(insert_type);
-        code_section.function(&self.generate_insert());
-        export_section.export("insert", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+            code_section.function(&func);
+            export_section.export("getItem", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
 
-        // remove(list: i32, index: i32) -> i32
-        let remove_type = self.add_function_type(
-            type_section,
-            vec![ValType::I32, ValType::I32],
-            vec![ValType::I32],
-        );
-        function_section.function(remove_type);
-        code_section.function(&self.generate_remove());
-        export_section.export("remove", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+        // setItem(list: i32, index: i32, value: i32) - Wrapper for hsetItem
+        if let Some(&host_idx) = self.host_function_indices.get("hsetItem") {
+            let set_type = self.add_function_type(
+                type_section,
+                vec![ValType::I32, ValType::I32, ValType::I32],
+                vec![],
+            );
+            function_section.function(set_type);
 
-        // deallocate_list(list: i32)
-        let dealloc_type = self.add_function_type(type_section, vec![ValType::I32], vec![]);
-        function_section.function(dealloc_type);
-        code_section.function(&self.generate_deallocate_list());
-        export_section.export("deallocate_list", ExportKind::Func, *func_idx);
-        *func_idx += 1;
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // list
+            func.instruction(&Instruction::LocalGet(1)); // index
+            func.instruction(&Instruction::LocalGet(2)); // value
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("setItem", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
+
+        // size(list: i32) -> i32 - Wrapper for hsize
+        if let Some(&host_idx) = self.host_function_indices.get("hsize") {
+            let size_type =
+                self.add_function_type(type_section, vec![ValType::I32], vec![ValType::I32]);
+            function_section.function(size_type);
+
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // list
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("size", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
+
+        // append(list: i32, value: i32) - Wrapper for happend
+        if let Some(&host_idx) = self.host_function_indices.get("happend") {
+            let append_type =
+                self.add_function_type(type_section, vec![ValType::I32, ValType::I32], vec![]);
+            function_section.function(append_type);
+
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // list
+            func.instruction(&Instruction::LocalGet(1)); // value
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("append", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
+
+        // insert(list: i32, index: i32, value: i32) - Wrapper for hinsert
+        if let Some(&host_idx) = self.host_function_indices.get("hinsert") {
+            let insert_type = self.add_function_type(
+                type_section,
+                vec![ValType::I32, ValType::I32, ValType::I32],
+                vec![],
+            );
+            function_section.function(insert_type);
+
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // list
+            func.instruction(&Instruction::LocalGet(1)); // index
+            func.instruction(&Instruction::LocalGet(2)); // value
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("insert", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
+
+        // remove(list: i32, index: i32) - Wrapper for hremove
+        if let Some(&host_idx) = self.host_function_indices.get("hremove") {
+            let remove_type =
+                self.add_function_type(type_section, vec![ValType::I32, ValType::I32], vec![]);
+            function_section.function(remove_type);
+
+            let mut func = Function::new(vec![]);
+            func.instruction(&Instruction::LocalGet(0)); // list
+            func.instruction(&Instruction::LocalGet(1)); // index
+            func.instruction(&Instruction::Call(host_idx));
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export("remove", ExportKind::Func, *func_idx);
+            *func_idx += 1;
+        }
     }
 
     // List structure in memory:
@@ -928,6 +1035,7 @@ impl WasmModuleBuilder {
     // offset 4: capacity (i32)
     // offset 8+: elements (i32 each)
 
+    #[allow(dead_code)]
     fn generate_create_list(&self) -> Function {
         let mut func = Function::new([(1, ValType::I32)]);
 
@@ -977,6 +1085,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_get_item(&self) -> Function {
         let mut func = Function::new([]);
 
@@ -998,6 +1107,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_set_item(&self) -> Function {
         let mut func = Function::new([]);
 
@@ -1020,6 +1130,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_get_size(&self) -> Function {
         let mut func = Function::new([]);
 
@@ -1034,6 +1145,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_append(&self) -> Function {
         let mut func = Function::new([(1, ValType::I32)]);
 
@@ -1076,6 +1188,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_insert(&self) -> Function {
         // Simplified: just set at index (full impl would shift elements)
         let mut func = Function::new([]);
@@ -1098,6 +1211,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_remove(&self) -> Function {
         // Simplified: return item at index, don't shift
         let mut func = Function::new([]);
@@ -1119,6 +1233,7 @@ impl WasmModuleBuilder {
         func
     }
 
+    #[allow(dead_code)]
     fn generate_deallocate_list(&self) -> Function {
         let mut func = Function::new([]);
         // No-op for bump allocator

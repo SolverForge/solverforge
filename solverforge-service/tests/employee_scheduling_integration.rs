@@ -14,7 +14,7 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use indexmap::IndexMap;
 use solverforge_core::{
-    DomainObjectDto, ListAccessorDto, SolveRequest, SolveResponse, StreamComponent,
+    DomainObjectDto, Joiner, ListAccessorDto, SolveRequest, SolveResponse, StreamComponent,
     TerminationConfig, WasmFunction,
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
@@ -308,39 +308,48 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     );
 
     // Constraint 2: No overlapping shifts for same employee (HARD)
-    // forEach(Shift).join(Shift).filter(shiftsOverlap).penalize(1hard/0soft)
-    // shiftsOverlap checks: same employee AND time ranges overlap AND shift1 < shift2
+    // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
+    // shiftsOverlap checks: time ranges overlap (same employee is handled by joiner)
     constraints.insert(
         "noOverlappingShifts".to_string(),
         vec![
             StreamComponent::for_each("Shift"),
-            StreamComponent::join("Shift"),
+            StreamComponent::join_with_joiners(
+                "Shift",
+                vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
+            ),
             StreamComponent::filter(WasmFunction::new("shiftsOverlap")),
             StreamComponent::penalize("1hard/0soft"),
         ],
     );
 
     // Constraint 3: One shift per day per employee (HARD)
-    // forEach(Shift).join(Shift).filter(sameEmployeeSameDay).penalize(1hard/0soft)
-    // sameEmployeeSameDay checks: same employee AND same day AND shift1 < shift2
+    // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
+    // sameEmployeeSameDay checks: same day (same employee is handled by joiner)
     constraints.insert(
         "oneShiftPerDay".to_string(),
         vec![
             StreamComponent::for_each("Shift"),
-            StreamComponent::join("Shift"),
+            StreamComponent::join_with_joiners(
+                "Shift",
+                vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
+            ),
             StreamComponent::filter(WasmFunction::new("sameEmployeeSameDay")),
             StreamComponent::penalize("1hard/0soft"),
         ],
     );
 
     // Constraint 4: At least 10 hours between shifts for same employee (HARD)
-    // forEach(Shift).join(Shift).filter(lessThan10HoursBetween).penalize(1hard/0soft)
-    // lessThan10HoursBetween checks: same employee AND gap < 10 hours AND shift1 < shift2
+    // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
+    // lessThan10HoursBetween checks: gap < 10 hours (same employee is handled by joiner)
     constraints.insert(
         "atLeast10HoursBetweenTwoShifts".to_string(),
         vec![
             StreamComponent::for_each("Shift"),
-            StreamComponent::join("Shift"),
+            StreamComponent::join_with_joiners(
+                "Shift",
+                vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
+            ),
             StreamComponent::filter(WasmFunction::new("lessThan10HoursBetween")),
             StreamComponent::penalize("1hard/0soft"),
         ],

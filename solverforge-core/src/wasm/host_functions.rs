@@ -59,6 +59,11 @@ impl HostFunctionRegistry {
         ));
 
         // List operations
+        registry.register(HostFunctionDef::new(
+            "hlistContainsString",
+            vec![WasmType::Ptr, WasmType::Ptr],
+            WasmType::I32,
+        ));
         registry.register(HostFunctionDef::new("hnewList", vec![], WasmType::Ptr));
 
         registry.register(HostFunctionDef::new(

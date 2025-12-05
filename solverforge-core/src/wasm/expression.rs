@@ -128,6 +128,14 @@ pub enum Expression {
         right: Box<Expression>,
     },
 
+    // ===== List Operations =====
+    /// Check if a list contains an element
+    /// Example: list.contains(element)
+    ListContains {
+        list: Box<Expression>,
+        element: Box<Expression>,
+    },
+
     // ===== Host Function Calls =====
     /// Call a host-provided function
     /// Example: hstringEquals(left, right)
@@ -556,6 +564,47 @@ mod tests {
                 ],
             }),
         };
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&expr).unwrap();
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_list_contains() {
+        let expr = Expression::ListContains {
+            list: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 0 }),
+                class_name: "Employee".into(),
+                field_name: "skills".into(),
+            }),
+            element: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 1 }),
+                class_name: "Shift".into(),
+                field_name: "requiredSkill".into(),
+            }),
+        };
+
+        match &expr {
+            Expression::ListContains { list, element } => {
+                assert!(matches!(
+                    **list,
+                    Expression::FieldAccess {
+                        field_name: ref name,
+                        ..
+                    } if name == "skills"
+                ));
+                assert!(matches!(
+                    **element,
+                    Expression::FieldAccess {
+                        field_name: ref name,
+                        ..
+                    } if name == "requiredSkill"
+                ));
+            }
+            _ => panic!("Expected ListContains expression"),
+        }
 
         // Serialize and deserialize
         let json = serde_json::to_string(&expr).unwrap();

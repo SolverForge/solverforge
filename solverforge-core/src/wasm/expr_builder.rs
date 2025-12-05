@@ -175,6 +175,19 @@ impl Expr {
         }
     }
 
+    // ===== List Operations =====
+
+    /// Check if a list contains an element
+    ///
+    /// Generates a loop that iterates through the list and checks for equality.
+    /// Returns true if the element is found, false otherwise.
+    pub fn list_contains(list: Expression, element: Expression) -> Expression {
+        Expression::ListContains {
+            list: Box::new(list),
+            element: Box::new(element),
+        }
+    }
+
     // ===== Convenience Methods =====
 
     /// String equality via host function
@@ -491,6 +504,31 @@ mod tests {
                 _ => panic!("Expected nested IfThenElse"),
             },
             _ => panic!("Expected IfThenElse"),
+        }
+    }
+
+    #[test]
+    fn test_list_contains() {
+        let list = Expr::param(0).get("Employee", "skills");
+        let element = Expr::param(1).get("Shift", "requiredSkill");
+        let expr = Expr::list_contains(list, element);
+
+        match expr {
+            Expression::ListContains { list, element } => {
+                match *list {
+                    Expression::FieldAccess { field_name, .. } => {
+                        assert_eq!(field_name, "skills");
+                    }
+                    _ => panic!("Expected FieldAccess for list"),
+                }
+                match *element {
+                    Expression::FieldAccess { field_name, .. } => {
+                        assert_eq!(field_name, "requiredSkill");
+                    }
+                    _ => panic!("Expected FieldAccess for element"),
+                }
+            }
+            _ => panic!("Expected ListContains"),
         }
     }
 }

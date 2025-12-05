@@ -823,6 +823,25 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::I32DivS);
             }
 
+            // ===== List Operations =====
+            Expression::ListContains { list, element } => {
+                // For now, use a host function to check list containment
+                // TODO: Generate inline loop for better performance
+                self.compile_expression(func, list, model)?;
+                self.compile_expression(func, element, model)?;
+
+                let func_idx = self
+                    .host_function_indices
+                    .get("hlistContainsString")
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "Host function 'hlistContainsString' not found".to_string(),
+                        )
+                    })?;
+
+                func.instruction(&Instruction::Call(*func_idx));
+            }
+
             // ===== Host Function Calls =====
             Expression::HostCall {
                 function_name,

@@ -374,6 +374,43 @@ fn build_less_than_10_hours_between_predicate() -> solverforge_core::wasm::Predi
     )
 }
 
+/// Build getRestDeficit weigher: returns (10 hours in minutes) - actual gap in minutes
+/// Formula: (10 * 60) - (gap_seconds / 60)
+/// This represents how many minutes short of the required 10-hour rest
+fn build_get_rest_deficit_weigher() -> solverforge_core::wasm::PredicateDefinition {
+    use solverforge_core::wasm::{Expr, FieldAccessExt};
+
+    let shift1 = Expr::param(0);
+    let shift2 = Expr::param(1);
+
+    let start1 = shift1.clone().get("Shift", "start");
+    let end1 = shift1.get("Shift", "end");
+    let start2 = shift2.clone().get("Shift", "start");
+    let end2 = shift2.get("Shift", "end");
+
+    // Gap calculation (in seconds):
+    // if end1 <= start2 then start2 - end1
+    // else if end2 <= start1 then start1 - end2
+    // else 0 (overlapping case)
+    let gap_seconds = Expr::if_then_else(
+        Expr::le(end1.clone(), start2.clone()),
+        Expr::sub(start2.clone(), end1.clone()),
+        Expr::if_then_else(
+            Expr::le(end2.clone(), start1.clone()),
+            Expr::sub(start1, end2),
+            Expr::int(0), // Overlapping case
+        ),
+    );
+
+    // gap_minutes = gap_seconds / 60
+    let gap_minutes = Expr::div(gap_seconds, Expr::int(60));
+
+    // rest_deficit = (10 * 60) - gap_minutes = 600 - gap_minutes
+    let rest_deficit = Expr::sub(Expr::int(600), gap_minutes);
+
+    solverforge_core::wasm::PredicateDefinition::from_expression("getRestDeficit", 2, rest_deficit)
+}
+
 /// Build the employee scheduling domain DTO from the domain model.
 /// Uses model.to_dto() which:
 /// - Preserves field insertion order via IndexMap
@@ -438,6 +475,7 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     // Constraint 4: At least 10 hours between shifts for same employee (HARD)
     // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
     // lessThan10HoursBetween checks: gap < 10 hours (same employee is handled by joiner)
+    // Penalizes by rest deficit in minutes (matching reference implementation)
     constraints.insert(
         "atLeast10HoursBetweenTwoShifts".to_string(),
         vec![
@@ -447,7 +485,10 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
                 vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
             ),
             StreamComponent::filter(WasmFunction::new("lessThan10HoursBetween")),
-            StreamComponent::penalize("1hard/0soft"),
+            StreamComponent::penalize_with_weigher(
+                "1hard/0soft",
+                WasmFunction::new("getRestDeficit"),
+            ),
         ],
     );
 
@@ -482,6 +523,7 @@ fn build_employee_scheduling_wasm_with_scale(employee_count: usize, shift_count:
         .add_predicate(build_get_minute_overlap_weigher())
         .add_predicate(build_same_employee_same_day_predicate())
         .add_predicate(build_less_than_10_hours_between_predicate())
+        .add_predicate(build_get_rest_deficit_weigher())
         .build()
         .expect("Failed to generate WASM module")
 }

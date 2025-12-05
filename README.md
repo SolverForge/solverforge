@@ -71,6 +71,33 @@ solverforge/
             └── ConstraintProviderClassGenerator # Constraint stream generation
 ```
 
+## Implementation Details
+
+### WASM Memory Layout
+
+Domain objects are stored in WASM linear memory with proper alignment:
+
+- **32-bit types** (int, float, pointers): 4-byte alignment, 4-byte size
+- **64-bit types** (long, double, LocalDate, LocalDateTime): 8-byte alignment, 8-byte size
+- **Field offsets**: Calculated with alignment padding to match Rust's `LayoutCalculator`
+
+Example `Shift` layout:
+```
+Field            Offset  Size  Type
+-----------------------------------
+id               0       4     String (pointer)
+employee         4       4     Employee (pointer)
+location         8       4     String (pointer)
+[padding]        12      4     (align for LocalDateTime)
+start            16      8     LocalDateTime (i64)
+end              24      8     LocalDateTime (i64)
+requiredSkill    32      4     String (pointer)
+-----------------------------------
+Total size: 40 bytes (aligned to 8-byte boundary)
+```
+
+**Critical**: Both Rust (WASM generation) and Java (JSON parsing/serialization) must use identical alignment rules, or field reads will access garbage memory.
+
 ## How It Works
 
 ### 1. Define Domain Model
@@ -138,11 +165,13 @@ Content-Type: application/json
 ### Working Features
 
 - **Domain model definition** with planning annotations
-- **Constraint streams**: forEach, filter, join, groupBy, penalize, reward
-- **WASM module generation** for constraint predicates
+- **Constraint streams**: forEach, filter, join, groupBy, complement, flattenLast, penalize, reward
+- **WASM module generation** for constraint predicates with proper memory alignment
 - **End-to-end solving** via HTTP with embedded Java service
-- **Score types**: Simple, HardSoft, HardMediumSoft, Bendable
+- **Score types**: Simple, HardSoft, HardMediumSoft, Bendable, HardSoftBigDecimal
 - **Score analysis** with constraint breakdown
+- **Primitive list support**: flattenLast works with LocalDate[] and other primitive lists
+- **Advanced collectors**: count, countDistinct, loadBalance
 
 ### Performance Status
 
@@ -156,19 +185,34 @@ Content-Type: application/json
 3. Full constraint re-evaluation - no incremental scoring
 4. No join indexing - O(n*m) scans instead of O(1) lookups
 
+### Recent Fixes
+
+- **Memory alignment fix** (2025-12): Fixed field offset alignment mismatch between Java and Rust. Java now properly aligns 64-bit fields (long, double, LocalDate, LocalDateTime) to 8-byte boundaries, matching Rust's LayoutCalculator behavior. This resolved "out of bounds memory access" errors when using temporal types in domain models.
+
 ### Test Status
+
+All tests passing:
 
 ```bash
 # Build
 cargo build --workspace
 
-# Run tests (requires Java 24)
-make test
+# Run all tests (requires Java 24)
+cargo test --workspace
 
 # Run specific integration test
+cargo test -p solverforge-service test_employee_scheduling_solve
+
+# Run with specific Java version
 JAVA_HOME=/usr/lib64/jvm/java-24-openjdk-24 \
-  cargo test -p solverforge-service --test solve_integration -- --nocapture
+  cargo test -p solverforge-service --test solve_integration
 ```
+
+**Integration Tests**:
+- ✅ Employee scheduling with 5 constraints (requiredSkill, noOverlappingShifts, oneShiftPerDay, atLeast10HoursBetweenTwoShifts, balanceEmployeeShiftAssignments)
+- ✅ Primitive list operations (LocalDate[] with flattenLast)
+- ✅ Advanced collectors (loadBalance for fair distribution)
+- ✅ Weighted penalties and custom weighers
 
 ## Dependencies
 

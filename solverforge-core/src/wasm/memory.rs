@@ -121,6 +121,7 @@ fn field_type_to_wasm(field_type: &FieldType) -> WasmMemoryType {
             PrimitiveType::Double => WasmMemoryType::F64,
             PrimitiveType::String => WasmMemoryType::Pointer,
             PrimitiveType::Date => WasmMemoryType::I64, // Epoch day as i64
+            PrimitiveType::DateTime => WasmMemoryType::I64, // Epoch second as i64
         },
         FieldType::Object { .. } => WasmMemoryType::Pointer,
         FieldType::Array { .. } | FieldType::List { .. } | FieldType::Set { .. } => {

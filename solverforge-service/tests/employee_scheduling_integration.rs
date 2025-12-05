@@ -33,13 +33,48 @@ const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wa
 /// * `employee_count` - Number of employees
 /// * `shift_count` - Number of shifts (will be rounded to multiple of 3)
 fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
-    // Skills rotate through employees
+    // Available skills
     let skills = ["NURSE", "DOCTOR", "ADMIN"];
 
     let employees: Vec<String> = (0..employee_count)
         .map(|id| {
-            let skill = skills[id % skills.len()];
-            format!(r#"{{"id": {}, "skill": "{}"}}"#, id, skill)
+            // Each employee has 1-2 skills
+            let primary_skill = skills[id % skills.len()];
+            let skills_json = if id % 3 == 0 {
+                // Every 3rd employee has 2 skills
+                let secondary_skill = skills[(id + 1) % skills.len()];
+                format!(r#"["{}", "{}"]"#, primary_skill, secondary_skill)
+            } else {
+                format!(r#"["{}"]"#, primary_skill)
+            };
+
+            // Generate some unavailable/undesired/desired dates (as epoch days)
+            // For simplicity, use day indices: 0 = day 0, 1 = day 1, etc.
+            let unavailable = if id % 5 == 0 {
+                // Every 5th employee unavailable on days 2, 5
+                r#"[2, 5]"#
+            } else {
+                r#"[]"#
+            };
+
+            let undesired = if id % 4 == 0 {
+                // Every 4th employee undesired on days 1, 3
+                r#"[1, 3]"#
+            } else {
+                r#"[]"#
+            };
+
+            let desired = if id % 3 == 0 {
+                // Every 3rd employee desired on days 0, 4
+                r#"[0, 4]"#
+            } else {
+                r#"[]"#
+            };
+
+            format!(
+                r#"{{"name": "Employee{}", "skills": {}, "unavailableDates": {}, "undesiredDates": {}, "desiredDates": {}}}"#,
+                id, skills_json, unavailable, undesired, desired
+            )
         })
         .collect();
 
@@ -54,7 +89,7 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
     for day in 0..days {
         let day_offset = day * 24; // Hours since start
 
-        // Morning shift: 06:00-14:00 (requires NURSE)
+        // Morning shift: 06:00-14:00
         if shifts.len() < shift_count {
             let start = day_offset + 6;
             let end = day_offset + 14;
@@ -65,7 +100,7 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
             ));
         }
 
-        // Afternoon shift: 14:00-22:00 (requires DOCTOR)
+        // Afternoon shift: 14:00-22:00
         if shifts.len() < shift_count {
             let start = day_offset + 14;
             let end = day_offset + 22;
@@ -76,7 +111,7 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
             ));
         }
 
-        // Night shift: 22:00-06:00 (requires ADMIN)
+        // Night shift: 22:00-06:00
         if shifts.len() < shift_count {
             let start = day_offset + 22;
             let end = day_offset + 30; // 06:00 next day
@@ -107,12 +142,24 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
         .add_class(
             DomainClass::new("Employee")
                 .with_field(
-                    FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::Int))
+                    FieldDescriptor::new("name", FieldType::Primitive(PrimitiveType::String))
                         .with_planning_annotation(PlanningAnnotation::PlanningId),
                 )
                 .with_field(FieldDescriptor::new(
-                    "skill",
-                    FieldType::Primitive(PrimitiveType::String),
+                    "skills",
+                    FieldType::list(FieldType::Primitive(PrimitiveType::String)),
+                ))
+                .with_field(FieldDescriptor::new(
+                    "unavailableDates",
+                    FieldType::list(FieldType::Primitive(PrimitiveType::Date)),
+                ))
+                .with_field(FieldDescriptor::new(
+                    "undesiredDates",
+                    FieldType::list(FieldType::Primitive(PrimitiveType::Date)),
+                ))
+                .with_field(FieldDescriptor::new(
+                    "desiredDates",
+                    FieldType::list(FieldType::Primitive(PrimitiveType::Date)),
                 )),
         )
         .add_class(
@@ -172,11 +219,11 @@ fn build_skill_mismatch_predicate() -> solverforge_core::wasm::PredicateDefiniti
     let shift = Expr::param(0);
     let employee = shift.clone().get("Shift", "employee");
 
-    // employee != null AND employee.skill != shift.requiredSkill
+    // employee != null AND !employee.skills.contains(shift.requiredSkill)
     let predicate = Expr::and(
         Expr::is_not_null(employee.clone()),
-        Expr::not(Expr::string_equals(
-            employee.get("Employee", "skill"),
+        Expr::not(Expr::list_contains(
+            employee.get("Employee", "skills"),
             shift.get("Shift", "requiredSkill"),
         )),
     );

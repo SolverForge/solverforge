@@ -217,6 +217,7 @@ impl FieldType {
                 PrimitiveType::Float => "float".to_string(),
                 PrimitiveType::Double => "double".to_string(),
                 PrimitiveType::String => "String".to_string(),
+                PrimitiveType::Date => "LocalDate".to_string(),
             },
             FieldType::Object { class_name } => class_name.clone(),
             FieldType::Array { element_type } => format!("{}[]", element_type.to_type_string()),
@@ -254,6 +255,7 @@ pub enum PrimitiveType {
     Float,
     Double,
     String,
+    Date, // LocalDate - stored as epoch day (i64)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

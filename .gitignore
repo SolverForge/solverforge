@@ -54,3 +54,7 @@ PLAN.md
 
 # Reference files
 reference
+
+# Development/experimental files
+solverforge-service/src/bin/
+solverforge-service/src/examples/

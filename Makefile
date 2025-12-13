@@ -99,8 +99,9 @@ solve-test:
 # Usage: make bench
 # Usage: make bench SOLVER_MODE=FULL_ASSERT  (for debug mode)
 # Usage: make bench EMPLOYEE_COUNT=50 SHIFT_COUNT=500
+# Note: 50K moves = ~100sec at current speed, ~1sec with incremental scoring
 SOLVER_MODE ?= REPRODUCIBLE
-MOVE_LIMIT ?= 1000000
+MOVE_LIMIT ?= 50000
 EMPLOYEE_COUNT ?= 5
 SHIFT_COUNT ?= 10
 bench:

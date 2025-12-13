@@ -26,6 +26,34 @@ use std::time::Duration;
 const JAVA_24_HOME: &str = "/usr/lib64/jvm/java-24-openjdk-24";
 const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wasm-service");
 
+/// Convert day offset (0-364) to (month, day_of_month) for 2025 (non-leap year).
+///
+/// # Arguments
+/// * `day_offset` - Day number starting from 0 (Jan 1 = 0, Jan 2 = 1, etc.)
+///
+/// # Returns
+/// * `(month, day_of_month)` - Month (1-12) and day within that month (1-31)
+///
+/// # Panics
+/// Panics if day_offset exceeds 364 (beyond Dec 31, 2025)
+fn day_to_date(day_offset: usize) -> (u32, u32) {
+    // Days per month in 2025 (non-leap year: Feb has 28 days)
+    const DAYS_IN_MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let mut remaining_days = day_offset as u32;
+    let mut month = 1u32;
+
+    for &days_in_current_month in &DAYS_IN_MONTH {
+        if remaining_days < days_in_current_month {
+            return (month, remaining_days + 1);
+        }
+        remaining_days -= days_in_current_month;
+        month += 1;
+    }
+
+    panic!("day_offset {} exceeds 365 days (1 year)", day_offset);
+}
+
 /// Generate problem JSON with configurable scale.
 /// Shifts are distributed across days with 3 shifts per day (morning, afternoon, night).
 ///
@@ -90,7 +118,8 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
     let shift_id = |idx: usize| format!("SHIFT{}", idx);
 
     for day in 0..days {
-        let date = format!("2025-01-{:02}", day + 1);
+        let (month, day_of_month) = day_to_date(day);
+        let date = format!("2025-{:02}-{:02}", month, day_of_month);
 
         // Morning shift: 06:00-14:00
         if shifts.len() < shift_count {
@@ -119,7 +148,8 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
             let idx = shifts.len();
             let skill = skills[idx % skills.len()];
             let location = locations[idx % locations.len()];
-            let next_date = format!("2025-01-{:02}", day + 2);
+            let (next_month, next_day) = day_to_date(day + 1);
+            let next_date = format!("2025-{:02}-{:02}", next_month, next_day);
             shifts.push(format!(
                 r#"{{"id": "{}", "start": "{}T22:00:00", "end": "{}T06:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
                 shift_id(idx), date, next_date, location, skill
@@ -982,4 +1012,30 @@ fn test_employee_scheduling_wasm_builds() {
     let wasm_bytes = build_employee_scheduling_wasm();
     assert!(!wasm_bytes.is_empty(), "WASM should not be empty");
     assert_eq!(&wasm_bytes[0..4], b"\0asm", "Should have WASM magic number");
+}
+
+#[test]
+fn test_day_to_date_january() {
+    assert_eq!(day_to_date(0), (1, 1)); // Jan 1
+    assert_eq!(day_to_date(30), (1, 31)); // Jan 31
+}
+
+#[test]
+fn test_day_to_date_february() {
+    assert_eq!(day_to_date(31), (2, 1)); // Feb 1
+    assert_eq!(day_to_date(58), (2, 28)); // Feb 28 (2025 is non-leap)
+}
+
+#[test]
+fn test_day_to_date_year_span() {
+    assert_eq!(day_to_date(59), (3, 1)); // March 1
+    assert_eq!(day_to_date(151), (6, 1)); // June 1
+    assert_eq!(day_to_date(333), (11, 30)); // Nov 30 (xlarge needs 334 days → Dec 1)
+    assert_eq!(day_to_date(364), (12, 31)); // Dec 31
+}
+
+#[test]
+#[should_panic(expected = "exceeds 365 days")]
+fn test_day_to_date_overflow() {
+    day_to_date(365); // Should panic - beyond 1 year
 }

@@ -10,6 +10,8 @@ mod jar;
 mod service;
 mod util;
 
+// pub mod examples;  // Commented out - examples module removed
+
 pub use config::ServiceConfig;
 pub use error::{ServiceError, ServiceResult};
 pub use jar::JarManager;

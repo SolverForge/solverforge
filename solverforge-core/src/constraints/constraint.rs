@@ -1,4 +1,4 @@
-use crate::constraints::{StreamComponent, WasmFunction};
+use crate::constraints::{ConstraintAnalysis, StreamComponent, WasmFunction};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,6 +15,11 @@ pub struct Constraint {
     pub indictment: Option<WasmFunction>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub justification: Option<WasmFunction>,
+    #[serde(
+        rename = "incrementalMetadata",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub incremental_metadata: Option<ConstraintAnalysis>,
 }
 
 impl Constraint {
@@ -27,6 +32,7 @@ impl Constraint {
             components: Vec::new(),
             indictment: None,
             justification: None,
+            incremental_metadata: None,
         }
     }
 
@@ -62,6 +68,11 @@ impl Constraint {
 
     pub fn with_justification(mut self, justification: WasmFunction) -> Self {
         self.justification = Some(justification);
+        self
+    }
+
+    pub fn with_incremental_metadata(mut self, metadata: ConstraintAnalysis) -> Self {
+        self.incremental_metadata = Some(metadata);
         self
     }
 
@@ -111,6 +122,30 @@ impl ConstraintSet {
             .iter()
             .map(|c| (c.full_name(), c.components.clone()))
             .collect()
+    }
+
+    /// Analyze all constraints in this set for incremental scoring eligibility.
+    ///
+    /// This method analyzes each constraint's stream components to determine
+    /// whether it supports incremental scoring. The analysis result is stored
+    /// in each constraint's `incremental_metadata` field.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_core::constraints::ConstraintSet;
+    ///
+    /// let mut constraint_set = ConstraintSet::new();
+    /// // ... add constraints ...
+    /// constraint_set.analyze_incrementality();
+    /// ```
+    pub fn analyze_incrementality(&mut self) {
+        use crate::constraints::ConstraintAnalyzer;
+
+        for constraint in &mut self.constraints {
+            let analysis = ConstraintAnalyzer::analyze(constraint);
+            constraint.incremental_metadata = Some(analysis);
+        }
     }
 }
 
@@ -311,5 +346,114 @@ mod tests {
         let debug = format!("{:?}", constraint);
         assert!(debug.contains("Constraint"));
         assert!(debug.contains("Test"));
+    }
+
+    #[test]
+    fn test_constraint_with_incremental_metadata() {
+        use crate::constraints::{ConstraintAnalysis, IncrementalSupport};
+
+        let metadata = ConstraintAnalysis {
+            name: "testConstraint".to_string(),
+            support: IncrementalSupport::FullyIncremental,
+            affected_entities: vec!["Shift".to_string()],
+            reason: None,
+        };
+
+        let constraint =
+            Constraint::new("testConstraint").with_incremental_metadata(metadata.clone());
+
+        assert!(constraint.incremental_metadata.is_some());
+        assert_eq!(constraint.incremental_metadata.unwrap(), metadata);
+    }
+
+    #[test]
+    fn test_constraint_set_analyze_incrementality() {
+        let mut set = ConstraintSet::new()
+            .with_constraint(
+                Constraint::new("simpleConstraint")
+                    .with_component(StreamComponent::for_each("Shift"))
+                    .with_component(StreamComponent::filter(WasmFunction::new("predicate")))
+                    .with_component(StreamComponent::penalize("1hard")),
+            )
+            .with_constraint(
+                Constraint::new("complementConstraint")
+                    .with_component(StreamComponent::for_each("Shift"))
+                    .with_component(StreamComponent::complement("Employee"))
+                    .with_component(StreamComponent::penalize("1hard")),
+            );
+
+        // Before analysis, metadata should be None
+        assert!(set.constraints[0].incremental_metadata.is_none());
+        assert!(set.constraints[1].incremental_metadata.is_none());
+
+        // Analyze incrementality
+        set.analyze_incrementality();
+
+        // After analysis, metadata should be populated
+        assert!(set.constraints[0].incremental_metadata.is_some());
+        assert!(set.constraints[1].incremental_metadata.is_some());
+
+        // Simple constraint should be incremental
+        let metadata0 = set.constraints[0].incremental_metadata.as_ref().unwrap();
+        assert_eq!(
+            metadata0.support,
+            crate::constraints::IncrementalSupport::FullyIncremental
+        );
+
+        // Complement constraint should be non-incremental
+        let metadata1 = set.constraints[1].incremental_metadata.as_ref().unwrap();
+        assert_eq!(
+            metadata1.support,
+            crate::constraints::IncrementalSupport::NonIncremental
+        );
+    }
+
+    #[test]
+    fn test_incremental_metadata_serialization() {
+        use crate::constraints::{ConstraintAnalysis, IncrementalSupport};
+
+        let metadata = ConstraintAnalysis {
+            name: "testConstraint".to_string(),
+            support: IncrementalSupport::FullyIncremental,
+            affected_entities: vec!["Shift".to_string()],
+            reason: None,
+        };
+
+        let constraint = Constraint::new("testConstraint")
+            .with_component(StreamComponent::for_each("Shift"))
+            .with_component(StreamComponent::penalize("1hard"))
+            .with_incremental_metadata(metadata);
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&constraint).unwrap();
+
+        // Should contain incremental metadata
+        assert!(json.contains("incrementalMetadata"));
+        assert!(json.contains("FULLY_INCREMENTAL"));
+
+        // Deserialize back
+        let parsed: Constraint = serde_json::from_str(&json).unwrap();
+        assert!(parsed.incremental_metadata.is_some());
+        assert_eq!(
+            parsed.incremental_metadata.as_ref().unwrap().support,
+            IncrementalSupport::FullyIncremental
+        );
+    }
+
+    #[test]
+    fn test_incremental_metadata_omitted_when_none() {
+        let constraint = Constraint::new("testConstraint")
+            .with_component(StreamComponent::for_each("Shift"))
+            .with_component(StreamComponent::penalize("1hard"));
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&constraint).unwrap();
+
+        // Should NOT contain incremental metadata when None
+        assert!(!json.contains("incrementalMetadata"));
+
+        // Deserialize back
+        let parsed: Constraint = serde_json::from_str(&json).unwrap();
+        assert!(parsed.incremental_metadata.is_none());
     }
 }

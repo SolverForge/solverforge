@@ -9,6 +9,10 @@ description = "JVM lifecycle management for SolverForge"
 [lib]
 crate-type = ["rlib"]
 
+# [[bin]]
+# name = "solverforge-dump"
+# path = "src/bin/solverforge_dump.rs"
+
 [dependencies]
 solverforge-core = { path = "../solverforge-core" }
 reqwest = { workspace = true, features = ["blocking"] }
@@ -16,11 +20,13 @@ log = { workspace = true }
 thiserror = { workspace = true }
 dirs = { workspace = true }
 libc = { workspace = true }
+base64 = "0.22"
+indexmap = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 env_logger = "0.11"
-serde_json = { workspace = true }
 wat = "1.219"
-base64 = "0.22"
-indexmap = { workspace = true }

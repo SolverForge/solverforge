@@ -24,3 +24,4 @@ serde_json = { workspace = true }
 wat = "1.219"
 base64 = "0.22"
 indexmap = { workspace = true }
+chrono = "0.4"

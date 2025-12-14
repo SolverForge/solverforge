@@ -81,16 +81,22 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
     // Generate shifts with ISO-8601 datetime: 3 shifts per day (8-hour shifts)
     // Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00
     // Each shift requires a skill (cycling through the same skills as employees)
-    // Start date: 2025-01-01
+    // Start date: 2025-01-01, using proper date arithmetic for multi-month spans
+    use chrono::{Duration, NaiveDate};
+
     let locations = ["LOCATION_A", "LOCATION_B", "LOCATION_C"];
     let shifts_per_day = 3;
     let days = (shift_count + shifts_per_day - 1) / shifts_per_day;
+    let start_date = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
 
     let mut shifts = Vec::new();
     let shift_id = |idx: usize| format!("SHIFT{}", idx);
 
     for day in 0..days {
-        let date = format!("2025-01-{:02}", day + 1);
+        let date = start_date + Duration::days(day as i64);
+        let next_date = date + Duration::days(1);
+        let date_str = date.format("%Y-%m-%d").to_string();
+        let next_date_str = next_date.format("%Y-%m-%d").to_string();
 
         // Morning shift: 06:00-14:00
         if shifts.len() < shift_count {
@@ -98,8 +104,8 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
             let skill = skills[idx % skills.len()];
             let location = locations[idx % locations.len()];
             shifts.push(format!(
-                r#"{{"id": "{}", "start": "{}T06:00:00", "end": "{}T14:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
-                shift_id(idx), date, date, location, skill
+                r#"{{"id": "{}", "start": "{}T06:00", "end": "{}T14:00", "location": "{}", "requiredSkill": "{}"}}"#,
+                shift_id(idx), date_str, date_str, location, skill
             ));
         }
 
@@ -109,8 +115,8 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
             let skill = skills[idx % skills.len()];
             let location = locations[idx % locations.len()];
             shifts.push(format!(
-                r#"{{"id": "{}", "start": "{}T14:00:00", "end": "{}T22:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
-                shift_id(idx), date, date, location, skill
+                r#"{{"id": "{}", "start": "{}T14:00", "end": "{}T22:00", "location": "{}", "requiredSkill": "{}"}}"#,
+                shift_id(idx), date_str, date_str, location, skill
             ));
         }
 
@@ -119,10 +125,9 @@ fn generate_problem_json(employee_count: usize, shift_count: usize) -> String {
             let idx = shifts.len();
             let skill = skills[idx % skills.len()];
             let location = locations[idx % locations.len()];
-            let next_date = format!("2025-01-{:02}", day + 2);
             shifts.push(format!(
-                r#"{{"id": "{}", "start": "{}T22:00:00", "end": "{}T06:00:00", "location": "{}", "requiredSkill": "{}"}}"#,
-                shift_id(idx), date, next_date, location, skill
+                r#"{{"id": "{}", "start": "{}T22:00", "end": "{}T06:00", "location": "{}", "requiredSkill": "{}"}}"#,
+                shift_id(idx), date_str, next_date_str, location, skill
             ));
         }
     }
@@ -616,14 +621,13 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     );
 
     // Constraint 2: No overlapping shifts for same employee (HARD)
-    // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
-    // shiftsOverlap checks: time ranges overlap (same employee is handled by joiner)
-    // Penalizes by minutes of overlap (matching reference implementation)
+    // Using forEachUniquePair with equal joiner on employee for efficient self-join
+    // The equal joiner ensures only shifts with same employee are paired
+    // shiftsOverlap further filters to check time overlap
     constraints.insert(
         "noOverlappingShifts".to_string(),
         vec![
-            StreamComponent::for_each("Shift"),
-            StreamComponent::join_with_joiners(
+            StreamComponent::for_each_unique_pair_with_joiners(
                 "Shift",
                 vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
             ),
@@ -636,13 +640,10 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     );
 
     // Constraint 3: One shift per day per employee (HARD)
-    // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
-    // sameEmployeeSameDay checks: same day (same employee is handled by joiner)
     constraints.insert(
         "oneShiftPerDay".to_string(),
         vec![
-            StreamComponent::for_each("Shift"),
-            StreamComponent::join_with_joiners(
+            StreamComponent::for_each_unique_pair_with_joiners(
                 "Shift",
                 vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
             ),
@@ -652,14 +653,10 @@ fn build_employee_scheduling_constraints() -> IndexMap<String, Vec<StreamCompone
     );
 
     // Constraint 4: At least 10 hours between shifts for same employee (HARD)
-    // Uses join with equal joiner on employee for indexed lookup instead of O(n²)
-    // lessThan10HoursBetween checks: gap < 10 hours (same employee is handled by joiner)
-    // Penalizes by rest deficit in minutes (matching reference implementation)
     constraints.insert(
         "atLeast10HoursBetweenTwoShifts".to_string(),
         vec![
-            StreamComponent::for_each("Shift"),
-            StreamComponent::join_with_joiners(
+            StreamComponent::for_each_unique_pair_with_joiners(
                 "Shift",
                 vec![Joiner::equal(WasmFunction::new("get_Shift_employee"))],
             ),

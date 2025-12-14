@@ -104,9 +104,9 @@ MOVE_LIMIT ?= 1000000
 EMPLOYEE_COUNT ?= 5
 SHIFT_COUNT ?= 10
 bench:
-	SOLVER_MODE=$(SOLVER_MODE) MOVE_LIMIT=$(MOVE_LIMIT) EMPLOYEE_COUNT=$(EMPLOYEE_COUNT) SHIFT_COUNT=$(SHIFT_COUNT) \
-		RUST_LOG=info cargo test -p solverforge-service test_employee_scheduling_solve -- --nocapture 2>&1 \
-		| grep -E "(Problem Scale|speed|Performance|Summary)"
+	@SOLVER_MODE=$(SOLVER_MODE) MOVE_LIMIT=$(MOVE_LIMIT) EMPLOYEE_COUNT=$(EMPLOYEE_COUNT) SHIFT_COUNT=$(SHIFT_COUNT) \
+		RUST_LOG=error cargo test -p solverforge-service test_employee_scheduling_solve -- --nocapture 2>&1 \
+		| grep -E "^(=== (Problem Scale|Performance Stats|Summary)|Scale:|Hard Score:|Soft Score:|Time:|Skill mismatches:|Solution is|Test completed)"
 
 # Benchmark presets
 bench-small:

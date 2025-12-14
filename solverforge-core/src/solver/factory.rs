@@ -24,10 +24,12 @@ impl<B: LanguageBridge> SolverFactory<B> {
         config: SolverConfig,
         service_url: impl Into<String>,
         domain_model: DomainModel,
-        constraints: ConstraintSet,
+        mut constraints: ConstraintSet,
         wasm_module: String,
     ) -> Self {
         let service = Arc::new(HttpSolverService::new(service_url));
+        // Automatically analyze constraints for incremental scoring eligibility
+        constraints.analyze_incrementality();
         Self {
             config,
             service,
@@ -42,9 +44,11 @@ impl<B: LanguageBridge> SolverFactory<B> {
         config: SolverConfig,
         service: Arc<dyn SolverService>,
         domain_model: DomainModel,
-        constraints: ConstraintSet,
+        mut constraints: ConstraintSet,
         wasm_module: String,
     ) -> Self {
+        // Automatically analyze constraints for incremental scoring eligibility
+        constraints.analyze_incrementality();
         Self {
             config,
             service,

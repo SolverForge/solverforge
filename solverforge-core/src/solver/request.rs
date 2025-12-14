@@ -1,7 +1,30 @@
-use crate::constraints::StreamComponent;
+use crate::constraints::{ConstraintAnalysis, StreamComponent};
 use crate::solver::TerminationConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+
+/// DTO for constraint serialization matching Java's WasmConstraint format.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConstraintDto {
+    pub stream_component_list: Vec<StreamComponent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub incremental_metadata: Option<ConstraintAnalysis>,
+}
+
+impl ConstraintDto {
+    pub fn new(components: Vec<StreamComponent>) -> Self {
+        Self {
+            stream_component_list: components,
+            incremental_metadata: None,
+        }
+    }
+
+    pub fn with_incremental_metadata(mut self, metadata: ConstraintAnalysis) -> Self {
+        self.incremental_metadata = Some(metadata);
+        self
+    }
+}
 
 /// Solve request matching timefold-wasm-service's PlanningProblem schema
 /// Uses IndexMap for domain and constraints to preserve insertion order.
@@ -9,7 +32,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct SolveRequest {
     pub domain: IndexMap<String, DomainObjectDto>,
-    pub constraints: IndexMap<String, Vec<StreamComponent>>,
+    pub constraints: IndexMap<String, ConstraintDto>,
     pub wasm: String,
     pub allocator: String,
     pub deallocator: String,
@@ -26,7 +49,7 @@ pub struct SolveRequest {
 impl SolveRequest {
     pub fn new(
         domain: IndexMap<String, DomainObjectDto>,
-        constraints: IndexMap<String, Vec<StreamComponent>>,
+        constraints: IndexMap<String, ConstraintDto>,
         wasm: String,
         allocator: String,
         deallocator: String,

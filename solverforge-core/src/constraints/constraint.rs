@@ -117,10 +117,18 @@ impl ConstraintSet {
         self.constraints.iter()
     }
 
-    pub fn to_dto(&self) -> indexmap::IndexMap<String, Vec<StreamComponent>> {
+    pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::ConstraintDto> {
         self.constraints
             .iter()
-            .map(|c| (c.full_name(), c.components.clone()))
+            .map(|c| {
+                let dto = crate::solver::ConstraintDto::new(c.components.clone());
+                let dto = if let Some(ref metadata) = c.incremental_metadata {
+                    dto.with_incremental_metadata(metadata.clone())
+                } else {
+                    dto
+                };
+                (c.full_name(), dto)
+            })
             .collect()
     }
 

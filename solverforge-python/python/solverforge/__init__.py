@@ -24,6 +24,10 @@ from solverforge._solverforge import (
     PlanningEntityCollectionProperty,
     PlanningPin,
     InverseRelationShadowVariable,
+    # Score types
+    SimpleScore,
+    HardSoftScore,
+    HardMediumSoftScore,
 )
 
 __all__ = [
@@ -40,4 +44,8 @@ __all__ = [
     "PlanningEntityCollectionProperty",
     "PlanningPin",
     "InverseRelationShadowVariable",
+    # Score types
+    "SimpleScore",
+    "HardSoftScore",
+    "HardMediumSoftScore",
 ]

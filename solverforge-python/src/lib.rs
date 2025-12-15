@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 
 mod annotations;
 mod bridge;
+mod score;
 
 pub use annotations::{
     PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty, PyPlanningEntityProperty,
@@ -14,6 +15,7 @@ pub use annotations::{
     PyProblemFactCollectionProperty, PyProblemFactProperty, PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
+pub use score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
 
 /// SolverForge Python module
 ///
@@ -28,6 +30,9 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Annotation marker classes
     annotations::register_annotations(m)?;
+
+    // Score types
+    score::register_scores(m)?;
 
     Ok(())
 }

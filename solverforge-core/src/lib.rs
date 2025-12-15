@@ -46,6 +46,7 @@ mod error;
 mod handles;
 pub mod score;
 pub mod solver;
+mod traits;
 mod value;
 pub mod wasm;
 
@@ -71,6 +72,7 @@ pub use solver::{
     SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverConfig, SolverFactory,
     SolverService, SolverStats, TerminationConfig,
 };
+pub use traits::{PlanningEntity, PlanningSolution};
 pub use value::Value;
 pub use wasm::{
     Comparison, FieldAccess, FieldLayout, LayoutCalculator, MemoryLayout, PredicateDefinition,

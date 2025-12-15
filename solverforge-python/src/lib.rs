@@ -5,8 +5,14 @@
 
 use pyo3::prelude::*;
 
+mod annotations;
 mod bridge;
 
+pub use annotations::{
+    PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty, PyPlanningEntityProperty,
+    PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore, PyPlanningVariable,
+    PyProblemFactCollectionProperty, PyProblemFactProperty, PyValueRangeProvider,
+};
 pub use bridge::{PyBridge, PythonBridge};
 
 /// SolverForge Python module
@@ -19,6 +25,9 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Bridge for Python-Rust object interop
     m.add_class::<PyBridge>()?;
+
+    // Annotation marker classes
+    annotations::register_annotations(m)?;
 
     Ok(())
 }

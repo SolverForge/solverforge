@@ -10,8 +10,34 @@ Example:
     ... )
 """
 
-from solverforge._solverforge import __version__
+from solverforge._solverforge import (
+    __version__,
+    # Annotation marker classes
+    PlanningId,
+    PlanningVariable,
+    PlanningListVariable,
+    PlanningScore,
+    ValueRangeProvider,
+    ProblemFactProperty,
+    ProblemFactCollectionProperty,
+    PlanningEntityProperty,
+    PlanningEntityCollectionProperty,
+    PlanningPin,
+    InverseRelationShadowVariable,
+)
 
 __all__ = [
     "__version__",
+    # Annotation marker classes
+    "PlanningId",
+    "PlanningVariable",
+    "PlanningListVariable",
+    "PlanningScore",
+    "ValueRangeProvider",
+    "ProblemFactProperty",
+    "ProblemFactCollectionProperty",
+    "PlanningEntityProperty",
+    "PlanningEntityCollectionProperty",
+    "PlanningPin",
+    "InverseRelationShadowVariable",
 ]

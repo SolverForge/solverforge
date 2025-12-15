@@ -212,6 +212,38 @@ impl<K: Into<String>, V: Into<Value>> FromIterator<(K, V)> for Value {
     }
 }
 
+impl From<serde_json::Value> for Value {
+    fn from(json: serde_json::Value) -> Self {
+        match json {
+            serde_json::Value::Null => Value::Null,
+            serde_json::Value::Bool(b) => Value::Bool(b),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    Value::Int(i)
+                } else if let Some(f) = n.as_f64() {
+                    Value::Float(f)
+                } else {
+                    Value::Null
+                }
+            }
+            serde_json::Value::String(s) => Value::String(s),
+            serde_json::Value::Array(arr) => {
+                Value::Array(arr.into_iter().map(Value::from).collect())
+            }
+            serde_json::Value::Object(obj) => {
+                Value::Object(obj.into_iter().map(|(k, v)| (k, Value::from(v))).collect())
+            }
+        }
+    }
+}
+
+impl Value {
+    /// Convert from a serde_json::Value
+    pub fn from_json_value(json: serde_json::Value) -> Self {
+        Self::from(json)
+    }
+}
+
 pub mod decimal_serde {
     use rust_decimal::Decimal;
     use serde::{self, Deserialize, Deserializer, Serializer};

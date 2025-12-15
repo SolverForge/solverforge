@@ -478,11 +478,14 @@ fn generate_to_json(fields: &[SolutionFieldInfo]) -> TokenStream2 {
                         map.insert(#field_name_str.to_string(), ::solverforge_core::Value::Array(arr));
                     }
                 } else {
-                    // Problem fact collection - serialize as array of objects
+                    // Problem fact collection - serialize as array using serde_json
                     quote! {
                         let arr: Vec<::solverforge_core::Value> = self.#field_name
                             .iter()
-                            .map(|item| ::solverforge_core::Value::from(item.clone()))
+                            .filter_map(|item| {
+                                ::serde_json::to_value(item).ok()
+                                    .map(|json| ::solverforge_core::Value::from_json_value(json))
+                            })
                             .collect();
                         map.insert(#field_name_str.to_string(), ::solverforge_core::Value::Array(arr));
                     }

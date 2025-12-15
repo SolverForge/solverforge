@@ -22,6 +22,8 @@ pub struct PythonBridge {
     objects: Arc<Mutex<HashMap<u64, Py<PyAny>>>>,
     /// Registry of Python callables (functions) indexed by handle ID
     functions: Arc<Mutex<HashMap<u64, Py<PyAny>>>>,
+    /// Registry of Python classes indexed by class name
+    classes: Arc<Mutex<HashMap<String, Py<PyAny>>>>,
     /// Counter for generating unique handles
     next_handle: Arc<Mutex<u64>>,
 }
@@ -32,8 +34,28 @@ impl PythonBridge {
         Self {
             objects: Arc::new(Mutex::new(HashMap::new())),
             functions: Arc::new(Mutex::new(HashMap::new())),
+            classes: Arc::new(Mutex::new(HashMap::new())),
             next_handle: Arc::new(Mutex::new(1)),
         }
+    }
+
+    /// Register a Python class for deserialization.
+    ///
+    /// When `deserialize_object` is called with a class name, it will look up
+    /// this registry to instantiate the proper class.
+    pub fn register_class(&self, name: &str, cls: Py<PyAny>) {
+        self.classes.lock().unwrap().insert(name.to_string(), cls);
+    }
+
+    /// Get a registered Python class by name.
+    pub fn get_class(&self, name: &str) -> Option<Py<PyAny>> {
+        Python::with_gil(|py| {
+            self.classes
+                .lock()
+                .unwrap()
+                .get(name)
+                .map(|cls| cls.clone_ref(py))
+        })
     }
 
     /// Generate the next unique handle ID.
@@ -176,13 +198,26 @@ impl PythonBridge {
     }
 
     /// Extract field type from Python type annotation.
-    fn extract_field_type(_py: Python<'_>, type_obj: &Bound<'_, PyAny>) -> FieldType {
-        // Get the type name
-        let type_name = type_obj
-            .getattr("__name__")
-            .map(|n| n.to_string())
-            .or_else(|_| type_obj.repr().map(|r| r.to_string()))
-            .unwrap_or_else(|_| "object".to_string());
+    #[allow(clippy::only_used_in_recursion)]
+    fn extract_field_type(py: Python<'_>, type_obj: &Bound<'_, PyAny>) -> FieldType {
+        // Try to get __origin__ for generic types (e.g., List[str] -> list)
+        let origin = type_obj.getattr("__origin__");
+
+        // Get the type name (from origin if generic, otherwise directly)
+        let (type_name, is_generic) = if let Ok(origin_type) = &origin {
+            let name = origin_type
+                .getattr("__name__")
+                .map(|n| n.to_string())
+                .unwrap_or_else(|_| "object".to_string());
+            (name, true)
+        } else {
+            let name = type_obj
+                .getattr("__name__")
+                .map(|n| n.to_string())
+                .or_else(|_| type_obj.repr().map(|r| r.to_string()))
+                .unwrap_or_else(|_| "object".to_string());
+            (name, false)
+        };
 
         match type_name.as_str() {
             "bool" => FieldType::Primitive(PrimitiveType::Bool),
@@ -190,8 +225,25 @@ impl PythonBridge {
             "float" => FieldType::Primitive(PrimitiveType::Double),
             "str" => FieldType::Primitive(PrimitiveType::String),
             "list" | "List" => {
-                // TODO: Extract element type from generic
-                FieldType::list(FieldType::Primitive(PrimitiveType::String))
+                // Extract element type from __args__ if this is a generic type
+                let element_type = if is_generic {
+                    if let Ok(args) = type_obj.getattr("__args__") {
+                        if let Ok(args_tuple) = args.downcast::<pyo3::types::PyTuple>() {
+                            if !args_tuple.is_empty() {
+                                let first_arg = args_tuple.get_item(0).ok();
+                                if let Some(arg) = first_arg {
+                                    return FieldType::list(Self::extract_field_type(py, &arg));
+                                }
+                            }
+                        }
+                    }
+                    // Couldn't extract, default to Any
+                    FieldType::Primitive(PrimitiveType::String)
+                } else {
+                    // Plain list without type args
+                    FieldType::Primitive(PrimitiveType::String)
+                };
+                FieldType::list(element_type)
             }
             _ => FieldType::object(type_name),
         }
@@ -306,13 +358,40 @@ impl LanguageBridge for PythonBridge {
             let value: Value = serde_json::from_str(json)
                 .map_err(|e| SolverForgeError::Serialization(e.to_string()))?;
 
-            // Convert Value to Python object
+            // Try to find the registered class and instantiate it
+            if let Some(cls) = self.get_class(class_name) {
+                // Class is registered - try to instantiate it
+                let cls_bound = cls.bind(py);
+
+                // If the value is an Object (dict), pass it as kwargs
+                if let Value::Object(map) = &value {
+                    let kwargs = PyDict::new(py);
+                    for (k, v) in map {
+                        let py_val = Self::value_to_py(py, v).map_err(|e| {
+                            SolverForgeError::Bridge(format!(
+                                "Failed to convert field '{}': {}",
+                                k, e
+                            ))
+                        })?;
+                        kwargs.set_item(k, py_val).map_err(|e| {
+                            SolverForgeError::Bridge(format!("Failed to set kwarg '{}': {}", k, e))
+                        })?;
+                    }
+
+                    let instance = cls_bound.call((), Some(&kwargs)).map_err(|e| {
+                        SolverForgeError::Bridge(format!(
+                            "Failed to instantiate class '{}': {}",
+                            class_name, e
+                        ))
+                    })?;
+
+                    return Ok(self.register_object(instance.unbind()));
+                }
+            }
+
+            // No registered class or non-dict value - store the dict representation
             let py_obj = Self::value_to_py(py, &value)
                 .map_err(|e| SolverForgeError::Bridge(format!("Failed to convert value: {}", e)))?;
-
-            // Try to find and instantiate the class if it's registered
-            // For now, just store the dict representation
-            let _ = class_name; // TODO: Use class registry to instantiate proper class
 
             Ok(self.register_object(py_obj.unbind()))
         })
@@ -858,6 +937,95 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(result, Value::String("Hello World".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_extract_field_type_generic_list() {
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"from typing import List\nint_list = List[int]\nstr_list = List[str]",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            // Test List[int]
+            let int_list_type = locals.get_item("int_list").unwrap().unwrap();
+            let int_field_type = PythonBridge::extract_field_type(py, &int_list_type);
+            match int_field_type {
+                FieldType::List { element_type } => {
+                    assert!(matches!(
+                        *element_type,
+                        FieldType::Primitive(PrimitiveType::Int)
+                    ));
+                }
+                _ => panic!("Expected List type for List[int]"),
+            }
+
+            // Test List[str]
+            let str_list_type = locals.get_item("str_list").unwrap().unwrap();
+            let str_field_type = PythonBridge::extract_field_type(py, &str_list_type);
+            match str_field_type {
+                FieldType::List { element_type } => {
+                    assert!(matches!(
+                        *element_type,
+                        FieldType::Primitive(PrimitiveType::String)
+                    ));
+                }
+                _ => panic!("Expected List type for List[str]"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_register_class_and_deserialize() {
+        let bridge = PythonBridge::new();
+        Python::with_gil(|py| {
+            // Create a simple dataclass-like class
+            let locals = PyDict::new(py);
+            py.run(
+                c"class Person:\n    def __init__(self, name=None, age=None):\n        self.name = name\n        self.age = age",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let person_class = locals.get_item("Person").unwrap().unwrap();
+
+            // Register the class
+            bridge.register_class("Person", person_class.unbind());
+
+            // Deserialize with the registered class
+            let json = r#"{"name":"Alice","age":30}"#;
+            let handle = bridge.deserialize_object(json, "Person").unwrap();
+
+            // Verify it's a proper Person instance
+            let name = bridge.get_field(handle, "name").unwrap();
+            assert_eq!(name, Value::String("Alice".to_string()));
+
+            let age = bridge.get_field(handle, "age").unwrap();
+            assert_eq!(age, Value::Int(30));
+        });
+    }
+
+    #[test]
+    fn test_get_class() {
+        let bridge = PythonBridge::new();
+        Python::with_gil(|py| {
+            // Create and register a class
+            let locals = PyDict::new(py);
+            py.run(c"class TestClass: pass", None, Some(&locals))
+                .unwrap();
+            let cls = locals.get_item("TestClass").unwrap().unwrap();
+            bridge.register_class("TestClass", cls.unbind());
+
+            // Verify we can retrieve it
+            let retrieved = bridge.get_class("TestClass");
+            assert!(retrieved.is_some());
+
+            // Non-existent class should return None
+            assert!(bridge.get_class("NonExistent").is_none());
         });
     }
 }

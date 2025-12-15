@@ -504,20 +504,149 @@ pub fn get_domain_class(cls: &Bound<'_, PyType>) -> PyResult<Option<PyDomainClas
     }
 }
 
+/// Wrapper class for constraint provider functions.
+///
+/// This stores the decorated function and provides access to the constraints.
+#[pyclass(name = "ConstraintProvider")]
+pub struct PyConstraintProvider {
+    /// The constraint provider function
+    func: Py<PyAny>,
+    /// The function name
+    name: String,
+}
+
+impl Clone for PyConstraintProvider {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| Self {
+            func: self.func.clone_ref(py),
+            name: self.name.clone(),
+        })
+    }
+}
+
+impl std::fmt::Debug for PyConstraintProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConstraintProvider")
+            .field("name", &self.name)
+            .finish()
+    }
+}
+
+#[pymethods]
+impl PyConstraintProvider {
+    /// Get the constraint provider name.
+    #[getter]
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the underlying function.
+    fn get_function(&self) -> Py<PyAny> {
+        Python::with_gil(|py| self.func.clone_ref(py))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ConstraintProvider(name='{}')", self.name)
+    }
+
+    fn __call__(
+        &self,
+        py: Python<'_>,
+        factory: &crate::stream::PyConstraintFactory,
+    ) -> PyResult<PyObject> {
+        let factory_obj = factory.clone().into_pyobject(py)?;
+        self.func.call1(py, (factory_obj,))
+    }
+}
+
+impl PyConstraintProvider {
+    /// Create a new constraint provider from a function.
+    pub fn new(func: Py<PyAny>, name: String) -> Self {
+        Self { func, name }
+    }
+
+    /// Get the provider name (Rust API).
+    pub fn provider_name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the inner function.
+    pub fn func(&self) -> &Py<PyAny> {
+        &self.func
+    }
+
+    /// Get constraints from this provider (Rust API).
+    pub fn get_constraints(&self, py: Python<'_>) -> PyResult<Vec<crate::stream::PyConstraint>> {
+        use crate::stream::PyConstraintFactory;
+
+        let factory = PyConstraintFactory::create();
+        let factory_obj = factory.into_pyobject(py)?;
+
+        let result = self.func.call1(py, (factory_obj,))?;
+
+        // The result should be a list of constraints
+        let constraints: Vec<crate::stream::PyConstraint> = result.bind(py).extract()?;
+        Ok(constraints)
+    }
+}
+
+/// The @constraint_provider decorator marks a function as a constraint provider.
+///
+/// A constraint provider is a function that takes a ConstraintFactory and returns
+/// a list of constraints that define the rules for the solver.
+///
+/// # Example
+///
+/// ```python
+/// @constraint_provider
+/// def define_constraints(factory: ConstraintFactory):
+///     return [
+///         factory.for_each(Lesson)
+///             .filter(lambda lesson: lesson.room is None)
+///             .penalize(HardSoftScore.ONE_HARD)
+///             .as_constraint("Room required"),
+///     ]
+/// ```
+#[pyfunction]
+pub fn constraint_provider(py: Python<'_>, func: Py<PyAny>) -> PyResult<PyConstraintProvider> {
+    // Get the function name
+    let name: String = func
+        .bind(py)
+        .getattr("__name__")
+        .and_then(|n| n.extract())
+        .unwrap_or_else(|_| "constraint_provider".to_string());
+
+    // Verify it's callable
+    if !func.bind(py).is_callable() {
+        return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+            "constraint_provider decorator must be applied to a callable",
+        ));
+    }
+
+    Ok(PyConstraintProvider::new(func, name))
+}
+
 /// Register decorator functions with the Python module.
 pub fn register_decorators(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(planning_entity, m)?)?;
     m.add_function(wrap_pyfunction!(planning_solution, m)?)?;
+    m.add_function(wrap_pyfunction!(constraint_provider, m)?)?;
     m.add_function(wrap_pyfunction!(get_domain_class, m)?)?;
     m.add_function(wrap_pyfunction!(build_domain_model, m)?)?;
     m.add_class::<PyDomainClass>()?;
     m.add_class::<PyDomainModel>()?;
+    m.add_class::<PyConstraintProvider>()?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pyo3::types::PyDict;
+
+    fn init_python() {
+        pyo3::prepare_freethreaded_python();
+    }
 
     #[test]
     fn test_domain_class_wrapper() {
@@ -543,5 +672,102 @@ mod tests {
         let json = py_dc.to_json().unwrap();
         assert!(json.contains("Lesson"));
         assert!(json.contains("PlanningEntity"));
+    }
+
+    #[test]
+    fn test_constraint_provider_creation() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"def define_constraints(factory): return []",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let func = locals.get_item("define_constraints").unwrap().unwrap();
+
+            let provider = constraint_provider(py, func.unbind()).unwrap();
+            assert_eq!(provider.name(), "define_constraints");
+        });
+    }
+
+    #[test]
+    fn test_constraint_provider_repr() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"def my_provider(factory): return []", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("my_provider").unwrap().unwrap();
+
+            let provider = constraint_provider(py, func.unbind()).unwrap();
+            assert_eq!(
+                provider.__repr__(),
+                "ConstraintProvider(name='my_provider')"
+            );
+        });
+    }
+
+    #[test]
+    fn test_constraint_provider_get_function() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"def test_func(factory): return []", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("test_func").unwrap().unwrap();
+            let func_py = func.unbind();
+
+            let provider = constraint_provider(py, func_py.clone_ref(py)).unwrap();
+            let retrieved = provider.get_function();
+
+            // Verify we can call the retrieved function
+            assert!(retrieved.bind(py).is_callable());
+        });
+    }
+
+    #[test]
+    fn test_constraint_provider_rejects_non_callable() {
+        init_python();
+        Python::with_gil(|py| {
+            // Create a non-callable object (an integer)
+            let not_callable = 42_i32.into_pyobject(py).unwrap();
+
+            let result = constraint_provider(py, not_callable.unbind().into_any());
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            let err_str = err.to_string();
+            assert!(err_str.contains("callable"));
+        });
+    }
+
+    #[test]
+    fn test_constraint_provider_with_lambda() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"f = lambda factory: []", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("f").unwrap().unwrap();
+
+            let provider = constraint_provider(py, func.unbind()).unwrap();
+            // Lambda name is "<lambda>"
+            assert_eq!(provider.name(), "<lambda>");
+        });
+    }
+
+    #[test]
+    fn test_constraint_provider_new() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"def my_func(factory): pass", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("my_func").unwrap().unwrap();
+
+            let provider = PyConstraintProvider::new(func.unbind(), "custom_name".to_string());
+            assert_eq!(provider.name(), "custom_name");
+        });
     }
 }

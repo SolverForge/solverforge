@@ -8,7 +8,11 @@ use pyo3::prelude::*;
 mod annotations;
 mod bridge;
 mod decorators;
+mod joiners;
+mod lambda_analyzer;
 mod score;
+mod solver;
+mod stream;
 
 pub use annotations::{
     PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty, PyPlanningEntityProperty,
@@ -16,8 +20,18 @@ pub use annotations::{
     PyProblemFactCollectionProperty, PyProblemFactProperty, PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
-pub use decorators::{PyDomainClass, PyDomainModel};
+pub use decorators::{PyConstraintProvider, PyDomainClass, PyDomainModel};
+pub use joiners::{PyJoiner, PyJoiners};
+pub use lambda_analyzer::{analyze_lambda, generate_lambda_name, LambdaInfo};
 pub use score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
+pub use solver::{
+    PyDiminishedReturnsConfig, PyEnvironmentMode, PyMoveThreadCount, PySolveHandle,
+    PySolveResponse, PySolveStatus, PySolver, PySolverConfig, PySolverFactory, PyTerminationConfig,
+};
+pub use stream::{
+    PyBiConstraintBuilder, PyBiConstraintStream, PyConstraint, PyConstraintFactory,
+    PyUniConstraintBuilder, PyUniConstraintStream,
+};
 
 /// SolverForge Python module
 ///
@@ -38,6 +52,15 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Decorators
     decorators::register_decorators(m)?;
+
+    // Constraint streams
+    stream::register_streams(m)?;
+
+    // Joiners
+    joiners::register_joiners(m)?;
+
+    // Solver
+    solver::register_solver(m)?;
 
     Ok(())
 }

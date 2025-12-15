@@ -16,7 +16,7 @@ pub use annotations::{
     PyProblemFactCollectionProperty, PyProblemFactProperty, PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
-pub use decorators::PyDomainClass;
+pub use decorators::{PyDomainClass, PyDomainModel};
 pub use score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
 
 /// SolverForge Python module

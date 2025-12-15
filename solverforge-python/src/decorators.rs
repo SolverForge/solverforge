@@ -19,7 +19,8 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 use solverforge_core::domain::{
-    DomainClass, FieldDescriptor, FieldType, PlanningAnnotation, PrimitiveType, ShadowAnnotation,
+    DomainClass, DomainModel, DomainModelBuilder, FieldDescriptor, FieldType, PlanningAnnotation,
+    PrimitiveType, ShadowAnnotation,
 };
 
 use crate::annotations::{
@@ -292,6 +293,38 @@ pub fn planning_entity(py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Py<P
     Ok(cls.clone().unbind())
 }
 
+/// The @planning_solution decorator marks a class as a planning solution.
+///
+/// A planning solution contains the problem data (problem facts), planning entities,
+/// and a score field that represents the solution quality.
+///
+/// # Example
+///
+/// ```python
+/// @planning_solution
+/// class Timetable:
+///     timeslots: Annotated[List[Timeslot], ProblemFactCollectionProperty, ValueRangeProvider(id='timeslots')]
+///     lessons: Annotated[List[Lesson], PlanningEntityCollectionProperty]
+///     score: Annotated[Optional[HardSoftScore], PlanningScore]
+/// ```
+#[pyfunction]
+pub fn planning_solution(py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Py<PyType>> {
+    // Build domain class from annotations
+    let mut domain_class = build_domain_class(py, cls)?;
+
+    // Add PlanningSolution annotation to the class
+    domain_class = domain_class.with_annotation(PlanningAnnotation::PlanningSolution);
+
+    // Serialize to JSON and store on the class
+    let json = serde_json::to_string(&domain_class)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+
+    cls.setattr("__solverforge_domain_class__", json)?;
+
+    // Return the class unchanged (decorator pattern)
+    Ok(cls.clone().unbind())
+}
+
 /// PyDomainClass wraps a DomainClass for Python access.
 #[pyclass(name = "DomainClass")]
 #[derive(Clone, Debug)]
@@ -352,6 +385,111 @@ impl PyDomainClass {
     }
 }
 
+/// PyDomainModel wraps a DomainModel for Python access.
+#[pyclass(name = "DomainModel")]
+#[derive(Clone, Debug)]
+pub struct PyDomainModel {
+    inner: DomainModel,
+}
+
+#[pymethods]
+impl PyDomainModel {
+    /// Create a new empty domain model.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: DomainModel::new(),
+        }
+    }
+
+    /// Get the solution class name.
+    #[getter]
+    fn solution_class(&self) -> Option<String> {
+        self.inner.solution_class.clone()
+    }
+
+    /// Get entity class names.
+    #[getter]
+    fn entity_classes(&self) -> Vec<String> {
+        self.inner.entity_classes.clone()
+    }
+
+    /// Get the number of classes in the model.
+    fn class_count(&self) -> usize {
+        self.inner.classes.len()
+    }
+
+    /// Get all class names.
+    fn class_names(&self) -> Vec<String> {
+        self.inner.classes.keys().cloned().collect()
+    }
+
+    /// Get a domain class by name.
+    fn get_class(&self, name: &str) -> Option<PyDomainClass> {
+        self.inner
+            .get_class(name)
+            .cloned()
+            .map(PyDomainClass::from_rust)
+    }
+
+    /// Get the JSON representation.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.inner)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DomainModel(solution='{}', entities={:?}, classes={})",
+            self.inner.solution_class.as_deref().unwrap_or("None"),
+            self.inner.entity_classes,
+            self.inner.classes.len()
+        )
+    }
+}
+
+impl PyDomainModel {
+    pub fn from_rust(inner: DomainModel) -> Self {
+        Self { inner }
+    }
+
+    pub fn to_rust(&self) -> DomainModel {
+        self.inner.clone()
+    }
+}
+
+/// Build a DomainModel from a solution class and its referenced entity classes.
+///
+/// This function collects domain metadata from decorated classes and builds
+/// a complete domain model for the solver.
+#[pyfunction]
+pub fn build_domain_model(
+    solution_cls: &Bound<'_, PyType>,
+    entity_classes: Vec<Bound<'_, PyType>>,
+) -> PyResult<PyDomainModel> {
+    let mut builder = DomainModelBuilder::new();
+
+    // Add solution class
+    let solution_json: String = solution_cls
+        .getattr("__solverforge_domain_class__")?
+        .extract()?;
+    let solution_class: DomainClass = serde_json::from_str(&solution_json)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    builder = builder.add_class(solution_class);
+
+    // Add entity classes
+    for entity_cls in entity_classes {
+        let entity_json: String = entity_cls
+            .getattr("__solverforge_domain_class__")?
+            .extract()?;
+        let entity_class: DomainClass = serde_json::from_str(&entity_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+        builder = builder.add_class(entity_class);
+    }
+
+    Ok(PyDomainModel::from_rust(builder.build()))
+}
+
 /// Get the domain class metadata from a decorated class.
 #[pyfunction]
 pub fn get_domain_class(cls: &Bound<'_, PyType>) -> PyResult<Option<PyDomainClass>> {
@@ -369,8 +507,11 @@ pub fn get_domain_class(cls: &Bound<'_, PyType>) -> PyResult<Option<PyDomainClas
 /// Register decorator functions with the Python module.
 pub fn register_decorators(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(planning_entity, m)?)?;
+    m.add_function(wrap_pyfunction!(planning_solution, m)?)?;
     m.add_function(wrap_pyfunction!(get_domain_class, m)?)?;
+    m.add_function(wrap_pyfunction!(build_domain_model, m)?)?;
     m.add_class::<PyDomainClass>()?;
+    m.add_class::<PyDomainModel>()?;
     Ok(())
 }
 

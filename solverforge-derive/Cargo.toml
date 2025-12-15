@@ -16,3 +16,5 @@ proc-macro2 = "1"
 
 [dev-dependencies]
 solverforge-core = { path = "../solverforge-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }

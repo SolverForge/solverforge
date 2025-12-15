@@ -1547,6 +1547,8 @@ version = "0.1.56"
 dependencies = [
  "proc-macro2",
  "quote",
+ "serde",
+ "serde_json",
  "solverforge-core",
  "syn 2.0.111",
 ]

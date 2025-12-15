@@ -28,15 +28,19 @@ build-release:
 
 # ============== Test ==============
 
-test: test-rust test-java
+test: test-rust test-python test-java
 
-# Run all Rust tests with output
+# Run Rust tests (excluding Python crate which needs special flags)
 test-rust:
-	RUST_LOG=info cargo test --workspace -- --nocapture
+	RUST_LOG=info cargo test --workspace --exclude solverforge-python -- --nocapture
+
+# Run Python binding tests (requires auto-initialize feature)
+test-python:
+	RUST_LOG=info cargo test -p solverforge-python --features auto-initialize --no-default-features -- --nocapture
 
 # Run Rust tests quietly (no output unless failure)
 test-rust-quiet:
-	cargo test --workspace
+	cargo test --workspace --exclude solverforge-python
 
 # Run specific Rust test with output
 # Usage: make test-one TEST=test_name
@@ -144,8 +148,9 @@ help:
 	@echo "  make build-release  - Build Rust in release mode"
 	@echo ""
 	@echo "Test:"
-	@echo "  make test           - Run all tests (Rust + Java)"
+	@echo "  make test           - Run all tests (Rust + Python + Java)"
 	@echo "  make test-rust      - Run Rust tests with output"
+	@echo "  make test-python    - Run Python binding tests"
 	@echo "  make test-rust-quiet- Run Rust tests quietly"
 	@echo "  make test-java      - Run Java tests"
 	@echo "  make test-integration - Run integration tests with output"

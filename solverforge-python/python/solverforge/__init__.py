@@ -28,6 +28,10 @@ from solverforge._solverforge import (
     SimpleScore,
     HardSoftScore,
     HardMediumSoftScore,
+    # Decorators
+    planning_entity,
+    get_domain_class,
+    DomainClass,
 )
 
 __all__ = [
@@ -48,4 +52,8 @@ __all__ = [
     "SimpleScore",
     "HardSoftScore",
     "HardMediumSoftScore",
+    # Decorators
+    "planning_entity",
+    "get_domain_class",
+    "DomainClass",
 ]

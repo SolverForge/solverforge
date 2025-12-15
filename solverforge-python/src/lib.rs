@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 
 mod annotations;
 mod bridge;
+mod decorators;
 mod score;
 
 pub use annotations::{
@@ -15,6 +16,7 @@ pub use annotations::{
     PyProblemFactCollectionProperty, PyProblemFactProperty, PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
+pub use decorators::PyDomainClass;
 pub use score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
 
 /// SolverForge Python module
@@ -33,6 +35,9 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Score types
     score::register_scores(m)?;
+
+    // Decorators
+    decorators::register_decorators(m)?;
 
     Ok(())
 }

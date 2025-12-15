@@ -38,8 +38,8 @@ tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "process"] }
 # Base64 encoding for WASM binary (for future phases)
 base64 = "0.22"
 
-# Python bindings (for future phases)
-pyo3 = { version = "0.23", features = ["extension-module"] }
+# Python bindings
+pyo3 = { version = "0.23" }
 
 # Unix-specific
 libc = "0.2"

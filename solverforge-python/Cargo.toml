@@ -8,7 +8,15 @@ description = "Python bindings for SolverForge constraint solver"
 
 [lib]
 name = "solverforge"
-crate-type = ["cdylib"]
+# cdylib for Python extension, rlib for Rust tests
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["extension-module"]
+# For building as Python extension (maturin build)
+extension-module = ["pyo3/extension-module"]
+# For running Rust tests with embedded Python
+auto-initialize = ["pyo3/auto-initialize"]
 
 [dependencies]
 solverforge-core = { path = "../solverforge-core" }

@@ -5,6 +5,10 @@
 
 use pyo3::prelude::*;
 
+mod bridge;
+
+pub use bridge::{PyBridge, PythonBridge};
+
 /// SolverForge Python module
 ///
 /// Provides constraint solving capabilities with an API compatible with Timefold.
@@ -12,6 +16,9 @@ use pyo3::prelude::*;
 fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Version info
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+
+    // Bridge for Python-Rust object interop
+    m.add_class::<PyBridge>()?;
 
     Ok(())
 }

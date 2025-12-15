@@ -1542,6 +1542,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "solverforge-derive"
+version = "0.1.56"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "solverforge-core",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "solverforge-service"
 version = "0.1.56"
 dependencies = [

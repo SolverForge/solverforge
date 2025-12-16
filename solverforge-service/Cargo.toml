@@ -4,7 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+documentation.workspace = true
 description = "JVM lifecycle management for SolverForge"
+readme = "README.md"
 
 [lib]
 crate-type = ["rlib"]

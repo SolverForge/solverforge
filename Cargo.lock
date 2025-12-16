@@ -1705,7 +1705,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-core"
-version = "0.1.72"
+version = "0.2.1"
 dependencies = [
  "base64",
  "indexmap 2.12.1",
@@ -1721,7 +1721,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-derive"
-version = "0.1.72"
+version = "0.2.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1733,7 +1733,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-go"
-version = "0.1.72"
+version = "0.2.1"
 dependencies = [
  "cbindgen",
  "libc",
@@ -1746,7 +1746,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-python"
-version = "0.1.72"
+version = "0.2.1"
 dependencies = [
  "log",
  "pyo3",
@@ -1759,7 +1759,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-service"
-version = "0.1.72"
+version = "0.2.1"
 dependencies = [
  "base64",
  "chrono",

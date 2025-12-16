@@ -32,4 +32,3 @@ mod registry;
 pub use bridge::GoBridge;
 pub use conversions::{CArray, CObject, CValue};
 pub use errors::CError;
-pub use ffi::*;

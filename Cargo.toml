@@ -3,10 +3,15 @@ members = ["solverforge-core", "solverforge-derive", "solverforge-python", "solv
 resolver = "2"
 
 [workspace.package]
-version = "0.1.72"
+version = "0.2.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge"
+authors = ["SolverForge <info@solverforge.org>"]
+keywords = ["constraint", "solver", "optimization", "scheduling", "planning"]
+categories = ["algorithms", "science", "mathematics"]
+homepage = "https://solverforge.org"
+documentation = "https://docs.solverforge.org"
 
 [workspace.dependencies]
 # Error handling

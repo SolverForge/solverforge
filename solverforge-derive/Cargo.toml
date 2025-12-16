@@ -4,7 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories = ["development-tools::procedural-macro-helpers"]
+homepage.workspace = true
+documentation.workspace = true
 description = "Derive macros for SolverForge domain types"
+readme = "README.md"
 
 [lib]
 proc-macro = true

@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+authors.workspace = true
 description = "Go bindings for SolverForge constraint solver (FFI layer)"
+publish = false
 
 [lib]
 # Both staticlib and cdylib for flexibility

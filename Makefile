@@ -8,35 +8,48 @@ export JAVA_HOME PATH
 # Submodule paths
 JAVA_SERVICE := timefold-wasm-service
 
-.PHONY: all build test test-verbose test-rust test-java clean fmt clippy help
+.PHONY: all build test test-verbose test-rust test-python test-go test-java clean fmt clippy help
 
 # Default target
 all: build test
 
 # ============== Build ==============
 
-build: build-rust build-java
+build: build-rust build-go build-java
 
 build-rust:
 	cargo build --workspace
 
+build-go: build-rust
+	cd solverforge-go && cargo build --release
+	cd solverforge-go/go && go build ./...
+
 build-java:
 	cd $(JAVA_SERVICE) && mvn package -DskipTests -q
 
-build-release:
+build-release: build-rust-release build-go
+	cd solverforge-go && cargo build --release
+	cd solverforge-go/go && go build ./...
+
+build-rust-release:
 	cargo build --workspace --release
 
 # ============== Test ==============
 
-test: test-rust test-python test-java
+test: test-rust test-python test-go test-java
 
-# Run Rust tests (excluding Python crate which needs special flags)
+# Run Rust tests (excluding Python and Go FFI crates which need special flags)
 test-rust:
-	RUST_LOG=info cargo test --workspace --exclude solverforge-python -- --nocapture
+	RUST_LOG=info cargo test --workspace --exclude solverforge-python --exclude solverforge-go -- --nocapture
 
 # Run Python binding tests (requires auto-initialize feature)
 test-python:
 	RUST_LOG=info cargo test -p solverforge-python --features auto-initialize --no-default-features -- --nocapture
+
+# Run Go binding tests (requires FFI library and LD_LIBRARY_PATH)
+test-go: build-go
+	cd solverforge-go && cargo test --lib -- --nocapture
+	cd solverforge-go/go && LD_LIBRARY_PATH=../../../target/release:$$LD_LIBRARY_PATH go test -v ./...
 
 # Run Rust tests quietly (no output unless failure)
 test-rust-quiet:
@@ -62,11 +75,21 @@ test-java-verbose:
 
 # ============== Lint & Format ==============
 
-fmt:
+fmt: fmt-rust fmt-go
+
+fmt-rust:
 	cargo fmt --all
 
-fmt-check:
+fmt-go:
+	cd solverforge-go/go && go fmt ./...
+
+fmt-check: fmt-check-rust fmt-check-go
+
+fmt-check-rust:
 	cargo fmt --all -- --check
+
+fmt-check-go:
+	cd solverforge-go/go && test -z "$$(gofmt -l .)"
 
 clippy:
 	cargo clippy --workspace
@@ -75,10 +98,14 @@ lint: fmt-check clippy
 
 # ============== Clean ==============
 
-clean: clean-rust clean-java
+clean: clean-rust clean-go clean-java
 
 clean-rust:
 	cargo clean
+
+clean-go:
+	cd solverforge-go/go && go clean -cache -testcache
+	rm -f solverforge-go/go/solverforge/solverforge.h
 
 clean-java:
 	cd $(JAVA_SERVICE) && mvn clean -q
@@ -142,15 +169,17 @@ help:
 	@echo "SolverForge Makefile Commands:"
 	@echo ""
 	@echo "Build:"
-	@echo "  make build          - Build both Rust and Java"
+	@echo "  make build          - Build Rust, Go, and Java"
 	@echo "  make build-rust     - Build Rust workspace"
+	@echo "  make build-go       - Build Go bindings (requires build-rust first)"
 	@echo "  make build-java     - Build Java service"
-	@echo "  make build-release  - Build Rust in release mode"
+	@echo "  make build-release  - Build all in release mode"
 	@echo ""
 	@echo "Test:"
-	@echo "  make test           - Run all tests (Rust + Python + Java)"
+	@echo "  make test           - Run all tests (Rust + Python + Go + Java)"
 	@echo "  make test-rust      - Run Rust tests with output"
 	@echo "  make test-python    - Run Python binding tests"
+	@echo "  make test-go        - Run Go binding tests"
 	@echo "  make test-rust-quiet- Run Rust tests quietly"
 	@echo "  make test-java      - Run Java tests"
 	@echo "  make test-integration - Run integration tests with output"
@@ -159,12 +188,17 @@ help:
 	@echo "  make solve-test TEST=name - Run test showing solver output"
 	@echo ""
 	@echo "Lint:"
-	@echo "  make fmt            - Format code"
+	@echo "  make fmt            - Format Rust and Go code"
+	@echo "  make fmt-rust       - Format Rust code only"
+	@echo "  make fmt-go         - Format Go code only"
 	@echo "  make clippy         - Run clippy"
 	@echo "  make lint           - Run fmt-check and clippy"
 	@echo ""
 	@echo "Clean:"
 	@echo "  make clean          - Clean all build artifacts"
+	@echo "  make clean-rust     - Clean Rust artifacts"
+	@echo "  make clean-go       - Clean Go artifacts"
+	@echo "  make clean-java     - Clean Java artifacts"
 	@echo ""
 	@echo "Submodule:"
 	@echo "  make submodule-update - Update git submodules"

@@ -13,7 +13,7 @@ fn main() {
         .with_crate(crate_dir)
         .with_language(cbindgen::Language::C)
         .with_include_guard("SOLVERFORGE_H")
-        .with_no_includes()
+        .with_sys_include("stdint.h")
         .generate()
         .expect("Unable to generate bindings")
         .write_to_file(output_dir.join("solverforge.h"));

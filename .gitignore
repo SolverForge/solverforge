@@ -52,5 +52,15 @@ PLAN.md
 *.code-workspace
 .test_status
 
+# Go bindings
+# Test binaries
+*.test
+# Go build cache
+go/pkg/
+# Vendor directory (if using vendoring)
+go/vendor/
+# Generated C headers are regenerated during build
+solverforge-go/go/solverforge/solverforge.h
+
 # Reference files
 reference

@@ -10,6 +10,7 @@ categories.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 description = "JVM lifecycle management for SolverForge"
+readme = "README.md"
 
 [lib]
 crate-type = ["rlib"]

@@ -9,7 +9,7 @@ use std::process::Command;
 // Maven Central coordinates
 const MAVEN_GROUP_ID: &str = "org.solverforge";
 const MAVEN_ARTIFACT_ID: &str = "solverforge-wasm-service";
-const MAVEN_VERSION: &str = "0.2.0";
+const MAVEN_VERSION: &str = "0.2.1";
 const MAVEN_CENTRAL_URL: &str = "https://repo1.maven.org/maven2";
 
 pub struct JarManager {
@@ -105,7 +105,7 @@ impl JarManager {
         fs::create_dir_all(&self.cache_dir)?;
 
         // Determine JAVA_HOME for Maven - it must use the same Java version
-        // that timefold-wasm-service was compiled with (Java 24)
+        // that solverforge-wasm-service was compiled with (Java 24)
         let java_home = if let Some(ref home) = self.java_home {
             home.clone()
         } else {

@@ -24,7 +24,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 const JAVA_24_HOME: &str = "/usr/lib64/jvm/java-24-openjdk-24";
-const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wasm-service");
+const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../solverforge-wasm-service");
 
 /// Generate problem JSON with configurable scale.
 /// Shifts are distributed across days with 3 shifts per day (morning, afternoon, night).

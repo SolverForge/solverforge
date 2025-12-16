@@ -69,7 +69,7 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
       - name: Build and test
-        run: cd timefold-wasm-service && mvn verify
+        run: cd solverforge-wasm-service && mvn verify
 
   integration:
     name: Integration Tests

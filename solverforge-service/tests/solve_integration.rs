@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 const JAVA_24_HOME: &str = "/usr/lib64/jvm/java-24-openjdk-24";
-const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wasm-service");
+const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../solverforge-wasm-service");
 
 /// WebAssembly Text format module matching the Java test's expectations.
 /// This defines functions for:

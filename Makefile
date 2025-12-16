@@ -6,7 +6,7 @@ PATH := $(JAVA_HOME)/bin:$(PATH)
 export JAVA_HOME PATH
 
 # Submodule paths
-JAVA_SERVICE := timefold-wasm-service
+JAVA_SERVICE := solverforge-wasm-service
 
 .PHONY: all build test test-verbose test-rust test-java clean fmt clippy help
 

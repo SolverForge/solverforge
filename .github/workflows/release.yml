@@ -73,8 +73,8 @@ jobs:
             **Maven:**
             ```xml
             <dependency>
-              <groupId>ai.timefold</groupId>
-              <artifactId>timefold-wasm-service</artifactId>
+              <groupId>org.solverforge</groupId>
+              <artifactId>solverforge-wasm-service</artifactId>
               <version>${{ steps.version.outputs.version }}</version>
             </dependency>
             ```

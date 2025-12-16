@@ -122,6 +122,79 @@ bench-large:
 bench-xlarge:
 	$(MAKE) bench EMPLOYEE_COUNT=100 SHIFT_COUNT=1000
 
+# ============== Version & Release ==============
+
+VERSION := $(shell grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+
+version:
+	@echo $(VERSION)
+
+# Bump version using commit-and-tag-version (requires npm install first)
+bump-patch:
+	npx commit-and-tag-version --release-as patch --no-verify
+
+bump-minor:
+	npx commit-and-tag-version --release-as minor --no-verify
+
+bump-major:
+	npx commit-and-tag-version --release-as major --no-verify
+
+bump-dry:
+	npx commit-and-tag-version --dry-run
+
+# Pre-release validation
+pre-release: fmt-check clippy test
+	@echo "Pre-release checks passed for v$(VERSION)"
+
+# ============== Publish ==============
+
+# Dry run publishing to crates.io
+publish-crates-dry:
+	cargo publish -p solverforge-core --dry-run
+	cargo publish -p solverforge-derive --dry-run
+	cargo publish -p solverforge-service --dry-run
+
+# Publish to crates.io (run in order due to dependencies)
+publish-crates:
+	cargo publish -p solverforge-core
+	@echo "Waiting for crates.io index..."
+	@sleep 30
+	cargo publish -p solverforge-derive
+	@sleep 30
+	cargo publish -p solverforge-service
+
+# Build Python wheels
+build-wheels:
+	cd solverforge-python && maturin build --release
+
+# Publish to TestPyPI
+publish-pypi-test:
+	cd solverforge-python && maturin publish --repository testpypi
+
+# Publish to PyPI
+publish-pypi:
+	cd solverforge-python && maturin publish
+
+# Install Maven artifact locally
+publish-maven-local:
+	cd $(JAVA_SERVICE) && mvn clean install
+
+# Deploy to Maven Central (requires credentials)
+publish-maven:
+	cd $(JAVA_SERVICE) && mvn clean deploy -P release
+
+# Full release (after pre-release passes)
+release: pre-release
+	@echo ""
+	@echo "Ready for release v$(VERSION)"
+	@echo "Run these commands to publish:"
+	@echo "  make publish-maven"
+	@echo "  make publish-crates"
+	@echo "  make publish-pypi"
+	@echo ""
+	@echo "Then push the tag:"
+	@echo "  git push origin v$(VERSION)"
+
 # ============== Submodule ==============
 
 submodule-update:
@@ -162,6 +235,22 @@ help:
 	@echo "  make fmt            - Format code"
 	@echo "  make clippy         - Run clippy"
 	@echo "  make lint           - Run fmt-check and clippy"
+	@echo ""
+	@echo "Version & Release:"
+	@echo "  make version        - Show current version"
+	@echo "  make bump-patch     - Bump patch version (0.0.x)"
+	@echo "  make bump-minor     - Bump minor version (0.x.0)"
+	@echo "  make bump-major     - Bump major version (x.0.0)"
+	@echo "  make bump-dry       - Preview version bump"
+	@echo "  make pre-release    - Run all pre-release checks"
+	@echo "  make release        - Validate and show publish commands"
+	@echo ""
+	@echo "Publish:"
+	@echo "  make publish-crates-dry - Dry run crates.io publish"
+	@echo "  make publish-crates - Publish to crates.io"
+	@echo "  make build-wheels   - Build Python wheels"
+	@echo "  make publish-pypi   - Publish to PyPI"
+	@echo "  make publish-maven  - Deploy to Maven Central"
 	@echo ""
 	@echo "Clean:"
 	@echo "  make clean          - Clean all build artifacts"

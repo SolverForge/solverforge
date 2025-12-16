@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "solverforge"
-version = "0.1.56"
+version = "0.2.0"
 description = "Python bindings for SolverForge constraint solver"
 readme = "README.md"
 license = { text = "Apache-2.0" }

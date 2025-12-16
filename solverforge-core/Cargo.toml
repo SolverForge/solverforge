@@ -3,8 +3,13 @@ name = "solverforge-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Language-agnostic wrapper for the Timefold JVM"
 repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Language-agnostic wrapper for the Timefold JVM"
 
 [lib]
 crate-type = ["rlib"]

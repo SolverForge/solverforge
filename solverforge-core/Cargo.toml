@@ -10,6 +10,7 @@ categories.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 description = "Language-agnostic wrapper for the Timefold JVM"
+readme = "README.md"
 
 [lib]
 crate-type = ["rlib"]

@@ -25,7 +25,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 use solverforge_core::constraints::ConstraintSet;
-use solverforge_core::domain::DomainModelBuilder;
+use solverforge_core::domain::{DomainModel, DomainModelBuilder};
 use solverforge_core::solver::{
     DiminishedReturnsConfig, EnvironmentMode, MoveThreadCount, ScoreDto, SolveHandle,
     SolveResponse, SolveState, SolveStatus, SolverConfig, SolverFactory, SolverService,
@@ -323,9 +323,26 @@ impl PyMoveThreadCount {
 
 /// Python wrapper for SolverConfig.
 #[pyclass(name = "SolverConfig")]
-#[derive(Clone)]
 pub struct PySolverConfig {
     inner: SolverConfig,
+    /// Stored Python class object for solution class (for domain model extraction).
+    solution_class_obj: Option<Py<PyType>>,
+    /// Stored Python class objects for entity classes.
+    entity_class_objs: Vec<Py<PyType>>,
+}
+
+impl Clone for PySolverConfig {
+    fn clone(&self) -> Self {
+        Python::with_gil(|py| Self {
+            inner: self.inner.clone(),
+            solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
+            entity_class_objs: self
+                .entity_class_objs
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect(),
+        })
+    }
 }
 
 #[pymethods]
@@ -334,50 +351,90 @@ impl PySolverConfig {
     fn new() -> Self {
         Self {
             inner: SolverConfig::new(),
+            solution_class_obj: None,
+            entity_class_objs: Vec::new(),
         }
     }
 
     /// Set the solution class.
-    fn with_solution_class(&self, cls: &Bound<'_, PyType>) -> PyResult<Self> {
+    fn with_solution_class(&self, py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Self> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
         Ok(Self {
             inner: self.inner.clone().with_solution_class(class_name),
+            solution_class_obj: Some(cls.clone().unbind()),
+            entity_class_objs: self
+                .entity_class_objs
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect(),
         })
     }
 
     /// Add an entity class.
-    fn with_entity_class(&self, cls: &Bound<'_, PyType>) -> PyResult<Self> {
+    fn with_entity_class(&self, py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Self> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+        let mut entity_objs: Vec<Py<PyType>> = self
+            .entity_class_objs
+            .iter()
+            .map(|c| c.clone_ref(py))
+            .collect();
+        entity_objs.push(cls.clone().unbind());
         Ok(Self {
             inner: self.inner.clone().with_entity_class(class_name),
+            solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
+            entity_class_objs: entity_objs,
         })
     }
 
     /// Set the environment mode.
-    fn with_environment_mode(&self, mode: &PyEnvironmentMode) -> Self {
+    fn with_environment_mode(&self, py: Python<'_>, mode: &PyEnvironmentMode) -> Self {
         Self {
             inner: self.inner.clone().with_environment_mode(mode.to_rust()),
+            solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
+            entity_class_objs: self
+                .entity_class_objs
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect(),
         }
     }
 
     /// Set the random seed for reproducibility.
-    fn with_random_seed(&self, seed: u64) -> Self {
+    fn with_random_seed(&self, py: Python<'_>, seed: u64) -> Self {
         Self {
             inner: self.inner.clone().with_random_seed(seed),
+            solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
+            entity_class_objs: self
+                .entity_class_objs
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect(),
         }
     }
 
     /// Set the move thread count.
-    fn with_move_thread_count(&self, count: &PyMoveThreadCount) -> Self {
+    fn with_move_thread_count(&self, py: Python<'_>, count: &PyMoveThreadCount) -> Self {
         Self {
             inner: self.inner.clone().with_move_thread_count(count.to_rust()),
+            solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
+            entity_class_objs: self
+                .entity_class_objs
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect(),
         }
     }
 
     /// Set the termination configuration.
-    fn with_termination(&self, termination: &PyTerminationConfig) -> Self {
+    fn with_termination(&self, py: Python<'_>, termination: &PyTerminationConfig) -> Self {
         Self {
             inner: self.inner.clone().with_termination(termination.to_rust()),
+            solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
+            entity_class_objs: self
+                .entity_class_objs
+                .iter()
+                .map(|c| c.clone_ref(py))
+                .collect(),
         }
     }
 
@@ -407,6 +464,16 @@ impl PySolverConfig {
 impl PySolverConfig {
     pub fn to_rust(&self) -> SolverConfig {
         self.inner.clone()
+    }
+
+    /// Get the solution class object if set.
+    pub fn solution_class_obj(&self) -> Option<&Py<PyType>> {
+        self.solution_class_obj.as_ref()
+    }
+
+    /// Get the entity class objects.
+    pub fn entity_class_objs(&self) -> &[Py<PyType>] {
+        &self.entity_class_objs
     }
 }
 
@@ -646,6 +713,7 @@ impl PySolveResponse {
 pub struct PySolverFactory {
     config: SolverConfig,
     constraints: ConstraintSet,
+    domain_model: DomainModel,
     service_url: String,
 }
 
@@ -669,9 +737,33 @@ impl PySolverFactory {
         let constraints = constraint_provider.get_constraints(py)?;
         let constraint_set = build_constraint_set(&constraints);
 
+        // Build domain model from decorated classes
+        let domain_model = if let Some(solution_cls) = config.solution_class_obj() {
+            let solution_bound = solution_cls.bind(py);
+            let entity_bounds: Vec<Bound<'_, PyType>> = config
+                .entity_class_objs()
+                .iter()
+                .map(|c| c.bind(py).clone())
+                .collect();
+            let py_domain_model =
+                crate::decorators::build_domain_model(solution_bound, entity_bounds)?;
+            py_domain_model.to_rust()
+        } else {
+            // Fallback: build basic domain model from class names
+            let mut builder = DomainModelBuilder::new();
+            if let Some(solution_class) = &config.to_rust().solution_class {
+                builder = builder.solution_class(solution_class);
+            }
+            for entity_class in &config.to_rust().entity_class_list {
+                builder = builder.entity_class(entity_class);
+            }
+            builder.build()
+        };
+
         Ok(Self {
             config: config.to_rust(),
             constraints: constraint_set,
+            domain_model,
             service_url: service_url.unwrap_or(DEFAULT_SERVICE_URL).to_string(),
         })
     }
@@ -682,6 +774,7 @@ impl PySolverFactory {
         PySolver {
             config: self.config.clone(),
             constraints: self.constraints.clone(),
+            domain_model: self.domain_model.clone(),
             service_url: self.service_url.clone(),
             bridge,
         }
@@ -698,6 +791,8 @@ impl PySolverFactory {
     fn config(&self) -> PySolverConfig {
         PySolverConfig {
             inner: self.config.clone(),
+            solution_class_obj: None,
+            entity_class_objs: Vec::new(),
         }
     }
 
@@ -714,6 +809,7 @@ impl PySolverFactory {
 pub struct PySolver {
     config: SolverConfig,
     constraints: ConstraintSet,
+    domain_model: DomainModel,
     service_url: String,
     bridge: Arc<PythonBridge>,
 }
@@ -731,23 +827,13 @@ impl PySolver {
         // Register the problem object with the bridge
         let handle = self.bridge.register_object(problem.clone_ref(py));
 
-        // Build domain model from config
-        let mut builder = DomainModelBuilder::new();
-        if let Some(solution_class) = &self.config.solution_class {
-            builder = builder.solution_class(solution_class);
-        }
-        for entity_class in &self.config.entity_class_list {
-            builder = builder.entity_class(entity_class);
-        }
-        let domain_model = builder.build();
-
-        // Create the core solver
+        // Create the core solver using the pre-built domain model
         let factory = SolverFactory::<PythonBridge>::create(
             self.config.clone(),
             &self.service_url,
-            domain_model,
+            self.domain_model.clone(),
             self.constraints.clone(),
-            String::new(), // WASM module will be generated
+            String::new(), // WASM module will be generated by service
         );
         let solver = factory.build_solver(self.bridge.clone());
 
@@ -777,19 +863,10 @@ impl PySolver {
     fn solve_async(&self, py: Python<'_>, problem: Py<PyAny>) -> PyResult<PySolveHandle> {
         let handle = self.bridge.register_object(problem.clone_ref(py));
 
-        let mut builder = DomainModelBuilder::new();
-        if let Some(solution_class) = &self.config.solution_class {
-            builder = builder.solution_class(solution_class);
-        }
-        for entity_class in &self.config.entity_class_list {
-            builder = builder.entity_class(entity_class);
-        }
-        let domain_model = builder.build();
-
         let factory = SolverFactory::<PythonBridge>::create(
             self.config.clone(),
             &self.service_url,
-            domain_model,
+            self.domain_model.clone(),
             self.constraints.clone(),
             String::new(),
         );
@@ -804,19 +881,10 @@ impl PySolver {
 
     /// Get the status of an async solve.
     fn get_status(&self, handle: &PySolveHandle) -> PyResult<PySolveStatus> {
-        let mut builder = DomainModelBuilder::new();
-        if let Some(solution_class) = &self.config.solution_class {
-            builder = builder.solution_class(solution_class);
-        }
-        for entity_class in &self.config.entity_class_list {
-            builder = builder.entity_class(entity_class);
-        }
-        let domain_model = builder.build();
-
         let factory = SolverFactory::<PythonBridge>::create(
             self.config.clone(),
             &self.service_url,
-            domain_model,
+            self.domain_model.clone(),
             self.constraints.clone(),
             String::new(),
         );
@@ -835,19 +903,10 @@ impl PySolver {
         _py: Python<'_>,
         handle: &PySolveHandle,
     ) -> PyResult<Option<PySolveResponse>> {
-        let mut builder = DomainModelBuilder::new();
-        if let Some(solution_class) = &self.config.solution_class {
-            builder = builder.solution_class(solution_class);
-        }
-        for entity_class in &self.config.entity_class_list {
-            builder = builder.entity_class(entity_class);
-        }
-        let domain_model = builder.build();
-
         let factory = SolverFactory::<PythonBridge>::create(
             self.config.clone(),
             &self.service_url,
-            domain_model,
+            self.domain_model.clone(),
             self.constraints.clone(),
             String::new(),
         );
@@ -902,6 +961,8 @@ impl PySolver {
     fn config(&self) -> PySolverConfig {
         PySolverConfig {
             inner: self.config.clone(),
+            solution_class_obj: None,
+            entity_class_objs: Vec::new(),
         }
     }
 
@@ -942,6 +1003,10 @@ pub fn register_solver(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn init_python() {
+        pyo3::prepare_freethreaded_python();
+    }
 
     #[test]
     fn test_termination_config_new() {
@@ -1053,24 +1118,34 @@ mod tests {
 
     #[test]
     fn test_solver_config_with_environment_mode() {
-        let config = PySolverConfig::new().with_environment_mode(&PyEnvironmentMode::full_assert());
-        assert_eq!(
-            config.inner.environment_mode,
-            Some(EnvironmentMode::FullAssert)
-        );
+        init_python();
+        Python::with_gil(|py| {
+            let config =
+                PySolverConfig::new().with_environment_mode(py, &PyEnvironmentMode::full_assert());
+            assert_eq!(
+                config.inner.environment_mode,
+                Some(EnvironmentMode::FullAssert)
+            );
+        });
     }
 
     #[test]
     fn test_solver_config_with_random_seed() {
-        let config = PySolverConfig::new().with_random_seed(42);
-        assert_eq!(config.inner.random_seed, Some(42));
+        init_python();
+        Python::with_gil(|py| {
+            let config = PySolverConfig::new().with_random_seed(py, 42);
+            assert_eq!(config.inner.random_seed, Some(42));
+        });
     }
 
     #[test]
     fn test_solver_config_with_termination() {
-        let termination = PyTerminationConfig::new().with_spent_limit("PT5M");
-        let config = PySolverConfig::new().with_termination(&termination);
-        assert!(config.inner.termination.is_some());
+        init_python();
+        Python::with_gil(|py| {
+            let termination = PyTerminationConfig::new().with_spent_limit("PT5M");
+            let config = PySolverConfig::new().with_termination(py, &termination);
+            assert!(config.inner.termination.is_some());
+        });
     }
 
     #[test]

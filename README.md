@@ -59,6 +59,16 @@ solverforge/
 │       ├── score/             # Score types (Simple, HardSoft, Bendable)
 │       ├── solver/            # Solver configuration & HTTP client
 │       └── wasm/              # WASM module generation
+├── solverforge-python/        # Python bindings (PyO3)
+│   └── src/
+│       ├── annotations.rs     # @planning_entity, @planning_solution, etc.
+│       ├── collectors.rs      # ConstraintCollectors (count, sum, etc.)
+│       ├── decorators.rs      # Python decorators for domain classes
+│       ├── joiners.rs         # Joiners (equal, lessThan, overlapping, etc.)
+│       ├── lambda_analyzer.rs # Python lambda → WASM function analysis
+│       ├── score.rs           # HardSoftScore, SimpleScore, etc.
+│       ├── solver.rs          # SolverFactory, Solver, SolverConfig
+│       └── stream.rs          # ConstraintFactory, Uni/Bi/TriConstraintStream
 ├── solverforge-service/       # JVM lifecycle management (Rust)
 │   └── src/
 │       └── service.rs         # EmbeddedService - starts/stops Java process
@@ -160,6 +170,111 @@ Content-Type: application/json
 3. **Execute Solver** → Timefold evaluates constraints via WASM calls
 4. **Return Solution** → JSON-serialized solution with score and stats
 
+## Python Bindings
+
+SolverForge provides Python bindings compatible with Timefold's Python API:
+
+### Domain Model
+
+```python
+from typing import Annotated, Optional, List
+from solverforge import (
+    planning_entity, planning_solution,
+    PlanningId, PlanningVariable, PlanningScore,
+    ValueRangeProvider, ProblemFactCollectionProperty,
+    PlanningEntityCollectionProperty, HardSoftScore,
+)
+
+@planning_entity
+class Lesson:
+    id: Annotated[str, PlanningId]
+    subject: str
+    teacher: str
+    timeslot: Annotated[Optional['Timeslot'], PlanningVariable(value_range_provider_refs=['timeslots'])]
+    room: Annotated[Optional['Room'], PlanningVariable(value_range_provider_refs=['rooms'])]
+
+@planning_solution
+class Timetable:
+    timeslots: Annotated[List[Timeslot], ProblemFactCollectionProperty, ValueRangeProvider(id='timeslots')]
+    rooms: Annotated[List[Room], ProblemFactCollectionProperty, ValueRangeProvider(id='rooms')]
+    lessons: Annotated[List[Lesson], PlanningEntityCollectionProperty]
+    score: Annotated[Optional[HardSoftScore], PlanningScore]
+```
+
+### Constraint Streams
+
+```python
+from solverforge import (
+    constraint_provider, ConstraintFactory,
+    Joiners, ConstraintCollectors, HardSoftScore,
+)
+
+@constraint_provider
+def define_constraints(factory: ConstraintFactory):
+    return [
+        # Hard: No two lessons in the same room at the same time
+        factory.for_each_unique_pair(Lesson, Joiners.equal(lambda l: l.timeslot))
+            .filter(lambda a, b: a.room == b.room)
+            .penalize(HardSoftScore.ONE_HARD)
+            .as_constraint("Room conflict"),
+
+        # Hard: A teacher can only teach one lesson at a time
+        factory.for_each_unique_pair(Lesson, Joiners.equal(lambda l: l.timeslot))
+            .filter(lambda a, b: a.teacher == b.teacher)
+            .penalize(HardSoftScore.ONE_HARD)
+            .as_constraint("Teacher conflict"),
+
+        # Soft: Prefer consecutive lessons for the same teacher
+        factory.for_each(Lesson)
+            .group_by(lambda l: l.teacher, ConstraintCollectors.count())
+            .filter(lambda teacher, count: count > 3)
+            .penalize(HardSoftScore.ONE_SOFT)
+            .as_constraint("Teacher workload"),
+    ]
+```
+
+### Solving
+
+```python
+from solverforge import SolverFactory, SolverConfig, TerminationConfig
+
+config = (SolverConfig()
+    .with_solution_class(Timetable)
+    .with_entity_classes([Lesson])
+    .with_termination(TerminationConfig().with_seconds_spent_limit(30)))
+
+solver = SolverFactory.create(config, define_constraints).build()
+solution = solver.solve(problem)
+
+print(f"Score: {solution.score}")
+```
+
+### Available Components
+
+**Annotations**:
+- `@planning_entity`, `@planning_solution`, `@constraint_provider`
+- `PlanningId`, `PlanningVariable`, `PlanningListVariable`, `PlanningScore`
+- `ValueRangeProvider`, `ProblemFactCollectionProperty`, `PlanningEntityCollectionProperty`
+- `PlanningPin`, `InverseRelationShadowVariable`, `DeepPlanningClone`
+- `@deep_planning_clone` decorator
+
+**Constraint Streams**:
+- `UniConstraintStream`, `BiConstraintStream`, `TriConstraintStream`
+- Operations: `filter()`, `join()`, `if_exists()`, `if_not_exists()`
+- Grouping: `group_by()`, `group_by_collector()`, `group_by_two_keys()`
+- Scoring: `penalize()`, `reward()`, `as_constraint()`
+
+**Joiners**:
+- `Joiners.equal()`, `less_than()`, `less_than_or_equal()`
+- `greater_than()`, `greater_than_or_equal()`, `overlapping()`
+
+**Collectors**:
+- `ConstraintCollectors.count()`, `count_distinct()`, `sum()`, `average()`
+- `min()`, `max()`, `to_list()`, `to_set()`, `load_balance()`
+
+**Scores**:
+- `SimpleScore`, `HardSoftScore`, `HardMediumSoftScore`
+
 ## Current Status
 
 ### Working Features
@@ -172,6 +287,13 @@ Content-Type: application/json
 - **Score analysis** with constraint breakdown
 - **Primitive list support**: flattenLast works with LocalDate[] and other primitive lists
 - **Advanced collectors**: count, countDistinct, loadBalance
+- **Python bindings** (PyO3): Full Timefold-compatible API
+  - Decorators: `@planning_entity`, `@planning_solution`, `@constraint_provider`
+  - Annotations: `PlanningVariable`, `PlanningScore`, `ValueRangeProvider`, etc.
+  - Constraint streams: `UniConstraintStream`, `BiConstraintStream`, `TriConstraintStream`
+  - Joiners: `equal`, `lessThan`, `overlapping`, etc.
+  - Collectors: `count`, `sum`, `average`, `toList`, `loadBalance`, etc.
+  - Lambda analysis: Python lambdas → WASM functions
 
 ### Performance Status
 
@@ -200,6 +322,9 @@ cargo build --workspace
 # Run all tests (requires Java 24)
 cargo test --workspace
 
+# Run Python bindings tests
+make test-python
+
 # Run specific integration test
 cargo test -p solverforge-service test_employee_scheduling_solve
 
@@ -208,17 +333,27 @@ JAVA_HOME=/usr/lib64/jvm/java-24-openjdk-24 \
   cargo test -p solverforge-service --test solve_integration
 ```
 
+**Test Counts**:
+- solverforge-core: 478 tests
+- solverforge-python: 129 tests
+
 **Integration Tests**:
 - ✅ Employee scheduling with 5 constraints (requiredSkill, noOverlappingShifts, oneShiftPerDay, atLeast10HoursBetweenTwoShifts, balanceEmployeeShiftAssignments)
 - ✅ Primitive list operations (LocalDate[] with flattenLast)
 - ✅ Advanced collectors (loadBalance for fair distribution)
 - ✅ Weighted penalties and custom weighers
+- ✅ Python domain model extraction from decorated classes
+- ✅ Python constraint stream building with lambda analysis
+- ✅ TriConstraintStream for 3-entity joins
+- ✅ GroupBy operations with collectors
 
 ## Dependencies
 
-- **Rust**: 1.70+
-- **Java**: 24 (for timefold-wasm-service)
+- **Rust**: 1.75+ (edition 2021)
+- **Java**: 24+ (for timefold-wasm-service)
 - **Maven**: 3.9+ (for building Java service)
+- **Python**: 3.10+ (tested on 3.10, 3.11, 3.12, 3.13)
+- **maturin**: 1.8+ (for building Python wheel)
 
 ## License
 

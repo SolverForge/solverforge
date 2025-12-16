@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 
 mod annotations;
 mod bridge;
+mod collectors;
 mod decorators;
 mod joiners;
 mod lambda_analyzer;
@@ -15,11 +16,13 @@ mod solver;
 mod stream;
 
 pub use annotations::{
-    PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty, PyPlanningEntityProperty,
-    PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore, PyPlanningVariable,
-    PyProblemFactCollectionProperty, PyProblemFactProperty, PyValueRangeProvider,
+    PyDeepPlanningClone, PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty,
+    PyPlanningEntityProperty, PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore,
+    PyPlanningVariable, PyProblemFactCollectionProperty, PyProblemFactProperty,
+    PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
+pub use collectors::{PyCollector, PyConstraintCollectors};
 pub use decorators::{PyConstraintProvider, PyDomainClass, PyDomainModel};
 pub use joiners::{PyJoiner, PyJoiners};
 pub use lambda_analyzer::{analyze_lambda, generate_lambda_name, LambdaInfo};
@@ -30,7 +33,7 @@ pub use solver::{
 };
 pub use stream::{
     PyBiConstraintBuilder, PyBiConstraintStream, PyConstraint, PyConstraintFactory,
-    PyUniConstraintBuilder, PyUniConstraintStream,
+    PyTriConstraintBuilder, PyTriConstraintStream, PyUniConstraintBuilder, PyUniConstraintStream,
 };
 
 /// SolverForge Python module
@@ -58,6 +61,9 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Joiners
     joiners::register_joiners(m)?;
+
+    // Collectors
+    collectors::register_collectors(m)?;
 
     // Solver
     solver::register_solver(m)?;

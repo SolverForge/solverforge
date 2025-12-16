@@ -383,6 +383,64 @@ impl PyInverseRelationShadowVariable {
     }
 }
 
+/// Marks a field as requiring deep planning cloning.
+///
+/// Not needed for `planning_solution` or `planning_entity` attributes because those
+/// are automatically deep cloned. Use this for problem facts or other fields that
+/// need to be cloned when creating working solutions.
+///
+/// When applied to a list or dict, the container is cloned, but elements are only
+/// cloned if they are of a type that needs planning cloning.
+///
+/// # Example
+///
+/// ```python
+/// @planning_entity
+/// class Employee:
+///     work_day_to_hours: Annotated[dict[date, int], ShadowVariable(...), DeepPlanningClone]
+/// ```
+#[pyclass(name = "DeepPlanningClone")]
+#[derive(Clone, Debug)]
+pub struct PyDeepPlanningClone;
+
+#[pymethods]
+impl PyDeepPlanningClone {
+    #[new]
+    fn new() -> Self {
+        Self
+    }
+
+    fn __repr__(&self) -> &'static str {
+        "DeepPlanningClone()"
+    }
+}
+
+/// Decorator to mark a problem fact class as requiring deep planning cloning.
+///
+/// Not needed for a `planning_solution` or `planning_entity` because those are
+/// automatically deep cloned. Use this for problem fact classes that need to be
+/// cloned when creating working solutions.
+///
+/// To annotate an attribute instead of a class, use `DeepPlanningClone`.
+///
+/// # Example
+///
+/// ```python
+/// @deep_planning_clone
+/// class WorkSchedule:
+///     shifts: list[Shift]
+///     preferences: dict[str, int]
+/// ```
+#[pyfunction]
+#[pyo3(name = "deep_planning_clone")]
+pub fn py_deep_planning_clone(_py: Python<'_>, cls: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    // Mark the class as requiring deep cloning
+    cls.setattr("__solverforge_deep_clone__", true)?;
+
+    // Return the class unchanged
+    Ok(cls.clone().unbind())
+}
+
 /// Register annotation classes with the Python module.
 pub fn register_annotations(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPlanningId>()?;
@@ -396,6 +454,8 @@ pub fn register_annotations(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPlanningEntityCollectionProperty>()?;
     m.add_class::<PyPlanningPin>()?;
     m.add_class::<PyInverseRelationShadowVariable>()?;
+    m.add_class::<PyDeepPlanningClone>()?;
+    m.add_function(wrap_pyfunction!(py_deep_planning_clone, m)?)?;
     Ok(())
 }
 
@@ -484,5 +544,30 @@ mod tests {
         let shadow = PyInverseRelationShadowVariable::new("visits".to_string());
         assert_eq!(shadow.source_variable_name, "visits");
         assert!(shadow.__repr__().contains("visits"));
+    }
+
+    #[test]
+    fn test_deep_planning_clone() {
+        let clone = PyDeepPlanningClone::new();
+        assert_eq!(clone.__repr__(), "DeepPlanningClone()");
+    }
+
+    #[test]
+    fn test_deep_planning_clone_decorator() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            use pyo3::types::PyDict;
+            let locals = PyDict::new(py);
+            py.run(c"class WorkSchedule:\n    pass", None, Some(&locals))
+                .unwrap();
+            let cls = locals.get_item("WorkSchedule").unwrap().unwrap();
+
+            // Apply the decorator
+            let result = py_deep_planning_clone(py, &cls).unwrap();
+
+            // Check that the marker was set
+            let marker = result.getattr(py, "__solverforge_deep_clone__").unwrap();
+            assert!(marker.extract::<bool>(py).unwrap());
+        });
     }
 }

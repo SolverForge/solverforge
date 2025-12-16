@@ -19,6 +19,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 use solverforge_core::constraints::{Constraint, Joiner, StreamComponent};
 
+use crate::collectors::PyCollector;
 use crate::joiners::PyJoiner;
 use crate::lambda_analyzer::LambdaInfo;
 use crate::score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
@@ -266,6 +267,107 @@ impl PyUniConstraintStream {
         })
     }
 
+    /// Group items by a key and aggregate with a collector.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - A lambda that extracts the grouping key
+    /// * `collector` - A collector that aggregates the grouped items
+    ///
+    /// # Returns
+    /// A BiConstraintStream with (key, aggregated_value) tuples
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each(Shift)
+    ///     .group_by(lambda shift: shift.employee, ConstraintCollectors.count())
+    ///     .filter(lambda employee, count: count > 5)
+    ///     .penalize(HardSoftScore.ONE_HARD)
+    ///     .as_constraint("Too many shifts")
+    /// ```
+    fn group_by(
+        &self,
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        collector: &PyCollector,
+    ) -> PyResult<PyBiConstraintStream> {
+        let key_info = LambdaInfo::new(py, key_mapper, "group_by_key")?;
+        let key_wasm = key_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![key_wasm],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: vec![self.class_name.clone()],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Group items with only a collector (no key).
+    ///
+    /// # Arguments
+    /// * `collector` - A collector that aggregates all items
+    ///
+    /// # Returns
+    /// A UniConstraintStream with the aggregated value
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each(Shift)
+    ///     .group_by_collector(ConstraintCollectors.count())
+    ///     .filter(lambda count: count > 100)
+    ///     .penalize(HardSoftScore.ONE_HARD)
+    ///     .as_constraint("Too many shifts total")
+    /// ```
+    fn group_by_collector(&self, collector: &PyCollector) -> PyUniConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        PyUniConstraintStream {
+            components,
+            class_name: "".to_string(), // No longer entity-based
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Group items by two keys and aggregate with a collector.
+    ///
+    /// # Arguments
+    /// * `key_mapper_a` - First key extractor
+    /// * `key_mapper_b` - Second key extractor
+    /// * `collector` - A collector that aggregates the grouped items
+    ///
+    /// # Returns
+    /// A TriConstraintStream with (key_a, key_b, aggregated_value) tuples
+    fn group_by_two_keys(
+        &self,
+        py: Python<'_>,
+        key_mapper_a: Py<PyAny>,
+        key_mapper_b: Py<PyAny>,
+        collector: &PyCollector,
+    ) -> PyResult<PyTriConstraintStream> {
+        let key_a_info = LambdaInfo::new(py, key_mapper_a, "group_by_key_a")?;
+        let key_b_info = LambdaInfo::new(py, key_mapper_b, "group_by_key_b")?;
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![key_a_info.to_wasm_function(), key_b_info.to_wasm_function()],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: vec![self.class_name.clone()],
+            predicates: Vec::new(),
+        })
+    }
+
     /// Penalize matches with a simple score.
     fn penalize_simple(&self, score: &PySimpleScore) -> PyUniConstraintBuilder {
         let weight = format!("{}", score.to_rust());
@@ -433,6 +535,102 @@ impl PyBiConstraintStream {
         })
     }
 
+    /// Join with another entity type.
+    ///
+    /// # Arguments
+    /// * `cls` - The class to join with
+    /// * `joiners` - Optional joiners to filter the join
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each(Lesson)
+    ///     .join(Room)
+    ///     .join(Timeslot)  # Creates a TriConstraintStream
+    /// ```
+    #[pyo3(signature = (cls, *joiners))]
+    fn join(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<PyTriConstraintStream> {
+        let join_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Join {
+            class_name: join_class_name.clone(),
+            joiners: rust_joiners,
+        });
+
+        let mut class_names = self.class_names.clone();
+        class_names.push(join_class_name);
+
+        Ok(PyTriConstraintStream {
+            components,
+            class_names,
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Group pairs by a key extracted from both entities and aggregate with a collector.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - A lambda that takes two entities and extracts a grouping key
+    /// * `collector` - A collector that aggregates the grouped pairs
+    ///
+    /// # Returns
+    /// A BiConstraintStream with (key, aggregated_value) tuples
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each_unique_pair(Lesson)
+    ///     .group_by(lambda a, b: (a.room, b.room), ConstraintCollectors.count())
+    ///     .penalize(HardSoftScore.ONE_HARD)
+    ///     .as_constraint("Room pair conflicts")
+    /// ```
+    fn group_by(
+        &self,
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        collector: &PyCollector,
+    ) -> PyResult<PyBiConstraintStream> {
+        let key_info = LambdaInfo::new(py, key_mapper, "group_by_bi_key")?;
+        let key_wasm = key_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![key_wasm],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Group pairs with only a collector (no key).
+    ///
+    /// # Arguments
+    /// * `collector` - A collector that aggregates all pairs
+    ///
+    /// # Returns
+    /// A UniConstraintStream with the aggregated value
+    fn group_by_collector(&self, collector: &PyCollector) -> PyUniConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        PyUniConstraintStream {
+            components,
+            class_name: "".to_string(),
+            predicates: Vec::new(),
+        }
+    }
+
     /// Penalize matches with a hard/soft score.
     fn penalize(&self, score: &PyHardSoftScore) -> PyBiConstraintBuilder {
         let weight = format!("{}", score.to_rust());
@@ -508,6 +706,154 @@ impl PyBiConstraintBuilder {
     }
 }
 
+/// A constraint stream with three entity types.
+#[pyclass(name = "TriConstraintStream")]
+#[derive(Clone)]
+pub struct PyTriConstraintStream {
+    components: Vec<StreamComponent>,
+    class_names: Vec<String>,
+    /// Stored predicates for later analysis.
+    predicates: Vec<LambdaInfo>,
+}
+
+impl PyTriConstraintStream {
+    /// Get stored predicates for analysis.
+    #[allow(dead_code)]
+    pub fn predicates(&self) -> &[LambdaInfo] {
+        &self.predicates
+    }
+
+    /// Penalize with a weight and return a constraint (Rust API for tests).
+    pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
+        let weight_str = format!("{}hard", weight);
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Penalize {
+            weight: weight_str,
+            scale_by: None,
+        });
+        PyConstraint {
+            inner: Constraint::new(name).with_components(components),
+        }
+    }
+
+    /// Reward with a weight and return a constraint (Rust API for tests).
+    pub fn reward_weight(&self, name: &str, weight: i32) -> PyConstraint {
+        let weight_str = format!("{}soft", weight);
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Reward {
+            weight: weight_str,
+            scale_by: None,
+        });
+        PyConstraint {
+            inner: Constraint::new(name).with_components(components),
+        }
+    }
+
+    /// Filter triples based on a predicate (Rust API for tests).
+    pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Filter {
+            predicate: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates,
+        })
+    }
+}
+
+#[pymethods]
+impl PyTriConstraintStream {
+    /// Filter triples based on a predicate.
+    ///
+    /// # Arguments
+    /// * `predicate` - A lambda that takes three entities and returns a boolean
+    ///
+    /// # Example
+    /// ```python
+    /// stream.filter(lambda a, b, c: a.room != b.room and b.room != c.room)
+    /// ```
+    fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Filter {
+            predicate: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates,
+        })
+    }
+
+    /// Penalize matches with a hard/soft score.
+    fn penalize(&self, score: &PyHardSoftScore) -> PyTriConstraintBuilder {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Penalize {
+            weight,
+            scale_by: None,
+        });
+
+        PyTriConstraintBuilder { components }
+    }
+
+    /// Reward matches with a hard/soft score.
+    fn reward(&self, score: &PyHardSoftScore) -> PyTriConstraintBuilder {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Reward {
+            weight,
+            scale_by: None,
+        });
+
+        PyTriConstraintBuilder { components }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "TriConstraintStream(classes={:?}, components={})",
+            self.class_names,
+            self.components.len()
+        )
+    }
+}
+
+/// Builder for finalizing a tri-constraint.
+#[pyclass(name = "TriConstraintBuilder")]
+#[derive(Clone)]
+pub struct PyTriConstraintBuilder {
+    components: Vec<StreamComponent>,
+}
+
+#[pymethods]
+impl PyTriConstraintBuilder {
+    /// Finalize the constraint with a name.
+    fn as_constraint(&self, name: &str) -> PyConstraint {
+        PyConstraint {
+            inner: Constraint::new(name).with_components(self.components.clone()),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("TriConstraintBuilder(components={})", self.components.len())
+    }
+}
+
 /// A finalized constraint.
 #[pyclass(name = "Constraint")]
 #[derive(Clone)]
@@ -563,8 +909,10 @@ pub fn register_streams(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyConstraintFactory>()?;
     m.add_class::<PyUniConstraintStream>()?;
     m.add_class::<PyBiConstraintStream>()?;
+    m.add_class::<PyTriConstraintStream>()?;
     m.add_class::<PyUniConstraintBuilder>()?;
     m.add_class::<PyBiConstraintBuilder>()?;
+    m.add_class::<PyTriConstraintBuilder>()?;
     m.add_class::<PyConstraint>()?;
     Ok(())
 }
@@ -664,6 +1012,278 @@ mod tests {
                 filtered2.predicates()[0].name,
                 filtered2.predicates()[1].name
             );
+        });
+    }
+
+    #[test]
+    fn test_bi_stream_join_to_tri() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            // Create a mock class
+            py.run(c"class Timeslot:\n    pass", None, Some(&locals))
+                .unwrap();
+            let timeslot_cls = locals.get_item("Timeslot").unwrap().unwrap();
+
+            let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
+            let tri_stream = bi_stream
+                .join(timeslot_cls.downcast::<PyType>().unwrap(), vec![])
+                .unwrap();
+
+            // Should have 2 components: ForEachUniquePair + Join
+            assert_eq!(tri_stream.components.len(), 2);
+
+            // Should have 2 class names tracked (original + joined)
+            assert_eq!(tri_stream.class_names.len(), 2);
+            assert_eq!(tri_stream.class_names[0], "Lesson");
+            assert_eq!(tri_stream.class_names[1], "Timeslot");
+
+            // Repr should show TriConstraintStream
+            assert!(tri_stream.__repr__().contains("TriConstraintStream"));
+        });
+    }
+
+    #[test]
+    fn test_tri_stream_filter_stores_predicate() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"class Room:\n    pass\nf = lambda a, b, c: a.id != b.id and b.id != c.id",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let room_cls = locals.get_item("Room").unwrap().unwrap();
+            let func = locals.get_item("f").unwrap().unwrap();
+
+            // Create bi stream, then join to get tri stream
+            let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
+            let tri_stream = bi_stream
+                .join(room_cls.downcast::<PyType>().unwrap(), vec![])
+                .unwrap();
+            let filtered = tri_stream.filter(py, func.unbind()).unwrap();
+
+            // Should have 3 components: ForEachUniquePair + Join + Filter
+            assert_eq!(filtered.components.len(), 3);
+
+            // Should have 1 predicate stored
+            assert_eq!(filtered.predicates().len(), 1);
+
+            // Predicate name should start with "filter_tri_"
+            assert!(filtered.predicates()[0].name.starts_with("filter_tri_"));
+        });
+    }
+
+    #[test]
+    fn test_tri_stream_penalize_and_constraint() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"class Room:\n    pass", None, Some(&locals))
+                .unwrap();
+            let room_cls = locals.get_item("Room").unwrap().unwrap();
+
+            // Create tri stream
+            let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
+            let tri_stream = bi_stream
+                .join(room_cls.downcast::<PyType>().unwrap(), vec![])
+                .unwrap();
+
+            // Use penalize_weight (Rust API)
+            let constraint = tri_stream.penalize_weight("Triple conflict", 1);
+
+            assert_eq!(constraint.name(), "Triple conflict");
+            assert!(constraint.to_json().unwrap().contains("1hard"));
+        });
+    }
+
+    #[test]
+    fn test_tri_stream_repr() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"class Room:\n    pass", None, Some(&locals))
+                .unwrap();
+            let room_cls = locals.get_item("Room").unwrap().unwrap();
+
+            let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
+            let tri_stream = bi_stream
+                .join(room_cls.downcast::<PyType>().unwrap(), vec![])
+                .unwrap();
+
+            let repr = tri_stream.__repr__();
+            assert!(repr.contains("TriConstraintStream"));
+            assert!(repr.contains("Lesson"));
+            assert!(repr.contains("Room"));
+            assert!(repr.contains("components=2"));
+        });
+    }
+
+    #[test]
+    fn test_uni_stream_group_by() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"key_mapper = lambda shift: shift.employee",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
+
+            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
+            let collector = crate::collectors::PyConstraintCollectors::count_rust();
+            let grouped = stream
+                .group_by(py, key_mapper.unbind(), &collector)
+                .unwrap();
+
+            // Should have 2 components: ForEach + GroupBy
+            assert_eq!(grouped.components.len(), 2);
+
+            // Should be a BiConstraintStream
+            assert!(grouped.__repr__().contains("BiConstraintStream"));
+        });
+    }
+
+    #[test]
+    fn test_uni_stream_group_by_collector_only() {
+        init_python();
+        Python::with_gil(|_py| {
+            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
+            let collector = crate::collectors::PyConstraintCollectors::count_rust();
+            let grouped = stream.group_by_collector(&collector);
+
+            // Should have 2 components: ForEach + GroupBy
+            assert_eq!(grouped.components.len(), 2);
+
+            // Should be a UniConstraintStream
+            assert!(grouped.__repr__().contains("UniConstraintStream"));
+        });
+    }
+
+    #[test]
+    fn test_uni_stream_group_by_two_keys() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"key_a = lambda s: s.employee\nkey_b = lambda s: s.day",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let key_a = locals.get_item("key_a").unwrap().unwrap();
+            let key_b = locals.get_item("key_b").unwrap().unwrap();
+
+            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
+            let collector = crate::collectors::PyConstraintCollectors::count_rust();
+            let grouped = stream
+                .group_by_two_keys(py, key_a.unbind(), key_b.unbind(), &collector)
+                .unwrap();
+
+            // Should have 2 components: ForEach + GroupBy
+            assert_eq!(grouped.components.len(), 2);
+
+            // Should be a TriConstraintStream
+            assert!(grouped.__repr__().contains("TriConstraintStream"));
+        });
+    }
+
+    #[test]
+    fn test_bi_stream_group_by() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"key_mapper = lambda a, b: a.room", None, Some(&locals))
+                .unwrap();
+            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
+
+            let stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
+            let collector = crate::collectors::PyConstraintCollectors::count_rust();
+            let grouped = stream
+                .group_by(py, key_mapper.unbind(), &collector)
+                .unwrap();
+
+            // Should have 2 components: ForEachUniquePair + GroupBy
+            assert_eq!(grouped.components.len(), 2);
+
+            // Should be a BiConstraintStream
+            assert!(grouped.__repr__().contains("BiConstraintStream"));
+        });
+    }
+
+    #[test]
+    fn test_bi_stream_group_by_collector_only() {
+        init_python();
+        Python::with_gil(|_py| {
+            let stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
+            let collector = crate::collectors::PyConstraintCollectors::count_rust();
+            let grouped = stream.group_by_collector(&collector);
+
+            // Should have 2 components: ForEachUniquePair + GroupBy
+            assert_eq!(grouped.components.len(), 2);
+
+            // Should be a UniConstraintStream
+            assert!(grouped.__repr__().contains("UniConstraintStream"));
+        });
+    }
+
+    #[test]
+    fn test_group_by_with_sum_collector() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"key_mapper = lambda s: s.employee\nsum_mapper = lambda s: s.hours",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
+            let sum_mapper = locals.get_item("sum_mapper").unwrap().unwrap();
+
+            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
+            let collector =
+                crate::collectors::PyConstraintCollectors::sum_rust(py, sum_mapper.unbind())
+                    .unwrap();
+            let grouped = stream
+                .group_by(py, key_mapper.unbind(), &collector)
+                .unwrap();
+
+            // Should have 2 components: ForEach + GroupBy
+            assert_eq!(grouped.components.len(), 2);
+
+            // Can chain with penalize
+            let constraint = grouped.penalize_weight("Too many hours", 1);
+            assert_eq!(constraint.name(), "Too many hours");
+        });
+    }
+
+    #[test]
+    fn test_group_by_chain_with_filter() {
+        init_python();
+        Python::with_gil(|py| {
+            let locals = PyDict::new(py);
+            py.run(
+                c"key_mapper = lambda s: s.employee\nfilter_pred = lambda emp, count: count > 5",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
+            let filter_pred = locals.get_item("filter_pred").unwrap().unwrap();
+
+            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
+            let collector = crate::collectors::PyConstraintCollectors::count_rust();
+            let grouped = stream
+                .group_by(py, key_mapper.unbind(), &collector)
+                .unwrap();
+            let filtered = grouped.filter(py, filter_pred.unbind()).unwrap();
+
+            // Should have 3 components: ForEach + GroupBy + Filter
+            assert_eq!(filtered.components.len(), 3);
         });
     }
 }

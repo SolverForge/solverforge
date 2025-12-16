@@ -1,6 +1,6 @@
 //! SolverForge Service - JVM lifecycle management
 //!
-//! This crate manages the lifecycle of the timefold-wasm-service Java process,
+//! This crate manages the lifecycle of the solverforge-wasm-service Java process,
 //! providing an embedded service option for SolverForge users who don't want
 //! to manage the solver service separately.
 

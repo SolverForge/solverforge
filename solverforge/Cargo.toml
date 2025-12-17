@@ -13,9 +13,9 @@ description = "Constraint solver library powered by Timefold"
 readme = "README.md"
 
 [dependencies]
-solverforge-core = { version = "0.2.1", path = "../solverforge-core" }
-solverforge-derive = { version = "0.2.1", path = "../solverforge-derive" }
-solverforge-service = { version = "0.2.1", path = "../solverforge-service", optional = true }
+solverforge-core = { version = "0.2.2", path = "../solverforge-core" }
+solverforge-derive = { version = "0.2.2", path = "../solverforge-derive" }
+solverforge-service = { version = "0.2.2", path = "../solverforge-service", optional = true }
 
 [features]
 default = ["embedded"]

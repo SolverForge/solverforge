@@ -1,6 +1,6 @@
 {
   "name": "solverforge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Version management for SolverForge",
   "scripts": {
@@ -15,22 +15,70 @@
   },
   "commit-and-tag-version": {
     "bumpFiles": [
-      {"filename": "package.json", "type": "json"},
-      {"filename": "Cargo.toml", "updater": "scripts/cargo-version.js"},
-      {"filename": "solverforge-python/pyproject.toml", "updater": "scripts/pyproject-version.js"},
-      {"filename": "timefold-wasm-service/pom.xml", "updater": "scripts/pom-version.js"}
+      {
+        "filename": "package.json",
+        "type": "json"
+      },
+      {
+        "filename": "Cargo.toml",
+        "updater": "scripts/cargo-version.js"
+      },
+      {
+        "filename": "solverforge-python/pyproject.toml",
+        "updater": "scripts/pyproject-version.js"
+      },
+      {
+        "filename": "solverforge/Cargo.toml",
+        "updater": "scripts/cargo-dep-version.js"
+      },
+      {
+        "filename": "solverforge-derive/Cargo.toml",
+        "updater": "scripts/cargo-dep-version.js"
+      },
+      {
+        "filename": "solverforge-service/Cargo.toml",
+        "updater": "scripts/cargo-dep-version.js"
+      },
+      {
+        "filename": "solverforge-wasm-service/pom.xml",
+        "updater": "scripts/pom-version.js"
+      }
     ],
     "tagPrefix": "v",
     "header": "# Changelog\n\nAll notable changes to SolverForge will be documented in this file.\n",
     "types": [
-      {"type": "feat", "section": "Features"},
-      {"type": "fix", "section": "Bug Fixes"},
-      {"type": "perf", "section": "Performance"},
-      {"type": "refactor", "section": "Refactoring"},
-      {"type": "docs", "section": "Documentation"},
-      {"type": "chore", "section": "Maintenance"},
-      {"type": "ci", "section": "CI/CD"},
-      {"type": "test", "section": "Tests"}
+      {
+        "type": "feat",
+        "section": "Features"
+      },
+      {
+        "type": "fix",
+        "section": "Bug Fixes"
+      },
+      {
+        "type": "perf",
+        "section": "Performance"
+      },
+      {
+        "type": "refactor",
+        "section": "Refactoring"
+      },
+      {
+        "type": "docs",
+        "section": "Documentation"
+      },
+      {
+        "type": "chore",
+        "section": "Maintenance"
+      },
+      {
+        "type": "ci",
+        "section": "CI/CD"
+      },
+      {
+        "type": "test",
+        "section": "Tests"
+      }
     ]
   }
 }

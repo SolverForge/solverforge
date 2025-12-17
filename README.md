@@ -2,6 +2,18 @@
 
 A Rust-based constraint solver library that bridges language bindings to the Timefold JVM via WebAssembly and HTTP.
 
+## Installation
+
+**Rust:**
+```bash
+cargo add solverforge
+```
+
+**Python:**
+```bash
+pip install solverforge
+```
+
 ## Project Scope
 
 SolverForge enables constraint satisfaction and optimization problems to be defined in any language (Python, JavaScript, etc.) and solved using the Timefold solver engine. Instead of requiring JNI or native bindings, SolverForge:

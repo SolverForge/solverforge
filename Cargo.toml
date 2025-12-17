@@ -1,5 +1,5 @@
 [workspace]
-members = ["solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-go", "solverforge-service"]
+members = ["solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-service"]
 resolver = "2"
 
 [workspace.package]
@@ -44,7 +44,7 @@ tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "process"] 
 base64 = "0.22"
 
 # Python bindings
-pyo3 = { version = "0.23" }
+pyo3 = { version = "0.27" }
 
 # Unix-specific
 libc = "0.2"

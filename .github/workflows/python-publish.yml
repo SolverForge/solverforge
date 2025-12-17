@@ -10,6 +10,9 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
+
 jobs:
   build-wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -27,15 +30,23 @@ jobs:
           python-version: '3.12'
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Build wheels
+      - name: Build wheels (Linux)
+        if: matrix.os == 'ubuntu-latest'
         uses: PyO3/maturin-action@v1
         with:
           working-directory: solverforge-python
-          target: ${{ matrix.os == 'ubuntu-latest' && 'x86_64' || '' }}
-          args: --release --out dist
+          target: x86_64
+          args: --release --out dist --find-interpreter
           manylinux: auto
+
+      - name: Build wheels (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: solverforge-python
+          args: --release --out dist --find-interpreter
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

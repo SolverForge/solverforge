@@ -49,7 +49,7 @@ impl PythonBridge {
 
     /// Get a registered Python class by name.
     pub fn get_class(&self, name: &str) -> Option<Py<PyAny>> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             self.classes
                 .lock()
                 .unwrap()
@@ -75,7 +75,7 @@ impl PythonBridge {
 
     /// Get a Python object by its handle.
     pub fn get_py_object(&self, handle: ObjectHandle) -> Option<Py<PyAny>> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             self.objects
                 .lock()
                 .unwrap()
@@ -119,7 +119,7 @@ impl PythonBridge {
         }
 
         // List/tuple
-        if let Ok(list) = obj.downcast::<PyList>() {
+        if let Ok(list) = obj.cast::<PyList>() {
             let mut arr = Vec::new();
             for item in list.iter() {
                 arr.push(Self::py_to_value(&item)?);
@@ -128,7 +128,7 @@ impl PythonBridge {
         }
 
         // Dict
-        if let Ok(dict) = obj.downcast::<PyDict>() {
+        if let Ok(dict) = obj.cast::<PyDict>() {
             let mut map = HashMap::new();
             for (key, value) in dict.iter() {
                 let key_str = key
@@ -141,7 +141,7 @@ impl PythonBridge {
 
         // For other objects, try to convert via __dict__ or serialize
         if let Ok(dict) = obj.getattr("__dict__") {
-            if let Ok(dict) = dict.downcast::<PyDict>() {
+            if let Ok(dict) = dict.cast::<PyDict>() {
                 let mut map = HashMap::new();
                 for (key, value) in dict.iter() {
                     if let Ok(key_str) = key.extract::<String>() {
@@ -228,7 +228,7 @@ impl PythonBridge {
                 // Extract element type from __args__ if this is a generic type
                 let element_type = if is_generic {
                     if let Ok(args) = type_obj.getattr("__args__") {
-                        if let Ok(args_tuple) = args.downcast::<pyo3::types::PyTuple>() {
+                        if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
                             if !args_tuple.is_empty() {
                                 let first_arg = args_tuple.get_item(0).ok();
                                 if let Some(arg) = first_arg {
@@ -263,7 +263,7 @@ unsafe impl Sync for PythonBridge {}
 
 impl LanguageBridge for PythonBridge {
     fn call_function(&self, func: FunctionHandle, args: &[Value]) -> SolverForgeResult<Value> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let functions = self.functions.lock().unwrap();
             let py_func = functions.get(&func.id()).ok_or_else(|| {
                 SolverForgeError::Bridge(format!("Function not found: {:?}", func))
@@ -289,7 +289,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn get_field(&self, obj: ObjectHandle, field: &str) -> SolverForgeResult<Value> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -297,7 +297,7 @@ impl LanguageBridge for PythonBridge {
             let bound = py_obj.bind(py);
 
             // Try dict access first (for dict objects)
-            if let Ok(dict) = bound.downcast::<PyDict>() {
+            if let Ok(dict) = bound.cast::<PyDict>() {
                 if let Some(value) = dict.get_item(field).ok().flatten() {
                     return Self::py_to_value(&value);
                 }
@@ -313,7 +313,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn set_field(&self, obj: ObjectHandle, field: &str, value: Value) -> SolverForgeResult<()> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -324,7 +324,7 @@ impl LanguageBridge for PythonBridge {
             let bound = py_obj.bind(py);
 
             // Try dict access first (for dict objects)
-            if let Ok(dict) = bound.downcast::<PyDict>() {
+            if let Ok(dict) = bound.cast::<PyDict>() {
                 dict.set_item(field, py_value).map_err(|e| {
                     SolverForgeError::Bridge(format!("Failed to set field '{}': {}", field, e))
                 })?;
@@ -341,7 +341,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn serialize_object(&self, obj: ObjectHandle) -> SolverForgeResult<String> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -353,7 +353,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn deserialize_object(&self, json: &str, class_name: &str) -> SolverForgeResult<ObjectHandle> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Parse JSON to Value first
             let value: Value = serde_json::from_str(json)
                 .map_err(|e| SolverForgeError::Serialization(e.to_string()))?;
@@ -398,7 +398,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn get_class_info(&self, obj: ObjectHandle) -> SolverForgeResult<ClassInfo> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -418,7 +418,7 @@ impl LanguageBridge for PythonBridge {
 
             // Check for __solverforge_annotations__ (set by our decorators)
             if let Ok(annotations) = py_obj.getattr("__solverforge_annotations__") {
-                if let Ok(ann_list) = annotations.downcast::<PyList>() {
+                if let Ok(ann_list) = annotations.cast::<PyList>() {
                     for ann in ann_list.iter() {
                         if let Ok(ann_name) = ann.extract::<String>() {
                             match ann_name.as_str() {
@@ -438,7 +438,7 @@ impl LanguageBridge for PythonBridge {
 
             // Get fields from __annotations__ (type hints)
             if let Ok(type_hints) = class.getattr("__annotations__") {
-                if let Ok(hints_dict) = type_hints.downcast::<PyDict>() {
+                if let Ok(hints_dict) = type_hints.cast::<PyDict>() {
                     for (name, type_obj) in hints_dict.iter() {
                         if let Ok(field_name) = name.extract::<String>() {
                             if !field_name.starts_with('_') {
@@ -462,7 +462,7 @@ impl LanguageBridge for PythonBridge {
             .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", func)))?;
 
         // Verify it's callable
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let is_callable = py_obj.bind(py).is_callable();
             if !is_callable {
                 return Err(SolverForgeError::Bridge(
@@ -480,7 +480,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn clone_object(&self, obj: ObjectHandle) -> SolverForgeResult<ObjectHandle> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -499,7 +499,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn get_list_size(&self, obj: ObjectHandle) -> SolverForgeResult<usize> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -514,7 +514,7 @@ impl LanguageBridge for PythonBridge {
     }
 
     fn get_list_item(&self, obj: ObjectHandle, index: usize) -> SolverForgeResult<Value> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_obj = self
                 .get_py_object(obj)
                 .ok_or_else(|| SolverForgeError::Bridge(format!("Object not found: {:?}", obj)))?;
@@ -554,18 +554,18 @@ impl PyBridge {
     }
 
     /// Get a field value from an object.
-    fn get_field(&self, handle_id: u64, field: &str) -> PyResult<PyObject> {
+    fn get_field(&self, handle_id: u64, field: &str) -> PyResult<Py<PyAny>> {
         let value = self
             .inner
             .get_field(ObjectHandle::new(handle_id), field)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
-        Python::with_gil(|py| PythonBridge::value_to_py(py, &value).map(|v| v.unbind()))
+        Python::attach(|py| PythonBridge::value_to_py(py, &value).map(|v| v.unbind()))
     }
 
     /// Set a field value on an object.
-    fn set_field(&self, handle_id: u64, field: &str, value: PyObject) -> PyResult<()> {
-        Python::with_gil(|py| {
+    fn set_field(&self, handle_id: u64, field: &str, value: Py<PyAny>) -> PyResult<()> {
+        Python::attach(|py| {
             let val = PythonBridge::py_to_value(value.bind(py))
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
@@ -611,14 +611,14 @@ mod tests {
     #[test]
     fn test_register_and_get_object() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let obj = PyDict::new(py);
             obj.set_item("key", "value").unwrap();
             let handle = bridge.register_object(obj.into_any().unbind());
 
             let retrieved = bridge.get_py_object(handle).unwrap();
             let bound = retrieved.bind(py);
-            let dict = bound.downcast::<PyDict>().unwrap();
+            let dict = bound.cast::<PyDict>().unwrap();
             assert_eq!(
                 dict.get_item("key")
                     .unwrap()
@@ -633,7 +633,7 @@ mod tests {
     #[test]
     fn test_release_object() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let obj = py.None().into_bound(py);
             let handle = bridge.register_object(obj.unbind());
             assert!(bridge.get_py_object(handle).is_some());
@@ -645,7 +645,7 @@ mod tests {
 
     #[test]
     fn test_py_to_value_primitives() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // None
             let none = py.None();
             assert_eq!(
@@ -685,7 +685,7 @@ mod tests {
 
     #[test]
     fn test_py_to_value_list() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let list = PyList::new(py, vec![1i64, 2, 3]).unwrap();
             let value = PythonBridge::py_to_value(list.as_any()).unwrap();
 
@@ -703,7 +703,7 @@ mod tests {
 
     #[test]
     fn test_py_to_value_dict() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let dict = PyDict::new(py);
             dict.set_item("name", "test").unwrap();
             dict.set_item("value", 42).unwrap();
@@ -722,7 +722,7 @@ mod tests {
 
     #[test]
     fn test_value_to_py_primitives() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Null
             let py_none = PythonBridge::value_to_py(py, &Value::Null).unwrap();
             assert!(py_none.is_none());
@@ -748,11 +748,11 @@ mod tests {
 
     #[test]
     fn test_value_to_py_array() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let arr = Value::Array(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
             let py_list = PythonBridge::value_to_py(py, &arr).unwrap();
 
-            let list = py_list.downcast::<PyList>().unwrap();
+            let list = py_list.cast::<PyList>().unwrap();
             assert_eq!(list.len(), 3);
             assert_eq!(list.get_item(0).unwrap().extract::<i64>().unwrap(), 1);
         });
@@ -760,13 +760,13 @@ mod tests {
 
     #[test]
     fn test_value_to_py_object() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let mut map = std::collections::HashMap::new();
             map.insert("key".to_string(), Value::String("value".to_string()));
             let obj = Value::Object(map);
 
             let py_dict = PythonBridge::value_to_py(py, &obj).unwrap();
-            let dict = py_dict.downcast::<PyDict>().unwrap();
+            let dict = py_dict.cast::<PyDict>().unwrap();
 
             assert_eq!(
                 dict.get_item("key")
@@ -782,7 +782,7 @@ mod tests {
     #[test]
     fn test_get_field() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Create a simple class instance with attributes using py.run
             let locals = PyDict::new(py);
             py.run(
@@ -805,7 +805,7 @@ mod tests {
     #[test]
     fn test_set_field() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"class Obj:\n    pass\no = Obj()\no.value = 0",
@@ -826,7 +826,7 @@ mod tests {
     #[test]
     fn test_serialize_object() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let dict = PyDict::new(py);
             dict.set_item("name", "test").unwrap();
             dict.set_item("count", 5).unwrap();
@@ -855,7 +855,7 @@ mod tests {
     #[test]
     fn test_clone_object() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let dict = PyDict::new(py);
             dict.set_item("value", 42).unwrap();
 
@@ -875,7 +875,7 @@ mod tests {
     #[test]
     fn test_get_list_size() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let list = PyList::new(py, vec![1, 2, 3, 4, 5]).unwrap();
             let handle = bridge.register_object(list.into_any().unbind());
 
@@ -887,7 +887,7 @@ mod tests {
     #[test]
     fn test_get_list_item() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let list = PyList::new(py, vec![10, 20, 30]).unwrap();
             let handle = bridge.register_object(list.into_any().unbind());
 
@@ -900,7 +900,7 @@ mod tests {
     #[test]
     fn test_register_and_call_function() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Create a lambda that adds two numbers
             let locals = PyDict::new(py);
             py.run(c"f = lambda x, y: x + y", None, Some(&locals))
@@ -919,7 +919,7 @@ mod tests {
     #[test]
     fn test_call_function_with_strings() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a + ' ' + b", None, Some(&locals))
                 .unwrap();
@@ -942,7 +942,7 @@ mod tests {
 
     #[test]
     fn test_extract_field_type_generic_list() {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"from typing import List\nint_list = List[int]\nstr_list = List[str]",
@@ -982,7 +982,7 @@ mod tests {
     #[test]
     fn test_register_class_and_deserialize() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Create a simple dataclass-like class
             let locals = PyDict::new(py);
             py.run(
@@ -1012,7 +1012,7 @@ mod tests {
     #[test]
     fn test_get_class() {
         let bridge = PythonBridge::new();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Create and register a class
             let locals = PyDict::new(py);
             py.run(c"class TestClass: pass", None, Some(&locals))

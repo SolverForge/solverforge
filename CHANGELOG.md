@@ -2,6 +2,13 @@
 
 All notable changes to SolverForge will be documented in this file.
 
+## [0.2.4](///compare/v0.2.3...v0.2.4) (2025-12-17)
+
+
+### Features
+
+* **python:** add shadow variable annotations for list planning 7eeb6b6
+
 ## [0.2.3](///compare/v0.2.2...v0.2.3) (2025-12-17)
 
 

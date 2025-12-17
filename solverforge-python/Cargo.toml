@@ -24,11 +24,13 @@ auto-initialize = ["pyo3/auto-initialize"]
 
 [dependencies]
 solverforge-core = { path = "../solverforge-core" }
+solverforge-service = { path = "../solverforge-service" }
 pyo3.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 log.workspace = true
+rust_decimal = "1.36"
 
 [dev-dependencies]
 tempfile.workspace = true

@@ -21,6 +21,6 @@ quote = "1"
 proc-macro2 = "1"
 
 [dev-dependencies]
-solverforge-core = { version = "0.2.2", path = "../solverforge-core" }
+solverforge-core = { version = "0.2.3", path = "../solverforge-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }

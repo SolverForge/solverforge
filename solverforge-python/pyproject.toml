@@ -32,6 +32,6 @@ Repository = "https://github.com/solverforge/solverforge"
 Changelog = "https://github.com/solverforge/solverforge/blob/main/CHANGELOG.md"
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "pyo3/abi3-py310"]
 python-source = "python"
 module-name = "solverforge._solverforge"

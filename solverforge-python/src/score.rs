@@ -660,6 +660,10 @@ impl PyHardSoftDecimalScore {
     pub fn to_rust(&self) -> RustHardSoftDecimalScore {
         self.inner
     }
+
+    pub fn to_string_repr(&self) -> String {
+        format!("{}", self.inner)
+    }
 }
 
 /// A score with hard, medium, and soft decimal components.
@@ -849,6 +853,10 @@ impl PyHardMediumSoftDecimalScore {
 
     pub fn to_rust(&self) -> RustHardMediumSoftDecimalScore {
         self.inner
+    }
+
+    pub fn to_string_repr(&self) -> String {
+        format!("{}", self.inner)
     }
 }
 

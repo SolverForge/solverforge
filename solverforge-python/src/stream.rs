@@ -22,7 +22,10 @@ use solverforge_core::constraints::{Constraint, Joiner, StreamComponent};
 use crate::collectors::PyCollector;
 use crate::joiners::PyJoiner;
 use crate::lambda_analyzer::LambdaInfo;
-use crate::score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
+use crate::score::{
+    PyHardMediumSoftDecimalScore, PyHardMediumSoftScore, PyHardSoftDecimalScore, PyHardSoftScore,
+    PySimpleScore,
+};
 
 /// Factory for creating constraint streams.
 #[pyclass(name = "ConstraintFactory")]
@@ -444,6 +447,54 @@ impl PyUniConstraintStream {
         Ok(PyUniConstraintBuilder { components })
     }
 
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/medium/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
+    }
+
     /// Reward matches with a hard/soft score.
     #[pyo3(signature = (score, match_weigher=None))]
     fn reward(
@@ -453,6 +504,30 @@ impl PyUniConstraintStream {
         match_weigher: Option<Py<PyAny>>,
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
@@ -731,6 +806,78 @@ impl PyBiConstraintStream {
         Ok(PyBiConstraintBuilder { components })
     }
 
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/medium/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BiConstraintStream(classes={:?}, components={})",
@@ -909,6 +1056,78 @@ impl PyTriConstraintStream {
         match_weigher: Option<Py<PyAny>>,
     ) -> PyResult<PyTriConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/medium/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {

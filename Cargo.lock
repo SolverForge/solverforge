@@ -1611,6 +1611,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "solverforge"
+version = "0.2.1"
+dependencies = [
+ "solverforge-core",
+ "solverforge-derive",
+ "solverforge-service",
+]
+
+[[package]]
 name = "solverforge-core"
 version = "0.2.1"
 dependencies = [

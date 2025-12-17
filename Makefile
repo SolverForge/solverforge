@@ -177,9 +177,8 @@ pre-release: fmt-check clippy test
 
 # Dry run publishing to crates.io
 publish-crates-dry:
-	cargo publish -p solverforge-core --dry-run
-	cargo publish -p solverforge-derive --dry-run
-	cargo publish -p solverforge-service --dry-run
+	cargo publish -p solverforge-core --dry-run --allow-dirty
+	@echo "Note: dependent crates will fail dry-run until solverforge-core is published"
 
 # Publish to crates.io (run in order due to dependencies)
 publish-crates:
@@ -189,6 +188,8 @@ publish-crates:
 	cargo publish -p solverforge-derive
 	@sleep 30
 	cargo publish -p solverforge-service
+	@sleep 30
+	cargo publish -p solverforge
 
 # Build Python wheels
 build-wheels:

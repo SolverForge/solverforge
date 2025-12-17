@@ -24,6 +24,9 @@ from solverforge._solverforge import (
     PlanningEntityCollectionProperty,
     PlanningPin,
     InverseRelationShadowVariable,
+    PreviousElementShadowVariable,
+    NextElementShadowVariable,
+    CascadingUpdateShadowVariable,
     # Score types
     SimpleScore,
     HardSoftScore,
@@ -81,6 +84,9 @@ __all__ = [
     "PlanningEntityCollectionProperty",
     "PlanningPin",
     "InverseRelationShadowVariable",
+    "PreviousElementShadowVariable",
+    "NextElementShadowVariable",
+    "CascadingUpdateShadowVariable",
     # Score types
     "SimpleScore",
     "HardSoftScore",

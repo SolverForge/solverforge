@@ -1507,7 +1507,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "solverforge-core",
  "solverforge-derive",
@@ -1516,7 +1516,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64",
  "indexmap",
@@ -1532,7 +1532,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-derive"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1544,7 +1544,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-python"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "log",
  "pyo3",
@@ -1557,7 +1557,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-service"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "base64",
  "chrono",

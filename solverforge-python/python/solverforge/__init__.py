@@ -31,6 +31,8 @@ from solverforge._solverforge import (
     SimpleScore,
     HardSoftScore,
     HardMediumSoftScore,
+    HardSoftDecimalScore,
+    HardMediumSoftDecimalScore,
     # Decorators
     planning_entity,
     planning_solution,
@@ -70,6 +72,16 @@ from solverforge._solverforge import (
     ConstraintCollectors,
 )
 
+# Embedded service management
+from solverforge._solverforge import (
+    ServiceConfig,
+    EmbeddedService,
+    ensure_service,
+    is_service_available,
+    get_service_url,
+    stop_service,
+)
+
 __all__ = [
     "__version__",
     # Annotation marker classes
@@ -91,6 +103,8 @@ __all__ = [
     "SimpleScore",
     "HardSoftScore",
     "HardMediumSoftScore",
+    "HardSoftDecimalScore",
+    "HardMediumSoftDecimalScore",
     # Decorators
     "planning_entity",
     "planning_solution",
@@ -128,4 +142,11 @@ __all__ = [
     # Collectors
     "Collector",
     "ConstraintCollectors",
+    # Embedded service
+    "ServiceConfig",
+    "EmbeddedService",
+    "ensure_service",
+    "is_service_available",
+    "get_service_url",
+    "stop_service",
 ]

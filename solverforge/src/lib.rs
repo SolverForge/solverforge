@@ -28,14 +28,11 @@
 //! }
 //! ```
 //!
-//! # Features
-//!
-//! - `embedded` (default) - Includes embedded service that auto-manages the Java solver process
+//! The embedded solver service is automatically started when needed, eliminating
+//! the need to manually manage the Java process.
 
 pub use solverforge_core::*;
 pub use solverforge_derive::*;
-
-#[cfg(feature = "embedded")]
 pub use solverforge_service::*;
 
 /// Commonly used types for constraint solving

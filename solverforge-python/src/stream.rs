@@ -22,7 +22,10 @@ use solverforge_core::constraints::{Constraint, Joiner, StreamComponent};
 use crate::collectors::PyCollector;
 use crate::joiners::PyJoiner;
 use crate::lambda_analyzer::LambdaInfo;
-use crate::score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
+use crate::score::{
+    PyHardMediumSoftDecimalScore, PyHardMediumSoftScore, PyHardSoftDecimalScore, PyHardSoftScore,
+    PySimpleScore,
+};
 
 /// Factory for creating constraint streams.
 #[pyclass(name = "ConstraintFactory")]
@@ -368,52 +371,227 @@ impl PyUniConstraintStream {
         })
     }
 
+    /// Flatten the last element of each tuple using a mapping function.
+    ///
+    /// Takes each element and applies a mapping that turns it into an Iterable,
+    /// then flattens to create one tuple per item in the iterable.
+    ///
+    /// # Arguments
+    /// * `flattening_function` - Function that extracts an iterable from each element
+    ///
+    /// # Returns
+    /// A UniConstraintStream with one tuple per flattened item
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyUniConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyUniConstraintStream {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    ///
+    /// Adds entities that are not matched by the stream, useful for including
+    /// unassigned entities in constraints.
+    ///
+    /// # Arguments
+    /// * `cls` - The class of instances to complement with
+    ///
+    /// # Returns
+    /// A UniConstraintStream including the complement
+    fn complement(&self, cls: &Bound<'_, PyType>) -> PyResult<PyUniConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+        Ok(PyUniConstraintStream {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
     /// Penalize matches with a simple score.
-    fn penalize_simple(&self, score: &PySimpleScore) -> PyUniConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_simple(
+        &self,
+        py: Python<'_>,
+        score: &PySimpleScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     /// Penalize matches with a hard/soft score.
-    fn penalize(&self, score: &PyHardSoftScore) -> PyUniConstraintBuilder {
+    ///
+    /// Args:
+    ///     score: Base penalty score (HardSoftScore)
+    ///     match_weigher: Optional lambda to calculate penalty weight per match
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     /// Penalize matches with a hard/medium/soft score.
-    fn penalize_hms(&self, score: &PyHardMediumSoftScore) -> PyUniConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/medium/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     /// Reward matches with a hard/soft score.
-    fn reward(&self, score: &PyHardSoftScore) -> PyUniConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Reward {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     fn __repr__(&self) -> String {
@@ -631,28 +809,185 @@ impl PyBiConstraintStream {
         }
     }
 
+    /// Flatten the last element of each tuple using a mapping function.
+    ///
+    /// Takes the second element of each pair and applies a mapping that turns
+    /// it into an Iterable, then flattens to create one tuple per item.
+    ///
+    /// # Arguments
+    /// * `flattening_function` - Function that extracts an iterable from B
+    ///
+    /// # Returns
+    /// A BiConstraintStream with one tuple per flattened item
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyBiConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    ///
+    /// # Arguments
+    /// * `cls` - The class of instances to complement with
+    /// * `padding` - Optional function to generate the B value for complemented instances
+    #[pyo3(signature = (cls, padding=None))]
+    fn complement(
+        &self,
+        py: Python<'_>,
+        cls: &Bound<'_, PyType>,
+        padding: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+
+        // If padding is provided, add a map component for it
+        if let Some(pad_fn) = padding {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding")?;
+            components.push(StreamComponent::Map {
+                mappers: vec![lambda_info.to_wasm_function()],
+            });
+        }
+
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
     /// Penalize matches with a hard/soft score.
-    fn penalize(&self, score: &PyHardSoftScore) -> PyBiConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyBiConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
     }
 
     /// Reward matches with a hard/soft score.
-    fn reward(&self, score: &PyHardSoftScore) -> PyBiConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Reward {
-            weight,
-            scale_by: None,
-        });
 
-        PyBiConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/medium/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
     }
 
     fn __repr__(&self) -> String {
@@ -800,28 +1135,193 @@ impl PyTriConstraintStream {
         })
     }
 
+    /// Flatten the last element of each tuple using a mapping function.
+    ///
+    /// Takes the third element of each triple and applies a mapping that turns
+    /// it into an Iterable, then flattens to create one tuple per item.
+    ///
+    /// # Arguments
+    /// * `flattening_function` - Function that extracts an iterable from C
+    ///
+    /// # Returns
+    /// A TriConstraintStream with one tuple per flattened item
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyTriConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    ///
+    /// # Arguments
+    /// * `cls` - The class of instances to complement with
+    /// * `padding_b` - Optional function to generate the B value for complemented instances
+    /// * `padding_c` - Optional function to generate the C value for complemented instances
+    #[pyo3(signature = (cls, padding_b=None, padding_c=None))]
+    fn complement(
+        &self,
+        py: Python<'_>,
+        cls: &Bound<'_, PyType>,
+        padding_b: Option<Py<PyAny>>,
+        padding_c: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+
+        // If padding functions are provided, add map components for them
+        let mut mappers = Vec::new();
+        if let Some(pad_fn) = padding_b {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if let Some(pad_fn) = padding_c {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if !mappers.is_empty() {
+            components.push(StreamComponent::Map { mappers });
+        }
+
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
     /// Penalize matches with a hard/soft score.
-    fn penalize(&self, score: &PyHardSoftScore) -> PyTriConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyTriConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
     }
 
     /// Reward matches with a hard/soft score.
-    fn reward(&self, score: &PyHardSoftScore) -> PyTriConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Reward {
-            weight,
-            scale_by: None,
-        });
 
-        PyTriConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/medium/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
     }
 
     fn __repr__(&self) -> String {
@@ -851,6 +1351,232 @@ impl PyTriConstraintBuilder {
 
     fn __repr__(&self) -> String {
         format!("TriConstraintBuilder(components={})", self.components.len())
+    }
+}
+
+/// A constraint stream with four entity types.
+#[pyclass(name = "QuadConstraintStream")]
+#[derive(Clone)]
+pub struct PyQuadConstraintStream {
+    components: Vec<StreamComponent>,
+    class_names: Vec<String>,
+    predicates: Vec<LambdaInfo>,
+}
+
+impl PyQuadConstraintStream {
+    #[allow(dead_code)]
+    pub fn predicates(&self) -> &[LambdaInfo] {
+        &self.predicates
+    }
+}
+
+#[pymethods]
+impl PyQuadConstraintStream {
+    /// Filter quads based on a predicate.
+    fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_quad")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Filter {
+            predicate: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates,
+        })
+    }
+
+    /// Flatten the last element of each tuple using a mapping function.
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyQuadConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyQuadConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    #[pyo3(signature = (cls, padding_b=None, padding_c=None, padding_d=None))]
+    fn complement(
+        &self,
+        py: Python<'_>,
+        cls: &Bound<'_, PyType>,
+        padding_b: Option<Py<PyAny>>,
+        padding_c: Option<Py<PyAny>>,
+        padding_d: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+
+        let mut mappers = Vec::new();
+        if let Some(pad_fn) = padding_b {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if let Some(pad_fn) = padding_c {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if let Some(pad_fn) = padding_d {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if !mappers.is_empty() {
+            components.push(StreamComponent::Map { mappers });
+        }
+
+        Ok(PyQuadConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Penalize matches with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyQuadConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyQuadConstraintBuilder { components })
+    }
+
+    /// Penalize matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyQuadConstraintBuilder { components })
+    }
+
+    /// Reward matches with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyQuadConstraintBuilder { components })
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "QuadConstraintStream(classes={:?}, components={})",
+            self.class_names,
+            self.components.len()
+        )
+    }
+}
+
+/// Builder for finalizing a quad-constraint.
+#[pyclass(name = "QuadConstraintBuilder")]
+#[derive(Clone)]
+pub struct PyQuadConstraintBuilder {
+    components: Vec<StreamComponent>,
+}
+
+#[pymethods]
+impl PyQuadConstraintBuilder {
+    /// Finalize the constraint with a name.
+    fn as_constraint(&self, name: &str) -> PyConstraint {
+        PyConstraint {
+            inner: Constraint::new(name).with_components(self.components.clone()),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "QuadConstraintBuilder(components={})",
+            self.components.len()
+        )
     }
 }
 
@@ -910,9 +1636,11 @@ pub fn register_streams(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyUniConstraintStream>()?;
     m.add_class::<PyBiConstraintStream>()?;
     m.add_class::<PyTriConstraintStream>()?;
+    m.add_class::<PyQuadConstraintStream>()?;
     m.add_class::<PyUniConstraintBuilder>()?;
     m.add_class::<PyBiConstraintBuilder>()?;
     m.add_class::<PyTriConstraintBuilder>()?;
+    m.add_class::<PyQuadConstraintBuilder>()?;
     m.add_class::<PyConstraint>()?;
     Ok(())
 }

@@ -9,7 +9,7 @@ use std::process::Command;
 // Maven Central coordinates
 const MAVEN_GROUP_ID: &str = "org.solverforge";
 const MAVEN_ARTIFACT_ID: &str = "solverforge-wasm-service";
-const MAVEN_VERSION: &str = "0.2.1";
+const MAVEN_VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAVEN_CENTRAL_URL: &str = "https://repo1.maven.org/maven2";
 
 pub struct JarManager {

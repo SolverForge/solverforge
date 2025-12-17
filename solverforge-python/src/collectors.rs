@@ -3,7 +3,10 @@
 //! Collectors are used in groupBy operations to aggregate values.
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use rust_decimal::Decimal;
 use solverforge_core::constraints::Collector;
+use std::collections::HashMap;
 
 use crate::lambda_analyzer::LambdaInfo;
 
@@ -246,10 +249,100 @@ impl PyConstraintCollectors {
     }
 }
 
+/// Load balance result containing fairness metrics.
+///
+/// This is the result type from the load_balance collector.
+/// Use `unfairness()` to get the fairness measure.
+#[pyclass(name = "LoadBalance")]
+#[derive(Clone)]
+pub struct PyLoadBalance {
+    loads: HashMap<String, i64>,
+    unfairness_value: Decimal,
+}
+
+impl PyLoadBalance {
+    pub fn new(loads: HashMap<String, i64>, unfairness: Decimal) -> Self {
+        Self {
+            loads,
+            unfairness_value: unfairness,
+        }
+    }
+
+    pub fn from_raw(loads: HashMap<String, i64>) -> Self {
+        // Calculate unfairness from loads
+        // Unfairness = standard deviation of load distribution
+        let n = loads.len() as f64;
+        if n == 0.0 {
+            return Self {
+                loads,
+                unfairness_value: Decimal::ZERO,
+            };
+        }
+
+        let total: i64 = loads.values().sum();
+        let mean = total as f64 / n;
+
+        let variance: f64 = loads
+            .values()
+            .map(|&load| {
+                let diff = load as f64 - mean;
+                diff * diff
+            })
+            .sum::<f64>()
+            / n;
+
+        let std_dev = variance.sqrt();
+
+        // Scale to 6 decimal places as per Timefold spec
+        let unfairness = Decimal::from_f64_retain(std_dev)
+            .unwrap_or(Decimal::ZERO)
+            .round_dp(6);
+
+        Self {
+            loads,
+            unfairness_value: unfairness,
+        }
+    }
+}
+
+#[pymethods]
+impl PyLoadBalance {
+    /// Get the loads for each balanced item.
+    ///
+    /// Returns a dictionary mapping item keys to their total load.
+    fn loads<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        for (key, value) in &self.loads {
+            dict.set_item(key, *value)?;
+        }
+        Ok(dict)
+    }
+
+    /// Get the unfairness measure.
+    ///
+    /// Returns a float representing how unfairly the load is distributed.
+    /// Zero means perfectly balanced; higher values mean more imbalance.
+    fn unfairness(&self) -> f64 {
+        self.unfairness_value
+            .to_string()
+            .parse::<f64>()
+            .unwrap_or(0.0)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "LoadBalance(items={}, unfairness={})",
+            self.loads.len(),
+            self.unfairness_value
+        )
+    }
+}
+
 /// Register collector classes with the Python module.
 pub fn register_collectors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCollector>()?;
     m.add_class::<PyConstraintCollectors>()?;
+    m.add_class::<PyLoadBalance>()?;
     Ok(())
 }
 

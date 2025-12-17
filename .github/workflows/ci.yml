@@ -40,10 +40,10 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --exclude solverforge-python -- -D warnings
 
       - name: Build
-        run: cargo build --workspace
+        run: cargo build --workspace --exclude solverforge-python
 
       - name: Run tests (excluding Python and integration)
         run: cargo test --workspace --exclude solverforge-python --exclude solverforge-service

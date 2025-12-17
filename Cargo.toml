@@ -44,7 +44,7 @@ tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "process"] 
 base64 = "0.22"
 
 # Python bindings
-pyo3 = { version = "0.23", features = ["abi3-py310"] }
+pyo3 = { version = "0.23" }
 
 # Unix-specific
 libc = "0.2"

@@ -3,7 +3,7 @@ use crate::solver::TerminationConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-/// Solve request matching timefold-wasm-service's PlanningProblem schema
+/// Solve request matching solverforge-wasm-service's PlanningProblem schema
 /// Uses IndexMap for domain and constraints to preserve insertion order.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

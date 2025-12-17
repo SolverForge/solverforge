@@ -4,13 +4,19 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+documentation.workspace = true
 description = "JVM lifecycle management for SolverForge"
+readme = "README.md"
 
 [lib]
 crate-type = ["rlib"]
 
 [dependencies]
-solverforge-core = { path = "../solverforge-core" }
+solverforge-core = { version = "0.2.1", path = "../solverforge-core" }
 reqwest = { workspace = true, features = ["blocking"] }
 log = { workspace = true }
 thiserror = { workspace = true }

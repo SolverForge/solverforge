@@ -55,7 +55,7 @@ pub struct LambdaInfo {
 
 impl Clone for LambdaInfo {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
+        Python::attach(|py| Self {
             callable: self.callable.clone_ref(py),
             name: self.name.clone(),
             param_count: self.param_count,
@@ -512,7 +512,7 @@ fn extract_lambda_expression(
     match node_type.as_str() {
         "list" => {
             // Body is a list, find lambda in it
-            let list = node.downcast::<PyList>()?;
+            let list = node.cast::<PyList>()?;
             for item in list.iter() {
                 if let Some(expr) = extract_lambda_expression(py, &item, lambda_info)? {
                     return Ok(Some(expr));
@@ -545,7 +545,7 @@ fn extract_lambda_expression(
         "Call" => {
             // Function call - might wrap a lambda
             let args_node = node.getattr("args")?;
-            let args_list = args_node.downcast::<PyList>()?;
+            let args_list = args_node.cast::<PyList>()?;
 
             for arg in args_list.iter() {
                 if let Some(expr) = extract_lambda_expression(py, &arg, lambda_info)? {
@@ -562,7 +562,7 @@ fn extract_lambda_expression(
 /// Extract argument names from Python AST arguments node.
 fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
     let arg_list = args.getattr("args")?;
-    let list = arg_list.downcast::<PyList>()?;
+    let list = arg_list.cast::<PyList>()?;
 
     let mut names = Vec::new();
     for arg in list.iter() {
@@ -661,8 +661,8 @@ fn convert_compare_to_expression(
     lambda_info: &LambdaInfo,
 ) -> PyResult<Option<Expression>> {
     let left = node.getattr("left")?;
-    let ops_list = node.getattr("ops")?.downcast::<PyList>()?.clone();
-    let comparators_list = node.getattr("comparators")?.downcast::<PyList>()?.clone();
+    let ops_list = node.getattr("ops")?.cast::<PyList>()?.clone();
+    let comparators_list = node.getattr("comparators")?.cast::<PyList>()?.clone();
 
     let ops: Vec<Bound<'_, PyAny>> = ops_list.iter().collect();
     let comparators: Vec<Bound<'_, PyAny>> = comparators_list.iter().collect();
@@ -747,7 +747,7 @@ fn convert_boolop_to_expression(
     lambda_info: &LambdaInfo,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
-    let values_list = node.getattr("values")?.downcast::<PyList>()?.clone();
+    let values_list = node.getattr("values")?.cast::<PyList>()?.clone();
     let values: Vec<Bound<'_, PyAny>> = values_list.iter().collect();
 
     if values.len() < 2 {
@@ -924,7 +924,7 @@ mod tests {
     #[test]
     fn test_lambda_info_param_count() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x", None, Some(&locals)).unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
@@ -937,7 +937,7 @@ mod tests {
     #[test]
     fn test_lambda_info_param_count_two() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a", None, Some(&locals)).unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
@@ -950,7 +950,7 @@ mod tests {
     #[test]
     fn test_analyze_simple_field_access() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.timeslot", None, Some(&locals))
                 .unwrap();
@@ -983,7 +983,7 @@ mod tests {
     #[test]
     fn test_analyze_is_not_none() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.room is not None", None, Some(&locals))
                 .unwrap();
@@ -1014,7 +1014,7 @@ mod tests {
     #[test]
     fn test_analyze_is_none() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.room is None", None, Some(&locals))
                 .unwrap();
@@ -1037,7 +1037,7 @@ mod tests {
     #[test]
     fn test_analyze_comparison_gt() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.count > 5", None, Some(&locals))
                 .unwrap();
@@ -1066,7 +1066,7 @@ mod tests {
     #[test]
     fn test_analyze_comparison_eq() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.status == 1", None, Some(&locals))
                 .unwrap();
@@ -1089,7 +1089,7 @@ mod tests {
     #[test]
     fn test_analyze_and_expression() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"f = lambda x: x.room is not None and x.timeslot is not None",
@@ -1116,7 +1116,7 @@ mod tests {
     #[test]
     fn test_analyze_or_expression() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.a > 0 or x.b > 0", None, Some(&locals))
                 .unwrap();
@@ -1139,7 +1139,7 @@ mod tests {
     #[test]
     fn test_analyze_not_expression() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: not x.active", None, Some(&locals))
                 .unwrap();
@@ -1162,7 +1162,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_add() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value + 10", None, Some(&locals))
                 .unwrap();
@@ -1185,7 +1185,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_sub() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value - 5", None, Some(&locals))
                 .unwrap();
@@ -1208,7 +1208,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_mul() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value * 2", None, Some(&locals))
                 .unwrap();
@@ -1231,7 +1231,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_div() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value / 2", None, Some(&locals))
                 .unwrap();
@@ -1254,7 +1254,7 @@ mod tests {
     #[test]
     fn test_analyze_bi_lambda() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a.room == b.room", None, Some(&locals))
                 .unwrap();
@@ -1296,7 +1296,7 @@ mod tests {
     #[test]
     fn test_analyze_nested_field_access() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.employee.name", None, Some(&locals))
                 .unwrap();
@@ -1333,7 +1333,7 @@ mod tests {
     #[test]
     fn test_lambda_info_new_analyzes_immediately() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.field", None, Some(&locals))
                 .unwrap();
@@ -1353,7 +1353,7 @@ mod tests {
     #[test]
     fn test_lambda_info_to_wasm_function() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.field", None, Some(&locals))
                 .unwrap();

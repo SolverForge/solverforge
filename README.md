@@ -2,6 +2,18 @@
 
 A Rust-based constraint solver library that bridges language bindings to the Timefold JVM via WebAssembly and HTTP.
 
+## Installation
+
+**Rust:**
+```bash
+cargo add solverforge
+```
+
+**Python:**
+```bash
+pip install solverforge
+```
+
 ## Project Scope
 
 SolverForge enables constraint satisfaction and optimization problems to be defined in any language (Python, JavaScript, etc.) and solved using the Timefold solver engine. Instead of requiring JNI or native bindings, SolverForge:
@@ -38,7 +50,7 @@ SolverForge enables constraint satisfaction and optimization problems to be defi
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      timefold-wasm-service (Java)                            │
+│                      solverforge-wasm-service (Java)                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
 │  │   Chicory    │  │   Dynamic    │  │  Timefold    │  │    Host      │    │
 │  │ WASM Runtime │  │ Class Gen    │  │   Solver     │  │  Functions   │    │
@@ -72,7 +84,7 @@ solverforge/
 ├── solverforge-service/       # JVM lifecycle management (Rust)
 │   └── src/
 │       └── service.rs         # EmbeddedService - starts/stops Java process
-└── timefold-wasm-service/     # Java Quarkus service (submodule)
+└── solverforge-wasm-service/     # Java Quarkus service (submodule)
     └── src/main/java/ai/timefold/wasm/service/
         ├── SolverResource.java              # HTTP endpoints (/solve, /analyze)
         ├── HostFunctionProvider.java        # WASM host functions
@@ -350,7 +362,7 @@ JAVA_HOME=/usr/lib64/jvm/java-24-openjdk-24 \
 ## Dependencies
 
 - **Rust**: 1.75+ (edition 2021)
-- **Java**: 24+ (for timefold-wasm-service)
+- **Java**: 24+ (for solverforge-wasm-service)
 - **Maven**: 3.9+ (for building Java service)
 - **Python**: 3.10+ (tested on 3.10, 3.11, 3.12, 3.13)
 - **maturin**: 1.8+ (for building Python wheel)

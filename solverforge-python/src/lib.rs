@@ -39,7 +39,8 @@ pub use solver::{
 };
 pub use stream::{
     PyBiConstraintBuilder, PyBiConstraintStream, PyConstraint, PyConstraintFactory,
-    PyTriConstraintBuilder, PyTriConstraintStream, PyUniConstraintBuilder, PyUniConstraintStream,
+    PyQuadConstraintBuilder, PyQuadConstraintStream, PyTriConstraintBuilder, PyTriConstraintStream,
+    PyUniConstraintBuilder, PyUniConstraintStream,
 };
 
 /// SolverForge Python module

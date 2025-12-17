@@ -1,12 +1,17 @@
 [workspace]
-members = ["solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-go", "solverforge-service"]
+members = ["solverforge", "solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-service"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.72"
+version = "0.2.5"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge"
+authors = ["SolverForge <info@solverforge.org>"]
+keywords = ["constraint", "solver", "optimization", "scheduling", "planning"]
+categories = ["algorithms", "science", "mathematics"]
+homepage = "https://solverforge.org"
+documentation = "https://docs.solverforge.org"
 
 [workspace.dependencies]
 # Error handling
@@ -27,7 +32,7 @@ serde_json = "1.0"
 indexmap = { version = "2.7", features = ["serde"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 
 # WASM generation
 wasm-encoder = "0.223"
@@ -39,7 +44,7 @@ tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "process"] 
 base64 = "0.22"
 
 # Python bindings
-pyo3 = { version = "0.23" }
+pyo3 = { version = "0.27" }
 
 # Unix-specific
 libc = "0.2"

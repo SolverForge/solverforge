@@ -1,9 +1,16 @@
 use crate::error::{ServiceError, ServiceResult};
 use crate::util::{find_java, find_maven, find_submodule_dir, get_cache_dir};
-use log::{debug, info};
-use std::fs;
+use log::{debug, info, warn};
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+// Maven Central coordinates
+const MAVEN_GROUP_ID: &str = "org.solverforge";
+const MAVEN_ARTIFACT_ID: &str = "solverforge-wasm-service";
+const MAVEN_VERSION: &str = env!("CARGO_PKG_VERSION");
+const MAVEN_CENTRAL_URL: &str = "https://repo1.maven.org/maven2";
 
 pub struct JarManager {
     submodule_dir: PathBuf,
@@ -38,17 +45,34 @@ impl JarManager {
     pub fn ensure_jar(&self) -> ServiceResult<PathBuf> {
         let jar_path = self.jar_path();
 
+        // 1. Check cache first
         if jar_path.exists() {
             debug!("Using cached JAR: {}", jar_path.display());
             return Ok(jar_path);
         }
 
-        info!("Building timefold-wasm-service JAR...");
-        self.build_jar()?;
+        // 2. Try local build if submodule exists (dev mode)
+        if self.submodule_dir.join("pom.xml").exists() {
+            info!("Building solverforge-wasm-service JAR from submodule...");
+            match self.build_jar() {
+                Ok(()) => {
+                    if jar_path.exists() {
+                        return Ok(jar_path);
+                    }
+                }
+                Err(e) => {
+                    warn!("Local build failed: {}, trying Maven download...", e);
+                }
+            }
+        }
+
+        // 3. Download from Maven Central (production mode)
+        info!("Downloading solverforge-wasm-service from Maven Central...");
+        self.download_from_maven()?;
 
         if !jar_path.exists() {
             return Err(ServiceError::BuildFailed(
-                "JAR not found after build".to_string(),
+                "JAR not found after download".to_string(),
             ));
         }
 
@@ -60,8 +84,11 @@ impl JarManager {
     }
 
     pub fn jar_path(&self) -> PathBuf {
-        // Must be inside quarkus-app directory for relative classpath to work
-        self.cache_dir.join("quarkus-app").join("quarkus-run.jar")
+        // Uber-jar is a single self-contained JAR
+        self.cache_dir.join(format!(
+            "{}-{}-runner.jar",
+            MAVEN_ARTIFACT_ID, MAVEN_VERSION
+        ))
     }
 
     pub fn rebuild(&self) -> ServiceResult<PathBuf> {
@@ -78,7 +105,7 @@ impl JarManager {
         fs::create_dir_all(&self.cache_dir)?;
 
         // Determine JAVA_HOME for Maven - it must use the same Java version
-        // that timefold-wasm-service was compiled with (Java 24)
+        // that solverforge-wasm-service was compiled with (Java 24)
         let java_home = if let Some(ref home) = self.java_home {
             home.clone()
         } else {
@@ -113,11 +140,11 @@ impl JarManager {
             )));
         }
 
-        let built_jar = self
-            .submodule_dir
-            .join("target")
-            .join("quarkus-app")
-            .join("quarkus-run.jar");
+        // Uber-jar is named <artifactId>-<version>-runner.jar
+        let built_jar = self.submodule_dir.join("target").join(format!(
+            "{}-{}-runner.jar",
+            MAVEN_ARTIFACT_ID, MAVEN_VERSION
+        ));
 
         if !built_jar.exists() {
             return Err(ServiceError::BuildFailed(format!(
@@ -126,42 +153,58 @@ impl JarManager {
             )));
         }
 
-        let quarkus_app_dir = self.submodule_dir.join("target").join("quarkus-app");
-        let cache_quarkus_dir = self.cache_dir.join("quarkus-app");
+        fs::create_dir_all(&self.cache_dir)?;
+        let cached_jar = self.jar_path();
 
-        if cache_quarkus_dir.exists() {
-            fs::remove_dir_all(&cache_quarkus_dir)?;
-        }
-
-        info!(
-            "Copying quarkus-app to cache: {}",
-            cache_quarkus_dir.display()
-        );
-        copy_dir_all(&quarkus_app_dir, &cache_quarkus_dir)?;
+        info!("Copying JAR to cache: {}", cached_jar.display());
+        fs::copy(&built_jar, &cached_jar)?;
 
         Ok(())
     }
 
-    pub fn quarkus_app_dir(&self) -> PathBuf {
-        self.cache_dir.join("quarkus-app")
-    }
-}
+    fn download_from_maven(&self) -> ServiceResult<()> {
+        // Maven Central URL pattern: /group/artifact/version/artifact-version-classifier.jar
+        let group_path = MAVEN_GROUP_ID.replace('.', "/");
+        let jar_url = format!(
+            "{}/{}/{}/{}/{}-{}-runner.jar",
+            MAVEN_CENTRAL_URL,
+            group_path,
+            MAVEN_ARTIFACT_ID,
+            MAVEN_VERSION,
+            MAVEN_ARTIFACT_ID,
+            MAVEN_VERSION
+        );
 
-fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> ServiceResult<()> {
-    fs::create_dir_all(dst)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
+        info!("Downloading from: {}", jar_url);
 
-        if ty.is_dir() {
-            copy_dir_all(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
+        let response = reqwest::blocking::get(&jar_url)
+            .map_err(|e| ServiceError::DownloadFailed(format!("Failed to download JAR: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(ServiceError::DownloadFailed(format!(
+                "HTTP {}: {}",
+                response.status(),
+                jar_url
+            )));
         }
+
+        let bytes = response
+            .bytes()
+            .map_err(|e| ServiceError::DownloadFailed(format!("Failed to read response: {}", e)))?;
+
+        fs::create_dir_all(&self.cache_dir)?;
+        let jar_path = self.jar_path();
+
+        let mut file = File::create(&jar_path)?;
+        file.write_all(&bytes)?;
+
+        info!("Downloaded JAR to: {}", jar_path.display());
+        Ok(())
     }
-    Ok(())
+
+    pub fn cache_dir(&self) -> &Path {
+        &self.cache_dir
+    }
 }
 
 #[cfg(test)]
@@ -176,8 +219,11 @@ mod tests {
             JarManager::with_paths(PathBuf::from("/fake/submodule"), temp.path().to_path_buf());
 
         let jar_path = manager.jar_path();
-        assert!(jar_path.to_string_lossy().contains("quarkus-app"));
-        assert!(jar_path.to_string_lossy().contains("quarkus-run.jar"));
+        // Uber-jar is named <artifactId>-<version>-runner.jar
+        assert!(jar_path
+            .to_string_lossy()
+            .contains("solverforge-wasm-service"));
+        assert!(jar_path.to_string_lossy().contains("-runner.jar"));
     }
 
     #[test]
@@ -190,12 +236,11 @@ mod tests {
     }
 
     #[test]
-    fn test_quarkus_app_dir() {
+    fn test_cache_dir() {
         let temp = TempDir::new().unwrap();
         let manager =
             JarManager::with_paths(PathBuf::from("/fake/submodule"), temp.path().to_path_buf());
 
-        let dir = manager.quarkus_app_dir();
-        assert!(dir.to_string_lossy().contains("quarkus-app"));
+        assert_eq!(manager.cache_dir(), temp.path());
     }
 }

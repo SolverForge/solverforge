@@ -24,10 +24,15 @@ from solverforge._solverforge import (
     PlanningEntityCollectionProperty,
     PlanningPin,
     InverseRelationShadowVariable,
+    PreviousElementShadowVariable,
+    NextElementShadowVariable,
+    CascadingUpdateShadowVariable,
     # Score types
     SimpleScore,
     HardSoftScore,
     HardMediumSoftScore,
+    HardSoftDecimalScore,
+    HardMediumSoftDecimalScore,
     # Decorators
     planning_entity,
     planning_solution,
@@ -35,6 +40,46 @@ from solverforge._solverforge import (
     build_domain_model,
     DomainClass,
     DomainModel,
+    constraint_provider,
+    ConstraintProvider,
+    # Solver runtime
+    TerminationConfig,
+    DiminishedReturnsConfig,
+    EnvironmentMode,
+    MoveThreadCount,
+    SolverConfig,
+    SolveHandle,
+    SolveState,
+    ScoreDto,
+    SolveStatus,
+    SolveResponse,
+    SolverFactory,
+    Solver,
+    # Constraint streams
+    ConstraintFactory,
+    UniConstraintStream,
+    BiConstraintStream,
+    TriConstraintStream,
+    UniConstraintBuilder,
+    BiConstraintBuilder,
+    TriConstraintBuilder,
+    Constraint,
+    # Joiners
+    Joiner,
+    Joiners,
+    # Collectors
+    Collector,
+    ConstraintCollectors,
+)
+
+# Embedded service management
+from solverforge._solverforge import (
+    ServiceConfig,
+    EmbeddedService,
+    ensure_service,
+    is_service_available,
+    get_service_url,
+    stop_service,
 )
 
 __all__ = [
@@ -51,10 +96,15 @@ __all__ = [
     "PlanningEntityCollectionProperty",
     "PlanningPin",
     "InverseRelationShadowVariable",
+    "PreviousElementShadowVariable",
+    "NextElementShadowVariable",
+    "CascadingUpdateShadowVariable",
     # Score types
     "SimpleScore",
     "HardSoftScore",
     "HardMediumSoftScore",
+    "HardSoftDecimalScore",
+    "HardMediumSoftDecimalScore",
     # Decorators
     "planning_entity",
     "planning_solution",
@@ -62,4 +112,41 @@ __all__ = [
     "build_domain_model",
     "DomainClass",
     "DomainModel",
+    "constraint_provider",
+    "ConstraintProvider",
+    # Solver runtime
+    "TerminationConfig",
+    "DiminishedReturnsConfig",
+    "EnvironmentMode",
+    "MoveThreadCount",
+    "SolverConfig",
+    "SolveHandle",
+    "SolveState",
+    "ScoreDto",
+    "SolveStatus",
+    "SolveResponse",
+    "SolverFactory",
+    "Solver",
+    # Constraint streams
+    "ConstraintFactory",
+    "UniConstraintStream",
+    "BiConstraintStream",
+    "TriConstraintStream",
+    "UniConstraintBuilder",
+    "BiConstraintBuilder",
+    "TriConstraintBuilder",
+    "Constraint",
+    # Joiners
+    "Joiner",
+    "Joiners",
+    # Collectors
+    "Collector",
+    "ConstraintCollectors",
+    # Embedded service
+    "ServiceConfig",
+    "EmbeddedService",
+    "ensure_service",
+    "is_service_available",
+    "get_service_url",
+    "stop_service",
 ]

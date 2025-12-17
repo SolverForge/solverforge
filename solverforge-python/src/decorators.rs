@@ -48,28 +48,15 @@ fn build_domain_class(py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Domai
     let class_name: String = cls.getattr("__name__")?.extract()?;
     let mut domain_class = DomainClass::new(&class_name);
 
-    // Get type hints using typing.get_type_hints with include_extras=True
-    let typing = py.import("typing")?;
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("include_extras", true)?;
-    let type_hints: Bound<'_, PyDict> = typing
-        .call_method("get_type_hints", (cls,), Some(&kwargs))?
-        .downcast_into()?;
-
-    // Get raw annotations for extracting Annotated metadata
+    // Get raw annotations directly - don't use get_type_hints() as it fails
+    // on forward references that aren't yet defined at decoration time
     let annotations: Bound<'_, PyDict> = match cls.getattr("__annotations__") {
-        Ok(ann) => ann.downcast_into()?,
+        Ok(ann) => ann.cast_into()?,
         Err(_) => return Ok(domain_class), // No annotations, return empty class
     };
 
-    for (field_name, _field_type) in type_hints.iter() {
+    for (field_name, raw_annotation) in annotations.iter() {
         let field_name_str: String = field_name.extract()?;
-
-        // Get the raw annotation which might be Annotated[...]
-        let raw_annotation = match annotations.get_item(&field_name)? {
-            Some(ann) => ann,
-            None => continue,
-        };
 
         // Check if it's an Annotated type
         let (field_type, planning_annotations, shadow_annotations) =
@@ -105,7 +92,7 @@ fn extract_annotations(
     let origin = get_origin.call1((annotation,))?;
     if origin.is(&annotated_type) {
         // Get the args: (base_type, *annotations)
-        let args: Bound<'_, PyTuple> = get_args.call1((annotation,))?.downcast_into()?;
+        let args: Bound<'_, PyTuple> = get_args.call1((annotation,))?.cast_into()?;
         if args.len() < 2 {
             return Ok((object_type(), vec![], vec![]));
         }
@@ -123,7 +110,7 @@ fn extract_annotations(
             // Check each annotation type
             if marker.is_instance_of::<PyPlanningId>() {
                 planning_annotations.push(PlanningAnnotation::PlanningId);
-            } else if let Ok(pv) = marker.downcast::<PyPlanningVariable>() {
+            } else if let Ok(pv) = marker.cast::<PyPlanningVariable>() {
                 let pv_ref = pv.borrow();
                 if pv_ref.allows_unassigned {
                     planning_annotations.push(PlanningAnnotation::planning_variable_unassigned(
@@ -134,7 +121,7 @@ fn extract_annotations(
                         pv_ref.value_range_provider_refs.clone(),
                     ));
                 }
-            } else if let Ok(plv) = marker.downcast::<PyPlanningListVariable>() {
+            } else if let Ok(plv) = marker.cast::<PyPlanningListVariable>() {
                 let plv_ref = plv.borrow();
                 planning_annotations.push(PlanningAnnotation::planning_list_variable(
                     plv_ref.value_range_provider_refs.clone(),
@@ -144,7 +131,7 @@ fn extract_annotations(
                     bendable_hard_levels: None,
                     bendable_soft_levels: None,
                 });
-            } else if let Ok(vrp) = marker.downcast::<PyValueRangeProvider>() {
+            } else if let Ok(vrp) = marker.cast::<PyValueRangeProvider>() {
                 let vrp_ref = vrp.borrow();
                 planning_annotations.push(PlanningAnnotation::ValueRangeProvider {
                     id: vrp_ref.id.clone(),
@@ -159,7 +146,7 @@ fn extract_annotations(
                 planning_annotations.push(PlanningAnnotation::PlanningEntityCollectionProperty);
             } else if marker.is_instance_of::<PyPlanningPin>() {
                 planning_annotations.push(PlanningAnnotation::PlanningPin);
-            } else if let Ok(shadow) = marker.downcast::<PyInverseRelationShadowVariable>() {
+            } else if let Ok(shadow) = marker.cast::<PyInverseRelationShadowVariable>() {
                 let shadow_ref = shadow.borrow();
                 shadow_annotations.push(ShadowAnnotation::InverseRelationShadowVariable {
                     source_variable_name: shadow_ref.source_variable_name.clone(),
@@ -200,7 +187,7 @@ fn python_type_to_field_type(py: Python<'_>, type_hint: &Bound<'_, PyAny>) -> Py
     // Handle Optional[T] which is Union[T, None]
     let union_type = typing.getattr("Union")?;
     if origin.is(&union_type) {
-        let args: Bound<'_, PyTuple> = get_args.call1((type_hint,))?.downcast_into()?;
+        let args: Bound<'_, PyTuple> = get_args.call1((type_hint,))?.cast_into()?;
         // Filter out NoneType
         let none_type_repr = "<class 'NoneType'>";
         for i in 0..args.len() {
@@ -217,7 +204,7 @@ fn python_type_to_field_type(py: Python<'_>, type_hint: &Bound<'_, PyAny>) -> Py
     if !origin.is_none() {
         let origin_name = origin.repr()?.to_string();
         if origin_name.contains("list") {
-            let args: Bound<'_, PyTuple> = get_args.call1((type_hint,))?.downcast_into()?;
+            let args: Bound<'_, PyTuple> = get_args.call1((type_hint,))?.cast_into()?;
             if !args.is_empty() {
                 let element_type = python_type_to_field_type(py, &args.get_item(0)?)?;
                 return Ok(list_type(element_type));
@@ -517,7 +504,7 @@ pub struct PyConstraintProvider {
 
 impl Clone for PyConstraintProvider {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
+        Python::attach(|py| Self {
             func: self.func.clone_ref(py),
             name: self.name.clone(),
         })
@@ -542,7 +529,7 @@ impl PyConstraintProvider {
 
     /// Get the underlying function.
     fn get_function(&self) -> Py<PyAny> {
-        Python::with_gil(|py| self.func.clone_ref(py))
+        Python::attach(|py| self.func.clone_ref(py))
     }
 
     fn __repr__(&self) -> String {
@@ -553,7 +540,7 @@ impl PyConstraintProvider {
         &self,
         py: Python<'_>,
         factory: &crate::stream::PyConstraintFactory,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let factory_obj = factory.clone().into_pyobject(py)?;
         self.func.call1(py, (factory_obj,))
     }
@@ -677,7 +664,7 @@ mod tests {
     #[test]
     fn test_constraint_provider_creation() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"def define_constraints(factory): return []",
@@ -695,7 +682,7 @@ mod tests {
     #[test]
     fn test_constraint_provider_repr() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"def my_provider(factory): return []", None, Some(&locals))
                 .unwrap();
@@ -712,7 +699,7 @@ mod tests {
     #[test]
     fn test_constraint_provider_get_function() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"def test_func(factory): return []", None, Some(&locals))
                 .unwrap();
@@ -730,7 +717,7 @@ mod tests {
     #[test]
     fn test_constraint_provider_rejects_non_callable() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // Create a non-callable object (an integer)
             let not_callable = 42_i32.into_pyobject(py).unwrap();
 
@@ -745,7 +732,7 @@ mod tests {
     #[test]
     fn test_constraint_provider_with_lambda() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda factory: []", None, Some(&locals))
                 .unwrap();
@@ -760,7 +747,7 @@ mod tests {
     #[test]
     fn test_constraint_provider_new() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"def my_func(factory): pass", None, Some(&locals))
                 .unwrap();

@@ -105,10 +105,19 @@ pub fn get_cache_dir() -> PathBuf {
 }
 
 pub fn find_submodule_dir() -> ServiceResult<PathBuf> {
-    let mut current = env::current_dir()?;
+    // 1. Check SOLVERFORGE_SERVICE_DIR environment variable
+    if let Ok(dir) = env::var("SOLVERFORGE_SERVICE_DIR") {
+        let path = PathBuf::from(&dir);
+        if path.is_dir() && path.join("pom.xml").exists() {
+            debug!("Using SOLVERFORGE_SERVICE_DIR: {}", dir);
+            return Ok(path);
+        }
+    }
 
+    // 2. Walk up from current directory
+    let mut current = env::current_dir()?;
     loop {
-        let candidate = current.join("timefold-wasm-service");
+        let candidate = current.join("solverforge-wasm-service");
         if candidate.is_dir() && candidate.join("pom.xml").exists() {
             return Ok(candidate);
         }
@@ -118,19 +127,20 @@ pub fn find_submodule_dir() -> ServiceResult<PathBuf> {
         }
     }
 
+    // 3. Check CARGO_MANIFEST_DIR (for development builds)
     if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
         let workspace_root = PathBuf::from(manifest_dir)
             .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_default();
-        let candidate = workspace_root.join("timefold-wasm-service");
+        let candidate = workspace_root.join("solverforge-wasm-service");
         if candidate.is_dir() && candidate.join("pom.xml").exists() {
             return Ok(candidate);
         }
     }
 
     Err(ServiceError::SubmoduleNotFound(
-        "timefold-wasm-service submodule not found".to_string(),
+        "solverforge-wasm-service submodule not found. Set SOLVERFORGE_SERVICE_DIR or ensure JAR is available on Maven Central.".to_string(),
     ))
 }
 

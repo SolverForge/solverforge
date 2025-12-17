@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+authors.workspace = true
 description = "Python bindings for SolverForge constraint solver"
+publish = false
 
 [lib]
 name = "solverforge"
@@ -12,19 +14,23 @@ name = "solverforge"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["extension-module"]
+default = ["extension-module", "abi3-py310"]
 # For building as Python extension (maturin build)
 extension-module = ["pyo3/extension-module"]
+# Stable ABI for Python 3.10+ (fixes macOS linking)
+abi3-py310 = ["pyo3/abi3-py310"]
 # For running Rust tests with embedded Python
 auto-initialize = ["pyo3/auto-initialize"]
 
 [dependencies]
 solverforge-core = { path = "../solverforge-core" }
+solverforge-service = { path = "../solverforge-service" }
 pyo3.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 log.workspace = true
+rust_decimal = "1.36"
 
 [dev-dependencies]
 tempfile.workspace = true

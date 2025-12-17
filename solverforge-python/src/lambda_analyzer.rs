@@ -55,7 +55,7 @@ pub struct LambdaInfo {
 
 impl Clone for LambdaInfo {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
+        Python::attach(|py| Self {
             callable: self.callable.clone_ref(py),
             name: self.name.clone(),
             param_count: self.param_count,
@@ -483,22 +483,90 @@ fn analyze_lambda_source(
 ) -> PyResult<Expression> {
     let ast = py.import("ast")?;
 
-    // Parse the source to get AST
-    let tree = ast.call_method1("parse", (source,))?;
+    // Try to extract just the lambda expression from the source
+    // Source might be like ".filter(lambda x: x.field)" which isn't valid Python
+    let lambda_source = extract_lambda_from_source(source);
+
+    // Try parsing the extracted lambda source
+    let parse_result = ast.call_method1("parse", (&lambda_source,));
+
+    let tree = match parse_result {
+        Ok(t) => t,
+        Err(_) => {
+            // If parsing fails, try bytecode analysis
+            return analyze_lambda_bytecode(py, lambda_info);
+        }
+    };
 
     // Walk the AST to find the lambda expression
     let body = tree.getattr("body")?;
 
     // Extract lambda node and convert to Expression
-    extract_lambda_expression(py, &body, lambda_info)?.ok_or_else(|| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Cannot analyze lambda: unsupported pattern in '{}'. \
-             Supported patterns: field access (x.field), comparisons (x.a == x.b), \
-             null checks (x.field is not None), boolean ops (and, or, not), \
-             arithmetic (+, -, *, /).",
-            source.trim()
-        ))
-    })
+    match extract_lambda_expression(py, &body, lambda_info)? {
+        Some(expr) => Ok(expr),
+        None => {
+            // Fallback to bytecode analysis if AST extraction fails
+            analyze_lambda_bytecode(py, lambda_info)
+        }
+    }
+}
+
+/// Extract the lambda expression from source that may contain surrounding code.
+///
+/// Handles cases like:
+/// - ".filter(lambda x: x.field)" -> "lambda x: x.field"
+/// - "    .penalize(HardSoftScore.ONE_HARD, lambda v: v.demand)" -> "lambda v: v.demand"
+fn extract_lambda_from_source(source: &str) -> String {
+    // Find "lambda" keyword
+    if let Some(lambda_start) = source.find("lambda") {
+        let rest = &source[lambda_start..];
+
+        // Find the end of the lambda - balance parentheses
+        let mut depth = 0;
+        let mut end_idx = rest.len();
+        let mut in_string = false;
+        let mut string_char = ' ';
+
+        for (i, c) in rest.char_indices() {
+            // Handle string literals
+            if (c == '"' || c == '\'') && !in_string {
+                in_string = true;
+                string_char = c;
+            } else if c == string_char && in_string {
+                in_string = false;
+            }
+
+            if in_string {
+                continue;
+            }
+
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => {
+                    if depth == 0 {
+                        // Found closing paren that ends the lambda
+                        end_idx = i;
+                        break;
+                    }
+                    depth -= 1;
+                }
+                ',' if depth == 0 => {
+                    // Comma at depth 0 ends the lambda argument
+                    end_idx = i;
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        let lambda_expr = rest[..end_idx].trim();
+
+        // Wrap in a statement for parsing: "_ = lambda x: x.field"
+        format!("_ = {}", lambda_expr)
+    } else {
+        // No lambda found, return original
+        source.to_string()
+    }
 }
 
 /// Extract Expression from Python AST node.
@@ -512,7 +580,7 @@ fn extract_lambda_expression(
     match node_type.as_str() {
         "list" => {
             // Body is a list, find lambda in it
-            let list = node.downcast::<PyList>()?;
+            let list = node.cast::<PyList>()?;
             for item in list.iter() {
                 if let Some(expr) = extract_lambda_expression(py, &item, lambda_info)? {
                     return Ok(Some(expr));
@@ -545,7 +613,7 @@ fn extract_lambda_expression(
         "Call" => {
             // Function call - might wrap a lambda
             let args_node = node.getattr("args")?;
-            let args_list = args_node.downcast::<PyList>()?;
+            let args_list = args_node.cast::<PyList>()?;
 
             for arg in args_list.iter() {
                 if let Some(expr) = extract_lambda_expression(py, &arg, lambda_info)? {
@@ -562,7 +630,7 @@ fn extract_lambda_expression(
 /// Extract argument names from Python AST arguments node.
 fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
     let arg_list = args.getattr("args")?;
-    let list = arg_list.downcast::<PyList>()?;
+    let list = arg_list.cast::<PyList>()?;
 
     let mut names = Vec::new();
     for arg in list.iter() {
@@ -661,8 +729,8 @@ fn convert_compare_to_expression(
     lambda_info: &LambdaInfo,
 ) -> PyResult<Option<Expression>> {
     let left = node.getattr("left")?;
-    let ops_list = node.getattr("ops")?.downcast::<PyList>()?.clone();
-    let comparators_list = node.getattr("comparators")?.downcast::<PyList>()?.clone();
+    let ops_list = node.getattr("ops")?.cast::<PyList>()?.clone();
+    let comparators_list = node.getattr("comparators")?.cast::<PyList>()?.clone();
 
     let ops: Vec<Bound<'_, PyAny>> = ops_list.iter().collect();
     let comparators: Vec<Bound<'_, PyAny>> = comparators_list.iter().collect();
@@ -747,7 +815,7 @@ fn convert_boolop_to_expression(
     lambda_info: &LambdaInfo,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
-    let values_list = node.getattr("values")?.downcast::<PyList>()?.clone();
+    let values_list = node.getattr("values")?.cast::<PyList>()?.clone();
     let values: Vec<Bound<'_, PyAny>> = values_list.iter().collect();
 
     if values.len() < 2 {
@@ -924,7 +992,7 @@ mod tests {
     #[test]
     fn test_lambda_info_param_count() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x", None, Some(&locals)).unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
@@ -937,7 +1005,7 @@ mod tests {
     #[test]
     fn test_lambda_info_param_count_two() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a", None, Some(&locals)).unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
@@ -950,7 +1018,7 @@ mod tests {
     #[test]
     fn test_analyze_simple_field_access() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.timeslot", None, Some(&locals))
                 .unwrap();
@@ -983,7 +1051,7 @@ mod tests {
     #[test]
     fn test_analyze_is_not_none() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.room is not None", None, Some(&locals))
                 .unwrap();
@@ -1014,7 +1082,7 @@ mod tests {
     #[test]
     fn test_analyze_is_none() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.room is None", None, Some(&locals))
                 .unwrap();
@@ -1037,7 +1105,7 @@ mod tests {
     #[test]
     fn test_analyze_comparison_gt() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.count > 5", None, Some(&locals))
                 .unwrap();
@@ -1066,7 +1134,7 @@ mod tests {
     #[test]
     fn test_analyze_comparison_eq() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.status == 1", None, Some(&locals))
                 .unwrap();
@@ -1089,7 +1157,7 @@ mod tests {
     #[test]
     fn test_analyze_and_expression() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"f = lambda x: x.room is not None and x.timeslot is not None",
@@ -1116,7 +1184,7 @@ mod tests {
     #[test]
     fn test_analyze_or_expression() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.a > 0 or x.b > 0", None, Some(&locals))
                 .unwrap();
@@ -1139,7 +1207,7 @@ mod tests {
     #[test]
     fn test_analyze_not_expression() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: not x.active", None, Some(&locals))
                 .unwrap();
@@ -1162,7 +1230,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_add() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value + 10", None, Some(&locals))
                 .unwrap();
@@ -1185,7 +1253,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_sub() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value - 5", None, Some(&locals))
                 .unwrap();
@@ -1208,7 +1276,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_mul() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value * 2", None, Some(&locals))
                 .unwrap();
@@ -1231,7 +1299,7 @@ mod tests {
     #[test]
     fn test_analyze_arithmetic_div() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.value / 2", None, Some(&locals))
                 .unwrap();
@@ -1254,7 +1322,7 @@ mod tests {
     #[test]
     fn test_analyze_bi_lambda() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a.room == b.room", None, Some(&locals))
                 .unwrap();
@@ -1296,7 +1364,7 @@ mod tests {
     #[test]
     fn test_analyze_nested_field_access() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.employee.name", None, Some(&locals))
                 .unwrap();
@@ -1333,7 +1401,7 @@ mod tests {
     #[test]
     fn test_lambda_info_new_analyzes_immediately() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.field", None, Some(&locals))
                 .unwrap();
@@ -1353,7 +1421,7 @@ mod tests {
     #[test]
     fn test_lambda_info_to_wasm_function() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.field", None, Some(&locals))
                 .unwrap();
@@ -1364,5 +1432,51 @@ mod tests {
 
             assert!(wasm_func.name().starts_with("equal_map_"));
         });
+    }
+
+    #[test]
+    fn test_extract_lambda_from_filter_call() {
+        let source = ".filter(lambda vehicle: vehicle.calculate_total_demand() > vehicle.capacity)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(
+            result,
+            "_ = lambda vehicle: vehicle.calculate_total_demand() > vehicle.capacity"
+        );
+    }
+
+    #[test]
+    fn test_extract_lambda_from_penalize_call() {
+        let source =
+            "        .penalize(HardSoftScore.ONE_HARD, lambda vehicle: vehicle.demand - 10)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda vehicle: vehicle.demand - 10");
+    }
+
+    #[test]
+    fn test_extract_lambda_simple() {
+        let source = "lambda x: x.field";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda x: x.field");
+    }
+
+    #[test]
+    fn test_extract_lambda_with_nested_parens() {
+        let source = ".filter(lambda x: (x.a + x.b) > 0)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda x: (x.a + x.b) > 0");
+    }
+
+    #[test]
+    fn test_extract_lambda_second_arg() {
+        let source = ".penalize(Score.ONE, lambda x: x.value)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda x: x.value");
+    }
+
+    #[test]
+    fn test_extract_lambda_no_lambda() {
+        let source = "some_other_code()";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "some_other_code()");
     }
 }

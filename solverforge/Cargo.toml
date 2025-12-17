@@ -1,0 +1,18 @@
+[package]
+name = "solverforge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Constraint solver library powered by Timefold"
+readme = "README.md"
+
+[dependencies]
+solverforge-core = { version = "0.2.5", path = "../solverforge-core" }
+solverforge-derive = { version = "0.2.5", path = "../solverforge-derive" }
+solverforge-service = { version = "0.2.5", path = "../solverforge-service" }

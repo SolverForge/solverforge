@@ -24,6 +24,9 @@ from solverforge._solverforge import (
     PlanningEntityCollectionProperty,
     PlanningPin,
     InverseRelationShadowVariable,
+    PreviousElementShadowVariable,
+    NextElementShadowVariable,
+    CascadingUpdateShadowVariable,
     # Score types
     SimpleScore,
     HardSoftScore,
@@ -35,6 +38,36 @@ from solverforge._solverforge import (
     build_domain_model,
     DomainClass,
     DomainModel,
+    constraint_provider,
+    ConstraintProvider,
+    # Solver runtime
+    TerminationConfig,
+    DiminishedReturnsConfig,
+    EnvironmentMode,
+    MoveThreadCount,
+    SolverConfig,
+    SolveHandle,
+    SolveState,
+    ScoreDto,
+    SolveStatus,
+    SolveResponse,
+    SolverFactory,
+    Solver,
+    # Constraint streams
+    ConstraintFactory,
+    UniConstraintStream,
+    BiConstraintStream,
+    TriConstraintStream,
+    UniConstraintBuilder,
+    BiConstraintBuilder,
+    TriConstraintBuilder,
+    Constraint,
+    # Joiners
+    Joiner,
+    Joiners,
+    # Collectors
+    Collector,
+    ConstraintCollectors,
 )
 
 __all__ = [
@@ -51,6 +84,9 @@ __all__ = [
     "PlanningEntityCollectionProperty",
     "PlanningPin",
     "InverseRelationShadowVariable",
+    "PreviousElementShadowVariable",
+    "NextElementShadowVariable",
+    "CascadingUpdateShadowVariable",
     # Score types
     "SimpleScore",
     "HardSoftScore",
@@ -62,4 +98,34 @@ __all__ = [
     "build_domain_model",
     "DomainClass",
     "DomainModel",
+    "constraint_provider",
+    "ConstraintProvider",
+    # Solver runtime
+    "TerminationConfig",
+    "DiminishedReturnsConfig",
+    "EnvironmentMode",
+    "MoveThreadCount",
+    "SolverConfig",
+    "SolveHandle",
+    "SolveState",
+    "ScoreDto",
+    "SolveStatus",
+    "SolveResponse",
+    "SolverFactory",
+    "Solver",
+    # Constraint streams
+    "ConstraintFactory",
+    "UniConstraintStream",
+    "BiConstraintStream",
+    "TriConstraintStream",
+    "UniConstraintBuilder",
+    "BiConstraintBuilder",
+    "TriConstraintBuilder",
+    "Constraint",
+    # Joiners
+    "Joiner",
+    "Joiners",
+    # Collectors
+    "Collector",
+    "ConstraintCollectors",
 ]

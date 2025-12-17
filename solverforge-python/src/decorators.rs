@@ -48,28 +48,15 @@ fn build_domain_class(py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Domai
     let class_name: String = cls.getattr("__name__")?.extract()?;
     let mut domain_class = DomainClass::new(&class_name);
 
-    // Get type hints using typing.get_type_hints with include_extras=True
-    let typing = py.import("typing")?;
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("include_extras", true)?;
-    let type_hints: Bound<'_, PyDict> = typing
-        .call_method("get_type_hints", (cls,), Some(&kwargs))?
-        .cast_into()?;
-
-    // Get raw annotations for extracting Annotated metadata
+    // Get raw annotations directly - don't use get_type_hints() as it fails
+    // on forward references that aren't yet defined at decoration time
     let annotations: Bound<'_, PyDict> = match cls.getattr("__annotations__") {
         Ok(ann) => ann.cast_into()?,
         Err(_) => return Ok(domain_class), // No annotations, return empty class
     };
 
-    for (field_name, _field_type) in type_hints.iter() {
+    for (field_name, raw_annotation) in annotations.iter() {
         let field_name_str: String = field_name.extract()?;
-
-        // Get the raw annotation which might be Annotated[...]
-        let raw_annotation = match annotations.get_item(&field_name)? {
-            Some(ann) => ann,
-            None => continue,
-        };
 
         // Check if it's an Annotated type
         let (field_type, planning_annotations, shadow_annotations) =

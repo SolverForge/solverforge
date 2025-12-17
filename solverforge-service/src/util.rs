@@ -108,7 +108,7 @@ pub fn find_submodule_dir() -> ServiceResult<PathBuf> {
     let mut current = env::current_dir()?;
 
     loop {
-        let candidate = current.join("timefold-wasm-service");
+        let candidate = current.join("solverforge-wasm-service");
         if candidate.is_dir() && candidate.join("pom.xml").exists() {
             return Ok(candidate);
         }
@@ -123,14 +123,14 @@ pub fn find_submodule_dir() -> ServiceResult<PathBuf> {
             .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_default();
-        let candidate = workspace_root.join("timefold-wasm-service");
+        let candidate = workspace_root.join("solverforge-wasm-service");
         if candidate.is_dir() && candidate.join("pom.xml").exists() {
             return Ok(candidate);
         }
     }
 
     Err(ServiceError::SubmoduleNotFound(
-        "timefold-wasm-service submodule not found".to_string(),
+        "solverforge-wasm-service submodule not found".to_string(),
     ))
 }
 

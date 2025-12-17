@@ -13,8 +13,10 @@ use solverforge_service::{EmbeddedService, ServiceConfig};
 use std::path::PathBuf;
 use std::time::Duration;
 
-const JAVA_24_HOME: &str = "/usr/lib64/jvm/java-24-openjdk-24";
-const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../timefold-wasm-service");
+fn java_home() -> String {
+    std::env::var("JAVA_HOME").unwrap_or_else(|_| "/usr/lib64/jvm/java-24-openjdk-24".to_string())
+}
+const SUBMODULE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../solverforge-wasm-service");
 
 /// WebAssembly Text format module matching the Java test's expectations.
 /// This defines functions for:
@@ -232,7 +234,7 @@ fn test_solve_simple_problem() {
     // Start the service using local submodule
     let config = ServiceConfig::new()
         .with_startup_timeout(Duration::from_secs(120))
-        .with_java_home(PathBuf::from(JAVA_24_HOME))
+        .with_java_home(PathBuf::from(java_home()))
         .with_submodule_dir(PathBuf::from(SUBMODULE_DIR));
 
     let service = EmbeddedService::start(config).expect("Failed to start service");

@@ -1,3 +1,3 @@
-[submodule "timefold-wasm-service"]
-	path = timefold-wasm-service
-	url = https://github.com/SolverForge/timefold-wasm-service.git
+[submodule "solverforge-wasm-service"]
+	path = solverforge-wasm-service
+	url = https://github.com/SolverForge/solverforge-wasm-service.git

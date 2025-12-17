@@ -11,6 +11,9 @@ pub enum ServiceError {
     #[error("Build failed: {0}")]
     BuildFailed(String),
 
+    #[error("Download failed: {0}")]
+    DownloadFailed(String),
+
     #[error("Service failed to start: {0}")]
     StartFailed(String),
 

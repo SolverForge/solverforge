@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "solverforge"
-version = "0.1.56"
+version = "0.2.1"
 description = "Python bindings for SolverForge constraint solver"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -25,10 +25,13 @@ classifiers = [
 keywords = ["constraint", "solver", "optimization", "scheduling", "planning"]
 
 [project.urls]
-Homepage = "https://github.com/solverforge/solverforge"
+Homepage = "https://solverforge.org"
+Documentation = "https://docs.solverforge.org"
 Repository = "https://github.com/solverforge/solverforge"
+"Bug Tracker" = "https://github.com/solverforge/solverforge/issues"
+Changelog = "https://github.com/solverforge/solverforge/blob/main/CHANGELOG.md"
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "pyo3/abi3-py310"]
 python-source = "python"
 module-name = "solverforge._solverforge"

@@ -41,7 +41,7 @@ impl EmbeddedService {
         };
 
         let jar_path = jar_manager.ensure_jar()?;
-        let quarkus_app_dir = jar_manager.quarkus_app_dir();
+        let working_dir = jar_manager.cache_dir();
 
         info!("Starting embedded solver service on port {}", port);
         debug!("Using JAR: {}", jar_path.display());
@@ -66,7 +66,7 @@ impl EmbeddedService {
 
         cmd.arg("-jar")
             .arg(&jar_path)
-            .current_dir(&quarkus_app_dir)
+            .current_dir(working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

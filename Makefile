@@ -6,37 +6,50 @@ PATH := $(JAVA_HOME)/bin:$(PATH)
 export JAVA_HOME PATH
 
 # Submodule paths
-JAVA_SERVICE := timefold-wasm-service
+JAVA_SERVICE := solverforge-wasm-service
 
-.PHONY: all build test test-verbose test-rust test-java clean fmt clippy help
+.PHONY: all build test test-verbose test-rust test-python test-go test-java clean fmt clippy help
 
 # Default target
 all: build test
 
 # ============== Build ==============
 
-build: build-rust build-java
+build: build-rust build-go build-java
 
 build-rust:
 	cargo build --workspace
 
+build-go: build-rust
+	cd solverforge-go && cargo build --release
+	cd solverforge-go/go && go build ./...
+
 build-java:
 	cd $(JAVA_SERVICE) && mvn package -DskipTests -q
 
-build-release:
+build-release: build-rust-release build-go
+	cd solverforge-go && cargo build --release
+	cd solverforge-go/go && go build ./...
+
+build-rust-release:
 	cargo build --workspace --release
 
 # ============== Test ==============
 
-test: test-rust test-python test-java
+test: test-rust test-python test-go test-java
 
-# Run Rust tests (excluding Python crate which needs special flags)
+# Run Rust tests (excluding Python and Go FFI crates which need special flags)
 test-rust:
-	RUST_LOG=info cargo test --workspace --exclude solverforge-python -- --nocapture
+	RUST_LOG=info cargo test --workspace --exclude solverforge-python --exclude solverforge-go -- --nocapture
 
 # Run Python binding tests (requires auto-initialize feature)
 test-python:
 	RUST_LOG=info cargo test -p solverforge-python --features auto-initialize --no-default-features -- --nocapture
+
+# Run Go binding tests (requires FFI library and LD_LIBRARY_PATH)
+test-go: build-go
+	cd solverforge-go && cargo test --lib -- --nocapture
+	cd solverforge-go/go && LD_LIBRARY_PATH=../../../target/release:$$LD_LIBRARY_PATH go test -v ./...
 
 # Run Rust tests quietly (no output unless failure)
 test-rust-quiet:
@@ -62,11 +75,21 @@ test-java-verbose:
 
 # ============== Lint & Format ==============
 
-fmt:
+fmt: fmt-rust fmt-go
+
+fmt-rust:
 	cargo fmt --all
 
-fmt-check:
+fmt-go:
+	cd solverforge-go/go && go fmt ./...
+
+fmt-check: fmt-check-rust fmt-check-go
+
+fmt-check-rust:
 	cargo fmt --all -- --check
+
+fmt-check-go:
+	cd solverforge-go/go && test -z "$$(gofmt -l .)"
 
 clippy:
 	cargo clippy --workspace
@@ -75,10 +98,14 @@ lint: fmt-check clippy
 
 # ============== Clean ==============
 
-clean: clean-rust clean-java
+clean: clean-rust clean-go clean-java
 
 clean-rust:
 	cargo clean
+
+clean-go:
+	cd solverforge-go/go && go clean -cache -testcache
+	rm -f solverforge-go/go/solverforge/solverforge.h
 
 clean-java:
 	cd $(JAVA_SERVICE) && mvn clean -q
@@ -122,6 +149,80 @@ bench-large:
 bench-xlarge:
 	$(MAKE) bench EMPLOYEE_COUNT=100 SHIFT_COUNT=1000
 
+# ============== Version & Release ==============
+
+VERSION := $(shell grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+
+version:
+	@echo $(VERSION)
+
+# Bump version using commit-and-tag-version (requires npm install first)
+bump-patch:
+	npx commit-and-tag-version --release-as patch --no-verify
+
+bump-minor:
+	npx commit-and-tag-version --release-as minor --no-verify
+
+bump-major:
+	npx commit-and-tag-version --release-as major --no-verify
+
+bump-dry:
+	npx commit-and-tag-version --dry-run
+
+# Pre-release validation
+pre-release: fmt-check clippy test
+	@echo "Pre-release checks passed for v$(VERSION)"
+
+# ============== Publish ==============
+
+# Dry run publishing to crates.io
+publish-crates-dry:
+	cargo publish -p solverforge-core --dry-run --allow-dirty
+	@echo "Note: dependent crates will fail dry-run until solverforge-core is published"
+
+# Publish to crates.io (run in order due to dependencies)
+publish-crates:
+	cargo publish -p solverforge-core
+	@echo "Waiting for crates.io index..."
+	@sleep 30
+	cargo publish -p solverforge-derive
+	@sleep 30
+	cargo publish -p solverforge-service
+	@sleep 30
+	cargo publish -p solverforge
+
+# Build Python wheels
+build-wheels:
+	cd solverforge-python && maturin build --release
+
+# Publish to TestPyPI
+publish-pypi-test:
+	cd solverforge-python && maturin publish --repository testpypi
+
+# Publish to PyPI
+publish-pypi:
+	cd solverforge-python && maturin publish
+
+# Install Maven artifact locally
+publish-maven-local:
+	cd $(JAVA_SERVICE) && mvn clean install
+
+# Deploy to Maven Central (requires credentials)
+publish-maven:
+	cd $(JAVA_SERVICE) && mvn clean deploy -P release
+
+# Full release (after pre-release passes)
+release: pre-release
+	@echo ""
+	@echo "Ready for release v$(VERSION)"
+	@echo "Run these commands to publish:"
+	@echo "  make publish-maven"
+	@echo "  make publish-crates"
+	@echo "  make publish-pypi"
+	@echo ""
+	@echo "Then push the tag:"
+	@echo "  git push origin v$(VERSION)"
+
 # ============== Submodule ==============
 
 submodule-update:
@@ -142,15 +243,17 @@ help:
 	@echo "SolverForge Makefile Commands:"
 	@echo ""
 	@echo "Build:"
-	@echo "  make build          - Build both Rust and Java"
+	@echo "  make build          - Build Rust, Go, and Java"
 	@echo "  make build-rust     - Build Rust workspace"
+	@echo "  make build-go       - Build Go bindings (requires build-rust first)"
 	@echo "  make build-java     - Build Java service"
-	@echo "  make build-release  - Build Rust in release mode"
+	@echo "  make build-release  - Build all in release mode"
 	@echo ""
 	@echo "Test:"
-	@echo "  make test           - Run all tests (Rust + Python + Java)"
+	@echo "  make test           - Run all tests (Rust + Python + Go + Java)"
 	@echo "  make test-rust      - Run Rust tests with output"
 	@echo "  make test-python    - Run Python binding tests"
+	@echo "  make test-go        - Run Go binding tests"
 	@echo "  make test-rust-quiet- Run Rust tests quietly"
 	@echo "  make test-java      - Run Java tests"
 	@echo "  make test-integration - Run integration tests with output"
@@ -159,12 +262,33 @@ help:
 	@echo "  make solve-test TEST=name - Run test showing solver output"
 	@echo ""
 	@echo "Lint:"
-	@echo "  make fmt            - Format code"
+	@echo "  make fmt            - Format Rust and Go code"
+	@echo "  make fmt-rust       - Format Rust code only"
+	@echo "  make fmt-go         - Format Go code only"
 	@echo "  make clippy         - Run clippy"
 	@echo "  make lint           - Run fmt-check and clippy"
 	@echo ""
+	@echo "Version & Release:"
+	@echo "  make version        - Show current version"
+	@echo "  make bump-patch     - Bump patch version (0.0.x)"
+	@echo "  make bump-minor     - Bump minor version (0.x.0)"
+	@echo "  make bump-major     - Bump major version (x.0.0)"
+	@echo "  make bump-dry       - Preview version bump"
+	@echo "  make pre-release    - Run all pre-release checks"
+	@echo "  make release        - Validate and show publish commands"
+	@echo ""
+	@echo "Publish:"
+	@echo "  make publish-crates-dry - Dry run crates.io publish"
+	@echo "  make publish-crates - Publish to crates.io"
+	@echo "  make build-wheels   - Build Python wheels"
+	@echo "  make publish-pypi   - Publish to PyPI"
+	@echo "  make publish-maven  - Deploy to Maven Central"
+	@echo ""
 	@echo "Clean:"
 	@echo "  make clean          - Clean all build artifacts"
+	@echo "  make clean-rust     - Clean Rust artifacts"
+	@echo "  make clean-go       - Clean Go artifacts"
+	@echo "  make clean-java     - Clean Java artifacts"
 	@echo ""
 	@echo "Submodule:"
 	@echo "  make submodule-update - Update git submodules"

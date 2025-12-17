@@ -31,6 +31,8 @@ from solverforge._solverforge import (
     SimpleScore,
     HardSoftScore,
     HardMediumSoftScore,
+    HardSoftDecimalScore,
+    HardMediumSoftDecimalScore,
     # Decorators
     planning_entity,
     planning_solution,
@@ -101,6 +103,8 @@ __all__ = [
     "SimpleScore",
     "HardSoftScore",
     "HardMediumSoftScore",
+    "HardSoftDecimalScore",
+    "HardMediumSoftDecimalScore",
     # Decorators
     "planning_entity",
     "planning_solution",

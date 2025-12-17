@@ -333,7 +333,7 @@ pub struct PySolverConfig {
 
 impl Clone for PySolverConfig {
     fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
+        Python::attach(|py| Self {
             inner: self.inner.clone(),
             solution_class_obj: self.solution_class_obj.as_ref().map(|c| c.clone_ref(py)),
             entity_class_objs: self
@@ -1119,7 +1119,7 @@ mod tests {
     #[test]
     fn test_solver_config_with_environment_mode() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let config =
                 PySolverConfig::new().with_environment_mode(py, &PyEnvironmentMode::full_assert());
             assert_eq!(
@@ -1132,7 +1132,7 @@ mod tests {
     #[test]
     fn test_solver_config_with_random_seed() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let config = PySolverConfig::new().with_random_seed(py, 42);
             assert_eq!(config.inner.random_seed, Some(42));
         });
@@ -1141,7 +1141,7 @@ mod tests {
     #[test]
     fn test_solver_config_with_termination() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let termination = PyTerminationConfig::new().with_spent_limit("PT5M");
             let config = PySolverConfig::new().with_termination(py, &termination);
             assert!(config.inner.termination.is_some());
@@ -1231,7 +1231,7 @@ mod tests {
         #[test]
         fn test_timetabling_domain_setup() {
             init_python();
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let locals = PyDict::new(py);
 
                 // Execute Python code that uses our bindings
@@ -1306,7 +1306,7 @@ result = 'success'
         #[test]
         fn test_constraint_lambda_patterns() {
             init_python();
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let locals = PyDict::new(py);
 
                 let result = py.run(
@@ -1359,7 +1359,7 @@ result = 'success'
         #[test]
         fn test_solver_config_from_python() {
             init_python();
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 // Inject our classes
                 let locals = PyDict::new(py);
                 locals
@@ -1413,7 +1413,7 @@ result = 'success'
         #[test]
         fn test_constraint_streams_from_python() {
             init_python();
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let locals = PyDict::new(py);
                 locals
                     .set_item(
@@ -1464,7 +1464,7 @@ result = 'success'
         #[test]
         fn test_constraint_provider_from_python() {
             init_python();
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let locals = PyDict::new(py);
                 locals
                     .set_item(
@@ -1504,7 +1504,7 @@ result = 'success'
         #[test]
         fn test_full_timetabling_constraints_from_python() {
             init_python();
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 // Use globals dict so class definitions are accessible from lambdas
                 let globals = PyDict::new(py);
                 globals

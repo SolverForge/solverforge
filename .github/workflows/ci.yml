@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  JAVA_HOME: /usr/lib/jvm/temurin-24-jdk-amd64
   PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
 
 jobs:
@@ -39,14 +38,47 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      # solverforge-python is tested separately with maturin (see python job)
       - name: Run clippy
         run: cargo clippy --workspace --exclude solverforge-python -- -D warnings
 
       - name: Build
         run: cargo build --workspace --exclude solverforge-python
 
-      - name: Run tests (excluding Python and integration)
+      - name: Run tests
         run: cargo test --workspace --exclude solverforge-python --exclude solverforge-service
+
+  python:
+    name: Python ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build with maturin
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: solverforge-python
+          args: --release --out dist --find-interpreter
+
+      - name: Install and test
+        working-directory: solverforge-python
+        run: |
+          pip install --find-links dist solverforge
+          python -c "import solverforge; print('solverforge imported successfully')"
 
   java:
     name: Java Service

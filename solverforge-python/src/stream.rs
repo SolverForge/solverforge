@@ -369,51 +369,103 @@ impl PyUniConstraintStream {
     }
 
     /// Penalize matches with a simple score.
-    fn penalize_simple(&self, score: &PySimpleScore) -> PyUniConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_simple(
+        &self,
+        py: Python<'_>,
+        score: &PySimpleScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     /// Penalize matches with a hard/soft score.
-    fn penalize(&self, score: &PyHardSoftScore) -> PyUniConstraintBuilder {
+    ///
+    /// Args:
+    ///     score: Base penalty score (HardSoftScore)
+    ///     match_weigher: Optional lambda to calculate penalty weight per match
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     /// Penalize matches with a hard/medium/soft score.
-    fn penalize_hms(&self, score: &PyHardMediumSoftScore) -> PyUniConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize_hms(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     /// Reward matches with a hard/soft score.
-    fn reward(&self, score: &PyHardSoftScore) -> PyUniConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Reward {
-            weight,
-            scale_by: None,
-        });
 
-        PyUniConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder { components })
     }
 
     fn __repr__(&self) -> String {
@@ -632,27 +684,51 @@ impl PyBiConstraintStream {
     }
 
     /// Penalize matches with a hard/soft score.
-    fn penalize(&self, score: &PyHardSoftScore) -> PyBiConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyBiConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
     }
 
     /// Reward matches with a hard/soft score.
-    fn reward(&self, score: &PyHardSoftScore) -> PyBiConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Reward {
-            weight,
-            scale_by: None,
-        });
 
-        PyBiConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder { components })
     }
 
     fn __repr__(&self) -> String {
@@ -801,27 +877,51 @@ impl PyTriConstraintStream {
     }
 
     /// Penalize matches with a hard/soft score.
-    fn penalize(&self, score: &PyHardSoftScore) -> PyTriConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn penalize(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Penalize {
-            weight,
-            scale_by: None,
-        });
 
-        PyTriConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Penalize { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
     }
 
     /// Reward matches with a hard/soft score.
-    fn reward(&self, score: &PyHardSoftScore) -> PyTriConstraintBuilder {
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn reward(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
-        components.push(StreamComponent::Reward {
-            weight,
-            scale_by: None,
-        });
 
-        PyTriConstraintBuilder { components }
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder { components })
     }
 
     fn __repr__(&self) -> String {

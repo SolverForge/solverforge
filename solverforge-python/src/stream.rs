@@ -371,6 +371,57 @@ impl PyUniConstraintStream {
         })
     }
 
+    /// Flatten the last element of each tuple using a mapping function.
+    ///
+    /// Takes each element and applies a mapping that turns it into an Iterable,
+    /// then flattens to create one tuple per item in the iterable.
+    ///
+    /// # Arguments
+    /// * `flattening_function` - Function that extracts an iterable from each element
+    ///
+    /// # Returns
+    /// A UniConstraintStream with one tuple per flattened item
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyUniConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyUniConstraintStream {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    ///
+    /// Adds entities that are not matched by the stream, useful for including
+    /// unassigned entities in constraints.
+    ///
+    /// # Arguments
+    /// * `cls` - The class of instances to complement with
+    ///
+    /// # Returns
+    /// A UniConstraintStream including the complement
+    fn complement(&self, cls: &Bound<'_, PyType>) -> PyResult<PyUniConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+        Ok(PyUniConstraintStream {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
     /// Penalize matches with a simple score.
     #[pyo3(signature = (score, match_weigher=None))]
     fn penalize_simple(
@@ -758,6 +809,67 @@ impl PyBiConstraintStream {
         }
     }
 
+    /// Flatten the last element of each tuple using a mapping function.
+    ///
+    /// Takes the second element of each pair and applies a mapping that turns
+    /// it into an Iterable, then flattens to create one tuple per item.
+    ///
+    /// # Arguments
+    /// * `flattening_function` - Function that extracts an iterable from B
+    ///
+    /// # Returns
+    /// A BiConstraintStream with one tuple per flattened item
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyBiConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    ///
+    /// # Arguments
+    /// * `cls` - The class of instances to complement with
+    /// * `padding` - Optional function to generate the B value for complemented instances
+    #[pyo3(signature = (cls, padding=None))]
+    fn complement(
+        &self,
+        py: Python<'_>,
+        cls: &Bound<'_, PyType>,
+        padding: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+
+        // If padding is provided, add a map component for it
+        if let Some(pad_fn) = padding {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding")?;
+            components.push(StreamComponent::Map {
+                mappers: vec![lambda_info.to_wasm_function()],
+            });
+        }
+
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
     /// Penalize matches with a hard/soft score.
     #[pyo3(signature = (score, match_weigher=None))]
     fn penalize(
@@ -1020,6 +1132,75 @@ impl PyTriConstraintStream {
             components,
             class_names: self.class_names.clone(),
             predicates,
+        })
+    }
+
+    /// Flatten the last element of each tuple using a mapping function.
+    ///
+    /// Takes the third element of each triple and applies a mapping that turns
+    /// it into an Iterable, then flattens to create one tuple per item.
+    ///
+    /// # Arguments
+    /// * `flattening_function` - Function that extracts an iterable from C
+    ///
+    /// # Returns
+    /// A TriConstraintStream with one tuple per flattened item
+    fn flatten_last(
+        &self,
+        py: Python<'_>,
+        flattening_function: Py<PyAny>,
+    ) -> PyResult<PyTriConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::FlattenLast {
+            map: Some(lambda_info.to_wasm_function()),
+        });
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Add to the stream all instances of a class not yet present in it.
+    ///
+    /// # Arguments
+    /// * `cls` - The class of instances to complement with
+    /// * `padding_b` - Optional function to generate the B value for complemented instances
+    /// * `padding_c` - Optional function to generate the C value for complemented instances
+    #[pyo3(signature = (cls, padding_b=None, padding_c=None))]
+    fn complement(
+        &self,
+        py: Python<'_>,
+        cls: &Bound<'_, PyType>,
+        padding_b: Option<Py<PyAny>>,
+        padding_c: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintStream> {
+        let class_name = cls
+            .name()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?
+            .to_string();
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Complement { class_name });
+
+        // If padding functions are provided, add map components for them
+        let mut mappers = Vec::new();
+        if let Some(pad_fn) = padding_b {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if let Some(pad_fn) = padding_c {
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            mappers.push(lambda_info.to_wasm_function());
+        }
+        if !mappers.is_empty() {
+            components.push(StreamComponent::Map { mappers });
+        }
+
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
         })
     }
 

@@ -70,3 +70,79 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Verify that all solver runtime types are accessible from lib.rs exports
+    #[test]
+    fn test_solver_runtime_types_exported() {
+        // These type assertions verify the types are publicly re-exported
+        fn assert_type<T>() {}
+
+        assert_type::<PySolverConfig>();
+        assert_type::<PyTerminationConfig>();
+        assert_type::<PySolverFactory>();
+        assert_type::<PySolver>();
+        assert_type::<PySolveHandle>();
+        assert_type::<PySolveResponse>();
+        assert_type::<PySolveStatus>();
+        assert_type::<PyEnvironmentMode>();
+        assert_type::<PyMoveThreadCount>();
+        assert_type::<PyDiminishedReturnsConfig>();
+    }
+
+    /// Verify that all constraint stream types are accessible
+    #[test]
+    fn test_constraint_stream_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PyConstraintFactory>();
+        assert_type::<PyUniConstraintStream>();
+        assert_type::<PyBiConstraintStream>();
+        assert_type::<PyTriConstraintStream>();
+        assert_type::<PyUniConstraintBuilder>();
+        assert_type::<PyBiConstraintBuilder>();
+        assert_type::<PyTriConstraintBuilder>();
+        assert_type::<PyConstraint>();
+    }
+
+    /// Verify that joiner types are accessible
+    #[test]
+    fn test_joiner_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PyJoiner>();
+        assert_type::<PyJoiners>();
+    }
+
+    /// Verify that collector types are accessible
+    #[test]
+    fn test_collector_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PyCollector>();
+        assert_type::<PyConstraintCollectors>();
+    }
+
+    /// Verify that decorator types are accessible
+    #[test]
+    fn test_decorator_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PyConstraintProvider>();
+        assert_type::<PyDomainClass>();
+        assert_type::<PyDomainModel>();
+    }
+
+    /// Verify that score types are accessible
+    #[test]
+    fn test_score_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PySimpleScore>();
+        assert_type::<PyHardSoftScore>();
+        assert_type::<PyHardMediumSoftScore>();
+    }
+}

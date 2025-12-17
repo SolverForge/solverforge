@@ -16,9 +16,10 @@ mod solver;
 mod stream;
 
 pub use annotations::{
-    PyDeepPlanningClone, PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty,
-    PyPlanningEntityProperty, PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore,
-    PyPlanningVariable, PyProblemFactCollectionProperty, PyProblemFactProperty,
+    PyCascadingUpdateShadowVariable, PyDeepPlanningClone, PyInverseRelationShadowVariable,
+    PyNextElementShadowVariable, PyPlanningEntityCollectionProperty, PyPlanningEntityProperty,
+    PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore, PyPlanningVariable,
+    PyPreviousElementShadowVariable, PyProblemFactCollectionProperty, PyProblemFactProperty,
     PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
@@ -144,5 +145,27 @@ mod tests {
         assert_type::<PySimpleScore>();
         assert_type::<PyHardSoftScore>();
         assert_type::<PyHardMediumSoftScore>();
+    }
+
+    /// Verify that annotation types are accessible
+    #[test]
+    fn test_annotation_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PyPlanningId>();
+        assert_type::<PyPlanningVariable>();
+        assert_type::<PyPlanningListVariable>();
+        assert_type::<PyPlanningScore>();
+        assert_type::<PyValueRangeProvider>();
+        assert_type::<PyProblemFactProperty>();
+        assert_type::<PyProblemFactCollectionProperty>();
+        assert_type::<PyPlanningEntityProperty>();
+        assert_type::<PyPlanningEntityCollectionProperty>();
+        assert_type::<PyPlanningPin>();
+        assert_type::<PyInverseRelationShadowVariable>();
+        assert_type::<PyPreviousElementShadowVariable>();
+        assert_type::<PyNextElementShadowVariable>();
+        assert_type::<PyCascadingUpdateShadowVariable>();
+        assert_type::<PyDeepPlanningClone>();
     }
 }

@@ -24,7 +24,7 @@ jobs:
           submodules: true
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -82,7 +82,7 @@ jobs:
           submodules: true
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Set up JDK 24
         uses: actions/setup-java@v4

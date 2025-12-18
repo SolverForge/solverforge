@@ -69,7 +69,7 @@ impl PyConstraintCollectors {
 
     /// Sum values in a group (Rust API).
     pub fn sum_rust(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "sum", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "sum", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::sum(wasm_func),
@@ -103,7 +103,7 @@ impl PyConstraintCollectors {
     /// Count items after mapping them.
     #[staticmethod]
     fn count_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "count_map", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "count_map", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::count_with_map(wasm_func),
@@ -121,7 +121,7 @@ impl PyConstraintCollectors {
     /// ```
     #[staticmethod]
     fn sum(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "sum", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "sum", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::sum(wasm_func),
@@ -134,7 +134,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the numeric value to average
     #[staticmethod]
     fn average(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "average", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "average", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::average(wasm_func),
@@ -148,8 +148,8 @@ impl PyConstraintCollectors {
     /// * `comparator` - A lambda that compares two values (returns negative, 0, or positive)
     #[staticmethod]
     fn min(py: Python<'_>, mapper: Py<PyAny>, comparator: Py<PyAny>) -> PyResult<PyCollector> {
-        let map_info = LambdaInfo::new(py, mapper, "min_map", None)?;
-        let cmp_info = LambdaInfo::new(py, comparator, "min_cmp", None)?;
+        let map_info = LambdaInfo::new(py, mapper, "min_map", "Entity")?;
+        let cmp_info = LambdaInfo::new(py, comparator, "min_cmp", "Entity")?;
         Ok(PyCollector {
             inner: Collector::min(map_info.to_wasm_function(), cmp_info.to_wasm_function()),
         })
@@ -162,8 +162,8 @@ impl PyConstraintCollectors {
     /// * `comparator` - A lambda that compares two values (returns negative, 0, or positive)
     #[staticmethod]
     fn max(py: Python<'_>, mapper: Py<PyAny>, comparator: Py<PyAny>) -> PyResult<PyCollector> {
-        let map_info = LambdaInfo::new(py, mapper, "max_map", None)?;
-        let cmp_info = LambdaInfo::new(py, comparator, "max_cmp", None)?;
+        let map_info = LambdaInfo::new(py, mapper, "max_map", "Entity")?;
+        let cmp_info = LambdaInfo::new(py, comparator, "max_cmp", "Entity")?;
         Ok(PyCollector {
             inner: Collector::max(map_info.to_wasm_function(), cmp_info.to_wasm_function()),
         })
@@ -183,7 +183,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the value to collect
     #[staticmethod]
     fn to_list_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "to_list_map", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "to_list_map", "Entity")?;
         Ok(PyCollector {
             inner: Collector::to_list_with_map(lambda_info.to_wasm_function()),
         })
@@ -203,7 +203,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the value to collect
     #[staticmethod]
     fn to_set_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "to_set_map", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "to_set_map", "Entity")?;
         Ok(PyCollector {
             inner: Collector::to_set_with_map(lambda_info.to_wasm_function()),
         })
@@ -217,7 +217,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the balancing key
     #[staticmethod]
     fn load_balance(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "load_balance", None)?;
+        let lambda_info = LambdaInfo::new(py, mapper, "load_balance", "Entity")?;
         Ok(PyCollector {
             inner: Collector::load_balance(lambda_info.to_wasm_function()),
         })
@@ -234,8 +234,8 @@ impl PyConstraintCollectors {
         mapper: Py<PyAny>,
         load: Py<PyAny>,
     ) -> PyResult<PyCollector> {
-        let map_info = LambdaInfo::new(py, mapper, "load_balance_map", None)?;
-        let load_info = LambdaInfo::new(py, load, "load_balance_load", None)?;
+        let map_info = LambdaInfo::new(py, mapper, "load_balance_map", "Entity")?;
+        let load_info = LambdaInfo::new(py, load, "load_balance_load", "Entity")?;
         Ok(PyCollector {
             inner: Collector::load_balance_with_load(
                 map_info.to_wasm_function(),
@@ -264,7 +264,7 @@ impl PyConstraintCollectors {
         combiner: Py<PyAny>,
     ) -> PyResult<PyCollector> {
         let rust_collectors: Vec<Collector> = collectors.iter().map(|c| c.to_rust()).collect();
-        let combiner_info = LambdaInfo::new(py, combiner, "compose_combiner", None)?;
+        let combiner_info = LambdaInfo::new(py, combiner, "compose_combiner", "Entity")?;
         Ok(PyCollector {
             inner: Collector::compose(rust_collectors, combiner_info.to_wasm_function()),
         })
@@ -289,7 +289,7 @@ impl PyConstraintCollectors {
         predicate: Py<PyAny>,
         collector: PyCollector,
     ) -> PyResult<PyCollector> {
-        let pred_info = LambdaInfo::new(py, predicate, "conditionally_pred", None)?;
+        let pred_info = LambdaInfo::new(py, predicate, "conditionally_pred", "Entity")?;
         Ok(PyCollector {
             inner: Collector::conditionally(pred_info.to_wasm_function(), collector.to_rust()),
         })

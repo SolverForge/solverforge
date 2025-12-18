@@ -25,11 +25,11 @@ impl JoinerLambda {
     /// Create a new JoinerLambda from a Python callable.
     ///
     /// This analyzes the lambda immediately and returns an error if the pattern
-    /// is not supported. Note: Joiners are created without class context - the
-    /// class is only known when the joiner is used in a stream operation.
+    /// is not supported. Uses "Entity" as default class since joiners are created
+    /// before stream context is available.
     pub fn new(py: Python<'_>, callable: Py<PyAny>, prefix: &str) -> PyResult<Self> {
-        // Joiners don't have class context at creation time
-        let info = LambdaInfo::new(py, callable, prefix, None)?;
+        // Joiners use "Entity" as default - specific class context comes from stream
+        let info = LambdaInfo::new(py, callable, prefix, "Entity")?;
         Ok(Self { info })
     }
 

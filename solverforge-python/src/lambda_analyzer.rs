@@ -1117,7 +1117,7 @@ fn convert_ast_to_expression(
                     // Convert method call arguments
                     let args_node = node.getattr("args")?;
                     let args_list = args_node.cast::<PyList>()?;
-                    let mut call_args = vec![obj_expr];
+                    let mut call_args = vec![obj_expr.clone()];
 
                     for arg in args_list.iter() {
                         if let Some(arg_expr) =
@@ -1127,7 +1127,31 @@ fn convert_ast_to_expression(
                         }
                     }
 
-                    // Create HostCall with class_method naming convention
+                    // Try to inline the method - look it up in the registry and analyze
+                    if let Some(method) = get_method_from_class(py, class_hint, &method_name) {
+                        if let Ok(method_body) = analyze_method_body(py, &method, class_hint) {
+                            // Substitute parameters: obj_expr becomes Param(0), call_args become Param(1), etc.
+                            let mut inlined = method_body;
+
+                            // Substitute method parameters with call arguments
+                            // The object is Param(0) in the method, and obj_expr in the call
+                            inlined = substitute_param(inlined, 0, &obj_expr);
+
+                            // Substitute other parameters
+                            for (i, arg) in args_list.iter().enumerate() {
+                                if let Some(arg_expr) =
+                                    convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                                {
+                                    // In the method, args start at Param(1)
+                                    inlined = substitute_param(inlined, (i + 1) as u32, &arg_expr);
+                                }
+                            }
+
+                            return Ok(Some(inlined));
+                        }
+                    }
+
+                    // Fallback: Create HostCall with class_method naming convention
                     let function_name = format!("{}_{}", class_name, method_name);
                     Ok(Some(Expression::HostCall {
                         function_name,
@@ -2169,5 +2193,186 @@ mod tests {
             }
             _ => panic!("Expected Sub expression"),
         }
+    }
+
+    // ========================================================================
+    // AST Method Inlining Tests
+    // ========================================================================
+
+    #[test]
+    fn test_ast_method_call_no_inlining_when_unregistered() {
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            // Lambda that calls an unregistered method: lambda v: v.get_name()
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+lambda_func = lambda v: v.get_name()
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "test", "Entity").unwrap();
+
+            // Should create HostCall since get_name is not registered
+            match &lambda_info.expression {
+                Expression::HostCall {
+                    function_name,
+                    args,
+                } => {
+                    assert_eq!(function_name, "Entity_get_name");
+                    assert_eq!(args.len(), 1); // Just the object
+                }
+                _ => panic!(
+                    "Expected HostCall when method not registered, got {:?}",
+                    lambda_info.expression
+                ),
+            }
+        });
+    }
+
+    #[test]
+    fn test_ast_method_call_with_inlining() {
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            // Register Entity class with a method
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Entity:
+    def is_available(self):
+        return self.status == 'active'
+
+lambda_func = lambda e: e.is_available()
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let entity_class = locals.get_item("Entity").unwrap().unwrap();
+            register_class(py, "Entity", &entity_class);
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Entity").unwrap();
+
+            // Should inline the method and produce Eq comparison, not HostCall
+            match &lambda_info.expression {
+                Expression::Eq { left, right } => {
+                    // Left should be FieldAccess to status
+                    match **left {
+                        Expression::FieldAccess { ref field_name, .. } => {
+                            assert_eq!(field_name, "status");
+                        }
+                        _ => panic!("Expected FieldAccess on left side"),
+                    }
+                    // Right should be String literal "active"
+                    assert!(matches!(**right, Expression::StringLiteral { .. }));
+                }
+                Expression::HostCall { .. } => {
+                    panic!("Method should have been inlined, got HostCall");
+                }
+                _ => panic!("Expected Eq or HostCall, got {:?}", lambda_info.expression),
+            }
+        });
+    }
+
+    #[test]
+    fn test_ast_method_call_with_arguments() {
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            // Register Entity class with a method that takes arguments
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Entity:
+    def check_value(self, threshold):
+        return self.value > threshold
+
+lambda_func = lambda e, t: e.check_value(t)
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let entity_class = locals.get_item("Entity").unwrap().unwrap();
+            register_class(py, "Entity", &entity_class);
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Entity").unwrap();
+
+            // Should inline the method with parameter substitution
+            match &lambda_info.expression {
+                Expression::Gt { left, right } => {
+                    // Left should be FieldAccess to value
+                    match **left {
+                        Expression::FieldAccess { ref field_name, .. } => {
+                            assert_eq!(field_name, "value");
+                        }
+                        _ => panic!("Expected FieldAccess on left"),
+                    }
+                    // Right should be Param(1) (the threshold argument)
+                    assert!(matches!(**right, Expression::Param { index: 1 }));
+                }
+                _ => panic!("Expected Gt comparison, got {:?}", lambda_info.expression),
+            }
+        });
+    }
+
+    #[test]
+    fn test_ast_method_call_inlined_in_comparison() {
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            // Register class and create lambda with method call in comparison
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Entity:
+    def get_priority(self):
+        return self.priority
+
+lambda_func = lambda e: e.get_priority() > 5
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let entity_class = locals.get_item("Entity").unwrap().unwrap();
+            register_class(py, "Entity", &entity_class);
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Entity").unwrap();
+
+            // Should produce Gt(FieldAccess(priority), IntLiteral(5))
+            match &lambda_info.expression {
+                Expression::Gt { left, right } => {
+                    match **left {
+                        Expression::FieldAccess { ref field_name, .. } => {
+                            assert_eq!(field_name, "priority");
+                        }
+                        _ => panic!("Expected FieldAccess"),
+                    }
+                    assert!(matches!(**right, Expression::IntLiteral { value: 5 }));
+                }
+                _ => panic!("Expected Gt expression"),
+            }
+        });
     }
 }

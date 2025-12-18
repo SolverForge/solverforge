@@ -501,6 +501,47 @@ fn analyze_lambda(
     }
 }
 
+/// Attempt to inline a method call in bytecode analysis.
+///
+/// Given an object (stack value) and method name, tries to:
+/// 1. Look up the method from the class registry
+/// 2. Analyze the method body
+/// 3. Substitute parameters and return inlined expression
+///
+/// Returns Some(Expression) if inlining succeeded, None otherwise.
+fn try_inline_method_from_bytecode(
+    py: Python<'_>,
+    object: &BytecodeValue,
+    method_name: &str,
+    args: &[BytecodeValue],
+    class_name: &str,
+) -> Option<Expression> {
+    // Try to look up the method
+    if let Some(method) = get_method_from_class(py, class_name, method_name) {
+        // Try to analyze the method body
+        if let Ok(method_body) = analyze_method_body(py, &method, class_name) {
+            // Convert object to expression
+            if let Ok(object_expr) = bytecode_value_to_expression(object.clone()) {
+                let mut inlined = method_body;
+
+                // Substitute self (Param(0))
+                inlined = substitute_param(inlined, 0, &object_expr);
+
+                // Substitute other parameters
+                for (i, arg) in args.iter().enumerate() {
+                    if let Ok(arg_expr) = bytecode_value_to_expression(arg.clone()) {
+                        inlined = substitute_param(inlined, (i + 1) as u32, &arg_expr);
+                    }
+                }
+
+                return Some(inlined);
+            }
+        }
+    }
+
+    None
+}
+
 /// Analyze lambda from bytecode when source code is unavailable.
 ///
 /// This uses Python's dis module to disassemble the lambda's code object
@@ -566,14 +607,24 @@ fn analyze_lambda_bytecode(
                     }
                 }
             }
-            "LOAD_ATTR" | "LOAD_METHOD" => {
-                // Field/method access - argval is the attribute name directly
+            "LOAD_ATTR" => {
+                // Field access - argval is the attribute name directly
                 let field_name: String = argval.extract()?;
                 if let Some(obj) = stack.pop() {
                     stack.push(BytecodeValue::FieldAccess {
                         object: Box::new(obj),
                         class_name: class_name.clone(),
                         field_name,
+                    });
+                }
+            }
+            "LOAD_METHOD" => {
+                // Method reference - mark it for potential inlining at CALL time
+                let method_name: String = argval.extract()?;
+                if let Some(obj) = stack.pop() {
+                    stack.push(BytecodeValue::MethodRef {
+                        object: Box::new(obj),
+                        method_name,
                     });
                 }
             }
@@ -645,6 +696,112 @@ fn analyze_lambda_bytecode(
                 // not operator
                 if let Some(operand) = stack.pop() {
                     stack.push(BytecodeValue::Not(Box::new(operand)));
+                }
+            }
+            "CALL_METHOD" => {
+                // Python 3.10 and earlier: Call a method that was loaded with LOAD_METHOD
+                // argval is the number of arguments
+                let arg_count: i32 = argval.extract()?;
+                if stack.len() >= (arg_count + 1) as usize {
+                    let mut args = Vec::new();
+                    for _ in 0..arg_count {
+                        if let Some(arg) = stack.pop() {
+                            args.insert(0, arg);
+                        }
+                    }
+
+                    if let Some(method_ref) = stack.pop() {
+                        if let BytecodeValue::MethodRef {
+                            object,
+                            method_name,
+                        } = method_ref
+                        {
+                            // Try to inline the method
+                            if let Some(inlined) = try_inline_method_from_bytecode(
+                                py,
+                                &object,
+                                &method_name,
+                                &args,
+                                &class_name,
+                            ) {
+                                stack.push(BytecodeValue::InlinedExpression(Box::new(inlined)));
+                            } else {
+                                // Fallback: convert to HostCall
+                                if let Ok(obj_expr) =
+                                    bytecode_value_to_expression((*object).clone())
+                                {
+                                    let mut call_args = vec![obj_expr];
+                                    for arg in args {
+                                        if let Ok(arg_expr) = bytecode_value_to_expression(arg) {
+                                            call_args.push(arg_expr);
+                                        }
+                                    }
+                                    let function_name = format!("{}_{}", class_name, method_name);
+                                    stack.push(BytecodeValue::InlinedExpression(Box::new(
+                                        Expression::HostCall {
+                                            function_name,
+                                            args: call_args,
+                                        },
+                                    )));
+                                }
+                            }
+                        } else {
+                            stack.push(method_ref);
+                        }
+                    }
+                }
+            }
+            "CALL" => {
+                // Python 3.11+: Call function - argval is argument count
+                // When calling a method ref, it will be preceded by the method and object on stack
+                let arg_count: i32 = argval.extract()?;
+                if stack.len() >= (arg_count + 1) as usize {
+                    let mut args = Vec::new();
+                    for _ in 0..arg_count {
+                        if let Some(arg) = stack.pop() {
+                            args.insert(0, arg);
+                        }
+                    }
+
+                    if let Some(func_or_ref) = stack.pop() {
+                        if let BytecodeValue::MethodRef {
+                            object,
+                            method_name,
+                        } = func_or_ref
+                        {
+                            // Try to inline the method
+                            if let Some(inlined) = try_inline_method_from_bytecode(
+                                py,
+                                &object,
+                                &method_name,
+                                &args,
+                                &class_name,
+                            ) {
+                                stack.push(BytecodeValue::InlinedExpression(Box::new(inlined)));
+                            } else {
+                                // Fallback: convert to HostCall
+                                if let Ok(obj_expr) =
+                                    bytecode_value_to_expression((*object).clone())
+                                {
+                                    let mut call_args = vec![obj_expr];
+                                    for arg in args {
+                                        if let Ok(arg_expr) = bytecode_value_to_expression(arg) {
+                                            call_args.push(arg_expr);
+                                        }
+                                    }
+                                    let function_name = format!("{}_{}", class_name, method_name);
+                                    stack.push(BytecodeValue::InlinedExpression(Box::new(
+                                        Expression::HostCall {
+                                            function_name,
+                                            args: call_args,
+                                        },
+                                    )));
+                                }
+                            }
+                        } else {
+                            stack.push(func_or_ref);
+                        }
+                    }
                 }
             }
             "RETURN_VALUE" | "RETURN_CONST" => {
@@ -757,6 +914,13 @@ enum BytecodeValue {
         class_name: String,
         field_name: String,
     },
+    // Temporary marker for method reference - used during method call analysis
+    MethodRef {
+        object: Box<BytecodeValue>,
+        method_name: String,
+    },
+    // Stores an inlined expression from method inlining
+    InlinedExpression(Box<Expression>),
     Eq(Box<BytecodeValue>, Box<BytecodeValue>),
     Ne(Box<BytecodeValue>, Box<BytecodeValue>),
     Lt(Box<BytecodeValue>, Box<BytecodeValue>),
@@ -850,6 +1014,16 @@ fn bytecode_value_to_expression(value: BytecodeValue) -> PyResult<Expression> {
             left: Box::new(bytecode_value_to_expression(*l)?),
             right: Box::new(bytecode_value_to_expression(*r)?),
         }),
+        BytecodeValue::MethodRef { .. } => {
+            // Method reference that wasn't inlined - shouldn't reach here
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Cannot analyze lambda: unresolved method reference.",
+            ))
+        }
+        BytecodeValue::InlinedExpression(expr) => {
+            // Successfully inlined expression
+            Ok(*expr)
+        }
         BytecodeValue::PendingAnd(_) | BytecodeValue::PendingOr(_) => {
             // These should have been resolved - incomplete boolean expression
             Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(

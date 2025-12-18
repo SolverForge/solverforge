@@ -56,8 +56,9 @@ pub use constraints::{
     Collector, Constraint, ConstraintSet, Joiner, StreamComponent, WasmFunction,
 };
 pub use domain::{
-    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
-    ShadowAnnotation,
+    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, DefaultVariableListenerContext,
+    ListVariableListener, ListenerCallbackDto, PlanningAnnotation, ShadowAnnotation,
+    SourceVariableRef, VariableListener, VariableListenerContext, VariableListenerRegistration,
 };
 pub use error::{SolverForgeError, SolverForgeResult};
 pub use handles::{FunctionHandle, ObjectHandle};

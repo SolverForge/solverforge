@@ -2115,7 +2115,7 @@ mod tests {
     use pyo3::types::PyDict;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]
@@ -2143,7 +2143,7 @@ mod tests {
     #[test]
     fn test_uni_stream_filter_stores_predicate() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.room is not None", None, Some(&locals))
                 .unwrap();
@@ -2166,7 +2166,7 @@ mod tests {
     #[test]
     fn test_bi_stream_filter_stores_predicate() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a.id != b.id", None, Some(&locals))
                 .unwrap();
@@ -2189,7 +2189,7 @@ mod tests {
     #[test]
     fn test_filter_unique_names() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.room is not None", None, Some(&locals))
                 .unwrap();
@@ -2210,7 +2210,7 @@ mod tests {
     #[test]
     fn test_bi_stream_join_to_tri() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             // Create a mock class
             py.run(c"class Timeslot:\n    pass", None, Some(&locals))
@@ -2219,7 +2219,7 @@ mod tests {
 
             let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
             let tri_stream = bi_stream
-                .join(timeslot_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(timeslot_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
             // Should have 2 components: ForEachUniquePair + Join
@@ -2238,7 +2238,7 @@ mod tests {
     #[test]
     fn test_tri_stream_filter_stores_predicate() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"class Room:\n    pass\nf = lambda a, b, c: a.id != b.id and b.id != c.id",
@@ -2252,7 +2252,7 @@ mod tests {
             // Create bi stream, then join to get tri stream
             let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
             let tri_stream = bi_stream
-                .join(room_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(room_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
             let filtered = tri_stream.filter(py, func.unbind()).unwrap();
 
@@ -2270,7 +2270,7 @@ mod tests {
     #[test]
     fn test_tri_stream_penalize_and_constraint() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"class Room:\n    pass", None, Some(&locals))
                 .unwrap();
@@ -2279,7 +2279,7 @@ mod tests {
             // Create tri stream
             let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
             let tri_stream = bi_stream
-                .join(room_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(room_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
             // Use penalize_weight (Rust API)
@@ -2293,7 +2293,7 @@ mod tests {
     #[test]
     fn test_tri_stream_repr() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"class Room:\n    pass", None, Some(&locals))
                 .unwrap();
@@ -2301,7 +2301,7 @@ mod tests {
 
             let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
             let tri_stream = bi_stream
-                .join(room_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(room_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
             let repr = tri_stream.__repr__();
@@ -2315,7 +2315,7 @@ mod tests {
     #[test]
     fn test_uni_stream_group_by() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"key_mapper = lambda shift: shift.employee",
@@ -2342,7 +2342,7 @@ mod tests {
     #[test]
     fn test_uni_stream_group_by_collector_only() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let stream = PyUniConstraintStream::new("Shift".to_string(), false);
             let collector = crate::collectors::PyConstraintCollectors::count_rust();
             let grouped = stream.group_by_collector(&collector);
@@ -2358,7 +2358,7 @@ mod tests {
     #[test]
     fn test_uni_stream_group_by_two_keys() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"key_a = lambda s: s.employee\nkey_b = lambda s: s.day",
@@ -2386,7 +2386,7 @@ mod tests {
     #[test]
     fn test_bi_stream_group_by() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"key_mapper = lambda a, b: a.room", None, Some(&locals))
                 .unwrap();
@@ -2409,7 +2409,7 @@ mod tests {
     #[test]
     fn test_bi_stream_group_by_collector_only() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
             let collector = crate::collectors::PyConstraintCollectors::count_rust();
             let grouped = stream.group_by_collector(&collector);
@@ -2425,7 +2425,7 @@ mod tests {
     #[test]
     fn test_group_by_with_sum_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"key_mapper = lambda s: s.employee\nsum_mapper = lambda s: s.hours",
@@ -2456,7 +2456,7 @@ mod tests {
     #[test]
     fn test_group_by_chain_with_filter() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"key_mapper = lambda s: s.employee\nfilter_pred = lambda emp, count: count > 5",
@@ -2486,7 +2486,7 @@ mod tests {
     #[test]
     fn test_quad_stream_join_to_penta() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"class A:\n    pass\nclass B:\n    pass\nclass C:\n    pass\nclass D:\n    pass\nclass E:\n    pass",
@@ -2502,16 +2502,16 @@ mod tests {
             // Create a stream chain: A -> join(B) -> join(C) -> join(D) -> join(E)
             let uni_stream = PyUniConstraintStream::new("A".to_string(), false);
             let bi_stream = uni_stream
-                .join(b_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(b_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
             let tri_stream = bi_stream
-                .join(c_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(c_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
             let quad_stream = tri_stream
-                .join(d_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(d_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
             let penta_stream = quad_stream
-                .join(e_cls.downcast::<PyType>().unwrap(), vec![])
+                .join(e_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
             // Should have 5 components: ForEach + 4 Joins
@@ -2530,7 +2530,7 @@ mod tests {
     #[test]
     fn test_penta_stream_filter() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"class E:\n    pass\nf = lambda a, b, c, d, e: a.id != e.id",
@@ -2571,7 +2571,7 @@ mod tests {
     #[test]
     fn test_penta_stream_penalize_and_constraint() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let penta_stream = PyPentaConstraintStream {
                 components: vec![StreamComponent::ForEach {
                     class_name: "Entity".to_string(),
@@ -2597,7 +2597,7 @@ mod tests {
     #[test]
     fn test_penta_stream_reward() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let penta_stream = PyPentaConstraintStream {
                 components: vec![StreamComponent::ForEach {
                     class_name: "Entity".to_string(),
@@ -2623,7 +2623,7 @@ mod tests {
     #[test]
     fn test_penta_stream_repr() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let penta_stream = PyPentaConstraintStream {
                 components: vec![StreamComponent::ForEach {
                     class_name: "Entity".to_string(),
@@ -2649,7 +2649,7 @@ mod tests {
     #[test]
     fn test_penta_stream_group_by() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c"key_mapper = lambda a, b, c, d, e: a.category",
@@ -2689,7 +2689,7 @@ mod tests {
     #[test]
     fn test_penta_stream_group_by_collector_only() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let penta_stream = PyPentaConstraintStream {
                 components: vec![StreamComponent::ForEach {
                     class_name: "Entity".to_string(),
@@ -2718,7 +2718,7 @@ mod tests {
     #[test]
     fn test_penta_builder_as_constraint() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let builder = PyPentaConstraintBuilder {
                 components: vec![
                     StreamComponent::ForEach {
@@ -2741,7 +2741,7 @@ mod tests {
     #[test]
     fn test_penta_builder_repr() {
         init_python();
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let builder = PyPentaConstraintBuilder {
                 components: vec![StreamComponent::ForEach {
                     class_name: "Entity".to_string(),
@@ -2757,7 +2757,7 @@ mod tests {
     #[test]
     fn test_penta_stream_flatten_last() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"flatten_fn = lambda e: e.items", None, Some(&locals))
                 .unwrap();
@@ -2790,7 +2790,7 @@ mod tests {
     #[test]
     fn test_penta_stream_if_exists() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"class Other:\n    pass", None, Some(&locals))
                 .unwrap();
@@ -2811,7 +2811,7 @@ mod tests {
             };
 
             let filtered = penta_stream
-                .if_exists(other_cls.downcast::<PyType>().unwrap(), vec![])
+                .if_exists(other_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
             // Should have 2 components: ForEach + IfExists
@@ -2822,7 +2822,7 @@ mod tests {
     #[test]
     fn test_penta_stream_if_not_exists() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"class Other:\n    pass", None, Some(&locals))
                 .unwrap();
@@ -2843,7 +2843,7 @@ mod tests {
             };
 
             let filtered = penta_stream
-                .if_not_exists(other_cls.downcast::<PyType>().unwrap(), vec![])
+                .if_not_exists(other_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
             // Should have 2 components: ForEach + IfNotExists

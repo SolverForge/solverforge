@@ -728,8 +728,8 @@ mod tests {
 
     #[test]
     fn test_deep_planning_clone_decorator() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        pyo3::Python::initialize();
+        Python::attach(|py| {
             use pyo3::types::PyDict;
             let locals = PyDict::new(py);
             py.run(c"class WorkSchedule:\n    pass", None, Some(&locals))

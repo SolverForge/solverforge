@@ -1487,7 +1487,7 @@ mod tests {
     use super::*;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]
@@ -1764,7 +1764,7 @@ mod tests {
     #[test]
     fn test_solver_manager_repr() {
         init_python();
-        Python::attach(|py| {
+        Python::attach(|_py| {
             // Create factory data directly
             let factory_data = Arc::new(PySolverFactoryData {
                 config: SolverConfig::new(),
@@ -1858,7 +1858,7 @@ mod tests {
         use pyo3::types::PyDict;
 
         fn init_python() {
-            pyo3::prepare_freethreaded_python();
+            pyo3::Python::initialize();
         }
 
         /// Test the full timetabling setup from Python

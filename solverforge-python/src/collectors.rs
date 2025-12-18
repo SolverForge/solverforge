@@ -403,7 +403,7 @@ mod tests {
     use pyo3::types::PyDict;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]
@@ -428,7 +428,7 @@ mod tests {
     #[test]
     fn test_sum_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.hours", None, Some(&locals))
                 .unwrap();
@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn test_average_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.score", None, Some(&locals))
                 .unwrap();
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     fn test_load_balance_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda shift: shift.employee", None, Some(&locals))
                 .unwrap();
@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn test_compose_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"combiner = lambda a, b: a + b", None, Some(&locals))
                 .unwrap();
@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn test_conditionally_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"pred = lambda x: x.active", None, Some(&locals))
                 .unwrap();

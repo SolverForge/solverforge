@@ -172,7 +172,7 @@ fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult
             "RESUME" | "PRECALL" | "PUSH_NULL" | "COPY_FREE_VARS" | "CACHE" => {
                 // Skip these opcodes
             }
-            "LOAD_FAST" | "LOAD_FAST_CHECK" => {
+            "LOAD_FAST" | "LOAD_FAST_CHECK" | "LOAD_FAST_AND_CLEAR" => {
                 // Load a local variable (parameter) - argval is the variable name
                 // We need to find the parameter index
                 let var_name: String = argval.extract()?;
@@ -180,6 +180,29 @@ fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult
                 let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
                 if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
                     stack.push(BytecodeValue::Param(idx as u32));
+                } else {
+                    // Variable not in varnames - could be a closure variable
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Cannot analyze lambda: unknown variable '{}'. Lambda parameters must be used directly.",
+                        var_name
+                    )));
+                }
+            }
+            "LOAD_FAST_LOAD_FAST" => {
+                // Python 3.12+ optimization: loads two variables at once
+                // argval is a tuple of two variable names like ('a', 'b')
+                let var_names: Vec<String> = argval.extract()?;
+                let code = callable.getattr("__code__")?;
+                let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
+                for var_name in var_names {
+                    if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
+                        stack.push(BytecodeValue::Param(idx as u32));
+                    } else {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "Cannot analyze lambda: unknown variable '{}'. Lambda parameters must be used directly.",
+                            var_name
+                        )));
+                    }
                 }
             }
             "LOAD_ATTR" | "LOAD_METHOD" => {
@@ -1357,6 +1380,79 @@ mod tests {
                     }
                 }
                 _ => panic!("Expected Eq expression"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_analyze_bi_lambda_direct_param_add() {
+        // Tests LOAD_FAST_LOAD_FAST bytecode (Python 3.12+)
+        // This is used by compose() combiner lambdas like: lambda a, b: a + b
+        init_python();
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"f = lambda a, b: a + b", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("f").unwrap().unwrap();
+
+            let info = LambdaInfo {
+                callable: func.unbind(),
+                name: "test".to_string(),
+                param_count: 2,
+                class_hint: None,
+                expression: None,
+            };
+
+            let result = analyze_lambda(py, &info).unwrap();
+
+            match result {
+                Expression::Add { left, right } => {
+                    assert!(matches!(*left, Expression::Param { index: 0 }));
+                    assert!(matches!(*right, Expression::Param { index: 1 }));
+                }
+                _ => panic!("Expected Add expression, got {:?}", result),
+            }
+        });
+    }
+
+    #[test]
+    fn test_analyze_tri_lambda_arithmetic() {
+        // Tests three-parameter lambda with arithmetic
+        init_python();
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"f = lambda a, b, c: a + b + c", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("f").unwrap().unwrap();
+
+            let info = LambdaInfo {
+                callable: func.unbind(),
+                name: "test".to_string(),
+                param_count: 3,
+                class_hint: None,
+                expression: None,
+            };
+
+            let result = analyze_lambda(py, &info).unwrap();
+
+            // Should be Add(Add(a, b), c)
+            match result {
+                Expression::Add { left, right } => {
+                    // right should be Param 2 (c)
+                    assert!(matches!(*right, Expression::Param { index: 2 }));
+                    // left should be Add(a, b)
+                    match *left {
+                        Expression::Add {
+                            left: l2,
+                            right: r2,
+                        } => {
+                            assert!(matches!(*l2, Expression::Param { index: 0 }));
+                            assert!(matches!(*r2, Expression::Param { index: 1 }));
+                        }
+                        _ => panic!("Expected nested Add"),
+                    }
+                }
+                _ => panic!("Expected Add expression, got {:?}", result),
             }
         });
     }

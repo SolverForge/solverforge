@@ -334,6 +334,138 @@ pub fn clear_class_registry() {
 }
 
 // ============================================================================
+// Expression Substitution
+// ============================================================================
+
+/// Substitute a parameter in an expression tree with another expression.
+///
+/// This is used for method inlining: when we analyze a method body, `self`
+/// becomes `Param { index: 0 }`. To inline the method call, we substitute
+/// that parameter with the actual calling object's expression.
+///
+/// # Arguments
+/// * `expr` - The expression to transform
+/// * `from_index` - The parameter index to replace (usually 0 for `self`)
+/// * `substitute` - The expression to replace it with
+///
+/// # Example
+/// ```text
+/// // Method: def get_total(self): return self.demand + self.capacity
+/// // Analyzed as: Add(FieldAccess(Param(0), "demand"), FieldAccess(Param(0), "capacity"))
+/// //
+/// // Lambda: lambda v: v.get_total() > 100
+/// // After inlining with substitute_param(method_expr, 0, Param(0)):
+/// // Gt(Add(FieldAccess(Param(0), "demand"), FieldAccess(Param(0), "capacity")), IntLiteral(100))
+/// ```
+pub fn substitute_param(expr: Expression, from_index: u32, substitute: &Expression) -> Expression {
+    match expr {
+        Expression::Param { index } if index == from_index => substitute.clone(),
+        Expression::Param { index } => Expression::Param { index },
+
+        // Recursively substitute in compound expressions
+        Expression::FieldAccess {
+            object,
+            class_name,
+            field_name,
+        } => Expression::FieldAccess {
+            object: Box::new(substitute_param(*object, from_index, substitute)),
+            class_name,
+            field_name,
+        },
+
+        Expression::Eq { left, right } => Expression::Eq {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Ne { left, right } => Expression::Ne {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Lt { left, right } => Expression::Lt {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Le { left, right } => Expression::Le {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Gt { left, right } => Expression::Gt {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Ge { left, right } => Expression::Ge {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+
+        Expression::Add { left, right } => Expression::Add {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Sub { left, right } => Expression::Sub {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Mul { left, right } => Expression::Mul {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Div { left, right } => Expression::Div {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+
+        Expression::And { left, right } => Expression::And {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Or { left, right } => Expression::Or {
+            left: Box::new(substitute_param(*left, from_index, substitute)),
+            right: Box::new(substitute_param(*right, from_index, substitute)),
+        },
+        Expression::Not { operand } => Expression::Not {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+
+        Expression::IsNull { operand } => Expression::IsNull {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::IsNotNull { operand } => Expression::IsNotNull {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+
+        Expression::HostCall {
+            function_name,
+            args,
+        } => Expression::HostCall {
+            function_name,
+            args: args
+                .into_iter()
+                .map(|arg| substitute_param(arg, from_index, substitute))
+                .collect(),
+        },
+
+        Expression::ListContains { list, element } => Expression::ListContains {
+            list: Box::new(substitute_param(*list, from_index, substitute)),
+            element: Box::new(substitute_param(*element, from_index, substitute)),
+        },
+
+        Expression::IfThenElse {
+            condition,
+            then_branch,
+            else_branch,
+        } => Expression::IfThenElse {
+            condition: Box::new(substitute_param(*condition, from_index, substitute)),
+            then_branch: Box::new(substitute_param(*then_branch, from_index, substitute)),
+            else_branch: Box::new(substitute_param(*else_branch, from_index, substitute)),
+        },
+
+        // Literals don't contain params, return as-is
+        Expression::Null | Expression::BoolLiteral { .. } | Expression::IntLiteral { .. } => expr,
+    }
+}
+
+// ============================================================================
 // Lambda Analysis
 // ============================================================================
 
@@ -1893,5 +2025,149 @@ mod tests {
                 _ => panic!("Expected Add expression, got {:?}", expr),
             }
         });
+    }
+
+    // ========================================================================
+    // Expression Substitution Tests
+    // ========================================================================
+
+    #[test]
+    fn test_substitute_param_simple() {
+        // Param(0) -> FieldAccess
+        let expr = Expression::Param { index: 0 };
+        let substitute = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 0 }),
+            class_name: "Vehicle".to_string(),
+            field_name: "id".to_string(),
+        };
+
+        let result = substitute_param(expr, 0, &substitute);
+        assert!(matches!(result, Expression::FieldAccess { .. }));
+    }
+
+    #[test]
+    fn test_substitute_param_no_match() {
+        // Param(1) should not be replaced when substituting index 0
+        let expr = Expression::Param { index: 1 };
+        let substitute = Expression::IntLiteral { value: 42 };
+
+        let result = substitute_param(expr, 0, &substitute);
+        assert!(matches!(result, Expression::Param { index: 1 }));
+    }
+
+    #[test]
+    fn test_substitute_param_in_field_access() {
+        // FieldAccess(Param(0), "capacity") -> FieldAccess(FieldAccess(Param(0), "vehicle"), "capacity")
+        let expr = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 0 }),
+            class_name: "Vehicle".to_string(),
+            field_name: "capacity".to_string(),
+        };
+        let substitute = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 0 }),
+            class_name: "Route".to_string(),
+            field_name: "vehicle".to_string(),
+        };
+
+        let result = substitute_param(expr, 0, &substitute);
+        match result {
+            Expression::FieldAccess {
+                object, field_name, ..
+            } => {
+                assert_eq!(field_name, "capacity");
+                // The object should now be the substitute (another FieldAccess)
+                assert!(matches!(*object, Expression::FieldAccess { .. }));
+            }
+            _ => panic!("Expected FieldAccess"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_in_binary_op() {
+        // Add(Param(0), IntLiteral(10)) with Param(0) -> FieldAccess
+        let expr = Expression::Add {
+            left: Box::new(Expression::Param { index: 0 }),
+            right: Box::new(Expression::IntLiteral { value: 10 }),
+        };
+        let substitute = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 0 }),
+            class_name: "Entity".to_string(),
+            field_name: "value".to_string(),
+        };
+
+        let result = substitute_param(expr, 0, &substitute);
+        match result {
+            Expression::Add { left, right } => {
+                assert!(matches!(*left, Expression::FieldAccess { .. }));
+                assert!(matches!(*right, Expression::IntLiteral { value: 10 }));
+            }
+            _ => panic!("Expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_preserves_literals() {
+        let expr = Expression::IntLiteral { value: 42 };
+        let substitute = Expression::Param { index: 99 };
+
+        let result = substitute_param(expr, 0, &substitute);
+        assert!(matches!(result, Expression::IntLiteral { value: 42 }));
+    }
+
+    #[test]
+    fn test_substitute_param_method_inlining_scenario() {
+        // Simulate method inlining:
+        // Method: def get_excess(self): return self.demand - self.capacity
+        // Analyzed as: Sub(FieldAccess(Param(0), "demand"), FieldAccess(Param(0), "capacity"))
+        //
+        // Lambda: lambda v: v.get_excess() > 0
+        // When inlining, we substitute Param(0) in method body with Param(0) from lambda
+        // (which represents 'v')
+
+        let method_body = Expression::Sub {
+            left: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 0 }), // self
+                class_name: "Vehicle".to_string(),
+                field_name: "demand".to_string(),
+            }),
+            right: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 0 }), // self
+                class_name: "Vehicle".to_string(),
+                field_name: "capacity".to_string(),
+            }),
+        };
+
+        // The calling object in lambda is Param(0) (the 'v' parameter)
+        let calling_object = Expression::Param { index: 0 };
+
+        // After substitution, self references become lambda parameter references
+        let inlined = substitute_param(method_body, 0, &calling_object);
+
+        match inlined {
+            Expression::Sub { left, right } => {
+                // Both should still be FieldAccess with Param(0) as object
+                match (*left, *right) {
+                    (
+                        Expression::FieldAccess {
+                            object: l_obj,
+                            field_name: l_field,
+                            ..
+                        },
+                        Expression::FieldAccess {
+                            object: r_obj,
+                            field_name: r_field,
+                            ..
+                        },
+                    ) => {
+                        assert_eq!(l_field, "demand");
+                        assert_eq!(r_field, "capacity");
+                        assert!(matches!(*l_obj, Expression::Param { index: 0 }));
+                        assert!(matches!(*r_obj, Expression::Param { index: 0 }));
+                    }
+                    _ => panic!("Expected FieldAccess on both sides"),
+                }
+            }
+            _ => panic!("Expected Sub expression"),
+        }
     }
 }

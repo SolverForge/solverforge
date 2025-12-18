@@ -21,7 +21,7 @@ use solverforge_core::constraints::{Constraint, Joiner, StreamComponent};
 
 use crate::collectors::PyCollector;
 use crate::joiners::PyJoiner;
-use crate::lambda_analyzer::LambdaInfo;
+use crate::lambda_analyzer::{register_class, LambdaInfo};
 use crate::score::{
     PyHardMediumSoftDecimalScore, PyHardMediumSoftScore, PyHardSoftDecimalScore, PyHardSoftScore,
     PySimpleScore,
@@ -61,17 +61,26 @@ impl PyConstraintFactory {
     }
 
     /// Start a stream that matches every entity of the given class.
-    fn for_each(&self, cls: &Bound<'_, PyType>) -> PyResult<PyUniConstraintStream> {
+    fn for_each(&self, py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<PyUniConstraintStream> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the class for method introspection
+        register_class(py, &class_name, cls);
+
         Ok(PyUniConstraintStream::new(class_name, false))
     }
 
     /// Start a stream that matches every entity including unassigned ones.
     fn for_each_including_unassigned(
         &self,
+        py: Python<'_>,
         cls: &Bound<'_, PyType>,
     ) -> PyResult<PyUniConstraintStream> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the class for method introspection
+        register_class(py, &class_name, cls);
+
         Ok(PyUniConstraintStream::new(class_name, true))
     }
 
@@ -79,10 +88,15 @@ impl PyConstraintFactory {
     #[pyo3(signature = (cls, *joiners))]
     fn for_each_unique_pair(
         &self,
+        py: Python<'_>,
         cls: &Bound<'_, PyType>,
         joiners: Vec<PyJoiner>,
     ) -> PyResult<PyBiConstraintStream> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the class for method introspection
+        register_class(py, &class_name, cls);
+
         Ok(PyBiConstraintStream::from_unique_pair(class_name, joiners))
     }
 
@@ -213,10 +227,15 @@ impl PyUniConstraintStream {
     #[pyo3(signature = (cls, *joiners))]
     fn join(
         &self,
+        py: Python<'_>,
         cls: &Bound<'_, PyType>,
         joiners: Vec<PyJoiner>,
     ) -> PyResult<PyBiConstraintStream> {
         let join_class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the join class for method introspection
+        register_class(py, &join_class_name, cls);
+
         let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
 
         let mut components = self.components.clone();

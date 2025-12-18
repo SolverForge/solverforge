@@ -31,7 +31,9 @@ pub use bridge::{PyBridge, PythonBridge};
 pub use collectors::{PyCollector, PyConstraintCollectors};
 pub use decorators::{PyConstraintProvider, PyDomainClass, PyDomainModel};
 pub use joiners::{PyJoiner, PyJoiners};
-pub use lambda_analyzer::{generate_lambda_name, LambdaInfo};
+pub use lambda_analyzer::{
+    analyze_method_body, generate_lambda_name, get_method_from_class, register_class, LambdaInfo,
+};
 pub use score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
 pub use solver::{
     PyDiminishedReturnsConfig, PyEnvironmentMode, PyMoveThreadCount, PySolveHandle,

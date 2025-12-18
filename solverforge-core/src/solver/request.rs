@@ -21,6 +21,11 @@ pub struct SolveRequest {
     pub environment_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub termination: Option<TerminationConfig>,
+    /// Pre-computed method results for methods that couldn't be inlined.
+    /// Maps method_hash to a table of (object_key -> result).
+    /// Object keys are strings like "ptr1_ptr2" for 2-arg methods.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub precomputed: Option<IndexMap<i32, IndexMap<String, i32>>>,
 }
 
 impl SolveRequest {
@@ -44,6 +49,7 @@ impl SolveRequest {
             problem,
             environment_mode: None,
             termination: None,
+            precomputed: None,
         }
     }
 
@@ -61,6 +67,11 @@ impl SolveRequest {
         self.termination = Some(termination);
         self
     }
+
+    pub fn with_precomputed(mut self, precomputed: IndexMap<i32, IndexMap<String, i32>>) -> Self {
+        self.precomputed = Some(precomputed);
+        self
+    }
 }
 
 /// Domain object definition with fields and optional mapper
@@ -71,6 +82,9 @@ pub struct DomainObjectDto {
     pub fields: IndexMap<String, FieldDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mapper: Option<DomainObjectMapper>,
+    /// Class-level annotations (e.g., PlanningEntity)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub annotations: Vec<ClassAnnotation>,
 }
 
 impl DomainObjectDto {
@@ -78,7 +92,13 @@ impl DomainObjectDto {
         Self {
             fields: IndexMap::new(),
             mapper: None,
+            annotations: Vec::new(),
         }
+    }
+
+    pub fn with_annotation(mut self, annotation: ClassAnnotation) -> Self {
+        self.annotations.push(annotation);
+        self
     }
 
     pub fn with_field(mut self, name: impl Into<String>, field: FieldDescriptor) -> Self {
@@ -193,11 +213,23 @@ pub enum PlanningAnnotation {
         #[serde(default, rename = "allowsUnassigned", skip_serializing_if = "is_false")]
         allows_unassigned: bool,
     },
+    PlanningListVariable {
+        #[serde(
+            default,
+            rename = "allowsUnassignedValues",
+            skip_serializing_if = "is_false"
+        )]
+        allows_unassigned_values: bool,
+    },
     PlanningId,
     PlanningScore,
     ValueRangeProvider,
     ProblemFactCollectionProperty,
     PlanningEntityCollectionProperty,
+    InverseRelationShadowVariable {
+        #[serde(rename = "source_variable_name")]
+        source_variable_name: String,
+    },
 }
 
 impl PlanningAnnotation {
@@ -210,6 +242,18 @@ impl PlanningAnnotation {
     pub fn planning_variable_allows_unassigned() -> Self {
         PlanningAnnotation::PlanningVariable {
             allows_unassigned: true,
+        }
+    }
+
+    pub fn planning_list_variable() -> Self {
+        PlanningAnnotation::PlanningListVariable {
+            allows_unassigned_values: false,
+        }
+    }
+
+    pub fn planning_list_variable_allows_unassigned() -> Self {
+        PlanningAnnotation::PlanningListVariable {
+            allows_unassigned_values: true,
         }
     }
 
@@ -232,6 +276,14 @@ impl PlanningAnnotation {
     pub fn planning_entity_collection_property() -> Self {
         PlanningAnnotation::PlanningEntityCollectionProperty
     }
+}
+
+/// Class-level annotations (applied to the class itself, not fields)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "annotation")]
+pub enum ClassAnnotation {
+    PlanningEntity,
+    PlanningSolution,
 }
 
 /// List accessor for WASM list operations

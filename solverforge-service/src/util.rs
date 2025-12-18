@@ -3,7 +3,6 @@ use log::debug;
 use std::env;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 pub fn find_available_port() -> ServiceResult<u16> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -12,8 +11,10 @@ pub fn find_available_port() -> ServiceResult<u16> {
 }
 
 pub fn find_java(java_home: Option<&Path>) -> ServiceResult<PathBuf> {
+    // 1. Explicit java_home parameter takes priority
     if let Some(home) = java_home {
         let java_path = home.join("bin").join("java");
+        debug!("Checking explicit java_home: {}", java_path.display());
         if java_path.exists() {
             return Ok(java_path);
         }
@@ -23,19 +24,27 @@ pub fn find_java(java_home: Option<&Path>) -> ServiceResult<PathBuf> {
         )));
     }
 
-    if let Ok(home) = env::var("JAVA_HOME") {
-        let java_path = PathBuf::from(&home).join("bin").join("java");
-        if java_path.exists() {
-            return Ok(java_path);
-        }
-    }
-
+    // 2. Check PATH first (respects user's system configuration)
     if let Ok(output) = std::process::Command::new("which").arg("java").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            debug!("Found java via PATH: {}", path);
             if !path.is_empty() {
                 return Ok(PathBuf::from(path));
             }
+        }
+    }
+
+    // 3. Fall back to JAVA_HOME env var
+    if let Ok(home) = env::var("JAVA_HOME") {
+        let java_path = PathBuf::from(&home).join("bin").join("java");
+        debug!(
+            "Checking JAVA_HOME env: {} -> {}",
+            home,
+            java_path.display()
+        );
+        if java_path.exists() {
+            return Ok(java_path);
         }
     }
 
@@ -62,40 +71,6 @@ pub fn find_maven() -> ServiceResult<PathBuf> {
     Err(ServiceError::MavenNotFound(
         "mvn not found in PATH".to_string(),
     ))
-}
-
-pub fn wait_for_ready(url: &str, timeout: Duration) -> ServiceResult<()> {
-    let start = Instant::now();
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(2))
-        .build()
-        .map_err(|e| ServiceError::Http(e.to_string()))?;
-
-    debug!("Waiting for service to be ready: {}", url);
-
-    loop {
-        if start.elapsed() > timeout {
-            return Err(ServiceError::Unhealthy(format!(
-                "Service did not become ready within {:?}",
-                timeout
-            )));
-        }
-
-        match client.get(url).send() {
-            Ok(response) if response.status().is_success() => {
-                debug!("Service is ready after {:?}", start.elapsed());
-                return Ok(());
-            }
-            Ok(response) => {
-                debug!("Health check returned {}", response.status());
-            }
-            Err(e) => {
-                debug!("Service not ready yet: {}", e);
-            }
-        }
-
-        std::thread::sleep(Duration::from_millis(500));
-    }
 }
 
 pub fn get_cache_dir() -> PathBuf {

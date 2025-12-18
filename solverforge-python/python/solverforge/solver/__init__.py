@@ -82,6 +82,9 @@ class SolverJob(Generic[Solution_, ProblemId_]):
                 self._final_best_solution_consumer(response.solution)
 
         except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).error("Solver failed: %s", e, exc_info=True)
             with self._lock:
                 self._exception = e
                 self._status = SolverStatus.NOT_SOLVING

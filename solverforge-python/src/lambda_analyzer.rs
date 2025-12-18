@@ -297,8 +297,9 @@ fn extract_method_return_expression(
             // Find return statement in function body
             let body = node.getattr("body")?;
             let body_list = body.cast::<PyList>()?;
+            let stmts: Vec<Bound<'_, PyAny>> = body_list.iter().collect();
 
-            for stmt in body_list.iter() {
+            for (i, stmt) in stmts.iter().enumerate() {
                 let stmt_type = stmt.get_type().name()?.to_string();
                 if stmt_type == "Return" {
                     let value = stmt.getattr("value")?;
@@ -310,6 +311,30 @@ fn extract_method_return_expression(
                         }
                     }
                 }
+                // Handle If statements with returns
+                if stmt_type == "If" {
+                    // First try standard if/else extraction
+                    if let Ok(expr) = try_extract_if_expression(py, stmt, &arg_names, class_hint) {
+                        return Ok(expr);
+                    }
+                    // Try if-early-return pattern: if condition returns, rest is else
+                    if let Ok(expr) = try_extract_if_early_return(
+                        py,
+                        stmt,
+                        &stmts[i + 1..],
+                        &arg_names,
+                        class_hint,
+                    ) {
+                        return Ok(expr);
+                    }
+                }
+            }
+
+            // Try to recognize common patterns with loops (e.g., sum accumulation)
+            if let Ok(expr) =
+                try_extract_accumulation_pattern(py, body_list, &arg_names, class_hint)
+            {
+                return Ok(expr);
             }
 
             // No explicit return found - method might be more complex
@@ -450,6 +475,38 @@ pub fn substitute_param(expr: Expression, from_index: u32, substitute: &Expressi
             element: Box::new(substitute_param(*element, from_index, substitute)),
         },
 
+        Expression::Length { collection } => Expression::Length {
+            collection: Box::new(substitute_param(*collection, from_index, substitute)),
+        },
+
+        Expression::Sum {
+            collection,
+            item_var_name,
+            item_param_index,
+            item_class_name,
+            accumulator_expr,
+        } => {
+            // When substituting, we need to adjust the item_param_index if necessary
+            // If from_index <= item_param_index, we shifted indices, so decrement
+            let new_index = if from_index < item_param_index {
+                item_param_index - 1
+            } else {
+                item_param_index
+            };
+
+            Expression::Sum {
+                collection: Box::new(substitute_param(*collection, from_index, substitute)),
+                item_var_name,
+                item_param_index: new_index,
+                item_class_name,
+                accumulator_expr: Box::new(substitute_param(
+                    *accumulator_expr,
+                    from_index,
+                    substitute,
+                )),
+            }
+        }
+
         Expression::IfThenElse {
             condition,
             then_branch,
@@ -458,6 +515,21 @@ pub fn substitute_param(expr: Expression, from_index: u32, substitute: &Expressi
             condition: Box::new(substitute_param(*condition, from_index, substitute)),
             then_branch: Box::new(substitute_param(*then_branch, from_index, substitute)),
             else_branch: Box::new(substitute_param(*else_branch, from_index, substitute)),
+        },
+
+        Expression::MethodCall {
+            object,
+            class_name,
+            method_name,
+            args,
+        } => Expression::MethodCall {
+            object: Box::new(substitute_param(*object, from_index, substitute)),
+            class_name,
+            method_name,
+            args: args
+                .into_iter()
+                .map(|arg| substitute_param(arg, from_index, substitute))
+                .collect(),
         },
 
         // Literals don't contain params, return as-is
@@ -508,7 +580,10 @@ fn analyze_lambda(
 /// 2. Analyze the method body
 /// 3. Substitute parameters and return inlined expression
 ///
-/// Returns Some(Expression) if inlining succeeded, None otherwise.
+/// If inlining fails but we can convert the object and args to expressions,
+/// returns a MethodCall expression that will be resolved via pre-computed lookup.
+///
+/// Returns Some(Expression) on success (inlined or MethodCall), None on failure.
 fn try_inline_method_from_bytecode(
     py: Python<'_>,
     object: &BytecodeValue,
@@ -516,7 +591,7 @@ fn try_inline_method_from_bytecode(
     args: &[BytecodeValue],
     class_name: &str,
 ) -> Option<Expression> {
-    // Try to look up the method
+    // Try to look up the method and inline it
     if let Some(method) = get_method_from_class(py, class_name, method_name) {
         // Try to analyze the method body
         if let Ok(method_body) = analyze_method_body(py, &method, class_name) {
@@ -536,6 +611,37 @@ fn try_inline_method_from_bytecode(
 
                 return Some(inlined);
             }
+        }
+    }
+
+    // Inlining failed - try to create a MethodCall expression for pre-computed lookup
+    // This requires converting the object and args to expressions
+    if let Ok(object_expr) = bytecode_value_to_expression(object.clone()) {
+        let mut arg_exprs = Vec::new();
+        let mut all_args_ok = true;
+
+        for arg in args {
+            match bytecode_value_to_expression(arg.clone()) {
+                Ok(expr) => arg_exprs.push(expr),
+                Err(_) => {
+                    all_args_ok = false;
+                    break;
+                }
+            }
+        }
+
+        if all_args_ok {
+            log::debug!(
+                "Method {}.{}() will be resolved via pre-computed lookup",
+                class_name,
+                method_name
+            );
+            return Some(Expression::MethodCall {
+                object: Box::new(object_expr),
+                class_name: class_name.to_string(),
+                method_name: method_name.to_string(),
+                args: arg_exprs,
+            });
         }
     }
 
@@ -726,24 +832,12 @@ fn analyze_lambda_bytecode(
                             ) {
                                 stack.push(BytecodeValue::InlinedExpression(Box::new(inlined)));
                             } else {
-                                // Fallback: convert to HostCall
-                                if let Ok(obj_expr) =
-                                    bytecode_value_to_expression((*object).clone())
-                                {
-                                    let mut call_args = vec![obj_expr];
-                                    for arg in args {
-                                        if let Ok(arg_expr) = bytecode_value_to_expression(arg) {
-                                            call_args.push(arg_expr);
-                                        }
-                                    }
-                                    let function_name = format!("{}_{}", class_name, method_name);
-                                    stack.push(BytecodeValue::InlinedExpression(Box::new(
-                                        Expression::HostCall {
-                                            function_name,
-                                            args: call_args,
-                                        },
-                                    )));
-                                }
+                                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                                    format!(
+                                        "Cannot inline method {}.{}()",
+                                        class_name, method_name
+                                    ),
+                                ));
                             }
                         } else {
                             stack.push(method_ref);
@@ -779,24 +873,12 @@ fn analyze_lambda_bytecode(
                             ) {
                                 stack.push(BytecodeValue::InlinedExpression(Box::new(inlined)));
                             } else {
-                                // Fallback: convert to HostCall
-                                if let Ok(obj_expr) =
-                                    bytecode_value_to_expression((*object).clone())
-                                {
-                                    let mut call_args = vec![obj_expr];
-                                    for arg in args {
-                                        if let Ok(arg_expr) = bytecode_value_to_expression(arg) {
-                                            call_args.push(arg_expr);
-                                        }
-                                    }
-                                    let function_name = format!("{}_{}", class_name, method_name);
-                                    stack.push(BytecodeValue::InlinedExpression(Box::new(
-                                        Expression::HostCall {
-                                            function_name,
-                                            args: call_args,
-                                        },
-                                    )));
-                                }
+                                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                                    format!(
+                                        "Cannot inline method {}.{}()",
+                                        class_name, method_name
+                                    ),
+                                ));
                             }
                         } else {
                             stack.push(func_or_ref);
@@ -1203,6 +1285,1173 @@ fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<S
     Ok(names)
 }
 
+/// Extract if-then-else expression from an If statement.
+///
+/// Handles patterns like:
+/// ```python
+/// if condition:
+///     return expr1
+/// else:
+///     return expr2
+/// ```
+fn try_extract_if_expression(
+    py: Python<'_>,
+    if_stmt: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    // Extract condition
+    let condition_node = if_stmt.getattr("test")?;
+    let condition = convert_ast_to_expression(py, &condition_node, arg_names, class_hint)?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Cannot convert if condition")
+        })?;
+
+    // Extract then branch (body)
+    let body = if_stmt.getattr("body")?;
+    let body_list = body.cast::<PyList>()?;
+    let mut then_expr = None;
+    for stmt in body_list.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+        if stmt_type == "Return" {
+            let value = stmt.getattr("value")?;
+            if !value.is_none() {
+                then_expr = convert_ast_to_expression(py, &value, arg_names, class_hint)?;
+                break;
+            } else {
+                then_expr = Some(Expression::Null);
+                break;
+            }
+        }
+    }
+
+    let then_expr = then_expr.ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>("If statement body must contain return")
+    })?;
+
+    // Extract else branch (orelse)
+    let orelse = if_stmt.getattr("orelse")?;
+    let orelse_list = orelse.cast::<PyList>()?;
+    let mut else_expr = None;
+
+    for stmt in orelse_list.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+        if stmt_type == "Return" {
+            let value = stmt.getattr("value")?;
+            if !value.is_none() {
+                else_expr = convert_ast_to_expression(py, &value, arg_names, class_hint)?;
+                break;
+            } else {
+                else_expr = Some(Expression::Null);
+                break;
+            }
+        } else if stmt_type == "If" {
+            // Nested if - recursively extract
+            else_expr = Some(try_extract_if_expression(py, &stmt, arg_names, class_hint)?);
+            break;
+        }
+    }
+
+    let else_expr = else_expr.ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "If statement must have else branch with return",
+        )
+    })?;
+
+    Ok(Expression::IfThenElse {
+        condition: Box::new(condition),
+        then_branch: Box::new(then_expr),
+        else_branch: Box::new(else_expr),
+    })
+}
+
+/// Extract if-early-return pattern where if body returns and remaining statements are the else.
+///
+/// Handles patterns like:
+/// ```python
+/// if condition:
+///     return x
+/// return y  # This is the implicit else
+/// ```
+fn try_extract_if_early_return(
+    py: Python<'_>,
+    if_stmt: &Bound<'_, PyAny>,
+    remaining_stmts: &[Bound<'_, PyAny>],
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    // Extract condition
+    let condition_node = if_stmt.getattr("test")?;
+    let condition_opt = convert_ast_to_expression(py, &condition_node, arg_names, class_hint)?;
+
+    // Extract then branch from if body
+    let body = if_stmt.getattr("body")?;
+    let body_list = body.cast::<PyList>()?;
+    let mut then_expr = None;
+    for stmt in body_list.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+        if stmt_type == "Return" {
+            let value = stmt.getattr("value")?;
+            if !value.is_none() {
+                then_expr = convert_ast_to_expression(py, &value, arg_names, class_hint)?;
+                break;
+            } else {
+                then_expr = Some(Expression::Null);
+                break;
+            }
+        }
+    }
+
+    let then_expr = then_expr.ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "If body must contain return for early-return pattern",
+        )
+    })?;
+
+    // Check for patterns where condition can't be converted but we can use a fallback:
+    // 1. "empty collection guard": if len(collection) == 0: return 0 - use Sum
+    // 2. "optional check": if X is not None: return A; return B - use fallback B
+    if condition_opt.is_none() {
+        // Pattern 1: Empty collection guard
+        let is_guard = is_empty_collection_guard(py, &condition_node)?;
+        let is_zero = matches!(then_expr, Expression::IntLiteral { value: 0 });
+        log::debug!(
+            "Empty guard check: is_guard={}, is_zero={}, then_expr={:?}",
+            is_guard,
+            is_zero,
+            then_expr
+        );
+
+        if is_guard && is_zero {
+            // Try accumulation pattern - Sum handles empty collections
+            let remaining_list = PyList::new(py, remaining_stmts)?;
+            match try_extract_accumulation_pattern(py, &remaining_list, arg_names, class_hint) {
+                Ok(accum_expr) => return Ok(accum_expr),
+                Err(e) => {
+                    log::debug!("Accumulation pattern failed: {}", e);
+                }
+            }
+        }
+
+        // Pattern 2: "if X is not None: ...; return fallback" - use the fallback
+        // This handles cases like ClassVar access that we can't convert
+        if is_not_none_check(py, &condition_node)? {
+            // The remaining statements should have a fallback return
+            for stmt in remaining_stmts.iter() {
+                let stmt_type = stmt.get_type().name()?.to_string();
+                if stmt_type == "Return" {
+                    let value = stmt.getattr("value")?;
+                    if !value.is_none() {
+                        if let Some(fallback_expr) =
+                            convert_ast_to_expression(py, &value, arg_names, class_hint)?
+                        {
+                            log::debug!("Using fallback for 'is not None' pattern");
+                            return Ok(fallback_expr);
+                        }
+                    }
+                }
+            }
+        }
+
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Cannot convert if condition",
+        ));
+    }
+
+    let condition = condition_opt.unwrap();
+
+    // Extract else from remaining statements - find a return or accumulation pattern
+    let mut else_expr = None;
+    for stmt in remaining_stmts.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+        if stmt_type == "Return" {
+            let value = stmt.getattr("value")?;
+            if !value.is_none() {
+                else_expr = convert_ast_to_expression(py, &value, arg_names, class_hint)?;
+                break;
+            }
+        } else if stmt_type == "If" {
+            // Nested if-early-return in else branch
+            let remaining_after =
+                &remaining_stmts[remaining_stmts.iter().position(|s| s.is(stmt)).unwrap() + 1..];
+            else_expr = Some(try_extract_if_early_return(
+                py,
+                stmt,
+                remaining_after,
+                arg_names,
+                class_hint,
+            )?);
+            break;
+        }
+    }
+
+    // If no direct return found, try accumulation pattern on remaining statements
+    if else_expr.is_none() {
+        let remaining_list = PyList::new(py, remaining_stmts)?;
+        if let Ok(accum_expr) =
+            try_extract_accumulation_pattern(py, &remaining_list, arg_names, class_hint)
+        {
+            else_expr = Some(accum_expr);
+        }
+    }
+
+    let else_expr = else_expr.ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Remaining statements must contain return or accumulation pattern",
+        )
+    })?;
+
+    Ok(Expression::IfThenElse {
+        condition: Box::new(condition),
+        then_branch: Box::new(then_expr),
+        else_branch: Box::new(else_expr),
+    })
+}
+
+/// Check if a condition AST node is an "empty collection guard" pattern: len(x) == 0
+fn is_empty_collection_guard(py: Python<'_>, condition: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let node_type = condition.get_type().name()?.to_string();
+    if node_type != "Compare" {
+        return Ok(false);
+    }
+
+    // Check left side is len(...)
+    let left = condition.getattr("left")?;
+    let left_type = left.get_type().name()?.to_string();
+    if left_type != "Call" {
+        return Ok(false);
+    }
+
+    let func = left.getattr("func")?;
+    let func_type = func.get_type().name()?.to_string();
+    if func_type != "Name" {
+        return Ok(false);
+    }
+
+    let func_name: String = func.getattr("id")?.extract()?;
+    if func_name != "len" {
+        return Ok(false);
+    }
+
+    // Check comparator is == 0
+    let ops = condition.getattr("ops")?;
+    let ops_list = ops.cast::<PyList>()?;
+    if ops_list.len() != 1 {
+        return Ok(false);
+    }
+
+    let op = ops_list.get_item(0)?;
+    let op_type = op.get_type().name()?.to_string();
+    if op_type != "Eq" {
+        return Ok(false);
+    }
+
+    let comparators = condition.getattr("comparators")?;
+    let comps_list = comparators.cast::<PyList>()?;
+    if comps_list.len() != 1 {
+        return Ok(false);
+    }
+
+    let comp = comps_list.get_item(0)?;
+    let comp_type = comp.get_type().name()?.to_string();
+    if comp_type != "Constant" && comp_type != "Num" {
+        return Ok(false);
+    }
+
+    if let Ok(value) = comp.getattr("value") {
+        if let Ok(0i64) = value.extract() {
+            return Ok(true);
+        }
+    }
+
+    let _ = py;
+    Ok(false)
+}
+
+/// Check if a condition AST node is an "is not None" check: X is not None
+fn is_not_none_check(py: Python<'_>, condition: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let node_type = condition.get_type().name()?.to_string();
+    if node_type != "Compare" {
+        return Ok(false);
+    }
+
+    // Check operator is IsNot
+    let ops = condition.getattr("ops")?;
+    let ops_list = ops.cast::<PyList>()?;
+    if ops_list.len() != 1 {
+        return Ok(false);
+    }
+
+    let op = ops_list.get_item(0)?;
+    let op_type = op.get_type().name()?.to_string();
+    if op_type != "IsNot" {
+        return Ok(false);
+    }
+
+    // Check comparator is None
+    let comparators = condition.getattr("comparators")?;
+    let comps_list = comparators.cast::<PyList>()?;
+    if comps_list.len() != 1 {
+        return Ok(false);
+    }
+
+    let comp = comps_list.get_item(0)?;
+    let comp_type = comp.get_type().name()?.to_string();
+
+    // Check if it's the None constant
+    if comp_type == "Constant" || comp_type == "NameConstant" {
+        if let Ok(value) = comp.getattr("value") {
+            if value.is_none() {
+                return Ok(true);
+            }
+        }
+    } else if comp_type == "Name" {
+        let name: String = comp.getattr("id")?.extract()?;
+        if name == "None" {
+            return Ok(true);
+        }
+    }
+
+    let _ = py;
+    Ok(false)
+}
+
+/// Detect and extract accumulation patterns from method body.
+///
+/// Recognizes patterns like:
+/// ```python
+/// def method(self):
+///     total = 0
+///     for item in self.collection:
+///         total += item.field
+///     return total
+/// ```
+fn try_extract_accumulation_pattern(
+    py: Python<'_>,
+    body_list: &Bound<'_, PyList>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    // Pattern: [Assign*, For, AugAssign?, Return]
+    // Step 1: Find variable initialized to 0 (accumulator)
+    // Step 2: Collect other pre-loop assignments (mutable loop vars)
+    // Step 3: Find for loop that accumulates to that variable
+    // Step 4: Find return of that variable
+
+    let mut accumulator_var: Option<String> = None;
+    let mut pre_loop_assigns: Vec<(String, Bound<'_, PyAny>)> = Vec::new();
+    let mut for_loop_node: Option<Bound<'_, PyAny>> = None;
+    let mut return_var: Option<String> = None;
+    let mut found_for = false;
+
+    for stmt in body_list.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+
+        match stmt_type.as_str() {
+            "Assign" => {
+                if !found_for {
+                    // Pre-loop assignment
+                    let targets = stmt.getattr("targets")?;
+                    let targets_list = targets.cast::<PyList>()?;
+                    if targets_list.len() == 1 {
+                        let target = targets_list.get_item(0)?;
+                        let target_type = target.get_type().name()?.to_string();
+
+                        if target_type == "Name" {
+                            let var_name: String = target.getattr("id")?.extract()?;
+                            let value = stmt.getattr("value")?;
+                            let value_type = value.get_type().name()?.to_string();
+
+                            // Check if value is 0 (accumulator init)
+                            if value_type == "Constant" || value_type == "Num" {
+                                let const_value = value.getattr("value").ok();
+                                if let Some(v) = const_value {
+                                    if let Ok(0i64) = v.extract::<i64>() {
+                                        accumulator_var = Some(var_name.clone());
+                                    }
+                                }
+                            }
+
+                            // Also track as pre-loop assign (for mutable var detection)
+                            pre_loop_assigns.push((var_name, value));
+                        }
+                    }
+                }
+            }
+            "For" => {
+                for_loop_node = Some(stmt.clone());
+                found_for = true;
+            }
+            "AugAssign" => {
+                // Post-loop addition - ignore for now, handled separately
+            }
+            "Return" => {
+                let ret_value = stmt.getattr("value")?;
+                if !ret_value.is_none() {
+                    let ret_type = ret_value.get_type().name()?.to_string();
+                    if ret_type == "Name" {
+                        return_var = Some(ret_value.getattr("id")?.extract()?);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Check if we found the pattern
+    if let (Some(accum_var), Some(for_loop), Some(ret_var)) =
+        (accumulator_var, for_loop_node, return_var)
+    {
+        if accum_var == ret_var {
+            // This looks like an accumulation pattern
+            // Now extract the details from the for loop
+            return extract_sum_from_for_loop(
+                py,
+                &for_loop,
+                &accum_var,
+                arg_names,
+                class_hint,
+                &pre_loop_assigns,
+            );
+        }
+    }
+
+    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+        "Not an accumulation pattern",
+    ))
+}
+
+/// Information about a mutable variable tracked across loop iterations.
+/// Used to detect "previous element" patterns like:
+/// ```python
+/// prev = self.init_field
+/// for item in collection:
+///     use(prev)
+///     prev = item.field
+/// ```
+#[derive(Debug, Clone)]
+struct MutableLoopVar {
+    /// The variable name (e.g., "previous_location")
+    name: String,
+    /// The initialization expression (e.g., self.home_location)
+    init_expr: Bound<'static, PyAny>,
+    /// The field being tracked from each item (e.g., "location" from visit.location)
+    item_field: String,
+}
+
+/// Extract a sum expression from a for loop that accumulates values.
+///
+/// Converts: for item in collection: acc += item.field
+/// To: Sum of item.field for each item in collection
+///
+/// Also handles "previous element" patterns where a variable tracks
+/// the previous iteration's value.
+fn extract_sum_from_for_loop(
+    py: Python<'_>,
+    for_loop: &Bound<'_, PyAny>,
+    accum_var: &str,
+    arg_names: &[String],
+    class_hint: &str,
+    pre_loop_assigns: &[(String, Bound<'_, PyAny>)],
+) -> PyResult<Expression> {
+    // Extract loop variable and iterable
+    let target = for_loop.getattr("target")?;
+    let target_type = target.get_type().name()?.to_string();
+
+    if target_type != "Name" {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Complex loop targets not supported",
+        ));
+    }
+
+    let loop_var: String = target.getattr("id")?.extract()?;
+    let iter_expr = for_loop.getattr("iter")?;
+
+    // The iterable should be something like self.collection
+    if let Some(collection_expr) = convert_ast_to_expression(py, &iter_expr, arg_names, class_hint)?
+    {
+        // Infer the item type from the collection
+        let item_class_hint = infer_item_type(py, &collection_expr)?;
+
+        // Now extract what's being accumulated from the loop body
+        let body = for_loop.getattr("body")?;
+        let body_list = body.cast::<PyList>()?;
+
+        // Detect mutable loop variables (assigned before loop, updated in loop)
+        let mutable_vars = detect_mutable_loop_vars(py, body_list, &loop_var, pre_loop_assigns)?;
+
+        // Look for the accumulation statement: accum_var += something
+        for stmt in body_list.iter() {
+            let stmt_type = stmt.get_type().name()?.to_string();
+
+            if stmt_type == "AugAssign" {
+                let target = stmt.getattr("target")?;
+                let target_type = target.get_type().name()?.to_string();
+
+                if target_type == "Name" {
+                    let target_var: String = target.getattr("id")?.extract()?;
+
+                    if target_var == accum_var {
+                        let op = stmt.getattr("op")?;
+                        let op_type = op.get_type().name()?.to_string();
+
+                        if op_type == "Add" {
+                            let value = stmt.getattr("value")?;
+
+                            // Create arg list with loop variable
+                            let mut loop_arg_names = arg_names.to_vec();
+                            loop_arg_names.push(loop_var.clone());
+
+                            // Also add mutable var names so they're recognized
+                            for mv in &mutable_vars {
+                                loop_arg_names.push(mv.name.clone());
+                            }
+
+                            // Try to convert the accumulated expression
+                            let accumulated_expr = convert_ast_to_expression_with_mutable_vars(
+                                py,
+                                &value,
+                                &loop_arg_names,
+                                &item_class_hint,
+                                &loop_var,
+                                &mutable_vars,
+                                arg_names,
+                                class_hint,
+                            )?;
+
+                            if let Some(expr) = accumulated_expr {
+                                let loop_var_param_index = (arg_names.len()) as u32;
+
+                                return Ok(create_sum_over_collection(
+                                    expr,
+                                    &loop_var,
+                                    collection_expr,
+                                    loop_var_param_index,
+                                    &item_class_hint,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+        "Could not extract sum pattern from for loop",
+    ))
+}
+
+/// Detect variables that are assigned before the loop and updated inside the loop.
+/// These track "previous element" values.
+fn detect_mutable_loop_vars(
+    _py: Python<'_>,
+    body_list: &Bound<'_, PyList>,
+    loop_var: &str,
+    pre_loop_assigns: &[(String, Bound<'_, PyAny>)],
+) -> PyResult<Vec<MutableLoopVar>> {
+    let mut result = Vec::new();
+
+    // Find assignments in loop body that update a pre-loop variable
+    for stmt in body_list.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+
+        if stmt_type == "Assign" {
+            let targets = stmt.getattr("targets")?;
+            let targets_list = targets.cast::<PyList>()?;
+            if targets_list.len() == 1 {
+                let target = targets_list.get_item(0)?;
+                let target_type = target.get_type().name()?.to_string();
+
+                if target_type == "Name" {
+                    let var_name: String = target.getattr("id")?.extract()?;
+
+                    // Check if this variable was assigned before the loop
+                    for (pre_var, pre_value) in pre_loop_assigns {
+                        if &var_name == pre_var {
+                            // Check if the new value is loop_var.field
+                            let value = stmt.getattr("value")?;
+                            let value_type = value.get_type().name()?.to_string();
+
+                            if value_type == "Attribute" {
+                                let attr_value = value.getattr("value")?;
+                                let attr_type = attr_value.get_type().name()?.to_string();
+
+                                if attr_type == "Name" {
+                                    let base_name: String = attr_value.getattr("id")?.extract()?;
+                                    if base_name == loop_var {
+                                        let field_name: String =
+                                            value.getattr("attr")?.extract()?;
+
+                                        // Clone pre_value into 'static lifetime by leaking
+                                        // This is safe as we're in a short-lived analysis context
+                                        let init_expr: Bound<'static, PyAny> =
+                                            unsafe { std::mem::transmute(pre_value.clone()) };
+
+                                        result.push(MutableLoopVar {
+                                            name: var_name.clone(),
+                                            init_expr,
+                                            item_field: field_name,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+/// Convert AST to expression, handling mutable loop variables.
+///
+/// When a mutable variable is referenced, it's replaced with:
+/// - For first iteration (item.previous_X is None): the init expression
+/// - For other iterations: item.previous_X.field
+#[allow(clippy::too_many_arguments)]
+fn convert_ast_to_expression_with_mutable_vars(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+    loop_var: &str,
+    mutable_vars: &[MutableLoopVar],
+    outer_arg_names: &[String],
+    outer_class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    let node_type = node.get_type().name()?.to_string();
+
+    // Check if this is a method call on a mutable variable
+    if node_type == "Call" {
+        let func = node.getattr("func")?;
+        let func_type = func.get_type().name()?.to_string();
+
+        if func_type == "Attribute" {
+            let value = func.getattr("value")?;
+            let value_type = value.get_type().name()?.to_string();
+            let method_name: String = func.getattr("attr")?.extract()?;
+
+            if value_type == "Name" {
+                let base_name: String = value.getattr("id")?.extract()?;
+
+                // Check if this is a mutable variable
+                for mv in mutable_vars {
+                    if base_name == mv.name {
+                        // This is a call like: mutable_var.method(args)
+                        // Replace with: if loop_var.previous_X is None: init.method(args) else: loop_var.previous_X.field.method(args)
+
+                        let call_args = node.getattr("args")?;
+                        let args_list = call_args.cast::<PyList>()?;
+
+                        // Convert call arguments
+                        let mut converted_args = Vec::new();
+                        for arg in args_list.iter() {
+                            if let Some(arg_expr) =
+                                convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                            {
+                                converted_args.push(arg_expr);
+                            } else {
+                                return Ok(None);
+                            }
+                        }
+
+                        // Find the "previous_X" shadow variable name
+                        // Convention: if tracking "location" from Visit, look for "previous_visit"
+                        let previous_shadow = find_previous_shadow_variable(py, class_hint)?;
+
+                        if let Some(prev_field) = previous_shadow {
+                            // Build the expression:
+                            // if loop_var.prev_field is None:
+                            //     init_expr.method(args)
+                            // else:
+                            //     loop_var.prev_field.item_field.method(args)
+
+                            let loop_var_idx = arg_names
+                                .iter()
+                                .position(|n| n == loop_var)
+                                .ok_or_else(|| {
+                                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                                        "Loop var not found",
+                                    )
+                                })?;
+                            let loop_var_param = Expression::Param {
+                                index: loop_var_idx as u32,
+                            };
+
+                            // Condition: loop_var.prev_field is None
+                            let condition = Expression::IsNull {
+                                operand: Box::new(Expression::FieldAccess {
+                                    object: Box::new(loop_var_param.clone()),
+                                    class_name: class_hint.to_string(),
+                                    field_name: prev_field.clone(),
+                                }),
+                            };
+
+                            // Then branch: init_expr.method(args)
+                            let init_base = convert_ast_to_expression(
+                                py,
+                                &mv.init_expr,
+                                outer_arg_names,
+                                outer_class_hint,
+                            )?
+                            .ok_or_else(|| {
+                                PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                                    "Cannot convert init expr",
+                                )
+                            })?;
+
+                            let then_branch = build_method_call_expr(
+                                py,
+                                init_base,
+                                &method_name,
+                                &converted_args,
+                                outer_class_hint,
+                            )?;
+
+                            // Else branch: loop_var.prev_field.item_field.method(args)
+                            // First get the previous item
+                            let prev_item = Expression::FieldAccess {
+                                object: Box::new(loop_var_param.clone()),
+                                class_name: class_hint.to_string(),
+                                field_name: prev_field.clone(),
+                            };
+                            // Then get the field from it
+                            let prev_item_field = Expression::FieldAccess {
+                                object: Box::new(prev_item),
+                                class_name: class_hint.to_string(),
+                                field_name: mv.item_field.clone(),
+                            };
+
+                            let else_branch = build_method_call_expr(
+                                py,
+                                prev_item_field,
+                                &method_name,
+                                &converted_args,
+                                outer_class_hint,
+                            )?;
+
+                            return Ok(Some(Expression::IfThenElse {
+                                condition: Box::new(condition),
+                                then_branch: Box::new(then_branch),
+                                else_branch: Box::new(else_branch),
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Default: use standard conversion
+    convert_ast_to_expression(py, node, arg_names, class_hint)
+}
+
+/// Find the "previous" shadow variable for a class.
+/// Returns the field name like "previous_visit" for Visit class.
+fn find_previous_shadow_variable(py: Python<'_>, class_name: &str) -> PyResult<Option<String>> {
+    let registry = CLASS_REGISTRY.read().unwrap();
+    if let Some(ref map) = *registry {
+        if let Some(class) = map.get(class_name) {
+            let class_bound = class.bind(py);
+
+            // Look for fields starting with "previous_"
+            if let Ok(annotations) = class_bound.getattr("__annotations__") {
+                if let Ok(keys) = annotations.call_method0("keys") {
+                    for key in keys.try_iter()? {
+                        let key_str: String = key?.extract()?;
+                        if key_str.starts_with("previous_") {
+                            return Ok(Some(key_str));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Build a method call expression for inlined methods.
+///
+/// Tries to inline the method body. If inlining fails, returns a MethodCall
+/// expression that will be resolved via pre-computed lookup at solve time.
+fn build_method_call_expr(
+    py: Python<'_>,
+    base: Expression,
+    method_name: &str,
+    args: &[Expression],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    // For methods, we need to inline them
+    // Get the base class from the expression by looking up field types
+    let base_class = match &base {
+        Expression::FieldAccess {
+            class_name,
+            field_name,
+            ..
+        } => {
+            // Look up the field type from the class and register it
+            if let Some(field_class) = get_field_type_and_register(py, class_name, field_name)? {
+                field_class
+            } else {
+                class_hint.to_string()
+            }
+        }
+        _ => class_hint.to_string(),
+    };
+
+    // Try to inline the method
+    if let Some(method) = get_method_from_class(py, &base_class, method_name) {
+        if let Ok(method_body) = analyze_method_body(py, &method, &base_class) {
+            // Substitute self (Param 0) with base
+            let mut inlined = substitute_param(method_body, 0, &base);
+
+            // Substitute other args
+            for (i, arg) in args.iter().enumerate() {
+                inlined = substitute_param(inlined, (i + 1) as u32, arg);
+            }
+
+            return Ok(inlined);
+        }
+    }
+
+    // Inlining failed - return a MethodCall for pre-computed lookup
+    log::debug!(
+        "Method {}.{}() will be resolved via pre-computed lookup",
+        base_class,
+        method_name
+    );
+    Ok(Expression::MethodCall {
+        object: Box::new(base),
+        class_name: base_class,
+        method_name: method_name.to_string(),
+        args: args.to_vec(),
+    })
+}
+
+/// Infer the class type of an expression.
+/// For FieldAccess, looks up the field type from the parent class.
+/// Returns the class name if determinable.
+fn infer_expression_class(
+    py: Python<'_>,
+    expr: &Expression,
+    default_class: &str,
+) -> PyResult<Option<String>> {
+    match expr {
+        Expression::FieldAccess {
+            class_name,
+            field_name,
+            ..
+        } => {
+            // Look up the field type from the class
+            get_field_type_and_register(py, class_name, field_name)
+        }
+        Expression::Param { index } if *index == 0 => {
+            // Parameter 0 is typically self, use the default class
+            Ok(Some(default_class.to_string()))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Look up a field's type from a class and register it if found.
+/// Returns the class name of the field type.
+fn get_field_type_and_register(
+    py: Python<'_>,
+    class_name: &str,
+    field_name: &str,
+) -> PyResult<Option<String>> {
+    log::debug!(
+        "get_field_type_and_register: looking up {}.{}",
+        class_name,
+        field_name
+    );
+
+    // First look up in registry
+    let field_info: Option<(String, Py<PyAny>)> = {
+        let registry = CLASS_REGISTRY.read().unwrap();
+        if let Some(ref map) = *registry {
+            if let Some(class) = map.get(class_name) {
+                let class_bound = class.bind(py);
+
+                // Get type hints from the class
+                if let Ok(get_type_hints) = py
+                    .import("typing")
+                    .and_then(|m| m.getattr("get_type_hints"))
+                {
+                    if let Ok(hints) = get_type_hints.call1((&class_bound,)) {
+                        if let Ok(field_type) = hints.get_item(field_name) {
+                            log::debug!(
+                                "Found field type for {}.{}: {:?}",
+                                class_name,
+                                field_name,
+                                field_type
+                            );
+                            // Check if it's a simple class (has __name__)
+                            if let Ok(type_name) = field_type.getattr("__name__") {
+                                if let Ok(name) = type_name.extract::<String>() {
+                                    log::debug!("Simple class type: {}", name);
+                                    // Need to also get the class itself for registration
+                                    Some((name, field_type.clone().unbind()))
+                                } else {
+                                    None
+                                }
+                            // Check if it's a generic like Optional[Location]
+                            } else if let Ok(args) = field_type.getattr("__args__") {
+                                if let Ok(args_len) = args.len() {
+                                    if args_len > 0 {
+                                        if let Ok(inner_type) = args.get_item(0) {
+                                            if let Ok(inner_name) = inner_type.getattr("__name__") {
+                                                if let Ok(name) = inner_name.extract::<String>() {
+                                                    log::debug!("Generic inner type: {}", name);
+                                                    Some((name, inner_type.clone().unbind()))
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            log::debug!(
+                                "Field {} not found in hints for {}",
+                                field_name,
+                                class_name
+                            );
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                log::debug!("Class {} not in registry", class_name);
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    // Register the discovered class outside the read lock
+    if let Some((ref field_class_name, ref field_class)) = field_info {
+        let field_bound = field_class.bind(py);
+        register_class(py, field_class_name, field_bound);
+        log::debug!("Registered field class: {}", field_class_name);
+        return Ok(Some(field_class_name.clone()));
+    }
+
+    Ok(None)
+}
+
+/// Infer the item type from a collection expression using Python type hints.
+///
+/// For a FieldAccess like Param(0).visits on class Vehicle, this inspects
+/// the type hints of the Vehicle class to determine the item type (e.g., Visit).
+fn infer_item_type(py: Python<'_>, collection_expr: &Expression) -> PyResult<String> {
+    match collection_expr {
+        Expression::FieldAccess {
+            object: _,
+            class_name,
+            field_name,
+        } => {
+            // Get the class from the registry and extract item type info
+            let item_info: Option<(String, Py<PyAny>)> = {
+                let registry = CLASS_REGISTRY.read().unwrap();
+                if let Some(ref map) = *registry {
+                    if let Some(class) = map.get(class_name) {
+                        let class_bound = class.bind(py);
+
+                        // Get type hints from the class
+                        if let Ok(get_type_hints) = py
+                            .import("typing")
+                            .and_then(|m| m.getattr("get_type_hints"))
+                        {
+                            if let Ok(hints) = get_type_hints.call1((&class_bound,)) {
+                                if let Ok(field_type) = hints.get_item(field_name) {
+                                    // field_type is something like typing.List[Visit]
+                                    // Extract the inner type
+                                    if let Ok(args) = field_type.getattr("__args__") {
+                                        if let Ok(args_len) = args.len() {
+                                            if args_len > 0 {
+                                                if let Ok(item_type) = args.get_item(0) {
+                                                    if let Ok(item_name) =
+                                                        item_type.getattr("__name__")
+                                                    {
+                                                        if let Ok(item_class_name) =
+                                                            item_name.extract::<String>()
+                                                        {
+                                                            Some((
+                                                                item_class_name,
+                                                                item_type.clone().unbind(),
+                                                            ))
+                                                        } else {
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    }
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+
+            // Register the discovered class (outside the read lock)
+            if let Some((ref item_class_name, ref item_class)) = item_info {
+                let item_bound = item_class.bind(py);
+                register_class(py, item_class_name, item_bound);
+                return Ok(item_class_name.clone());
+            }
+
+            // If type hints don't work, try field annotations on the instance
+            let fallback_info: Option<(String, Option<Py<PyAny>>)> = {
+                let registry = CLASS_REGISTRY.read().unwrap();
+                if let Some(ref map) = *registry {
+                    if let Some(class) = map.get(class_name) {
+                        let class_bound = class.bind(py);
+
+                        // Try __annotations__ directly
+                        if let Ok(annotations) = class_bound.getattr("__annotations__") {
+                            if let Ok(field_type) = annotations.get_item(field_name) {
+                                // Try to get __name__ from the type (simple class reference)
+                                if let Ok(item_name) = field_type.getattr("__name__") {
+                                    if let Ok(item_class_name) = item_name.extract::<String>() {
+                                        Some((item_class_name, Some(field_type.clone().unbind())))
+                                    } else {
+                                        None
+                                    }
+                                // Try to extract from typing generic
+                                } else if let Ok(_origin) = field_type.getattr("__origin__") {
+                                    if let Ok(args) = field_type.getattr("__args__") {
+                                        if let Ok(args_len) = args.len() {
+                                            if args_len > 0 {
+                                                if let Ok(item_type) = args.get_item(0) {
+                                                    if let Ok(item_name) =
+                                                        item_type.getattr("__name__")
+                                                    {
+                                                        if let Ok(item_class_name) =
+                                                            item_name.extract::<String>()
+                                                        {
+                                                            Some((
+                                                                item_class_name,
+                                                                Some(item_type.clone().unbind()),
+                                                            ))
+                                                        } else {
+                                                            None
+                                                        }
+                                                    } else {
+                                                        None
+                                                    }
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+
+            if let Some((ref item_class_name, ref maybe_class)) = fallback_info {
+                if let Some(ref item_class) = maybe_class {
+                    let item_bound = item_class.bind(py);
+                    register_class(py, item_class_name, item_bound);
+                }
+                return Ok(item_class_name.clone());
+            }
+
+            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Cannot infer item type for field '{}.{}' - ensure it has type hints",
+                class_name, field_name
+            )))
+        }
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Cannot infer item type from complex collection expression",
+        )),
+    }
+}
+
+/// Create a sum expression over a collection.
+///
+/// Constructs a Sum expression with:
+/// - collection: The collection being iterated
+/// - item_var_name: Name of the loop variable
+/// - item_param_index: The parameter index assigned to the loop variable
+/// - accumulator_expr: Expression being accumulated (uses loop variable as Param with item_param_index)
+fn create_sum_over_collection(
+    accumulated: Expression,
+    loop_var: &str,
+    collection: Expression,
+    loop_var_param_index: u32,
+    item_class_name: &str,
+) -> Expression {
+    Expression::Sum {
+        collection: Box::new(collection),
+        item_var_name: loop_var.to_string(),
+        item_param_index: loop_var_param_index,
+        item_class_name: item_class_name.to_string(),
+        accumulator_expr: Box::new(accumulated),
+    }
+}
+
 /// Convert Python AST node to Expression tree.
 fn convert_ast_to_expression(
     py: Python<'_>,
@@ -1301,41 +2550,196 @@ fn convert_ast_to_expression(
                         }
                     }
 
+                    // Determine the actual class of the object for method lookup
+                    let obj_class = infer_expression_class(py, &obj_expr, class_hint)?
+                        .unwrap_or_else(|| class_hint.to_string());
+
                     // Try to inline the method - look it up in the registry and analyze
-                    if let Some(method) = get_method_from_class(py, class_hint, &method_name) {
-                        if let Ok(method_body) = analyze_method_body(py, &method, class_hint) {
-                            // Substitute parameters: obj_expr becomes Param(0), call_args become Param(1), etc.
-                            let mut inlined = method_body;
+                    if let Some(method) = get_method_from_class(py, &obj_class, &method_name) {
+                        match analyze_method_body(py, &method, &obj_class) {
+                            Ok(method_body) => {
+                                // Substitute parameters: obj_expr becomes Param(0), call_args become Param(1), etc.
+                                let mut inlined = method_body;
 
-                            // Substitute method parameters with call arguments
-                            // The object is Param(0) in the method, and obj_expr in the call
-                            inlined = substitute_param(inlined, 0, &obj_expr);
+                                // Substitute method parameters with call arguments
+                                // The object is Param(0) in the method, and obj_expr in the call
+                                inlined = substitute_param(inlined, 0, &obj_expr);
 
-                            // Substitute other parameters
-                            for (i, arg) in args_list.iter().enumerate() {
-                                if let Some(arg_expr) =
-                                    convert_ast_to_expression(py, &arg, arg_names, class_hint)?
-                                {
-                                    // In the method, args start at Param(1)
-                                    inlined = substitute_param(inlined, (i + 1) as u32, &arg_expr);
+                                // Substitute other parameters
+                                for (i, arg) in args_list.iter().enumerate() {
+                                    if let Some(arg_expr) =
+                                        convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                                    {
+                                        // In the method, args start at Param(1)
+                                        inlined =
+                                            substitute_param(inlined, (i + 1) as u32, &arg_expr);
+                                    }
                                 }
-                            }
 
-                            return Ok(Some(inlined));
+                                return Ok(Some(inlined));
+                            }
+                            Err(_) => {
+                                // Method couldn't be inlined - return MethodCall for pre-computed lookup
+                                log::debug!(
+                                    "Method {}.{}() will be resolved via pre-computed lookup",
+                                    obj_class,
+                                    method_name
+                                );
+                                // Skip the object from call_args (it's the first element)
+                                let method_args = call_args.into_iter().skip(1).collect();
+                                return Ok(Some(Expression::MethodCall {
+                                    object: Box::new(obj_expr),
+                                    class_name: obj_class,
+                                    method_name: method_name.clone(),
+                                    args: method_args,
+                                }));
+                            }
                         }
                     }
 
-                    // Fallback: Create HostCall with class_method naming convention
-                    let function_name = format!("{}_{}", class_name, method_name);
-                    Ok(Some(Expression::HostCall {
-                        function_name,
-                        args: call_args,
+                    // Method not found in registry - return MethodCall for pre-computed lookup
+                    log::debug!(
+                        "Method {}.{}() not found in registry, will be resolved via pre-computed lookup",
+                        obj_class,
+                        method_name
+                    );
+                    // Skip the object from call_args (it's the first element)
+                    let method_args = call_args.into_iter().skip(1).collect();
+                    Ok(Some(Expression::MethodCall {
+                        object: Box::new(obj_expr),
+                        class_name: obj_class,
+                        method_name: method_name.clone(),
+                        args: method_args,
                     }))
                 } else {
                     Ok(None)
                 }
+            } else if func_type == "Name" {
+                // Built-in function call like max(), min(), timedelta(), etc.
+                let func_name: String = func.getattr("id")?.extract()?;
+                let args_node = node.getattr("args")?;
+                let args_list = args_node.cast::<PyList>()?;
+
+                // Convert positional arguments to expressions
+                let mut call_args = Vec::new();
+                for arg in args_list.iter() {
+                    if let Some(arg_expr) =
+                        convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                    {
+                        call_args.push(arg_expr);
+                    } else {
+                        return Ok(None);
+                    }
+                }
+
+                // Parse keyword arguments
+                let keywords_node = node.getattr("keywords")?;
+                let keywords_list = keywords_node.cast::<PyList>()?;
+                let mut keyword_args: Vec<(String, i64)> = Vec::new();
+                for kw in keywords_list.iter() {
+                    let arg_name_opt = kw.getattr("arg")?;
+                    if !arg_name_opt.is_none() {
+                        let arg_name: String = arg_name_opt.extract()?;
+                        let arg_value = kw.getattr("value")?;
+                        // Try to extract as integer constant
+                        let value_type = arg_value.get_type().name()?.to_string();
+                        if value_type == "Constant" {
+                            if let Ok(i) = arg_value.getattr("value")?.extract::<i64>() {
+                                keyword_args.push((arg_name, i));
+                            }
+                        } else if value_type == "UnaryOp" {
+                            // Handle negative numbers like -1
+                            let op = arg_value.getattr("op")?;
+                            let op_type = op.get_type().name()?.to_string();
+                            if op_type == "USub" {
+                                let operand = arg_value.getattr("operand")?;
+                                if let Ok(i) = operand.getattr("value")?.extract::<i64>() {
+                                    keyword_args.push((arg_name, -i));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Handle specific built-in functions
+                match func_name.as_str() {
+                    "max" => {
+                        if call_args.len() == 2 {
+                            // max(a, b) as a ternary: a > b ? a : b
+                            return Ok(Some(Expression::IfThenElse {
+                                condition: Box::new(Expression::Gt {
+                                    left: Box::new(call_args[0].clone()),
+                                    right: Box::new(call_args[1].clone()),
+                                }),
+                                then_branch: Box::new(call_args[0].clone()),
+                                else_branch: Box::new(call_args[1].clone()),
+                            }));
+                        }
+                    }
+                    "min" => {
+                        if call_args.len() == 2 {
+                            // min(a, b) as a ternary: a < b ? a : b
+                            return Ok(Some(Expression::IfThenElse {
+                                condition: Box::new(Expression::Lt {
+                                    left: Box::new(call_args[0].clone()),
+                                    right: Box::new(call_args[1].clone()),
+                                }),
+                                then_branch: Box::new(call_args[0].clone()),
+                                else_branch: Box::new(call_args[1].clone()),
+                            }));
+                        }
+                    }
+                    "abs" => {
+                        if call_args.len() == 1 {
+                            // abs(a) as: a < 0 ? -a : a
+                            return Ok(Some(Expression::IfThenElse {
+                                condition: Box::new(Expression::Lt {
+                                    left: Box::new(call_args[0].clone()),
+                                    right: Box::new(Expression::IntLiteral { value: 0 }),
+                                }),
+                                then_branch: Box::new(Expression::Mul {
+                                    left: Box::new(Expression::IntLiteral { value: -1 }),
+                                    right: Box::new(call_args[0].clone()),
+                                }),
+                                else_branch: Box::new(call_args[0].clone()),
+                            }));
+                        }
+                    }
+                    "len" => {
+                        // len(collection) -> Length expression
+                        if call_args.len() == 1 {
+                            return Ok(Some(Expression::Length {
+                                collection: Box::new(call_args[0].clone()),
+                            }));
+                        }
+                    }
+                    "timedelta" => {
+                        // Convert timedelta to integer seconds
+                        // Supports: days, hours, minutes, seconds keyword args
+                        let mut total_seconds: i64 = 0;
+                        for (name, value) in &keyword_args {
+                            match name.as_str() {
+                                "days" => total_seconds += value * 86400,
+                                "hours" => total_seconds += value * 3600,
+                                "minutes" => total_seconds += value * 60,
+                                "seconds" => total_seconds += value,
+                                _ => {}
+                            }
+                        }
+                        return Ok(Some(Expression::IntLiteral {
+                            value: total_seconds,
+                        }));
+                    }
+                    _ => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "Cannot inline function call: {}()",
+                            func_name
+                        )));
+                    }
+                }
+                Ok(None)
             } else {
-                // Regular function call - not supported in this context
+                // Other types of calls - not supported for inlining
                 Ok(None)
             }
         }
@@ -2374,7 +3778,7 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn test_ast_method_call_no_inlining_when_unregistered() {
+    fn test_ast_method_call_error_when_unregistered() {
         init_python();
         Python::attach(|py| {
             clear_class_registry();
@@ -2391,23 +3795,15 @@ lambda_func = lambda v: v.get_name()
             .unwrap();
 
             let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
-            let lambda_info =
-                LambdaInfo::new(py, lambda_obj.clone().unbind(), "test", "Entity").unwrap();
-
-            // Should create HostCall since get_name is not registered
-            match &lambda_info.expression {
-                Expression::HostCall {
-                    function_name,
-                    args,
-                } => {
-                    assert_eq!(function_name, "Entity_get_name");
-                    assert_eq!(args.len(), 1); // Just the object
-                }
-                _ => panic!(
-                    "Expected HostCall when method not registered, got {:?}",
-                    lambda_info.expression
-                ),
-            }
+            // Should return error since get_name method cannot be inlined
+            let result = LambdaInfo::new(py, lambda_obj.clone().unbind(), "test", "Entity");
+            assert!(result.is_err(), "Expected error when method not registered");
+            let err_msg = result.unwrap_err().to_string();
+            assert!(
+                err_msg.contains("Cannot inline method"),
+                "Error should mention inlining failure: {}",
+                err_msg
+            );
         });
     }
 
@@ -2547,6 +3943,235 @@ lambda_func = lambda e: e.get_priority() > 5
                 }
                 _ => panic!("Expected Gt expression"),
             }
+        });
+    }
+
+    // ========================================================================
+    // Integration Tests for Method Analysis
+    // ========================================================================
+
+    #[test]
+    fn test_integration_method_inlining_with_registration() {
+        // Complete flow: register class -> create lambda with method call -> verify inlining
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            // Define and register a domain class
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Vehicle:
+    def is_valid(self):
+        return self.status == 'valid'
+
+lambda_func = lambda v: v.is_valid()
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let vehicle_class = locals.get_item("Vehicle").unwrap().unwrap();
+            register_class(py, "Vehicle", &vehicle_class);
+
+            // Verify the class is registered by looking it up
+            let method = get_method_from_class(py, "Vehicle", "is_valid");
+            assert!(
+                method.is_some(),
+                "Method should be found after registration"
+            );
+
+            // Analyze lambda with the method call
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Vehicle").unwrap();
+
+            // Should have inlined the method call to an Eq expression
+            match &lambda_info.expression {
+                Expression::Eq { left, right } => match **left {
+                    Expression::FieldAccess { ref field_name, .. } => {
+                        assert_eq!(field_name, "status");
+                    }
+                    _ => panic!("Expected field access"),
+                },
+                _ => panic!("Expected inlined Eq expression"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_integration_method_with_multiple_fields() {
+        // Test inlining method that references multiple fields
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Shift:
+    def is_overbooked(self):
+        return self.hours > self.max_hours
+
+lambda_func = lambda s: s.is_overbooked()
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let shift_class = locals.get_item("Shift").unwrap().unwrap();
+            register_class(py, "Shift", &shift_class);
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Shift").unwrap();
+
+            // Should inline to Gt(FieldAccess(hours), FieldAccess(max_hours))
+            match &lambda_info.expression {
+                Expression::Gt { left, right } => match (&**left, &**right) {
+                    (
+                        Expression::FieldAccess {
+                            field_name: left_field,
+                            ..
+                        },
+                        Expression::FieldAccess {
+                            field_name: right_field,
+                            ..
+                        },
+                    ) => {
+                        assert_eq!(left_field, "hours");
+                        assert_eq!(right_field, "max_hours");
+                    }
+                    _ => panic!("Expected FieldAccess on both sides"),
+                },
+                _ => panic!("Expected Gt expression"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_integration_method_chain_through_parameters() {
+        // Test method call with arguments that get properly substituted
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Employee:
+    def meets_minimum_salary(self, min_salary):
+        return self.salary >= min_salary
+
+lambda_func = lambda e, threshold: e.meets_minimum_salary(threshold)
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let employee_class = locals.get_item("Employee").unwrap().unwrap();
+            register_class(py, "Employee", &employee_class);
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Employee").unwrap();
+
+            // Should inline to Ge(FieldAccess(salary), Param(1))
+            match &lambda_info.expression {
+                Expression::Ge { left, right } => {
+                    match (&**left, &**right) {
+                        (
+                            Expression::FieldAccess { field_name, .. },
+                            Expression::Param { index },
+                        ) if field_name == "salary" && index == 1 => {
+                            // Correct!
+                        }
+                        _ => panic!("Expected Ge(FieldAccess(salary), Param(1))"),
+                    }
+                }
+                _ => panic!("Expected Ge expression, got {:?}", lambda_info.expression),
+            }
+        });
+    }
+
+    #[test]
+    fn test_integration_registry_persistence() {
+        // Test that registered classes persist across multiple lambda analyses
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Task:
+    def is_completed(self):
+        return self.status == 'done'
+
+    def is_urgent(self):
+        return self.priority > 5
+
+lambda_completed = lambda t: t.is_completed()
+lambda_urgent = lambda t: t.is_urgent()
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let task_class = locals.get_item("Task").unwrap().unwrap();
+            register_class(py, "Task", &task_class);
+
+            // Analyze first lambda
+            let lambda1 = locals.get_item("lambda_completed").unwrap().unwrap();
+            let info1 = LambdaInfo::new(py, lambda1.clone().unbind(), "filter", "Task").unwrap();
+            assert!(matches!(info1.expression, Expression::Eq { .. }));
+
+            // Analyze second lambda - should still have access to registered class
+            let lambda2 = locals.get_item("lambda_urgent").unwrap().unwrap();
+            let info2 = LambdaInfo::new(py, lambda2.clone().unbind(), "filter", "Task").unwrap();
+            assert!(matches!(info2.expression, Expression::Gt { .. }));
+        });
+    }
+
+    #[test]
+    fn test_integration_bytecode_method_inlining() {
+        // Test that bytecode analysis also supports method inlining
+        init_python();
+        Python::attach(|py| {
+            clear_class_registry();
+
+            let locals = PyDict::new(py);
+            py.run(
+                c"
+class Item:
+    def has_stock(self):
+        return self.quantity > 0
+
+lambda_func = lambda i: i.has_stock()
+",
+                None,
+                Some(&locals),
+            )
+            .unwrap();
+
+            let item_class = locals.get_item("Item").unwrap().unwrap();
+            register_class(py, "Item", &item_class);
+
+            let lambda_obj = locals.get_item("lambda_func").unwrap().unwrap();
+            // The lambda will be analyzed via either AST or bytecode
+            let lambda_info =
+                LambdaInfo::new(py, lambda_obj.clone().unbind(), "filter", "Item").unwrap();
+
+            // Should produce a Gt expression from inlining
+            assert!(
+                matches!(lambda_info.expression, Expression::Gt { .. }),
+                "Expected Gt expression from method inlining, got {:?}",
+                lambda_info.expression
+            );
         });
     }
 }

@@ -452,11 +452,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -465,7 +468,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -483,11 +486,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -496,7 +502,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -510,11 +516,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -523,7 +532,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -537,11 +546,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = score.to_string_repr();
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -550,7 +562,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -564,11 +576,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = score.to_string_repr();
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -577,7 +592,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -591,11 +606,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -604,7 +622,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -618,11 +636,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = score.to_string_repr();
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
             let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -631,7 +652,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 

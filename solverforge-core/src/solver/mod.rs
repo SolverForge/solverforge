@@ -18,8 +18,8 @@ pub use config::SolverConfig;
 pub use environment::{EnvironmentMode, MoveThreadCount};
 pub use factory::{Solver, SolverFactory};
 pub use request::{
-    DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor, ListAccessorDto,
-    PlanningAnnotation, SolveRequest,
+    ClassAnnotation, DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor,
+    ListAccessorDto, PlanningAnnotation, SolveRequest,
 };
 pub use response::{
     AsyncSolveResponse, ScoreDto, SolveHandle, SolveResponse, SolveState, SolveStatus, SolverStats,

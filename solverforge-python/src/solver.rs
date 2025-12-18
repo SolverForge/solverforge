@@ -749,7 +749,7 @@ impl PySolverFactory {
                 .map(|c| c.bind(py).clone())
                 .collect();
             let py_domain_model =
-                crate::decorators::build_domain_model(solution_bound, entity_bounds)?;
+                crate::decorators::build_domain_model(py, solution_bound, entity_bounds)?;
             py_domain_model.to_rust()
         } else {
             // Fallback: build basic domain model from class names

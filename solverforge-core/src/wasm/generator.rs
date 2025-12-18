@@ -536,7 +536,8 @@ impl WasmModuleBuilder {
         predicate: &PredicateDefinition,
         model: &DomainModel,
     ) -> SolverForgeResult<Function> {
-        let mut func = Function::new([]);
+        // Declare locals for expression compilation (Sum uses 4 locals, support up to 3 nested levels)
+        let mut func = Function::new([(12, ValType::I32)]);
 
         match &predicate.body {
             PredicateBody::Comparison(comparison) => match comparison {
@@ -578,7 +579,16 @@ impl WasmModuleBuilder {
                 }
             },
             PredicateBody::Expression(expression) => {
-                self.compile_expression(&mut func, expression, model)?;
+                // local_offset tells compile_expression where locals start in the index space
+                // Parameters are at 0-(arity-1), so locals start at arity
+                self.compile_expression(
+                    &mut func,
+                    expression,
+                    model,
+                    u32::MAX,
+                    u32::MAX,
+                    predicate.arity,
+                )?;
             }
         }
 
@@ -664,13 +674,17 @@ impl WasmModuleBuilder {
 
     /// Compile an expression tree into WASM instructions
     ///
-    /// Generates WASM code that evaluates the expression and leaves the result
-    /// on the stack.
+    /// Generates WASM code that evaluates the expression and leaves the result on the stack.
+    /// The remap_from/remap_to_local parameters handle parameter substitution for loop variables.
+    /// The local_offset parameter accounts for function parameters in WASM's index space.
     fn compile_expression(
         &self,
         func: &mut Function,
         expr: &Expression,
         model: &DomainModel,
+        remap_from: u32,
+        remap_to_local: u32,
+        local_offset: u32,
     ) -> SolverForgeResult<()> {
         match expr {
             // ===== Literals =====
@@ -690,6 +704,9 @@ impl WasmModuleBuilder {
             }
 
             // ===== Parameter Access =====
+            Expression::Param { index } if *index == remap_from => {
+                func.instruction(&Instruction::LocalGet(remap_to_local));
+            }
             Expression::Param { index } => {
                 func.instruction(&Instruction::LocalGet(*index));
             }
@@ -701,7 +718,14 @@ impl WasmModuleBuilder {
                 field_name,
             } => {
                 // Compile the object expression to get the pointer
-                self.compile_expression(func, object, model)?;
+                self.compile_expression(
+                    func,
+                    object,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
 
                 // Load the field from memory
                 let class = model.classes.get(class_name).ok_or_else(|| {
@@ -769,80 +793,269 @@ impl WasmModuleBuilder {
 
             // ===== Comparisons =====
             Expression::Eq { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Eq);
             }
             Expression::Ne { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Ne);
             }
             Expression::Lt { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32LtS);
             }
             Expression::Le { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32LeS);
             }
             Expression::Gt { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32GtS);
             }
             Expression::Ge { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32GeS);
             }
 
             // ===== Logical Operations =====
             Expression::And { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32And);
             }
             Expression::Or { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Or);
             }
             Expression::Not { operand } => {
-                self.compile_expression(func, operand, model)?;
+                self.compile_expression(
+                    func,
+                    operand,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Eqz); // ! in WASM is i32.eqz
             }
             Expression::IsNull { operand } => {
-                self.compile_expression(func, operand, model)?;
+                self.compile_expression(
+                    func,
+                    operand,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Eqz); // null check is ptr == 0
             }
             Expression::IsNotNull { operand } => {
-                self.compile_expression(func, operand, model)?;
+                self.compile_expression(
+                    func,
+                    operand,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Const(0));
                 func.instruction(&Instruction::I32Ne); // not null is ptr != 0
             }
 
             // ===== Arithmetic Operations =====
             Expression::Add { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Add);
             }
             Expression::Sub { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Sub);
             }
             Expression::Mul { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32Mul);
             }
             Expression::Div { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(
+                    func,
+                    left,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    right,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
                 func.instruction(&Instruction::I32DivS);
             }
 
@@ -850,8 +1063,22 @@ impl WasmModuleBuilder {
             Expression::ListContains { list, element } => {
                 // For now, use a host function to check list containment
                 // TODO: Generate inline loop for better performance
-                self.compile_expression(func, list, model)?;
-                self.compile_expression(func, element, model)?;
+                self.compile_expression(
+                    func,
+                    list,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                self.compile_expression(
+                    func,
+                    element,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
 
                 let func_idx = self
                     .host_function_indices
@@ -865,6 +1092,24 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::Call(*func_idx));
             }
 
+            Expression::Length { collection } => {
+                // Get the collection pointer
+                self.compile_expression(
+                    func,
+                    collection,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+                // Load length from offset 0 of the array structure
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+            }
+
             // ===== Host Function Calls =====
             Expression::HostCall {
                 function_name,
@@ -872,7 +1117,14 @@ impl WasmModuleBuilder {
             } => {
                 // Compile all arguments
                 for arg in args {
-                    self.compile_expression(func, arg, model)?;
+                    self.compile_expression(
+                        func,
+                        arg,
+                        model,
+                        remap_from,
+                        remap_to_local,
+                        local_offset,
+                    )?;
                 }
 
                 // Get the function index for the imported function
@@ -891,6 +1143,123 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::Call(*func_idx));
             }
 
+            // ===== Sum Over Collection =====
+            Expression::Sum {
+                collection,
+                item_var_name: _,
+                item_param_index,
+                item_class_name: _,
+                accumulator_expr,
+            } => {
+                // Compile collection expression to get the array pointer
+                // Note: collection may reference outer context parameters, so propagate remapping
+                self.compile_expression(
+                    func,
+                    collection,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
+
+                // At this point, stack has: [array_ptr]
+                // We iterate through array elements, computing accumulator_expr for each,
+                // and sum the results.
+
+                let array_ptr_local = local_offset;
+                let accumulator_local = 1 + local_offset;
+                let counter_local = 2 + local_offset;
+                let element_local = 3 + local_offset;
+
+                // Store array pointer in local (consumes stack value)
+                func.instruction(&Instruction::LocalSet(array_ptr_local));
+
+                // Initialize accumulator to 0
+                func.instruction(&Instruction::I32Const(0));
+                func.instruction(&Instruction::LocalSet(accumulator_local));
+
+                // Initialize loop counter to 0
+                func.instruction(&Instruction::I32Const(0));
+                func.instruction(&Instruction::LocalSet(counter_local));
+
+                // Outer block to catch loop exit with result value
+                // When we exit the loop, we need an i32 on the stack for the function return
+                func.instruction(&Instruction::Block(wasm_encoder::BlockType::Result(
+                    ValType::I32,
+                )));
+
+                // Loop label
+                func.instruction(&Instruction::Loop(wasm_encoder::BlockType::Empty));
+
+                // Check if counter >= length
+                func.instruction(&Instruction::LocalGet(counter_local));
+                func.instruction(&Instruction::LocalGet(array_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::I32GeS);
+
+                // If condition true, push result and exit the outer block
+                func.instruction(&Instruction::If(wasm_encoder::BlockType::Empty));
+                func.instruction(&Instruction::LocalGet(accumulator_local));
+                func.instruction(&Instruction::Br(2)); // Exit past if, loop, AND outer block
+                func.instruction(&Instruction::End); // End if
+
+                // Load array element at [array_ptr + 4 + (counter * 4)]
+                func.instruction(&Instruction::LocalGet(array_ptr_local));
+                func.instruction(&Instruction::LocalGet(counter_local));
+                func.instruction(&Instruction::I32Const(1));
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::I32Const(4));
+                func.instruction(&Instruction::I32Mul);
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+
+                // Store element in local for use in accumulator_expr
+                func.instruction(&Instruction::LocalSet(element_local));
+
+                // Compile accumulator expression with parameter remapping
+                // The item_param_index parameter should come from element_local
+                // Use local_offset + 4 so nested expressions don't collide with Sum's locals
+                self.compile_expression(
+                    func,
+                    accumulator_expr,
+                    model,
+                    *item_param_index,
+                    element_local,
+                    local_offset + 4,
+                )?;
+
+                // Add result to accumulator
+                func.instruction(&Instruction::LocalGet(accumulator_local));
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::LocalSet(accumulator_local));
+
+                // Increment counter
+                func.instruction(&Instruction::LocalGet(counter_local));
+                func.instruction(&Instruction::I32Const(1));
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::LocalSet(counter_local));
+
+                // Jump back to loop start
+                func.instruction(&Instruction::Br(0));
+
+                // End loop
+                func.instruction(&Instruction::End);
+
+                // Fallback for empty arrays (0 iterations) - provide result for block
+                func.instruction(&Instruction::LocalGet(accumulator_local));
+
+                // End outer block - result is now on stack
+                func.instruction(&Instruction::End);
+            }
+
             // ===== Conditional =====
             Expression::IfThenElse {
                 condition,
@@ -898,7 +1267,14 @@ impl WasmModuleBuilder {
                 else_branch,
             } => {
                 // Compile condition
-                self.compile_expression(func, condition, model)?;
+                self.compile_expression(
+                    func,
+                    condition,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
 
                 // WASM if-else structure
                 func.instruction(&Instruction::If(wasm_encoder::BlockType::Result(
@@ -906,14 +1282,90 @@ impl WasmModuleBuilder {
                 )));
 
                 // Compile then branch
-                self.compile_expression(func, then_branch, model)?;
+                self.compile_expression(
+                    func,
+                    then_branch,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
 
                 func.instruction(&Instruction::Else);
 
                 // Compile else branch
-                self.compile_expression(func, else_branch, model)?;
+                self.compile_expression(
+                    func,
+                    else_branch,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    local_offset,
+                )?;
 
                 func.instruction(&Instruction::End);
+            }
+
+            // ===== Method Call (Pre-computed) =====
+            Expression::MethodCall {
+                object,
+                class_name,
+                method_name,
+                args,
+            } => {
+                // Method calls that couldn't be inlined are resolved via pre-computed lookup.
+                // We use hprecomputedN host functions where N is the argument count.
+                // Each takes: (method_id: i32, object_ptr: ptr, arg1_ptr: ptr, ...) -> i32
+
+                // Select the appropriate host function based on argument count
+                let host_func_name = format!("hprecomputed{}", args.len());
+
+                if let Some(&host_idx) = self.host_function_indices.get(&host_func_name) {
+                    // Generate a unique method ID based on class and method name
+                    let method_id = format!("{}.{}", class_name, method_name);
+                    let method_id_hash = method_id
+                        .as_bytes()
+                        .iter()
+                        .fold(0i32, |acc, &b| acc.wrapping_mul(31).wrapping_add(b as i32));
+
+                    // Push method ID
+                    func.instruction(&Instruction::I32Const(method_id_hash));
+
+                    // Push object pointer
+                    self.compile_expression(
+                        func,
+                        object,
+                        model,
+                        remap_from,
+                        remap_to_local,
+                        local_offset,
+                    )?;
+
+                    // Push argument pointers
+                    for arg in args {
+                        self.compile_expression(
+                            func,
+                            arg,
+                            model,
+                            remap_from,
+                            remap_to_local,
+                            local_offset,
+                        )?;
+                    }
+
+                    // Call the appropriate hprecomputedN function
+                    func.instruction(&Instruction::Call(host_idx));
+                } else {
+                    // No hprecomputedN host function available - return 0 as fallback
+                    log::warn!(
+                        "MethodCall {}.{}({} args) requires {} host function, returning 0",
+                        class_name,
+                        method_name,
+                        args.len(),
+                        host_func_name
+                    );
+                    func.instruction(&Instruction::I32Const(0));
+                }
             }
         }
 

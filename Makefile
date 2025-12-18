@@ -23,6 +23,17 @@ build-rust:
 build-java:
 	cd $(JAVA_SERVICE) && mvn package -DskipTests -q
 
+# Rebuild Java service and update cache (for development)
+rebuild-java:
+	@echo "Clearing cached JAR..."
+	rm -f ~/.cache/solverforge/solverforge-wasm-service-*-runner.jar
+	@echo "Building Java service..."
+	cd $(JAVA_SERVICE) && mvn package -DskipTests -q
+	@echo "Copying JAR to cache..."
+	mkdir -p ~/.cache/solverforge
+	cp $(JAVA_SERVICE)/target/solverforge-wasm-service-*-runner.jar ~/.cache/solverforge/
+	@echo "Done. New JAR deployed to cache."
+
 build-release:
 	cargo build --workspace --release
 
@@ -219,6 +230,7 @@ help:
 	@echo "  make build          - Build both Rust and Java"
 	@echo "  make build-rust     - Build Rust workspace"
 	@echo "  make build-java     - Build Java service"
+	@echo "  make rebuild-java   - Rebuild Java and update cache (dev)"
 	@echo "  make build-release  - Build Rust in release mode"
 	@echo ""
 	@echo "Test:"

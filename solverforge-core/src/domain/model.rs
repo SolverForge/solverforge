@@ -41,6 +41,7 @@ impl DomainModel {
 
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
         use crate::domain::PlanningAnnotation as DomainAnnotation;
+        use crate::domain::ShadowAnnotation;
         use crate::solver::{
             DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor,
             PlanningAnnotation as SolverAnnotation,
@@ -101,10 +102,12 @@ impl DomainModel {
                                 allows_unassigned: *allows_unassigned,
                             });
                         }
-                        DomainAnnotation::PlanningListVariable { .. } => {
-                            // List variables use the same PlanningVariable annotation
-                            annotations.push(SolverAnnotation::PlanningVariable {
-                                allows_unassigned: false,
+                        DomainAnnotation::PlanningListVariable {
+                            allows_unassigned_values,
+                            ..
+                        } => {
+                            annotations.push(SolverAnnotation::PlanningListVariable {
+                                allows_unassigned_values: *allows_unassigned_values,
                             });
                         }
                         DomainAnnotation::PlanningScore { .. } => {
@@ -123,6 +126,19 @@ impl DomainModel {
                     }
                 }
 
+                // Convert shadow annotations to solver annotations
+                for ann in &field.shadow_annotations {
+                    if let ShadowAnnotation::InverseRelationShadowVariable {
+                        source_variable_name,
+                    } = ann
+                    {
+                        annotations.push(SolverAnnotation::InverseRelationShadowVariable {
+                            source_variable_name: source_variable_name.clone(),
+                        });
+                    }
+                    // Other shadow variables not yet supported
+                }
+
                 // Derive field type from domain type
                 let field_type = field.field_type.to_type_string();
 
@@ -131,6 +147,14 @@ impl DomainModel {
                     .with_annotations(annotations);
 
                 dto = dto.with_field(&field.name, field_descriptor);
+            }
+
+            // Add class-level annotations
+            if class.is_planning_entity() {
+                dto = dto.with_annotation(crate::solver::ClassAnnotation::PlanningEntity);
+            }
+            if class.is_planning_solution() {
+                dto = dto.with_annotation(crate::solver::ClassAnnotation::PlanningSolution);
             }
 
             // Add mapper for solution class (PlanningSolution)

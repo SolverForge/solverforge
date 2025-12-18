@@ -122,6 +122,36 @@ impl HostFunctionRegistry {
             WasmType::I32,
         ));
 
+        // Pre-computed method lookup
+        // These functions look up pre-computed values for methods that couldn't be inlined.
+        // The method_id is a hash of "ClassName.method_name".
+        // The object_ptr is the pointer to the receiver object.
+        // Additional args are pointers to argument objects.
+
+        // hprecomputed0: method with no arguments (besides self)
+        // (method_id: i32, object_ptr: ptr) -> i32
+        registry.register(HostFunctionDef::new(
+            "hprecomputed0",
+            vec![WasmType::I32, WasmType::Ptr],
+            WasmType::I32,
+        ));
+
+        // hprecomputed1: method with 1 argument (besides self)
+        // (method_id: i32, object_ptr: ptr, arg1_ptr: ptr) -> i32
+        registry.register(HostFunctionDef::new(
+            "hprecomputed1",
+            vec![WasmType::I32, WasmType::Ptr, WasmType::Ptr],
+            WasmType::I32,
+        ));
+
+        // hprecomputed2: method with 2 arguments (besides self)
+        // (method_id: i32, object_ptr: ptr, arg1_ptr: ptr, arg2_ptr: ptr) -> i32
+        registry.register(HostFunctionDef::new(
+            "hprecomputed2",
+            vec![WasmType::I32, WasmType::Ptr, WasmType::Ptr, WasmType::Ptr],
+            WasmType::I32,
+        ));
+
         registry
     }
 

@@ -8,7 +8,7 @@ mod config;
 mod error;
 mod jar;
 mod service;
-mod util;
+pub mod util;
 
 pub use config::ServiceConfig;
 pub use error::{ServiceError, ServiceResult};

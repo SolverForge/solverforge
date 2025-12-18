@@ -15,6 +15,8 @@ pub enum PlanningAnnotation {
     PlanningListVariable {
         #[serde(default)]
         value_range_provider_refs: Vec<String>,
+        #[serde(default)]
+        allows_unassigned_values: bool,
     },
     PlanningScore {
         #[serde(default)]
@@ -54,6 +56,14 @@ impl PlanningAnnotation {
     pub fn planning_list_variable(value_range_provider_refs: Vec<String>) -> Self {
         PlanningAnnotation::PlanningListVariable {
             value_range_provider_refs,
+            allows_unassigned_values: false,
+        }
+    }
+
+    pub fn planning_list_variable_unassigned(value_range_provider_refs: Vec<String>) -> Self {
+        PlanningAnnotation::PlanningListVariable {
+            value_range_provider_refs,
+            allows_unassigned_values: true,
         }
     }
 
@@ -149,8 +159,10 @@ mod tests {
         match ann {
             PlanningAnnotation::PlanningListVariable {
                 value_range_provider_refs,
+                allows_unassigned_values,
             } => {
                 assert_eq!(value_range_provider_refs, vec!["tasks"]);
+                assert!(!allows_unassigned_values);
             }
             _ => panic!("Expected PlanningListVariable"),
         }

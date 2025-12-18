@@ -136,6 +136,31 @@ pub enum Expression {
         element: Box<Expression>,
     },
 
+    /// Get the length of a collection
+    /// Example: len(vehicle.visits)
+    Length { collection: Box<Expression> },
+
+    /// Sum of field values over a collection
+    /// Example: sum(item.demand for item in vehicle.visits)
+    ///
+    /// # Fields
+    /// * `collection` - The collection to iterate over (e.g., vehicle.visits)
+    /// * `item_var_name` - Name of the loop variable (e.g., "item", "visit")
+    /// * `item_param_index` - Parameter index of the loop variable in the accumulator expression
+    /// * `item_class_name` - The type of items in the collection (e.g., "Visit")
+    /// * `accumulator_expr` - Expression to sum (e.g., Param(item_param_index).demand)
+    ///
+    /// The accumulator_expr should reference the loop variable by its parameter index.
+    /// The WASM generator replaces references to item_param_index with loads from the
+    /// loop element local variable and uses item_class_name for field lookups.
+    Sum {
+        collection: Box<Expression>,
+        item_var_name: String,
+        item_param_index: u32,
+        item_class_name: String,
+        accumulator_expr: Box<Expression>,
+    },
+
     // ===== Host Function Calls =====
     /// Call a host-provided function
     /// Example: hstringEquals(left, right)
@@ -151,6 +176,38 @@ pub enum Expression {
         condition: Box<Expression>,
         then_branch: Box<Expression>,
         else_branch: Box<Expression>,
+    },
+
+    // ===== Method Call (Pre-computed) =====
+    /// A method call that couldn't be inlined and will be resolved via pre-computed lookup.
+    ///
+    /// When a Python method is too complex to inline (e.g., uses math functions, loops with
+    /// state, etc.), we generate a MethodCall expression instead of failing. At serialization
+    /// time, the framework computes the results for all relevant inputs and includes them
+    /// in the solve request. The WASM code then performs a lookup into this pre-computed data.
+    ///
+    /// # Fields
+    /// * `object` - The receiver expression (e.g., `location`)
+    /// * `class_name` - Class name of the receiver (e.g., "Location")
+    /// * `method_name` - Name of the method (e.g., "driving_time_to")
+    /// * `args` - Method arguments (e.g., `[other_location]`)
+    ///
+    /// # Example
+    /// ```text
+    /// // Python: location.driving_time_to(other_location)
+    /// // Becomes:
+    /// MethodCall {
+    ///     object: FieldAccess { ..., field_name: "location" },
+    ///     class_name: "Location",
+    ///     method_name: "driving_time_to",
+    ///     args: vec![FieldAccess { ..., field_name: "other_location" }],
+    /// }
+    /// ```
+    MethodCall {
+        object: Box<Expression>,
+        class_name: String,
+        method_name: String,
+        args: Vec<Expression>,
     },
 }
 

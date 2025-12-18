@@ -31,7 +31,7 @@ pub use bridge::{PyBridge, PythonBridge};
 pub use collectors::{PyCollector, PyConstraintCollectors};
 pub use decorators::{PyConstraintProvider, PyDomainClass, PyDomainModel};
 pub use joiners::{PyJoiner, PyJoiners};
-pub use lambda_analyzer::{analyze_lambda, generate_lambda_name, LambdaInfo};
+pub use lambda_analyzer::{generate_lambda_name, LambdaInfo};
 pub use score::{PyHardMediumSoftScore, PyHardSoftScore, PySimpleScore};
 pub use solver::{
     PyDiminishedReturnsConfig, PyEnvironmentMode, PyMoveThreadCount, PySolveHandle,
@@ -48,6 +48,9 @@ pub use stream::{
 /// Provides constraint solving capabilities with an API compatible with Timefold.
 #[pymodule]
 fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Initialize logger from RUST_LOG env var
+    let _ = env_logger::try_init();
+
     // Version info
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 

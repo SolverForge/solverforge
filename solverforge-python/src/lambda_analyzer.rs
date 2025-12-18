@@ -37,71 +37,47 @@ pub fn generate_lambda_name(prefix: &str) -> String {
     format!("{}_{}", prefix, id)
 }
 
-/// Information about a stored lambda.
+/// Information about an analyzed lambda.
 ///
-/// This stores the Python callable along with metadata needed for analysis.
+/// This stores pure Rust data - no Python references. The Python callable
+/// is only used during analysis and then discarded.
+#[derive(Clone)]
 pub struct LambdaInfo {
-    /// The Python callable (lambda or function).
-    pub callable: Py<PyAny>,
     /// Generated unique name for this lambda.
     pub name: String,
     /// Number of parameters the lambda expects.
     pub param_count: usize,
     /// Optional class name hint for type inference.
     pub class_hint: Option<String>,
-    /// The analyzed expression (populated after analysis).
-    pub expression: Option<Expression>,
-}
-
-impl Clone for LambdaInfo {
-    fn clone(&self) -> Self {
-        Python::attach(|py| Self {
-            callable: self.callable.clone_ref(py),
-            name: self.name.clone(),
-            param_count: self.param_count,
-            class_hint: self.class_hint.clone(),
-            expression: self.expression.clone(),
-        })
-    }
+    /// The analyzed expression.
+    pub expression: Expression,
 }
 
 impl LambdaInfo {
     /// Create a new LambdaInfo from a Python callable.
     ///
-    /// This analyzes the lambda immediately and returns an error if the pattern
-    /// is not supported.
-    pub fn new(py: Python<'_>, callable: Py<PyAny>, prefix: &str) -> PyResult<Self> {
+    /// The callable is analyzed immediately and then discarded.
+    /// Only the resulting Expression is kept - no Python references are stored.
+    pub fn new(
+        py: Python<'_>,
+        callable: Py<PyAny>,
+        prefix: &str,
+        class_hint: Option<&str>,
+    ) -> PyResult<Self> {
         let name = generate_lambda_name(prefix);
-        let param_count = Self::get_param_count(py, &callable)?;
+        let param_count = get_param_count(py, &callable)?;
+        let class_hint_owned = class_hint.map(|s| s.to_string());
 
-        let mut info = Self {
-            callable,
+        // Analyze the lambda immediately - callable is only used here
+        let expression = analyze_lambda(py, &callable, param_count, class_hint)?;
+
+        // Return pure Rust struct - no Python references
+        Ok(Self {
             name,
             param_count,
-            class_hint: None,
-            expression: None,
-        };
-
-        // Analyze the lambda immediately
-        let expr = analyze_lambda(py, &info)?;
-        info.expression = Some(expr);
-
-        Ok(info)
-    }
-
-    /// Create with a class hint for better type inference.
-    pub fn with_class_hint(mut self, class_name: impl Into<String>) -> Self {
-        self.class_hint = Some(class_name.into());
-        self
-    }
-
-    /// Get the number of parameters from a Python callable.
-    fn get_param_count(py: Python<'_>, callable: &Py<PyAny>) -> PyResult<usize> {
-        let inspect = py.import("inspect")?;
-        let sig = inspect.call_method1("signature", (callable,))?;
-        let params = sig.getattr("parameters")?;
-        let len = params.len()?;
-        Ok(len)
+            class_hint: class_hint_owned,
+            expression,
+        })
     }
 
     /// Convert to a WasmFunction reference.
@@ -110,33 +86,48 @@ impl LambdaInfo {
     }
 
     /// Get the analyzed expression.
-    pub fn get_expression(&self) -> Option<&Expression> {
-        self.expression.as_ref()
+    pub fn get_expression(&self) -> &Expression {
+        &self.expression
     }
+}
+
+/// Get the number of parameters from a Python callable.
+fn get_param_count(py: Python<'_>, callable: &Py<PyAny>) -> PyResult<usize> {
+    let inspect = py.import("inspect")?;
+    let sig = inspect.call_method1("signature", (callable,))?;
+    let params = sig.getattr("parameters")?;
+    let len = params.len()?;
+    Ok(len)
 }
 
 /// Analyze a Python lambda and convert to an Expression tree.
 ///
 /// This function uses Python's AST module to parse the lambda and convert it
-/// to a solverforge Expression tree.
+/// to a solverforge Expression tree. The callable is used only for analysis
+/// and is not stored.
 ///
 /// # Errors
 ///
 /// Returns an error with a clear message if the lambda pattern is not supported.
-pub fn analyze_lambda(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult<Expression> {
+fn analyze_lambda(
+    py: Python<'_>,
+    callable: &Py<PyAny>,
+    param_count: usize,
+    class_hint: Option<&str>,
+) -> PyResult<Expression> {
     let inspect = py.import("inspect")?;
 
     // Try to get the source code
-    let source_result = inspect.call_method1("getsource", (&lambda_info.callable,));
+    let source_result = inspect.call_method1("getsource", (callable,));
 
     match source_result {
         Ok(source) => {
             let source_str: String = source.extract()?;
-            analyze_lambda_source(py, &source_str, lambda_info)
+            analyze_lambda_source(py, &source_str, callable, param_count, class_hint)
         }
         Err(_) => {
             // Can't get source - try bytecode analysis as fallback
-            analyze_lambda_bytecode(py, lambda_info)
+            analyze_lambda_bytecode(py, callable, param_count, class_hint)
         }
     }
 }
@@ -145,24 +136,25 @@ pub fn analyze_lambda(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult<Expr
 ///
 /// This uses Python's dis module to disassemble the lambda's code object
 /// and reconstruct an Expression tree from the bytecode instructions.
-fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult<Expression> {
-    let callable = lambda_info.callable.bind(py);
+fn analyze_lambda_bytecode(
+    py: Python<'_>,
+    callable: &Py<PyAny>,
+    _param_count: usize,
+    class_hint: Option<&str>,
+) -> PyResult<Expression> {
+    let callable_bound = callable.bind(py);
 
     // Use dis module to get instructions - argval contains the resolved values
     let dis = py.import("dis")?;
     let get_instructions = dis.getattr("get_instructions")?;
-    let instructions_iter = get_instructions.call1((callable,))?;
+    let instructions_iter = get_instructions.call1((callable_bound,))?;
     let instructions_list: Vec<Bound<'_, PyAny>> = instructions_iter
         .try_iter()?
         .collect::<Result<Vec<_>, _>>()?;
 
     // Stack-based evaluation
     let mut stack: Vec<BytecodeValue> = Vec::new();
-    let class_name = lambda_info
-        .class_hint
-        .as_deref()
-        .unwrap_or("Unknown")
-        .to_string();
+    let class_name = class_hint.unwrap_or("Unknown").to_string();
 
     for instr in instructions_list.iter() {
         let opname: String = instr.getattr("opname")?.extract()?;
@@ -176,7 +168,7 @@ fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult
                 // Load a local variable (parameter) - argval is the variable name
                 // We need to find the parameter index
                 let var_name: String = argval.extract()?;
-                let code = callable.getattr("__code__")?;
+                let code = callable_bound.getattr("__code__")?;
                 let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
                 if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
                     stack.push(BytecodeValue::Param(idx as u32));
@@ -192,7 +184,7 @@ fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult
                 // Python 3.12+ optimization: loads two variables at once
                 // argval is a tuple of two variable names like ('a', 'b')
                 let var_names: Vec<String> = argval.extract()?;
-                let code = callable.getattr("__code__")?;
+                let code = callable_bound.getattr("__code__")?;
                 let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
                 for var_name in var_names {
                     if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
@@ -502,7 +494,9 @@ fn bytecode_value_to_expression(value: BytecodeValue) -> PyResult<Expression> {
 fn analyze_lambda_source(
     py: Python<'_>,
     source: &str,
-    lambda_info: &LambdaInfo,
+    callable: &Py<PyAny>,
+    param_count: usize,
+    class_hint: Option<&str>,
 ) -> PyResult<Expression> {
     let ast = py.import("ast")?;
 
@@ -517,7 +511,7 @@ fn analyze_lambda_source(
         Ok(t) => t,
         Err(_) => {
             // If parsing fails, try bytecode analysis
-            return analyze_lambda_bytecode(py, lambda_info);
+            return analyze_lambda_bytecode(py, callable, param_count, class_hint);
         }
     };
 
@@ -525,11 +519,11 @@ fn analyze_lambda_source(
     let body = tree.getattr("body")?;
 
     // Extract lambda node and convert to Expression
-    match extract_lambda_expression(py, &body, lambda_info)? {
+    match extract_lambda_expression(py, &body, param_count, class_hint)? {
         Some(expr) => Ok(expr),
         None => {
             // Fallback to bytecode analysis if AST extraction fails
-            analyze_lambda_bytecode(py, lambda_info)
+            analyze_lambda_bytecode(py, callable, param_count, class_hint)
         }
     }
 }
@@ -596,7 +590,8 @@ fn extract_lambda_from_source(source: &str) -> String {
 fn extract_lambda_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
-    lambda_info: &LambdaInfo,
+    _param_count: usize,
+    class_hint: Option<&str>,
 ) -> PyResult<Option<Expression>> {
     let node_type = node.get_type().name()?.to_string();
 
@@ -605,7 +600,8 @@ fn extract_lambda_expression(
             // Body is a list, find lambda in it
             let list = node.cast::<PyList>()?;
             for item in list.iter() {
-                if let Some(expr) = extract_lambda_expression(py, &item, lambda_info)? {
+                if let Some(expr) = extract_lambda_expression(py, &item, _param_count, class_hint)?
+                {
                     return Ok(Some(expr));
                 }
             }
@@ -615,13 +611,13 @@ fn extract_lambda_expression(
         "Expr" => {
             // Expression statement wrapper
             let value = node.getattr("value")?;
-            extract_lambda_expression(py, &value, lambda_info)
+            extract_lambda_expression(py, &value, _param_count, class_hint)
         }
 
         "Assign" => {
             // Assignment statement - check the value
             let value = node.getattr("value")?;
-            extract_lambda_expression(py, &value, lambda_info)
+            extract_lambda_expression(py, &value, _param_count, class_hint)
         }
 
         "Lambda" => {
@@ -630,7 +626,7 @@ fn extract_lambda_expression(
             let args = node.getattr("args")?;
             let arg_names = extract_arg_names(py, &args)?;
 
-            convert_ast_to_expression(py, &body, &arg_names, lambda_info)
+            convert_ast_to_expression(py, &body, &arg_names, class_hint)
         }
 
         "Call" => {
@@ -639,7 +635,7 @@ fn extract_lambda_expression(
             let args_list = args_node.cast::<PyList>()?;
 
             for arg in args_list.iter() {
-                if let Some(expr) = extract_lambda_expression(py, &arg, lambda_info)? {
+                if let Some(expr) = extract_lambda_expression(py, &arg, _param_count, class_hint)? {
                     return Ok(Some(expr));
                 }
             }
@@ -669,14 +665,10 @@ fn convert_ast_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
-    lambda_info: &LambdaInfo,
+    class_hint: Option<&str>,
 ) -> PyResult<Option<Expression>> {
     let node_type = node.get_type().name()?.to_string();
-    let class_name = lambda_info
-        .class_hint
-        .as_deref()
-        .unwrap_or("Unknown")
-        .to_string();
+    let class_name = class_hint.unwrap_or("Unknown").to_string();
 
     match node_type.as_str() {
         "Attribute" => {
@@ -684,8 +676,7 @@ fn convert_ast_to_expression(
             let value = node.getattr("value")?;
             let attr: String = node.getattr("attr")?.extract()?;
 
-            if let Some(base_expr) = convert_ast_to_expression(py, &value, arg_names, lambda_info)?
-            {
+            if let Some(base_expr) = convert_ast_to_expression(py, &value, arg_names, class_hint)? {
                 Ok(Some(Expression::FieldAccess {
                     object: Box::new(base_expr),
                     class_name,
@@ -717,27 +708,69 @@ fn convert_ast_to_expression(
 
         "Compare" => {
             // Comparison: x < y, x == y, x is None, etc.
-            convert_compare_to_expression(py, node, arg_names, lambda_info)
+            convert_compare_to_expression(py, node, arg_names, class_hint)
         }
 
         "BoolOp" => {
             // Boolean operation: and, or
-            convert_boolop_to_expression(py, node, arg_names, lambda_info)
+            convert_boolop_to_expression(py, node, arg_names, class_hint)
         }
 
         "UnaryOp" => {
             // Unary operation: not
-            convert_unaryop_to_expression(py, node, arg_names, lambda_info)
+            convert_unaryop_to_expression(py, node, arg_names, class_hint)
         }
 
         "BinOp" => {
             // Binary operation: +, -, *, /
-            convert_binop_to_expression(py, node, arg_names, lambda_info)
+            convert_binop_to_expression(py, node, arg_names, class_hint)
         }
 
         "Constant" | "Num" | "NameConstant" => {
             // Literal value
             convert_constant_to_expression(node)
+        }
+
+        "Call" => {
+            // Method call: obj.method() or function()
+            let func = node.getattr("func")?;
+            let func_type = func.get_type().name()?.to_string();
+
+            if func_type == "Attribute" {
+                // Method call: obj.method()
+                let value = func.getattr("value")?;
+                let method_name: String = func.getattr("attr")?.extract()?;
+
+                // Get the object expression
+                if let Some(obj_expr) =
+                    convert_ast_to_expression(py, &value, arg_names, class_hint)?
+                {
+                    // Convert method call arguments
+                    let args_node = node.getattr("args")?;
+                    let args_list = args_node.cast::<PyList>()?;
+                    let mut call_args = vec![obj_expr];
+
+                    for arg in args_list.iter() {
+                        if let Some(arg_expr) =
+                            convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                        {
+                            call_args.push(arg_expr);
+                        }
+                    }
+
+                    // Create HostCall with class_method naming convention
+                    let function_name = format!("{}_{}", class_name, method_name);
+                    Ok(Some(Expression::HostCall {
+                        function_name,
+                        args: call_args,
+                    }))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                // Regular function call - not supported in this context
+                Ok(None)
+            }
         }
 
         _ => Ok(None),
@@ -749,7 +782,7 @@ fn convert_compare_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
-    lambda_info: &LambdaInfo,
+    class_hint: Option<&str>,
 ) -> PyResult<Option<Expression>> {
     let left = node.getattr("left")?;
     let ops_list = node.getattr("ops")?.cast::<PyList>()?.clone();
@@ -763,8 +796,8 @@ fn convert_compare_to_expression(
         return Ok(None);
     }
 
-    let left_expr = convert_ast_to_expression(py, &left, arg_names, lambda_info)?;
-    let right_expr = convert_ast_to_expression(py, &comparators[0], arg_names, lambda_info)?;
+    let left_expr = convert_ast_to_expression(py, &left, arg_names, class_hint)?;
+    let right_expr = convert_ast_to_expression(py, &comparators[0], arg_names, class_hint)?;
 
     match (left_expr, right_expr) {
         (Some(left), Some(right)) => {
@@ -835,7 +868,7 @@ fn convert_boolop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
-    lambda_info: &LambdaInfo,
+    class_hint: Option<&str>,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
     let values_list = node.getattr("values")?.cast::<PyList>()?.clone();
@@ -850,7 +883,7 @@ fn convert_boolop_to_expression(
     // Convert all operands
     let mut exprs: Vec<Expression> = Vec::new();
     for val in values.iter() {
-        if let Some(expr) = convert_ast_to_expression(py, val, arg_names, lambda_info)? {
+        if let Some(expr) = convert_ast_to_expression(py, val, arg_names, class_hint)? {
             exprs.push(expr);
         } else {
             return Ok(None);
@@ -881,14 +914,14 @@ fn convert_unaryop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
-    lambda_info: &LambdaInfo,
+    class_hint: Option<&str>,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
     let operand = node.getattr("operand")?;
 
     let op_type = op.get_type().name()?.to_string();
 
-    if let Some(operand_expr) = convert_ast_to_expression(py, &operand, arg_names, lambda_info)? {
+    if let Some(operand_expr) = convert_ast_to_expression(py, &operand, arg_names, class_hint)? {
         let expr = match op_type.as_str() {
             "Not" => Expression::Not {
                 operand: Box::new(operand_expr),
@@ -913,14 +946,14 @@ fn convert_binop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
-    lambda_info: &LambdaInfo,
+    class_hint: Option<&str>,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
     let left = node.getattr("left")?;
     let right = node.getattr("right")?;
 
-    let left_expr = convert_ast_to_expression(py, &left, arg_names, lambda_info)?;
-    let right_expr = convert_ast_to_expression(py, &right, arg_names, lambda_info)?;
+    let left_expr = convert_ast_to_expression(py, &left, arg_names, class_hint)?;
+    let right_expr = convert_ast_to_expression(py, &right, arg_names, class_hint)?;
 
     match (left_expr, right_expr) {
         (Some(l), Some(r)) => {
@@ -1017,11 +1050,12 @@ mod tests {
         init_python();
         Python::attach(|py| {
             let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x", None, Some(&locals)).unwrap();
+            py.run(c"f = lambda x: x.field", None, Some(&locals))
+                .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let count = LambdaInfo::get_param_count(py, &func.unbind()).unwrap();
-            assert_eq!(count, 1);
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
+            assert_eq!(info.param_count, 1);
         });
     }
 
@@ -1030,11 +1064,12 @@ mod tests {
         init_python();
         Python::attach(|py| {
             let locals = PyDict::new(py);
-            py.run(c"f = lambda a, b: a", None, Some(&locals)).unwrap();
+            py.run(c"f = lambda a, b: a.field", None, Some(&locals))
+                .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let count = LambdaInfo::get_param_count(py, &func.unbind()).unwrap();
-            assert_eq!(count, 2);
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
+            assert_eq!(info.param_count, 2);
         });
     }
 
@@ -1047,17 +1082,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: Some("Lesson".to_string()),
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", Some("Lesson")).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            match result {
+            match &info.expression {
                 Expression::FieldAccess {
                     field_name,
                     class_name,
@@ -1066,7 +1093,7 @@ mod tests {
                     assert_eq!(field_name, "timeslot");
                     assert_eq!(class_name, "Lesson");
                 }
-                _ => panic!("Expected FieldAccess, got {:?}", result),
+                _ => panic!("Expected FieldAccess, got {:?}", info.expression),
             }
         });
     }
@@ -1080,24 +1107,16 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: Some("Lesson".to_string()),
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", Some("Lesson")).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            match result {
-                Expression::IsNotNull { operand } => match *operand {
+            match &info.expression {
+                Expression::IsNotNull { operand } => match operand.as_ref() {
                     Expression::FieldAccess { field_name, .. } => {
                         assert_eq!(field_name, "room");
                     }
                     _ => panic!("Expected FieldAccess inside IsNotNull"),
                 },
-                _ => panic!("Expected IsNotNull, got {:?}", result),
+                _ => panic!("Expected IsNotNull, got {:?}", info.expression),
             }
         });
     }
@@ -1111,17 +1130,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::IsNull { .. }));
+            assert!(matches!(info.expression, Expression::IsNull { .. }));
         });
     }
 
@@ -1134,22 +1145,17 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            match result {
+            match &info.expression {
                 Expression::Gt { left, right } => {
-                    assert!(matches!(*left, Expression::FieldAccess { .. }));
-                    assert!(matches!(*right, Expression::IntLiteral { value: 5 }));
+                    assert!(matches!(left.as_ref(), Expression::FieldAccess { .. }));
+                    assert!(matches!(
+                        right.as_ref(),
+                        Expression::IntLiteral { value: 5 }
+                    ));
                 }
-                _ => panic!("Expected Gt, got {:?}", result),
+                _ => panic!("Expected Gt, got {:?}", info.expression),
             }
         });
     }
@@ -1163,17 +1169,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Eq { .. }));
+            assert!(matches!(info.expression, Expression::Eq { .. }));
         });
     }
 
@@ -1190,17 +1188,9 @@ mod tests {
             .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::And { .. }));
+            assert!(matches!(info.expression, Expression::And { .. }));
         });
     }
 
@@ -1213,17 +1203,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Or { .. }));
+            assert!(matches!(info.expression, Expression::Or { .. }));
         });
     }
 
@@ -1236,17 +1218,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Not { .. }));
+            assert!(matches!(info.expression, Expression::Not { .. }));
         });
     }
 
@@ -1259,17 +1233,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Add { .. }));
+            assert!(matches!(info.expression, Expression::Add { .. }));
         });
     }
 
@@ -1282,17 +1248,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Sub { .. }));
+            assert!(matches!(info.expression, Expression::Sub { .. }));
         });
     }
 
@@ -1305,17 +1263,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Mul { .. }));
+            assert!(matches!(info.expression, Expression::Mul { .. }));
         });
     }
 
@@ -1328,17 +1278,9 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            assert!(matches!(result, Expression::Div { .. }));
+            assert!(matches!(info.expression, Expression::Div { .. }));
         });
     }
 
@@ -1351,20 +1293,12 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 2,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            match result {
+            match &info.expression {
                 Expression::Eq { left, right } => {
                     // Verify both sides are field accesses from different params
-                    match (*left, *right) {
+                    match (left.as_ref(), right.as_ref()) {
                         (
                             Expression::FieldAccess {
                                 object: left_obj, ..
@@ -1373,8 +1307,8 @@ mod tests {
                                 object: right_obj, ..
                             },
                         ) => {
-                            assert!(matches!(*left_obj, Expression::Param { index: 0 }));
-                            assert!(matches!(*right_obj, Expression::Param { index: 1 }));
+                            assert!(matches!(left_obj.as_ref(), Expression::Param { index: 0 }));
+                            assert!(matches!(right_obj.as_ref(), Expression::Param { index: 1 }));
                         }
                         _ => panic!("Expected field accesses"),
                     }
@@ -1395,22 +1329,14 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 2,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            match result {
+            match &info.expression {
                 Expression::Add { left, right } => {
-                    assert!(matches!(*left, Expression::Param { index: 0 }));
-                    assert!(matches!(*right, Expression::Param { index: 1 }));
+                    assert!(matches!(left.as_ref(), Expression::Param { index: 0 }));
+                    assert!(matches!(right.as_ref(), Expression::Param { index: 1 }));
                 }
-                _ => panic!("Expected Add expression, got {:?}", result),
+                _ => panic!("Expected Add expression, got {:?}", info.expression),
             }
         });
     }
@@ -1425,34 +1351,26 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 3,
-                class_hint: None,
-                expression: None,
-            };
-
-            let result = analyze_lambda(py, &info).unwrap();
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
             // Should be Add(Add(a, b), c)
-            match result {
+            match &info.expression {
                 Expression::Add { left, right } => {
                     // right should be Param 2 (c)
-                    assert!(matches!(*right, Expression::Param { index: 2 }));
+                    assert!(matches!(right.as_ref(), Expression::Param { index: 2 }));
                     // left should be Add(a, b)
-                    match *left {
+                    match left.as_ref() {
                         Expression::Add {
                             left: l2,
                             right: r2,
                         } => {
-                            assert!(matches!(*l2, Expression::Param { index: 0 }));
-                            assert!(matches!(*r2, Expression::Param { index: 1 }));
+                            assert!(matches!(l2.as_ref(), Expression::Param { index: 0 }));
+                            assert!(matches!(r2.as_ref(), Expression::Param { index: 1 }));
                         }
                         _ => panic!("Expected nested Add"),
                     }
                 }
-                _ => panic!("Expected Add expression, got {:?}", result),
+                _ => panic!("Expected Add expression, got {:?}", info.expression),
             }
         });
     }
@@ -1466,23 +1384,15 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo {
-                callable: func.unbind(),
-                name: "test".to_string(),
-                param_count: 1,
-                class_hint: None,
-                expression: None,
-            };
+            let info = LambdaInfo::new(py, func.unbind(), "test", None).unwrap();
 
-            let result = analyze_lambda(py, &info).unwrap();
-
-            match result {
+            match &info.expression {
                 Expression::FieldAccess {
                     field_name, object, ..
                 } => {
                     assert_eq!(field_name, "name");
                     // The object should be another FieldAccess
-                    match *object {
+                    match object.as_ref() {
                         Expression::FieldAccess { field_name, .. } => {
                             assert_eq!(field_name, "employee");
                         }
@@ -1503,14 +1413,10 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo::new(py, func.unbind(), "test").unwrap();
+            let info = LambdaInfo::new(py, func.unbind(), "test", Some("Entity")).unwrap();
 
-            // Expression should be populated
-            assert!(info.expression.is_some());
-            assert!(matches!(
-                info.expression.unwrap(),
-                Expression::FieldAccess { .. }
-            ));
+            // Expression should be populated with FieldAccess
+            assert!(matches!(info.expression, Expression::FieldAccess { .. }));
         });
     }
 
@@ -1523,7 +1429,7 @@ mod tests {
                 .unwrap();
             let func = locals.get_item("f").unwrap().unwrap();
 
-            let info = LambdaInfo::new(py, func.unbind(), "equal_map").unwrap();
+            let info = LambdaInfo::new(py, func.unbind(), "equal_map", Some("Entity")).unwrap();
             let wasm_func = info.to_wasm_function();
 
             assert!(wasm_func.name().starts_with("equal_map_"));

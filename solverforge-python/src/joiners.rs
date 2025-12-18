@@ -25,17 +25,12 @@ impl JoinerLambda {
     /// Create a new JoinerLambda from a Python callable.
     ///
     /// This analyzes the lambda immediately and returns an error if the pattern
-    /// is not supported.
+    /// is not supported. Note: Joiners are created without class context - the
+    /// class is only known when the joiner is used in a stream operation.
     pub fn new(py: Python<'_>, callable: Py<PyAny>, prefix: &str) -> PyResult<Self> {
-        let info = LambdaInfo::new(py, callable, prefix)?;
+        // Joiners don't have class context at creation time
+        let info = LambdaInfo::new(py, callable, prefix, None)?;
         Ok(Self { info })
-    }
-
-    /// Create with a class hint for type inference.
-    #[allow(dead_code)]
-    pub fn with_class_hint(mut self, class_name: impl Into<String>) -> Self {
-        self.info = self.info.with_class_hint(class_name);
-        self
     }
 
     /// Convert to WasmFunction reference.

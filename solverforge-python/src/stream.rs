@@ -157,8 +157,7 @@ impl PyUniConstraintStream {
     /// Filter entities based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda with class hint
-        let mut lambda_info = LambdaInfo::new(py, predicate, "filter")?;
-        lambda_info = lambda_info.with_class_hint(&self.class_name);
+        let lambda_info = LambdaInfo::new(py, predicate, "filter", Some(&self.class_name))?;
 
         let wasm_func = lambda_info.to_wasm_function();
 
@@ -191,8 +190,7 @@ impl PyUniConstraintStream {
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda with class hint
-        let mut lambda_info = LambdaInfo::new(py, predicate, "filter")?;
-        lambda_info = lambda_info.with_class_hint(&self.class_name);
+        let lambda_info = LambdaInfo::new(py, predicate, "filter", Some(&self.class_name))?;
 
         let wasm_func = lambda_info.to_wasm_function();
 
@@ -295,7 +293,7 @@ impl PyUniConstraintStream {
         key_mapper: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyBiConstraintStream> {
-        let key_info = LambdaInfo::new(py, key_mapper, "group_by_key")?;
+        let key_info = LambdaInfo::new(py, key_mapper, "group_by_key", Some(&self.class_name))?;
         let key_wasm = key_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -357,8 +355,10 @@ impl PyUniConstraintStream {
         key_mapper_b: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyTriConstraintStream> {
-        let key_a_info = LambdaInfo::new(py, key_mapper_a, "group_by_key_a")?;
-        let key_b_info = LambdaInfo::new(py, key_mapper_b, "group_by_key_b")?;
+        let key_a_info =
+            LambdaInfo::new(py, key_mapper_a, "group_by_key_a", Some(&self.class_name))?;
+        let key_b_info =
+            LambdaInfo::new(py, key_mapper_b, "group_by_key_b", Some(&self.class_name))?;
 
         let mut components = self.components.clone();
         components.push(StreamComponent::GroupBy {
@@ -388,7 +388,12 @@ impl PyUniConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyUniConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            Some(&self.class_name),
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -436,7 +441,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -467,7 +472,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -494,7 +499,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -521,7 +526,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -548,7 +553,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -575,7 +580,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -602,7 +607,7 @@ impl PyUniConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_name))
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
@@ -688,7 +693,12 @@ impl PyBiConstraintStream {
     /// Filter pairs based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_bi")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_bi",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -720,7 +730,12 @@ impl PyBiConstraintStream {
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_bi")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_bi",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -797,7 +812,12 @@ impl PyBiConstraintStream {
         key_mapper: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyBiConstraintStream> {
-        let key_info = LambdaInfo::new(py, key_mapper, "group_by_bi_key")?;
+        let key_info = LambdaInfo::new(
+            py,
+            key_mapper,
+            "group_by_bi_key",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let key_wasm = key_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -849,7 +869,12 @@ impl PyBiConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyBiConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -882,7 +907,12 @@ impl PyBiConstraintStream {
 
         // If padding is provided, add a map component for it
         if let Some(pad_fn) = padding {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding")?;
+            let lambda_info = LambdaInfo::new(
+                py,
+                pad_fn,
+                "complement_padding",
+                self.class_names.first().map(|s| s.as_str()),
+            )?;
             components.push(StreamComponent::Map {
                 mappers: vec![lambda_info.to_wasm_function()],
             });
@@ -907,8 +937,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -934,8 +965,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -961,8 +993,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -988,8 +1021,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1015,8 +1049,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1132,7 +1167,12 @@ impl PyTriConstraintStream {
 
     /// Filter triples based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_tri",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1163,7 +1203,12 @@ impl PyTriConstraintStream {
     /// stream.filter(lambda a, b, c: a.room != b.room and b.room != c.room)
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_tri",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1234,7 +1279,12 @@ impl PyTriConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyTriConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -1268,13 +1318,14 @@ impl PyTriConstraintStream {
         components.push(StreamComponent::Complement { class_name });
 
         // If padding functions are provided, add map components for them
+        let class_hint = self.class_names.first().map(|s| s.as_str());
         let mut mappers = Vec::new();
         if let Some(pad_fn) = padding_b {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_c {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if !mappers.is_empty() {
@@ -1300,8 +1351,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1327,8 +1379,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1354,8 +1407,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1381,8 +1435,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1408,8 +1463,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1475,7 +1531,12 @@ impl PyQuadConstraintStream {
 impl PyQuadConstraintStream {
     /// Filter quads based on a predicate.
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_quad")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_quad",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1538,7 +1599,12 @@ impl PyQuadConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyQuadConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -1567,17 +1633,18 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
         components.push(StreamComponent::Complement { class_name });
 
+        let class_hint = self.class_names.first().map(|s| s.as_str());
         let mut mappers = Vec::new();
         if let Some(pad_fn) = padding_b {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_c {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_d {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if !mappers.is_empty() {
@@ -1603,8 +1670,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1630,8 +1698,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1657,8 +1726,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1684,8 +1754,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1779,7 +1850,12 @@ impl PyPentaConstraintStream {
 
     /// Filter based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_penta")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_penta",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1810,7 +1886,12 @@ impl PyPentaConstraintStream {
     /// stream.filter(lambda a, b, c, d, e: a.id != e.id)
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_penta")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            predicate,
+            "filter_penta",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1873,7 +1954,12 @@ impl PyPentaConstraintStream {
         key_mapper: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyBiConstraintStream> {
-        let key_info = LambdaInfo::new(py, key_mapper, "group_by_penta_key")?;
+        let key_info = LambdaInfo::new(
+            py,
+            key_mapper,
+            "group_by_penta_key",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let key_wasm = key_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1910,7 +1996,12 @@ impl PyPentaConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyPentaConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            self.class_names.first().map(|s| s.as_str()),
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -1940,21 +2031,22 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
         components.push(StreamComponent::Complement { class_name });
 
+        let class_hint = self.class_names.first().map(|s| s.as_str());
         let mut mappers = Vec::new();
         if let Some(pad_fn) = padding_b {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_c {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_d {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_e {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_e")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_e", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if !mappers.is_empty() {
@@ -1980,8 +2072,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2007,8 +2100,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2034,8 +2128,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2061,8 +2156,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2088,8 +2184,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", Some(&self.class_names[0]))
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2245,6 +2342,7 @@ mod tests {
     fn test_constraint_to_json() {
         let constraint = PyConstraint {
             inner: Constraint::new("Test constraint"),
+            predicates: Vec::new(),
         };
         let json = constraint.to_json().unwrap();
         assert!(json.contains("Test constraint"));
@@ -2839,6 +2937,7 @@ mod tests {
                         scale_by: None,
                     },
                 ],
+                predicates: Vec::new(),
             };
 
             let constraint = builder.as_constraint("Test penta constraint");
@@ -2856,6 +2955,7 @@ mod tests {
                 components: vec![StreamComponent::ForEach {
                     class_name: "Entity".to_string(),
                 }],
+                predicates: Vec::new(),
             };
 
             let repr = builder.__repr__();

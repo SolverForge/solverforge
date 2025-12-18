@@ -794,9 +794,8 @@ impl PySolverFactory {
 
         // Add all predicates from constraints to the WASM module
         for lambda in &predicates {
-            if let Some(predicate_def) = lambda_to_predicate(lambda) {
-                wasm_builder = wasm_builder.add_predicate(predicate_def);
-            }
+            let predicate_def = lambda_to_predicate(lambda);
+            wasm_builder = wasm_builder.add_predicate(predicate_def);
         }
 
         let wasm_module = wasm_builder.build_base64().map_err(|e| {
@@ -1081,10 +1080,12 @@ fn build_constraint_set(constraints: &[PyConstraint]) -> (ConstraintSet, Vec<Lam
 }
 
 /// Convert LambdaInfo to PredicateDefinition for WASM generation.
-fn lambda_to_predicate(lambda: &LambdaInfo) -> Option<PredicateDefinition> {
-    lambda.expression.as_ref().map(|expr| {
-        PredicateDefinition::from_expression(&lambda.name, lambda.param_count as u32, expr.clone())
-    })
+fn lambda_to_predicate(lambda: &LambdaInfo) -> PredicateDefinition {
+    PredicateDefinition::from_expression(
+        &lambda.name,
+        lambda.param_count as u32,
+        lambda.expression.clone(),
+    )
 }
 
 /// Status of a solver job.
@@ -1813,6 +1814,7 @@ mod tests {
                 constraints: ConstraintSet::new(),
                 domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
                 service_url: "http://localhost:8080".to_string(),
+                wasm_module: String::new(),
             });
 
             let manager = PySolverManager {
@@ -1856,6 +1858,7 @@ mod tests {
                 constraints: ConstraintSet::new(),
                 domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
                 service_url: "http://localhost:8080".to_string(),
+                wasm_module: String::new(),
             });
 
             let manager = PySolverManager {

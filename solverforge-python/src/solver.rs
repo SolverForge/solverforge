@@ -1047,6 +1047,421 @@ fn build_constraint_set(constraints: &[PyConstraint]) -> ConstraintSet {
     set
 }
 
+/// Status of a solver job.
+#[pyclass(name = "SolverJobStatus", eq, eq_int)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PySolverJobStatus {
+    /// The solver job has not started solving yet.
+    NotSolving,
+    /// The solver job is scheduled to solve, but hasn't started yet.
+    SolvingScheduled,
+    /// The solver is actively solving the problem.
+    SolvingActive,
+}
+
+#[pymethods]
+impl PySolverJobStatus {
+    fn __repr__(&self) -> String {
+        match self {
+            PySolverJobStatus::NotSolving => "SolverJobStatus.NOT_SOLVING".to_string(),
+            PySolverJobStatus::SolvingScheduled => "SolverJobStatus.SOLVING_SCHEDULED".to_string(),
+            PySolverJobStatus::SolvingActive => "SolverJobStatus.SOLVING_ACTIVE".to_string(),
+        }
+    }
+
+    #[classattr]
+    #[pyo3(name = "NOT_SOLVING")]
+    fn not_solving() -> Self {
+        PySolverJobStatus::NotSolving
+    }
+
+    #[classattr]
+    #[pyo3(name = "SOLVING_SCHEDULED")]
+    fn solving_scheduled() -> Self {
+        PySolverJobStatus::SolvingScheduled
+    }
+
+    #[classattr]
+    #[pyo3(name = "SOLVING_ACTIVE")]
+    fn solving_active() -> Self {
+        PySolverJobStatus::SolvingActive
+    }
+}
+
+/// Internal state for a solver job.
+struct SolverJobState {
+    status: PySolverJobStatus,
+    best_solution_json: Option<String>,
+    best_score: Option<String>,
+    final_solution_json: Option<String>,
+    final_score: Option<String>,
+    error: Option<String>,
+    terminated_early: bool,
+    last_notified_score: Option<String>,
+}
+
+/// A SolverJob is a handle to a solve operation that's running or scheduled.
+#[pyclass(name = "SolverJob")]
+pub struct PySolverJob {
+    problem_id: Py<PyAny>,
+    state: Arc<std::sync::Mutex<SolverJobState>>,
+    solution_class: String,
+    bridge: Arc<PythonBridge>,
+    /// Thread handle for the background solver (if running).
+    #[allow(dead_code)]
+    thread_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+#[pymethods]
+impl PySolverJob {
+    /// Get the problem ID.
+    fn get_problem_id(&self, py: Python<'_>) -> Py<PyAny> {
+        self.problem_id.clone_ref(py)
+    }
+
+    /// Get the current solver status.
+    fn get_solver_status(&self) -> PySolverJobStatus {
+        let state = self.state.lock().unwrap();
+        state.status
+    }
+
+    /// Check if the solver was terminated early.
+    fn is_terminated_early(&self) -> bool {
+        let state = self.state.lock().unwrap();
+        state.terminated_early
+    }
+
+    /// Request early termination of the solver.
+    fn terminate_early(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.terminated_early = true;
+    }
+
+    /// Get the final best solution. Blocks until solving completes.
+    fn get_final_best_solution(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        // Poll until done
+        loop {
+            {
+                let state = self.state.lock().unwrap();
+                match state.status {
+                    PySolverJobStatus::NotSolving => {
+                        // Completed - return solution
+                        if let Some(ref error) = state.error {
+                            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                                error.clone(),
+                            ));
+                        }
+                        if let Some(ref json) = state.final_solution_json {
+                            // Deserialize the solution
+                            let solution_obj = self
+                                .bridge
+                                .deserialize_object(json, &self.solution_class)
+                                .map_err(|e| {
+                                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string())
+                                })?;
+                            return self.bridge.get_py_object(solution_obj).ok_or_else(|| {
+                                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                                    "Failed to get solution object",
+                                )
+                            });
+                        }
+                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                            "No solution available",
+                        ));
+                    }
+                    _ => {
+                        // Still running, continue polling
+                    }
+                }
+            }
+            // Release GIL while sleeping
+            #[allow(deprecated)]
+            py.allow_threads(|| {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            });
+        }
+    }
+
+    fn __repr__(&self, py: Python<'_>) -> String {
+        format!(
+            "SolverJob(problem_id={:?}, status={:?})",
+            self.problem_id.bind(py),
+            self.get_solver_status()
+        )
+    }
+}
+
+/// SolverManager manages multiple solver jobs and provides async solving with callbacks.
+///
+/// # Example
+///
+/// ```python
+/// from solverforge import SolverManager, SolverFactory, SolverConfig
+///
+/// solver_manager = SolverManager.create(solver_factory)
+///
+/// def on_best_solution(solution):
+///     print(f"New best: {solution.score}")
+///
+/// job = solver_manager.solve_and_listen("problem1", problem, on_best_solution)
+/// final_solution = job.get_final_best_solution()
+/// ```
+#[pyclass(name = "SolverManager")]
+pub struct PySolverManager {
+    factory: Arc<PySolverFactoryData>,
+    jobs: Arc<
+        std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::Mutex<SolverJobState>>>>,
+    >,
+}
+
+/// Internal factory data needed for solver creation.
+struct PySolverFactoryData {
+    config: SolverConfig,
+    constraints: ConstraintSet,
+    domain_model: DomainModel,
+    service_url: String,
+}
+
+#[pymethods]
+impl PySolverManager {
+    /// Create a new SolverManager from a SolverFactory.
+    #[staticmethod]
+    fn create(solver_factory: &PySolverFactory) -> Self {
+        Self {
+            factory: Arc::new(PySolverFactoryData {
+                config: solver_factory.get_config().clone(),
+                constraints: solver_factory.get_constraints().clone(),
+                domain_model: solver_factory.get_domain_model().clone(),
+                service_url: solver_factory.get_service_url().to_string(),
+            }),
+            jobs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        }
+    }
+
+    /// Solve a problem asynchronously and call the listener when a new best solution is found.
+    ///
+    /// # Arguments
+    /// * `problem_id` - A unique identifier for this problem
+    /// * `problem` - The problem to solve
+    /// * `listener` - A callback called with each new best solution
+    ///
+    /// # Returns
+    /// A SolverJob handle to track and control the solve.
+    #[pyo3(signature = (problem_id, problem, listener))]
+    fn solve_and_listen(
+        &self,
+        py: Python<'_>,
+        problem_id: Py<PyAny>,
+        problem: Py<PyAny>,
+        listener: Py<PyAny>,
+    ) -> PyResult<PySolverJob> {
+        // Create initial state
+        let state = Arc::new(std::sync::Mutex::new(SolverJobState {
+            status: PySolverJobStatus::SolvingScheduled,
+            best_solution_json: None,
+            best_score: None,
+            final_solution_json: None,
+            final_score: None,
+            error: None,
+            terminated_early: false,
+            last_notified_score: None,
+        }));
+
+        // Store problem_id as string key for hashmap
+        let problem_id_str: String = problem_id.bind(py).str()?.extract()?;
+        {
+            let mut jobs = self.jobs.lock().unwrap();
+            jobs.insert(problem_id_str.clone(), state.clone());
+        }
+
+        // Create bridge and register problem
+        let bridge = Arc::new(PythonBridge::new());
+        let handle = bridge.register_object(problem.clone_ref(py));
+
+        // Get solution class name
+        let solution_class = self
+            .factory
+            .config
+            .solution_class
+            .clone()
+            .unwrap_or_else(|| "Solution".to_string());
+
+        // Clone data for thread
+        let factory_data = self.factory.clone();
+        let state_clone = state.clone();
+        let bridge_clone = bridge.clone();
+        let listener_clone = listener.clone_ref(py);
+        let solution_class_clone = solution_class.clone();
+
+        // Spawn background thread
+        let thread_handle = std::thread::spawn(move || {
+            // Mark as active
+            {
+                let mut s = state_clone.lock().unwrap();
+                s.status = PySolverJobStatus::SolvingActive;
+            }
+
+            // Create the solver
+            let rust_factory = SolverFactory::<PythonBridge>::create(
+                factory_data.config.clone(),
+                &factory_data.service_url,
+                factory_data.domain_model.clone(),
+                factory_data.constraints.clone(),
+                String::new(),
+            );
+            let solver = rust_factory.build_solver(bridge_clone.clone());
+
+            // Start async solve
+            let solve_handle = match solver.solve_async(handle) {
+                Ok(h) => h,
+                Err(e) => {
+                    let mut s = state_clone.lock().unwrap();
+                    s.error = Some(e.to_string());
+                    s.status = PySolverJobStatus::NotSolving;
+                    return;
+                }
+            };
+
+            // Poll for updates
+            loop {
+                // Check for early termination
+                {
+                    let s = state_clone.lock().unwrap();
+                    if s.terminated_early {
+                        let _ = solver.stop(&solve_handle);
+                        break;
+                    }
+                }
+
+                // Get status
+                let status = match solver.get_status(&solve_handle) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let mut s = state_clone.lock().unwrap();
+                        s.error = Some(e.to_string());
+                        s.status = PySolverJobStatus::NotSolving;
+                        return;
+                    }
+                };
+
+                // Check if we have a new best solution
+                if let Some(ref score) = status.best_score {
+                    let score_string = score.score_string.clone();
+                    let should_notify = {
+                        let s = state_clone.lock().unwrap();
+                        s.last_notified_score.as_ref() != Some(&score_string)
+                    };
+
+                    if should_notify {
+                        // Get the best solution
+                        if let Ok(Some(response)) = solver.get_best_solution(&solve_handle) {
+                            // Update state
+                            {
+                                let mut s = state_clone.lock().unwrap();
+                                s.best_solution_json = Some(response.solution.clone());
+                                s.best_score = Some(response.score.clone());
+                                s.last_notified_score = Some(score_string);
+                            }
+
+                            // Call the listener with the new best solution
+                            Python::attach(|py| {
+                                // Deserialize solution
+                                if let Ok(obj_handle) = bridge_clone
+                                    .deserialize_object(&response.solution, &solution_class_clone)
+                                {
+                                    if let Some(solution_obj) =
+                                        bridge_clone.get_py_object(obj_handle)
+                                    {
+                                        // Call the listener
+                                        if let Err(e) =
+                                            listener_clone.call1(py, (solution_obj.bind(py),))
+                                        {
+                                            log::error!(
+                                                "Error calling best solution listener: {}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // Check if done
+                if status.state.is_terminal() {
+                    // Get final solution
+                    if let Ok(Some(response)) = solver.get_best_solution(&solve_handle) {
+                        let mut s = state_clone.lock().unwrap();
+                        s.final_solution_json = Some(response.solution);
+                        s.final_score = Some(response.score);
+                    }
+                    break;
+                }
+
+                // Sleep before next poll
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+
+            // Mark as done
+            {
+                let mut s = state_clone.lock().unwrap();
+                s.status = PySolverJobStatus::NotSolving;
+            }
+        });
+
+        Ok(PySolverJob {
+            problem_id: problem_id.clone_ref(py),
+            state,
+            solution_class,
+            bridge,
+            thread_handle: Some(thread_handle),
+        })
+    }
+
+    /// Get the solver status for a problem.
+    fn get_solver_status(
+        &self,
+        py: Python<'_>,
+        problem_id: Py<PyAny>,
+    ) -> PyResult<PySolverJobStatus> {
+        let problem_id_str: String = problem_id.bind(py).str()?.extract()?;
+        let jobs = self.jobs.lock().unwrap();
+        if let Some(state) = jobs.get(&problem_id_str) {
+            let s = state.lock().unwrap();
+            Ok(s.status)
+        } else {
+            Ok(PySolverJobStatus::NotSolving)
+        }
+    }
+
+    /// Terminate a problem's solver early.
+    fn terminate_early(&self, py: Python<'_>, problem_id: Py<PyAny>) -> PyResult<()> {
+        let problem_id_str: String = problem_id.bind(py).str()?.extract()?;
+        let jobs = self.jobs.lock().unwrap();
+        if let Some(state) = jobs.get(&problem_id_str) {
+            let mut s = state.lock().unwrap();
+            s.terminated_early = true;
+        }
+        Ok(())
+    }
+
+    /// Close the solver manager and release resources.
+    fn close(&self) {
+        // Mark all jobs as terminated
+        let jobs = self.jobs.lock().unwrap();
+        for state in jobs.values() {
+            let mut s = state.lock().unwrap();
+            s.terminated_early = true;
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        let jobs = self.jobs.lock().unwrap();
+        format!("SolverManager(active_jobs={})", jobs.len())
+    }
+}
+
 /// Register solver classes with the Python module.
 pub fn register_solver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTerminationConfig>()?;
@@ -1061,6 +1476,9 @@ pub fn register_solver(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySolveResponse>()?;
     m.add_class::<PySolverFactory>()?;
     m.add_class::<PySolver>()?;
+    m.add_class::<PySolverJobStatus>()?;
+    m.add_class::<PySolverJob>()?;
+    m.add_class::<PySolverManager>()?;
     Ok(())
 }
 
@@ -1276,6 +1694,158 @@ mod tests {
         let response3 =
             PySolveResponse::from_rust(SolveResponse::new("{}".to_string(), "42"), None);
         assert!(response3.is_feasible());
+    }
+
+    // ============================================================
+    // SolverManager tests
+    // ============================================================
+
+    #[test]
+    fn test_solver_job_status_repr() {
+        assert_eq!(
+            PySolverJobStatus::NotSolving.__repr__(),
+            "SolverJobStatus.NOT_SOLVING"
+        );
+        assert_eq!(
+            PySolverJobStatus::SolvingScheduled.__repr__(),
+            "SolverJobStatus.SOLVING_SCHEDULED"
+        );
+        assert_eq!(
+            PySolverJobStatus::SolvingActive.__repr__(),
+            "SolverJobStatus.SOLVING_ACTIVE"
+        );
+    }
+
+    #[test]
+    fn test_solver_job_status_equality() {
+        assert_eq!(PySolverJobStatus::NotSolving, PySolverJobStatus::NotSolving);
+        assert_eq!(
+            PySolverJobStatus::SolvingActive,
+            PySolverJobStatus::SolvingActive
+        );
+        assert_ne!(
+            PySolverJobStatus::NotSolving,
+            PySolverJobStatus::SolvingActive
+        );
+    }
+
+    #[test]
+    fn test_solver_job_status_class_attrs() {
+        assert_eq!(
+            PySolverJobStatus::not_solving(),
+            PySolverJobStatus::NotSolving
+        );
+        assert_eq!(
+            PySolverJobStatus::solving_scheduled(),
+            PySolverJobStatus::SolvingScheduled
+        );
+        assert_eq!(
+            PySolverJobStatus::solving_active(),
+            PySolverJobStatus::SolvingActive
+        );
+    }
+
+    #[test]
+    fn test_solver_job_state_initial() {
+        let state = SolverJobState {
+            status: PySolverJobStatus::SolvingScheduled,
+            best_solution_json: None,
+            best_score: None,
+            final_solution_json: None,
+            final_score: None,
+            error: None,
+            terminated_early: false,
+            last_notified_score: None,
+        };
+        assert_eq!(state.status, PySolverJobStatus::SolvingScheduled);
+        assert!(!state.terminated_early);
+    }
+
+    #[test]
+    fn test_solver_manager_repr() {
+        init_python();
+        Python::attach(|py| {
+            // Create factory data directly
+            let factory_data = Arc::new(PySolverFactoryData {
+                config: SolverConfig::new(),
+                constraints: ConstraintSet::new(),
+                domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
+                service_url: "http://localhost:8080".to_string(),
+            });
+
+            let manager = PySolverManager {
+                factory: factory_data,
+                jobs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            };
+
+            let repr = manager.__repr__();
+            assert!(repr.contains("SolverManager"));
+            assert!(repr.contains("active_jobs=0"));
+
+            // Add a mock job
+            {
+                let mut jobs = manager.jobs.lock().unwrap();
+                jobs.insert(
+                    "test".to_string(),
+                    Arc::new(std::sync::Mutex::new(SolverJobState {
+                        status: PySolverJobStatus::SolvingActive,
+                        best_solution_json: None,
+                        best_score: None,
+                        final_solution_json: None,
+                        final_score: None,
+                        error: None,
+                        terminated_early: false,
+                        last_notified_score: None,
+                    })),
+                );
+            }
+
+            let repr2 = manager.__repr__();
+            assert!(repr2.contains("active_jobs=1"));
+        });
+    }
+
+    #[test]
+    fn test_solver_manager_close() {
+        init_python();
+        Python::attach(|_py| {
+            let factory_data = Arc::new(PySolverFactoryData {
+                config: SolverConfig::new(),
+                constraints: ConstraintSet::new(),
+                domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
+                service_url: "http://localhost:8080".to_string(),
+            });
+
+            let manager = PySolverManager {
+                factory: factory_data,
+                jobs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            };
+
+            // Add a job
+            {
+                let mut jobs = manager.jobs.lock().unwrap();
+                jobs.insert(
+                    "test".to_string(),
+                    Arc::new(std::sync::Mutex::new(SolverJobState {
+                        status: PySolverJobStatus::SolvingActive,
+                        best_solution_json: None,
+                        best_score: None,
+                        final_solution_json: None,
+                        final_score: None,
+                        error: None,
+                        terminated_early: false,
+                        last_notified_score: None,
+                    })),
+                );
+            }
+
+            // Close should mark job as terminated
+            manager.close();
+
+            let jobs = manager.jobs.lock().unwrap();
+            let state = jobs.get("test").unwrap().lock().unwrap();
+            assert!(state.terminated_early);
+        });
     }
 
     // ============================================================

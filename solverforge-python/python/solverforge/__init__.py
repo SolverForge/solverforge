@@ -57,6 +57,9 @@ from solverforge._solverforge import (
     SolveResponse,
     SolverFactory,
     Solver,
+    SolverManager,
+    SolverJob,
+    SolverJobStatus,
     # Constraint streams
     ConstraintFactory,
     UniConstraintStream,
@@ -131,6 +134,9 @@ __all__ = [
     "SolveResponse",
     "SolverFactory",
     "Solver",
+    "SolverManager",
+    "SolverJob",
+    "SolverJobStatus",
     # Constraint streams
     "ConstraintFactory",
     "UniConstraintStream",

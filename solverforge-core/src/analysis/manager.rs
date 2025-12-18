@@ -77,22 +77,15 @@ impl<B: LanguageBridge> SolutionManager<B> {
         let constraints_dto = self.constraints.to_dto();
 
         let list_accessor = ListAccessorDto::new(
-            "create_list",
-            "get_item",
-            "set_item",
-            "get_size",
-            "append",
-            "insert",
-            "remove",
-            "deallocate_list",
+            "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
         );
 
         let mut request = SolveRequest::new(
             domain_dto,
             constraints_dto,
             self.wasm_module.clone(),
-            "allocate".to_string(),
-            "deallocate".to_string(),
+            "alloc".to_string(),
+            "dealloc".to_string(),
             list_accessor,
             solution_json,
         );

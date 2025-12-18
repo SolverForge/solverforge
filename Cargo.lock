@@ -1546,6 +1546,7 @@ dependencies = [
 name = "solverforge-python"
 version = "0.2.6"
 dependencies = [
+ "env_logger",
  "log",
  "pyo3",
  "rust_decimal",

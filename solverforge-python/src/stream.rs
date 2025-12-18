@@ -134,9 +134,10 @@ impl PyUniConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Reward with a weight and return a constraint (Rust API for tests).
@@ -147,9 +148,10 @@ impl PyUniConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Filter entities based on a predicate (Rust API for tests).
@@ -443,7 +445,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/soft score.
@@ -471,7 +476,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/medium/soft score.
@@ -495,7 +503,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/soft decimal score.
@@ -519,7 +530,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/medium/soft decimal score.
@@ -543,7 +557,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft score.
@@ -567,7 +584,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft decimal score.
@@ -591,7 +611,10 @@ impl PyUniConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyUniConstraintBuilder { components })
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -642,9 +665,10 @@ impl PyBiConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Reward with a weight and return a constraint (Rust API for tests).
@@ -655,9 +679,10 @@ impl PyBiConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Filter pairs based on a predicate (Rust API for tests).
@@ -891,7 +916,10 @@ impl PyBiConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyBiConstraintBuilder { components })
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft score.
@@ -915,7 +943,10 @@ impl PyBiConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyBiConstraintBuilder { components })
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/soft decimal score.
@@ -939,7 +970,10 @@ impl PyBiConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyBiConstraintBuilder { components })
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/medium/soft decimal score.
@@ -963,7 +997,10 @@ impl PyBiConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyBiConstraintBuilder { components })
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft decimal score.
@@ -987,7 +1024,10 @@ impl PyBiConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyBiConstraintBuilder { components })
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -1004,15 +1044,17 @@ impl PyBiConstraintStream {
 #[derive(Clone)]
 pub struct PyUniConstraintBuilder {
     components: Vec<StreamComponent>,
+    predicates: Vec<LambdaInfo>,
 }
 
 #[pymethods]
 impl PyUniConstraintBuilder {
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
-        PyConstraint {
-            inner: Constraint::new(name).with_components(self.components.clone()),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(self.components.clone()),
+            self.predicates.clone(),
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -1025,15 +1067,17 @@ impl PyUniConstraintBuilder {
 #[derive(Clone)]
 pub struct PyBiConstraintBuilder {
     components: Vec<StreamComponent>,
+    predicates: Vec<LambdaInfo>,
 }
 
 #[pymethods]
 impl PyBiConstraintBuilder {
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
-        PyConstraint {
-            inner: Constraint::new(name).with_components(self.components.clone()),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(self.components.clone()),
+            self.predicates.clone(),
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -1066,9 +1110,10 @@ impl PyTriConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Reward with a weight and return a constraint (Rust API for tests).
@@ -1079,9 +1124,10 @@ impl PyTriConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Filter triples based on a predicate (Rust API for tests).
@@ -1263,7 +1309,10 @@ impl PyTriConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyTriConstraintBuilder { components })
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft score.
@@ -1287,7 +1336,10 @@ impl PyTriConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyTriConstraintBuilder { components })
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/soft decimal score.
@@ -1311,7 +1363,10 @@ impl PyTriConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyTriConstraintBuilder { components })
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/medium/soft decimal score.
@@ -1335,7 +1390,10 @@ impl PyTriConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyTriConstraintBuilder { components })
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft decimal score.
@@ -1359,7 +1417,10 @@ impl PyTriConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyTriConstraintBuilder { components })
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -1376,15 +1437,17 @@ impl PyTriConstraintStream {
 #[derive(Clone)]
 pub struct PyTriConstraintBuilder {
     components: Vec<StreamComponent>,
+    predicates: Vec<LambdaInfo>,
 }
 
 #[pymethods]
 impl PyTriConstraintBuilder {
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
-        PyConstraint {
-            inner: Constraint::new(name).with_components(self.components.clone()),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(self.components.clone()),
+            self.predicates.clone(),
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -1549,7 +1612,10 @@ impl PyQuadConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyQuadConstraintBuilder { components })
+        Ok(PyQuadConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft score.
@@ -1573,7 +1639,10 @@ impl PyQuadConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyQuadConstraintBuilder { components })
+        Ok(PyQuadConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/soft decimal score.
@@ -1597,7 +1666,10 @@ impl PyQuadConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyQuadConstraintBuilder { components })
+        Ok(PyQuadConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft decimal score.
@@ -1621,7 +1693,10 @@ impl PyQuadConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyQuadConstraintBuilder { components })
+        Ok(PyQuadConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -1638,15 +1713,17 @@ impl PyQuadConstraintStream {
 #[derive(Clone)]
 pub struct PyQuadConstraintBuilder {
     components: Vec<StreamComponent>,
+    predicates: Vec<LambdaInfo>,
 }
 
 #[pymethods]
 impl PyQuadConstraintBuilder {
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
-        PyConstraint {
-            inner: Constraint::new(name).with_components(self.components.clone()),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(self.components.clone()),
+            self.predicates.clone(),
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -1680,9 +1757,10 @@ impl PyPentaConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Reward with a weight and return a constraint (Rust API for tests).
@@ -1693,9 +1771,10 @@ impl PyPentaConstraintStream {
             weight: weight_str,
             scale_by: None,
         });
-        PyConstraint {
-            inner: Constraint::new(name).with_components(components),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(components),
+            self.predicates.clone(),
+        )
     }
 
     /// Filter based on a predicate (Rust API for tests).
@@ -1910,7 +1989,10 @@ impl PyPentaConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyPentaConstraintBuilder { components })
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft score.
@@ -1934,7 +2016,10 @@ impl PyPentaConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyPentaConstraintBuilder { components })
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/soft decimal score.
@@ -1958,7 +2043,10 @@ impl PyPentaConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyPentaConstraintBuilder { components })
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Penalize matches with a hard/medium/soft decimal score.
@@ -1982,7 +2070,10 @@ impl PyPentaConstraintStream {
 
         components.push(StreamComponent::Penalize { weight, scale_by });
 
-        Ok(PyPentaConstraintBuilder { components })
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     /// Reward matches with a hard/soft decimal score.
@@ -2006,7 +2097,10 @@ impl PyPentaConstraintStream {
 
         components.push(StreamComponent::Reward { weight, scale_by });
 
-        Ok(PyPentaConstraintBuilder { components })
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -2023,15 +2117,17 @@ impl PyPentaConstraintStream {
 #[derive(Clone)]
 pub struct PyPentaConstraintBuilder {
     components: Vec<StreamComponent>,
+    predicates: Vec<LambdaInfo>,
 }
 
 #[pymethods]
 impl PyPentaConstraintBuilder {
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
-        PyConstraint {
-            inner: Constraint::new(name).with_components(self.components.clone()),
-        }
+        PyConstraint::new_with_predicates(
+            Constraint::new(name).with_components(self.components.clone()),
+            self.predicates.clone(),
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -2047,6 +2143,8 @@ impl PyPentaConstraintBuilder {
 #[derive(Clone)]
 pub struct PyConstraint {
     inner: Constraint,
+    /// Stored predicates for WASM generation.
+    predicates: Vec<LambdaInfo>,
 }
 
 #[pymethods]
@@ -2079,7 +2177,14 @@ impl PyConstraint {
 
 impl PyConstraint {
     pub fn from_rust(inner: Constraint) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            predicates: Vec::new(),
+        }
+    }
+
+    pub fn new_with_predicates(inner: Constraint, predicates: Vec<LambdaInfo>) -> Self {
+        Self { inner, predicates }
     }
 
     pub fn to_rust(&self) -> Constraint {
@@ -2089,6 +2194,11 @@ impl PyConstraint {
     /// Get the constraint name (Rust API).
     pub fn name(&self) -> &str {
         &self.inner.name
+    }
+
+    /// Get stored predicates for WASM generation.
+    pub fn predicates(&self) -> &[LambdaInfo] {
+        &self.predicates
     }
 }
 

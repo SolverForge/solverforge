@@ -31,12 +31,13 @@ use solverforge_core::solver::{
     SolveResponse, SolveState, SolveStatus, SolverConfig, SolverFactory, SolverService,
     TerminationConfig, DEFAULT_SERVICE_URL,
 };
-use solverforge_core::wasm::{HostFunctionRegistry, WasmModuleBuilder};
+use solverforge_core::wasm::{HostFunctionRegistry, PredicateDefinition, WasmModuleBuilder};
 use solverforge_core::LanguageBridge;
 use std::sync::Arc;
 
 use crate::bridge::PythonBridge;
 use crate::decorators::PyConstraintProvider;
+use crate::lambda_analyzer::LambdaInfo;
 use crate::stream::PyConstraint;
 
 /// Python wrapper for TerminationConfig.
@@ -737,7 +738,7 @@ impl PySolverFactory {
     ) -> PyResult<Self> {
         // Get constraints from the provider
         let constraints = constraint_provider.get_constraints(py)?;
-        let constraint_set = build_constraint_set(&constraints);
+        let (constraint_set, predicates) = build_constraint_set(&constraints);
 
         // Build domain model from decorated classes
         let domain_model = if let Some(solution_cls) = config.solution_class_obj() {
@@ -785,18 +786,25 @@ impl PySolverFactory {
             }
         };
 
-        // Generate WASM module from domain model with host functions
+        // Generate WASM module from domain model with host functions and predicates
         let host_registry = HostFunctionRegistry::with_standard_functions();
-        let wasm_module = WasmModuleBuilder::new()
+        let mut wasm_builder = WasmModuleBuilder::new()
             .with_domain_model(domain_model.clone())
-            .with_host_functions(host_registry)
-            .build_base64()
-            .map_err(|e| {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to generate WASM module: {}",
-                    e
-                ))
-            })?;
+            .with_host_functions(host_registry);
+
+        // Add all predicates from constraints to the WASM module
+        for lambda in &predicates {
+            if let Some(predicate_def) = lambda_to_predicate(lambda) {
+                wasm_builder = wasm_builder.add_predicate(predicate_def);
+            }
+        }
+
+        let wasm_module = wasm_builder.build_base64().map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to generate WASM module: {}",
+                e
+            ))
+        })?;
 
         Ok(Self {
             config: config.to_rust(),
@@ -1061,13 +1069,22 @@ impl PySolver {
     }
 }
 
-/// Build a ConstraintSet from Python constraints.
-fn build_constraint_set(constraints: &[PyConstraint]) -> ConstraintSet {
+/// Build a ConstraintSet and collect predicates from Python constraints.
+fn build_constraint_set(constraints: &[PyConstraint]) -> (ConstraintSet, Vec<LambdaInfo>) {
     let mut set = ConstraintSet::new();
+    let mut all_predicates = Vec::new();
     for constraint in constraints {
         set = set.with_constraint(constraint.to_rust());
+        all_predicates.extend(constraint.predicates().iter().cloned());
     }
-    set
+    (set, all_predicates)
+}
+
+/// Convert LambdaInfo to PredicateDefinition for WASM generation.
+fn lambda_to_predicate(lambda: &LambdaInfo) -> Option<PredicateDefinition> {
+    lambda.expression.as_ref().map(|expr| {
+        PredicateDefinition::from_expression(&lambda.name, lambda.param_count as u32, expr.clone())
+    })
 }
 
 /// Status of a solver job.

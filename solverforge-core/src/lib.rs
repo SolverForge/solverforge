@@ -66,11 +66,13 @@ pub use score::{
     HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
 };
 pub use solver::{
-    AsyncSolveResponse, DiminishedReturnsConfig, DomainAccessor, DomainObjectDto,
-    DomainObjectMapper, EnvironmentMode, FieldDescriptor, HttpSolverService, ListAccessorDto,
-    MoveThreadCount, PlanningAnnotation as SolverPlanningAnnotation, ScoreDto, SolveHandle,
-    SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverBuilder, SolverConfig,
-    SolverFactory, SolverService, SolverStats, TerminationConfig, TypedSolver, DEFAULT_SERVICE_URL,
+    AsyncSolveResponse, ChangeConsumer, DefaultProblemChangeDirector, DiminishedReturnsConfig,
+    DomainAccessor, DomainObjectDto, DomainObjectMapper, EnvironmentMode, FieldDescriptor,
+    HttpSolverService, ListAccessorDto, MoveThreadCount,
+    PlanningAnnotation as SolverPlanningAnnotation, ProblemChange, ProblemChangeDirector,
+    ProblemChangeDto, ProblemChangeError, ScoreDto, SolveHandle, SolveRequest, SolveResponse,
+    SolveState, SolveStatus, Solver, SolverBuilder, SolverConfig, SolverFactory, SolverService,
+    SolverStats, TerminationConfig, TypedSolver, DEFAULT_SERVICE_URL,
 };
 pub use traits::{PlanningEntity, PlanningSolution};
 pub use value::Value;

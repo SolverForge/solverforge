@@ -157,9 +157,17 @@ fn extract_annotations(
             } else if is_annotation_marker::<PyPlanningListVariable>(py, &marker) {
                 if let Ok(plv) = marker.cast::<PyPlanningListVariable>() {
                     let plv_ref = plv.borrow();
-                    planning_annotations.push(PlanningAnnotation::planning_list_variable(
-                        plv_ref.value_range_provider_refs.clone(),
-                    ));
+                    if plv_ref.allows_unassigned_values {
+                        planning_annotations.push(
+                            PlanningAnnotation::planning_list_variable_unassigned(
+                                plv_ref.value_range_provider_refs.clone(),
+                            ),
+                        );
+                    } else {
+                        planning_annotations.push(PlanningAnnotation::planning_list_variable(
+                            plv_ref.value_range_provider_refs.clone(),
+                        ));
+                    }
                 } else {
                     // Class used directly - use defaults
                     planning_annotations.push(PlanningAnnotation::planning_list_variable(vec![]));

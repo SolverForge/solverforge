@@ -2695,7 +2695,7 @@ mod tests {
             // Create a stream chain: A -> join(B) -> join(C) -> join(D) -> join(E)
             let uni_stream = PyUniConstraintStream::new("A".to_string(), false);
             let bi_stream = uni_stream
-                .join(b_cls.cast::<PyType>().unwrap(), vec![])
+                .join(py, b_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
             let tri_stream = bi_stream
                 .join(c_cls.cast::<PyType>().unwrap(), vec![])

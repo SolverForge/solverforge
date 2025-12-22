@@ -213,7 +213,7 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
                     )
                     .with_planning_annotation(PlanningAnnotation::ProblemFactCollectionProperty)
                     .with_planning_annotation(
-                        PlanningAnnotation::value_range_provider("employees"),
+                        PlanningAnnotation::value_range_provider_with_id("employees"),
                     ),
                 )
                 .with_field(

@@ -7,7 +7,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use indexmap::IndexMap;
 use solverforge_core::{
     DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor, ListAccessorDto,
-    SolveRequest, SolveResponse, SolverPlanningAnnotation as PA, TerminationConfig,
+    PlanningAnnotation as PA, SolveRequest, SolveResponse, TerminationConfig,
 };
 use solverforge_service::{EmbeddedService, ServiceConfig};
 use std::path::PathBuf;
@@ -167,7 +167,7 @@ fn build_test_domain() -> IndexMap<String, DomainObjectDto> {
             "employee",
             FieldDescriptor::new("Employee")
                 .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                .with_annotation(PA::planning_variable()),
+                .with_annotation(PA::planning_variable(vec![])),
         ),
     );
 

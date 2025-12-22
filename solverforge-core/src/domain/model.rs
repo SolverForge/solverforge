@@ -40,12 +40,8 @@ impl DomainModel {
     }
 
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
-        use crate::domain::PlanningAnnotation as DomainAnnotation;
-        use crate::domain::ShadowAnnotation;
-        use crate::solver::{
-            DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor,
-            PlanningAnnotation as SolverAnnotation,
-        };
+        use crate::domain::{PlanningAnnotation, ShadowAnnotation};
+        use crate::solver::{DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor};
 
         let mut result = indexmap::IndexMap::new();
 
@@ -69,10 +65,10 @@ impl DomainModel {
                     let setter = if field.planning_annotations.iter().any(|a| {
                         matches!(
                             a,
-                            DomainAnnotation::PlanningVariable { .. }
-                                | DomainAnnotation::PlanningListVariable { .. }
-                                | DomainAnnotation::ProblemFactCollectionProperty
-                                | DomainAnnotation::PlanningEntityCollectionProperty
+                            PlanningAnnotation::PlanningVariable { .. }
+                                | PlanningAnnotation::PlanningListVariable { .. }
+                                | PlanningAnnotation::ProblemFactCollectionProperty
+                                | PlanningAnnotation::PlanningEntityCollectionProperty
                         )
                     }) {
                         Some(format!("set_{}_{}", name, field.name))
@@ -88,51 +84,16 @@ impl DomainModel {
                     DomainAccessor::new(getter)
                 };
 
-                // Convert domain annotations to solver annotations
-                let mut annotations = Vec::new();
-                for ann in &field.planning_annotations {
-                    match ann {
-                        DomainAnnotation::PlanningId => {
-                            annotations.push(SolverAnnotation::PlanningId);
-                        }
-                        DomainAnnotation::PlanningVariable {
-                            allows_unassigned, ..
-                        } => {
-                            annotations.push(SolverAnnotation::PlanningVariable {
-                                allows_unassigned: *allows_unassigned,
-                            });
-                        }
-                        DomainAnnotation::PlanningListVariable {
-                            allows_unassigned_values,
-                            ..
-                        } => {
-                            annotations.push(SolverAnnotation::PlanningListVariable {
-                                allows_unassigned_values: *allows_unassigned_values,
-                            });
-                        }
-                        DomainAnnotation::PlanningScore { .. } => {
-                            annotations.push(SolverAnnotation::PlanningScore);
-                        }
-                        DomainAnnotation::ValueRangeProvider { .. } => {
-                            annotations.push(SolverAnnotation::ValueRangeProvider);
-                        }
-                        DomainAnnotation::ProblemFactCollectionProperty => {
-                            annotations.push(SolverAnnotation::ProblemFactCollectionProperty);
-                        }
-                        DomainAnnotation::PlanningEntityCollectionProperty => {
-                            annotations.push(SolverAnnotation::PlanningEntityCollectionProperty);
-                        }
-                        _ => {}
-                    }
-                }
+                // Clone field annotations directly (no conversion needed - unified type)
+                let mut annotations: Vec<PlanningAnnotation> = field.planning_annotations.to_vec();
 
-                // Convert shadow annotations to solver annotations
+                // Add shadow annotations
                 for ann in &field.shadow_annotations {
                     if let ShadowAnnotation::InverseRelationShadowVariable {
                         source_variable_name,
                     } = ann
                     {
-                        annotations.push(SolverAnnotation::InverseRelationShadowVariable {
+                        annotations.push(PlanningAnnotation::InverseRelationShadowVariable {
                             source_variable_name: source_variable_name.clone(),
                         });
                     }
@@ -323,7 +284,9 @@ mod tests {
             )
             .with_field(
                 FieldDescriptor::new("rooms", FieldType::list(FieldType::object("Room")))
-                    .with_planning_annotation(PlanningAnnotation::value_range_provider("rooms")),
+                    .with_planning_annotation(PlanningAnnotation::value_range_provider_with_id(
+                        "rooms",
+                    )),
             )
             .with_field(
                 FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))

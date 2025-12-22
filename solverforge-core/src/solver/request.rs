@@ -1,4 +1,5 @@
 use crate::constraints::StreamComponent;
+use crate::domain::PlanningAnnotation;
 use crate::solver::TerminationConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -201,83 +202,6 @@ impl DomainObjectMapper {
     }
 }
 
-fn is_false(b: &bool) -> bool {
-    !*b
-}
-
-/// Planning annotation types matching Java's PlanningAnnotation hierarchy
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "annotation")]
-pub enum PlanningAnnotation {
-    PlanningVariable {
-        #[serde(default, rename = "allowsUnassigned", skip_serializing_if = "is_false")]
-        allows_unassigned: bool,
-    },
-    PlanningListVariable {
-        #[serde(
-            default,
-            rename = "allowsUnassignedValues",
-            skip_serializing_if = "is_false"
-        )]
-        allows_unassigned_values: bool,
-    },
-    PlanningId,
-    PlanningScore,
-    ValueRangeProvider,
-    ProblemFactCollectionProperty,
-    PlanningEntityCollectionProperty,
-    InverseRelationShadowVariable {
-        #[serde(rename = "source_variable_name")]
-        source_variable_name: String,
-    },
-}
-
-impl PlanningAnnotation {
-    pub fn planning_variable() -> Self {
-        PlanningAnnotation::PlanningVariable {
-            allows_unassigned: false,
-        }
-    }
-
-    pub fn planning_variable_allows_unassigned() -> Self {
-        PlanningAnnotation::PlanningVariable {
-            allows_unassigned: true,
-        }
-    }
-
-    pub fn planning_list_variable() -> Self {
-        PlanningAnnotation::PlanningListVariable {
-            allows_unassigned_values: false,
-        }
-    }
-
-    pub fn planning_list_variable_allows_unassigned() -> Self {
-        PlanningAnnotation::PlanningListVariable {
-            allows_unassigned_values: true,
-        }
-    }
-
-    pub fn planning_id() -> Self {
-        PlanningAnnotation::PlanningId
-    }
-
-    pub fn planning_score() -> Self {
-        PlanningAnnotation::PlanningScore
-    }
-
-    pub fn value_range_provider() -> Self {
-        PlanningAnnotation::ValueRangeProvider
-    }
-
-    pub fn problem_fact_collection_property() -> Self {
-        PlanningAnnotation::ProblemFactCollectionProperty
-    }
-
-    pub fn planning_entity_collection_property() -> Self {
-        PlanningAnnotation::PlanningEntityCollectionProperty
-    }
-}
-
 /// Class-level annotations (applied to the class itself, not fields)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "annotation")]
@@ -386,7 +310,7 @@ mod tests {
                 "employee",
                 FieldDescriptor::new("Employee")
                     .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                    .with_annotation(PlanningAnnotation::planning_variable()),
+                    .with_annotation(PlanningAnnotation::planning_variable(vec![])),
             );
 
         assert_eq!(dto.fields.len(), 2);
@@ -410,6 +334,7 @@ mod tests {
         let field = FieldDescriptor::new("Employee")
             .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
             .with_annotation(PlanningAnnotation::PlanningVariable {
+                value_range_provider_refs: vec![],
                 allows_unassigned: false,
             });
 
@@ -432,15 +357,17 @@ mod tests {
     #[test]
     fn test_planning_annotation_constructors() {
         assert!(matches!(
-            PlanningAnnotation::planning_variable(),
+            PlanningAnnotation::planning_variable(vec![]),
             PlanningAnnotation::PlanningVariable {
-                allows_unassigned: false
+                allows_unassigned: false,
+                ..
             }
         ));
         assert!(matches!(
-            PlanningAnnotation::planning_variable_allows_unassigned(),
+            PlanningAnnotation::planning_variable_unassigned(vec![]),
             PlanningAnnotation::PlanningVariable {
-                allows_unassigned: true
+                allows_unassigned: true,
+                ..
             }
         ));
         assert!(matches!(
@@ -449,11 +376,11 @@ mod tests {
         ));
         assert!(matches!(
             PlanningAnnotation::planning_score(),
-            PlanningAnnotation::PlanningScore
+            PlanningAnnotation::PlanningScore { .. }
         ));
         assert!(matches!(
             PlanningAnnotation::value_range_provider(),
-            PlanningAnnotation::ValueRangeProvider
+            PlanningAnnotation::ValueRangeProvider { .. }
         ));
     }
 
@@ -528,6 +455,7 @@ mod tests {
     #[test]
     fn test_planning_annotation_json_serialization() {
         let variable = PlanningAnnotation::PlanningVariable {
+            value_range_provider_refs: vec![],
             allows_unassigned: false,
         };
         let json = serde_json::to_string(&variable).unwrap();
@@ -536,6 +464,7 @@ mod tests {
         assert!(!json.contains("allowsUnassigned"));
 
         let variable_unassigned = PlanningAnnotation::PlanningVariable {
+            value_range_provider_refs: vec![],
             allows_unassigned: true,
         };
         let json2 = serde_json::to_string(&variable_unassigned).unwrap();
@@ -573,7 +502,7 @@ mod tests {
     fn test_field_descriptor_json_serialization() {
         let field = FieldDescriptor::new("Employee")
             .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-            .with_annotation(PlanningAnnotation::planning_variable());
+            .with_annotation(PlanningAnnotation::planning_variable(vec![]));
 
         let json = serde_json::to_string(&field).unwrap();
         assert!(json.contains("\"type\":\"Employee\""));
@@ -608,7 +537,7 @@ mod tests {
                 "employee",
                 FieldDescriptor::new("Employee")
                     .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                    .with_annotation(PlanningAnnotation::planning_variable()),
+                    .with_annotation(PlanningAnnotation::planning_variable(vec![])),
             ),
         );
 

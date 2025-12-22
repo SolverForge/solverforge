@@ -270,7 +270,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
             if let Some(id) = &field.value_range_provider_id {
                 annotations.push(quote! {
                     .with_planning_annotation(
-                        ::solverforge_core::domain::PlanningAnnotation::value_range_provider(#id)
+                        ::solverforge_core::domain::PlanningAnnotation::value_range_provider_with_id(#id)
                     )
                 });
             }

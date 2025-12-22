@@ -19,7 +19,7 @@ pub use environment::{EnvironmentMode, MoveThreadCount};
 pub use factory::{Solver, SolverFactory};
 pub use request::{
     ClassAnnotation, DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor,
-    ListAccessorDto, PlanningAnnotation, SolveRequest,
+    ListAccessorDto, SolveRequest,
 };
 pub use response::{
     AsyncSolveResponse, ScoreDto, SolveHandle, SolveResponse, SolveState, SolveStatus, SolverStats,

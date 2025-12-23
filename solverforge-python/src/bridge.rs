@@ -155,12 +155,16 @@ impl PythonBridge {
             }
         }
 
-        // Fallback: try repr
-        let repr = obj
-            .repr()
+        // Cannot convert this type - return error with type info
+        let type_name = obj
+            .get_type()
+            .name()
             .map(|s| s.to_string())
             .unwrap_or_else(|_| "<unknown>".to_string());
-        Ok(Value::String(repr))
+        Err(SolverForgeError::Bridge(format!(
+            "Cannot convert Python object of type '{}' to Value. Supported types: None, bool, int, float, str, list, dict, or objects with __dict__",
+            type_name
+        )))
     }
 
     /// Convert a Value to a Python object.

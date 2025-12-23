@@ -13,25 +13,33 @@ const MAVEN_VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAVEN_CENTRAL_URL: &str = "https://repo1.maven.org/maven2";
 
 pub struct JarManager {
-    submodule_dir: PathBuf,
+    /// Optional path to the solverforge-wasm-service submodule (for local builds).
+    submodule_dir: Option<PathBuf>,
     cache_dir: PathBuf,
     java_home: Option<PathBuf>,
 }
 
+impl Default for JarManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JarManager {
-    pub fn new() -> ServiceResult<Self> {
-        let submodule_dir = find_submodule_dir()?;
+    pub fn new() -> Self {
+        // Try to find submodule, but don't fail - we can download from Maven Central
+        let submodule_dir = find_submodule_dir().ok();
         let cache_dir = get_cache_dir();
-        Ok(Self {
+        Self {
             submodule_dir,
             cache_dir,
             java_home: None,
-        })
+        }
     }
 
     pub fn with_paths(submodule_dir: PathBuf, cache_dir: PathBuf) -> Self {
         Self {
-            submodule_dir,
+            submodule_dir: Some(submodule_dir),
             cache_dir,
             java_home: None,
         }
@@ -52,16 +60,18 @@ impl JarManager {
         }
 
         // 2. Try local build if submodule exists (dev mode)
-        if self.submodule_dir.join("pom.xml").exists() {
-            info!("Building solverforge-wasm-service JAR from submodule...");
-            match self.build_jar() {
-                Ok(()) => {
-                    if jar_path.exists() {
-                        return Ok(jar_path);
+        if let Some(ref submodule_dir) = self.submodule_dir {
+            if submodule_dir.join("pom.xml").exists() {
+                info!("Building solverforge-wasm-service JAR from submodule...");
+                match self.build_jar() {
+                    Ok(()) => {
+                        if jar_path.exists() {
+                            return Ok(jar_path);
+                        }
                     }
-                }
-                Err(e) => {
-                    warn!("Local build failed: {}, trying Maven download...", e);
+                    Err(e) => {
+                        warn!("Local build failed: {}, trying Maven download...", e);
+                    }
                 }
             }
         }
@@ -74,6 +84,13 @@ impl JarManager {
             return Err(ServiceError::BuildFailed(
                 "JAR not found after download".to_string(),
             ));
+        }
+
+        // Clean up old versions
+        if let Ok(removed) = self.cleanup_old_versions() {
+            if removed > 0 {
+                info!("Cleaned up {} old JAR version(s) from cache", removed);
+            }
         }
 
         Ok(jar_path)
@@ -100,6 +117,12 @@ impl JarManager {
     }
 
     fn build_jar(&self) -> ServiceResult<()> {
+        let submodule_dir = self.submodule_dir.as_ref().ok_or_else(|| {
+            ServiceError::SubmoduleNotFound(
+                "Cannot build JAR: submodule directory not configured".to_string(),
+            )
+        })?;
+
         let mvn = find_maven()?;
 
         fs::create_dir_all(&self.cache_dir)?;
@@ -122,12 +145,12 @@ impl JarManager {
 
         info!(
             "Running mvn package in {} with JAVA_HOME={}",
-            self.submodule_dir.display(),
+            submodule_dir.display(),
             java_home.display()
         );
 
         let output = Command::new(&mvn)
-            .current_dir(&self.submodule_dir)
+            .current_dir(submodule_dir)
             .env("JAVA_HOME", &java_home)
             .args(["package", "-DskipTests", "-q"])
             .output()?;
@@ -141,7 +164,7 @@ impl JarManager {
         }
 
         // Uber-jar is named <artifactId>-<version>-runner.jar
-        let built_jar = self.submodule_dir.join("target").join(format!(
+        let built_jar = submodule_dir.join("target").join(format!(
             "{}-{}-runner.jar",
             MAVEN_ARTIFACT_ID, MAVEN_VERSION
         ));
@@ -158,6 +181,13 @@ impl JarManager {
 
         info!("Copying JAR to cache: {}", cached_jar.display());
         fs::copy(&built_jar, &cached_jar)?;
+
+        // Clean up old versions
+        if let Ok(removed) = self.cleanup_old_versions() {
+            if removed > 0 {
+                info!("Cleaned up {} old JAR version(s) from cache", removed);
+            }
+        }
 
         Ok(())
     }
@@ -204,6 +234,78 @@ impl JarManager {
 
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    /// Clear all cached JARs. Use when you need a fresh download.
+    pub fn clear_cache(&self) -> ServiceResult<usize> {
+        let mut removed = 0;
+
+        if let Ok(entries) = fs::read_dir(&self.cache_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name().map(|s| s.to_string_lossy()) {
+                    if name.starts_with("solverforge-wasm-service-")
+                        && name.ends_with("-runner.jar")
+                    {
+                        info!("Removing cached JAR: {}", path.display());
+                        if fs::remove_file(&path).is_ok() {
+                            removed += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also remove quarkus-app directory if it exists (legacy)
+        let quarkus_dir = self.cache_dir.join("quarkus-app");
+        if quarkus_dir.is_dir() {
+            info!("Removing legacy quarkus-app directory");
+            if fs::remove_dir_all(&quarkus_dir).is_ok() {
+                removed += 1;
+            }
+        }
+
+        Ok(removed)
+    }
+
+    /// Clean up old JAR versions from cache, keeping only the current version.
+    pub fn cleanup_old_versions(&self) -> ServiceResult<usize> {
+        let current_jar = self.jar_path();
+        let current_name = current_jar
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        let mut removed = 0;
+
+        if let Ok(entries) = fs::read_dir(&self.cache_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name().map(|s| s.to_string_lossy()) {
+                    // Only remove old solverforge-wasm-service JARs
+                    if name.starts_with("solverforge-wasm-service-")
+                        && name.ends_with("-runner.jar")
+                        && name != current_name
+                    {
+                        info!("Removing old JAR: {}", path.display());
+                        if fs::remove_file(&path).is_ok() {
+                            removed += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also remove quarkus-app directory if it exists (legacy)
+        let quarkus_dir = self.cache_dir.join("quarkus-app");
+        if quarkus_dir.is_dir() {
+            info!("Removing legacy quarkus-app directory");
+            if fs::remove_dir_all(&quarkus_dir).is_ok() {
+                removed += 1;
+            }
+        }
+
+        Ok(removed)
     }
 }
 

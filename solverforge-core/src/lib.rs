@@ -53,11 +53,13 @@ pub mod wasm;
 pub use analysis::{ConstraintMatch, Indictment, ScoreExplanation, SolutionManager};
 pub use bridge::{ClassInfo, FieldInfo, LanguageBridge};
 pub use constraints::{
-    Collector, Constraint, ConstraintSet, Joiner, StreamComponent, WasmFunction,
+    Collector, Constraint, ConstraintSet, IntoNamedExpression, Joiner, NamedExpression,
+    StreamComponent, WasmFunction,
 };
 pub use domain::{
-    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
-    ShadowAnnotation,
+    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, DefaultVariableListenerContext,
+    ListVariableListener, ListenerCallbackDto, PlanningAnnotation, ShadowAnnotation,
+    SourceVariableRef, VariableListener, VariableListenerContext, VariableListenerRegistration,
 };
 pub use error::{SolverForgeError, SolverForgeResult};
 pub use handles::{FunctionHandle, ObjectHandle};
@@ -66,15 +68,17 @@ pub use score::{
     HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
 };
 pub use solver::{
-    AsyncSolveResponse, DiminishedReturnsConfig, DomainAccessor, DomainObjectDto,
-    DomainObjectMapper, EnvironmentMode, FieldDescriptor, HttpSolverService, ListAccessorDto,
-    MoveThreadCount, PlanningAnnotation as SolverPlanningAnnotation, ScoreDto, SolveHandle,
+    AsyncSolveResponse, ChangeConsumer, ClassAnnotation, DefaultProblemChangeDirector,
+    DiminishedReturnsConfig, DomainAccessor, DomainObjectDto, DomainObjectMapper, EnvironmentMode,
+    FieldDescriptor, HttpSolverService, ListAccessorDto, MoveThreadCount, ProblemChange,
+    ProblemChangeDirector, ProblemChangeDto, ProblemChangeError, ScoreDto, SolveHandle,
     SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverBuilder, SolverConfig,
-    SolverFactory, SolverService, SolverStats, TerminationConfig, TypedSolver, DEFAULT_SERVICE_URL,
+    SolverFactory, SolverManager, SolverService, SolverStats, TerminationConfig, TypedSolver,
+    DEFAULT_SERVICE_URL,
 };
 pub use traits::{PlanningEntity, PlanningSolution};
 pub use value::Value;
 pub use wasm::{
-    Comparison, FieldAccess, FieldLayout, LayoutCalculator, MemoryLayout, PredicateDefinition,
-    WasmMemoryType, WasmModuleBuilder,
+    Comparison, Expr, Expression, FieldAccess, FieldAccessExt, FieldLayout, LayoutCalculator,
+    MemoryLayout, PredicateDefinition, WasmMemoryType, WasmModuleBuilder,
 };

@@ -56,6 +56,27 @@ pub enum Collector {
         #[serde(skip_serializing_if = "Option::is_none")]
         load: Option<WasmFunction>,
     },
+    #[serde(rename = "toSortedSet")]
+    ToSortedSet {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        map: Option<WasmFunction>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        comparator: Option<WasmFunction>,
+    },
+    #[serde(rename = "toMap")]
+    ToMap {
+        key_mapper: WasmFunction,
+        value_mapper: WasmFunction,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        merge_function: Option<WasmFunction>,
+    },
+    #[serde(rename = "toSortedMap")]
+    ToSortedMap {
+        key_mapper: WasmFunction,
+        value_mapper: WasmFunction,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        merge_function: Option<WasmFunction>,
+    },
 }
 
 impl Collector {
@@ -141,6 +162,85 @@ impl Collector {
         Collector::LoadBalance {
             map,
             load: Some(load),
+        }
+    }
+
+    /// Create a toSortedSet collector with natural ordering.
+    pub fn to_sorted_set() -> Self {
+        Collector::ToSortedSet {
+            map: None,
+            comparator: None,
+        }
+    }
+
+    /// Create a toSortedSet collector with a mapper function.
+    pub fn to_sorted_set_with_map(map: WasmFunction) -> Self {
+        Collector::ToSortedSet {
+            map: Some(map),
+            comparator: None,
+        }
+    }
+
+    /// Create a toSortedSet collector with a custom comparator.
+    pub fn to_sorted_set_with_comparator(comparator: WasmFunction) -> Self {
+        Collector::ToSortedSet {
+            map: None,
+            comparator: Some(comparator),
+        }
+    }
+
+    /// Create a toSortedSet collector with a mapper and comparator.
+    pub fn to_sorted_set_with_map_and_comparator(
+        map: WasmFunction,
+        comparator: WasmFunction,
+    ) -> Self {
+        Collector::ToSortedSet {
+            map: Some(map),
+            comparator: Some(comparator),
+        }
+    }
+
+    /// Create a toMap collector that groups values into sets by key.
+    pub fn to_map(key_mapper: WasmFunction, value_mapper: WasmFunction) -> Self {
+        Collector::ToMap {
+            key_mapper,
+            value_mapper,
+            merge_function: None,
+        }
+    }
+
+    /// Create a toMap collector with a merge function for duplicate keys.
+    pub fn to_map_with_merge(
+        key_mapper: WasmFunction,
+        value_mapper: WasmFunction,
+        merge_function: WasmFunction,
+    ) -> Self {
+        Collector::ToMap {
+            key_mapper,
+            value_mapper,
+            merge_function: Some(merge_function),
+        }
+    }
+
+    /// Create a toSortedMap collector that groups values by key with sorted keys.
+    pub fn to_sorted_map(key_mapper: WasmFunction, value_mapper: WasmFunction) -> Self {
+        Collector::ToSortedMap {
+            key_mapper,
+            value_mapper,
+            merge_function: None,
+        }
+    }
+
+    /// Create a toSortedMap collector with a merge function for duplicate keys.
+    pub fn to_sorted_map_with_merge(
+        key_mapper: WasmFunction,
+        value_mapper: WasmFunction,
+        merge_function: WasmFunction,
+    ) -> Self {
+        Collector::ToSortedMap {
+            key_mapper,
+            value_mapper,
+            merge_function: Some(merge_function),
         }
     }
 }
@@ -441,5 +541,199 @@ mod tests {
         let collector = Collector::count();
         let debug = format!("{:?}", collector);
         assert!(debug.contains("Count"));
+    }
+
+    // Tests for toSortedSet
+    #[test]
+    fn test_to_sorted_set() {
+        let collector = Collector::to_sorted_set();
+        match collector {
+            Collector::ToSortedSet { map, comparator } => {
+                assert!(map.is_none());
+                assert!(comparator.is_none());
+            }
+            _ => panic!("Expected ToSortedSet collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_sorted_set_with_map() {
+        let collector = Collector::to_sorted_set_with_map(WasmFunction::new("get_name"));
+        match collector {
+            Collector::ToSortedSet { map, comparator } => {
+                assert!(map.is_some());
+                assert_eq!(map.unwrap().name(), "get_name");
+                assert!(comparator.is_none());
+            }
+            _ => panic!("Expected ToSortedSet collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_sorted_set_with_comparator() {
+        let collector = Collector::to_sorted_set_with_comparator(WasmFunction::new("compare"));
+        match collector {
+            Collector::ToSortedSet { map, comparator } => {
+                assert!(map.is_none());
+                assert!(comparator.is_some());
+                assert_eq!(comparator.unwrap().name(), "compare");
+            }
+            _ => panic!("Expected ToSortedSet collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_sorted_set_with_map_and_comparator() {
+        let collector = Collector::to_sorted_set_with_map_and_comparator(
+            WasmFunction::new("get_key"),
+            WasmFunction::new("compare_keys"),
+        );
+        match collector {
+            Collector::ToSortedSet { map, comparator } => {
+                assert!(map.is_some());
+                assert!(comparator.is_some());
+                assert_eq!(map.unwrap().name(), "get_key");
+                assert_eq!(comparator.unwrap().name(), "compare_keys");
+            }
+            _ => panic!("Expected ToSortedSet collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_sorted_set_json_serialization() {
+        let collector = Collector::to_sorted_set();
+        let json = serde_json::to_string(&collector).unwrap();
+        assert!(json.contains("\"name\":\"toSortedSet\""));
+
+        let parsed: Collector = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, collector);
+    }
+
+    #[test]
+    fn test_to_sorted_set_with_comparator_json() {
+        let collector = Collector::to_sorted_set_with_comparator(WasmFunction::new("cmp"));
+        let json = serde_json::to_string(&collector).unwrap();
+        assert!(json.contains("\"comparator\":\"cmp\""));
+
+        let parsed: Collector = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, collector);
+    }
+
+    // Tests for toMap
+    #[test]
+    fn test_to_map() {
+        let collector =
+            Collector::to_map(WasmFunction::new("get_key"), WasmFunction::new("get_value"));
+        match collector {
+            Collector::ToMap {
+                key_mapper,
+                value_mapper,
+                merge_function,
+            } => {
+                assert_eq!(key_mapper.name(), "get_key");
+                assert_eq!(value_mapper.name(), "get_value");
+                assert!(merge_function.is_none());
+            }
+            _ => panic!("Expected ToMap collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_map_with_merge() {
+        let collector = Collector::to_map_with_merge(
+            WasmFunction::new("get_key"),
+            WasmFunction::new("get_value"),
+            WasmFunction::new("merge_values"),
+        );
+        match collector {
+            Collector::ToMap {
+                key_mapper,
+                value_mapper,
+                merge_function,
+            } => {
+                assert_eq!(key_mapper.name(), "get_key");
+                assert_eq!(value_mapper.name(), "get_value");
+                assert!(merge_function.is_some());
+                assert_eq!(merge_function.unwrap().name(), "merge_values");
+            }
+            _ => panic!("Expected ToMap collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_map_json_serialization() {
+        let collector = Collector::to_map(WasmFunction::new("get_k"), WasmFunction::new("get_v"));
+        let json = serde_json::to_string(&collector).unwrap();
+        assert!(json.contains("\"name\":\"toMap\""));
+        assert!(json.contains("\"key_mapper\":\"get_k\""));
+        assert!(json.contains("\"value_mapper\":\"get_v\""));
+
+        let parsed: Collector = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, collector);
+    }
+
+    #[test]
+    fn test_to_map_with_merge_json_serialization() {
+        let collector = Collector::to_map_with_merge(
+            WasmFunction::new("k"),
+            WasmFunction::new("v"),
+            WasmFunction::new("merge"),
+        );
+        let json = serde_json::to_string(&collector).unwrap();
+        assert!(json.contains("\"merge_function\":\"merge\""));
+
+        let parsed: Collector = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, collector);
+    }
+
+    // Tests for toSortedMap
+    #[test]
+    fn test_to_sorted_map() {
+        let collector =
+            Collector::to_sorted_map(WasmFunction::new("get_key"), WasmFunction::new("get_value"));
+        match collector {
+            Collector::ToSortedMap {
+                key_mapper,
+                value_mapper,
+                merge_function,
+            } => {
+                assert_eq!(key_mapper.name(), "get_key");
+                assert_eq!(value_mapper.name(), "get_value");
+                assert!(merge_function.is_none());
+            }
+            _ => panic!("Expected ToSortedMap collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_sorted_map_with_merge() {
+        let collector = Collector::to_sorted_map_with_merge(
+            WasmFunction::new("get_key"),
+            WasmFunction::new("get_value"),
+            WasmFunction::new("merge"),
+        );
+        match collector {
+            Collector::ToSortedMap {
+                key_mapper,
+                value_mapper,
+                merge_function,
+            } => {
+                assert_eq!(key_mapper.name(), "get_key");
+                assert_eq!(value_mapper.name(), "get_value");
+                assert!(merge_function.is_some());
+                assert_eq!(merge_function.unwrap().name(), "merge");
+            }
+            _ => panic!("Expected ToSortedMap collector"),
+        }
+    }
+
+    #[test]
+    fn test_to_sorted_map_json_serialization() {
+        let collector = Collector::to_sorted_map(WasmFunction::new("k"), WasmFunction::new("v"));
+        let json = serde_json::to_string(&collector).unwrap();
+        assert!(json.contains("\"name\":\"toSortedMap\""));
+
+        let parsed: Collector = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, collector);
     }
 }

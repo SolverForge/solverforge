@@ -349,14 +349,7 @@ impl<S: PlanningSolution, B: LanguageBridge> TypedSolver<S, B> {
         let constraints_dto = self.constraints.to_dto();
 
         let list_accessor = crate::solver::ListAccessorDto::new(
-            "create_list",
-            "get_item",
-            "set_item",
-            "get_size",
-            "append",
-            "insert",
-            "remove",
-            "deallocate_list",
+            "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
         );
 
         let mut request = crate::solver::SolveRequest::new(
@@ -395,14 +388,7 @@ impl<S: PlanningSolution, B: LanguageBridge> TypedSolver<S, B> {
         let constraints_dto = self.constraints.to_dto();
 
         let list_accessor = crate::solver::ListAccessorDto::new(
-            "create_list",
-            "get_item",
-            "set_item",
-            "get_size",
-            "append",
-            "insert",
-            "remove",
-            "deallocate_list",
+            "newList", "getItem", "setItem", "size", "append", "insert", "remove", "dealloc",
         );
 
         let mut request = crate::solver::SolveRequest::new(
@@ -597,7 +583,7 @@ mod tests {
                                 PlanningAnnotation::ProblemFactCollectionProperty,
                             )
                             .with_planning_annotation(
-                                PlanningAnnotation::value_range_provider("rooms"),
+                                PlanningAnnotation::value_range_provider_with_id("rooms"),
                             ),
                         )
                         .with_field(

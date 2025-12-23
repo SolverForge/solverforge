@@ -122,22 +122,26 @@ impl PyPlanningVariable {
 pub struct PyPlanningListVariable {
     #[pyo3(get)]
     pub value_range_provider_refs: Vec<String>,
+    /// If true, elements can remain unassigned (not in any list).
+    #[pyo3(get)]
+    pub allows_unassigned_values: bool,
 }
 
 #[pymethods]
 impl PyPlanningListVariable {
     #[new]
-    #[pyo3(signature = (value_range_provider_refs=vec![]))]
-    fn new(value_range_provider_refs: Vec<String>) -> Self {
+    #[pyo3(signature = (value_range_provider_refs=vec![], allows_unassigned_values=false))]
+    fn new(value_range_provider_refs: Vec<String>, allows_unassigned_values: bool) -> Self {
         Self {
             value_range_provider_refs,
+            allows_unassigned_values,
         }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "PlanningListVariable(value_range_provider_refs={:?})",
-            self.value_range_provider_refs
+            "PlanningListVariable(value_range_provider_refs={:?}, allows_unassigned_values={})",
+            self.value_range_provider_refs, self.allows_unassigned_values
         )
     }
 }
@@ -622,8 +626,15 @@ mod tests {
 
     #[test]
     fn test_planning_list_variable() {
-        let var = PyPlanningListVariable::new(vec!["visits".to_string()]);
+        let var = PyPlanningListVariable::new(vec!["visits".to_string()], false);
         assert_eq!(var.value_range_provider_refs, vec!["visits"]);
+        assert!(!var.allows_unassigned_values);
+    }
+
+    #[test]
+    fn test_planning_list_variable_allows_unassigned() {
+        let var = PyPlanningListVariable::new(vec!["visits".to_string()], true);
+        assert!(var.allows_unassigned_values);
     }
 
     #[test]
@@ -728,8 +739,8 @@ mod tests {
 
     #[test]
     fn test_deep_planning_clone_decorator() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        pyo3::Python::initialize();
+        Python::attach(|py| {
             use pyo3::types::PyDict;
             let locals = PyDict::new(py);
             py.run(c"class WorkSchedule:\n    pass", None, Some(&locals))

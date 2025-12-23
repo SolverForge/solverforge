@@ -1,22 +1,16 @@
 # SolverForge
 
-A Rust-based constraint solver library that bridges language bindings to the Timefold JVM via WebAssembly and HTTP.
+A Rust constraint solver library that bridges to Timefold JVM via WebAssembly and HTTP.
 
 ## Installation
 
-**Rust:**
 ```bash
 cargo add solverforge
 ```
 
-**Python:**
-```bash
-pip install solverforge
-```
+## Overview
 
-## Project Scope
-
-SolverForge enables constraint satisfaction and optimization problems to be defined in any language (Python, JavaScript, etc.) and solved using the Timefold solver engine. Instead of requiring JNI or native bindings, SolverForge:
+SolverForge enables constraint satisfaction and optimization problems to be defined in Rust and solved using the Timefold solver engine. Instead of requiring JNI or native bindings, SolverForge:
 
 1. **Generates WASM modules** containing domain object accessors and constraint predicates
 2. **Communicates via HTTP** with an embedded Java service running Timefold
@@ -24,22 +18,102 @@ SolverForge enables constraint satisfaction and optimization problems to be defi
 
 ### Goals
 
-- **Language-agnostic**: Core library in Rust with bindings for Python, JavaScript, etc.
+- **Rust-first**: Core library and API in Rust
 - **No JNI complexity**: Pure HTTP/JSON interface to Timefold
 - **WASM-based constraints**: Constraint predicates compiled to WebAssembly for execution in the JVM
 - **Timefold compatibility**: Full access to Timefold's constraint streams, moves, and solving algorithms
+- **Near-native performance**: ~80-100k moves/second
+
+## Quick Start
+
+### 1. Define Domain Model
+
+```rust
+use solverforge::prelude::*;
+
+// Problem fact: Employee with skills
+#[derive(Clone)]
+struct Employee {
+    name: String,
+    skills: Vec<String>,
+}
+
+// Planning entity: Shift with employee assignment
+#[derive(PlanningEntity, Clone)]
+struct Shift {
+    #[planning_id]
+    id: String,
+
+    #[planning_variable(value_range_provider = "employees")]
+    employee: Option<Employee>,
+
+    required_skill: String,
+}
+
+// Planning solution: Schedule
+#[derive(PlanningSolution, Clone)]
+struct Schedule {
+    #[problem_fact_collection]
+    #[value_range_provider(id = "employees")]
+    employees: Vec<Employee>,
+
+    #[planning_entity_collection]
+    shifts: Vec<Shift>,
+
+    #[planning_score]
+    score: Option<HardSoftScore>,
+}
+```
+
+### 2. Define Constraints
+
+```rust
+use solverforge::{Constraint, ConstraintFactory, HardSoftScore};
+
+fn define_constraints(factory: ConstraintFactory) -> Vec<Constraint> {
+    vec![
+        // Hard: Employee must have the required skill
+        factory.for_each::<Shift>()
+            .filter(|shift| {
+                shift.employee.as_ref().map_or(false, |emp| {
+                    !emp.skills.contains(&shift.required_skill)
+                })
+            })
+            .penalize(HardSoftScore::ONE_HARD)
+            .as_constraint("Required skill"),
+
+        // Soft: Prefer balanced workload
+        factory.for_each::<Shift>()
+            .group_by(|shift| shift.employee.clone(), count())
+            .penalize(HardSoftScore::ONE_SOFT, |_emp, count| count * count)
+            .as_constraint("Balanced workload"),
+    ]
+}
+```
+
+### 3. Solve
+
+```rust
+use solverforge::{SolverFactory, SolverConfig, TerminationConfig};
+
+let config = SolverConfig::new()
+    .with_solution_class::<Schedule>()
+    .with_entity_classes::<Shift>()
+    .with_termination(
+        TerminationConfig::new().with_seconds_spent_limit(30)
+    );
+
+let solver = SolverFactory::create(config, define_constraints).build();
+let solution = solver.solve(problem)?;
+
+println!("Score: {:?}", solution.score);
+```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Language Bindings                                  │
-│                     (Python, JavaScript, etc.)                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          solverforge-core (Rust)                             │
+│                          solverforge (Rust)                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
 │  │   Domain     │  │ Constraints  │  │    WASM      │  │    HTTP      │    │
 │  │   Model      │  │   Streams    │  │   Builder    │  │   Client     │    │
@@ -50,7 +124,7 @@ SolverForge enables constraint satisfaction and optimization problems to be defi
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      solverforge-wasm-service (Java)                            │
+│                      solverforge-wasm-service (Java)                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
 │  │   Chicory    │  │   Dynamic    │  │  Timefold    │  │    Host      │    │
 │  │ WASM Runtime │  │ Class Gen    │  │   Solver     │  │  Functions   │    │
@@ -58,314 +132,180 @@ SolverForge enables constraint satisfaction and optimization problems to be defi
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+The embedded solver service starts automatically when needed.
+
 ### Workspace Structure
 
 ```
 solverforge/
-├── Cargo.toml                 # Workspace root
-├── solverforge-core/          # Core library (Rust)
-│   └── src/
-│       ├── analysis/          # Score explanation & constraint matching
-│       ├── constraints/       # Constraint streams (forEach, filter, join, etc.)
-│       ├── domain/            # Domain model (classes, fields, annotations)
-│       ├── score/             # Score types (Simple, HardSoft, Bendable)
-│       ├── solver/            # Solver configuration & HTTP client
-│       └── wasm/              # WASM module generation
+├── solverforge/               # Main crate with prelude
+├── solverforge-core/          # Core library
+├── solverforge-derive/        # Derive macros
+├── solverforge-service/       # JVM lifecycle management
 ├── solverforge-python/        # Python bindings (PyO3)
-│   └── src/
-│       ├── annotations.rs     # @planning_entity, @planning_solution, etc.
-│       ├── collectors.rs      # ConstraintCollectors (count, sum, etc.)
-│       ├── decorators.rs      # Python decorators for domain classes
-│       ├── joiners.rs         # Joiners (equal, lessThan, overlapping, etc.)
-│       ├── lambda_analyzer.rs # Python lambda → WASM function analysis
-│       ├── score.rs           # HardSoftScore, SimpleScore, etc.
-│       ├── solver.rs          # SolverFactory, Solver, SolverConfig
-│       └── stream.rs          # ConstraintFactory, Uni/Bi/TriConstraintStream
-├── solverforge-service/       # JVM lifecycle management (Rust)
-│   └── src/
-│       └── service.rs         # EmbeddedService - starts/stops Java process
-└── solverforge-wasm-service/     # Java Quarkus service (submodule)
-    └── src/main/java/ai/timefold/wasm/service/
-        ├── SolverResource.java              # HTTP endpoints (/solve, /analyze)
-        ├── HostFunctionProvider.java        # WASM host functions
-        └── classgen/                        # Dynamic bytecode generation
-            ├── DomainObjectClassGenerator   # Domain class generation
-            └── ConstraintProviderClassGenerator # Constraint stream generation
+└── solverforge-wasm-service/  # Java Quarkus service
 ```
 
-## Implementation Details
+## API Reference
 
-### WASM Memory Layout
+### Derive Macros
 
-Domain objects are stored in WASM linear memory with proper alignment:
+**`#[derive(PlanningEntity)]`** - Marks a struct as a planning entity
 
-- **32-bit types** (int, float, pointers): 4-byte alignment, 4-byte size
-- **64-bit types** (long, double, LocalDate, LocalDateTime): 8-byte alignment, 8-byte size
-- **Field offsets**: Calculated with alignment padding to match Rust's `LayoutCalculator`
+Field attributes:
+- `#[planning_id]` - Unique identifier (required)
+- `#[planning_variable(value_range_provider = "...")]` - Solver-assigned field
+- `#[planning_variable(..., allows_unassigned = true)]` - Can remain unassigned
+- `#[planning_list_variable(value_range_provider = "...")]` - List variable
 
-Example `Shift` layout:
-```
-Field            Offset  Size  Type
------------------------------------
-id               0       4     String (pointer)
-employee         4       4     Employee (pointer)
-location         8       4     String (pointer)
-[padding]        12      4     (align for LocalDateTime)
-start            16      8     LocalDateTime (i64)
-end              24      8     LocalDateTime (i64)
-requiredSkill    32      4     String (pointer)
------------------------------------
-Total size: 40 bytes (aligned to 8-byte boundary)
-```
+**`#[derive(PlanningSolution)]`** - Marks a struct as the solution container
 
-**Critical**: Both Rust (WASM generation) and Java (JSON parsing/serialization) must use identical alignment rules, or field reads will access garbage memory.
+Struct attributes:
+- `#[constraint_provider = "function_name"]` - Constraint function
 
-## How It Works
-
-### 1. Define Domain Model
-
-Define planning entities, solutions, and constraints in the host language:
-
-```python
-# Example: Employee Scheduling (conceptual)
-class Shift:
-    employee: Employee  # @PlanningVariable
-
-class Schedule:
-    employees: list[Employee]  # @ProblemFactCollection, @ValueRangeProvider
-    shifts: list[Shift]        # @PlanningEntityCollection
-    score: HardSoftScore       # @PlanningScore
-```
-
-### 2. Generate WASM Module
-
-SolverForge generates a WASM module containing:
-- **Memory layout** for domain objects
-- **Field accessors** (getters/setters)
-- **Constraint predicates** (filters, joiners)
-- **List operations** (for collections)
-
-### 3. Build Solve Request
-
-```rust
-let request = SolveRequest::new(
-    domain,           // IndexMap of domain classes
-    constraints,      // IndexMap of constraint streams
-    wasm_base64,      // Base64-encoded WASM module
-    "alloc",          // Memory allocator function
-    "dealloc",        // Memory deallocator function
-    list_accessor,    // List operation functions
-    problem_json,     // JSON-serialized problem instance
-)
-.with_termination(TerminationConfig::new().with_seconds_spent_limit(30));
-```
-
-### 4. Solve via HTTP
-
-```
-POST /solve
-Content-Type: application/json
-
-{
-  "domain": { "Shift": {...}, "Employee": {...}, "Schedule": {...} },
-  "constraints": { "roomConflict": [...], "teacherConflict": [...] },
-  "wasm": "AGFzbQEAAAA...",
-  "problem": "{\"employees\": [...], \"shifts\": [...]}",
-  "termination": { "secondsSpentLimit": 30 }
-}
-```
-
-### 5. Java Service Processing
-
-1. **Parse WASM** → Chicory runtime loads and compiles the module
-2. **Generate Classes** → Dynamic bytecode for domain objects and constraints
-3. **Execute Solver** → Timefold evaluates constraints via WASM calls
-4. **Return Solution** → JSON-serialized solution with score and stats
-
-## Python Bindings
-
-SolverForge provides Python bindings compatible with Timefold's Python API:
-
-### Domain Model
-
-```python
-from typing import Annotated, Optional, List
-from solverforge import (
-    planning_entity, planning_solution,
-    PlanningId, PlanningVariable, PlanningScore,
-    ValueRangeProvider, ProblemFactCollectionProperty,
-    PlanningEntityCollectionProperty, HardSoftScore,
-)
-
-@planning_entity
-class Lesson:
-    id: Annotated[str, PlanningId]
-    subject: str
-    teacher: str
-    timeslot: Annotated[Optional['Timeslot'], PlanningVariable(value_range_provider_refs=['timeslots'])]
-    room: Annotated[Optional['Room'], PlanningVariable(value_range_provider_refs=['rooms'])]
-
-@planning_solution
-class Timetable:
-    timeslots: Annotated[List[Timeslot], ProblemFactCollectionProperty, ValueRangeProvider(id='timeslots')]
-    rooms: Annotated[List[Room], ProblemFactCollectionProperty, ValueRangeProvider(id='rooms')]
-    lessons: Annotated[List[Lesson], PlanningEntityCollectionProperty]
-    score: Annotated[Optional[HardSoftScore], PlanningScore]
-```
+Field attributes:
+- `#[problem_fact_collection]` - Immutable input data
+- `#[planning_entity_collection]` - Entities to be solved
+- `#[value_range_provider(id = "...")]` - Provides values for variables
+- `#[planning_score]` - Solution score field
 
 ### Constraint Streams
 
-```python
-from solverforge import (
-    constraint_provider, ConstraintFactory,
-    Joiners, ConstraintCollectors, HardSoftScore,
-)
-
-@constraint_provider
-def define_constraints(factory: ConstraintFactory):
-    return [
-        # Hard: No two lessons in the same room at the same time
-        factory.for_each_unique_pair(Lesson, Joiners.equal(lambda l: l.timeslot))
-            .filter(lambda a, b: a.room == b.room)
-            .penalize(HardSoftScore.ONE_HARD)
-            .as_constraint("Room conflict"),
-
-        # Hard: A teacher can only teach one lesson at a time
-        factory.for_each_unique_pair(Lesson, Joiners.equal(lambda l: l.timeslot))
-            .filter(lambda a, b: a.teacher == b.teacher)
-            .penalize(HardSoftScore.ONE_HARD)
-            .as_constraint("Teacher conflict"),
-
-        # Soft: Prefer consecutive lessons for the same teacher
-        factory.for_each(Lesson)
-            .group_by(lambda l: l.teacher, ConstraintCollectors.count())
-            .filter(lambda teacher, count: count > 3)
-            .penalize(HardSoftScore.ONE_SOFT)
-            .as_constraint("Teacher workload"),
-    ]
+```rust
+factory.for_each::<Entity>()           // Start stream
+    .filter(|e| predicate)             // Filter entities
+    .join::<Other>()                   // Join with another type
+    .if_exists::<Other>()              // Filter if matching exists
+    .if_not_exists::<Other>()          // Filter if no match
+    .group_by(key_fn, collector)       // Group and aggregate
+    .penalize(score)                   // Apply penalty
+    .penalize(score, weigher)          // Weighted penalty
+    .reward(score)                     // Apply reward
+    .as_constraint("name")             // Name the constraint
 ```
 
-### Solving
+### Joiners
 
-```python
-from solverforge import SolverFactory, SolverConfig, TerminationConfig
-
-config = (SolverConfig()
-    .with_solution_class(Timetable)
-    .with_entity_classes([Lesson])
-    .with_termination(TerminationConfig().with_seconds_spent_limit(30)))
-
-solver = SolverFactory.create(config, define_constraints).build()
-solution = solver.solve(problem)
-
-print(f"Score: {solution.score}")
+```rust
+Joiners::equal(|a| a.field, |b| b.field)
+Joiners::less_than(|a| a.value, |b| b.value)
+Joiners::greater_than(|a| a.value, |b| b.value)
+Joiners::overlapping(|a| a.start, |a| a.end, |b| b.start, |b| b.end)
 ```
 
-### Available Components
+### Collectors
 
-**Annotations**:
-- `@planning_entity`, `@planning_solution`, `@constraint_provider`
-- `PlanningId`, `PlanningVariable`, `PlanningListVariable`, `PlanningScore`
-- `ValueRangeProvider`, `ProblemFactCollectionProperty`, `PlanningEntityCollectionProperty`
-- `PlanningPin`, `InverseRelationShadowVariable`, `DeepPlanningClone`
-- `@deep_planning_clone` decorator
+```rust
+count()
+count_distinct(|e| e.field)
+sum(|e| e.value)
+average(|e| e.value)
+min(|e| e.value)
+max(|e| e.value)
+to_list()
+to_set()
+load_balance()
+compose(collector1, collector2)
+conditionally(filter, collector)
+```
 
-**Constraint Streams**:
-- `UniConstraintStream`, `BiConstraintStream`, `TriConstraintStream`
-- Operations: `filter()`, `join()`, `if_exists()`, `if_not_exists()`
-- Grouping: `group_by()`, `group_by_collector()`, `group_by_two_keys()`
-- Scoring: `penalize()`, `reward()`, `as_constraint()`
+### Score Types
 
-**Joiners**:
-- `Joiners.equal()`, `less_than()`, `less_than_or_equal()`
-- `greater_than()`, `greater_than_or_equal()`, `overlapping()`
+- `SimpleScore` - Single score level
+- `HardSoftScore` - Hard constraints (must satisfy) + soft (optimize)
+- `HardMediumSoftScore` - Three-level scoring
+- `BendableScore` - Configurable number of levels
 
-**Collectors**:
-- `ConstraintCollectors.count()`, `count_distinct()`, `sum()`, `average()`
-- `min()`, `max()`, `to_list()`, `to_set()`, `load_balance()`
+Each has a `Decimal` variant for precise arithmetic.
 
-**Scores**:
-- `SimpleScore`, `HardSoftScore`, `HardMediumSoftScore`
+### Shadow Variables
 
-## Current Status
+For computed fields that update automatically:
 
-### Working Features
+```rust
+#[derive(PlanningEntity)]
+struct Visit {
+    #[planning_id]
+    id: i64,
 
-- **Domain model definition** with planning annotations
-- **Constraint streams**: forEach, filter, join, groupBy, complement, flattenLast, penalize, reward
-- **WASM module generation** for constraint predicates with proper memory alignment
-- **End-to-end solving** via HTTP with embedded Java service
-- **Score types**: Simple, HardSoft, HardMediumSoft, Bendable, HardSoftBigDecimal
-- **Score analysis** with constraint breakdown
-- **Primitive list support**: flattenLast works with LocalDate[] and other primitive lists
-- **Advanced collectors**: count, countDistinct, loadBalance
-- **Python bindings** (PyO3): Full Timefold-compatible API
-  - Decorators: `@planning_entity`, `@planning_solution`, `@constraint_provider`
-  - Annotations: `PlanningVariable`, `PlanningScore`, `ValueRangeProvider`, etc.
-  - Constraint streams: `UniConstraintStream`, `BiConstraintStream`, `TriConstraintStream`
-  - Joiners: `equal`, `lessThan`, `overlapping`, etc.
-  - Collectors: `count`, `sum`, `average`, `toList`, `loadBalance`, etc.
-  - Lambda analysis: Python lambdas → WASM functions
+    #[planning_variable(value_range_provider = "vehicles")]
+    vehicle: Option<Vehicle>,
 
-### Performance Status
+    #[inverse_relation_shadow_variable(source = "vehicle")]
+    previous_visit: Option<Visit>,
 
-| Metric | Current | Target | Native Timefold |
-|--------|---------|--------|-----------------|
-| Moves/second | ~500 | 50,000+ | ~100,000 |
+    #[shadow_variable(source = "previous_visit", listener = "ArrivalTimeListener")]
+    arrival_time: Option<DateTime>,
+}
+```
 
-**Known Bottlenecks** (optimization plan in progress):
-1. No WASM module caching - recompiled every request
-2. No export function caching - string lookup per call
-3. Full constraint re-evaluation - no incremental scoring
-4. No join indexing - O(n*m) scans instead of O(1) lookups
+Available shadow types:
+- `#[shadow_variable]` - Custom computed
+- `#[inverse_relation_shadow_variable]` - Inverse reference
+- `#[index_shadow_variable]` - Position in list
+- `#[previous_element_shadow_variable]` - Previous in list
+- `#[next_element_shadow_variable]` - Next in list
+- `#[anchor_shadow_variable]` - Chain anchor
+- `#[piggyback_shadow_variable]` - Follows another shadow
+- `#[cascading_update_shadow_variable]` - Cascade updates
 
-### Recent Fixes
+## Python Bindings
 
-- **Memory alignment fix** (2025-12): Fixed field offset alignment mismatch between Java and Rust. Java now properly aligns 64-bit fields (long, double, LocalDate, LocalDateTime) to 8-byte boundaries, matching Rust's LayoutCalculator behavior. This resolved "out of bounds memory access" errors when using temporal types in domain models.
-
-### Test Status
-
-All tests passing:
+Python bindings with Timefold-compatible API:
 
 ```bash
-# Build
-cargo build --workspace
-
-# Run all tests (requires Java 24)
-cargo test --workspace
-
-# Run Python bindings tests
-make test-python
-
-# Run specific integration test
-cargo test -p solverforge-service test_employee_scheduling_solve
-
-# Run with specific Java version
-JAVA_HOME=/usr/lib64/jvm/java-24-openjdk-24 \
-  cargo test -p solverforge-service --test solve_integration
+pip install solverforge
 ```
 
-**Test Counts**:
-- solverforge-core: 478 tests
-- solverforge-python: 129 tests
+```python
+from solverforge import (
+    planning_entity, planning_solution, constraint_provider,
+    PlanningId, PlanningVariable, HardSoftScore,
+    SolverFactory, SolverConfig,
+)
 
-**Integration Tests**:
-- ✅ Employee scheduling with 5 constraints (requiredSkill, noOverlappingShifts, oneShiftPerDay, atLeast10HoursBetweenTwoShifts, balanceEmployeeShiftAssignments)
-- ✅ Primitive list operations (LocalDate[] with flattenLast)
-- ✅ Advanced collectors (loadBalance for fair distribution)
-- ✅ Weighted penalties and custom weighers
-- ✅ Python domain model extraction from decorated classes
-- ✅ Python constraint stream building with lambda analysis
-- ✅ TriConstraintStream for 3-entity joins
-- ✅ GroupBy operations with collectors
+@planning_entity
+class Shift:
+    id: Annotated[str, PlanningId]
+    employee: Annotated[Optional[Employee], PlanningVariable]
+
+@constraint_provider
+def constraints(factory):
+    return [
+        factory.for_each(Shift)
+            .filter(lambda s: ...)
+            .penalize(HardSoftScore.ONE_HARD)
+            .as_constraint("Constraint name"),
+    ]
+
+solver = SolverFactory.create(config, constraints).build_solver()
+solution = solver.solve(problem)
+```
+
+## Performance
+
+| Metric | SolverForge | Native Timefold |
+|--------|-------------|-----------------|
+| Moves/second | ~80,000-100,000 | ~100,000 |
+| Constraint evaluation | WASM (Chicory) | Native JVM |
+| Score calculation | Incremental | Incremental |
+
+## Test Status
+
+```bash
+cargo build --workspace
+cargo test --workspace              # Requires Java 24
+make test-python                    # Python binding tests
+make test-integration               # Integration tests
+```
+
+**Test Counts**: 535 core + 197 python
 
 ## Dependencies
 
 - **Rust**: 1.75+ (edition 2021)
-- **Java**: 24+ (for solverforge-wasm-service)
+- **Java**: 24+ (for embedded service)
 - **Maven**: 3.9+ (for building Java service)
-- **Python**: 3.10+ (tested on 3.10, 3.11, 3.12, 3.13)
-- **maturin**: 1.8+ (for building Python wheel)
 
 ## License
 

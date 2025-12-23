@@ -1,63 +1,117 @@
 # solverforge-core
 
-Language-agnostic core library for SolverForge, a constraint solver that bridges Rust to the Timefold JVM via WASM modules and HTTP.
+Language-agnostic core library for SolverForge constraint solving.
 
 ## Overview
 
 This crate provides the foundation for SolverForge's constraint solving capabilities:
 
-- **Value types** - Language-agnostic representations (`Value`, `ObjectHandle`, `FunctionHandle`)
-- **Score types** - `SimpleScore`, `HardSoftScore`, `HardMediumSoftScore`, and decimal variants
-- **Domain modeling** - Planning annotations, entities, and solutions
-- **Constraint streams** - Functional constraint definition API
-- **WASM generation** - Compile constraints to WebAssembly modules
-- **Solver service** - HTTP client for the Timefold solver backend
+- **Value types** - `Value`, `ObjectHandle`, `FunctionHandle`
+- **Score types** - `SimpleScore`, `HardSoftScore`, `HardMediumSoftScore`, `BendableScore` (+ decimal variants)
+- **Domain modeling** - `PlanningAnnotation`, `DomainModel`, `DomainClass`, `FieldDescriptor`
+- **Constraint streams** - `Constraint`, `ConstraintSet`, `StreamComponent`, `Joiner`, `Collector`
+- **Expression DSL** - `Expr`, `Expression`, `NamedExpression` for type-safe constraint building
+- **Solver** - `SolverBuilder`, `TypedSolver`, `SolverManager`, `SolverFactory`
+- **WASM generation** - `WasmModuleBuilder`, `PredicateDefinition`
 
 ## Usage
 
-Add to your `Cargo.toml`:
-
 ```toml
 [dependencies]
-solverforge-core = "0.1"
+solverforge-core = "0.2"
 ```
 
-### Basic Example
+### Score Types
 
 ```rust
-use solverforge_core::{Value, HardSoftScore, SolverFactory};
+use solverforge_core::{HardSoftScore, HardMediumSoftScore, SimpleScore};
 
-// Create a solver factory with configuration
-let factory = SolverFactory::builder()
-    .with_service_url("http://localhost:8080")
-    .build();
+let score = HardSoftScore::of(-2, -15);
+assert_eq!(score.hard_score(), -2);
+assert!(score.is_feasible() == false);
 
-// Create domain values
-let score = HardSoftScore::of(0, -5);
-println!("Score: {}", score);
+let simple = SimpleScore::of(100);
+let hms = HardMediumSoftScore::of(0, -5, -10);
+```
+
+### Constraint Streams
+
+```rust
+use solverforge_core::{Constraint, StreamComponent, Joiner, WasmFunction, Collector};
+
+let constraint = Constraint::new("Room conflict")
+    .with_stream(StreamComponent::for_each("Lesson"))
+    .with_stream(StreamComponent::join_with_joiners(
+        "Lesson",
+        vec![
+            Joiner::equal(WasmFunction::new("getRoom")),
+            Joiner::equal(WasmFunction::new("getTimeslot")),
+        ],
+    ))
+    .with_stream(StreamComponent::filter(WasmFunction::new("isDifferent")))
+    .with_stream(StreamComponent::penalize("1hard"));
+```
+
+### Expression DSL
+
+```rust
+use solverforge_core::{Expr, NamedExpression, IntoNamedExpression, StreamComponent};
+use solverforge_core::wasm::FieldAccessExt;
+
+// Build type-safe expressions
+let has_room = Expr::is_not_null(Expr::param(0).get("Lesson", "room"))
+    .named_as("lesson_has_room");
+
+// Use in stream components
+let filter = StreamComponent::filter_expr(has_room);
+```
+
+### SolverManager (Multi-Problem Solving)
+
+```rust
+use solverforge_core::{SolverManager, HttpSolverService, TerminationConfig};
+use std::sync::Arc;
+
+let service = Arc::new(HttpSolverService::new("http://localhost:8080"));
+let mut manager = SolverManager::<Timetable, String>::new(service)
+    .with_termination(TerminationConfig::new().with_spent_limit("PT5M"));
+
+// Solve multiple problems concurrently
+manager.solve("problem-1".to_string(), problem1)?;
+manager.solve("problem-2".to_string(), problem2)?;
+
+// Check solutions
+if let Some(solution) = manager.get_best_solution(&"problem-1".to_string())? {
+    println!("Score: {:?}", solution.score());
+}
+
+manager.terminate_all();
+```
+
+### Shadow Variables
+
+```rust
+use solverforge_core::PlanningAnnotation;
+
+// Available shadow variable types
+let index = PlanningAnnotation::index_shadow("visits");
+let next = PlanningAnnotation::next_element_shadow("visits");
+let prev = PlanningAnnotation::previous_element_shadow("visits");
+let anchor = PlanningAnnotation::anchor_shadow("chain");
+let inverse = PlanningAnnotation::inverse_relation_shadow("vehicle", "visits");
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Language Bindings (Python, JS, Go)                          │
-├─────────────────────────────────────────────────────────────┤
-│ solverforge-core (this crate)                               │
-│  ├─ Domain modeling                                         │
-│  ├─ Constraint definition                                   │
-│  ├─ WASM module generation                                  │
-│  └─ HTTP solver client                                      │
-├─────────────────────────────────────────────────────────────┤
-│ Solver Service (Timefold JVM)                               │
-└─────────────────────────────────────────────────────────────┘
+solverforge-core
+├── constraints/    # Constraint streams, joiners, collectors
+├── domain/         # Domain model, annotations, shadow variables
+├── solver/         # SolverBuilder, SolverManager, HTTP client
+├── wasm/           # WASM module generation, expression compiler
+├── score/          # Score types (Simple, HardSoft, etc.)
+└── analysis/       # Score explanation, constraint matches
 ```
-
-## Documentation
-
-- [API Reference](https://docs.solverforge.org/solverforge-core)
-- [User Guide](https://solverforge.org/docs)
-- [GitHub Repository](https://github.com/solverforge/solverforge)
 
 ## License
 

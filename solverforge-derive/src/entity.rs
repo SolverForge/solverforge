@@ -12,6 +12,7 @@ struct FieldInfo {
     is_planning_id: bool,
     planning_variable: Option<PlanningVariableInfo>,
     list_variable: Option<ListVariableInfo>,
+    shadow_variable: Option<ShadowVariableInfo>,
 }
 
 /// Information about a planning variable attribute.
@@ -24,6 +25,15 @@ struct PlanningVariableInfo {
 struct ListVariableInfo {
     value_range_provider_refs: Vec<String>,
     allows_unassigned_values: bool,
+}
+
+/// Information about a shadow variable attribute.
+enum ShadowVariableInfo {
+    InverseRelation { source: String },
+    Index { source: String },
+    NextElement { source: String },
+    PreviousElement { source: String },
+    Anchor { source: String },
 }
 
 /// Implementation of the `#[derive(PlanningEntity)]` macro.
@@ -66,6 +76,7 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
         let is_planning_id = has_attribute(&field.attrs, "planning_id");
         let planning_variable = parse_planning_variable_attr(&field.attrs);
         let list_variable = parse_planning_list_variable_attr(&field.attrs);
+        let shadow_variable = parse_shadow_variable_attr(&field.attrs);
 
         if is_planning_id {
             if planning_id_field.is_some() {
@@ -85,6 +96,7 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
             is_planning_id,
             planning_variable,
             list_variable,
+            shadow_variable,
         });
     }
 
@@ -197,6 +209,50 @@ fn parse_planning_list_variable_attr(attrs: &[Attribute]) -> Option<ListVariable
     None
 }
 
+/// Parse shadow variable attributes from a field.
+/// Supports: inverse_relation_shadow, index_shadow, next_element_shadow,
+/// previous_element_shadow, anchor_shadow
+fn parse_shadow_variable_attr(attrs: &[Attribute]) -> Option<ShadowVariableInfo> {
+    for attr in attrs {
+        // Check each shadow variable attribute type
+        if attr.path().is_ident("inverse_relation_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::InverseRelation { source });
+            }
+        } else if attr.path().is_ident("index_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::Index { source });
+            }
+        } else if attr.path().is_ident("next_element_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::NextElement { source });
+            }
+        } else if attr.path().is_ident("previous_element_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::PreviousElement { source });
+            }
+        } else if attr.path().is_ident("anchor_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::Anchor { source });
+            }
+        }
+    }
+    None
+}
+
+/// Parse the source = "..." from a shadow variable attribute.
+fn parse_source_attr(attr: &Attribute) -> Option<String> {
+    let mut source = None;
+    let _ = attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("source") {
+            let value: LitStr = meta.value()?.parse()?;
+            source = Some(value.value());
+        }
+        Ok(())
+    });
+    source
+}
+
 /// Generate the domain_class() method implementation.
 fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream2 {
     let field_descriptors: Vec<TokenStream2> = fields
@@ -264,6 +320,46 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
                             )
                         )
                     });
+                }
+            }
+
+            if let Some(sv) = &field.shadow_variable {
+                match sv {
+                    ShadowVariableInfo::InverseRelation { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::inverse_relation_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::Index { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::index_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::NextElement { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::next_element_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::PreviousElement { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::previous_element_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::Anchor { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::anchor_shadow(#source)
+                            )
+                        });
+                    }
                 }
             }
 

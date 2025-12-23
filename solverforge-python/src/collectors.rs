@@ -295,6 +295,193 @@ impl PyConstraintCollectors {
         })
     }
 
+    /// Collect items into a map where values are grouped by key into sets.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.to_map(
+    ///     lambda shift: shift.employee,
+    ///     lambda shift: shift.id
+    /// )
+    /// ```
+    #[staticmethod]
+    fn to_map(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_map_value", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_map(key_info.to_wasm_function(), value_info.to_wasm_function()),
+        })
+    }
+
+    /// Collect items into a map with a merge function for duplicate keys.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    /// * `merge_function` - Lambda that merges two values with the same key
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.to_map_with_merge(
+    ///     lambda shift: shift.employee,
+    ///     lambda shift: shift.hours,
+    ///     lambda h1, h2: h1 + h2
+    /// )
+    /// ```
+    #[staticmethod]
+    fn to_map_with_merge(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+        merge_function: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_map_value", "Entity")?;
+        let merge_info = LambdaInfo::new(py, merge_function, "to_map_merge", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_map_with_merge(
+                key_info.to_wasm_function(),
+                value_info.to_wasm_function(),
+                merge_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Collect items into a sorted set with natural ordering.
+    #[staticmethod]
+    fn to_sorted_set() -> PyCollector {
+        PyCollector {
+            inner: Collector::to_sorted_set(),
+        }
+    }
+
+    /// Collect mapped values into a sorted set.
+    ///
+    /// # Arguments
+    /// * `mapper` - Lambda that extracts the value to collect
+    #[staticmethod]
+    fn to_sorted_set_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
+        let map_info = LambdaInfo::new(py, mapper, "to_sorted_set_map", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_set_with_map(map_info.to_wasm_function()),
+        })
+    }
+
+    /// Collect items into a sorted set with a custom comparator.
+    ///
+    /// # Arguments
+    /// * `comparator` - Lambda that compares two items (returns negative, 0, or positive)
+    #[staticmethod]
+    fn to_sorted_set_with_comparator(
+        py: Python<'_>,
+        comparator: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let cmp_info = LambdaInfo::new(py, comparator, "to_sorted_set_cmp", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_set_with_comparator(cmp_info.to_wasm_function()),
+        })
+    }
+
+    /// Collect mapped values into a sorted set with a custom comparator.
+    ///
+    /// # Arguments
+    /// * `mapper` - Lambda that extracts the value to collect
+    /// * `comparator` - Lambda that compares two values
+    #[staticmethod]
+    fn to_sorted_set_with_map_and_comparator(
+        py: Python<'_>,
+        mapper: Py<PyAny>,
+        comparator: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let map_info = LambdaInfo::new(py, mapper, "to_sorted_set_map", "Entity")?;
+        let cmp_info = LambdaInfo::new(py, comparator, "to_sorted_set_cmp", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_set_with_map_and_comparator(
+                map_info.to_wasm_function(),
+                cmp_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Collect items into a sorted map where values are grouped by key.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    #[staticmethod]
+    fn to_sorted_map(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_sorted_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_sorted_map_value", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_map(
+                key_info.to_wasm_function(),
+                value_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Collect items into a sorted map with a merge function for duplicate keys.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    /// * `merge_function` - Lambda that merges two values with the same key
+    #[staticmethod]
+    fn to_sorted_map_with_merge(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+        merge_function: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_sorted_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_sorted_map_value", "Entity")?;
+        let merge_info = LambdaInfo::new(py, merge_function, "to_sorted_map_merge", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_map_with_merge(
+                key_info.to_wasm_function(),
+                value_info.to_wasm_function(),
+                merge_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Post-process the result of a collector with a mapper function.
+    ///
+    /// # Arguments
+    /// * `collector` - The collector to apply first
+    /// * `mapper` - Lambda that transforms the collector's result
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.collect_and_then(
+    ///     ConstraintCollectors.to_list(),
+    ///     lambda lst: len(lst)
+    /// )
+    /// ```
+    #[staticmethod]
+    fn collect_and_then(
+        py: Python<'_>,
+        collector: PyCollector,
+        mapper: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let mapper_info = LambdaInfo::new(py, mapper, "collect_and_then_mapper", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::collect_and_then(collector.to_rust(), mapper_info.to_wasm_function()),
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "ConstraintCollectors()"
     }

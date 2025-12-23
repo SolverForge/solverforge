@@ -111,6 +111,29 @@ pub enum StreamComponent {
         #[serde(rename = "scaleBy", skip_serializing_if = "Option::is_none")]
         scale_by: Option<WasmFunction>,
     },
+    #[serde(rename = "concat")]
+    Concat {
+        #[serde(rename = "otherComponents")]
+        other_components: Vec<StreamComponent>,
+    },
+    #[serde(rename = "distinct")]
+    Distinct,
+    #[serde(rename = "impact")]
+    Impact {
+        weight: String,
+        #[serde(rename = "scaleBy", skip_serializing_if = "Option::is_none")]
+        scale_by: Option<WasmFunction>,
+    },
+    #[serde(rename = "indictWith")]
+    IndictWith {
+        #[serde(rename = "indictedObjectProvider")]
+        indicted_object_provider: WasmFunction,
+    },
+    #[serde(rename = "justifyWith")]
+    JustifyWith {
+        #[serde(rename = "justificationSupplier")]
+        justification_supplier: WasmFunction,
+    },
 }
 
 impl StreamComponent {
@@ -331,6 +354,52 @@ impl StreamComponent {
         }
     }
 
+    pub fn concat(other_components: Vec<StreamComponent>) -> Self {
+        StreamComponent::Concat { other_components }
+    }
+
+    pub fn distinct() -> Self {
+        StreamComponent::Distinct
+    }
+
+    pub fn impact(weight: impl Into<String>) -> Self {
+        StreamComponent::Impact {
+            weight: weight.into(),
+            scale_by: None,
+        }
+    }
+
+    pub fn impact_with_weigher(weight: impl Into<String>, scale_by: WasmFunction) -> Self {
+        StreamComponent::Impact {
+            weight: weight.into(),
+            scale_by: Some(scale_by),
+        }
+    }
+
+    pub fn indict_with(indicted_object_provider: WasmFunction) -> Self {
+        StreamComponent::IndictWith {
+            indicted_object_provider,
+        }
+    }
+
+    pub fn indict_with_expr(indicted_object_provider: NamedExpression) -> Self {
+        StreamComponent::IndictWith {
+            indicted_object_provider: indicted_object_provider.into(),
+        }
+    }
+
+    pub fn justify_with(justification_supplier: WasmFunction) -> Self {
+        StreamComponent::JustifyWith {
+            justification_supplier,
+        }
+    }
+
+    pub fn justify_with_expr(justification_supplier: NamedExpression) -> Self {
+        StreamComponent::JustifyWith {
+            justification_supplier: justification_supplier.into(),
+        }
+    }
+
     // ===== Expression-based convenience methods =====
 
     /// Creates a filter component from a named expression.
@@ -408,6 +477,14 @@ impl StreamComponent {
     pub fn expand_expr(mappers: Vec<NamedExpression>) -> Self {
         StreamComponent::Expand {
             mappers: mappers.into_iter().map(|e| e.into()).collect(),
+        }
+    }
+
+    /// Creates an impact component with an expression-based weigher.
+    pub fn impact_with_expr(weight: impl Into<String>, scale_by: NamedExpression) -> Self {
+        StreamComponent::Impact {
+            weight: weight.into(),
+            scale_by: Some(scale_by.into()),
         }
     }
 }

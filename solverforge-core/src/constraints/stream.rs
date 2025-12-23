@@ -1,4 +1,4 @@
-use crate::constraints::{Collector, Joiner, WasmFunction};
+use crate::constraints::{Collector, Joiner, NamedExpression, WasmFunction};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +44,34 @@ pub enum StreamComponent {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         joiners: Vec<Joiner>,
     },
+    #[serde(rename = "ifExistsOther")]
+    IfExistsOther {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
+    #[serde(rename = "ifNotExistsOther")]
+    IfNotExistsOther {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
+    #[serde(rename = "ifExistsIncludingUnassigned")]
+    IfExistsIncludingUnassigned {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
+    #[serde(rename = "ifNotExistsIncludingUnassigned")]
+    IfNotExistsIncludingUnassigned {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
     #[serde(rename = "groupBy")]
     GroupBy {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -82,6 +110,29 @@ pub enum StreamComponent {
         weight: String,
         #[serde(rename = "scaleBy", skip_serializing_if = "Option::is_none")]
         scale_by: Option<WasmFunction>,
+    },
+    #[serde(rename = "concat")]
+    Concat {
+        #[serde(rename = "otherComponents")]
+        other_components: Vec<StreamComponent>,
+    },
+    #[serde(rename = "distinct")]
+    Distinct,
+    #[serde(rename = "impact")]
+    Impact {
+        weight: String,
+        #[serde(rename = "scaleBy", skip_serializing_if = "Option::is_none")]
+        scale_by: Option<WasmFunction>,
+    },
+    #[serde(rename = "indictWith")]
+    IndictWith {
+        #[serde(rename = "indictedObjectProvider")]
+        indicted_object_provider: WasmFunction,
+    },
+    #[serde(rename = "justifyWith")]
+    JustifyWith {
+        #[serde(rename = "justificationSupplier")]
+        justification_supplier: WasmFunction,
     },
 }
 
@@ -161,6 +212,74 @@ impl StreamComponent {
         }
     }
 
+    pub fn if_exists_other(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfExistsOther {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_exists_other_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfExistsOther {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_not_exists_other(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfNotExistsOther {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_not_exists_other_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfNotExistsOther {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_exists_including_unassigned(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_exists_including_unassigned_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_not_exists_including_unassigned(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_not_exists_including_unassigned_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
     pub fn group_by(keys: Vec<WasmFunction>, aggregators: Vec<Collector>) -> Self {
         StreamComponent::GroupBy { keys, aggregators }
     }
@@ -232,6 +351,140 @@ impl StreamComponent {
         StreamComponent::Reward {
             weight: weight.into(),
             scale_by: Some(scale_by),
+        }
+    }
+
+    pub fn concat(other_components: Vec<StreamComponent>) -> Self {
+        StreamComponent::Concat { other_components }
+    }
+
+    pub fn distinct() -> Self {
+        StreamComponent::Distinct
+    }
+
+    pub fn impact(weight: impl Into<String>) -> Self {
+        StreamComponent::Impact {
+            weight: weight.into(),
+            scale_by: None,
+        }
+    }
+
+    pub fn impact_with_weigher(weight: impl Into<String>, scale_by: WasmFunction) -> Self {
+        StreamComponent::Impact {
+            weight: weight.into(),
+            scale_by: Some(scale_by),
+        }
+    }
+
+    pub fn indict_with(indicted_object_provider: WasmFunction) -> Self {
+        StreamComponent::IndictWith {
+            indicted_object_provider,
+        }
+    }
+
+    pub fn indict_with_expr(indicted_object_provider: NamedExpression) -> Self {
+        StreamComponent::IndictWith {
+            indicted_object_provider: indicted_object_provider.into(),
+        }
+    }
+
+    pub fn justify_with(justification_supplier: WasmFunction) -> Self {
+        StreamComponent::JustifyWith {
+            justification_supplier,
+        }
+    }
+
+    pub fn justify_with_expr(justification_supplier: NamedExpression) -> Self {
+        StreamComponent::JustifyWith {
+            justification_supplier: justification_supplier.into(),
+        }
+    }
+
+    // ===== Expression-based convenience methods =====
+
+    /// Creates a filter component from a named expression.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use solverforge_core::wasm::{Expr, FieldAccessExt};
+    /// use solverforge_core::constraints::{StreamComponent, IntoNamedExpression};
+    ///
+    /// let has_room = Expr::is_not_null(Expr::param(0).get("Lesson", "room"))
+    ///     .named_as("has_room");
+    /// let filter = StreamComponent::filter_expr(has_room);
+    /// ```
+    pub fn filter_expr(expr: NamedExpression) -> Self {
+        StreamComponent::Filter {
+            predicate: expr.into(),
+        }
+    }
+
+    /// Creates a map component from named expressions.
+    pub fn map_expr(mappers: Vec<NamedExpression>) -> Self {
+        StreamComponent::Map {
+            mappers: mappers.into_iter().map(|e| e.into()).collect(),
+        }
+    }
+
+    /// Creates a single-mapper map component from a named expression.
+    pub fn map_single_expr(mapper: NamedExpression) -> Self {
+        StreamComponent::Map {
+            mappers: vec![mapper.into()],
+        }
+    }
+
+    /// Creates a groupBy component with expression-based key extractors.
+    pub fn group_by_expr(keys: Vec<NamedExpression>, aggregators: Vec<Collector>) -> Self {
+        StreamComponent::GroupBy {
+            keys: keys.into_iter().map(|e| e.into()).collect(),
+            aggregators,
+        }
+    }
+
+    /// Creates a groupBy component with a single expression-based key.
+    pub fn group_by_key_expr(key: NamedExpression) -> Self {
+        StreamComponent::GroupBy {
+            keys: vec![key.into()],
+            aggregators: Vec::new(),
+        }
+    }
+
+    /// Creates a penalize component with an expression-based weigher.
+    pub fn penalize_with_expr(weight: impl Into<String>, scale_by: NamedExpression) -> Self {
+        StreamComponent::Penalize {
+            weight: weight.into(),
+            scale_by: Some(scale_by.into()),
+        }
+    }
+
+    /// Creates a reward component with an expression-based weigher.
+    pub fn reward_with_expr(weight: impl Into<String>, scale_by: NamedExpression) -> Self {
+        StreamComponent::Reward {
+            weight: weight.into(),
+            scale_by: Some(scale_by.into()),
+        }
+    }
+
+    /// Creates a flattenLast component with an expression-based mapper.
+    pub fn flatten_last_with_expr(map: NamedExpression) -> Self {
+        StreamComponent::FlattenLast {
+            map: Some(map.into()),
+        }
+    }
+
+    /// Creates an expand component from named expressions.
+    pub fn expand_expr(mappers: Vec<NamedExpression>) -> Self {
+        StreamComponent::Expand {
+            mappers: mappers.into_iter().map(|e| e.into()).collect(),
+        }
+    }
+
+    /// Creates an impact component with an expression-based weigher.
+    pub fn impact_with_expr(weight: impl Into<String>, scale_by: NamedExpression) -> Self {
+        StreamComponent::Impact {
+            weight: weight.into(),
+            scale_by: Some(scale_by.into()),
         }
     }
 }
@@ -583,5 +836,131 @@ mod tests {
         let component = StreamComponent::for_each("Lesson");
         let debug = format!("{:?}", component);
         assert!(debug.contains("ForEach"));
+    }
+
+    // ===== Expression-based method tests =====
+
+    #[test]
+    fn test_filter_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let has_room = Expr::is_not_null(Expr::param(0).get("Lesson", "room")).named_as("has_room");
+        let component = StreamComponent::filter_expr(has_room);
+
+        match component {
+            StreamComponent::Filter { predicate } => {
+                assert_eq!(predicate.name(), "has_room");
+            }
+            _ => panic!("Expected Filter"),
+        }
+    }
+
+    #[test]
+    fn test_map_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let get_room = Expr::param(0).get("Lesson", "room").named_as("get_room");
+        let get_timeslot = Expr::param(0)
+            .get("Lesson", "timeslot")
+            .named_as("get_timeslot");
+        let component = StreamComponent::map_expr(vec![get_room, get_timeslot]);
+
+        match component {
+            StreamComponent::Map { mappers } => {
+                assert_eq!(mappers.len(), 2);
+                assert_eq!(mappers[0].name(), "get_room");
+                assert_eq!(mappers[1].name(), "get_timeslot");
+            }
+            _ => panic!("Expected Map"),
+        }
+    }
+
+    #[test]
+    fn test_map_single_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let get_room = Expr::param(0).get("Lesson", "room").named_as("get_room");
+        let component = StreamComponent::map_single_expr(get_room);
+
+        match component {
+            StreamComponent::Map { mappers } => {
+                assert_eq!(mappers.len(), 1);
+                assert_eq!(mappers[0].name(), "get_room");
+            }
+            _ => panic!("Expected Map"),
+        }
+    }
+
+    #[test]
+    fn test_group_by_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let get_room = Expr::param(0).get("Lesson", "room").named_as("get_room");
+        let component = StreamComponent::group_by_expr(vec![get_room], vec![Collector::count()]);
+
+        match component {
+            StreamComponent::GroupBy { keys, aggregators } => {
+                assert_eq!(keys.len(), 1);
+                assert_eq!(keys[0].name(), "get_room");
+                assert_eq!(aggregators.len(), 1);
+            }
+            _ => panic!("Expected GroupBy"),
+        }
+    }
+
+    #[test]
+    fn test_group_by_key_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::{Expr, FieldAccessExt};
+
+        let get_room = Expr::param(0).get("Lesson", "room").named_as("get_room");
+        let component = StreamComponent::group_by_key_expr(get_room);
+
+        match component {
+            StreamComponent::GroupBy { keys, aggregators } => {
+                assert_eq!(keys.len(), 1);
+                assert!(aggregators.is_empty());
+            }
+            _ => panic!("Expected GroupBy"),
+        }
+    }
+
+    #[test]
+    fn test_penalize_with_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::Expr;
+
+        let weight_fn = Expr::int(1).named_as("weight");
+        let component = StreamComponent::penalize_with_expr("1hard", weight_fn);
+
+        match component {
+            StreamComponent::Penalize { weight, scale_by } => {
+                assert_eq!(weight, "1hard");
+                assert!(scale_by.is_some());
+                assert_eq!(scale_by.unwrap().name(), "weight");
+            }
+            _ => panic!("Expected Penalize"),
+        }
+    }
+
+    #[test]
+    fn test_reward_with_expr() {
+        use crate::constraints::IntoNamedExpression;
+        use crate::wasm::Expr;
+
+        let bonus = Expr::int(10).named_as("bonus");
+        let component = StreamComponent::reward_with_expr("1soft", bonus);
+
+        match component {
+            StreamComponent::Reward { weight, scale_by } => {
+                assert_eq!(weight, "1soft");
+                assert!(scale_by.is_some());
+            }
+            _ => panic!("Expected Reward"),
+        }
     }
 }

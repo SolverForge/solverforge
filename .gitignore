@@ -64,3 +64,4 @@ solverforge-go/go/solverforge/solverforge.h
 
 # Reference files
 reference
+solverforge-python/python/solverforge/_solverforge.abi3.so

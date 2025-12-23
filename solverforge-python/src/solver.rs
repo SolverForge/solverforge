@@ -749,18 +749,13 @@ impl PySolverFactory {
                 .map(|c| c.bind(py).clone())
                 .collect();
             let py_domain_model =
-                crate::decorators::build_domain_model(solution_bound, entity_bounds)?;
+                crate::decorators::build_domain_model(py, solution_bound, entity_bounds)?;
             py_domain_model.to_rust()
         } else {
-            // Fallback: build basic domain model from class names
-            let mut builder = DomainModelBuilder::new();
-            if let Some(solution_class) = &config.to_rust().solution_class {
-                builder = builder.solution_class(solution_class);
-            }
-            for entity_class in &config.to_rust().entity_class_list {
-                builder = builder.entity_class(entity_class);
-            }
-            builder.build()
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "SolverConfig must have a solution class set via with_solution_class(). \
+                 Cannot create SolverFactory without domain model information.",
+            ));
         };
 
         // Determine service URL, auto-starting embedded service if needed
@@ -794,9 +789,8 @@ impl PySolverFactory {
 
         // Add all predicates from constraints to the WASM module
         for lambda in &predicates {
-            if let Some(predicate_def) = lambda_to_predicate(lambda) {
-                wasm_builder = wasm_builder.add_predicate(predicate_def);
-            }
+            let predicate_def = lambda_to_predicate(lambda);
+            wasm_builder = wasm_builder.add_predicate(predicate_def);
         }
 
         let wasm_module = wasm_builder.build_base64().map_err(|e| {
@@ -1081,10 +1075,12 @@ fn build_constraint_set(constraints: &[PyConstraint]) -> (ConstraintSet, Vec<Lam
 }
 
 /// Convert LambdaInfo to PredicateDefinition for WASM generation.
-fn lambda_to_predicate(lambda: &LambdaInfo) -> Option<PredicateDefinition> {
-    lambda.expression.as_ref().map(|expr| {
-        PredicateDefinition::from_expression(&lambda.name, lambda.param_count as u32, expr.clone())
-    })
+fn lambda_to_predicate(lambda: &LambdaInfo) -> PredicateDefinition {
+    PredicateDefinition::from_expression(
+        &lambda.name,
+        lambda.param_count as u32,
+        lambda.expression.clone(),
+    )
 }
 
 /// Status of a solver job.
@@ -1147,9 +1143,6 @@ pub struct PySolverJob {
     state: Arc<std::sync::Mutex<SolverJobState>>,
     solution_class: String,
     bridge: Arc<PythonBridge>,
-    /// Thread handle for the background solver (if running).
-    #[allow(dead_code)]
-    thread_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 #[pymethods]
@@ -1335,8 +1328,8 @@ impl PySolverManager {
         let listener_clone = listener.clone_ref(py);
         let solution_class_clone = solution_class.clone();
 
-        // Spawn background thread
-        let thread_handle = std::thread::spawn(move || {
+        // Spawn background thread (detached - we don't join it)
+        std::thread::spawn(move || {
             // Mark as active
             {
                 let mut s = state_clone.lock().unwrap();
@@ -1457,7 +1450,6 @@ impl PySolverManager {
             state,
             solution_class,
             bridge,
-            thread_handle: Some(thread_handle),
         })
     }
 
@@ -1813,6 +1805,7 @@ mod tests {
                 constraints: ConstraintSet::new(),
                 domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
                 service_url: "http://localhost:8080".to_string(),
+                wasm_module: String::new(),
             });
 
             let manager = PySolverManager {
@@ -1856,6 +1849,7 @@ mod tests {
                 constraints: ConstraintSet::new(),
                 domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
                 service_url: "http://localhost:8080".to_string(),
+                wasm_module: String::new(),
             });
 
             let manager = PySolverManager {

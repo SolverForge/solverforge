@@ -24,6 +24,14 @@ pub enum Expression {
     /// Integer literal (i64)
     IntLiteral { value: i64 },
 
+    /// Float literal (f64)
+    FloatLiteral { value: f64 },
+
+    /// String literal
+    /// Used for string comparisons. At WASM generation time, the string is stored
+    /// in a data segment and a pointer to it is used for comparison via hstringEquals.
+    StringLiteral { value: String },
+
     /// Boolean literal
     BoolLiteral { value: bool },
 
@@ -136,6 +144,31 @@ pub enum Expression {
         element: Box<Expression>,
     },
 
+    /// Get the length of a collection
+    /// Example: len(vehicle.visits)
+    Length { collection: Box<Expression> },
+
+    /// Sum of field values over a collection
+    /// Example: sum(item.demand for item in vehicle.visits)
+    ///
+    /// # Fields
+    /// * `collection` - The collection to iterate over (e.g., vehicle.visits)
+    /// * `item_var_name` - Name of the loop variable (e.g., "item", "visit")
+    /// * `item_param_index` - Parameter index of the loop variable in the accumulator expression
+    /// * `item_class_name` - The type of items in the collection (e.g., "Visit")
+    /// * `accumulator_expr` - Expression to sum (e.g., Param(item_param_index).demand)
+    ///
+    /// The accumulator_expr should reference the loop variable by its parameter index.
+    /// The WASM generator replaces references to item_param_index with loads from the
+    /// loop element local variable and uses item_class_name for field lookups.
+    Sum {
+        collection: Box<Expression>,
+        item_var_name: String,
+        item_param_index: u32,
+        item_class_name: String,
+        accumulator_expr: Box<Expression>,
+    },
+
     // ===== Host Function Calls =====
     /// Call a host-provided function
     /// Example: hstringEquals(left, right)
@@ -168,6 +201,48 @@ mod tests {
     fn test_bool_literal() {
         let expr = Expression::BoolLiteral { value: true };
         assert_eq!(expr, Expression::BoolLiteral { value: true });
+    }
+
+    #[test]
+    fn test_float_literal() {
+        let expr = Expression::FloatLiteral { value: 3.14 };
+        assert_eq!(expr, Expression::FloatLiteral { value: 3.14 });
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let expr = Expression::StringLiteral {
+            value: "active".into(),
+        };
+        assert_eq!(
+            expr,
+            Expression::StringLiteral {
+                value: "active".into()
+            }
+        );
+    }
+
+    #[test]
+    fn test_serialize_string_literal() {
+        let expr = Expression::StringLiteral {
+            value: "hello".into(),
+        };
+        let json = serde_json::to_string(&expr).unwrap();
+        assert!(json.contains("\"kind\":\"StringLiteral\""));
+        assert!(json.contains("\"value\":\"hello\""));
+
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_serialize_float_literal() {
+        let expr = Expression::FloatLiteral { value: 2.5 };
+        let json = serde_json::to_string(&expr).unwrap();
+        assert!(json.contains("\"kind\":\"FloatLiteral\""));
+
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
     }
 
     #[test]
@@ -449,7 +524,7 @@ mod tests {
                     class_name: "Employee".into(),
                     field_name: "skill".into(),
                 }),
-                right: Box::new(Expression::IntLiteral { value: 42 }), // Placeholder
+                right: Box::new(Expression::IntLiteral { value: 42 }),
             }),
         };
 

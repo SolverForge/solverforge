@@ -44,6 +44,34 @@ pub enum StreamComponent {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         joiners: Vec<Joiner>,
     },
+    #[serde(rename = "ifExistsOther")]
+    IfExistsOther {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
+    #[serde(rename = "ifNotExistsOther")]
+    IfNotExistsOther {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
+    #[serde(rename = "ifExistsIncludingUnassigned")]
+    IfExistsIncludingUnassigned {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
+    #[serde(rename = "ifNotExistsIncludingUnassigned")]
+    IfNotExistsIncludingUnassigned {
+        #[serde(rename = "className")]
+        class_name: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joiners: Vec<Joiner>,
+    },
     #[serde(rename = "groupBy")]
     GroupBy {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -156,6 +184,74 @@ impl StreamComponent {
 
     pub fn if_not_exists_with_joiners(class_name: impl Into<String>, joiners: Vec<Joiner>) -> Self {
         StreamComponent::IfNotExists {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_exists_other(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfExistsOther {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_exists_other_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfExistsOther {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_not_exists_other(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfNotExistsOther {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_not_exists_other_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfNotExistsOther {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_exists_including_unassigned(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_exists_including_unassigned_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners,
+        }
+    }
+
+    pub fn if_not_exists_including_unassigned(class_name: impl Into<String>) -> Self {
+        StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: class_name.into(),
+            joiners: Vec::new(),
+        }
+    }
+
+    pub fn if_not_exists_including_unassigned_with_joiners(
+        class_name: impl Into<String>,
+        joiners: Vec<Joiner>,
+    ) -> Self {
+        StreamComponent::IfNotExistsIncludingUnassigned {
             class_name: class_name.into(),
             joiners,
         }

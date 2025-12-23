@@ -11,12 +11,19 @@ struct FieldInfo {
     ty: Type,
     is_planning_id: bool,
     planning_variable: Option<PlanningVariableInfo>,
+    list_variable: Option<ListVariableInfo>,
 }
 
 /// Information about a planning variable attribute.
 struct PlanningVariableInfo {
     value_range_provider_refs: Vec<String>,
     allows_unassigned: bool,
+}
+
+/// Information about a planning list variable attribute.
+struct ListVariableInfo {
+    value_range_provider_refs: Vec<String>,
+    allows_unassigned_values: bool,
 }
 
 /// Implementation of the `#[derive(PlanningEntity)]` macro.
@@ -58,6 +65,7 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
 
         let is_planning_id = has_attribute(&field.attrs, "planning_id");
         let planning_variable = parse_planning_variable_attr(&field.attrs);
+        let list_variable = parse_planning_list_variable_attr(&field.attrs);
 
         if is_planning_id {
             if planning_id_field.is_some() {
@@ -76,6 +84,7 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
             ty: field_ty.clone(),
             is_planning_id,
             planning_variable,
+            list_variable,
         });
     }
 
@@ -160,6 +169,34 @@ fn parse_planning_variable_attr(attrs: &[Attribute]) -> Option<PlanningVariableI
     None
 }
 
+/// Parse the #[planning_list_variable(...)] attribute using syn 2.x API.
+fn parse_planning_list_variable_attr(attrs: &[Attribute]) -> Option<ListVariableInfo> {
+    for attr in attrs {
+        if attr.path().is_ident("planning_list_variable") {
+            let mut value_range_provider_refs = Vec::new();
+            let mut allows_unassigned_values = false;
+
+            // Parse nested meta using syn 2.x API
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("value_range_provider") {
+                    let value: LitStr = meta.value()?.parse()?;
+                    value_range_provider_refs.push(value.value());
+                } else if meta.path.is_ident("allows_unassigned_values") {
+                    let value: LitBool = meta.value()?.parse()?;
+                    allows_unassigned_values = value.value();
+                }
+                Ok(())
+            });
+
+            return Some(ListVariableInfo {
+                value_range_provider_refs,
+                allows_unassigned_values,
+            });
+        }
+    }
+    None
+}
+
 /// Generate the domain_class() method implementation.
 fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream2 {
     let field_descriptors: Vec<TokenStream2> = fields
@@ -196,6 +233,33 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
                     annotations.push(quote! {
                         .with_planning_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_variable(
+                                vec![#(#refs),*]
+                            )
+                        )
+                    });
+                }
+            }
+
+            if let Some(lv) = &field.list_variable {
+                let refs: Vec<_> = lv
+                    .value_range_provider_refs
+                    .iter()
+                    .map(|s| quote! { #s.to_string() })
+                    .collect();
+                let allows_unassigned_values = lv.allows_unassigned_values;
+
+                if allows_unassigned_values {
+                    annotations.push(quote! {
+                        .with_planning_annotation(
+                            ::solverforge_core::domain::PlanningAnnotation::planning_list_variable_unassigned(
+                                vec![#(#refs),*]
+                            )
+                        )
+                    });
+                } else {
+                    annotations.push(quote! {
+                        .with_planning_annotation(
+                            ::solverforge_core::domain::PlanningAnnotation::planning_list_variable(
                                 vec![#(#refs),*]
                             )
                         )

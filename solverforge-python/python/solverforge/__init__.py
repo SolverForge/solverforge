@@ -24,10 +24,17 @@ from solverforge._solverforge import (
     PlanningEntityCollectionProperty,
     PlanningPin,
     InverseRelationShadowVariable,
+    PreviousElementShadowVariable,
+    NextElementShadowVariable,
+    CascadingUpdateShadowVariable,
     # Score types
     SimpleScore,
     HardSoftScore,
     HardMediumSoftScore,
+    HardSoftDecimalScore,
+    HardMediumSoftDecimalScore,
+    BendableScore,
+    BendableDecimalScore,
     # Decorators
     planning_entity,
     planning_solution,
@@ -50,6 +57,9 @@ from solverforge._solverforge import (
     SolveResponse,
     SolverFactory,
     Solver,
+    SolverManager,
+    SolverJob,
+    SolverJobStatus,
     # Constraint streams
     ConstraintFactory,
     UniConstraintStream,
@@ -67,6 +77,16 @@ from solverforge._solverforge import (
     ConstraintCollectors,
 )
 
+# Embedded service management
+from solverforge._solverforge import (
+    ServiceConfig,
+    EmbeddedService,
+    ensure_service,
+    is_service_available,
+    get_service_url,
+    stop_service,
+)
+
 __all__ = [
     "__version__",
     # Annotation marker classes
@@ -81,10 +101,17 @@ __all__ = [
     "PlanningEntityCollectionProperty",
     "PlanningPin",
     "InverseRelationShadowVariable",
+    "PreviousElementShadowVariable",
+    "NextElementShadowVariable",
+    "CascadingUpdateShadowVariable",
     # Score types
     "SimpleScore",
     "HardSoftScore",
     "HardMediumSoftScore",
+    "HardSoftDecimalScore",
+    "HardMediumSoftDecimalScore",
+    "BendableScore",
+    "BendableDecimalScore",
     # Decorators
     "planning_entity",
     "planning_solution",
@@ -107,6 +134,9 @@ __all__ = [
     "SolveResponse",
     "SolverFactory",
     "Solver",
+    "SolverManager",
+    "SolverJob",
+    "SolverJobStatus",
     # Constraint streams
     "ConstraintFactory",
     "UniConstraintStream",
@@ -122,4 +152,11 @@ __all__ = [
     # Collectors
     "Collector",
     "ConstraintCollectors",
+    # Embedded service
+    "ServiceConfig",
+    "EmbeddedService",
+    "ensure_service",
+    "is_service_available",
+    "get_service_url",
+    "stop_service",
 ]

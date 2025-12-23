@@ -383,6 +383,140 @@ impl PyInverseRelationShadowVariable {
     }
 }
 
+/// Marks a field as a previous element shadow variable.
+///
+/// Automatically tracks the previous element in a planning list variable.
+/// Used with PlanningListVariable to access the element before this one.
+///
+/// # Parameters
+///
+/// - `source_variable_name`: Name of the planning list variable this shadows
+///
+/// # Example
+///
+/// ```python
+/// @planning_entity
+/// class Visit:
+///     previous_visit: Annotated[Optional['Visit'], PreviousElementShadowVariable(source_variable_name='visits')]
+/// ```
+#[pyclass(name = "PreviousElementShadowVariable")]
+#[derive(Clone, Debug)]
+pub struct PyPreviousElementShadowVariable {
+    #[pyo3(get)]
+    pub source_variable_name: String,
+}
+
+#[pymethods]
+impl PyPreviousElementShadowVariable {
+    #[new]
+    fn new(source_variable_name: String) -> Self {
+        Self {
+            source_variable_name,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "PreviousElementShadowVariable(source_variable_name='{}')",
+            self.source_variable_name
+        )
+    }
+}
+
+/// Marks a field as a next element shadow variable.
+///
+/// Automatically tracks the next element in a planning list variable.
+/// Used with PlanningListVariable to access the element after this one.
+///
+/// # Parameters
+///
+/// - `source_variable_name`: Name of the planning list variable this shadows
+///
+/// # Example
+///
+/// ```python
+/// @planning_entity
+/// class Visit:
+///     next_visit: Annotated[Optional['Visit'], NextElementShadowVariable(source_variable_name='visits')]
+/// ```
+#[pyclass(name = "NextElementShadowVariable")]
+#[derive(Clone, Debug)]
+pub struct PyNextElementShadowVariable {
+    #[pyo3(get)]
+    pub source_variable_name: String,
+}
+
+#[pymethods]
+impl PyNextElementShadowVariable {
+    #[new]
+    fn new(source_variable_name: String) -> Self {
+        Self {
+            source_variable_name,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "NextElementShadowVariable(source_variable_name='{}')",
+            self.source_variable_name
+        )
+    }
+}
+
+/// Marks a field as a cascading update shadow variable.
+///
+/// A shadow variable that is updated based on other shadow variables or planning variables,
+/// with updates cascading through a chain of elements.
+///
+/// # Parameters
+///
+/// - `target_method_name`: Name of the method to call for computing the shadow value
+/// - `source_variable_name`: Optional name of the source variable that triggers updates
+///
+/// # Example
+///
+/// ```python
+/// @planning_entity
+/// class Visit:
+///     arrival_time: Annotated[datetime, CascadingUpdateShadowVariable(
+///         target_method_name='calculate_arrival_time',
+///         source_variable_name='visits'
+///     )]
+/// ```
+#[pyclass(name = "CascadingUpdateShadowVariable")]
+#[derive(Clone, Debug)]
+pub struct PyCascadingUpdateShadowVariable {
+    #[pyo3(get)]
+    pub target_method_name: String,
+    #[pyo3(get)]
+    pub source_variable_name: Option<String>,
+}
+
+#[pymethods]
+impl PyCascadingUpdateShadowVariable {
+    #[new]
+    #[pyo3(signature = (target_method_name, source_variable_name=None))]
+    fn new(target_method_name: String, source_variable_name: Option<String>) -> Self {
+        Self {
+            target_method_name,
+            source_variable_name,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.source_variable_name {
+            Some(src) => format!(
+                "CascadingUpdateShadowVariable(target_method_name='{}', source_variable_name='{}')",
+                self.target_method_name, src
+            ),
+            None => format!(
+                "CascadingUpdateShadowVariable(target_method_name='{}')",
+                self.target_method_name
+            ),
+        }
+    }
+}
+
 /// Marks a field as requiring deep planning cloning.
 ///
 /// Not needed for `planning_solution` or `planning_entity` attributes because those
@@ -454,6 +588,9 @@ pub fn register_annotations(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPlanningEntityCollectionProperty>()?;
     m.add_class::<PyPlanningPin>()?;
     m.add_class::<PyInverseRelationShadowVariable>()?;
+    m.add_class::<PyPreviousElementShadowVariable>()?;
+    m.add_class::<PyNextElementShadowVariable>()?;
+    m.add_class::<PyCascadingUpdateShadowVariable>()?;
     m.add_class::<PyDeepPlanningClone>()?;
     m.add_function(wrap_pyfunction!(py_deep_planning_clone, m)?)?;
     Ok(())
@@ -547,6 +684,43 @@ mod tests {
     }
 
     #[test]
+    fn test_previous_element_shadow_variable() {
+        let shadow = PyPreviousElementShadowVariable::new("visits".to_string());
+        assert_eq!(shadow.source_variable_name, "visits");
+        assert!(shadow.__repr__().contains("visits"));
+        assert!(shadow.__repr__().contains("PreviousElementShadowVariable"));
+    }
+
+    #[test]
+    fn test_next_element_shadow_variable() {
+        let shadow = PyNextElementShadowVariable::new("visits".to_string());
+        assert_eq!(shadow.source_variable_name, "visits");
+        assert!(shadow.__repr__().contains("visits"));
+        assert!(shadow.__repr__().contains("NextElementShadowVariable"));
+    }
+
+    #[test]
+    fn test_cascading_update_shadow_variable() {
+        let shadow = PyCascadingUpdateShadowVariable::new(
+            "calculate_arrival".to_string(),
+            Some("visits".to_string()),
+        );
+        assert_eq!(shadow.target_method_name, "calculate_arrival");
+        assert_eq!(shadow.source_variable_name, Some("visits".to_string()));
+        assert!(shadow.__repr__().contains("calculate_arrival"));
+        assert!(shadow.__repr__().contains("visits"));
+    }
+
+    #[test]
+    fn test_cascading_update_shadow_variable_no_source() {
+        let shadow = PyCascadingUpdateShadowVariable::new("update_time".to_string(), None);
+        assert_eq!(shadow.target_method_name, "update_time");
+        assert_eq!(shadow.source_variable_name, None);
+        assert!(shadow.__repr__().contains("update_time"));
+        assert!(!shadow.__repr__().contains("source_variable_name"));
+    }
+
+    #[test]
     fn test_deep_planning_clone() {
         let clone = PyDeepPlanningClone::new();
         assert_eq!(clone.__repr__(), "DeepPlanningClone()");
@@ -554,8 +728,8 @@ mod tests {
 
     #[test]
     fn test_deep_planning_clone_decorator() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        pyo3::Python::initialize();
+        Python::attach(|py| {
             use pyo3::types::PyDict;
             let locals = PyDict::new(py);
             py.run(c"class WorkSchedule:\n    pass", None, Some(&locals))

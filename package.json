@@ -1,6 +1,6 @@
 {
   "name": "solverforge",
-  "version": "0.2.3",
+  "version": "0.2.6",
   "private": true,
   "description": "Version management for SolverForge",
   "scripts": {

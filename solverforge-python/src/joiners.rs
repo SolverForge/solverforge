@@ -275,7 +275,7 @@ mod tests {
     use pyo3::types::PyDict;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn test_joiner_equal_creates_lambda() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.timeslot", None, Some(&locals))
                 .unwrap();
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn test_joiner_less_than() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.start_time", None, Some(&locals))
                 .unwrap();
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn test_joiner_overlapping_creates_two_lambdas() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"start = lambda x: x.start_time", None, Some(&locals))
                 .unwrap();
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn test_joiner_filtering() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda a, b: a.id != b.id", None, Some(&locals))
                 .unwrap();
@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn test_joiner_error_on_unsupported_lambda() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             // Lambda with external reference - not supported
             py.run(

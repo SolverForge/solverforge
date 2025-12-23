@@ -56,8 +56,9 @@ pub use constraints::{
     Collector, Constraint, ConstraintSet, Joiner, StreamComponent, WasmFunction,
 };
 pub use domain::{
-    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, PlanningAnnotation,
-    ShadowAnnotation,
+    ConstraintConfiguration, ConstraintWeight, DeepPlanningClone, DefaultVariableListenerContext,
+    ListVariableListener, ListenerCallbackDto, PlanningAnnotation, ShadowAnnotation,
+    SourceVariableRef, VariableListener, VariableListenerContext, VariableListenerRegistration,
 };
 pub use error::{SolverForgeError, SolverForgeResult};
 pub use handles::{FunctionHandle, ObjectHandle};
@@ -66,11 +67,13 @@ pub use score::{
     HardSoftDecimalScore, HardSoftScore, Score, SimpleDecimalScore, SimpleScore,
 };
 pub use solver::{
-    AsyncSolveResponse, DiminishedReturnsConfig, DomainAccessor, DomainObjectDto,
-    DomainObjectMapper, EnvironmentMode, FieldDescriptor, HttpSolverService, ListAccessorDto,
-    MoveThreadCount, PlanningAnnotation as SolverPlanningAnnotation, ScoreDto, SolveHandle,
-    SolveRequest, SolveResponse, SolveState, SolveStatus, Solver, SolverBuilder, SolverConfig,
-    SolverFactory, SolverService, SolverStats, TerminationConfig, TypedSolver, DEFAULT_SERVICE_URL,
+    AsyncSolveResponse, ChangeConsumer, DefaultProblemChangeDirector, DiminishedReturnsConfig,
+    DomainAccessor, DomainObjectDto, DomainObjectMapper, EnvironmentMode, FieldDescriptor,
+    HttpSolverService, ListAccessorDto, MoveThreadCount,
+    PlanningAnnotation as SolverPlanningAnnotation, ProblemChange, ProblemChangeDirector,
+    ProblemChangeDto, ProblemChangeError, ScoreDto, SolveHandle, SolveRequest, SolveResponse,
+    SolveState, SolveStatus, Solver, SolverBuilder, SolverConfig, SolverFactory, SolverService,
+    SolverStats, TerminationConfig, TypedSolver, DEFAULT_SERVICE_URL,
 };
 pub use traits::{PlanningEntity, PlanningSolution};
 pub use value::Value;

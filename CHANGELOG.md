@@ -2,6 +2,52 @@
 
 All notable changes to SolverForge will be documented in this file.
 
+## [0.2.6](///compare/v0.2.5...v0.2.6) (2025-12-18)
+
+
+### Features
+
+* **python:** add compose/conditionally collectors, fix Python 3.12+ lambda analysis 6413db0
+
+
+### Maintenance
+
+* update solverforge-wasm-service to 0.2.6 f876355
+
+## [0.2.5](///compare/v0.2.4...v0.2.5) (2025-12-17)
+
+
+### Features
+
+* **python:** add ConstraintVerifier testing framework e3f6b6e
+* **python:** add flatten_last and complement stream operations 7a1465e
+* **python:** add HardSoftDecimalScore and HardMediumSoftDecimalScore c83fb61
+* **python:** add LoadBalance result type with unfairness() method cbc74b1
+* **python:** add penalize_decimal/reward_decimal to all constraint streams bbd4bd4
+* **python:** add QuadConstraintStream for 4-element constraint streams c1ea530
+* **python:** add SolverJob and async solve_and_listen 399bed6
+* **python:** add Timefold-compatible SolverManager and SolutionManager 7f87d89
+* **python:** add Timefold-compatible submodule structure 2b00af0
+* **python:** enhance lambda analyzer and constraint streams bf49d79
+* **service:** add embedded service with auto-start and solution analysis 279c059
+
+
+### Maintenance
+
+* **release:** bump version to 0.2.5 010840b
+
+
+### Maintenance
+
+* **release:** bump version to 0.2.5 010840b
+
+## [0.2.4](///compare/v0.2.3...v0.2.4) (2025-12-17)
+
+
+### Features
+
+* **python:** add shadow variable annotations for list planning 7eeb6b6
+
 ## [0.2.3](///compare/v0.2.2...v0.2.3) (2025-12-17)
 
 

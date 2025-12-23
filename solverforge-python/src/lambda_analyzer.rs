@@ -172,7 +172,7 @@ fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult
             "RESUME" | "PRECALL" | "PUSH_NULL" | "COPY_FREE_VARS" | "CACHE" => {
                 // Skip these opcodes
             }
-            "LOAD_FAST" | "LOAD_FAST_CHECK" => {
+            "LOAD_FAST" | "LOAD_FAST_CHECK" | "LOAD_FAST_AND_CLEAR" => {
                 // Load a local variable (parameter) - argval is the variable name
                 // We need to find the parameter index
                 let var_name: String = argval.extract()?;
@@ -180,6 +180,29 @@ fn analyze_lambda_bytecode(py: Python<'_>, lambda_info: &LambdaInfo) -> PyResult
                 let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
                 if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
                     stack.push(BytecodeValue::Param(idx as u32));
+                } else {
+                    // Variable not in varnames - could be a closure variable
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Cannot analyze lambda: unknown variable '{}'. Lambda parameters must be used directly.",
+                        var_name
+                    )));
+                }
+            }
+            "LOAD_FAST_LOAD_FAST" => {
+                // Python 3.12+ optimization: loads two variables at once
+                // argval is a tuple of two variable names like ('a', 'b')
+                let var_names: Vec<String> = argval.extract()?;
+                let code = callable.getattr("__code__")?;
+                let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
+                for var_name in var_names {
+                    if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
+                        stack.push(BytecodeValue::Param(idx as u32));
+                    } else {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "Cannot analyze lambda: unknown variable '{}'. Lambda parameters must be used directly.",
+                            var_name
+                        )));
+                    }
                 }
             }
             "LOAD_ATTR" | "LOAD_METHOD" => {
@@ -483,22 +506,90 @@ fn analyze_lambda_source(
 ) -> PyResult<Expression> {
     let ast = py.import("ast")?;
 
-    // Parse the source to get AST
-    let tree = ast.call_method1("parse", (source,))?;
+    // Try to extract just the lambda expression from the source
+    // Source might be like ".filter(lambda x: x.field)" which isn't valid Python
+    let lambda_source = extract_lambda_from_source(source);
+
+    // Try parsing the extracted lambda source
+    let parse_result = ast.call_method1("parse", (&lambda_source,));
+
+    let tree = match parse_result {
+        Ok(t) => t,
+        Err(_) => {
+            // If parsing fails, try bytecode analysis
+            return analyze_lambda_bytecode(py, lambda_info);
+        }
+    };
 
     // Walk the AST to find the lambda expression
     let body = tree.getattr("body")?;
 
     // Extract lambda node and convert to Expression
-    extract_lambda_expression(py, &body, lambda_info)?.ok_or_else(|| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Cannot analyze lambda: unsupported pattern in '{}'. \
-             Supported patterns: field access (x.field), comparisons (x.a == x.b), \
-             null checks (x.field is not None), boolean ops (and, or, not), \
-             arithmetic (+, -, *, /).",
-            source.trim()
-        ))
-    })
+    match extract_lambda_expression(py, &body, lambda_info)? {
+        Some(expr) => Ok(expr),
+        None => {
+            // Fallback to bytecode analysis if AST extraction fails
+            analyze_lambda_bytecode(py, lambda_info)
+        }
+    }
+}
+
+/// Extract the lambda expression from source that may contain surrounding code.
+///
+/// Handles cases like:
+/// - ".filter(lambda x: x.field)" -> "lambda x: x.field"
+/// - "    .penalize(HardSoftScore.ONE_HARD, lambda v: v.demand)" -> "lambda v: v.demand"
+fn extract_lambda_from_source(source: &str) -> String {
+    // Find "lambda" keyword
+    if let Some(lambda_start) = source.find("lambda") {
+        let rest = &source[lambda_start..];
+
+        // Find the end of the lambda - balance parentheses
+        let mut depth = 0;
+        let mut end_idx = rest.len();
+        let mut in_string = false;
+        let mut string_char = ' ';
+
+        for (i, c) in rest.char_indices() {
+            // Handle string literals
+            if (c == '"' || c == '\'') && !in_string {
+                in_string = true;
+                string_char = c;
+            } else if c == string_char && in_string {
+                in_string = false;
+            }
+
+            if in_string {
+                continue;
+            }
+
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => {
+                    if depth == 0 {
+                        // Found closing paren that ends the lambda
+                        end_idx = i;
+                        break;
+                    }
+                    depth -= 1;
+                }
+                ',' if depth == 0 => {
+                    // Comma at depth 0 ends the lambda argument
+                    end_idx = i;
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        let lambda_expr = rest[..end_idx].trim();
+
+        // Wrap in a statement for parsing: "_ = lambda x: x.field"
+        format!("_ = {}", lambda_expr)
+    } else {
+        // No lambda found, return original
+        source.to_string()
+    }
 }
 
 /// Extract Expression from Python AST node.
@@ -909,7 +1000,7 @@ mod tests {
     use pyo3::types::PyDict;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]
@@ -1294,6 +1385,79 @@ mod tests {
     }
 
     #[test]
+    fn test_analyze_bi_lambda_direct_param_add() {
+        // Tests LOAD_FAST_LOAD_FAST bytecode (Python 3.12+)
+        // This is used by compose() combiner lambdas like: lambda a, b: a + b
+        init_python();
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"f = lambda a, b: a + b", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("f").unwrap().unwrap();
+
+            let info = LambdaInfo {
+                callable: func.unbind(),
+                name: "test".to_string(),
+                param_count: 2,
+                class_hint: None,
+                expression: None,
+            };
+
+            let result = analyze_lambda(py, &info).unwrap();
+
+            match result {
+                Expression::Add { left, right } => {
+                    assert!(matches!(*left, Expression::Param { index: 0 }));
+                    assert!(matches!(*right, Expression::Param { index: 1 }));
+                }
+                _ => panic!("Expected Add expression, got {:?}", result),
+            }
+        });
+    }
+
+    #[test]
+    fn test_analyze_tri_lambda_arithmetic() {
+        // Tests three-parameter lambda with arithmetic
+        init_python();
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"f = lambda a, b, c: a + b + c", None, Some(&locals))
+                .unwrap();
+            let func = locals.get_item("f").unwrap().unwrap();
+
+            let info = LambdaInfo {
+                callable: func.unbind(),
+                name: "test".to_string(),
+                param_count: 3,
+                class_hint: None,
+                expression: None,
+            };
+
+            let result = analyze_lambda(py, &info).unwrap();
+
+            // Should be Add(Add(a, b), c)
+            match result {
+                Expression::Add { left, right } => {
+                    // right should be Param 2 (c)
+                    assert!(matches!(*right, Expression::Param { index: 2 }));
+                    // left should be Add(a, b)
+                    match *left {
+                        Expression::Add {
+                            left: l2,
+                            right: r2,
+                        } => {
+                            assert!(matches!(*l2, Expression::Param { index: 0 }));
+                            assert!(matches!(*r2, Expression::Param { index: 1 }));
+                        }
+                        _ => panic!("Expected nested Add"),
+                    }
+                }
+                _ => panic!("Expected Add expression, got {:?}", result),
+            }
+        });
+    }
+
+    #[test]
     fn test_analyze_nested_field_access() {
         init_python();
         Python::attach(|py| {
@@ -1364,5 +1528,51 @@ mod tests {
 
             assert!(wasm_func.name().starts_with("equal_map_"));
         });
+    }
+
+    #[test]
+    fn test_extract_lambda_from_filter_call() {
+        let source = ".filter(lambda vehicle: vehicle.calculate_total_demand() > vehicle.capacity)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(
+            result,
+            "_ = lambda vehicle: vehicle.calculate_total_demand() > vehicle.capacity"
+        );
+    }
+
+    #[test]
+    fn test_extract_lambda_from_penalize_call() {
+        let source =
+            "        .penalize(HardSoftScore.ONE_HARD, lambda vehicle: vehicle.demand - 10)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda vehicle: vehicle.demand - 10");
+    }
+
+    #[test]
+    fn test_extract_lambda_simple() {
+        let source = "lambda x: x.field";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda x: x.field");
+    }
+
+    #[test]
+    fn test_extract_lambda_with_nested_parens() {
+        let source = ".filter(lambda x: (x.a + x.b) > 0)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda x: (x.a + x.b) > 0");
+    }
+
+    #[test]
+    fn test_extract_lambda_second_arg() {
+        let source = ".penalize(Score.ONE, lambda x: x.value)";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "_ = lambda x: x.value");
+    }
+
+    #[test]
+    fn test_extract_lambda_no_lambda() {
+        let source = "some_other_code()";
+        let result = extract_lambda_from_source(source);
+        assert_eq!(result, "some_other_code()");
     }
 }

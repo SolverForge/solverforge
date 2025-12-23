@@ -5,6 +5,7 @@
 
 use pyo3::prelude::*;
 
+mod analysis;
 mod annotations;
 mod bridge;
 mod collectors;
@@ -12,13 +13,18 @@ mod decorators;
 mod joiners;
 mod lambda_analyzer;
 mod score;
+mod service;
 mod solver;
 mod stream;
 
+pub use analysis::{
+    PyConstraintMatch, PyIndictment, PyScoreDto, PyScoreExplanation, PySolutionManager,
+};
 pub use annotations::{
-    PyDeepPlanningClone, PyInverseRelationShadowVariable, PyPlanningEntityCollectionProperty,
-    PyPlanningEntityProperty, PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore,
-    PyPlanningVariable, PyProblemFactCollectionProperty, PyProblemFactProperty,
+    PyCascadingUpdateShadowVariable, PyDeepPlanningClone, PyInverseRelationShadowVariable,
+    PyNextElementShadowVariable, PyPlanningEntityCollectionProperty, PyPlanningEntityProperty,
+    PyPlanningId, PyPlanningListVariable, PyPlanningPin, PyPlanningScore, PyPlanningVariable,
+    PyPreviousElementShadowVariable, PyProblemFactCollectionProperty, PyProblemFactProperty,
     PyValueRangeProvider,
 };
 pub use bridge::{PyBridge, PythonBridge};
@@ -33,7 +39,8 @@ pub use solver::{
 };
 pub use stream::{
     PyBiConstraintBuilder, PyBiConstraintStream, PyConstraint, PyConstraintFactory,
-    PyTriConstraintBuilder, PyTriConstraintStream, PyUniConstraintBuilder, PyUniConstraintStream,
+    PyQuadConstraintBuilder, PyQuadConstraintStream, PyTriConstraintBuilder, PyTriConstraintStream,
+    PyUniConstraintBuilder, PyUniConstraintStream,
 };
 
 /// SolverForge Python module
@@ -67,6 +74,12 @@ fn _solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Solver
     solver::register_solver(m)?;
+
+    // Analysis (SolutionManager, ScoreExplanation, etc.)
+    analysis::register_analysis(m)?;
+
+    // Embedded service (auto-start solver service)
+    service::register_service(m)?;
 
     Ok(())
 }
@@ -144,5 +157,39 @@ mod tests {
         assert_type::<PySimpleScore>();
         assert_type::<PyHardSoftScore>();
         assert_type::<PyHardMediumSoftScore>();
+    }
+
+    /// Verify that annotation types are accessible
+    #[test]
+    fn test_annotation_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PyPlanningId>();
+        assert_type::<PyPlanningVariable>();
+        assert_type::<PyPlanningListVariable>();
+        assert_type::<PyPlanningScore>();
+        assert_type::<PyValueRangeProvider>();
+        assert_type::<PyProblemFactProperty>();
+        assert_type::<PyProblemFactCollectionProperty>();
+        assert_type::<PyPlanningEntityProperty>();
+        assert_type::<PyPlanningEntityCollectionProperty>();
+        assert_type::<PyPlanningPin>();
+        assert_type::<PyInverseRelationShadowVariable>();
+        assert_type::<PyPreviousElementShadowVariable>();
+        assert_type::<PyNextElementShadowVariable>();
+        assert_type::<PyCascadingUpdateShadowVariable>();
+        assert_type::<PyDeepPlanningClone>();
+    }
+
+    /// Verify that analysis types are accessible
+    #[test]
+    fn test_analysis_types_exported() {
+        fn assert_type<T>() {}
+
+        assert_type::<PySolutionManager>();
+        assert_type::<PyScoreExplanation>();
+        assert_type::<PyConstraintMatch>();
+        assert_type::<PyIndictment>();
+        assert_type::<PyScoreDto>();
     }
 }

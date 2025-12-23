@@ -135,6 +135,54 @@ pub enum PlanningAnnotation {
         #[serde(rename = "source_variable_name")]
         source_variable_name: String,
     },
+
+    /// Shadow variable that tracks the index position within a list variable.
+    /// Matches Timefold's @IndexShadowVariable annotation.
+    IndexShadowVariable {
+        /// The name of the source list variable.
+        #[serde(rename = "source_variable_name")]
+        source_variable_name: String,
+    },
+
+    /// Shadow variable that references the next element in a list variable.
+    /// Matches Timefold's @NextElementShadowVariable annotation.
+    NextElementShadowVariable {
+        /// The name of the source list variable.
+        #[serde(rename = "source_variable_name")]
+        source_variable_name: String,
+    },
+
+    /// Shadow variable that references the previous element in a list variable.
+    /// Matches Timefold's @PreviousElementShadowVariable annotation.
+    PreviousElementShadowVariable {
+        /// The name of the source list variable.
+        #[serde(rename = "source_variable_name")]
+        source_variable_name: String,
+    },
+
+    /// Shadow variable that tracks the anchor (starting entity) in a chained variable.
+    /// Matches Timefold's @AnchorShadowVariable annotation.
+    AnchorShadowVariable {
+        /// The name of the source chained variable.
+        #[serde(rename = "source_variable_name")]
+        source_variable_name: String,
+    },
+
+    /// Shadow variable updated via cascading updates through a list.
+    /// Matches Timefold's @CascadingUpdateShadowVariable annotation.
+    CascadingUpdateShadowVariable {
+        /// The method name to call for computing the value.
+        #[serde(rename = "target_method_name")]
+        target_method_name: String,
+    },
+
+    /// Shadow variable that piggybacks on another shadow variable's updates.
+    /// Matches Timefold's @PiggybackShadowVariable annotation.
+    PiggybackShadowVariable {
+        /// The name of the shadow variable to piggyback on.
+        #[serde(rename = "shadow_variable_name")]
+        shadow_variable_name: String,
+    },
 }
 
 impl PlanningAnnotation {
@@ -244,6 +292,48 @@ impl PlanningAnnotation {
         }
     }
 
+    /// Creates an IndexShadowVariable annotation.
+    pub fn index_shadow(source_variable_name: impl Into<String>) -> Self {
+        PlanningAnnotation::IndexShadowVariable {
+            source_variable_name: source_variable_name.into(),
+        }
+    }
+
+    /// Creates a NextElementShadowVariable annotation.
+    pub fn next_element_shadow(source_variable_name: impl Into<String>) -> Self {
+        PlanningAnnotation::NextElementShadowVariable {
+            source_variable_name: source_variable_name.into(),
+        }
+    }
+
+    /// Creates a PreviousElementShadowVariable annotation.
+    pub fn previous_element_shadow(source_variable_name: impl Into<String>) -> Self {
+        PlanningAnnotation::PreviousElementShadowVariable {
+            source_variable_name: source_variable_name.into(),
+        }
+    }
+
+    /// Creates an AnchorShadowVariable annotation.
+    pub fn anchor_shadow(source_variable_name: impl Into<String>) -> Self {
+        PlanningAnnotation::AnchorShadowVariable {
+            source_variable_name: source_variable_name.into(),
+        }
+    }
+
+    /// Creates a CascadingUpdateShadowVariable annotation.
+    pub fn cascading_update_shadow(target_method_name: impl Into<String>) -> Self {
+        PlanningAnnotation::CascadingUpdateShadowVariable {
+            target_method_name: target_method_name.into(),
+        }
+    }
+
+    /// Creates a PiggybackShadowVariable annotation.
+    pub fn piggyback_shadow(shadow_variable_name: impl Into<String>) -> Self {
+        PlanningAnnotation::PiggybackShadowVariable {
+            shadow_variable_name: shadow_variable_name.into(),
+        }
+    }
+
     // === Collection Properties ===
 
     /// Creates a ProblemFactProperty annotation.
@@ -288,6 +378,12 @@ impl PlanningAnnotation {
         matches!(
             self,
             PlanningAnnotation::InverseRelationShadowVariable { .. }
+                | PlanningAnnotation::IndexShadowVariable { .. }
+                | PlanningAnnotation::NextElementShadowVariable { .. }
+                | PlanningAnnotation::PreviousElementShadowVariable { .. }
+                | PlanningAnnotation::AnchorShadowVariable { .. }
+                | PlanningAnnotation::CascadingUpdateShadowVariable { .. }
+                | PlanningAnnotation::PiggybackShadowVariable { .. }
         )
     }
 
@@ -714,6 +810,183 @@ mod tests {
                 assert!(!allows_unassigned);
             }
             _ => panic!("Expected PlanningVariable"),
+        }
+    }
+
+    // === Shadow Variable Tests ===
+
+    #[test]
+    fn test_index_shadow() {
+        let ann = PlanningAnnotation::index_shadow("visits");
+        match &ann {
+            PlanningAnnotation::IndexShadowVariable {
+                source_variable_name,
+            } => {
+                assert_eq!(source_variable_name, "visits");
+            }
+            _ => panic!("Expected IndexShadowVariable"),
+        }
+        assert!(ann.is_shadow_variable());
+    }
+
+    #[test]
+    fn test_next_element_shadow() {
+        let ann = PlanningAnnotation::next_element_shadow("visits");
+        match &ann {
+            PlanningAnnotation::NextElementShadowVariable {
+                source_variable_name,
+            } => {
+                assert_eq!(source_variable_name, "visits");
+            }
+            _ => panic!("Expected NextElementShadowVariable"),
+        }
+        assert!(ann.is_shadow_variable());
+    }
+
+    #[test]
+    fn test_previous_element_shadow() {
+        let ann = PlanningAnnotation::previous_element_shadow("visits");
+        match &ann {
+            PlanningAnnotation::PreviousElementShadowVariable {
+                source_variable_name,
+            } => {
+                assert_eq!(source_variable_name, "visits");
+            }
+            _ => panic!("Expected PreviousElementShadowVariable"),
+        }
+        assert!(ann.is_shadow_variable());
+    }
+
+    #[test]
+    fn test_anchor_shadow() {
+        let ann = PlanningAnnotation::anchor_shadow("chain");
+        match &ann {
+            PlanningAnnotation::AnchorShadowVariable {
+                source_variable_name,
+            } => {
+                assert_eq!(source_variable_name, "chain");
+            }
+            _ => panic!("Expected AnchorShadowVariable"),
+        }
+        assert!(ann.is_shadow_variable());
+    }
+
+    #[test]
+    fn test_cascading_update_shadow() {
+        let ann = PlanningAnnotation::cascading_update_shadow("updateArrivalTime");
+        match &ann {
+            PlanningAnnotation::CascadingUpdateShadowVariable { target_method_name } => {
+                assert_eq!(target_method_name, "updateArrivalTime");
+            }
+            _ => panic!("Expected CascadingUpdateShadowVariable"),
+        }
+        assert!(ann.is_shadow_variable());
+    }
+
+    #[test]
+    fn test_piggyback_shadow() {
+        let ann = PlanningAnnotation::piggyback_shadow("arrivalTime");
+        match &ann {
+            PlanningAnnotation::PiggybackShadowVariable {
+                shadow_variable_name,
+            } => {
+                assert_eq!(shadow_variable_name, "arrivalTime");
+            }
+            _ => panic!("Expected PiggybackShadowVariable"),
+        }
+        assert!(ann.is_shadow_variable());
+    }
+
+    #[test]
+    fn test_json_index_shadow() {
+        let ann = PlanningAnnotation::index_shadow("visits");
+        let json = serde_json::to_string(&ann).unwrap();
+        assert_eq!(
+            json,
+            r#"{"annotation":"IndexShadowVariable","source_variable_name":"visits"}"#
+        );
+        let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, ann);
+    }
+
+    #[test]
+    fn test_json_next_element_shadow() {
+        let ann = PlanningAnnotation::next_element_shadow("visits");
+        let json = serde_json::to_string(&ann).unwrap();
+        assert_eq!(
+            json,
+            r#"{"annotation":"NextElementShadowVariable","source_variable_name":"visits"}"#
+        );
+        let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, ann);
+    }
+
+    #[test]
+    fn test_json_previous_element_shadow() {
+        let ann = PlanningAnnotation::previous_element_shadow("visits");
+        let json = serde_json::to_string(&ann).unwrap();
+        assert_eq!(
+            json,
+            r#"{"annotation":"PreviousElementShadowVariable","source_variable_name":"visits"}"#
+        );
+        let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, ann);
+    }
+
+    #[test]
+    fn test_json_anchor_shadow() {
+        let ann = PlanningAnnotation::anchor_shadow("chain");
+        let json = serde_json::to_string(&ann).unwrap();
+        assert_eq!(
+            json,
+            r#"{"annotation":"AnchorShadowVariable","source_variable_name":"chain"}"#
+        );
+        let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, ann);
+    }
+
+    #[test]
+    fn test_json_cascading_update_shadow() {
+        let ann = PlanningAnnotation::cascading_update_shadow("updateArrivalTime");
+        let json = serde_json::to_string(&ann).unwrap();
+        assert_eq!(
+            json,
+            r#"{"annotation":"CascadingUpdateShadowVariable","target_method_name":"updateArrivalTime"}"#
+        );
+        let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, ann);
+    }
+
+    #[test]
+    fn test_json_piggyback_shadow() {
+        let ann = PlanningAnnotation::piggyback_shadow("arrivalTime");
+        let json = serde_json::to_string(&ann).unwrap();
+        assert_eq!(
+            json,
+            r#"{"annotation":"PiggybackShadowVariable","shadow_variable_name":"arrivalTime"}"#
+        );
+        let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, ann);
+    }
+
+    #[test]
+    fn test_all_shadow_variables_are_shadows() {
+        let shadows = vec![
+            PlanningAnnotation::inverse_relation_shadow("test"),
+            PlanningAnnotation::index_shadow("test"),
+            PlanningAnnotation::next_element_shadow("test"),
+            PlanningAnnotation::previous_element_shadow("test"),
+            PlanningAnnotation::anchor_shadow("test"),
+            PlanningAnnotation::cascading_update_shadow("test"),
+            PlanningAnnotation::piggyback_shadow("test"),
+        ];
+        for shadow in shadows {
+            assert!(shadow.is_shadow_variable(), "{:?} should be shadow", shadow);
+            assert!(
+                !shadow.is_any_variable(),
+                "{:?} should not be any_variable",
+                shadow
+            );
         }
     }
 }

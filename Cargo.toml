@@ -3,7 +3,7 @@ members = ["solverforge", "solverforge-core", "solverforge-derive", "solverforge
 resolver = "2"
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.3"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge"
@@ -32,7 +32,7 @@ serde_json = "1.0"
 indexmap = { version = "2.7", features = ["serde"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "blocking"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 
 # WASM generation
 wasm-encoder = "0.223"

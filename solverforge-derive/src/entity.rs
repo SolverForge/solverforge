@@ -42,6 +42,10 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let name_str = name.to_string();
 
+    // Parse struct-level attributes
+    let difficulty_comparator = parse_string_attr(&input.attrs, "difficulty_comparator");
+    let strength_comparator = parse_string_attr(&input.attrs, "strength_comparator");
+
     // Extract fields from struct
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
@@ -114,7 +118,12 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
     };
 
     // Generate domain_class() implementation
-    let domain_class_impl = generate_domain_class(&name_str, &field_infos);
+    let domain_class_impl = generate_domain_class(
+        &name_str,
+        &field_infos,
+        difficulty_comparator,
+        strength_comparator,
+    );
 
     // Generate planning_id() implementation
     let planning_id_impl = generate_planning_id(planning_id_field, &field_infos);
@@ -253,8 +262,30 @@ fn parse_source_attr(attr: &Attribute) -> Option<String> {
     source
 }
 
+/// Parse a struct-level attribute with format #[attr_name = "value"]
+fn parse_string_attr(attrs: &[Attribute], name: &str) -> Option<String> {
+    for attr in attrs {
+        if attr.path().is_ident(name) {
+            // Try to parse as name-value pair
+            if let syn::Meta::NameValue(nv) = &attr.meta {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        return Some(lit_str.value());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Generate the domain_class() method implementation.
-fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream2 {
+fn generate_domain_class(
+    struct_name: &str,
+    fields: &[FieldInfo],
+    difficulty_comparator: Option<String>,
+    strength_comparator: Option<String>,
+) -> TokenStream2 {
     let field_descriptors: Vec<TokenStream2> = fields
         .iter()
         .map(|field| {
@@ -372,9 +403,27 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
         })
         .collect();
 
+    // Build class-level annotations
+    let mut class_annotations = Vec::new();
+    class_annotations.push(quote! {
+        .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningEntity)
+    });
+
+    if let Some(dc) = difficulty_comparator {
+        class_annotations.push(quote! {
+            .with_annotation(::solverforge_core::domain::PlanningAnnotation::difficulty_comparator(#dc))
+        });
+    }
+
+    if let Some(sc) = strength_comparator {
+        class_annotations.push(quote! {
+            .with_annotation(::solverforge_core::domain::PlanningAnnotation::strength_comparator(#sc))
+        });
+    }
+
     quote! {
         ::solverforge_core::domain::DomainClass::new(#struct_name)
-            .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningEntity)
+            #(#class_annotations)*
             #(#field_descriptors)*
     }
 }

@@ -183,6 +183,22 @@ pub enum PlanningAnnotation {
         #[serde(rename = "shadow_variable_name")]
         shadow_variable_name: String,
     },
+
+    /// Comparator for ordering entities by difficulty during solving.
+    /// Matches Timefold's difficultyComparatorClass annotation.
+    DifficultyComparator {
+        /// The function name that compares two entities by difficulty.
+        #[serde(rename = "comparator_function")]
+        comparator_function: String,
+    },
+
+    /// Comparator for ordering values by strength during solving.
+    /// Matches Timefold's strengthComparatorClass annotation.
+    StrengthComparator {
+        /// The function name that compares two values by strength.
+        #[serde(rename = "comparator_function")]
+        comparator_function: String,
+    },
 }
 
 impl PlanningAnnotation {
@@ -331,6 +347,22 @@ impl PlanningAnnotation {
     pub fn piggyback_shadow(shadow_variable_name: impl Into<String>) -> Self {
         PlanningAnnotation::PiggybackShadowVariable {
             shadow_variable_name: shadow_variable_name.into(),
+        }
+    }
+
+    // === Comparators ===
+
+    /// Creates a DifficultyComparator annotation.
+    pub fn difficulty_comparator(comparator_function: impl Into<String>) -> Self {
+        PlanningAnnotation::DifficultyComparator {
+            comparator_function: comparator_function.into(),
+        }
+    }
+
+    /// Creates a StrengthComparator annotation.
+    pub fn strength_comparator(comparator_function: impl Into<String>) -> Self {
+        PlanningAnnotation::StrengthComparator {
+            comparator_function: comparator_function.into(),
         }
     }
 

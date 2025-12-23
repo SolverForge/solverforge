@@ -350,14 +350,6 @@ fn extract_method_return_expression(
         ))),
     }
 }
-
-/// Clear the class registry (for testing).
-#[cfg(test)]
-pub fn clear_class_registry() {
-    let mut registry = CLASS_REGISTRY.write().unwrap();
-    *registry = None;
-}
-
 // ============================================================================
 // Expression Substitution
 // ============================================================================

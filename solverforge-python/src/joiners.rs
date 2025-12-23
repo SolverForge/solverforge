@@ -37,12 +37,6 @@ impl JoinerLambda {
     pub fn to_wasm_function(&self) -> WasmFunction {
         self.info.to_wasm_function()
     }
-
-    /// Get the stored lambda info.
-    #[allow(dead_code)]
-    pub fn info(&self) -> &LambdaInfo {
-        &self.info
-    }
 }
 
 /// Wrapper for a Joiner that can be passed to stream methods.
@@ -50,19 +44,14 @@ impl JoinerLambda {
 #[derive(Clone)]
 pub struct PyJoiner {
     inner: Joiner,
-    /// Stored lambdas for later analysis.
+    /// Stored lambdas for later analysis (used by tests).
+    #[allow(dead_code)]
     lambdas: Vec<JoinerLambda>,
 }
 
 impl PyJoiner {
     pub fn to_rust(&self) -> Joiner {
         self.inner.clone()
-    }
-
-    /// Get stored lambdas for analysis.
-    #[allow(dead_code)]
-    pub fn lambdas(&self) -> &[JoinerLambda] {
-        &self.lambdas
     }
 }
 
@@ -300,7 +289,7 @@ mod tests {
             let joiner = PyJoiners::equal(py, func.unbind()).unwrap();
 
             assert_eq!(joiner.lambdas.len(), 1);
-            assert!(joiner.lambdas[0].info().name.starts_with("equal_map_"));
+            assert!(joiner.lambdas[0].info.name.starts_with("equal_map_"));
 
             match &joiner.inner {
                 Joiner::Equal { map, .. } => {
@@ -345,13 +334,10 @@ mod tests {
 
             assert_eq!(joiner.lambdas.len(), 2);
             assert!(joiner.lambdas[0]
-                .info()
+                .info
                 .name
                 .starts_with("overlapping_start_"));
-            assert!(joiner.lambdas[1]
-                .info()
-                .name
-                .starts_with("overlapping_end_"));
+            assert!(joiner.lambdas[1].info.name.starts_with("overlapping_end_"));
         });
     }
 
@@ -367,7 +353,7 @@ mod tests {
             let joiner = PyJoiners::filtering(py, func.unbind()).unwrap();
 
             assert_eq!(joiner.lambdas.len(), 1);
-            assert_eq!(joiner.lambdas[0].info().param_count, 2);
+            assert_eq!(joiner.lambdas[0].info.param_count, 2);
             assert!(joiner.__repr__().contains("filtering"));
         });
     }

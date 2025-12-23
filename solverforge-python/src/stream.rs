@@ -134,12 +134,6 @@ impl PyUniConstraintStream {
         }
     }
 
-    /// Get stored predicates for analysis.
-    #[allow(dead_code)]
-    pub fn predicates(&self) -> &[LambdaInfo] {
-        &self.predicates
-    }
-
     /// Penalize with a weight and return a constraint (Rust API for tests).
     pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
         let weight_str = format!("{}hard", weight);
@@ -690,12 +684,6 @@ impl PyBiConstraintStream {
         }
     }
 
-    /// Get stored predicates for analysis.
-    #[allow(dead_code)]
-    pub fn predicates(&self) -> &[LambdaInfo] {
-        &self.predicates
-    }
-
     /// Penalize with a weight and return a constraint (Rust API for tests).
     pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
         let weight_str = format!("{}hard", weight);
@@ -1146,12 +1134,6 @@ pub struct PyTriConstraintStream {
 }
 
 impl PyTriConstraintStream {
-    /// Get stored predicates for analysis.
-    #[allow(dead_code)]
-    pub fn predicates(&self) -> &[LambdaInfo] {
-        &self.predicates
-    }
-
     /// Penalize with a weight and return a constraint (Rust API for tests).
     pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
         let weight_str = format!("{}hard", weight);
@@ -2349,10 +2331,10 @@ mod tests {
             assert_eq!(filtered.components.len(), 2);
 
             // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
+            assert_eq!(filtered.predicates.len(), 1);
 
             // Predicate name should start with "filter_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_"));
+            assert!(filtered.predicates[0].name.starts_with("filter_"));
         });
     }
 
@@ -2372,10 +2354,10 @@ mod tests {
             assert_eq!(filtered.components.len(), 2);
 
             // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
+            assert_eq!(filtered.predicates.len(), 1);
 
             // Predicate name should start with "filter_bi_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_bi_"));
+            assert!(filtered.predicates[0].name.starts_with("filter_bi_"));
         });
     }
 
@@ -2393,10 +2375,7 @@ mod tests {
             let filtered2 = filtered1.filter(py, func.unbind()).unwrap();
 
             // Should have unique names for each filter
-            assert_ne!(
-                filtered2.predicates()[0].name,
-                filtered2.predicates()[1].name
-            );
+            assert_ne!(filtered2.predicates[0].name, filtered2.predicates[1].name);
         });
     }
 
@@ -2453,10 +2432,10 @@ mod tests {
             assert_eq!(filtered.components.len(), 3);
 
             // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
+            assert_eq!(filtered.predicates.len(), 1);
 
             // Predicate name should start with "filter_tri_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_tri_"));
+            assert!(filtered.predicates[0].name.starts_with("filter_tri_"));
         });
     }
 
@@ -2754,10 +2733,10 @@ mod tests {
             assert_eq!(filtered.components.len(), 2);
 
             // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
+            assert_eq!(filtered.predicates.len(), 1);
 
             // Predicate name should start with "filter_penta_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_penta_"));
+            assert!(filtered.predicates[0].name.starts_with("filter_penta_"));
         });
     }
 

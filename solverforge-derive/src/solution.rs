@@ -315,8 +315,9 @@ fn extract_vec_element_type(ty: &Type) -> TokenStream2 {
         }
     }
 
-    // Fallback - return a placeholder
-    quote! { () }
+    // Type is not Vec<T> or couldn't parse - generate compile error
+    let error_msg = format!("Expected Vec<T> type, got: {}", type_str);
+    quote! { compile_error!(#error_msg) }
 }
 
 /// Convert a Rust type to a FieldType expression.

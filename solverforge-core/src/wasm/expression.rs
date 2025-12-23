@@ -24,6 +24,14 @@ pub enum Expression {
     /// Integer literal (i64)
     IntLiteral { value: i64 },
 
+    /// Float literal (f64)
+    FloatLiteral { value: f64 },
+
+    /// String literal
+    /// Used for string comparisons. At WASM generation time, the string is stored
+    /// in a data segment and a pointer to it is used for comparison via hstringEquals.
+    StringLiteral { value: String },
+
     /// Boolean literal
     BoolLiteral { value: bool },
 
@@ -177,38 +185,6 @@ pub enum Expression {
         then_branch: Box<Expression>,
         else_branch: Box<Expression>,
     },
-
-    // ===== Method Call (Pre-computed) =====
-    /// A method call that couldn't be inlined and will be resolved via pre-computed lookup.
-    ///
-    /// When a Python method is too complex to inline (e.g., uses math functions, loops with
-    /// state, etc.), we generate a MethodCall expression instead of failing. At serialization
-    /// time, the framework computes the results for all relevant inputs and includes them
-    /// in the solve request. The WASM code then performs a lookup into this pre-computed data.
-    ///
-    /// # Fields
-    /// * `object` - The receiver expression (e.g., `location`)
-    /// * `class_name` - Class name of the receiver (e.g., "Location")
-    /// * `method_name` - Name of the method (e.g., "driving_time_to")
-    /// * `args` - Method arguments (e.g., `[other_location]`)
-    ///
-    /// # Example
-    /// ```text
-    /// // Python: location.driving_time_to(other_location)
-    /// // Becomes:
-    /// MethodCall {
-    ///     object: FieldAccess { ..., field_name: "location" },
-    ///     class_name: "Location",
-    ///     method_name: "driving_time_to",
-    ///     args: vec![FieldAccess { ..., field_name: "other_location" }],
-    /// }
-    /// ```
-    MethodCall {
-        object: Box<Expression>,
-        class_name: String,
-        method_name: String,
-        args: Vec<Expression>,
-    },
 }
 
 #[cfg(test)]
@@ -225,6 +201,48 @@ mod tests {
     fn test_bool_literal() {
         let expr = Expression::BoolLiteral { value: true };
         assert_eq!(expr, Expression::BoolLiteral { value: true });
+    }
+
+    #[test]
+    fn test_float_literal() {
+        let expr = Expression::FloatLiteral { value: 3.14 };
+        assert_eq!(expr, Expression::FloatLiteral { value: 3.14 });
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let expr = Expression::StringLiteral {
+            value: "active".into(),
+        };
+        assert_eq!(
+            expr,
+            Expression::StringLiteral {
+                value: "active".into()
+            }
+        );
+    }
+
+    #[test]
+    fn test_serialize_string_literal() {
+        let expr = Expression::StringLiteral {
+            value: "hello".into(),
+        };
+        let json = serde_json::to_string(&expr).unwrap();
+        assert!(json.contains("\"kind\":\"StringLiteral\""));
+        assert!(json.contains("\"value\":\"hello\""));
+
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
+    }
+
+    #[test]
+    fn test_serialize_float_literal() {
+        let expr = Expression::FloatLiteral { value: 2.5 };
+        let json = serde_json::to_string(&expr).unwrap();
+        assert!(json.contains("\"kind\":\"FloatLiteral\""));
+
+        let deserialized: Expression = serde_json::from_str(&json).unwrap();
+        assert_eq!(expr, deserialized);
     }
 
     #[test]
@@ -506,7 +524,7 @@ mod tests {
                     class_name: "Employee".into(),
                     field_name: "skill".into(),
                 }),
-                right: Box::new(Expression::IntLiteral { value: 42 }), // Placeholder
+                right: Box::new(Expression::IntLiteral { value: 42 }),
             }),
         };
 

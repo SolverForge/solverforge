@@ -248,6 +248,30 @@ pub fn stop_service() -> PyResult<()> {
     Ok(())
 }
 
+/// Clear the cached solver service JAR files.
+///
+/// Use this when you need a fresh download, e.g., during development
+/// when the JAR has changed but the version number hasn't.
+///
+/// Returns the number of files removed.
+#[pyfunction]
+pub fn clear_cache() -> PyResult<usize> {
+    use solverforge_service::JarManager;
+
+    let jar_manager = JarManager::new();
+    jar_manager
+        .clear_cache()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))
+}
+
+/// Get the path to the cache directory.
+#[pyfunction]
+pub fn get_cache_dir() -> String {
+    solverforge_service::util::get_cache_dir()
+        .to_string_lossy()
+        .to_string()
+}
+
 /// Register service classes with the Python module.
 pub fn register_service(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyServiceConfig>()?;
@@ -256,6 +280,8 @@ pub fn register_service(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(is_service_available, m)?)?;
     m.add_function(wrap_pyfunction!(get_service_url, m)?)?;
     m.add_function(wrap_pyfunction!(stop_service, m)?)?;
+    m.add_function(wrap_pyfunction!(clear_cache, m)?)?;
+    m.add_function(wrap_pyfunction!(get_cache_dir, m)?)?;
     Ok(())
 }
 

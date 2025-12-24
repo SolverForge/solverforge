@@ -11,6 +11,8 @@ struct FieldInfo {
     ty: Type,
     is_planning_id: bool,
     planning_variable: Option<PlanningVariableInfo>,
+    list_variable: Option<ListVariableInfo>,
+    shadow_variable: Option<ShadowVariableInfo>,
 }
 
 /// Information about a planning variable attribute.
@@ -19,11 +21,30 @@ struct PlanningVariableInfo {
     allows_unassigned: bool,
 }
 
+/// Information about a planning list variable attribute.
+struct ListVariableInfo {
+    value_range_provider_refs: Vec<String>,
+    allows_unassigned_values: bool,
+}
+
+/// Information about a shadow variable attribute.
+enum ShadowVariableInfo {
+    InverseRelation { source: String },
+    Index { source: String },
+    NextElement { source: String },
+    PreviousElement { source: String },
+    Anchor { source: String },
+}
+
 /// Implementation of the `#[derive(PlanningEntity)]` macro.
 pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let name_str = name.to_string();
+
+    // Parse struct-level attributes
+    let difficulty_comparator = parse_string_attr(&input.attrs, "difficulty_comparator");
+    let strength_comparator = parse_string_attr(&input.attrs, "strength_comparator");
 
     // Extract fields from struct
     let fields = match &input.data {
@@ -58,6 +79,8 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
 
         let is_planning_id = has_attribute(&field.attrs, "planning_id");
         let planning_variable = parse_planning_variable_attr(&field.attrs);
+        let list_variable = parse_planning_list_variable_attr(&field.attrs);
+        let shadow_variable = parse_shadow_variable_attr(&field.attrs);
 
         if is_planning_id {
             if planning_id_field.is_some() {
@@ -76,6 +99,8 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
             ty: field_ty.clone(),
             is_planning_id,
             planning_variable,
+            list_variable,
+            shadow_variable,
         });
     }
 
@@ -93,7 +118,12 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
     };
 
     // Generate domain_class() implementation
-    let domain_class_impl = generate_domain_class(&name_str, &field_infos);
+    let domain_class_impl = generate_domain_class(
+        &name_str,
+        &field_infos,
+        difficulty_comparator,
+        strength_comparator,
+    );
 
     // Generate planning_id() implementation
     let planning_id_impl = generate_planning_id(planning_id_field, &field_infos);
@@ -160,8 +190,102 @@ fn parse_planning_variable_attr(attrs: &[Attribute]) -> Option<PlanningVariableI
     None
 }
 
+/// Parse the #[planning_list_variable(...)] attribute using syn 2.x API.
+fn parse_planning_list_variable_attr(attrs: &[Attribute]) -> Option<ListVariableInfo> {
+    for attr in attrs {
+        if attr.path().is_ident("planning_list_variable") {
+            let mut value_range_provider_refs = Vec::new();
+            let mut allows_unassigned_values = false;
+
+            // Parse nested meta using syn 2.x API
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("value_range_provider") {
+                    let value: LitStr = meta.value()?.parse()?;
+                    value_range_provider_refs.push(value.value());
+                } else if meta.path.is_ident("allows_unassigned_values") {
+                    let value: LitBool = meta.value()?.parse()?;
+                    allows_unassigned_values = value.value();
+                }
+                Ok(())
+            });
+
+            return Some(ListVariableInfo {
+                value_range_provider_refs,
+                allows_unassigned_values,
+            });
+        }
+    }
+    None
+}
+
+/// Parse shadow variable attributes from a field.
+/// Supports: inverse_relation_shadow, index_shadow, next_element_shadow,
+/// previous_element_shadow, anchor_shadow
+fn parse_shadow_variable_attr(attrs: &[Attribute]) -> Option<ShadowVariableInfo> {
+    for attr in attrs {
+        // Check each shadow variable attribute type
+        if attr.path().is_ident("inverse_relation_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::InverseRelation { source });
+            }
+        } else if attr.path().is_ident("index_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::Index { source });
+            }
+        } else if attr.path().is_ident("next_element_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::NextElement { source });
+            }
+        } else if attr.path().is_ident("previous_element_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::PreviousElement { source });
+            }
+        } else if attr.path().is_ident("anchor_shadow") {
+            if let Some(source) = parse_source_attr(attr) {
+                return Some(ShadowVariableInfo::Anchor { source });
+            }
+        }
+    }
+    None
+}
+
+/// Parse the source = "..." from a shadow variable attribute.
+fn parse_source_attr(attr: &Attribute) -> Option<String> {
+    let mut source = None;
+    let _ = attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("source") {
+            let value: LitStr = meta.value()?.parse()?;
+            source = Some(value.value());
+        }
+        Ok(())
+    });
+    source
+}
+
+/// Parse a struct-level attribute with format #[attr_name = "value"]
+fn parse_string_attr(attrs: &[Attribute], name: &str) -> Option<String> {
+    for attr in attrs {
+        if attr.path().is_ident(name) {
+            // Try to parse as name-value pair
+            if let syn::Meta::NameValue(nv) = &attr.meta {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        return Some(lit_str.value());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Generate the domain_class() method implementation.
-fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream2 {
+fn generate_domain_class(
+    struct_name: &str,
+    fields: &[FieldInfo],
+    difficulty_comparator: Option<String>,
+    strength_comparator: Option<String>,
+) -> TokenStream2 {
     let field_descriptors: Vec<TokenStream2> = fields
         .iter()
         .map(|field| {
@@ -203,6 +327,73 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
                 }
             }
 
+            if let Some(lv) = &field.list_variable {
+                let refs: Vec<_> = lv
+                    .value_range_provider_refs
+                    .iter()
+                    .map(|s| quote! { #s.to_string() })
+                    .collect();
+                let allows_unassigned_values = lv.allows_unassigned_values;
+
+                if allows_unassigned_values {
+                    annotations.push(quote! {
+                        .with_planning_annotation(
+                            ::solverforge_core::domain::PlanningAnnotation::planning_list_variable_unassigned(
+                                vec![#(#refs),*]
+                            )
+                        )
+                    });
+                } else {
+                    annotations.push(quote! {
+                        .with_planning_annotation(
+                            ::solverforge_core::domain::PlanningAnnotation::planning_list_variable(
+                                vec![#(#refs),*]
+                            )
+                        )
+                    });
+                }
+            }
+
+            if let Some(sv) = &field.shadow_variable {
+                match sv {
+                    ShadowVariableInfo::InverseRelation { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::inverse_relation_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::Index { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::index_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::NextElement { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::next_element_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::PreviousElement { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::previous_element_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::Anchor { source } => {
+                        annotations.push(quote! {
+                            .with_planning_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::anchor_shadow(#source)
+                            )
+                        });
+                    }
+                }
+            }
+
             quote! {
                 .with_field(
                     ::solverforge_core::domain::FieldDescriptor::new(#field_name, #field_type)
@@ -212,9 +403,27 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
         })
         .collect();
 
+    // Build class-level annotations
+    let mut class_annotations = Vec::new();
+    class_annotations.push(quote! {
+        .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningEntity)
+    });
+
+    if let Some(dc) = difficulty_comparator {
+        class_annotations.push(quote! {
+            .with_annotation(::solverforge_core::domain::PlanningAnnotation::difficulty_comparator(#dc))
+        });
+    }
+
+    if let Some(sc) = strength_comparator {
+        class_annotations.push(quote! {
+            .with_annotation(::solverforge_core::domain::PlanningAnnotation::strength_comparator(#sc))
+        });
+    }
+
     quote! {
         ::solverforge_core::domain::DomainClass::new(#struct_name)
-            .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningEntity)
+            #(#class_annotations)*
             #(#field_descriptors)*
     }
 }

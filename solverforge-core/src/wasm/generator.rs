@@ -4,12 +4,17 @@ use crate::wasm::expression::Expression;
 use crate::wasm::memory::{LayoutCalculator, WasmMemoryType};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use indexmap::IndexMap;
+use std::cell::RefCell;
 use wasm_encoder::{
-    CodeSection, ConstExpr, ExportKind, ExportSection, Function, FunctionSection, GlobalSection,
-    GlobalType, Instruction, MemorySection, MemoryType, Module, TypeSection, ValType,
+    CodeSection, ConstExpr, DataSection, ExportKind, ExportSection, Function, FunctionSection,
+    GlobalSection, GlobalType, Instruction, MemorySection, MemoryType, Module, TypeSection,
+    ValType,
 };
 
 use crate::wasm::host_functions::{HostFunctionRegistry, WasmType};
+
+/// Base offset for string constants in memory (64KB into memory)
+const STRING_CONSTANTS_BASE: u32 = 65536;
 
 pub struct WasmModuleBuilder {
     layout_calculator: LayoutCalculator,
@@ -20,6 +25,11 @@ pub struct WasmModuleBuilder {
     max_memory_pages: Option<u32>,
     host_functions: HostFunctionRegistry,
     host_function_indices: IndexMap<String, u32>,
+    /// String constants collected during expression compilation.
+    /// Maps string value -> offset in data section (relative to STRING_CONSTANTS_BASE).
+    string_constants: RefCell<IndexMap<String, u32>>,
+    /// Current offset for next string constant (relative to STRING_CONSTANTS_BASE).
+    string_constants_offset: RefCell<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -119,6 +129,25 @@ pub enum Comparison {
     AlwaysFalse,
 }
 
+/// Tracks local variable allocation during expression compilation.
+/// Ensures each expression gets unique local indices without hardcoding offsets.
+struct LocalAllocator {
+    next_local: u32,
+}
+
+impl LocalAllocator {
+    fn new(base: u32) -> Self {
+        Self { next_local: base }
+    }
+
+    /// Allocate a single local variable, returning its index.
+    fn alloc(&mut self) -> u32 {
+        let local = self.next_local;
+        self.next_local += 1;
+        local
+    }
+}
+
 impl Default for WasmModuleBuilder {
     fn default() -> Self {
         Self::new()
@@ -136,6 +165,8 @@ impl WasmModuleBuilder {
             max_memory_pages: Some(256),
             host_functions: HostFunctionRegistry::new(),
             host_function_indices: IndexMap::new(),
+            string_constants: RefCell::new(IndexMap::new()),
+            string_constants_offset: RefCell::new(0),
         }
     }
 
@@ -165,6 +196,72 @@ impl WasmModuleBuilder {
     pub fn add_predicate(mut self, predicate: PredicateDefinition) -> Self {
         self.predicates.insert(predicate.name.clone(), predicate);
         self
+    }
+
+    /// Get or allocate an offset for a string constant.
+    /// Returns the absolute memory offset where the string will be stored.
+    /// String format in memory: [length: i32][utf8 bytes...]
+    fn get_string_constant_offset(&self, s: &str) -> u32 {
+        let mut constants = self.string_constants.borrow_mut();
+        if let Some(&offset) = constants.get(s) {
+            return STRING_CONSTANTS_BASE + offset;
+        }
+
+        let mut current_offset = self.string_constants_offset.borrow_mut();
+        let offset = *current_offset;
+
+        // String format: 4 bytes for length + utf8 bytes, aligned to 4 bytes
+        let string_size = 4 + s.len() as u32;
+        let aligned_size = (string_size + 3) & !3; // Align to 4 bytes
+
+        constants.insert(s.to_string(), offset);
+        *current_offset = offset + aligned_size;
+
+        STRING_CONSTANTS_BASE + offset
+    }
+
+    /// Build the data section containing all string constants.
+    fn build_string_data_section(&self) -> Option<DataSection> {
+        let constants = self.string_constants.borrow();
+        if constants.is_empty() {
+            return None;
+        }
+
+        let total_size = *self.string_constants_offset.borrow();
+        let mut data = vec![0u8; total_size as usize];
+
+        for (s, &offset) in constants.iter() {
+            let bytes = s.as_bytes();
+            let len = bytes.len() as u32;
+
+            // Write length (little-endian i32)
+            let offset = offset as usize;
+            data[offset..offset + 4].copy_from_slice(&len.to_le_bytes());
+
+            // Write string bytes
+            data[offset + 4..offset + 4 + bytes.len()].copy_from_slice(bytes);
+        }
+
+        let mut data_section = DataSection::new();
+        data_section.active(
+            0,                                                   // memory index
+            &ConstExpr::i32_const(STRING_CONSTANTS_BASE as i32), // offset
+            data.iter().copied(),
+        );
+
+        Some(data_section)
+    }
+
+    /// Check if an expression evaluates to a string type.
+    /// Used to determine when string comparison (hstringEquals) is needed.
+    fn is_string_expression(expr: &Expression) -> bool {
+        match expr {
+            Expression::StringLiteral { .. } => true,
+            // FieldAccess could be a string, but we'd need type info from the model.
+            // Currently, if either operand is a StringLiteral, we use string comparison.
+            // Type inference for field types requires domain model context at compile time.
+            _ => false,
+        }
     }
 
     pub fn build(mut self) -> SolverForgeResult<Vec<u8>> {
@@ -344,6 +441,11 @@ impl WasmModuleBuilder {
         module.section(&global_section);
         module.section(&export_section);
         module.section(&code_section);
+
+        // Add string constants data section if any strings were used
+        if let Some(data_section) = self.build_string_data_section() {
+            module.section(&data_section);
+        }
 
         Ok(module.finish())
     }
@@ -536,7 +638,8 @@ impl WasmModuleBuilder {
         predicate: &PredicateDefinition,
         model: &DomainModel,
     ) -> SolverForgeResult<Function> {
-        let mut func = Function::new([]);
+        // Declare locals for expression compilation (Sum uses 4 locals, support up to 3 nested levels)
+        let mut func = Function::new([(12, ValType::I32)]);
 
         match &predicate.body {
             PredicateBody::Comparison(comparison) => match comparison {
@@ -578,7 +681,16 @@ impl WasmModuleBuilder {
                 }
             },
             PredicateBody::Expression(expression) => {
-                self.compile_expression(&mut func, expression, model)?;
+                // Parameters are at 0-(arity-1), so locals start at arity
+                let mut locals = LocalAllocator::new(predicate.arity);
+                self.compile_expression(
+                    &mut func,
+                    expression,
+                    model,
+                    u32::MAX,
+                    u32::MAX,
+                    &mut locals,
+                )?;
             }
         }
 
@@ -664,13 +776,17 @@ impl WasmModuleBuilder {
 
     /// Compile an expression tree into WASM instructions
     ///
-    /// Generates WASM code that evaluates the expression and leaves the result
-    /// on the stack.
+    /// Generates WASM code that evaluates the expression and leaves the result on the stack.
+    /// The remap_from/remap_to_local parameters handle parameter substitution for loop variables.
+    /// The locals allocator tracks local variable usage to avoid collisions.
     fn compile_expression(
         &self,
         func: &mut Function,
         expr: &Expression,
         model: &DomainModel,
+        remap_from: u32,
+        remap_to_local: u32,
+        locals: &mut LocalAllocator,
     ) -> SolverForgeResult<()> {
         match expr {
             // ===== Literals =====
@@ -685,11 +801,24 @@ impl WasmModuleBuilder {
             Expression::BoolLiteral { value } => {
                 func.instruction(&Instruction::I32Const(if *value { 1 } else { 0 }));
             }
+            Expression::FloatLiteral { value } => {
+                // Convert to i32 for integer context (truncating)
+                func.instruction(&Instruction::F64Const(*value));
+                func.instruction(&Instruction::I32TruncF64S);
+            }
+            Expression::StringLiteral { value } => {
+                // Return pointer to string constant in data section
+                let offset = self.get_string_constant_offset(value);
+                func.instruction(&Instruction::I32Const(offset as i32));
+            }
             Expression::Null => {
                 func.instruction(&Instruction::I32Const(0));
             }
 
             // ===== Parameter Access =====
+            Expression::Param { index } if *index == remap_from => {
+                func.instruction(&Instruction::LocalGet(remap_to_local));
+            }
             Expression::Param { index } => {
                 func.instruction(&Instruction::LocalGet(*index));
             }
@@ -701,7 +830,7 @@ impl WasmModuleBuilder {
                 field_name,
             } => {
                 // Compile the object expression to get the pointer
-                self.compile_expression(func, object, model)?;
+                self.compile_expression(func, object, model, remap_from, remap_to_local, locals)?;
 
                 // Load the field from memory
                 let class = model.classes.get(class_name).ok_or_else(|| {
@@ -769,89 +898,150 @@ impl WasmModuleBuilder {
 
             // ===== Comparisons =====
             Expression::Eq { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
-                func.instruction(&Instruction::I32Eq);
+                // Check if this is a string comparison
+                if Self::is_string_expression(left) || Self::is_string_expression(right) {
+                    // Use hstringEquals for string comparison
+                    self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                    self.compile_expression(
+                        func,
+                        right,
+                        model,
+                        remap_from,
+                        remap_to_local,
+                        locals,
+                    )?;
+                    let func_idx =
+                        self.host_function_indices
+                            .get("hstringEquals")
+                            .ok_or_else(|| {
+                                SolverForgeError::WasmGeneration(
+                                    "hstringEquals host function not registered".to_string(),
+                                )
+                            })?;
+                    func.instruction(&Instruction::Call(*func_idx));
+                } else {
+                    self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                    self.compile_expression(
+                        func,
+                        right,
+                        model,
+                        remap_from,
+                        remap_to_local,
+                        locals,
+                    )?;
+                    func.instruction(&Instruction::I32Eq);
+                }
             }
             Expression::Ne { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
-                func.instruction(&Instruction::I32Ne);
+                // Check if this is a string comparison
+                if Self::is_string_expression(left) || Self::is_string_expression(right) {
+                    // Use hstringEquals and invert result
+                    self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                    self.compile_expression(
+                        func,
+                        right,
+                        model,
+                        remap_from,
+                        remap_to_local,
+                        locals,
+                    )?;
+                    let func_idx =
+                        self.host_function_indices
+                            .get("hstringEquals")
+                            .ok_or_else(|| {
+                                SolverForgeError::WasmGeneration(
+                                    "hstringEquals host function not registered".to_string(),
+                                )
+                            })?;
+                    func.instruction(&Instruction::Call(*func_idx));
+                    func.instruction(&Instruction::I32Eqz); // Invert: 1->0, 0->1
+                } else {
+                    self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                    self.compile_expression(
+                        func,
+                        right,
+                        model,
+                        remap_from,
+                        remap_to_local,
+                        locals,
+                    )?;
+                    func.instruction(&Instruction::I32Ne);
+                }
             }
             Expression::Lt { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32LtS);
             }
             Expression::Le { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32LeS);
             }
             Expression::Gt { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32GtS);
             }
             Expression::Ge { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32GeS);
             }
 
             // ===== Logical Operations =====
             Expression::And { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32And);
             }
             Expression::Or { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Or);
             }
             Expression::Not { operand } => {
-                self.compile_expression(func, operand, model)?;
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Eqz); // ! in WASM is i32.eqz
             }
             Expression::IsNull { operand } => {
-                self.compile_expression(func, operand, model)?;
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Eqz); // null check is ptr == 0
             }
             Expression::IsNotNull { operand } => {
-                self.compile_expression(func, operand, model)?;
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Const(0));
                 func.instruction(&Instruction::I32Ne); // not null is ptr != 0
             }
 
             // ===== Arithmetic Operations =====
             Expression::Add { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Add);
             }
             Expression::Sub { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Sub);
             }
             Expression::Mul { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32Mul);
             }
             Expression::Div { left, right } => {
-                self.compile_expression(func, left, model)?;
-                self.compile_expression(func, right, model)?;
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
                 func.instruction(&Instruction::I32DivS);
             }
 
             // ===== List Operations =====
             Expression::ListContains { list, element } => {
-                // For now, use a host function to check list containment
-                // TODO: Generate inline loop for better performance
-                self.compile_expression(func, list, model)?;
-                self.compile_expression(func, element, model)?;
+                // Use host function for list containment - simpler than inline loop
+                // and allows the host to use optimized data structures.
+                self.compile_expression(func, list, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, element, model, remap_from, remap_to_local, locals)?;
 
                 let func_idx = self
                     .host_function_indices
@@ -865,6 +1055,24 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::Call(*func_idx));
             }
 
+            Expression::Length { collection } => {
+                // Get the collection pointer
+                self.compile_expression(
+                    func,
+                    collection,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+                // Load length from offset 0 of the array structure
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+            }
+
             // ===== Host Function Calls =====
             Expression::HostCall {
                 function_name,
@@ -872,7 +1080,7 @@ impl WasmModuleBuilder {
             } => {
                 // Compile all arguments
                 for arg in args {
-                    self.compile_expression(func, arg, model)?;
+                    self.compile_expression(func, arg, model, remap_from, remap_to_local, locals)?;
                 }
 
                 // Get the function index for the imported function
@@ -891,6 +1099,131 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::Call(*func_idx));
             }
 
+            // ===== Sum Over Collection =====
+            Expression::Sum {
+                collection,
+                item_var_name: _,
+                item_param_index,
+                item_class_name: _,
+                accumulator_expr,
+            } => {
+                // Compile collection expression to get the array pointer
+                // Note: collection may reference outer context parameters, so propagate remapping
+                self.compile_expression(
+                    func,
+                    collection,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+
+                // At this point, stack has: [list_ptr]
+                // List layout: [size:i32, capacity:i32, backing_array:i32]
+                // We iterate through array elements, computing accumulator_expr for each,
+                // and sum the results.
+
+                let list_ptr_local = locals.alloc();
+                let backing_array_local = locals.alloc();
+                let accumulator_local = locals.alloc();
+                let counter_local = locals.alloc();
+                let element_local = locals.alloc();
+
+                // Store list pointer in local (consumes stack value)
+                func.instruction(&Instruction::LocalSet(list_ptr_local));
+
+                // Load backing_array pointer from list_ptr + 8
+                func.instruction(&Instruction::LocalGet(list_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 8, // BACKING_ARRAY_OFFSET
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::LocalSet(backing_array_local));
+
+                // Initialize accumulator to 0
+                func.instruction(&Instruction::I32Const(0));
+                func.instruction(&Instruction::LocalSet(accumulator_local));
+
+                // Initialize loop counter to 0
+                func.instruction(&Instruction::I32Const(0));
+                func.instruction(&Instruction::LocalSet(counter_local));
+
+                // Outer block to catch loop exit with result value
+                // When we exit the loop, we need an i32 on the stack for the function return
+                func.instruction(&Instruction::Block(wasm_encoder::BlockType::Result(
+                    ValType::I32,
+                )));
+
+                // Loop label
+                func.instruction(&Instruction::Loop(wasm_encoder::BlockType::Empty));
+
+                // Check if counter >= length (size is at list_ptr + 0)
+                func.instruction(&Instruction::LocalGet(counter_local));
+                func.instruction(&Instruction::LocalGet(list_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0, // SIZE_OFFSET
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::I32GeS);
+
+                // If condition true, push result and exit the outer block
+                func.instruction(&Instruction::If(wasm_encoder::BlockType::Empty));
+                func.instruction(&Instruction::LocalGet(accumulator_local));
+                func.instruction(&Instruction::Br(2)); // Exit past if, loop, AND outer block
+                func.instruction(&Instruction::End); // End if
+
+                // Load array element at backing_array[counter * 4]
+                func.instruction(&Instruction::LocalGet(backing_array_local));
+                func.instruction(&Instruction::LocalGet(counter_local));
+                func.instruction(&Instruction::I32Const(4));
+                func.instruction(&Instruction::I32Mul);
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+
+                // Store element in local for use in accumulator_expr
+                func.instruction(&Instruction::LocalSet(element_local));
+
+                // Compile accumulator expression with parameter remapping
+                // The item_param_index parameter should come from element_local
+                self.compile_expression(
+                    func,
+                    accumulator_expr,
+                    model,
+                    *item_param_index,
+                    element_local,
+                    locals,
+                )?;
+
+                // Add result to accumulator
+                func.instruction(&Instruction::LocalGet(accumulator_local));
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::LocalSet(accumulator_local));
+
+                // Increment counter
+                func.instruction(&Instruction::LocalGet(counter_local));
+                func.instruction(&Instruction::I32Const(1));
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::LocalSet(counter_local));
+
+                // Jump back to loop start
+                func.instruction(&Instruction::Br(0));
+
+                // End loop
+                func.instruction(&Instruction::End);
+
+                // Fallback for empty arrays (0 iterations) - provide result for block
+                func.instruction(&Instruction::LocalGet(accumulator_local));
+
+                // End outer block - result is now on stack
+                func.instruction(&Instruction::End);
+            }
+
             // ===== Conditional =====
             Expression::IfThenElse {
                 condition,
@@ -898,7 +1231,14 @@ impl WasmModuleBuilder {
                 else_branch,
             } => {
                 // Compile condition
-                self.compile_expression(func, condition, model)?;
+                self.compile_expression(
+                    func,
+                    condition,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
 
                 // WASM if-else structure
                 func.instruction(&Instruction::If(wasm_encoder::BlockType::Result(
@@ -906,12 +1246,26 @@ impl WasmModuleBuilder {
                 )));
 
                 // Compile then branch
-                self.compile_expression(func, then_branch, model)?;
+                self.compile_expression(
+                    func,
+                    then_branch,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
 
                 func.instruction(&Instruction::Else);
 
                 // Compile else branch
-                self.compile_expression(func, else_branch, model)?;
+                self.compile_expression(
+                    func,
+                    else_branch,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
 
                 func.instruction(&Instruction::End);
             }
@@ -1100,217 +1454,6 @@ impl WasmModuleBuilder {
             export_section.export("remove", ExportKind::Func, *func_idx);
             *func_idx += 1;
         }
-    }
-
-    // List structure in memory:
-    // offset 0: size (i32)
-    // offset 4: capacity (i32)
-    // offset 8+: elements (i32 each)
-
-    #[allow(dead_code)]
-    fn generate_create_list(&self) -> Function {
-        let mut func = Function::new([(1, ValType::I32)]);
-
-        // Allocate: 8 bytes header + capacity * 4 bytes for elements
-        // header_size + capacity * element_size
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::LocalGet(0)); // capacity
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-
-        // Call allocate via bump pointer
-        func.instruction(&Instruction::GlobalGet(0));
-        func.instruction(&Instruction::LocalTee(1)); // Save result ptr
-
-        // Update bump pointer
-        func.instruction(&Instruction::GlobalGet(0));
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::GlobalSet(0));
-
-        // Initialize size to 0
-        func.instruction(&Instruction::LocalGet(1));
-        func.instruction(&Instruction::I32Const(0));
-        func.instruction(&Instruction::I32Store(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        // Initialize capacity
-        func.instruction(&Instruction::LocalGet(1));
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Store(wasm_encoder::MemArg {
-            offset: 4,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        // Return ptr
-        func.instruction(&Instruction::LocalGet(1));
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_get_item(&self) -> Function {
-        let mut func = Function::new([]);
-
-        // list + 8 + index * 4
-        func.instruction(&Instruction::LocalGet(0)); // list ptr
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(1)); // index
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_set_item(&self) -> Function {
-        let mut func = Function::new([]);
-
-        // list + 8 + index * 4
-        func.instruction(&Instruction::LocalGet(0)); // list ptr
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(1)); // index
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(2)); // value
-        func.instruction(&Instruction::I32Store(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_get_size(&self) -> Function {
-        let mut func = Function::new([]);
-
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_append(&self) -> Function {
-        let mut func = Function::new([(1, ValType::I32)]);
-
-        // Get current size
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-        func.instruction(&Instruction::LocalSet(2)); // current size
-
-        // Store value at list + 8 + size * 4
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(2));
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(1)); // value
-        func.instruction(&Instruction::I32Store(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        // Increment size
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::LocalGet(2));
-        func.instruction(&Instruction::I32Const(1));
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::I32Store(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_insert(&self) -> Function {
-        // Simplified: just set at index (full impl would shift elements)
-        let mut func = Function::new([]);
-
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(1)); // index
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(2)); // value
-        func.instruction(&Instruction::I32Store(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_remove(&self) -> Function {
-        // Simplified: return item at index, don't shift
-        let mut func = Function::new([]);
-
-        func.instruction(&Instruction::LocalGet(0));
-        func.instruction(&Instruction::I32Const(8));
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::LocalGet(1));
-        func.instruction(&Instruction::I32Const(4));
-        func.instruction(&Instruction::I32Mul);
-        func.instruction(&Instruction::I32Add);
-        func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
-            offset: 0,
-            align: 2,
-            memory_index: 0,
-        }));
-
-        func.instruction(&Instruction::End);
-        func
-    }
-
-    #[allow(dead_code)]
-    fn generate_deallocate_list(&self) -> Function {
-        let mut func = Function::new([]);
-        // No-op for bump allocator
-        func.instruction(&Instruction::End);
-        func
     }
 }
 
@@ -1544,7 +1687,7 @@ mod tests {
         let model = create_test_model();
 
         // Build expression that uses host function: hstringEquals(param(0).field, param(1).field)
-        // Note: We're using int fields as placeholders since our test model doesn't have string fields
+        // Note: Using int fields here - the test validates call generation, not field types
         let left = Expr::param(0).get("Lesson", "id");
         let right = Expr::param(1).get("Lesson", "id");
         let expr = Expr::string_equals(left, right);

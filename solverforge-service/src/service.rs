@@ -1,7 +1,7 @@
 use crate::config::ServiceConfig;
 use crate::error::{ServiceError, ServiceResult};
 use crate::jar::JarManager;
-use crate::util::{find_available_port, find_java, wait_for_ready};
+use crate::util::{find_available_port, find_java};
 use log::{debug, error, info, warn};
 use solverforge_core::HttpSolverService;
 use std::io::{BufRead, BufReader};
@@ -19,6 +19,10 @@ pub struct EmbeddedService {
 
 impl EmbeddedService {
     pub fn start(config: ServiceConfig) -> ServiceResult<Self> {
+        Self::start_with_retry(config, true)
+    }
+
+    fn start_with_retry(config: ServiceConfig, allow_retry: bool) -> ServiceResult<Self> {
         let port = if config.port == 0 {
             find_available_port()?
         } else {
@@ -33,11 +37,15 @@ impl EmbeddedService {
             .and_then(|bin| bin.parent())
             .map(|home| home.to_path_buf());
 
-        let jar_manager = if let Some(submodule_dir) = config.submodule_dir {
-            let cache_dir = config.cache_dir.unwrap_or_else(crate::util::get_cache_dir);
-            JarManager::with_paths(submodule_dir, cache_dir).with_java_home(java_home.as_deref())
+        let jar_manager = if let Some(ref submodule_dir) = config.submodule_dir {
+            let cache_dir = config
+                .cache_dir
+                .clone()
+                .unwrap_or_else(crate::util::get_cache_dir);
+            JarManager::with_paths(submodule_dir.clone(), cache_dir)
+                .with_java_home(java_home.as_deref())
         } else {
-            JarManager::new()?.with_java_home(java_home.as_deref())
+            JarManager::new().with_java_home(java_home.as_deref())
         };
 
         let jar_path = jar_manager.ensure_jar()?;
@@ -125,14 +133,73 @@ impl EmbeddedService {
             });
         }
 
-        let service = EmbeddedService {
+        let mut service = EmbeddedService {
             process: Some(process),
             port,
             shutdown_flag,
         };
 
         let health_url = format!("http://localhost:{}/health/ready", port);
-        wait_for_ready(&health_url, config.startup_timeout)?;
+
+        // Wait for service to be ready, checking if process crashes
+        let start = std::time::Instant::now();
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .map_err(|e| ServiceError::Http(e.to_string()))?;
+
+        // Give process a moment to start before checking
+        std::thread::sleep(Duration::from_millis(100));
+
+        info!("Waiting for service health check at {}", health_url);
+
+        loop {
+            // Check if process crashed (only after initial startup window)
+            if start.elapsed() > Duration::from_millis(500) {
+                let running = service.is_running();
+                debug!("Process running check: {}", running);
+                if !running {
+                    // Get exit status for diagnostics
+                    if let Some(ref mut proc) = service.process {
+                        if let Ok(Some(status)) = proc.try_wait() {
+                            error!("Java process exited with status: {:?}", status);
+                        }
+                    }
+                    if allow_retry {
+                        warn!("Java process crashed during startup, deleting cached JAR and retrying...");
+                        if let Err(e) = std::fs::remove_file(&jar_path) {
+                            warn!("Failed to delete cached JAR: {}", e);
+                        }
+                        return Self::start_with_retry(config, false);
+                    }
+                    return Err(ServiceError::StartFailed(
+                        "Java process crashed during startup. Check logs or try: rm ~/.cache/solverforge/*.jar".to_string(),
+                    ));
+                }
+            }
+
+            if start.elapsed() > config.startup_timeout {
+                return Err(ServiceError::Unhealthy(format!(
+                    "Service did not become ready within {:?}",
+                    config.startup_timeout
+                )));
+            }
+
+            match client.get(&health_url).send() {
+                Ok(response) if response.status().is_success() => {
+                    debug!("Service is ready after {:?}", start.elapsed());
+                    break;
+                }
+                Ok(response) => {
+                    debug!("Health check returned {}", response.status());
+                }
+                Err(e) => {
+                    debug!("Service not ready yet: {}", e);
+                }
+            }
+
+            std::thread::sleep(Duration::from_millis(500));
+        }
 
         info!("Solver service is ready on port {}", port);
 

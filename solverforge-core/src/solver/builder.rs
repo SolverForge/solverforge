@@ -583,7 +583,7 @@ mod tests {
                                 PlanningAnnotation::ProblemFactCollectionProperty,
                             )
                             .with_planning_annotation(
-                                PlanningAnnotation::value_range_provider("rooms"),
+                                PlanningAnnotation::value_range_provider_with_id("rooms"),
                             ),
                         )
                         .with_field(

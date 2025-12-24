@@ -270,7 +270,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
             if let Some(id) = &field.value_range_provider_id {
                 annotations.push(quote! {
                     .with_planning_annotation(
-                        ::solverforge_core::domain::PlanningAnnotation::value_range_provider(#id)
+                        ::solverforge_core::domain::PlanningAnnotation::value_range_provider_with_id(#id)
                     )
                 });
             }
@@ -315,8 +315,9 @@ fn extract_vec_element_type(ty: &Type) -> TokenStream2 {
         }
     }
 
-    // Fallback - return a placeholder
-    quote! { () }
+    // Type is not Vec<T> or couldn't parse - generate compile error
+    let error_msg = format!("Expected Vec<T> type, got: {}", type_str);
+    quote! { compile_error!(#error_msg) }
 }
 
 /// Convert a Rust type to a FieldType expression.

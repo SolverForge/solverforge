@@ -497,7 +497,7 @@ mod tests {
                 .with_annotation(PlanningAnnotation::PlanningEntity)
                 .with_field(
                     FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                        .with_planning_annotation(PlanningAnnotation::PlanningId),
+                        .with_annotation(PlanningAnnotation::PlanningId),
                 )
                 .with_field(FieldDescriptor::new(
                     "subject",
@@ -505,8 +505,8 @@ mod tests {
                 ))
                 .with_field(
                     FieldDescriptor::new("room", FieldType::Primitive(PrimitiveType::String))
-                        .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
-                            "rooms".to_string(),
+                        .with_annotation(PlanningAnnotation::planning_variable(vec![
+                            "rooms".to_string()
                         ])),
                 )
         }
@@ -579,10 +579,8 @@ mod tests {
                                 "rooms",
                                 FieldType::list(FieldType::Primitive(PrimitiveType::String)),
                             )
-                            .with_planning_annotation(
-                                PlanningAnnotation::ProblemFactCollectionProperty,
-                            )
-                            .with_planning_annotation(
+                            .with_annotation(PlanningAnnotation::ProblemFactCollectionProperty)
+                            .with_annotation(
                                 PlanningAnnotation::value_range_provider_with_id("rooms"),
                             ),
                         )
@@ -591,13 +589,11 @@ mod tests {
                                 "lessons",
                                 FieldType::list(FieldType::object("TestLesson")),
                             )
-                            .with_planning_annotation(
-                                PlanningAnnotation::PlanningEntityCollectionProperty,
-                            ),
+                            .with_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
                         )
                         .with_field(
                             FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                                .with_planning_annotation(PlanningAnnotation::planning_score()),
+                                .with_annotation(PlanningAnnotation::planning_score()),
                         ),
                 )
                 .build()

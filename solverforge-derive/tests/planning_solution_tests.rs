@@ -162,10 +162,10 @@ fn test_timetable_has_value_range_providers() {
         .iter()
         .find(|f| f.name == "timeslots")
         .unwrap();
-    let has_vrp = timeslots_field.planning_annotations.iter().any(|ann| {
+    let has_vrp = timeslots_field.annotations.iter().any(|ann| {
         matches!(
             ann,
-            PlanningAnnotation::ValueRangeProvider { id } if id == &Some("timeslots".to_string())
+            PlanningAnnotation::ValueRangeProvider { id } if *id == Some("timeslots".to_string())
         )
     });
     assert!(has_vrp);
@@ -176,10 +176,10 @@ fn test_timetable_has_value_range_providers() {
         .iter()
         .find(|f| f.name == "rooms")
         .unwrap();
-    let has_vrp = rooms_field.planning_annotations.iter().any(|ann| {
+    let has_vrp = rooms_field.annotations.iter().any(|ann| {
         matches!(
             ann,
-            PlanningAnnotation::ValueRangeProvider { id } if id == &Some("rooms".to_string())
+            PlanningAnnotation::ValueRangeProvider { id } if *id == Some("rooms".to_string())
         )
     });
     assert!(has_vrp);
@@ -196,7 +196,7 @@ fn test_timetable_has_problem_fact_collection() {
         .find(|f| f.name == "timeslots")
         .unwrap();
     let has_pfc = timeslots_field
-        .planning_annotations
+        .annotations
         .iter()
         .any(|ann| matches!(ann, PlanningAnnotation::ProblemFactCollectionProperty));
     assert!(has_pfc);
@@ -213,7 +213,7 @@ fn test_timetable_has_planning_entity_collection() {
         .find(|f| f.name == "lessons")
         .unwrap();
     let has_pec = lessons_field
-        .planning_annotations
+        .annotations
         .iter()
         .any(|ann| matches!(ann, PlanningAnnotation::PlanningEntityCollectionProperty));
     assert!(has_pec);

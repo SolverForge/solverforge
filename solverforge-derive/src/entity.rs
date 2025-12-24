@@ -296,7 +296,7 @@ fn generate_domain_class(
 
             if field.is_planning_id {
                 annotations.push(quote! {
-                    .with_planning_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningId)
+                    .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningId)
                 });
             }
 
@@ -310,7 +310,7 @@ fn generate_domain_class(
 
                 if allows_unassigned {
                     annotations.push(quote! {
-                        .with_planning_annotation(
+                        .with_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_variable_unassigned(
                                 vec![#(#refs),*]
                             )
@@ -318,7 +318,7 @@ fn generate_domain_class(
                     });
                 } else {
                     annotations.push(quote! {
-                        .with_planning_annotation(
+                        .with_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_variable(
                                 vec![#(#refs),*]
                             )
@@ -337,7 +337,7 @@ fn generate_domain_class(
 
                 if allows_unassigned_values {
                     annotations.push(quote! {
-                        .with_planning_annotation(
+                        .with_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_list_variable_unassigned(
                                 vec![#(#refs),*]
                             )
@@ -345,7 +345,7 @@ fn generate_domain_class(
                     });
                 } else {
                     annotations.push(quote! {
-                        .with_planning_annotation(
+                        .with_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_list_variable(
                                 vec![#(#refs),*]
                             )
@@ -358,35 +358,35 @@ fn generate_domain_class(
                 match sv {
                     ShadowVariableInfo::InverseRelation { source } => {
                         annotations.push(quote! {
-                            .with_planning_annotation(
+                            .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::inverse_relation_shadow(#source)
                             )
                         });
                     }
                     ShadowVariableInfo::Index { source } => {
                         annotations.push(quote! {
-                            .with_planning_annotation(
+                            .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::index_shadow(#source)
                             )
                         });
                     }
                     ShadowVariableInfo::NextElement { source } => {
                         annotations.push(quote! {
-                            .with_planning_annotation(
+                            .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::next_element_shadow(#source)
                             )
                         });
                     }
                     ShadowVariableInfo::PreviousElement { source } => {
                         annotations.push(quote! {
-                            .with_planning_annotation(
+                            .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::previous_element_shadow(#source)
                             )
                         });
                     }
                     ShadowVariableInfo::Anchor { source } => {
                         annotations.push(quote! {
-                            .with_planning_annotation(
+                            .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::anchor_shadow(#source)
                             )
                         });

@@ -345,10 +345,18 @@ fn extract_method_return_expression(
                 return Ok(expr);
             }
 
+            // Try assignment-based pattern for shadow variable update methods:
+            // if cond1: self.field = val1
+            // elif cond2: self.field = val2
+            // else: self.field = val3
+            if let Ok(expr) = try_extract_assignment_pattern(py, &stmts, &arg_names, class_hint) {
+                return Ok(expr);
+            }
+
             // No explicit return found - method might be more complex
             Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "Cannot analyze method: no simple return statement found. \
-                 Methods must have a single return expression.",
+                 Methods must have a single return expression or assignment pattern.",
             ))
         }
 
@@ -1399,6 +1407,156 @@ fn try_extract_if_expression(
         then_branch: Box::new(then_expr),
         else_branch: Box::new(else_expr),
     })
+}
+
+/// Extract assignment-based pattern for methods that assign to self.field instead of returning.
+///
+/// Handles patterns like:
+/// ```python
+/// if condition1:
+///     self.field = expr1
+/// elif condition2:
+///     self.field = expr2
+/// else:
+///     self.field = expr3
+/// ```
+///
+/// The assigned expressions are extracted and combined into a conditional expression.
+fn try_extract_assignment_pattern(
+    py: Python<'_>,
+    stmts: &[Bound<'_, PyAny>],
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    // Look for an If statement that contains assignments
+    for stmt in stmts {
+        let stmt_type = stmt.get_type().name()?.to_string();
+        if stmt_type == "If" {
+            if let Ok(expr) = try_extract_if_assignment(py, stmt, arg_names, class_hint) {
+                return Ok(expr);
+            }
+        }
+    }
+    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+        "No assignment pattern found",
+    ))
+}
+
+/// Extract expression from if/elif/else that assigns to self.field.
+fn try_extract_if_assignment(
+    py: Python<'_>,
+    if_stmt: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    // Extract condition
+    let condition_node = if_stmt.getattr("test")?;
+    let condition = convert_ast_to_expression(py, &condition_node, arg_names, class_hint)?
+        .ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>("Cannot convert if condition")
+        })?;
+
+    // Extract then branch - look for assignment or return
+    let body = if_stmt.getattr("body")?;
+    let body_list = body.cast::<PyList>()?;
+    let then_expr = extract_branch_value(py, body_list, arg_names, class_hint)?;
+
+    // Extract else branch
+    let orelse = if_stmt.getattr("orelse")?;
+    let orelse_list = orelse.cast::<PyList>()?;
+
+    let else_expr = if orelse_list.is_empty() {
+        // No else branch - this shouldn't happen for complete assignment patterns
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Assignment pattern requires else branch",
+        ));
+    } else {
+        // Check if it's an elif (nested If) or else block
+        let first_stmt = orelse_list.get_item(0)?;
+        let first_type = first_stmt.get_type().name()?.to_string();
+        if first_type == "If" {
+            // Recursively handle elif
+            try_extract_if_assignment(py, &first_stmt, arg_names, class_hint)?
+        } else {
+            // Extract from else block
+            extract_branch_value(py, orelse_list, arg_names, class_hint)?
+        }
+    };
+
+    Ok(Expression::IfThenElse {
+        condition: Box::new(condition),
+        then_branch: Box::new(then_expr),
+        else_branch: Box::new(else_expr),
+    })
+}
+
+/// Extract the value expression from a branch (handles both Return and Assign to self.field).
+fn extract_branch_value(
+    py: Python<'_>,
+    stmts: &Bound<'_, PyList>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Expression> {
+    for stmt in stmts.iter() {
+        let stmt_type = stmt.get_type().name()?.to_string();
+
+        if stmt_type == "Return" {
+            let value = stmt.getattr("value")?;
+            if value.is_none() {
+                return Ok(Expression::Null);
+            }
+            return convert_ast_to_expression(py, &value, arg_names, class_hint)?.ok_or_else(
+                || PyErr::new::<pyo3::exceptions::PyValueError, _>("Cannot convert return value"),
+            );
+        }
+
+        if stmt_type == "Assign" {
+            // Check if it's assigning to self.field
+            let targets = stmt.getattr("targets")?;
+            let targets_list = targets.cast::<PyList>()?;
+            if !targets_list.is_empty() {
+                let target = targets_list.get_item(0)?;
+                let target_type = target.get_type().name()?.to_string();
+                if target_type == "Attribute" {
+                    let target_value = target.getattr("value")?;
+                    let target_value_type = target_value.get_type().name()?.to_string();
+                    if target_value_type == "Name" {
+                        let name: String = target_value.getattr("id")?.extract()?;
+                        if name == "self" || arg_names.first() == Some(&name) {
+                            // This is self.field = expr, extract the value
+                            let value = stmt.getattr("value")?;
+                            if value.is_none() {
+                                return Ok(Expression::Null);
+                            }
+                            return convert_ast_to_expression(py, &value, arg_names, class_hint)?
+                                .ok_or_else(|| {
+                                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                                        "Cannot convert assigned value",
+                                    )
+                                });
+                        }
+                    }
+                }
+            }
+        }
+
+        if stmt_type == "Expr" {
+            // Expression statement - might be a None assignment represented differently
+            let value = stmt.getattr("value")?;
+            let value_type = value.get_type().name()?.to_string();
+            if value_type == "Constant" || value_type == "NameConstant" {
+                if let Ok(is_none) = value.is_none().then_some(true).ok_or(false) {
+                    if is_none {
+                        return Ok(Expression::Null);
+                    }
+                }
+            }
+        }
+    }
+
+    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+        "Branch must contain return or assignment to self.field",
+    ))
 }
 
 /// Extract if-early-return pattern where if body returns and remaining statements are the else.

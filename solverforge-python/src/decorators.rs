@@ -21,7 +21,7 @@ use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 use pyo3::BoundObject;
 use solverforge_core::domain::{
     DomainClass, DomainModel, DomainModelBuilder, FieldDescriptor, FieldType, PlanningAnnotation,
-    PrimitiveType, ShadowAnnotation,
+    PrimitiveType,
 };
 
 use crate::annotations::{
@@ -83,16 +83,12 @@ fn build_domain_class(py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Domai
         let field_name_str: String = field_name.extract()?;
 
         // Check if it's an Annotated type
-        let (field_type, planning_annotations, shadow_annotations) =
-            extract_annotations(py, &raw_annotation)?;
+        let (field_type, annotations) = extract_annotations(py, &raw_annotation)?;
 
         // Add all fields - both annotated and plain fields can be referenced in constraints
         let mut field_desc = FieldDescriptor::new(&field_name_str, field_type);
-        for ann in planning_annotations {
-            field_desc = field_desc.with_planning_annotation(ann);
-        }
-        for ann in shadow_annotations {
-            field_desc = field_desc.with_shadow_annotation(ann);
+        for ann in annotations {
+            field_desc = field_desc.with_annotation(ann);
         }
         domain_class = domain_class.with_field(field_desc);
     }
@@ -104,7 +100,7 @@ fn build_domain_class(py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<Domai
 fn extract_annotations(
     py: Python<'_>,
     annotation: &Bound<'_, PyAny>,
-) -> PyResult<(FieldType, Vec<PlanningAnnotation>, Vec<ShadowAnnotation>)> {
+) -> PyResult<(FieldType, Vec<PlanningAnnotation>)> {
     let typing = py.import("typing")?;
     let get_origin = typing.getattr("get_origin")?;
     let get_args = typing.getattr("get_args")?;
@@ -116,14 +112,13 @@ fn extract_annotations(
         // Get the args: (base_type, *annotations)
         let args: Bound<'_, PyTuple> = get_args.call1((annotation,))?.cast_into()?;
         if args.len() < 2 {
-            return Ok((object_type(), vec![], vec![]));
+            return Ok((object_type(), vec![]));
         }
 
         let base_type = args.get_item(0)?;
         let field_type = python_type_to_field_type(py, &base_type)?;
 
-        let mut planning_annotations = Vec::new();
-        let mut shadow_annotations = Vec::new();
+        let mut annotations = Vec::new();
 
         // Process annotation markers (args[1:])
         // Note: Annotations can be used either as classes or instances:
@@ -134,107 +129,103 @@ fn extract_annotations(
 
             // Check each annotation type using helper that handles both patterns
             if is_annotation_marker::<PyPlanningId>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::PlanningId);
+                annotations.push(PlanningAnnotation::PlanningId);
             } else if is_annotation_marker::<PyPlanningVariable>(py, &marker) {
                 // Try to get instance parameters, use defaults if it's the class itself
                 if let Ok(pv) = marker.cast::<PyPlanningVariable>() {
                     let pv_ref = pv.borrow();
                     if pv_ref.allows_unassigned {
-                        planning_annotations.push(
-                            PlanningAnnotation::planning_variable_unassigned(
-                                pv_ref.value_range_provider_refs.clone(),
-                            ),
-                        );
+                        annotations.push(PlanningAnnotation::planning_variable_unassigned(
+                            pv_ref.value_range_provider_refs.clone(),
+                        ));
                     } else {
-                        planning_annotations.push(PlanningAnnotation::planning_variable(
+                        annotations.push(PlanningAnnotation::planning_variable(
                             pv_ref.value_range_provider_refs.clone(),
                         ));
                     }
                 } else {
                     // Class used directly without instantiation - use defaults
-                    planning_annotations.push(PlanningAnnotation::planning_variable(vec![]));
+                    annotations.push(PlanningAnnotation::planning_variable(vec![]));
                 }
             } else if is_annotation_marker::<PyPlanningListVariable>(py, &marker) {
                 if let Ok(plv) = marker.cast::<PyPlanningListVariable>() {
                     let plv_ref = plv.borrow();
                     if plv_ref.allows_unassigned_values {
-                        planning_annotations.push(
-                            PlanningAnnotation::planning_list_variable_unassigned(
-                                plv_ref.value_range_provider_refs.clone(),
-                            ),
-                        );
+                        annotations.push(PlanningAnnotation::planning_list_variable_unassigned(
+                            plv_ref.value_range_provider_refs.clone(),
+                        ));
                     } else {
-                        planning_annotations.push(PlanningAnnotation::planning_list_variable(
+                        annotations.push(PlanningAnnotation::planning_list_variable(
                             plv_ref.value_range_provider_refs.clone(),
                         ));
                     }
                 } else {
                     // Class used directly - use defaults
-                    planning_annotations.push(PlanningAnnotation::planning_list_variable(vec![]));
+                    annotations.push(PlanningAnnotation::planning_list_variable(vec![]));
                 }
             } else if is_annotation_marker::<PyPlanningScore>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::PlanningScore {
+                annotations.push(PlanningAnnotation::PlanningScore {
                     bendable_hard_levels: None,
                     bendable_soft_levels: None,
                 });
             } else if is_annotation_marker::<PyValueRangeProvider>(py, &marker) {
                 if let Ok(vrp) = marker.cast::<PyValueRangeProvider>() {
                     let vrp_ref = vrp.borrow();
-                    planning_annotations.push(PlanningAnnotation::ValueRangeProvider {
+                    annotations.push(PlanningAnnotation::ValueRangeProvider {
                         id: vrp_ref.id.clone(),
                     });
                 } else {
                     // Class used directly - use None for id
-                    planning_annotations.push(PlanningAnnotation::ValueRangeProvider { id: None });
+                    annotations.push(PlanningAnnotation::ValueRangeProvider { id: None });
                 }
             } else if is_annotation_marker::<PyProblemFactProperty>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::ProblemFactProperty);
+                annotations.push(PlanningAnnotation::ProblemFactProperty);
             } else if is_annotation_marker::<PyProblemFactCollectionProperty>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::ProblemFactCollectionProperty);
+                annotations.push(PlanningAnnotation::ProblemFactCollectionProperty);
             } else if is_annotation_marker::<PyPlanningEntityProperty>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::PlanningEntityProperty);
+                annotations.push(PlanningAnnotation::PlanningEntityProperty);
             } else if is_annotation_marker::<PyPlanningEntityCollectionProperty>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::PlanningEntityCollectionProperty);
+                annotations.push(PlanningAnnotation::PlanningEntityCollectionProperty);
             } else if is_annotation_marker::<PyPlanningPin>(py, &marker) {
-                planning_annotations.push(PlanningAnnotation::PlanningPin);
+                annotations.push(PlanningAnnotation::PlanningPin);
             } else if is_annotation_marker::<PyInverseRelationShadowVariable>(py, &marker) {
                 if let Ok(shadow) = marker.cast::<PyInverseRelationShadowVariable>() {
                     let shadow_ref = shadow.borrow();
-                    shadow_annotations.push(ShadowAnnotation::InverseRelationShadowVariable {
-                        source_variable_name: shadow_ref.source_variable_name.clone(),
-                    });
+                    annotations.push(PlanningAnnotation::inverse_relation_shadow(
+                        shadow_ref.source_variable_name.clone(),
+                    ));
                 }
                 // Note: InverseRelationShadowVariable requires source_variable_name,
                 // so we can't use it as a bare class without parameters
             } else if is_annotation_marker::<PyPreviousElementShadowVariable>(py, &marker) {
                 if let Ok(shadow) = marker.cast::<PyPreviousElementShadowVariable>() {
                     let shadow_ref = shadow.borrow();
-                    shadow_annotations.push(ShadowAnnotation::PreviousElementShadowVariable {
-                        source_variable_name: shadow_ref.source_variable_name.clone(),
-                    });
+                    annotations.push(PlanningAnnotation::previous_element_shadow(
+                        shadow_ref.source_variable_name.clone(),
+                    ));
                 }
             } else if is_annotation_marker::<PyNextElementShadowVariable>(py, &marker) {
                 if let Ok(shadow) = marker.cast::<PyNextElementShadowVariable>() {
                     let shadow_ref = shadow.borrow();
-                    shadow_annotations.push(ShadowAnnotation::NextElementShadowVariable {
-                        source_variable_name: shadow_ref.source_variable_name.clone(),
-                    });
+                    annotations.push(PlanningAnnotation::next_element_shadow(
+                        shadow_ref.source_variable_name.clone(),
+                    ));
                 }
             } else if is_annotation_marker::<PyCascadingUpdateShadowVariable>(py, &marker) {
                 if let Ok(shadow) = marker.cast::<PyCascadingUpdateShadowVariable>() {
                     let shadow_ref = shadow.borrow();
-                    shadow_annotations.push(ShadowAnnotation::CascadingUpdateShadowVariable {
-                        target_method_name: shadow_ref.target_method_name.clone(),
-                    });
+                    annotations.push(PlanningAnnotation::cascading_update_shadow(
+                        shadow_ref.target_method_name.clone(),
+                    ));
                 }
             }
         }
 
-        Ok((field_type, planning_annotations, shadow_annotations))
+        Ok((field_type, annotations))
     } else {
         // Not an Annotated type, just extract the field type
         let field_type = python_type_to_field_type(py, annotation)?;
-        Ok((field_type, vec![], vec![]))
+        Ok((field_type, vec![]))
     }
 }
 
@@ -811,7 +802,7 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningEntity)
             .with_field(
                 FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                    .with_planning_annotation(PlanningAnnotation::PlanningId),
+                    .with_annotation(PlanningAnnotation::PlanningId),
             );
 
         let py_dc = PyDomainClass::from_rust(dc);

@@ -1680,7 +1680,7 @@ mod tests {
                     .with_annotation(PlanningAnnotation::PlanningSolution)
                     .with_field(
                         FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                            .with_planning_annotation(PlanningAnnotation::planning_score()),
+                            .with_annotation(PlanningAnnotation::planning_score()),
                     ),
             )
             .build()

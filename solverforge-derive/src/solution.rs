@@ -253,7 +253,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
 
             if field.is_problem_fact_collection {
                 annotations.push(quote! {
-                    .with_planning_annotation(
+                    .with_annotation(
                         ::solverforge_core::domain::PlanningAnnotation::ProblemFactCollectionProperty
                     )
                 });
@@ -261,7 +261,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
 
             if field.is_planning_entity_collection {
                 annotations.push(quote! {
-                    .with_planning_annotation(
+                    .with_annotation(
                         ::solverforge_core::domain::PlanningAnnotation::PlanningEntityCollectionProperty
                     )
                 });
@@ -269,7 +269,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
 
             if let Some(id) = &field.value_range_provider_id {
                 annotations.push(quote! {
-                    .with_planning_annotation(
+                    .with_annotation(
                         ::solverforge_core::domain::PlanningAnnotation::value_range_provider_with_id(#id)
                     )
                 });
@@ -277,7 +277,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
 
             if field.is_planning_score {
                 annotations.push(quote! {
-                    .with_planning_annotation(
+                    .with_annotation(
                         ::solverforge_core::domain::PlanningAnnotation::planning_score()
                     )
                 });

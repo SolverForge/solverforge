@@ -632,7 +632,7 @@ mod tests {
     use pyo3::types::PyDict;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]

@@ -9,7 +9,7 @@ description = "Python bindings for SolverForge constraint solver"
 publish = false
 
 [lib]
-name = "solverforge"
+name = "_solverforge"
 # cdylib for Python extension, rlib for Rust tests
 crate-type = ["cdylib", "rlib"]
 
@@ -30,6 +30,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 log.workspace = true
+env_logger = "0.11"
 rust_decimal = "1.36"
 
 [dev-dependencies]

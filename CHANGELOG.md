@@ -2,6 +2,18 @@
 
 All notable changes to SolverForge will be documented in this file.
 
+## [0.2.6](///compare/v0.2.5...v0.2.6) (2025-12-18)
+
+
+### Features
+
+* **python:** add compose/conditionally collectors, fix Python 3.12+ lambda analysis 6413db0
+
+
+### Maintenance
+
+* update solverforge-wasm-service to 0.2.6 f876355
+
 ## [0.2.5](///compare/v0.2.4...v0.2.5) (2025-12-17)
 
 

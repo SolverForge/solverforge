@@ -244,6 +244,57 @@ impl PyConstraintCollectors {
         })
     }
 
+    /// Compose multiple collectors into a single result.
+    ///
+    /// # Arguments
+    /// * `collectors` - List of collectors to compose
+    /// * `combiner` - Lambda that combines the results into a single value
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.compose(
+    ///     [ConstraintCollectors.count(), ConstraintCollectors.sum(lambda x: x.value)],
+    ///     lambda count, total: total / count if count > 0 else 0
+    /// )
+    /// ```
+    #[staticmethod]
+    fn compose(
+        py: Python<'_>,
+        collectors: Vec<PyCollector>,
+        combiner: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let rust_collectors: Vec<Collector> = collectors.iter().map(|c| c.to_rust()).collect();
+        let combiner_info = LambdaInfo::new(py, combiner, "compose_combiner")?;
+        Ok(PyCollector {
+            inner: Collector::compose(rust_collectors, combiner_info.to_wasm_function()),
+        })
+    }
+
+    /// Apply a collector conditionally based on a predicate.
+    ///
+    /// # Arguments
+    /// * `predicate` - Lambda that returns true if the item should be collected
+    /// * `collector` - The collector to apply when predicate is true
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.conditionally(
+    ///     lambda shift: shift.is_overtime,
+    ///     ConstraintCollectors.count()
+    /// )
+    /// ```
+    #[staticmethod]
+    fn conditionally(
+        py: Python<'_>,
+        predicate: Py<PyAny>,
+        collector: PyCollector,
+    ) -> PyResult<PyCollector> {
+        let pred_info = LambdaInfo::new(py, predicate, "conditionally_pred")?;
+        Ok(PyCollector {
+            inner: Collector::conditionally(pred_info.to_wasm_function(), collector.to_rust()),
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "ConstraintCollectors()"
     }
@@ -352,7 +403,7 @@ mod tests {
     use pyo3::types::PyDict;
 
     fn init_python() {
-        pyo3::prepare_freethreaded_python();
+        pyo3::Python::initialize();
     }
 
     #[test]
@@ -377,7 +428,7 @@ mod tests {
     #[test]
     fn test_sum_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.hours", None, Some(&locals))
                 .unwrap();
@@ -392,7 +443,7 @@ mod tests {
     #[test]
     fn test_average_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda x: x.score", None, Some(&locals))
                 .unwrap();
@@ -421,7 +472,7 @@ mod tests {
     #[test]
     fn test_load_balance_collector() {
         init_python();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(c"f = lambda shift: shift.employee", None, Some(&locals))
                 .unwrap();
@@ -438,5 +489,43 @@ mod tests {
         let collector = PyConstraintCollectors::count();
         let repr = collector.__repr__();
         assert!(repr.contains("Count"));
+    }
+
+    #[test]
+    fn test_compose_collector() {
+        init_python();
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"combiner = lambda a, b: a + b", None, Some(&locals))
+                .unwrap();
+            let combiner = locals.get_item("combiner").unwrap().unwrap();
+
+            let collectors = vec![
+                PyConstraintCollectors::count(),
+                PyConstraintCollectors::count_distinct(),
+            ];
+
+            let collector =
+                PyConstraintCollectors::compose(py, collectors, combiner.unbind()).unwrap();
+            let rust_collector = collector.to_rust();
+            assert!(matches!(rust_collector, Collector::Compose { .. }));
+        });
+    }
+
+    #[test]
+    fn test_conditionally_collector() {
+        init_python();
+        Python::attach(|py| {
+            let locals = PyDict::new(py);
+            py.run(c"pred = lambda x: x.active", None, Some(&locals))
+                .unwrap();
+            let pred = locals.get_item("pred").unwrap().unwrap();
+
+            let inner = PyConstraintCollectors::count();
+            let collector =
+                PyConstraintCollectors::conditionally(py, pred.unbind(), inner).unwrap();
+            let rust_collector = collector.to_rust();
+            assert!(matches!(rust_collector, Collector::Conditionally { .. }));
+        });
     }
 }

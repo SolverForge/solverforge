@@ -215,6 +215,19 @@ pub enum Expression {
         accumulator_expr: Box<Expression>,
     },
 
+    /// Access the last element of a collection
+    ///
+    /// Used for post-loop terms in accumulation patterns where mutable tracking
+    /// variables need to reference the final element's value.
+    ///
+    /// # Fields
+    /// * `collection` - The collection expression (e.g., self.visits)
+    /// * `item_class_name` - The class name of items in the collection
+    LastElement {
+        collection: Box<Expression>,
+        item_class_name: String,
+    },
+
     // ===== Host Function Calls =====
     /// Call a host-provided function
     /// Example: hstringEquals(left, right)

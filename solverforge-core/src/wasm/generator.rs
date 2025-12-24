@@ -1339,6 +1339,66 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::End);
             }
 
+            // ===== Last Element of Collection =====
+            Expression::LastElement {
+                collection,
+                item_class_name: _,
+            } => {
+                // Compile collection expression to get the list pointer
+                self.compile_expression(
+                    func,
+                    collection,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+
+                // Stack: [list_ptr]
+                // List layout: [size:i32, capacity:i32, backing_array:i32]
+                // Last element is at backing_array[(size - 1) * 4]
+
+                let list_ptr_local = locals.alloc();
+                let backing_array_local = locals.alloc();
+                let size_local = locals.alloc();
+
+                // Store list pointer
+                func.instruction(&Instruction::LocalSet(list_ptr_local));
+
+                // Load size from list_ptr + 0
+                func.instruction(&Instruction::LocalGet(list_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0, // SIZE_OFFSET
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::LocalSet(size_local));
+
+                // Load backing_array from list_ptr + 8
+                func.instruction(&Instruction::LocalGet(list_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 8, // BACKING_ARRAY_OFFSET
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::LocalSet(backing_array_local));
+
+                // Load element at backing_array[(size - 1) * 4]
+                func.instruction(&Instruction::LocalGet(backing_array_local));
+                func.instruction(&Instruction::LocalGet(size_local));
+                func.instruction(&Instruction::I32Const(1));
+                func.instruction(&Instruction::I32Sub);
+                func.instruction(&Instruction::I32Const(4));
+                func.instruction(&Instruction::I32Mul);
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+                // Result: pointer to last element on stack
+            }
+
             // ===== Conditional =====
             Expression::IfThenElse {
                 condition,

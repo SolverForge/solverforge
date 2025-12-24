@@ -182,7 +182,7 @@ mod tests {
                     .with_annotation(PlanningAnnotation::PlanningSolution)
                     .with_field(
                         FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                            .with_planning_annotation(PlanningAnnotation::planning_score()),
+                            .with_annotation(PlanningAnnotation::planning_score()),
                     ),
             )
             .add_class(
@@ -190,13 +190,12 @@ mod tests {
                     .with_annotation(PlanningAnnotation::PlanningEntity)
                     .with_field(
                         FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                            .with_planning_annotation(PlanningAnnotation::PlanningId),
+                            .with_annotation(PlanningAnnotation::PlanningId),
                     )
                     .with_field(
-                        FieldDescriptor::new("room", FieldType::object("Room"))
-                            .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
-                                "rooms".to_string(),
-                            ])),
+                        FieldDescriptor::new("room", FieldType::object("Room")).with_annotation(
+                            PlanningAnnotation::planning_variable(vec!["rooms".to_string()]),
+                        ),
                     ),
             )
             .build()

@@ -40,7 +40,7 @@ impl DomainModel {
     }
 
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
-        use crate::domain::{PlanningAnnotation, ShadowAnnotation};
+        use crate::domain::PlanningAnnotation;
         use crate::solver::{DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor};
 
         let mut result = indexmap::IndexMap::new();
@@ -62,7 +62,7 @@ impl DomainModel {
                     // - PlanningListVariable: solver modifies lists
                     // - ProblemFactCollectionProperty: solution class collections
                     // - PlanningEntityCollectionProperty: solution class entity collections
-                    let setter = if field.planning_annotations.iter().any(|a| {
+                    let setter = if field.annotations.iter().any(|a| {
                         matches!(
                             a,
                             PlanningAnnotation::PlanningVariable { .. }
@@ -84,28 +84,12 @@ impl DomainModel {
                     DomainAccessor::new(getter)
                 };
 
-                // Clone field annotations directly (no conversion needed - unified type)
-                let mut annotations: Vec<PlanningAnnotation> = field.planning_annotations.to_vec();
-
-                // Add shadow annotations
-                for ann in &field.shadow_annotations {
-                    if let ShadowAnnotation::InverseRelationShadowVariable {
-                        source_variable_name,
-                    } = ann
-                    {
-                        annotations.push(PlanningAnnotation::InverseRelationShadowVariable {
-                            source_variable_name: source_variable_name.clone(),
-                        });
-                    }
-                    // Other shadow variables not yet supported
-                }
-
                 // Derive field type from domain type
                 let field_type = field.field_type.to_type_string();
 
                 let field_descriptor = FieldDescriptor::new(field_type)
                     .with_accessor(accessor)
-                    .with_annotations(annotations);
+                    .with_annotations(field.annotations.clone());
 
                 dto = dto.with_field(&field.name, field_descriptor);
             }
@@ -266,10 +250,10 @@ mod tests {
                     "id",
                     FieldType::Primitive(crate::domain::PrimitiveType::String),
                 )
-                .with_planning_annotation(PlanningAnnotation::PlanningId),
+                .with_annotation(PlanningAnnotation::PlanningId),
             )
             .with_field(
-                FieldDescriptor::new("room", FieldType::object("Room")).with_planning_annotation(
+                FieldDescriptor::new("room", FieldType::object("Room")).with_annotation(
                     PlanningAnnotation::planning_variable(vec!["rooms".to_string()]),
                 ),
             )
@@ -280,17 +264,15 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningSolution)
             .with_field(
                 FieldDescriptor::new("lessons", FieldType::list(FieldType::object("Lesson")))
-                    .with_planning_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
+                    .with_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
             )
             .with_field(
                 FieldDescriptor::new("rooms", FieldType::list(FieldType::object("Room")))
-                    .with_planning_annotation(PlanningAnnotation::value_range_provider_with_id(
-                        "rooms",
-                    )),
+                    .with_annotation(PlanningAnnotation::value_range_provider_with_id("rooms")),
             )
             .with_field(
                 FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                    .with_planning_annotation(PlanningAnnotation::planning_score()),
+                    .with_annotation(PlanningAnnotation::planning_score()),
             )
     }
 
@@ -390,7 +372,7 @@ mod tests {
                     "id",
                     FieldType::Primitive(crate::domain::PrimitiveType::String),
                 )
-                .with_planning_annotation(PlanningAnnotation::PlanningId),
+                .with_annotation(PlanningAnnotation::PlanningId),
             );
 
         let model = DomainModel::builder()

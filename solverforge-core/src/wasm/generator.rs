@@ -1036,6 +1036,121 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::I32DivS);
             }
 
+            // ===== Math Functions =====
+            Expression::Sqrt { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Sqrt);
+            }
+            Expression::FloatAbs { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Abs);
+            }
+            Expression::Round { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Nearest);
+            }
+            Expression::Floor { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Floor);
+            }
+            Expression::Ceil { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Ceil);
+            }
+            Expression::Sin { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx =
+                    self.host_function_indices
+                        .get("hsin")
+                        .copied()
+                        .ok_or_else(|| {
+                            SolverForgeError::WasmGeneration(
+                                "hsin host function not found".to_string(),
+                            )
+                        })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Cos { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx =
+                    self.host_function_indices
+                        .get("hcos")
+                        .copied()
+                        .ok_or_else(|| {
+                            SolverForgeError::WasmGeneration(
+                                "hcos host function not found".to_string(),
+                            )
+                        })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Asin { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hasin")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hasin host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Acos { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hacos")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hacos host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Atan { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hatan")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hatan host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Atan2 { y, x } => {
+                self.compile_expression(func, y, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, x, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hatan2")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hatan2 host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Radians { operand } => {
+                // radians = degrees * PI / 180
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Const(std::f64::consts::PI / 180.0));
+                func.instruction(&Instruction::F64Mul);
+            }
+            Expression::IntToFloat { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64ConvertI32S);
+            }
+            Expression::FloatToInt { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I32TruncF64S);
+            }
+
             // ===== List Operations =====
             Expression::ListContains { list, element } => {
                 // Use host function for list containment - simpler than inline loop
@@ -1222,6 +1337,66 @@ impl WasmModuleBuilder {
 
                 // End outer block - result is now on stack
                 func.instruction(&Instruction::End);
+            }
+
+            // ===== Last Element of Collection =====
+            Expression::LastElement {
+                collection,
+                item_class_name: _,
+            } => {
+                // Compile collection expression to get the list pointer
+                self.compile_expression(
+                    func,
+                    collection,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+
+                // Stack: [list_ptr]
+                // List layout: [size:i32, capacity:i32, backing_array:i32]
+                // Last element is at backing_array[(size - 1) * 4]
+
+                let list_ptr_local = locals.alloc();
+                let backing_array_local = locals.alloc();
+                let size_local = locals.alloc();
+
+                // Store list pointer
+                func.instruction(&Instruction::LocalSet(list_ptr_local));
+
+                // Load size from list_ptr + 0
+                func.instruction(&Instruction::LocalGet(list_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0, // SIZE_OFFSET
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::LocalSet(size_local));
+
+                // Load backing_array from list_ptr + 8
+                func.instruction(&Instruction::LocalGet(list_ptr_local));
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 8, // BACKING_ARRAY_OFFSET
+                    align: 2,
+                    memory_index: 0,
+                }));
+                func.instruction(&Instruction::LocalSet(backing_array_local));
+
+                // Load element at backing_array[(size - 1) * 4]
+                func.instruction(&Instruction::LocalGet(backing_array_local));
+                func.instruction(&Instruction::LocalGet(size_local));
+                func.instruction(&Instruction::I32Const(1));
+                func.instruction(&Instruction::I32Sub);
+                func.instruction(&Instruction::I32Const(4));
+                func.instruction(&Instruction::I32Mul);
+                func.instruction(&Instruction::I32Add);
+                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
+                    offset: 0,
+                    align: 2,
+                    memory_index: 0,
+                }));
+                // Result: pointer to last element on stack
             }
 
             // ===== Conditional =====
@@ -1505,7 +1680,7 @@ mod tests {
                     .with_annotation(PlanningAnnotation::PlanningSolution)
                     .with_field(
                         FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                            .with_planning_annotation(PlanningAnnotation::planning_score()),
+                            .with_annotation(PlanningAnnotation::planning_score()),
                     ),
             )
             .build()

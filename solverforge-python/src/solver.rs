@@ -25,7 +25,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 use solverforge_core::constraints::ConstraintSet;
-use solverforge_core::domain::{DomainModel, DomainModelBuilder};
+use solverforge_core::domain::{DomainModel, DomainModelBuilder, PlanningAnnotation};
 use solverforge_core::solver::{
     DiminishedReturnsConfig, EnvironmentMode, MoveThreadCount, ScoreDto, SolveHandle,
     SolveResponse, SolveState, SolveStatus, SolverConfig, SolverFactory, SolverService,
@@ -791,6 +791,57 @@ impl PySolverFactory {
         for lambda in &predicates {
             let predicate_def = lambda_to_predicate(lambda);
             wasm_builder = wasm_builder.add_predicate(predicate_def);
+        }
+
+        // Add update methods for CascadingUpdateShadowVariable fields
+        for entity_cls in config.entity_class_objs() {
+            let entity_bound = entity_cls.bind(py);
+            let class_name = entity_bound.name()?.to_string();
+
+            // Find CascadingUpdateShadowVariable annotations in domain model
+            if let Some(domain_class) = domain_model.classes.get(&class_name) {
+                for field in &domain_class.fields {
+                    for annotation in &field.annotations {
+                        if let PlanningAnnotation::CascadingUpdateShadowVariable {
+                            target_method_name,
+                        } = annotation
+                        {
+                            // Get the method from the Python class
+                            if let Some(method) = crate::lambda_analyzer::get_method_from_class(
+                                py,
+                                &class_name,
+                                target_method_name,
+                            ) {
+                                // Analyze the method body
+                                match crate::lambda_analyzer::analyze_method_body(
+                                    py,
+                                    &method,
+                                    &class_name,
+                                ) {
+                                    Ok(expr) => {
+                                        // Create predicate with function name ClassName_methodName
+                                        let func_name =
+                                            format!("{}_{}", class_name, target_method_name);
+                                        let predicate_def = PredicateDefinition::from_expression(
+                                            func_name, 1, // takes self pointer
+                                            expr,
+                                        );
+                                        wasm_builder = wasm_builder.add_predicate(predicate_def);
+                                    }
+                                    Err(e) => {
+                                        log::warn!(
+                                            "Failed to analyze update method {}.{}: {}",
+                                            class_name,
+                                            target_method_name,
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         let wasm_module = wasm_builder.build_base64().map_err(|e| {

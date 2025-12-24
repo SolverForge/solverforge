@@ -1036,6 +1036,121 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::I32DivS);
             }
 
+            // ===== Math Functions =====
+            Expression::Sqrt { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Sqrt);
+            }
+            Expression::FloatAbs { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Abs);
+            }
+            Expression::Round { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Nearest);
+            }
+            Expression::Floor { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Floor);
+            }
+            Expression::Ceil { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Ceil);
+            }
+            Expression::Sin { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx =
+                    self.host_function_indices
+                        .get("hsin")
+                        .copied()
+                        .ok_or_else(|| {
+                            SolverForgeError::WasmGeneration(
+                                "hsin host function not found".to_string(),
+                            )
+                        })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Cos { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx =
+                    self.host_function_indices
+                        .get("hcos")
+                        .copied()
+                        .ok_or_else(|| {
+                            SolverForgeError::WasmGeneration(
+                                "hcos host function not found".to_string(),
+                            )
+                        })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Asin { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hasin")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hasin host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Acos { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hacos")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hacos host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Atan { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hatan")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hatan host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Atan2 { y, x } => {
+                self.compile_expression(func, y, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, x, model, remap_from, remap_to_local, locals)?;
+                let func_idx = self
+                    .host_function_indices
+                    .get("hatan2")
+                    .copied()
+                    .ok_or_else(|| {
+                        SolverForgeError::WasmGeneration(
+                            "hatan2 host function not found".to_string(),
+                        )
+                    })?;
+                func.instruction(&Instruction::Call(func_idx));
+            }
+            Expression::Radians { operand } => {
+                // radians = degrees * PI / 180
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64Const(std::f64::consts::PI / 180.0));
+                func.instruction(&Instruction::F64Mul);
+            }
+            Expression::IntToFloat { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::F64ConvertI32S);
+            }
+            Expression::FloatToInt { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I32TruncF64S);
+            }
+
             // ===== List Operations =====
             Expression::ListContains { list, element } => {
                 // Use host function for list containment - simpler than inline loop

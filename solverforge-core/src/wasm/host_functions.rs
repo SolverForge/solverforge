@@ -122,6 +122,38 @@ impl HostFunctionRegistry {
             WasmType::I32,
         ));
 
+        // Trigonometric functions (f64 -> f64)
+        registry.register(HostFunctionDef::new(
+            "hsin",
+            vec![WasmType::F64],
+            WasmType::F64,
+        ));
+        registry.register(HostFunctionDef::new(
+            "hcos",
+            vec![WasmType::F64],
+            WasmType::F64,
+        ));
+        registry.register(HostFunctionDef::new(
+            "hasin",
+            vec![WasmType::F64],
+            WasmType::F64,
+        ));
+        registry.register(HostFunctionDef::new(
+            "hacos",
+            vec![WasmType::F64],
+            WasmType::F64,
+        ));
+        registry.register(HostFunctionDef::new(
+            "hatan",
+            vec![WasmType::F64],
+            WasmType::F64,
+        ));
+        registry.register(HostFunctionDef::new(
+            "hatan2",
+            vec![WasmType::F64, WasmType::F64],
+            WasmType::F64,
+        ));
+
         // Pre-computed method lookup
         // These functions look up pre-computed values for methods that couldn't be inlined.
         // The method_id is a hash of "ClassName.method_name".

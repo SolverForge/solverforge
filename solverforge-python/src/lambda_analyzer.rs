@@ -432,6 +432,51 @@ pub fn substitute_param(expr: Expression, from_index: u32, substitute: &Expressi
             right: Box::new(substitute_param(*right, from_index, substitute)),
         },
 
+        // Math functions
+        Expression::Sqrt { operand } => Expression::Sqrt {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::FloatAbs { operand } => Expression::FloatAbs {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Round { operand } => Expression::Round {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Floor { operand } => Expression::Floor {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Ceil { operand } => Expression::Ceil {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Sin { operand } => Expression::Sin {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Cos { operand } => Expression::Cos {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Asin { operand } => Expression::Asin {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Acos { operand } => Expression::Acos {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Atan { operand } => Expression::Atan {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::Atan2 { y, x } => Expression::Atan2 {
+            y: Box::new(substitute_param(*y, from_index, substitute)),
+            x: Box::new(substitute_param(*x, from_index, substitute)),
+        },
+        Expression::Radians { operand } => Expression::Radians {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::IntToFloat { operand } => Expression::IntToFloat {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+        Expression::FloatToInt { operand } => Expression::FloatToInt {
+            operand: Box::new(substitute_param(*operand, from_index, substitute)),
+        },
+
         Expression::And { left, right } => Expression::And {
             left: Box::new(substitute_param(*left, from_index, substitute)),
             right: Box::new(substitute_param(*right, from_index, substitute)),
@@ -2665,15 +2710,78 @@ fn convert_ast_to_expression(
         }
 
         "Call" => {
-            // Method call: obj.method() or function()
+            // Method call: obj.method() or function() or module.function()
             let func = node.getattr("func")?;
             let func_type = func.get_type().name()?.to_string();
 
             if func_type == "Attribute" {
-                // Method call: obj.method()
                 let value = func.getattr("value")?;
                 let method_name: String = func.getattr("attr")?.extract()?;
+                let value_type = value.get_type().name()?.to_string();
 
+                // Check if this is a module-level call like math.sin()
+                if value_type == "Name" {
+                    let module_name: String = value.getattr("id")?.extract()?;
+                    if module_name == "math" {
+                        // Handle math module functions
+                        let args_node = node.getattr("args")?;
+                        let args_list = args_node.cast::<PyList>()?;
+
+                        let mut call_args = Vec::new();
+                        for arg in args_list.iter() {
+                            if let Some(arg_expr) =
+                                convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                            {
+                                call_args.push(arg_expr);
+                            } else {
+                                return Ok(None);
+                            }
+                        }
+
+                        return match method_name.as_str() {
+                            "sin" if call_args.len() == 1 => Ok(Some(Expression::Sin {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "cos" if call_args.len() == 1 => Ok(Some(Expression::Cos {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "sqrt" if call_args.len() == 1 => Ok(Some(Expression::Sqrt {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "asin" if call_args.len() == 1 => Ok(Some(Expression::Asin {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "acos" if call_args.len() == 1 => Ok(Some(Expression::Acos {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "atan" if call_args.len() == 1 => Ok(Some(Expression::Atan {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "atan2" if call_args.len() == 2 => Ok(Some(Expression::Atan2 {
+                                y: Box::new(call_args[0].clone()),
+                                x: Box::new(call_args[1].clone()),
+                            })),
+                            "radians" if call_args.len() == 1 => Ok(Some(Expression::Radians {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "floor" if call_args.len() == 1 => Ok(Some(Expression::Floor {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "ceil" if call_args.len() == 1 => Ok(Some(Expression::Ceil {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            "fabs" if call_args.len() == 1 => Ok(Some(Expression::FloatAbs {
+                                operand: Box::new(call_args[0].clone()),
+                            })),
+                            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                                "Unsupported math function: math.{}()",
+                                method_name
+                            ))),
+                        };
+                    }
+                }
+
+                // Method call: obj.method()
                 // Get the object expression
                 if let Some(obj_expr) =
                     convert_ast_to_expression(py, &value, arg_names, class_hint)?
@@ -2835,6 +2943,30 @@ fn convert_ast_to_expression(
                         if call_args.len() == 1 {
                             return Ok(Some(Expression::Length {
                                 collection: Box::new(call_args[0].clone()),
+                            }));
+                        }
+                    }
+                    "round" => {
+                        // round(x) -> Round expression (WASM f64.nearest)
+                        if call_args.len() == 1 {
+                            return Ok(Some(Expression::Round {
+                                operand: Box::new(call_args[0].clone()),
+                            }));
+                        }
+                    }
+                    "int" => {
+                        // int(x) -> FloatToInt for float values
+                        if call_args.len() == 1 {
+                            return Ok(Some(Expression::FloatToInt {
+                                operand: Box::new(call_args[0].clone()),
+                            }));
+                        }
+                    }
+                    "float" => {
+                        // float(x) -> IntToFloat for int values
+                        if call_args.len() == 1 {
+                            return Ok(Some(Expression::IntToFloat {
+                                operand: Box::new(call_args[0].clone()),
                             }));
                         }
                     }

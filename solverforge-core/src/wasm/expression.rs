@@ -136,6 +136,52 @@ pub enum Expression {
         right: Box<Expression>,
     },
 
+    // ===== Math Functions =====
+    /// Square root (WASM f64.sqrt intrinsic)
+    Sqrt { operand: Box<Expression> },
+
+    /// Absolute value for floats (WASM f64.abs intrinsic)
+    FloatAbs { operand: Box<Expression> },
+
+    /// Round to nearest integer (WASM f64.nearest intrinsic)
+    Round { operand: Box<Expression> },
+
+    /// Floor (WASM f64.floor intrinsic)
+    Floor { operand: Box<Expression> },
+
+    /// Ceiling (WASM f64.ceil intrinsic)
+    Ceil { operand: Box<Expression> },
+
+    /// Sine (host call)
+    Sin { operand: Box<Expression> },
+
+    /// Cosine (host call)
+    Cos { operand: Box<Expression> },
+
+    /// Arc sine (host call)
+    Asin { operand: Box<Expression> },
+
+    /// Arc cosine (host call)
+    Acos { operand: Box<Expression> },
+
+    /// Arc tangent (host call)
+    Atan { operand: Box<Expression> },
+
+    /// Arc tangent of y/x (host call)
+    Atan2 {
+        y: Box<Expression>,
+        x: Box<Expression>,
+    },
+
+    /// Convert degrees to radians
+    Radians { operand: Box<Expression> },
+
+    /// Convert int to float
+    IntToFloat { operand: Box<Expression> },
+
+    /// Convert float to int (truncating)
+    FloatToInt { operand: Box<Expression> },
+
     // ===== List Operations =====
     /// Check if a list contains an element
     /// Example: list.contains(element)

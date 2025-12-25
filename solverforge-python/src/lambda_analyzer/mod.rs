@@ -20,13 +20,11 @@
 //! factory.for_each("Lesson").filter(lambda l: l.room is not None)
 //! ```
 
-mod bytecode;
 mod registry;
 #[cfg(test)]
 mod tests;
 mod type_inference;
 
-use bytecode::{bytecode_value_to_expression, BytecodeValue};
 use registry::CLASS_REGISTRY;
 pub use registry::{get_method_from_class, register_class};
 use type_inference::{
@@ -144,22 +142,14 @@ pub fn analyze_method_body(
 ) -> PyResult<Expression> {
     let param_count = get_param_count(py, method)?;
 
-    // Try source analysis first, fall back to bytecode
     let inspect = py.import("inspect")?;
-    let source_result = inspect.call_method1("getsource", (method,));
-
-    match source_result {
-        Ok(source) => {
-            let source_str: String = source.extract()?;
-            // Methods have their body after "def method_name(self, ...):"
-            // We need to extract and analyze the return expression
-            analyze_method_source(py, &source_str, method, param_count, class_hint)
-        }
-        Err(_) => {
-            // Source unavailable, use bytecode analysis instead
-            analyze_lambda_bytecode(py, method, param_count, class_hint)
-        }
-    }
+    let source = inspect.call_method1("getsource", (method,)).map_err(|_| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Cannot analyze method: source code unavailable. Methods must be defined in source files.",
+        )
+    })?;
+    let source_str: String = source.extract()?;
+    analyze_method_source(py, &source_str, method, param_count, class_hint)
 }
 
 /// Analyze method from source code.
@@ -168,8 +158,8 @@ pub fn analyze_method_body(
 fn analyze_method_source(
     py: Python<'_>,
     source: &str,
-    method: &Py<PyAny>,
-    param_count: usize,
+    _method: &Py<PyAny>,
+    _param_count: usize,
     class_hint: &str,
 ) -> PyResult<Expression> {
     let ast = py.import("ast")?;
@@ -179,19 +169,16 @@ fn analyze_method_source(
     let textwrap = py.import("textwrap")?;
     let dedented: String = textwrap.call_method1("dedent", (source,))?.extract()?;
 
-    let parse_result = ast.call_method1("parse", (&dedented,));
-
-    let tree = match parse_result {
-        Ok(t) => t,
-        Err(_) => {
-            // If parsing fails, try bytecode analysis
-            return analyze_lambda_bytecode(py, method, param_count, class_hint);
-        }
-    };
+    let tree = ast.call_method1("parse", (&dedented,)).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Cannot parse method source: {}",
+            e
+        ))
+    })?;
 
     // Find the FunctionDef node and extract its return expression
     let body = tree.getattr("body")?;
-    extract_method_return_expression(py, &body, param_count, class_hint)
+    extract_method_return_expression(py, &body, _param_count, class_hint)
 }
 
 /// Extract the return expression from a method's AST.
@@ -331,427 +318,19 @@ fn analyze_lambda(
 ) -> PyResult<Expression> {
     let inspect = py.import("inspect")?;
 
-    // Try to get the source code
-    let source_result = inspect.call_method1("getsource", (callable,));
-
-    match source_result {
-        Ok(source) => {
-            let source_str: String = source.extract()?;
-            analyze_lambda_source(py, &source_str, callable, param_count, class_hint)
-        }
-        Err(_) => {
-            // Can't get source - try bytecode analysis as fallback
-            analyze_lambda_bytecode(py, callable, param_count, class_hint)
-        }
-    }
-}
-
-/// Attempt to inline a method call in bytecode analysis.
-///
-/// Given an object (stack value) and method name, tries to:
-/// 1. Look up the method from the class registry
-/// 2. Analyze the method body
-/// 3. Substitute parameters and return inlined expression
-///
-/// If inlining fails but we can convert the object and args to expressions,
-/// returns a MethodCall expression that will be resolved via pre-computed lookup.
-///
-/// Returns Some(Expression) on success (inlined or MethodCall), None on failure.
-fn try_inline_method_from_bytecode(
-    py: Python<'_>,
-    object: &BytecodeValue,
-    method_name: &str,
-    args: &[BytecodeValue],
-    class_name: &str,
-) -> Option<Expression> {
-    // Try to look up the method and inline it
-    if let Some(method) = get_method_from_class(py, class_name, method_name) {
-        // Try to analyze the method body
-        if let Ok(method_body) = analyze_method_body(py, &method, class_name) {
-            // Convert object to expression
-            if let Ok(object_expr) = bytecode_value_to_expression(object.clone()) {
-                let mut inlined = method_body;
-
-                // Substitute self (Param(0))
-                inlined = substitute_param(inlined, 0, &object_expr);
-
-                // Substitute other parameters
-                for (i, arg) in args.iter().enumerate() {
-                    if let Ok(arg_expr) = bytecode_value_to_expression(arg.clone()) {
-                        inlined = substitute_param(inlined, (i + 1) as u32, &arg_expr);
-                    }
-                }
-
-                return Some(inlined);
-            }
-        }
-    }
-
-    // Method not found or inlining failed - return None
-    // The caller will return an appropriate error message
-    None
-}
-
-/// Analyze lambda from bytecode when source code is unavailable.
-///
-/// This uses Python's dis module to disassemble the lambda's code object
-/// and reconstruct an Expression tree from the bytecode instructions.
-fn analyze_lambda_bytecode(
-    py: Python<'_>,
-    callable: &Py<PyAny>,
-    _param_count: usize,
-    class_hint: &str,
-) -> PyResult<Expression> {
-    let callable_bound = callable.bind(py);
-
-    // Use dis module to get instructions - argval contains the resolved values
-    let dis = py.import("dis")?;
-    let get_instructions = dis.getattr("get_instructions")?;
-    let instructions_iter = get_instructions.call1((callable_bound,))?;
-    let instructions_list: Vec<Bound<'_, PyAny>> = instructions_iter
-        .try_iter()?
-        .collect::<Result<Vec<_>, _>>()?;
-
-    // Stack-based evaluation
-    let mut stack: Vec<BytecodeValue> = Vec::new();
-    let class_name = class_hint.to_string();
-
-    for instr in instructions_list.iter() {
-        let opname: String = instr.getattr("opname")?.extract()?;
-        let argval = instr.getattr("argval")?;
-
-        match opname.as_str() {
-            "RESUME" | "PRECALL" | "PUSH_NULL" | "COPY_FREE_VARS" | "CACHE" => {
-                // Skip these opcodes
-            }
-            "LOAD_FAST" | "LOAD_FAST_CHECK" | "LOAD_FAST_AND_CLEAR" => {
-                // Load a local variable (parameter) - argval is the variable name
-                // We need to find the parameter index
-                let var_name: String = argval.extract()?;
-                let code = callable_bound.getattr("__code__")?;
-                let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
-                if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
-                    stack.push(BytecodeValue::Param(idx as u32));
-                } else {
-                    // Variable not in varnames - could be a closure variable
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                        "Cannot analyze lambda: unknown variable '{}'. Lambda parameters must be used directly.",
-                        var_name
-                    )));
-                }
-            }
-            "LOAD_FAST_LOAD_FAST" => {
-                // Python 3.12+ optimization: loads two variables at once
-                // argval is a tuple of two variable names like ('a', 'b')
-                let var_names: Vec<String> = argval.extract()?;
-                let code = callable_bound.getattr("__code__")?;
-                let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
-                for var_name in var_names {
-                    if let Some(idx) = varnames.iter().position(|n| n == &var_name) {
-                        stack.push(BytecodeValue::Param(idx as u32));
-                    } else {
-                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                            "Cannot analyze lambda: unknown variable '{}'. Lambda parameters must be used directly.",
-                            var_name
-                        )));
-                    }
-                }
-            }
-            "LOAD_ATTR" => {
-                // Field/method access - argval is the attribute name directly
-                // In Python 3.11+, LOAD_ATTR handles both fields and methods:
-                // - arg & 1 == 0: field access
-                // - arg & 1 == 1: method load (pushes NULL for CALL)
-                let attr_name: String = argval.extract()?;
-                let arg: i32 = instr.getattr("arg")?.extract().unwrap_or(0);
-                let is_method_load = (arg & 1) == 1;
-
-                if let Some(obj) = stack.pop() {
-                    if is_method_load {
-                        // Method reference - mark for potential inlining at CALL time
-                        stack.push(BytecodeValue::MethodRef {
-                            object: Box::new(obj),
-                            method_name: attr_name,
-                        });
-                    } else {
-                        // Regular field access
-                        stack.push(BytecodeValue::FieldAccess {
-                            object: Box::new(obj),
-                            class_name: class_name.clone(),
-                            field_name: attr_name,
-                        });
-                    }
-                }
-            }
-            "LOAD_METHOD" => {
-                // Method reference - mark it for potential inlining at CALL time
-                let method_name: String = argval.extract()?;
-                if let Some(obj) = stack.pop() {
-                    stack.push(BytecodeValue::MethodRef {
-                        object: Box::new(obj),
-                        method_name,
-                    });
-                }
-            }
-            "LOAD_CONST" => {
-                // Load a constant - argval is the constant value directly
-                if argval.is_none() {
-                    stack.push(BytecodeValue::Null);
-                } else if let Ok(b) = argval.extract::<bool>() {
-                    stack.push(BytecodeValue::Bool(b));
-                } else if let Ok(i) = argval.extract::<i64>() {
-                    stack.push(BytecodeValue::Int(i));
-                } else if let Ok(s) = argval.extract::<String>() {
-                    stack.push(BytecodeValue::String(s));
-                } else if let Ok(f) = argval.extract::<f64>() {
-                    stack.push(BytecodeValue::Float(f));
-                }
-            }
-            "COMPARE_OP" => {
-                // Comparison - argval is the operator string (e.g., ">", "==", "!=")
-                let op_str: String = argval.extract()?;
-                if stack.len() >= 2 {
-                    let right = stack.pop().unwrap();
-                    let left = stack.pop().unwrap();
-                    let result = match op_str.as_str() {
-                        "<" => BytecodeValue::Lt(Box::new(left), Box::new(right)),
-                        "<=" => BytecodeValue::Le(Box::new(left), Box::new(right)),
-                        "==" => BytecodeValue::Eq(Box::new(left), Box::new(right)),
-                        "!=" => BytecodeValue::Ne(Box::new(left), Box::new(right)),
-                        ">" => BytecodeValue::Gt(Box::new(left), Box::new(right)),
-                        ">=" => BytecodeValue::Ge(Box::new(left), Box::new(right)),
-                        _ => continue,
-                    };
-                    stack.push(result);
-                }
-            }
-            "IS_OP" => {
-                // is / is not operator - argval is 0 for 'is', 1 for 'is not'
-                let invert: i32 = argval.extract()?;
-                if stack.len() >= 2 {
-                    let right = stack.pop().unwrap();
-                    let left = stack.pop().unwrap();
-                    let result = if matches!(right, BytecodeValue::Null) {
-                        if invert == 0 {
-                            BytecodeValue::IsNull(Box::new(left))
-                        } else {
-                            BytecodeValue::IsNotNull(Box::new(left))
-                        }
-                    } else if invert == 0 {
-                        BytecodeValue::Eq(Box::new(left), Box::new(right))
-                    } else {
-                        BytecodeValue::Ne(Box::new(left), Box::new(right))
-                    };
-                    stack.push(result);
-                }
-            }
-            "BINARY_OP" => {
-                // Binary arithmetic - argval is the operator index
-                let op_idx: i32 = argval.extract()?;
-                if stack.len() >= 2 {
-                    let right = stack.pop().unwrap();
-                    let left = stack.pop().unwrap();
-                    let result = match op_idx {
-                        0 => BytecodeValue::Add(Box::new(left), Box::new(right)), // +
-                        10 => BytecodeValue::Sub(Box::new(left), Box::new(right)), // -
-                        5 => BytecodeValue::Mul(Box::new(left), Box::new(right)), // *
-                        11 => BytecodeValue::Div(Box::new(left), Box::new(right)), // /
-                        _ => continue,
-                    };
-                    stack.push(result);
-                }
-            }
-            "UNARY_NOT" => {
-                // not operator
-                if let Some(operand) = stack.pop() {
-                    stack.push(BytecodeValue::Not(Box::new(operand)));
-                }
-            }
-            "CALL_METHOD" => {
-                // Python 3.10 and earlier: Call a method that was loaded with LOAD_METHOD
-                // argval is the number of arguments
-                let arg_count: i32 = argval.extract()?;
-                if stack.len() >= (arg_count + 1) as usize {
-                    let mut args = Vec::new();
-                    for _ in 0..arg_count {
-                        if let Some(arg) = stack.pop() {
-                            args.insert(0, arg);
-                        }
-                    }
-
-                    if let Some(method_ref) = stack.pop() {
-                        if let BytecodeValue::MethodRef {
-                            object,
-                            method_name,
-                        } = method_ref
-                        {
-                            // Try to inline the method
-                            if let Some(inlined) = try_inline_method_from_bytecode(
-                                py,
-                                &object,
-                                &method_name,
-                                &args,
-                                &class_name,
-                            ) {
-                                stack.push(BytecodeValue::InlinedExpression(Box::new(inlined)));
-                            } else {
-                                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                                    format!(
-                                        "Cannot inline method {}.{}()",
-                                        class_name, method_name
-                                    ),
-                                ));
-                            }
-                        } else {
-                            stack.push(method_ref);
-                        }
-                    }
-                }
-            }
-            "CALL" => {
-                // Python 3.11+: Call function - argval is argument count
-                // When calling a method ref, it will be preceded by the method and object on stack
-                let arg_count: i32 = argval.extract()?;
-                if stack.len() >= (arg_count + 1) as usize {
-                    let mut args = Vec::new();
-                    for _ in 0..arg_count {
-                        if let Some(arg) = stack.pop() {
-                            args.insert(0, arg);
-                        }
-                    }
-
-                    if let Some(func_or_ref) = stack.pop() {
-                        if let BytecodeValue::MethodRef {
-                            object,
-                            method_name,
-                        } = func_or_ref
-                        {
-                            // Try to inline the method
-                            if let Some(inlined) = try_inline_method_from_bytecode(
-                                py,
-                                &object,
-                                &method_name,
-                                &args,
-                                &class_name,
-                            ) {
-                                stack.push(BytecodeValue::InlinedExpression(Box::new(inlined)));
-                            } else {
-                                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                                    format!(
-                                        "Cannot inline method {}.{}()",
-                                        class_name, method_name
-                                    ),
-                                ));
-                            }
-                        } else {
-                            stack.push(func_or_ref);
-                        }
-                    }
-                }
-            }
-            "RETURN_VALUE" | "RETURN_CONST" => {
-                // End of function - stack top is our result
-                break;
-            }
-            // Short-circuit boolean operators (and/or)
-            // Pattern: expr COPY TO_BOOL POP_JUMP_IF_xxx POP_TOP expr2 RETURN
-            "COPY" => {
-                // Duplicate top of stack for short-circuit evaluation
-                if let Some(top) = stack.last().cloned() {
-                    stack.push(top);
-                }
-            }
-            "TO_BOOL" => {
-                // TO_BOOL converts top to bool for jump decision
-                // In our analysis, we just leave the original value - it's for control flow
-                // Don't modify stack
-            }
-            "POP_TOP" => {
-                // Pop and discard - but don't pop PendingAnd/PendingOr markers
-                if let Some(top) = stack.last() {
-                    if !matches!(
-                        top,
-                        BytecodeValue::PendingAnd(_) | BytecodeValue::PendingOr(_)
-                    ) {
-                        stack.pop();
-                    }
-                }
-            }
-            "POP_JUMP_IF_FALSE" => {
-                // This is part of AND short-circuit: if false, jump to end
-                // At this point we have: [original, copy_for_bool_check]
-                // We pop both (one for TO_BOOL decision, one to mark as AND)
-                // Then push PendingAnd with the original value
-                if stack.len() >= 2 {
-                    stack.pop(); // Pop the bool-check copy
-                    if let Some(left) = stack.pop() {
-                        stack.push(BytecodeValue::PendingAnd(Box::new(left)));
-                    }
-                } else if let Some(left) = stack.pop() {
-                    stack.push(BytecodeValue::PendingAnd(Box::new(left)));
-                }
-            }
-            "POP_JUMP_IF_TRUE" => {
-                // This is part of OR short-circuit: if true, jump to end
-                if stack.len() >= 2 {
-                    stack.pop(); // Pop the bool-check copy
-                    if let Some(left) = stack.pop() {
-                        stack.push(BytecodeValue::PendingOr(Box::new(left)));
-                    }
-                } else if let Some(left) = stack.pop() {
-                    stack.push(BytecodeValue::PendingOr(Box::new(left)));
-                }
-            }
-            // Reject unsupported opcodes that reference external state
-            "LOAD_GLOBAL" | "LOAD_DEREF" | "LOAD_CLOSURE" | "LOAD_NAME" => {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                    "Cannot analyze lambda: references external variable. \
-                     Use only lambda parameters and literals. Found opcode: {}",
-                    opname
-                )));
-            }
-            _ => {
-                // Unknown opcode - may cause issues
-            }
-        }
-    }
-
-    // Check for pending AND/OR that need to be completed
-    // If we have PendingAnd/PendingOr followed by a value, combine them
-    if stack.len() >= 2 {
-        let right = stack.pop().unwrap();
-        let pending = stack.pop().unwrap();
-        match pending {
-            BytecodeValue::PendingAnd(left) => {
-                stack.push(BytecodeValue::And(left, Box::new(right)));
-            }
-            BytecodeValue::PendingOr(left) => {
-                stack.push(BytecodeValue::Or(left, Box::new(right)));
-            }
-            _ => {
-                // Put them back if not a pending boolean op
-                stack.push(pending);
-                stack.push(right);
-            }
-        }
-    }
-
-    // Convert top of stack to Expression
-    if let Some(top) = stack.pop() {
-        bytecode_value_to_expression(top)
-    } else {
-        Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Cannot analyze lambda: bytecode analysis failed. \
-             Use a simple lambda like `lambda x: x.field`.",
-        ))
-    }
+    let source = inspect.call_method1("getsource", (callable,)).map_err(|_| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Cannot analyze lambda: source code unavailable. Lambdas must be defined in source files.",
+        )
+    })?;
+    let source_str: String = source.extract()?;
+    analyze_lambda_source(py, &source_str, param_count, class_hint)
 }
 
 /// Analyze lambda from source code.
 fn analyze_lambda_source(
     py: Python<'_>,
     source: &str,
-    callable: &Py<PyAny>,
     param_count: usize,
     class_hint: &str,
 ) -> PyResult<Expression> {
@@ -761,28 +340,24 @@ fn analyze_lambda_source(
     // Source might be like ".filter(lambda x: x.field)" which isn't valid Python
     let lambda_source = extract_lambda_from_source(source);
 
-    // Try parsing the extracted lambda source
-    let parse_result = ast.call_method1("parse", (&lambda_source,));
-
-    let tree = match parse_result {
-        Ok(t) => t,
-        Err(_) => {
-            // If parsing fails, try bytecode analysis
-            return analyze_lambda_bytecode(py, callable, param_count, class_hint);
-        }
-    };
+    // Parse the extracted lambda source
+    let tree = ast.call_method1("parse", (&lambda_source,)).map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Cannot parse lambda source '{}': {}",
+            lambda_source, e
+        ))
+    })?;
 
     // Walk the AST to find the lambda expression
     let body = tree.getattr("body")?;
 
     // Extract lambda node and convert to Expression
-    match extract_lambda_expression(py, &body, param_count, class_hint)? {
-        Some(expr) => Ok(expr),
-        None => {
-            // Fallback to bytecode analysis if AST extraction fails
-            analyze_lambda_bytecode(py, callable, param_count, class_hint)
-        }
-    }
+    extract_lambda_expression(py, &body, param_count, class_hint)?.ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Cannot extract lambda expression from source: {}",
+            lambda_source
+        ))
+    })
 }
 
 /// Extract the lambda expression from source that may contain surrounding code.

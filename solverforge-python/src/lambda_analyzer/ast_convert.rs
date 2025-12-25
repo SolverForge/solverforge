@@ -1,12 +1,15 @@
-//! AST to Expression conversion helpers.
+//! AST to Expression conversion.
 //!
-//! This module contains pure helper functions for converting Python AST nodes
-//! to solverforge Expression trees. These are stateless functions that don't
-//! require method inlining or registry access.
+//! This module contains functions for converting Python AST nodes
+//! to solverforge Expression trees.
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
+
+use super::constants::get_class_constant;
+use super::registry::get_method_from_class;
+use super::type_inference::infer_expression_class;
 
 /// Extract argument names from Python AST arguments node.
 pub(crate) fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
@@ -371,4 +374,402 @@ pub(crate) fn is_not_none_check(_py: Python<'_>, condition: &Bound<'_, PyAny>) -
     }
 
     Ok(false)
+}
+
+/// Convert Python AST node to Expression tree.
+///
+/// This is the main AST conversion function that handles all node types.
+pub(crate) fn convert_ast_to_expression(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    let node_type = node.get_type().name()?.to_string();
+    let class_name = class_hint.to_string();
+
+    match node_type.as_str() {
+        "Attribute" => {
+            // Field access: x.field or class constant: x.CONSTANT
+            let value = node.getattr("value")?;
+            let attr: String = node.getattr("attr")?.extract()?;
+
+            if let Some(base_expr) = convert_ast_to_expression(py, &value, arg_names, class_hint)? {
+                // Check if this is a class constant (self.CONST or param.CONST)
+                // Only check when base is a direct parameter reference
+                if matches!(base_expr, Expression::Param { .. }) {
+                    if let Some(constant_expr) = get_class_constant(py, class_hint, &attr)? {
+                        log::debug!("Inlined class constant {}.{} in lambda", class_hint, attr);
+                        return Ok(Some(constant_expr));
+                    }
+                }
+
+                Ok(Some(Expression::FieldAccess {
+                    object: Box::new(base_expr),
+                    class_name,
+                    field_name: attr,
+                }))
+            } else {
+                Ok(None)
+            }
+        }
+
+        "Name" => {
+            // Variable reference
+            let id: String = node.getattr("id")?.extract()?;
+
+            // Check if it's a lambda parameter
+            if let Some(idx) = arg_names.iter().position(|n| n == &id) {
+                Ok(Some(Expression::Param { index: idx as u32 }))
+            } else if id == "None" {
+                Ok(Some(Expression::Null))
+            } else if id == "True" {
+                Ok(Some(Expression::BoolLiteral { value: true }))
+            } else if id == "False" {
+                Ok(Some(Expression::BoolLiteral { value: false }))
+            } else {
+                // External reference - not supported
+                Ok(None)
+            }
+        }
+
+        "Compare" => {
+            // Comparison: x < y, x == y, x is None, etc.
+            convert_compare_to_expression(
+                py,
+                node,
+                arg_names,
+                class_hint,
+                convert_ast_to_expression,
+            )
+        }
+
+        "BoolOp" => {
+            // Boolean operation: and, or
+            convert_boolop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
+        }
+
+        "UnaryOp" => {
+            // Unary operation: not
+            convert_unaryop_to_expression(
+                py,
+                node,
+                arg_names,
+                class_hint,
+                convert_ast_to_expression,
+            )
+        }
+
+        "BinOp" => {
+            // Binary operation: +, -, *, /
+            convert_binop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
+        }
+
+        "Constant" => {
+            // Literal value
+            convert_constant_to_expression(node)
+        }
+
+        "Call" => {
+            // Method call: obj.method() or function() or module.function()
+            convert_call_to_expression(py, node, arg_names, class_hint)
+        }
+
+        _ => Ok(None),
+    }
+}
+
+/// Convert a Call AST node to Expression.
+fn convert_call_to_expression(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    let func = node.getattr("func")?;
+    let func_type = func.get_type().name()?.to_string();
+
+    if func_type == "Attribute" {
+        let value = func.getattr("value")?;
+        let method_name: String = func.getattr("attr")?.extract()?;
+        let value_type = value.get_type().name()?.to_string();
+
+        // Check if this is a module-level call like math.sin()
+        if value_type == "Name" {
+            let module_name: String = value.getattr("id")?.extract()?;
+            if module_name == "math" {
+                return convert_math_call(py, node, &method_name, arg_names, class_hint);
+            }
+        }
+
+        // Method call: obj.method()
+        return convert_method_call(py, node, &value, &method_name, arg_names, class_hint);
+    } else if func_type == "Name" {
+        // Built-in function call like max(), min(), timedelta(), etc.
+        let func_name: String = func.getattr("id")?.extract()?;
+        return convert_builtin_call(py, node, &func_name, arg_names, class_hint);
+    }
+
+    // Other types of calls - not supported for inlining
+    Ok(None)
+}
+
+/// Convert math module function call.
+fn convert_math_call(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    method_name: &str,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    let args_node = node.getattr("args")?;
+    let args_list = args_node.cast::<PyList>()?;
+
+    let mut call_args = Vec::new();
+    for arg in args_list.iter() {
+        if let Some(arg_expr) = convert_ast_to_expression(py, &arg, arg_names, class_hint)? {
+            call_args.push(arg_expr);
+        } else {
+            return Ok(None);
+        }
+    }
+
+    match method_name {
+        "sin" if call_args.len() == 1 => Ok(Some(Expression::Sin {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "cos" if call_args.len() == 1 => Ok(Some(Expression::Cos {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "sqrt" if call_args.len() == 1 => Ok(Some(Expression::Sqrt {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "asin" if call_args.len() == 1 => Ok(Some(Expression::Asin {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "acos" if call_args.len() == 1 => Ok(Some(Expression::Acos {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "atan" if call_args.len() == 1 => Ok(Some(Expression::Atan {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "atan2" if call_args.len() == 2 => Ok(Some(Expression::Atan2 {
+            y: Box::new(call_args[0].clone()),
+            x: Box::new(call_args[1].clone()),
+        })),
+        "radians" if call_args.len() == 1 => Ok(Some(Expression::Radians {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "floor" if call_args.len() == 1 => Ok(Some(Expression::Floor {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "ceil" if call_args.len() == 1 => Ok(Some(Expression::Ceil {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        "fabs" if call_args.len() == 1 => Ok(Some(Expression::FloatAbs {
+            operand: Box::new(call_args[0].clone()),
+        })),
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unsupported math function: math.{}()",
+            method_name
+        ))),
+    }
+}
+
+/// Convert method call on an object.
+fn convert_method_call(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    value: &Bound<'_, PyAny>,
+    method_name: &str,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    // Get the object expression
+    let Some(obj_expr) = convert_ast_to_expression(py, value, arg_names, class_hint)? else {
+        return Ok(None);
+    };
+
+    // Convert method call arguments
+    let args_node = node.getattr("args")?;
+    let args_list = args_node.cast::<PyList>()?;
+
+    // Determine the actual class of the object for method lookup
+    let obj_class = infer_expression_class(py, &obj_expr, class_hint)?
+        .unwrap_or_else(|| class_hint.to_string());
+
+    // Try to inline the method - look it up in the registry and analyze
+    if let Some(method) = get_method_from_class(py, &obj_class, method_name) {
+        match super::analyze_method_body(py, &method, &obj_class) {
+            Ok(method_body) => {
+                // Substitute parameters: obj_expr becomes Param(0), call_args become Param(1), etc.
+                let mut inlined = method_body;
+
+                // Substitute method parameters with call arguments
+                // The object is Param(0) in the method, and obj_expr in the call
+                inlined = super::substitute_param(inlined, 0, &obj_expr);
+
+                // Substitute other parameters
+                for (i, arg) in args_list.iter().enumerate() {
+                    if let Some(arg_expr) =
+                        convert_ast_to_expression(py, &arg, arg_names, class_hint)?
+                    {
+                        // In the method, args start at Param(1)
+                        inlined = super::substitute_param(inlined, (i + 1) as u32, &arg_expr);
+                    }
+                }
+
+                return Ok(Some(inlined));
+            }
+            Err(e) => {
+                // Method couldn't be inlined - return error
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "Cannot inline method {}.{}(): {}",
+                    obj_class, method_name, e
+                )));
+            }
+        }
+    }
+
+    // Method not found in registry - return error
+    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+        "Cannot inline method {}.{}() - class not registered. Register the class with register_class() first.",
+        obj_class, method_name
+    )))
+}
+
+/// Convert built-in function call.
+fn convert_builtin_call(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    func_name: &str,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    let args_node = node.getattr("args")?;
+    let args_list = args_node.cast::<PyList>()?;
+
+    // Convert positional arguments to expressions
+    let mut call_args = Vec::new();
+    for arg in args_list.iter() {
+        if let Some(arg_expr) = convert_ast_to_expression(py, &arg, arg_names, class_hint)? {
+            call_args.push(arg_expr);
+        } else {
+            return Ok(None);
+        }
+    }
+
+    // Parse keyword arguments
+    let keywords_node = node.getattr("keywords")?;
+    let keywords_list = keywords_node.cast::<PyList>()?;
+    let mut keyword_args: Vec<(String, i64)> = Vec::new();
+    for kw in keywords_list.iter() {
+        let arg_name_opt = kw.getattr("arg")?;
+        if !arg_name_opt.is_none() {
+            let arg_name: String = arg_name_opt.extract()?;
+            let arg_value = kw.getattr("value")?;
+            // Try to extract as integer constant
+            let value_type = arg_value.get_type().name()?.to_string();
+            if value_type == "Constant" {
+                if let Ok(i) = arg_value.getattr("value")?.extract::<i64>() {
+                    keyword_args.push((arg_name, i));
+                }
+            } else if value_type == "UnaryOp" {
+                // Handle negative numbers like -1
+                let op = arg_value.getattr("op")?;
+                let op_type = op.get_type().name()?.to_string();
+                if op_type == "USub" {
+                    let operand = arg_value.getattr("operand")?;
+                    if let Ok(i) = operand.getattr("value")?.extract::<i64>() {
+                        keyword_args.push((arg_name, -i));
+                    }
+                }
+            }
+        }
+    }
+
+    // Handle specific built-in functions
+    match func_name {
+        "max" if call_args.len() == 2 => {
+            // max(a, b) as a ternary: a > b ? a : b
+            Ok(Some(Expression::IfThenElse {
+                condition: Box::new(Expression::Gt {
+                    left: Box::new(call_args[0].clone()),
+                    right: Box::new(call_args[1].clone()),
+                }),
+                then_branch: Box::new(call_args[0].clone()),
+                else_branch: Box::new(call_args[1].clone()),
+            }))
+        }
+        "min" if call_args.len() == 2 => {
+            // min(a, b) as a ternary: a < b ? a : b
+            Ok(Some(Expression::IfThenElse {
+                condition: Box::new(Expression::Lt {
+                    left: Box::new(call_args[0].clone()),
+                    right: Box::new(call_args[1].clone()),
+                }),
+                then_branch: Box::new(call_args[0].clone()),
+                else_branch: Box::new(call_args[1].clone()),
+            }))
+        }
+        "abs" if call_args.len() == 1 => {
+            // abs(a) as: a < 0 ? -a : a
+            Ok(Some(Expression::IfThenElse {
+                condition: Box::new(Expression::Lt {
+                    left: Box::new(call_args[0].clone()),
+                    right: Box::new(Expression::IntLiteral { value: 0 }),
+                }),
+                then_branch: Box::new(Expression::Mul {
+                    left: Box::new(Expression::IntLiteral { value: -1 }),
+                    right: Box::new(call_args[0].clone()),
+                }),
+                else_branch: Box::new(call_args[0].clone()),
+            }))
+        }
+        "len" if call_args.len() == 1 => {
+            // len(collection) -> Length expression
+            Ok(Some(Expression::Length {
+                collection: Box::new(call_args[0].clone()),
+            }))
+        }
+        "round" if call_args.len() == 1 => {
+            // round(x) -> Round expression (WASM f64.nearest)
+            Ok(Some(Expression::Round {
+                operand: Box::new(call_args[0].clone()),
+            }))
+        }
+        "int" if call_args.len() == 1 => {
+            // int(x) -> FloatToInt for float values
+            Ok(Some(Expression::FloatToInt {
+                operand: Box::new(call_args[0].clone()),
+            }))
+        }
+        "float" if call_args.len() == 1 => {
+            // float(x) -> IntToFloat for int values
+            Ok(Some(Expression::IntToFloat {
+                operand: Box::new(call_args[0].clone()),
+            }))
+        }
+        "timedelta" => {
+            // Convert timedelta to integer seconds
+            // Supports: days, hours, minutes, seconds keyword args
+            let mut total_seconds: i64 = 0;
+            for (name, value) in &keyword_args {
+                match name.as_str() {
+                    "days" => total_seconds += value * 86400,
+                    "hours" => total_seconds += value * 3600,
+                    "minutes" => total_seconds += value * 60,
+                    "seconds" => total_seconds += value,
+                    _ => {}
+                }
+            }
+            Ok(Some(Expression::IntLiteral {
+                value: total_seconds,
+            }))
+        }
+        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Cannot inline function call: {}()",
+            func_name
+        ))),
+    }
 }

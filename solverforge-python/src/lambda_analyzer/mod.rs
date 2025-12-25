@@ -20,11 +20,19 @@
 //! factory.for_each("Lesson").filter(lambda l: l.room is not None)
 //! ```
 
+mod ast_convert;
+mod patterns;
 mod registry;
 #[cfg(test)]
 mod tests;
 mod type_inference;
 
+use ast_convert::{
+    convert_binop_to_expression, convert_boolop_to_expression, convert_compare_to_expression,
+    convert_constant_to_expression, convert_unaryop_to_expression, extract_arg_names,
+    is_empty_collection_guard, is_not_none_check,
+};
+use patterns::{LoopContext, MutableLoopVar};
 use registry::CLASS_REGISTRY;
 pub use registry::{get_method_from_class, register_class};
 use type_inference::{
@@ -116,6 +124,10 @@ fn get_param_count(py: Python<'_>, callable: &Py<PyAny>) -> PyResult<usize> {
     let len = params.len()?;
     Ok(len)
 }
+
+// ============================================================================
+// Method Body Analysis
+// ============================================================================
 
 /// Analyze a Python method body and convert to an Expression tree.
 ///
@@ -282,6 +294,7 @@ fn extract_method_return_expression(
         ))),
     }
 }
+
 // ============================================================================
 // Expression Substitution
 // ============================================================================
@@ -478,19 +491,9 @@ fn extract_lambda_expression(
     }
 }
 
-/// Extract argument names from Python AST arguments node.
-fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
-    let arg_list = args.getattr("args")?;
-    let list = arg_list.cast::<PyList>()?;
-
-    let mut names = Vec::new();
-    for arg in list.iter() {
-        let arg_name: String = arg.getattr("arg")?.extract()?;
-        names.push(arg_name);
-    }
-
-    Ok(names)
-}
+// ============================================================================
+// Pattern Extraction
+// ============================================================================
 
 /// Extract if-then-else expression from an If statement.
 ///
@@ -876,114 +879,6 @@ fn try_extract_if_early_return(
         then_branch: Box::new(then_expr),
         else_branch: Box::new(else_expr),
     })
-}
-
-/// Check if a condition AST node is an "empty collection guard" pattern: len(x) == 0
-fn is_empty_collection_guard(py: Python<'_>, condition: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let node_type = condition.get_type().name()?.to_string();
-    if node_type != "Compare" {
-        return Ok(false);
-    }
-
-    // Check left side is len(...)
-    let left = condition.getattr("left")?;
-    let left_type = left.get_type().name()?.to_string();
-    if left_type != "Call" {
-        return Ok(false);
-    }
-
-    let func = left.getattr("func")?;
-    let func_type = func.get_type().name()?.to_string();
-    if func_type != "Name" {
-        return Ok(false);
-    }
-
-    let func_name: String = func.getattr("id")?.extract()?;
-    if func_name != "len" {
-        return Ok(false);
-    }
-
-    // Check comparator is == 0
-    let ops = condition.getattr("ops")?;
-    let ops_list = ops.cast::<PyList>()?;
-    if ops_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let op = ops_list.get_item(0)?;
-    let op_type = op.get_type().name()?.to_string();
-    if op_type != "Eq" {
-        return Ok(false);
-    }
-
-    let comparators = condition.getattr("comparators")?;
-    let comps_list = comparators.cast::<PyList>()?;
-    if comps_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let comp = comps_list.get_item(0)?;
-    let comp_type = comp.get_type().name()?.to_string();
-    if comp_type != "Constant" && comp_type != "Num" {
-        return Ok(false);
-    }
-
-    if let Ok(value) = comp.getattr("value") {
-        if let Ok(0i64) = value.extract() {
-            return Ok(true);
-        }
-    }
-
-    let _ = py;
-    Ok(false)
-}
-
-/// Check if a condition AST node is an "is not None" check: X is not None
-fn is_not_none_check(py: Python<'_>, condition: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let node_type = condition.get_type().name()?.to_string();
-    if node_type != "Compare" {
-        return Ok(false);
-    }
-
-    // Check operator is IsNot
-    let ops = condition.getattr("ops")?;
-    let ops_list = ops.cast::<PyList>()?;
-    if ops_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let op = ops_list.get_item(0)?;
-    let op_type = op.get_type().name()?.to_string();
-    if op_type != "IsNot" {
-        return Ok(false);
-    }
-
-    // Check comparator is None
-    let comparators = condition.getattr("comparators")?;
-    let comps_list = comparators.cast::<PyList>()?;
-    if comps_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let comp = comps_list.get_item(0)?;
-    let comp_type = comp.get_type().name()?.to_string();
-
-    // Check if it's the None constant
-    if comp_type == "Constant" || comp_type == "NameConstant" {
-        if let Ok(value) = comp.getattr("value") {
-            if value.is_none() {
-                return Ok(true);
-            }
-        }
-    } else if comp_type == "Name" {
-        let name: String = comp.getattr("id")?.extract()?;
-        if name == "None" {
-            return Ok(true);
-        }
-    }
-
-    let _ = py;
-    Ok(false)
 }
 
 /// Detect and extract accumulation patterns from method body.
@@ -1572,50 +1467,6 @@ fn convert_ast_to_expression_with_mutable_var_substitution(
     convert_ast_to_expression(py, node, arg_names, class_hint)
 }
 
-/// Substitute occurrences of a named variable with an expression.
-///
-/// Note: Expression nodes don't currently track variable names, so this
-/// returns the expression unchanged. The infrastructure is in place for
-/// future enhancement when variable name tracking is added.
-#[allow(dead_code)]
-fn substitute_named_var(
-    expr: &Expression,
-    _var_name: &str,
-    _replacement: &Expression,
-) -> Expression {
-    expr.clone()
-}
-
-/// Information about a mutable variable tracked across loop iterations.
-/// Used to detect "previous element" patterns like:
-/// ```python
-/// prev = self.init_field
-/// for item in collection:
-///     use(prev)
-///     prev = item.field
-/// ```
-#[derive(Debug, Clone)]
-struct MutableLoopVar {
-    /// The variable name (e.g., "previous_location")
-    name: String,
-    /// The initialization expression (e.g., self.home_location)
-    init_expr: Bound<'static, PyAny>,
-    /// The field being tracked from each item (e.g., "location" from visit.location)
-    item_field: String,
-}
-
-/// Context from loop extraction, needed for post-loop term processing.
-struct LoopContext {
-    /// The Sum expression for the loop
-    sum_expr: Expression,
-    /// The collection being iterated
-    collection_expr: Expression,
-    /// The item class name
-    item_class_name: String,
-    /// Mutable loop variables (for post-loop term substitution)
-    mutable_vars: Vec<MutableLoopVar>,
-}
-
 /// Extract a sum expression from a for loop that accumulates values.
 ///
 /// Converts: for item in collection: acc += item.field
@@ -1967,6 +1818,10 @@ fn find_previous_shadow_variable(py: Python<'_>, class_name: &str) -> PyResult<O
     Ok(None)
 }
 
+// ============================================================================
+// Method Call Inlining
+// ============================================================================
+
 /// Build an inlined method call expression.
 ///
 /// Tries to inline the method body. Returns an error if inlining fails.
@@ -2016,6 +1871,11 @@ fn build_method_call_expr(
         base_class, method_name
     )))
 }
+
+// ============================================================================
+// AST to Expression Conversion
+// ============================================================================
+
 /// Convert Python AST node to Expression tree.
 fn convert_ast_to_expression(
     py: Python<'_>,
@@ -2064,25 +1924,37 @@ fn convert_ast_to_expression(
 
         "Compare" => {
             // Comparison: x < y, x == y, x is None, etc.
-            convert_compare_to_expression(py, node, arg_names, class_hint)
+            convert_compare_to_expression(
+                py,
+                node,
+                arg_names,
+                class_hint,
+                convert_ast_to_expression,
+            )
         }
 
         "BoolOp" => {
             // Boolean operation: and, or
-            convert_boolop_to_expression(py, node, arg_names, class_hint)
+            convert_boolop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
         }
 
         "UnaryOp" => {
             // Unary operation: not
-            convert_unaryop_to_expression(py, node, arg_names, class_hint)
+            convert_unaryop_to_expression(
+                py,
+                node,
+                arg_names,
+                class_hint,
+                convert_ast_to_expression,
+            )
         }
 
         "BinOp" => {
             // Binary operation: +, -, *, /
-            convert_binop_to_expression(py, node, arg_names, class_hint)
+            convert_binop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
         }
 
-        "Constant" | "Num" | "NameConstant" => {
+        "Constant" | "Num" | "NameConstant" | "Str" => {
             // Literal value
             convert_constant_to_expression(node)
         }
@@ -2379,256 +2251,6 @@ fn convert_ast_to_expression(
             }
         }
 
-        _ => Ok(None),
-    }
-}
-
-/// Convert Python Compare AST node to Expression.
-fn convert_compare_to_expression(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    arg_names: &[String],
-    class_hint: &str,
-) -> PyResult<Option<Expression>> {
-    let left = node.getattr("left")?;
-    let ops_list = node.getattr("ops")?.cast::<PyList>()?.clone();
-    let comparators_list = node.getattr("comparators")?.cast::<PyList>()?.clone();
-
-    let ops: Vec<Bound<'_, PyAny>> = ops_list.iter().collect();
-    let comparators: Vec<Bound<'_, PyAny>> = comparators_list.iter().collect();
-
-    if ops.len() != 1 || comparators.len() != 1 {
-        // Multiple comparisons (a < b < c) not directly supported
-        return Ok(None);
-    }
-
-    let left_expr = convert_ast_to_expression(py, &left, arg_names, class_hint)?;
-    let right_expr = convert_ast_to_expression(py, &comparators[0], arg_names, class_hint)?;
-
-    match (left_expr, right_expr) {
-        (Some(left), Some(right)) => {
-            let op_type = ops[0].get_type().name()?.to_string();
-
-            let expr = match op_type.as_str() {
-                "Eq" => Expression::Eq {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "NotEq" => Expression::Ne {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "Lt" => Expression::Lt {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "LtE" => Expression::Le {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "Gt" => Expression::Gt {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "GtE" => Expression::Ge {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "Is" => {
-                    // Check for "is None" pattern
-                    if matches!(right, Expression::Null) {
-                        Expression::IsNull {
-                            operand: Box::new(left),
-                        }
-                    } else {
-                        Expression::Eq {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "IsNot" => {
-                    // Check for "is not None" pattern
-                    if matches!(right, Expression::Null) {
-                        Expression::IsNotNull {
-                            operand: Box::new(left),
-                        }
-                    } else {
-                        Expression::Ne {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                _ => return Ok(None),
-            };
-
-            Ok(Some(expr))
-        }
-        _ => Ok(None),
-    }
-}
-
-/// Convert Python BoolOp AST node (and/or) to Expression.
-fn convert_boolop_to_expression(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    arg_names: &[String],
-    class_hint: &str,
-) -> PyResult<Option<Expression>> {
-    let op = node.getattr("op")?;
-    let values_list = node.getattr("values")?.cast::<PyList>()?.clone();
-    let values: Vec<Bound<'_, PyAny>> = values_list.iter().collect();
-
-    if values.len() < 2 {
-        return Ok(None);
-    }
-
-    let op_type = op.get_type().name()?.to_string();
-
-    // Convert all operands
-    let mut exprs: Vec<Expression> = Vec::new();
-    for val in values.iter() {
-        if let Some(expr) = convert_ast_to_expression(py, val, arg_names, class_hint)? {
-            exprs.push(expr);
-        } else {
-            return Ok(None);
-        }
-    }
-
-    // Chain the operations
-    let mut result = exprs.remove(0);
-    for expr in exprs {
-        result = match op_type.as_str() {
-            "And" => Expression::And {
-                left: Box::new(result),
-                right: Box::new(expr),
-            },
-            "Or" => Expression::Or {
-                left: Box::new(result),
-                right: Box::new(expr),
-            },
-            _ => return Ok(None),
-        };
-    }
-
-    Ok(Some(result))
-}
-
-/// Convert Python UnaryOp AST node to Expression.
-fn convert_unaryop_to_expression(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    arg_names: &[String],
-    class_hint: &str,
-) -> PyResult<Option<Expression>> {
-    let op = node.getattr("op")?;
-    let operand = node.getattr("operand")?;
-
-    let op_type = op.get_type().name()?.to_string();
-
-    if let Some(operand_expr) = convert_ast_to_expression(py, &operand, arg_names, class_hint)? {
-        let expr = match op_type.as_str() {
-            "Not" => Expression::Not {
-                operand: Box::new(operand_expr),
-            },
-            "USub" => {
-                // Unary minus: -x
-                Expression::Sub {
-                    left: Box::new(Expression::IntLiteral { value: 0 }),
-                    right: Box::new(operand_expr),
-                }
-            }
-            _ => return Ok(None),
-        };
-        Ok(Some(expr))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Convert Python BinOp AST node to Expression.
-fn convert_binop_to_expression(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    arg_names: &[String],
-    class_hint: &str,
-) -> PyResult<Option<Expression>> {
-    let op = node.getattr("op")?;
-    let left = node.getattr("left")?;
-    let right = node.getattr("right")?;
-
-    let left_expr = convert_ast_to_expression(py, &left, arg_names, class_hint)?;
-    let right_expr = convert_ast_to_expression(py, &right, arg_names, class_hint)?;
-
-    match (left_expr, right_expr) {
-        (Some(l), Some(r)) => {
-            let op_type = op.get_type().name()?.to_string();
-
-            let expr = match op_type.as_str() {
-                "Add" => Expression::Add {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
-                "Sub" => Expression::Sub {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
-                "Mult" => Expression::Mul {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
-                "Div" | "FloorDiv" => Expression::Div {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
-                _ => return Ok(None),
-            };
-
-            Ok(Some(expr))
-        }
-        _ => Ok(None),
-    }
-}
-
-/// Convert Python constant to Expression.
-fn convert_constant_to_expression(node: &Bound<'_, PyAny>) -> PyResult<Option<Expression>> {
-    let node_type = node.get_type().name()?.to_string();
-
-    match node_type.as_str() {
-        "Constant" => {
-            let value = node.getattr("value")?;
-
-            if value.is_none() {
-                Ok(Some(Expression::Null))
-            } else if let Ok(b) = value.extract::<bool>() {
-                Ok(Some(Expression::BoolLiteral { value: b }))
-            } else if let Ok(i) = value.extract::<i64>() {
-                Ok(Some(Expression::IntLiteral { value: i }))
-            } else {
-                Ok(None)
-            }
-        }
-        "NameConstant" => {
-            // Python 3.7 style: None, True, False
-            let value = node.getattr("value")?;
-            if value.is_none() {
-                Ok(Some(Expression::Null))
-            } else if let Ok(b) = value.extract::<bool>() {
-                Ok(Some(Expression::BoolLiteral { value: b }))
-            } else {
-                Ok(None)
-            }
-        }
-        "Num" => {
-            // Python 3.7 style numbers
-            let n = node.getattr("n")?;
-            if let Ok(i) = n.extract::<i64>() {
-                Ok(Some(Expression::IntLiteral { value: i }))
-            } else {
-                Ok(None)
-            }
-        }
         _ => Ok(None),
     }
 }

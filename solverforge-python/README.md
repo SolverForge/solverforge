@@ -200,7 +200,7 @@ solver = SolverFactory.create(Timetable, define_constraints)
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.13+ (required for modern AST support)
 - Java 21+ (for solver service, auto-started)
 
 ## License

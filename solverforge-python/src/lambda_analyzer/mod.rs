@@ -3,6 +3,9 @@
 //! This module provides the infrastructure to analyze Python lambdas at definition time
 //! and convert them to `Expression` trees that can be compiled to WASM.
 //!
+//! **Requires Python 3.13+** - uses modern AST structure (Constant nodes only,
+//! no legacy Num/Str/NameConstant support).
+//!
 //! # Supported Patterns
 //!
 //! - Field access: `lambda x: x.field`
@@ -716,7 +719,7 @@ fn extract_branch_value(
             // Expression statement - might be a None assignment represented differently
             let value = stmt.getattr("value")?;
             let value_type = value.get_type().name()?.to_string();
-            if value_type == "Constant" || value_type == "NameConstant" {
+            if value_type == "Constant" {
                 if let Ok(is_none) = value.is_none().then_some(true).ok_or(false) {
                     if is_none {
                         return Ok(Expression::Null);
@@ -945,7 +948,7 @@ fn try_extract_accumulation_pattern(
                             let value_type = value.get_type().name()?.to_string();
 
                             // Check if value is 0 (accumulator init)
-                            if value_type == "Constant" || value_type == "Num" {
+                            if value_type == "Constant" {
                                 let const_value = value.getattr("value").ok();
                                 if let Some(v) = const_value {
                                     if let Ok(0i64) = v.extract::<i64>() {
@@ -1265,7 +1268,7 @@ fn convert_ast_with_local_var_substitution(
                 if var_expr_type == "Tuple" {
                     // Get the index
                     let slice_type = slice.get_type().name()?.to_string();
-                    if slice_type == "Constant" || slice_type == "Num" {
+                    if slice_type == "Constant" {
                         if let Ok(index) = slice.getattr("value").and_then(|v| v.extract::<i64>()) {
                             // Get the indexed element from the tuple
                             let elts = var_expr_ast.getattr("elts")?;
@@ -1969,7 +1972,7 @@ fn convert_ast_to_expression(
             convert_binop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
         }
 
-        "Constant" | "Num" | "NameConstant" | "Str" => {
+        "Constant" => {
             // Literal value
             convert_constant_to_expression(node)
         }

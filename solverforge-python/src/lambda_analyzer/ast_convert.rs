@@ -242,6 +242,7 @@ pub(crate) fn convert_constant_to_expression(
 
     match node_type.as_str() {
         "Constant" => {
+            // Python 3.13+ uses Constant for all literals
             let value = node.getattr("value")?;
 
             if value.is_none() {
@@ -258,33 +259,7 @@ pub(crate) fn convert_constant_to_expression(
                 Ok(None)
             }
         }
-        "NameConstant" => {
-            // Python 3.7 style: None, True, False
-            let value = node.getattr("value")?;
-            if value.is_none() {
-                Ok(Some(Expression::Null))
-            } else if let Ok(b) = value.extract::<bool>() {
-                Ok(Some(Expression::BoolLiteral { value: b }))
-            } else {
-                Ok(None)
-            }
-        }
-        "Num" => {
-            // Python 3.7 style numbers
-            let n = node.getattr("n")?;
-            if let Ok(i) = n.extract::<i64>() {
-                Ok(Some(Expression::IntLiteral { value: i }))
-            } else if let Ok(f) = n.extract::<f64>() {
-                Ok(Some(Expression::FloatLiteral { value: f }))
-            } else {
-                Ok(None)
-            }
-        }
-        "Str" => {
-            // Python 3.7 style strings
-            let s: String = node.getattr("s")?.extract()?;
-            Ok(Some(Expression::StringLiteral { value: s }))
-        }
+        // Note: Num, Str, NameConstant are Python <3.8 legacy - not supported
         _ => Ok(None),
     }
 }
@@ -338,7 +313,7 @@ pub(crate) fn is_empty_collection_guard(
 
     let comp = comps_list.get_item(0)?;
     let comp_type = comp.get_type().name()?.to_string();
-    if comp_type != "Constant" && comp_type != "Num" {
+    if comp_type != "Constant" {
         return Ok(false);
     }
 
@@ -382,7 +357,7 @@ pub(crate) fn is_not_none_check(_py: Python<'_>, condition: &Bound<'_, PyAny>) -
     let comp_type = comp.get_type().name()?.to_string();
 
     // Check if it's the None constant
-    if comp_type == "Constant" || comp_type == "NameConstant" {
+    if comp_type == "Constant" {
         if let Ok(value) = comp.getattr("value") {
             if value.is_none() {
                 return Ok(true);

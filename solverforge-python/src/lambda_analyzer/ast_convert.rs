@@ -43,6 +43,8 @@ pub fn is_float_expr(expr: &Expression) -> bool {
 /// Used to select between i32/i64 comparison and arithmetic operations.
 pub fn is_i64_expr(expr: &Expression) -> bool {
     match expr {
+        // Explicit i64 literal
+        Expression::Int64Literal { .. } => true,
         // i64 arithmetic operations
         Expression::Add64 { .. }
         | Expression::Sub64 { .. }
@@ -55,6 +57,7 @@ pub fn is_i64_expr(expr: &Expression) -> bool {
             else_branch,
             ..
         } => is_i64_expr(then_branch) || is_i64_expr(else_branch),
+        Expression::IfThenElse64 { .. } => true,
         _ => false,
     }
 }
@@ -370,11 +373,18 @@ pub(crate) fn convert_binop_to_expression(
     match (left_expr, right_expr) {
         (Some(l), Some(r)) => {
             let op_type = op.get_type().name()?.to_string();
+            let use_float = is_float_expr(&l) || is_float_expr(&r);
+            let use_i64 = is_i64_operand(py, &l) || is_i64_operand(py, &r);
 
             let expr = match op_type.as_str() {
                 "Add" => {
-                    if is_float_expr(&l) || is_float_expr(&r) {
+                    if use_float {
                         Expression::FloatAdd {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else if use_i64 {
+                        Expression::Add64 {
                             left: Box::new(l),
                             right: Box::new(r),
                         }
@@ -386,8 +396,13 @@ pub(crate) fn convert_binop_to_expression(
                     }
                 }
                 "Sub" => {
-                    if is_float_expr(&l) || is_float_expr(&r) {
+                    if use_float {
                         Expression::FloatSub {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else if use_i64 {
+                        Expression::Sub64 {
                             left: Box::new(l),
                             right: Box::new(r),
                         }
@@ -399,8 +414,13 @@ pub(crate) fn convert_binop_to_expression(
                     }
                 }
                 "Mult" => {
-                    if is_float_expr(&l) || is_float_expr(&r) {
+                    if use_float {
                         Expression::FloatMul {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else if use_i64 {
+                        Expression::Mul64 {
                             left: Box::new(l),
                             right: Box::new(r),
                         }
@@ -416,10 +436,19 @@ pub(crate) fn convert_binop_to_expression(
                     left: Box::new(l),
                     right: Box::new(r),
                 },
-                "FloorDiv" => Expression::Div {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
+                "FloorDiv" => {
+                    if use_i64 {
+                        Expression::Div64 {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else {
+                        Expression::Div {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    }
+                }
                 _ => return Ok(None),
             };
 
@@ -880,43 +909,82 @@ fn convert_builtin_call(
         }
     }
 
+    // Check if any argument is i64 (for datetime operations)
+    let use_i64 = call_args.iter().any(|arg| is_i64_operand(py, arg));
+
     // Handle specific built-in functions
     match func_name {
         "max" if call_args.len() == 2 => {
             // max(a, b) as a ternary: a > b ? a : b
-            Ok(Some(Expression::IfThenElse {
-                condition: Box::new(Expression::Gt {
-                    left: Box::new(call_args[0].clone()),
-                    right: Box::new(call_args[1].clone()),
-                }),
-                then_branch: Box::new(call_args[0].clone()),
-                else_branch: Box::new(call_args[1].clone()),
-            }))
+            if use_i64 {
+                Ok(Some(Expression::IfThenElse64 {
+                    condition: Box::new(Expression::Gt64 {
+                        left: Box::new(call_args[0].clone()),
+                        right: Box::new(call_args[1].clone()),
+                    }),
+                    then_branch: Box::new(call_args[0].clone()),
+                    else_branch: Box::new(call_args[1].clone()),
+                }))
+            } else {
+                Ok(Some(Expression::IfThenElse {
+                    condition: Box::new(Expression::Gt {
+                        left: Box::new(call_args[0].clone()),
+                        right: Box::new(call_args[1].clone()),
+                    }),
+                    then_branch: Box::new(call_args[0].clone()),
+                    else_branch: Box::new(call_args[1].clone()),
+                }))
+            }
         }
         "min" if call_args.len() == 2 => {
             // min(a, b) as a ternary: a < b ? a : b
-            Ok(Some(Expression::IfThenElse {
-                condition: Box::new(Expression::Lt {
-                    left: Box::new(call_args[0].clone()),
-                    right: Box::new(call_args[1].clone()),
-                }),
-                then_branch: Box::new(call_args[0].clone()),
-                else_branch: Box::new(call_args[1].clone()),
-            }))
+            if use_i64 {
+                Ok(Some(Expression::IfThenElse64 {
+                    condition: Box::new(Expression::Lt64 {
+                        left: Box::new(call_args[0].clone()),
+                        right: Box::new(call_args[1].clone()),
+                    }),
+                    then_branch: Box::new(call_args[0].clone()),
+                    else_branch: Box::new(call_args[1].clone()),
+                }))
+            } else {
+                Ok(Some(Expression::IfThenElse {
+                    condition: Box::new(Expression::Lt {
+                        left: Box::new(call_args[0].clone()),
+                        right: Box::new(call_args[1].clone()),
+                    }),
+                    then_branch: Box::new(call_args[0].clone()),
+                    else_branch: Box::new(call_args[1].clone()),
+                }))
+            }
         }
         "abs" if call_args.len() == 1 => {
             // abs(a) as: a < 0 ? -a : a
-            Ok(Some(Expression::IfThenElse {
-                condition: Box::new(Expression::Lt {
-                    left: Box::new(call_args[0].clone()),
-                    right: Box::new(Expression::IntLiteral { value: 0 }),
-                }),
-                then_branch: Box::new(Expression::Mul {
-                    left: Box::new(Expression::IntLiteral { value: -1 }),
-                    right: Box::new(call_args[0].clone()),
-                }),
-                else_branch: Box::new(call_args[0].clone()),
-            }))
+            if use_i64 {
+                Ok(Some(Expression::IfThenElse64 {
+                    condition: Box::new(Expression::Lt64 {
+                        left: Box::new(call_args[0].clone()),
+                        right: Box::new(Expression::Int64Literal { value: 0 }),
+                    }),
+                    then_branch: Box::new(Expression::Mul64 {
+                        left: Box::new(Expression::Int64Literal { value: -1 }),
+                        right: Box::new(call_args[0].clone()),
+                    }),
+                    else_branch: Box::new(call_args[0].clone()),
+                }))
+            } else {
+                Ok(Some(Expression::IfThenElse {
+                    condition: Box::new(Expression::Lt {
+                        left: Box::new(call_args[0].clone()),
+                        right: Box::new(Expression::IntLiteral { value: 0 }),
+                    }),
+                    then_branch: Box::new(Expression::Mul {
+                        left: Box::new(Expression::IntLiteral { value: -1 }),
+                        right: Box::new(call_args[0].clone()),
+                    }),
+                    else_branch: Box::new(call_args[0].clone()),
+                }))
+            }
         }
         "len" if call_args.len() == 1 => {
             // len(collection) -> Length expression

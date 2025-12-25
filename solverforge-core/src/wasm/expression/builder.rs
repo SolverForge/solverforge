@@ -1,4 +1,4 @@
-use crate::wasm::Expression;
+use super::Expression;
 
 /// Fluent builder for constructing expression trees
 ///

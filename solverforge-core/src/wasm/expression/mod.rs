@@ -1,6 +1,9 @@
+mod builder;
 mod substitution;
 #[cfg(test)]
 mod tests;
+
+pub use builder::{Expr, FieldAccessExt};
 
 use serde::{Deserialize, Serialize};
 

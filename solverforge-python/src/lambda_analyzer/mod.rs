@@ -388,6 +388,7 @@ fn extract_lambda_from_source(source: &str) -> String {
         let mut end_idx = rest.len();
         let mut in_string = false;
         let mut string_char = ' ';
+        let mut past_colon = false; // Commas before colon are param separators
 
         for (i, c) in rest.char_indices() {
             // Handle string literals
@@ -403,6 +404,9 @@ fn extract_lambda_from_source(source: &str) -> String {
             }
 
             match c {
+                ':' if depth == 0 && !past_colon => {
+                    past_colon = true;
+                }
                 '(' | '[' | '{' => depth += 1,
                 ')' | ']' | '}' => {
                     if depth == 0 {
@@ -412,8 +416,8 @@ fn extract_lambda_from_source(source: &str) -> String {
                     }
                     depth -= 1;
                 }
-                ',' if depth == 0 => {
-                    // Comma at depth 0 ends the lambda argument
+                ',' if depth == 0 && past_colon => {
+                    // Comma at depth 0 AFTER colon ends the lambda argument
                     end_idx = i;
                     break;
                 }

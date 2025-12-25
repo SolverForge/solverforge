@@ -36,7 +36,7 @@ mod sequential;
 mod tests;
 mod type_inference;
 
-use ast_convert::convert_ast_to_expression;
+use ast_convert::{convert_ast_to_expression, ExpectedType};
 #[cfg(test)]
 use lambda_parsing::analyze_lambda_source;
 pub use registry::{get_method_from_class, register_class};
@@ -47,6 +47,20 @@ use pyo3::types::PyList;
 use solverforge_core::constraints::WasmFunction;
 use solverforge_core::wasm::Expression;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Wrapper for convert_ast_to_expression that matches the ConvertFn signature.
+///
+/// Uses ExpectedType::Any as default since the two-pass type detection in
+/// convert_compare_to_expression and convert_binop_to_expression handles
+/// type context internally.
+fn convert_ast_default(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<Option<Expression>> {
+    convert_ast_to_expression(py, node, arg_names, class_hint, ExpectedType::Any)
+}
 
 /// Global counter for generating unique lambda names.
 static LAMBDA_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -137,7 +151,7 @@ pub fn analyze_method_body(
         py,
         method,
         class_hint,
-        convert_ast_to_expression,
+        convert_ast_default,
         build_method_call_expr,
         accumulation_pattern_wrapper,
         sequential_pattern_wrapper,
@@ -156,7 +170,7 @@ fn sequential_pattern_wrapper(
         stmts,
         arg_names,
         class_hint,
-        convert_ast_to_expression,
+        convert_ast_default,
         build_method_call_expr,
     )
 }
@@ -188,7 +202,7 @@ fn accumulation_pattern_wrapper(
         body_list,
         arg_names,
         class_hint,
-        convert_ast_to_expression,
+        convert_ast_default,
         build_method_call_expr,
     )
 }

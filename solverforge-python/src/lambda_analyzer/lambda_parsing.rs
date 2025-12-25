@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 
-use super::ast_convert::{convert_ast_to_expression, extract_arg_names};
+use super::ast_convert::{convert_ast_to_expression, extract_arg_names, ExpectedType};
 
 /// Analyze a Python lambda and convert to an Expression tree.
 pub fn analyze_lambda(
@@ -162,7 +162,7 @@ fn extract_lambda_expression(
             let args = node.getattr("args")?;
             let arg_names = extract_arg_names(py, &args)?;
 
-            convert_ast_to_expression(py, &body, &arg_names, class_hint)
+            convert_ast_to_expression(py, &body, &arg_names, class_hint, ExpectedType::Any)
         }
 
         "Call" => {

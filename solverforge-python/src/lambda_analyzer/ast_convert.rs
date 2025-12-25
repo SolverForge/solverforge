@@ -2,6 +2,9 @@
 //!
 //! This module contains functions for converting Python AST nodes
 //! to solverforge Expression trees.
+//!
+//! Type context is threaded through conversion functions via `ExpectedType`
+//! to ensure proper type selection (i32 vs i64 vs f64) for literals and operations.
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -10,6 +13,25 @@ use solverforge_core::wasm::Expression;
 use super::constants::get_class_constant;
 use super::registry::{get_method_from_class, CLASS_REGISTRY};
 use super::type_inference::infer_expression_class;
+
+/// Expected type context for expression conversion.
+///
+/// This is passed down during AST conversion to inform child expressions
+/// what type their parent expects. This enables proper literal type selection
+/// (e.g., Int64Literal vs IntLiteral) without post-hoc wrapping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[allow(dead_code)] // I32 kept for API completeness
+pub enum ExpectedType {
+    /// No specific expectation - use default types
+    #[default]
+    Any,
+    /// Expect i32 (default for most integer operations)
+    I32,
+    /// Expect i64 (for datetime fields, large integers)
+    I64,
+    /// Expect f64 (for floating point)
+    F64,
+}
 
 /// Check if an expression produces a float result.
 /// Used to select between int/float arithmetic operations.
@@ -124,14 +146,18 @@ pub(crate) fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyR
 }
 
 /// Convert Python Compare AST node to Expression.
+///
+/// Type context propagation:
+/// 1. First convert both sides with ExpectedType::Any
+/// 2. If either operand is i64, re-convert non-i64 operand with ExpectedType::I64
+/// 3. This ensures literals get the correct type from the start
 pub(crate) fn convert_compare_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
 ) -> PyResult<Option<Expression>> {
-    let left = node.getattr("left")?;
+    let left_node = node.getattr("left")?;
     let ops_list = node.getattr("ops")?.cast::<PyList>()?.clone();
     let comparators_list = node.getattr("comparators")?.cast::<PyList>()?.clone();
 
@@ -143,145 +169,176 @@ pub(crate) fn convert_compare_to_expression(
         return Ok(None);
     }
 
-    let left_expr = convert_fn(py, &left, arg_names, class_hint)?;
-    let right_expr = convert_fn(py, &comparators[0], arg_names, class_hint)?;
+    let right_node = &comparators[0];
 
-    match (left_expr, right_expr) {
-        (Some(left), Some(right)) => {
-            let op_type = ops[0].get_type().name()?.to_string();
-            let use_i64 = is_i64_operand(py, &left) || is_i64_operand(py, &right);
+    // First pass: convert both with Any to determine types
+    let left_initial =
+        convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::Any)?;
+    let right_initial =
+        convert_ast_to_expression(py, right_node, arg_names, class_hint, ExpectedType::Any)?;
 
-            let expr = match op_type.as_str() {
-                "Eq" => {
-                    if use_i64 {
-                        Expression::Eq64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Eq {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "NotEq" => {
-                    if use_i64 {
-                        Expression::Ne64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Ne {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "Lt" => {
-                    if use_i64 {
-                        Expression::Lt64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Lt {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "LtE" => {
-                    if use_i64 {
-                        Expression::Le64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Le {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "Gt" => {
-                    if use_i64 {
-                        Expression::Gt64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Gt {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "GtE" => {
-                    if use_i64 {
-                        Expression::Ge64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Ge {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "Is" => {
-                    // Check for "is None" pattern
-                    if matches!(right, Expression::Null) {
-                        Expression::IsNull {
-                            operand: Box::new(left),
-                        }
-                    } else if use_i64 {
-                        Expression::Eq64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Eq {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                "IsNot" => {
-                    // Check for "is not None" pattern
-                    if matches!(right, Expression::Null) {
-                        Expression::IsNotNull {
-                            operand: Box::new(left),
-                        }
-                    } else if use_i64 {
-                        Expression::Ne64 {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    } else {
-                        Expression::Ne {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    }
-                }
-                _ => return Ok(None),
-            };
+    let (Some(left_init), Some(right_init)) = (left_initial, right_initial) else {
+        return Ok(None);
+    };
 
-            Ok(Some(expr))
+    // Determine if we need i64 operations
+    let left_is_i64 = is_i64_operand(py, &left_init);
+    let right_is_i64 = is_i64_operand(py, &right_init);
+    let use_i64 = left_is_i64 || right_is_i64;
+
+    // Second pass: re-convert with proper type context if needed
+    let (left, right) = if use_i64 {
+        let left = if left_is_i64 {
+            left_init
+        } else {
+            // Re-convert left with i64 context
+            convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::I64)?
+                .unwrap_or(left_init)
+        };
+        let right = if right_is_i64 {
+            right_init
+        } else {
+            // Re-convert right with i64 context
+            convert_ast_to_expression(py, right_node, arg_names, class_hint, ExpectedType::I64)?
+                .unwrap_or(right_init)
+        };
+        (left, right)
+    } else {
+        (left_init, right_init)
+    };
+
+    let op_type = ops[0].get_type().name()?.to_string();
+
+    let expr = match op_type.as_str() {
+        "Eq" => {
+            if use_i64 {
+                Expression::Eq64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Eq {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
         }
-        _ => Ok(None),
-    }
+        "NotEq" => {
+            if use_i64 {
+                Expression::Ne64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Ne {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        "Lt" => {
+            if use_i64 {
+                Expression::Lt64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Lt {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        "LtE" => {
+            if use_i64 {
+                Expression::Le64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Le {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        "Gt" => {
+            if use_i64 {
+                Expression::Gt64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Gt {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        "GtE" => {
+            if use_i64 {
+                Expression::Ge64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Ge {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        "Is" => {
+            // Check for "is None" pattern
+            if matches!(right, Expression::Null) {
+                Expression::IsNull {
+                    operand: Box::new(left),
+                }
+            } else if use_i64 {
+                Expression::Eq64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Eq {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        "IsNot" => {
+            // Check for "is not None" pattern
+            if matches!(right, Expression::Null) {
+                Expression::IsNotNull {
+                    operand: Box::new(left),
+                }
+            } else if use_i64 {
+                Expression::Ne64 {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            } else {
+                Expression::Ne {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                }
+            }
+        }
+        _ => return Ok(None),
+    };
+
+    Ok(Some(expr))
 }
 
 /// Convert Python BoolOp AST node (and/or) to Expression.
+///
+/// Boolean operations produce i32 (boolean) results, so operands
+/// are converted with ExpectedType::Any (they're boolean expressions).
 pub(crate) fn convert_boolop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
     let values_list = node.getattr("values")?.cast::<PyList>()?.clone();
@@ -293,10 +350,12 @@ pub(crate) fn convert_boolop_to_expression(
 
     let op_type = op.get_type().name()?.to_string();
 
-    // Convert all operands
+    // Convert all operands - boolean context, no type propagation needed
     let mut exprs: Vec<Expression> = Vec::new();
     for val in values.iter() {
-        if let Some(expr) = convert_fn(py, val, arg_names, class_hint)? {
+        if let Some(expr) =
+            convert_ast_to_expression(py, val, arg_names, class_hint, ExpectedType::Any)?
+        {
             exprs.push(expr);
         } else {
             return Ok(None);
@@ -323,28 +382,45 @@ pub(crate) fn convert_boolop_to_expression(
 }
 
 /// Convert Python UnaryOp AST node to Expression.
+///
+/// For unary minus, type context is propagated to ensure proper literal types.
 pub(crate) fn convert_unaryop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
+    expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
     let operand = node.getattr("operand")?;
 
     let op_type = op.get_type().name()?.to_string();
 
-    if let Some(operand_expr) = convert_fn(py, &operand, arg_names, class_hint)? {
+    if let Some(operand_expr) =
+        convert_ast_to_expression(py, &operand, arg_names, class_hint, expected_type)?
+    {
         let expr = match op_type.as_str() {
             "Not" => Expression::Not {
                 operand: Box::new(operand_expr),
             },
             "USub" => {
                 // Unary minus: -x
-                Expression::Sub {
-                    left: Box::new(Expression::IntLiteral { value: 0 }),
-                    right: Box::new(operand_expr),
+                // Use the same type as the operand
+                if is_i64_operand(py, &operand_expr) || expected_type == ExpectedType::I64 {
+                    Expression::Sub64 {
+                        left: Box::new(Expression::Int64Literal { value: 0 }),
+                        right: Box::new(operand_expr),
+                    }
+                } else if is_float_expr(&operand_expr) || expected_type == ExpectedType::F64 {
+                    Expression::FloatSub {
+                        left: Box::new(Expression::FloatLiteral { value: 0.0 }),
+                        right: Box::new(operand_expr),
+                    }
+                } else {
+                    Expression::Sub {
+                        left: Box::new(Expression::IntLiteral { value: 0 }),
+                        right: Box::new(operand_expr),
+                    }
                 }
             }
             _ => return Ok(None),
@@ -356,111 +432,162 @@ pub(crate) fn convert_unaryop_to_expression(
 }
 
 /// Convert Python BinOp AST node to Expression.
+///
+/// Type context propagation:
+/// 1. First convert both sides with ExpectedType::Any
+/// 2. If either operand is i64, re-convert non-i64 operand with ExpectedType::I64
+/// 3. This ensures literals get the correct type from the start
 pub(crate) fn convert_binop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
-    let left = node.getattr("left")?;
-    let right = node.getattr("right")?;
+    let left_node = node.getattr("left")?;
+    let right_node = node.getattr("right")?;
 
-    let left_expr = convert_fn(py, &left, arg_names, class_hint)?;
-    let right_expr = convert_fn(py, &right, arg_names, class_hint)?;
+    // First pass: convert both with Any to determine types
+    let left_initial =
+        convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::Any)?;
+    let right_initial =
+        convert_ast_to_expression(py, &right_node, arg_names, class_hint, ExpectedType::Any)?;
 
-    match (left_expr, right_expr) {
-        (Some(l), Some(r)) => {
-            let op_type = op.get_type().name()?.to_string();
-            let use_float = is_float_expr(&l) || is_float_expr(&r);
-            let use_i64 = is_i64_operand(py, &l) || is_i64_operand(py, &r);
+    let (Some(l_init), Some(r_init)) = (left_initial, right_initial) else {
+        return Ok(None);
+    };
 
-            let expr = match op_type.as_str() {
-                "Add" => {
-                    if use_float {
-                        Expression::FloatAdd {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else if use_i64 {
-                        Expression::Add64 {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else {
-                        Expression::Add {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    }
-                }
-                "Sub" => {
-                    if use_float {
-                        Expression::FloatSub {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else if use_i64 {
-                        Expression::Sub64 {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else {
-                        Expression::Sub {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    }
-                }
-                "Mult" => {
-                    if use_float {
-                        Expression::FloatMul {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else if use_i64 {
-                        Expression::Mul64 {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else {
-                        Expression::Mul {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    }
-                }
-                // Python `/` is always true division (returns float)
-                "Div" => Expression::FloatDiv {
+    let op_type = op.get_type().name()?.to_string();
+
+    // Determine type requirements
+    let use_float = is_float_expr(&l_init) || is_float_expr(&r_init);
+    let left_is_i64 = is_i64_operand(py, &l_init);
+    let right_is_i64 = is_i64_operand(py, &r_init);
+    let use_i64 = left_is_i64 || right_is_i64;
+
+    // Second pass: re-convert with proper type context if needed
+    let (l, r) = if use_float {
+        // Float operations - re-convert with F64 context if needed
+        let l = if is_float_expr(&l_init) {
+            l_init
+        } else {
+            convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::F64)?
+                .unwrap_or(l_init)
+        };
+        let r = if is_float_expr(&r_init) {
+            r_init
+        } else {
+            convert_ast_to_expression(py, &right_node, arg_names, class_hint, ExpectedType::F64)?
+                .unwrap_or(r_init)
+        };
+        (l, r)
+    } else if use_i64 {
+        // i64 operations - re-convert non-i64 operand with I64 context
+        let l = if left_is_i64 {
+            l_init
+        } else {
+            convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::I64)?
+                .unwrap_or(l_init)
+        };
+        let r = if right_is_i64 {
+            r_init
+        } else {
+            convert_ast_to_expression(py, &right_node, arg_names, class_hint, ExpectedType::I64)?
+                .unwrap_or(r_init)
+        };
+        (l, r)
+    } else {
+        (l_init, r_init)
+    };
+
+    let expr = match op_type.as_str() {
+        "Add" => {
+            if use_float {
+                Expression::FloatAdd {
                     left: Box::new(l),
                     right: Box::new(r),
-                },
-                "FloorDiv" => {
-                    if use_i64 {
-                        Expression::Div64 {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    } else {
-                        Expression::Div {
-                            left: Box::new(l),
-                            right: Box::new(r),
-                        }
-                    }
                 }
-                _ => return Ok(None),
-            };
-
-            Ok(Some(expr))
+            } else if use_i64 {
+                Expression::Add64 {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            } else {
+                Expression::Add {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            }
         }
-        _ => Ok(None),
-    }
+        "Sub" => {
+            if use_float {
+                Expression::FloatSub {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            } else if use_i64 {
+                Expression::Sub64 {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            } else {
+                Expression::Sub {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            }
+        }
+        "Mult" => {
+            if use_float {
+                Expression::FloatMul {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            } else if use_i64 {
+                Expression::Mul64 {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            } else {
+                Expression::Mul {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            }
+        }
+        // Python `/` is always true division (returns float)
+        "Div" => Expression::FloatDiv {
+            left: Box::new(l),
+            right: Box::new(r),
+        },
+        "FloorDiv" => {
+            if use_i64 {
+                Expression::Div64 {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            } else {
+                Expression::Div {
+                    left: Box::new(l),
+                    right: Box::new(r),
+                }
+            }
+        }
+        _ => return Ok(None),
+    };
+
+    Ok(Some(expr))
 }
 
 /// Convert Python constant to Expression.
+///
+/// The `expected_type` parameter guides literal type selection:
+/// - `ExpectedType::I64` produces `Int64Literal` for integers
+/// - `ExpectedType::F64` produces `FloatLiteral` (converting int if needed)
+/// - `ExpectedType::Any` or `ExpectedType::I32` uses default types
 pub(crate) fn convert_constant_to_expression(
     node: &Bound<'_, PyAny>,
+    expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let node_type = node.get_type().name()?.to_string();
 
@@ -474,7 +601,14 @@ pub(crate) fn convert_constant_to_expression(
             } else if let Ok(b) = value.extract::<bool>() {
                 Ok(Some(Expression::BoolLiteral { value: b }))
             } else if let Ok(i) = value.extract::<i64>() {
-                Ok(Some(Expression::IntLiteral { value: i }))
+                // Choose literal type based on expected type context
+                match expected_type {
+                    ExpectedType::I64 => Ok(Some(Expression::Int64Literal { value: i })),
+                    ExpectedType::F64 => Ok(Some(Expression::FloatLiteral { value: i as f64 })),
+                    ExpectedType::Any | ExpectedType::I32 => {
+                        Ok(Some(Expression::IntLiteral { value: i }))
+                    }
+                }
             } else if let Ok(f) = value.extract::<f64>() {
                 Ok(Some(Expression::FloatLiteral { value: f }))
             } else if let Ok(s) = value.extract::<String>() {
@@ -600,11 +734,15 @@ pub(crate) fn is_not_none_check(_py: Python<'_>, condition: &Bound<'_, PyAny>) -
 /// Convert Python AST node to Expression tree.
 ///
 /// This is the main AST conversion function that handles all node types.
+///
+/// The `expected_type` parameter provides type context from the parent expression,
+/// enabling proper literal type selection without post-hoc conversions.
 pub(crate) fn convert_ast_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
+    expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let node_type = node.get_type().name()?.to_string();
     let class_name = class_hint.to_string();
@@ -615,7 +753,9 @@ pub(crate) fn convert_ast_to_expression(
             let value = node.getattr("value")?;
             let attr: String = node.getattr("attr")?.extract()?;
 
-            if let Some(base_expr) = convert_ast_to_expression(py, &value, arg_names, class_hint)? {
+            if let Some(base_expr) =
+                convert_ast_to_expression(py, &value, arg_names, class_hint, ExpectedType::Any)?
+            {
                 // Check if this is a class constant (self.CONST or param.CONST)
                 // Only check when base is a direct parameter reference
                 if matches!(base_expr, Expression::Param { .. }) {
@@ -656,44 +796,32 @@ pub(crate) fn convert_ast_to_expression(
 
         "Compare" => {
             // Comparison: x < y, x == y, x is None, etc.
-            convert_compare_to_expression(
-                py,
-                node,
-                arg_names,
-                class_hint,
-                convert_ast_to_expression,
-            )
+            convert_compare_to_expression(py, node, arg_names, class_hint)
         }
 
         "BoolOp" => {
             // Boolean operation: and, or
-            convert_boolop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
+            convert_boolop_to_expression(py, node, arg_names, class_hint)
         }
 
         "UnaryOp" => {
             // Unary operation: not
-            convert_unaryop_to_expression(
-                py,
-                node,
-                arg_names,
-                class_hint,
-                convert_ast_to_expression,
-            )
+            convert_unaryop_to_expression(py, node, arg_names, class_hint, expected_type)
         }
 
         "BinOp" => {
             // Binary operation: +, -, *, /
-            convert_binop_to_expression(py, node, arg_names, class_hint, convert_ast_to_expression)
+            convert_binop_to_expression(py, node, arg_names, class_hint)
         }
 
         "Constant" => {
-            // Literal value
-            convert_constant_to_expression(node)
+            // Literal value - pass expected_type for proper literal selection
+            convert_constant_to_expression(node, expected_type)
         }
 
         "Call" => {
             // Method call: obj.method() or function() or module.function()
-            convert_call_to_expression(py, node, arg_names, class_hint)
+            convert_call_to_expression(py, node, arg_names, class_hint, expected_type)
         }
 
         _ => Ok(None),
@@ -706,6 +834,7 @@ fn convert_call_to_expression(
     node: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
+    expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let func = node.getattr("func")?;
     let func_type = func.get_type().name()?.to_string();
@@ -728,7 +857,7 @@ fn convert_call_to_expression(
     } else if func_type == "Name" {
         // Built-in function call like max(), min(), timedelta(), etc.
         let func_name: String = func.getattr("id")?.extract()?;
-        return convert_builtin_call(py, node, &func_name, arg_names, class_hint);
+        return convert_builtin_call(py, node, &func_name, arg_names, class_hint, expected_type);
     }
 
     // Other types of calls - not supported for inlining
@@ -736,6 +865,8 @@ fn convert_call_to_expression(
 }
 
 /// Convert math module function call.
+///
+/// Math functions work with floats, so arguments are converted with F64 context.
 fn convert_math_call(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
@@ -746,9 +877,12 @@ fn convert_math_call(
     let args_node = node.getattr("args")?;
     let args_list = args_node.cast::<PyList>()?;
 
+    // Math functions expect float arguments
     let mut call_args = Vec::new();
     for arg in args_list.iter() {
-        if let Some(arg_expr) = convert_ast_to_expression(py, &arg, arg_names, class_hint)? {
+        if let Some(arg_expr) =
+            convert_ast_to_expression(py, &arg, arg_names, class_hint, ExpectedType::F64)?
+        {
             call_args.push(arg_expr);
         } else {
             return Ok(None);
@@ -806,8 +940,10 @@ fn convert_method_call(
     arg_names: &[String],
     class_hint: &str,
 ) -> PyResult<Option<Expression>> {
-    // Get the object expression
-    let Some(obj_expr) = convert_ast_to_expression(py, value, arg_names, class_hint)? else {
+    // Get the object expression (no specific type expectation for object references)
+    let Some(obj_expr) =
+        convert_ast_to_expression(py, value, arg_names, class_hint, ExpectedType::Any)?
+    else {
         return Ok(None);
     };
 
@@ -830,11 +966,15 @@ fn convert_method_call(
                 // The object is Param(0) in the method, and obj_expr in the call
                 inlined = super::substitute_param(inlined, 0, &obj_expr);
 
-                // Substitute other parameters
+                // Substitute other parameters (using Any since we don't know method signature types)
                 for (i, arg) in args_list.iter().enumerate() {
-                    if let Some(arg_expr) =
-                        convert_ast_to_expression(py, &arg, arg_names, class_hint)?
-                    {
+                    if let Some(arg_expr) = convert_ast_to_expression(
+                        py,
+                        &arg,
+                        arg_names,
+                        class_hint,
+                        ExpectedType::Any,
+                    )? {
                         // In the method, args start at Param(1)
                         inlined = super::substitute_param(inlined, (i + 1) as u32, &arg_expr);
                     }
@@ -860,27 +1000,34 @@ fn convert_method_call(
 }
 
 /// Convert built-in function call.
+///
+/// Type context is used for:
+/// - timedelta: always returns Int64Literal (used with datetime)
+/// - max/min/abs: respects i64 context for operands
 fn convert_builtin_call(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     func_name: &str,
     arg_names: &[String],
     class_hint: &str,
+    expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let args_node = node.getattr("args")?;
     let args_list = args_node.cast::<PyList>()?;
 
-    // Convert positional arguments to expressions
+    // First pass: convert positional arguments with Any to determine types
     let mut call_args = Vec::new();
     for arg in args_list.iter() {
-        if let Some(arg_expr) = convert_ast_to_expression(py, &arg, arg_names, class_hint)? {
+        if let Some(arg_expr) =
+            convert_ast_to_expression(py, &arg, arg_names, class_hint, ExpectedType::Any)?
+        {
             call_args.push(arg_expr);
         } else {
             return Ok(None);
         }
     }
 
-    // Parse keyword arguments
+    // Parse keyword arguments (for timedelta)
     let keywords_node = node.getattr("keywords")?;
     let keywords_list = keywords_node.cast::<PyList>()?;
     let mut keyword_args: Vec<(String, i64)> = Vec::new();
@@ -909,8 +1056,29 @@ fn convert_builtin_call(
         }
     }
 
-    // Check if any argument is i64 (for datetime operations)
-    let use_i64 = call_args.iter().any(|arg| is_i64_operand(py, arg));
+    // Check if any argument is i64 (for datetime operations) OR if expected type is i64
+    let use_i64 =
+        expected_type == ExpectedType::I64 || call_args.iter().any(|arg| is_i64_operand(py, arg));
+
+    // Second pass: re-convert arguments with proper type context if needed
+    let call_args = if use_i64 {
+        let mut reconverted = Vec::new();
+        for (i, arg) in args_list.iter().enumerate() {
+            // Keep already-i64 arguments, re-convert others with I64 context
+            if is_i64_operand(py, &call_args[i]) {
+                reconverted.push(call_args[i].clone());
+            } else if let Some(arg_expr) =
+                convert_ast_to_expression(py, &arg, arg_names, class_hint, ExpectedType::I64)?
+            {
+                reconverted.push(arg_expr);
+            } else {
+                reconverted.push(call_args[i].clone());
+            }
+        }
+        reconverted
+    } else {
+        call_args
+    };
 
     // Handle specific built-in functions
     match func_name {
@@ -1011,7 +1179,9 @@ fn convert_builtin_call(
             }))
         }
         "timedelta" => {
-            // Convert timedelta to integer seconds
+            // Convert timedelta to i64 seconds.
+            // timedelta is always used with datetime fields (which are i64),
+            // so we always emit Int64Literal to ensure type consistency.
             // Supports: days, hours, minutes, seconds keyword args
             let mut total_seconds: i64 = 0;
             for (name, value) in &keyword_args {
@@ -1023,7 +1193,8 @@ fn convert_builtin_call(
                     _ => {}
                 }
             }
-            Ok(Some(Expression::IntLiteral {
+            // Always use Int64Literal - timedelta is semantically a duration for datetime
+            Ok(Some(Expression::Int64Literal {
                 value: total_seconds,
             }))
         }

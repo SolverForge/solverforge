@@ -9,6 +9,13 @@ use solverforge_core::wasm::Expression;
 
 use super::ast_convert::{is_empty_collection_guard, is_not_none_check};
 
+/// Type alias for AST conversion functions.
+pub type ConvertFn =
+    fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>;
+
+/// Type alias for accumulation pattern extraction functions.
+pub type AccumFn = fn(Python<'_>, &Bound<'_, PyList>, &[String], &str) -> PyResult<Expression>;
+
 /// Extract if-then-else expression from an If statement.
 ///
 /// Handles patterns like:
@@ -23,7 +30,7 @@ pub(super) fn extract_if_else(
     if_stmt: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
+    convert_fn: ConvertFn,
 ) -> PyResult<Expression> {
     // Extract condition
     let condition_node = if_stmt.getattr("test")?;
@@ -72,11 +79,7 @@ pub(super) fn extract_if_else(
         } else if stmt_type == "If" {
             // Nested if - recursively extract
             else_expr = Some(extract_if_else(
-                py,
-                &stmt,
-                arg_names,
-                class_hint,
-                &convert_fn,
+                py, &stmt, arg_names, class_hint, convert_fn,
             )?);
             break;
         }
@@ -111,13 +114,13 @@ pub(super) fn extract_assignment_if(
     stmts: &[Bound<'_, PyAny>],
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
+    convert_fn: ConvertFn,
 ) -> PyResult<Expression> {
     // Look for an If statement that contains assignments
     for stmt in stmts {
         let stmt_type = stmt.get_type().name()?.to_string();
         if stmt_type == "If" {
-            if let Ok(expr) = extract_if_assignment(py, stmt, arg_names, class_hint, &convert_fn) {
+            if let Ok(expr) = extract_if_assignment(py, stmt, arg_names, class_hint, convert_fn) {
                 return Ok(expr);
             }
         }
@@ -133,7 +136,7 @@ fn extract_if_assignment(
     if_stmt: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: &impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
+    convert_fn: ConvertFn,
 ) -> PyResult<Expression> {
     // Extract condition
     let condition_node = if_stmt.getattr("test")?;
@@ -181,7 +184,7 @@ fn extract_branch_value(
     stmts: &Bound<'_, PyList>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: &impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
+    convert_fn: ConvertFn,
 ) -> PyResult<Expression> {
     for stmt in stmts.iter() {
         let stmt_type = stmt.get_type().name()?.to_string();
@@ -260,9 +263,8 @@ pub(super) fn extract_early_return(
     remaining_stmts: &[Bound<'_, PyAny>],
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>
-        + Copy,
-    try_accum_fn: impl Fn(Python<'_>, &Bound<'_, PyList>, &[String], &str) -> PyResult<Expression>,
+    convert_fn: ConvertFn,
+    try_accum_fn: AccumFn,
 ) -> PyResult<Expression> {
     // Extract condition
     let condition_node = if_stmt.getattr("test")?;
@@ -373,7 +375,7 @@ pub(super) fn extract_early_return(
                 arg_names,
                 class_hint,
                 convert_fn,
-                &try_accum_fn,
+                try_accum_fn,
             )?);
             break;
         }
@@ -409,7 +411,7 @@ pub(super) fn detect_early_return(
     if_stmt: &Bound<'_, PyAny>,
     arg_names: &[String],
     class_hint: &str,
-    convert_fn: impl Fn(Python<'_>, &Bound<'_, PyAny>, &[String], &str) -> PyResult<Option<Expression>>,
+    convert_fn: ConvertFn,
 ) -> PyResult<Option<(Expression, Expression)>> {
     let test = if_stmt.getattr("test")?;
     let body = if_stmt.getattr("body")?;

@@ -8,29 +8,102 @@ use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 
 use super::constants::get_class_constant;
-use super::registry::get_method_from_class;
+use super::registry::{get_method_from_class, CLASS_REGISTRY};
 use super::type_inference::infer_expression_class;
 
-/// Check if an expression produces a float value.
-pub(super) fn is_float_expr(expr: &Expression) -> bool {
-    matches!(
-        expr,
-        Expression::FloatLiteral { .. }
-            | Expression::FloatDiv { .. }
-            | Expression::FloatMul { .. }
-            | Expression::FloatAdd { .. }
-            | Expression::FloatSub { .. }
-            | Expression::Sqrt { .. }
-            | Expression::FloatAbs { .. }
-            | Expression::Sin { .. }
-            | Expression::Cos { .. }
-            | Expression::Asin { .. }
-            | Expression::Acos { .. }
-            | Expression::Atan { .. }
-            | Expression::Atan2 { .. }
-            | Expression::Radians { .. }
-            | Expression::IntToFloat { .. }
-    )
+/// Check if an expression produces a float result.
+/// Used to select between int/float arithmetic operations.
+pub fn is_float_expr(expr: &Expression) -> bool {
+    match expr {
+        Expression::FloatLiteral { .. } => true,
+        Expression::FloatAdd { .. }
+        | Expression::FloatSub { .. }
+        | Expression::FloatMul { .. }
+        | Expression::FloatDiv { .. } => true,
+        Expression::Sqrt { .. }
+        | Expression::FloatAbs { .. }
+        | Expression::Sin { .. }
+        | Expression::Cos { .. }
+        | Expression::Asin { .. }
+        | Expression::Acos { .. }
+        | Expression::Atan { .. }
+        | Expression::Atan2 { .. }
+        | Expression::Radians { .. } => true,
+        Expression::IntToFloat { .. } => true,
+        Expression::IfThenElse {
+            then_branch,
+            else_branch,
+            ..
+        } => is_float_expr(then_branch) || is_float_expr(else_branch),
+        _ => false,
+    }
+}
+
+/// Check if an expression produces an i64 result.
+/// Used to select between i32/i64 comparison and arithmetic operations.
+pub fn is_i64_expr(expr: &Expression) -> bool {
+    match expr {
+        // i64 arithmetic operations
+        Expression::Add64 { .. }
+        | Expression::Sub64 { .. }
+        | Expression::Mul64 { .. }
+        | Expression::Div64 { .. } => true,
+        // Large integer literals that don't fit in i32
+        Expression::IntLiteral { value } => *value < i32::MIN as i64 || *value > i32::MAX as i64,
+        Expression::IfThenElse {
+            then_branch,
+            else_branch,
+            ..
+        } => is_i64_expr(then_branch) || is_i64_expr(else_branch),
+        _ => false,
+    }
+}
+
+/// Check if a FieldAccess expression references an i64 field.
+/// This looks up the Python type annotation and checks for datetime types.
+pub fn is_i64_field_access(py: Python<'_>, expr: &Expression) -> bool {
+    if let Expression::FieldAccess {
+        class_name,
+        field_name,
+        ..
+    } = expr
+    {
+        // Look up the field type from the class registry
+        let class_ref: Option<Py<PyAny>> = {
+            let registry = CLASS_REGISTRY.read().unwrap();
+            if let Some(ref map) = *registry {
+                map.get(class_name).map(|c| c.clone_ref(py))
+            } else {
+                None
+            }
+        };
+
+        if let Some(class) = class_ref {
+            let class_bound = class.bind(py);
+            if let Ok(get_type_hints) = py
+                .import("typing")
+                .and_then(|m| m.getattr("get_type_hints"))
+            {
+                if let Ok(hints) = get_type_hints.call1((&class_bound,)) {
+                    if let Ok(field_type) = hints.get_item(field_name) {
+                        // Check if field type is datetime
+                        if let Ok(type_name) = field_type.getattr("__name__") {
+                            if let Ok(name) = type_name.extract::<String>() {
+                                // datetime fields are stored as i64 timestamps
+                                return name == "datetime";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Check if either expression produces an i64 result, including field access.
+pub fn is_i64_operand(py: Python<'_>, expr: &Expression) -> bool {
+    is_i64_expr(expr) || is_i64_field_access(py, expr)
 }
 
 /// Extract argument names from Python AST arguments node.
@@ -73,37 +146,97 @@ pub(crate) fn convert_compare_to_expression(
     match (left_expr, right_expr) {
         (Some(left), Some(right)) => {
             let op_type = ops[0].get_type().name()?.to_string();
+            let use_i64 = is_i64_operand(py, &left) || is_i64_operand(py, &right);
 
             let expr = match op_type.as_str() {
-                "Eq" => Expression::Eq {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "NotEq" => Expression::Ne {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "Lt" => Expression::Lt {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "LtE" => Expression::Le {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "Gt" => Expression::Gt {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                "GtE" => Expression::Ge {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
+                "Eq" => {
+                    if use_i64 {
+                        Expression::Eq64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    } else {
+                        Expression::Eq {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }
+                }
+                "NotEq" => {
+                    if use_i64 {
+                        Expression::Ne64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    } else {
+                        Expression::Ne {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }
+                }
+                "Lt" => {
+                    if use_i64 {
+                        Expression::Lt64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    } else {
+                        Expression::Lt {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }
+                }
+                "LtE" => {
+                    if use_i64 {
+                        Expression::Le64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    } else {
+                        Expression::Le {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }
+                }
+                "Gt" => {
+                    if use_i64 {
+                        Expression::Gt64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    } else {
+                        Expression::Gt {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }
+                }
+                "GtE" => {
+                    if use_i64 {
+                        Expression::Ge64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    } else {
+                        Expression::Ge {
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        }
+                    }
+                }
                 "Is" => {
                     // Check for "is None" pattern
                     if matches!(right, Expression::Null) {
                         Expression::IsNull {
                             operand: Box::new(left),
+                        }
+                    } else if use_i64 {
+                        Expression::Eq64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
                         }
                     } else {
                         Expression::Eq {
@@ -117,6 +250,11 @@ pub(crate) fn convert_compare_to_expression(
                     if matches!(right, Expression::Null) {
                         Expression::IsNotNull {
                             operand: Box::new(left),
+                        }
+                    } else if use_i64 {
+                        Expression::Ne64 {
+                            left: Box::new(left),
+                            right: Box::new(right),
                         }
                     } else {
                         Expression::Ne {
@@ -234,14 +372,32 @@ pub(crate) fn convert_binop_to_expression(
             let op_type = op.get_type().name()?.to_string();
 
             let expr = match op_type.as_str() {
-                "Add" => Expression::Add {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
-                "Sub" => Expression::Sub {
-                    left: Box::new(l),
-                    right: Box::new(r),
-                },
+                "Add" => {
+                    if is_float_expr(&l) || is_float_expr(&r) {
+                        Expression::FloatAdd {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else {
+                        Expression::Add {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    }
+                }
+                "Sub" => {
+                    if is_float_expr(&l) || is_float_expr(&r) {
+                        Expression::FloatSub {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else {
+                        Expression::Sub {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    }
+                }
                 "Mult" => {
                     if is_float_expr(&l) || is_float_expr(&r) {
                         Expression::FloatMul {
@@ -255,6 +411,7 @@ pub(crate) fn convert_binop_to_expression(
                         }
                     }
                 }
+                // Python `/` is always true division (returns float)
                 "Div" => Expression::FloatDiv {
                     left: Box::new(l),
                     right: Box::new(r),

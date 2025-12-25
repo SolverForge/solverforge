@@ -49,31 +49,38 @@ pub fn get_method_from_class(
     class_name: &str,
     method_name: &str,
 ) -> Option<Py<PyAny>> {
-    let registry = CLASS_REGISTRY.read().unwrap();
+    // Clone the class reference while holding lock, then release before Python operations
+    let class_ref: Option<Py<PyAny>> = {
+        let registry = CLASS_REGISTRY.read().unwrap();
+        if let Some(ref map) = *registry {
+            map.get(class_name).map(|c| c.clone_ref(py))
+        } else {
+            None
+        }
+    };
 
-    if let Some(ref map) = *registry {
-        if let Some(class) = map.get(class_name) {
-            let class_bound = class.bind(py);
+    // Now do Python operations without holding the lock
+    if let Some(class) = class_ref {
+        let class_bound = class.bind(py);
 
-            // Try to get the method from the class
-            if let Ok(method) = class_bound.getattr(method_name) {
-                // Check if it's actually a method/function (not a class attribute)
-                let inspect = py.import("inspect").ok()?;
-                let is_method = inspect
-                    .call_method1("isfunction", (&method,))
-                    .ok()?
-                    .extract::<bool>()
-                    .ok()?;
-                let is_method_descriptor = inspect
-                    .call_method1("ismethod", (&method,))
-                    .ok()?
-                    .extract::<bool>()
-                    .ok()?;
+        // Try to get the method from the class
+        if let Ok(method) = class_bound.getattr(method_name) {
+            // Check if it's actually a method/function (not a class attribute)
+            let inspect = py.import("inspect").ok()?;
+            let is_method = inspect
+                .call_method1("isfunction", (&method,))
+                .ok()?
+                .extract::<bool>()
+                .ok()?;
+            let is_method_descriptor = inspect
+                .call_method1("ismethod", (&method,))
+                .ok()?
+                .extract::<bool>()
+                .ok()?;
 
-                if is_method || is_method_descriptor {
-                    log::debug!("Found method '{}' on class '{}'", method_name, class_name);
-                    return Some(method.unbind());
-                }
+            if is_method || is_method_descriptor {
+                log::debug!("Found method '{}' on class '{}'", method_name, class_name);
+                return Some(method.unbind());
             }
         }
     }

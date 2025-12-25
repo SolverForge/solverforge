@@ -27,6 +27,7 @@ mod ast_convert;
 mod conditionals;
 mod constants;
 mod loops;
+mod method_analysis;
 mod patterns;
 mod registry;
 #[cfg(test)]
@@ -117,202 +118,30 @@ impl LambdaInfo {
     }
 }
 
+// ============================================================================
+// Method Analysis Wrappers
+// ============================================================================
+
 /// Get the number of parameters from a Python callable.
 fn get_param_count(py: Python<'_>, callable: &Py<PyAny>) -> PyResult<usize> {
-    let inspect = py.import("inspect")?;
-    let sig = inspect.call_method1("signature", (callable,))?;
-    let params = sig.getattr("parameters")?;
-    let len = params.len()?;
-    Ok(len)
+    method_analysis::get_param_count(py, callable)
 }
 
-// ============================================================================
-// Method Body Analysis
-// ============================================================================
-
 /// Analyze a Python method body and convert to an Expression tree.
-///
-/// This reuses the bytecode analysis infrastructure but handles `self`
-/// as parameter index 0. The returned Expression can be used to inline
-/// method calls by substituting `self` with the calling object.
-///
-/// # Arguments
-/// * `py` - Python interpreter
-/// * `method` - The method callable to analyze
-/// * `class_hint` - Class name for field type inference (required)
-///
-/// # Returns
-/// An Expression tree representing the method body, where:
-/// - `Param { index: 0 }` represents `self`
-/// - Other params are indexed 1, 2, etc.
-///
-/// # Errors
-/// Returns an error if the method body uses unsupported patterns.
 pub fn analyze_method_body(
     py: Python<'_>,
     method: &Py<PyAny>,
     class_hint: &str,
 ) -> PyResult<Expression> {
-    let param_count = get_param_count(py, method)?;
-
-    let inspect = py.import("inspect")?;
-    let source = inspect.call_method1("getsource", (method,)).map_err(|_| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Cannot analyze method: source code unavailable. Methods must be defined in source files.",
-        )
-    })?;
-    let source_str: String = source.extract()?;
-    analyze_method_source(py, &source_str, method, param_count, class_hint)
-}
-
-/// Analyze method from source code.
-///
-/// Extracts the return expression from a method definition and analyzes it.
-fn analyze_method_source(
-    py: Python<'_>,
-    source: &str,
-    _method: &Py<PyAny>,
-    _param_count: usize,
-    class_hint: &str,
-) -> PyResult<Expression> {
-    let ast = py.import("ast")?;
-
-    // Parse the method source
-    // We need to handle indentation - dedent the source first
-    let textwrap = py.import("textwrap")?;
-    let dedented: String = textwrap.call_method1("dedent", (source,))?.extract()?;
-
-    let tree = ast.call_method1("parse", (&dedented,)).map_err(|e| {
-        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Cannot parse method source: {}",
-            e
-        ))
-    })?;
-
-    // Find the FunctionDef node and extract its return expression
-    let body = tree.getattr("body")?;
-    extract_method_return_expression(py, &body, _param_count, class_hint)
-}
-
-/// Extract the return expression from a method's AST.
-fn extract_method_return_expression(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    _param_count: usize,
-    class_hint: &str,
-) -> PyResult<Expression> {
-    let node_type = node.get_type().name()?.to_string();
-
-    match node_type.as_str() {
-        "list" => {
-            // Body is a list, find FunctionDef
-            let list = node.cast::<PyList>()?;
-            for item in list.iter() {
-                let item_type = item.get_type().name()?.to_string();
-                if item_type == "FunctionDef" || item_type == "AsyncFunctionDef" {
-                    return extract_method_return_expression(py, &item, _param_count, class_hint);
-                }
-            }
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Cannot analyze method: no function definition found",
-            ))
-        }
-
-        "FunctionDef" | "AsyncFunctionDef" => {
-            // Extract argument names including 'self'
-            let args = node.getattr("args")?;
-            let arg_names = extract_arg_names(py, &args)?;
-
-            // Find return statement in function body
-            let body = node.getattr("body")?;
-            let body_list = body.cast::<PyList>()?;
-            let stmts: Vec<Bound<'_, PyAny>> = body_list.iter().collect();
-
-            for (i, stmt) in stmts.iter().enumerate() {
-                let stmt_type = stmt.get_type().name()?.to_string();
-                if stmt_type == "Return" {
-                    let value = stmt.getattr("value")?;
-                    if !value.is_none() {
-                        if let Some(expr) =
-                            convert_ast_to_expression(py, &value, &arg_names, class_hint)?
-                        {
-                            return Ok(expr);
-                        }
-                    }
-                }
-                // Handle If statements with returns
-                if stmt_type == "If" {
-                    // First try standard if/else extraction
-                    if let Ok(expr) = conditionals::extract_if_else(
-                        py,
-                        stmt,
-                        &arg_names,
-                        class_hint,
-                        convert_ast_to_expression,
-                    ) {
-                        return Ok(expr);
-                    }
-                    // Try if-early-return pattern: if condition returns, rest is else
-                    if let Ok(expr) = conditionals::extract_early_return(
-                        py,
-                        stmt,
-                        &stmts[i + 1..],
-                        &arg_names,
-                        class_hint,
-                        convert_ast_to_expression,
-                        accumulation_pattern_wrapper,
-                    ) {
-                        return Ok(expr);
-                    }
-                }
-            }
-
-            // Try to recognize common patterns with loops (e.g., sum accumulation)
-            if let Ok(expr) = loops::try_extract_accumulation_pattern(
-                py,
-                body_list,
-                &arg_names,
-                class_hint,
-                convert_ast_to_expression,
-                build_method_call_expr,
-            ) {
-                return Ok(expr);
-            }
-
-            // Try sequential expression substitution pattern:
-            // var1 = expr1; var2 = expr2(var1); return method(var2)
-            if let Ok(expr) =
-                try_extract_sequential_expression_pattern(py, &stmts, &arg_names, class_hint)
-            {
-                return Ok(expr);
-            }
-
-            // Try assignment-based pattern for shadow variable update methods:
-            // if cond1: self.field = val1
-            // elif cond2: self.field = val2
-            // else: self.field = val3
-            if let Ok(expr) = conditionals::extract_assignment_if(
-                py,
-                &stmts,
-                &arg_names,
-                class_hint,
-                convert_ast_to_expression,
-            ) {
-                return Ok(expr);
-            }
-
-            // No explicit return found - method might be more complex
-            Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Cannot analyze method: no simple return statement found. \
-                 Methods must have a single return expression or assignment pattern.",
-            ))
-        }
-
-        _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Cannot analyze method: unexpected AST node type '{}'",
-            node_type
-        ))),
-    }
+    method_analysis::analyze_method_body(
+        py,
+        method,
+        class_hint,
+        convert_ast_to_expression,
+        build_method_call_expr,
+        accumulation_pattern_wrapper,
+        try_extract_sequential_expression_pattern,
+    )
 }
 
 // ============================================================================

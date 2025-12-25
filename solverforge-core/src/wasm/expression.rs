@@ -246,6 +246,196 @@ pub enum Expression {
     },
 }
 
+impl Expression {
+    /// Substitute all occurrences of a parameter with a replacement expression.
+    ///
+    /// This is used for method inlining: when inlining `obj.method()`, we replace
+    /// `Param(0)` (self) with `obj`, and other parameters with their call arguments.
+    ///
+    /// # Example
+    /// ```
+    /// # use solverforge_core::wasm::Expression;
+    /// // Method body: self.field + self.other
+    /// let body = Expression::Add {
+    ///     left: Box::new(Expression::FieldAccess {
+    ///         object: Box::new(Expression::Param { index: 0 }),
+    ///         class_name: "Obj".into(),
+    ///         field_name: "field".into(),
+    ///     }),
+    ///     right: Box::new(Expression::FieldAccess {
+    ///         object: Box::new(Expression::Param { index: 0 }),
+    ///         class_name: "Obj".into(),
+    ///         field_name: "other".into(),
+    ///     }),
+    /// };
+    ///
+    /// // Substitute Param(0) with a specific object reference
+    /// let obj = Expression::FieldAccess {
+    ///     object: Box::new(Expression::Param { index: 1 }),
+    ///     class_name: "Container".into(),
+    ///     field_name: "item".into(),
+    /// };
+    ///
+    /// let inlined = body.substitute_param(0, &obj);
+    /// // Result: container.item.field + container.item.other
+    /// ```
+    pub fn substitute_param(self, from_index: u32, substitute: &Expression) -> Expression {
+        // Macros to reduce repetition
+        macro_rules! sub {
+            ($e:expr) => {
+                Box::new((*$e).substitute_param(from_index, substitute))
+            };
+        }
+
+        macro_rules! binary {
+            ($variant:ident, $left:expr, $right:expr) => {
+                Expression::$variant {
+                    left: sub!($left),
+                    right: sub!($right),
+                }
+            };
+        }
+
+        macro_rules! unary {
+            ($variant:ident, $operand:expr) => {
+                Expression::$variant {
+                    operand: sub!($operand),
+                }
+            };
+        }
+
+        match self {
+            // Parameter substitution - the core operation
+            Expression::Param { index } if index == from_index => substitute.clone(),
+            Expression::Param { index } => Expression::Param { index },
+
+            // Field access
+            Expression::FieldAccess {
+                object,
+                class_name,
+                field_name,
+            } => Expression::FieldAccess {
+                object: sub!(object),
+                class_name,
+                field_name,
+            },
+
+            // Comparisons
+            Expression::Eq { left, right } => binary!(Eq, left, right),
+            Expression::Ne { left, right } => binary!(Ne, left, right),
+            Expression::Lt { left, right } => binary!(Lt, left, right),
+            Expression::Le { left, right } => binary!(Le, left, right),
+            Expression::Gt { left, right } => binary!(Gt, left, right),
+            Expression::Ge { left, right } => binary!(Ge, left, right),
+
+            // Arithmetic
+            Expression::Add { left, right } => binary!(Add, left, right),
+            Expression::Sub { left, right } => binary!(Sub, left, right),
+            Expression::Mul { left, right } => binary!(Mul, left, right),
+            Expression::Div { left, right } => binary!(Div, left, right),
+
+            // Math functions - unary
+            Expression::Sqrt { operand } => unary!(Sqrt, operand),
+            Expression::FloatAbs { operand } => unary!(FloatAbs, operand),
+            Expression::Round { operand } => unary!(Round, operand),
+            Expression::Floor { operand } => unary!(Floor, operand),
+            Expression::Ceil { operand } => unary!(Ceil, operand),
+            Expression::Sin { operand } => unary!(Sin, operand),
+            Expression::Cos { operand } => unary!(Cos, operand),
+            Expression::Asin { operand } => unary!(Asin, operand),
+            Expression::Acos { operand } => unary!(Acos, operand),
+            Expression::Atan { operand } => unary!(Atan, operand),
+            Expression::Radians { operand } => unary!(Radians, operand),
+            Expression::IntToFloat { operand } => unary!(IntToFloat, operand),
+            Expression::FloatToInt { operand } => unary!(FloatToInt, operand),
+
+            // Math functions - binary
+            Expression::Atan2 { y, x } => Expression::Atan2 {
+                y: sub!(y),
+                x: sub!(x),
+            },
+
+            // Logical operations
+            Expression::And { left, right } => binary!(And, left, right),
+            Expression::Or { left, right } => binary!(Or, left, right),
+            Expression::Not { operand } => unary!(Not, operand),
+            Expression::IsNull { operand } => unary!(IsNull, operand),
+            Expression::IsNotNull { operand } => unary!(IsNotNull, operand),
+
+            // Host calls
+            Expression::HostCall {
+                function_name,
+                args,
+            } => Expression::HostCall {
+                function_name,
+                args: args
+                    .into_iter()
+                    .map(|arg| arg.substitute_param(from_index, substitute))
+                    .collect(),
+            },
+
+            // List operations
+            Expression::ListContains { list, element } => Expression::ListContains {
+                list: sub!(list),
+                element: sub!(element),
+            },
+            Expression::Length { collection } => Expression::Length {
+                collection: sub!(collection),
+            },
+
+            // Sum with index adjustment
+            Expression::Sum {
+                collection,
+                item_var_name,
+                item_param_index,
+                item_class_name,
+                accumulator_expr,
+            } => {
+                // Adjust item_param_index if we're substituting a lower index
+                let new_index = if from_index < item_param_index {
+                    item_param_index - 1
+                } else {
+                    item_param_index
+                };
+
+                Expression::Sum {
+                    collection: sub!(collection),
+                    item_var_name,
+                    item_param_index: new_index,
+                    item_class_name,
+                    accumulator_expr: sub!(accumulator_expr),
+                }
+            }
+
+            Expression::LastElement {
+                collection,
+                item_class_name,
+            } => Expression::LastElement {
+                collection: sub!(collection),
+                item_class_name,
+            },
+
+            // Conditional
+            Expression::IfThenElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => Expression::IfThenElse {
+                condition: sub!(condition),
+                then_branch: sub!(then_branch),
+                else_branch: sub!(else_branch),
+            },
+
+            // Literals - no params, return as-is
+            Expression::Null
+            | Expression::BoolLiteral { .. }
+            | Expression::IntLiteral { .. }
+            | Expression::FloatLiteral { .. }
+            | Expression::StringLiteral { .. } => self,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -744,5 +934,277 @@ mod tests {
         let json = serde_json::to_string(&expr).unwrap();
         let deserialized: Expression = serde_json::from_str(&json).unwrap();
         assert_eq!(expr, deserialized);
+    }
+
+    // ===== substitute_param Tests =====
+
+    #[test]
+    fn test_substitute_param_simple() {
+        // Param(0) -> substitute
+        let expr = Expression::Param { index: 0 };
+        let substitute = Expression::IntLiteral { value: 42 };
+
+        let result = expr.substitute_param(0, &substitute);
+        assert_eq!(result, Expression::IntLiteral { value: 42 });
+    }
+
+    #[test]
+    fn test_substitute_param_no_match() {
+        // Param(1) should not be substituted when replacing Param(0)
+        let expr = Expression::Param { index: 1 };
+        let substitute = Expression::IntLiteral { value: 42 };
+
+        let result = expr.substitute_param(0, &substitute);
+        assert_eq!(result, Expression::Param { index: 1 });
+    }
+
+    #[test]
+    fn test_substitute_param_in_field_access() {
+        // Param(0).field -> substitute.field
+        let expr = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 0 }),
+            class_name: "Employee".into(),
+            field_name: "name".into(),
+        };
+        let substitute = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 1 }),
+            class_name: "Container".into(),
+            field_name: "item".into(),
+        };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::FieldAccess {
+                object, field_name, ..
+            } => {
+                assert_eq!(field_name, "name");
+                // The object should now be the substitute
+                match *object {
+                    Expression::FieldAccess {
+                        field_name: inner_name,
+                        ..
+                    } => {
+                        assert_eq!(inner_name, "item");
+                    }
+                    _ => panic!("Expected FieldAccess"),
+                }
+            }
+            _ => panic!("Expected FieldAccess"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_in_binary_op() {
+        // Param(0) + Param(1) with Param(0) -> Literal(10)
+        let expr = Expression::Add {
+            left: Box::new(Expression::Param { index: 0 }),
+            right: Box::new(Expression::Param { index: 1 }),
+        };
+        let substitute = Expression::IntLiteral { value: 10 };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::Add { left, right } => {
+                assert_eq!(*left, Expression::IntLiteral { value: 10 });
+                assert_eq!(*right, Expression::Param { index: 1 });
+            }
+            _ => panic!("Expected Add"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_in_comparison() {
+        // Param(0).value > Param(1).value
+        let expr = Expression::Gt {
+            left: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 0 }),
+                class_name: "A".into(),
+                field_name: "value".into(),
+            }),
+            right: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 1 }),
+                class_name: "B".into(),
+                field_name: "value".into(),
+            }),
+        };
+        let substitute = Expression::IntLiteral { value: 5 };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::Gt { left, right } => {
+                match *left {
+                    Expression::FieldAccess { object, .. } => {
+                        assert_eq!(*object, Expression::IntLiteral { value: 5 });
+                    }
+                    _ => panic!("Expected FieldAccess"),
+                }
+                // Right side should still have Param(1)
+                match *right {
+                    Expression::FieldAccess { object, .. } => {
+                        assert_eq!(*object, Expression::Param { index: 1 });
+                    }
+                    _ => panic!("Expected FieldAccess"),
+                }
+            }
+            _ => panic!("Expected Gt"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_literal_unchanged() {
+        let expr = Expression::IntLiteral { value: 100 };
+        let substitute = Expression::IntLiteral { value: 999 };
+
+        let result = expr.substitute_param(0, &substitute);
+        assert_eq!(result, Expression::IntLiteral { value: 100 });
+    }
+
+    #[test]
+    fn test_substitute_param_in_if_then_else() {
+        // if Param(0) > 0 then Param(0) else Param(1)
+        let expr = Expression::IfThenElse {
+            condition: Box::new(Expression::Gt {
+                left: Box::new(Expression::Param { index: 0 }),
+                right: Box::new(Expression::IntLiteral { value: 0 }),
+            }),
+            then_branch: Box::new(Expression::Param { index: 0 }),
+            else_branch: Box::new(Expression::Param { index: 1 }),
+        };
+        let substitute = Expression::IntLiteral { value: 42 };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::IfThenElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                // condition: 42 > 0
+                match *condition {
+                    Expression::Gt { left, .. } => {
+                        assert_eq!(*left, Expression::IntLiteral { value: 42 });
+                    }
+                    _ => panic!("Expected Gt"),
+                }
+                // then: 42
+                assert_eq!(*then_branch, Expression::IntLiteral { value: 42 });
+                // else: still Param(1)
+                assert_eq!(*else_branch, Expression::Param { index: 1 });
+            }
+            _ => panic!("Expected IfThenElse"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_in_host_call() {
+        let expr = Expression::HostCall {
+            function_name: "hstringEquals".into(),
+            args: vec![
+                Expression::Param { index: 0 },
+                Expression::Param { index: 1 },
+            ],
+        };
+        let substitute = Expression::StringLiteral {
+            value: "test".into(),
+        };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::HostCall { args, .. } => {
+                assert_eq!(args.len(), 2);
+                assert_eq!(
+                    args[0],
+                    Expression::StringLiteral {
+                        value: "test".into()
+                    }
+                );
+                assert_eq!(args[1], Expression::Param { index: 1 });
+            }
+            _ => panic!("Expected HostCall"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_in_sum() {
+        // Sum over Param(0).items with accumulator using Param(1)
+        let expr = Expression::Sum {
+            collection: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 0 }),
+                class_name: "Vehicle".into(),
+                field_name: "visits".into(),
+            }),
+            item_var_name: "visit".into(),
+            item_param_index: 1,
+            item_class_name: "Visit".into(),
+            accumulator_expr: Box::new(Expression::FieldAccess {
+                object: Box::new(Expression::Param { index: 1 }),
+                class_name: "Visit".into(),
+                field_name: "demand".into(),
+            }),
+        };
+
+        let substitute = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 2 }),
+            class_name: "Solution".into(),
+            field_name: "vehicle".into(),
+        };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::Sum {
+                collection,
+                item_param_index,
+                ..
+            } => {
+                // Collection should now reference Param(2).vehicle.visits
+                match *collection {
+                    Expression::FieldAccess { object, .. } => match *object {
+                        Expression::FieldAccess { object: inner, .. } => {
+                            assert_eq!(*inner, Expression::Param { index: 2 });
+                        }
+                        _ => panic!("Expected nested FieldAccess"),
+                    },
+                    _ => panic!("Expected FieldAccess"),
+                }
+                // item_param_index should be decremented (0 < 1, so 1 -> 0)
+                assert_eq!(item_param_index, 0);
+            }
+            _ => panic!("Expected Sum"),
+        }
+    }
+
+    #[test]
+    fn test_substitute_param_unary_ops() {
+        let expr = Expression::Not {
+            operand: Box::new(Expression::IsNull {
+                operand: Box::new(Expression::Param { index: 0 }),
+            }),
+        };
+        let substitute = Expression::FieldAccess {
+            object: Box::new(Expression::Param { index: 1 }),
+            class_name: "X".into(),
+            field_name: "y".into(),
+        };
+
+        let result = expr.substitute_param(0, &substitute);
+
+        match result {
+            Expression::Not { operand } => match *operand {
+                Expression::IsNull { operand: inner } => match *inner {
+                    Expression::FieldAccess { field_name, .. } => {
+                        assert_eq!(field_name, "y");
+                    }
+                    _ => panic!("Expected FieldAccess"),
+                },
+                _ => panic!("Expected IsNull"),
+            },
+            _ => panic!("Expected Not"),
+        }
     }
 }

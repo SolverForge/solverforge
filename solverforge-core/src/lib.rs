@@ -79,6 +79,6 @@ pub use solver::{
 pub use traits::{PlanningEntity, PlanningSolution};
 pub use value::Value;
 pub use wasm::{
-    Comparison, Expr, Expression, FieldAccess, FieldAccessExt, FieldLayout, LayoutCalculator,
-    MemoryLayout, PredicateDefinition, WasmMemoryType, WasmModuleBuilder,
+    Expr, Expression, FieldAccessExt, FieldLayout, LayoutCalculator, MemoryLayout,
+    PredicateDefinition, WasmMemoryType, WasmModuleBuilder,
 };

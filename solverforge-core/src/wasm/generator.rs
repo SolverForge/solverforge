@@ -39,35 +39,20 @@ struct FunctionSignature {
 }
 
 #[derive(Debug, Clone)]
-pub enum PredicateBody {
-    Comparison(Comparison),
-    Expression(Expression),
-}
-
-#[derive(Debug, Clone)]
 pub struct PredicateDefinition {
     pub name: String,
     pub arity: u32,
-    pub body: PredicateBody,
+    pub body: Expression,
     /// Parameter types for the predicate function. If None, defaults to all i32.
     pub param_types: Option<Vec<ValType>>,
 }
 
 impl PredicateDefinition {
-    pub fn new(name: impl Into<String>, arity: u32, comparison: Comparison) -> Self {
-        Self {
-            name: name.into(),
-            arity,
-            body: PredicateBody::Comparison(comparison),
-            param_types: None,
-        }
-    }
-
     pub fn from_expression(name: impl Into<String>, arity: u32, expression: Expression) -> Self {
         Self {
             name: name.into(),
             arity,
-            body: PredicateBody::Expression(expression),
+            body: expression,
             param_types: None,
         }
     }
@@ -82,51 +67,10 @@ impl PredicateDefinition {
         Self {
             name: name.into(),
             arity: param_types.len() as u32,
-            body: PredicateBody::Expression(expression),
+            body: expression,
             param_types: Some(param_types),
         }
     }
-
-    pub fn always_true(name: impl Into<String>, arity: u32) -> Self {
-        Self::new(name, arity, Comparison::AlwaysTrue)
-    }
-
-    pub fn equal(name: impl Into<String>, left: FieldAccess, right: FieldAccess) -> Self {
-        Self::new(name, 2, Comparison::Equal(left, right))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FieldAccess {
-    pub param_index: u32,
-    pub class_name: String,
-    pub field_name: String,
-}
-
-impl FieldAccess {
-    pub fn new(
-        param_index: u32,
-        class_name: impl Into<String>,
-        field_name: impl Into<String>,
-    ) -> Self {
-        Self {
-            param_index,
-            class_name: class_name.into(),
-            field_name: field_name.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Comparison {
-    Equal(FieldAccess, FieldAccess),
-    NotEqual(FieldAccess, FieldAccess),
-    LessThan(FieldAccess, FieldAccess),
-    LessThanOrEqual(FieldAccess, FieldAccess),
-    GreaterThan(FieldAccess, FieldAccess),
-    GreaterThanOrEqual(FieldAccess, FieldAccess),
-    AlwaysTrue,
-    AlwaysFalse,
 }
 
 /// Tracks local variable allocation during expression compilation.
@@ -168,28 +112,6 @@ impl WasmModuleBuilder {
             string_constants: RefCell::new(IndexMap::new()),
             string_constants_offset: RefCell::new(0),
         }
-    }
-
-    /// Check if an expression produces an f64 value on the WASM stack.
-    fn expr_produces_f64(expr: &Expression) -> bool {
-        matches!(
-            expr,
-            Expression::FloatLiteral { .. }
-                | Expression::FloatAdd { .. }
-                | Expression::FloatSub { .. }
-                | Expression::FloatMul { .. }
-                | Expression::FloatDiv { .. }
-                | Expression::Sqrt { .. }
-                | Expression::FloatAbs { .. }
-                | Expression::Sin { .. }
-                | Expression::Cos { .. }
-                | Expression::Asin { .. }
-                | Expression::Acos { .. }
-                | Expression::Atan { .. }
-                | Expression::Atan2 { .. }
-                | Expression::Radians { .. }
-                | Expression::IntToFloat { .. }
-        )
     }
 
     pub fn with_host_functions(mut self, registry: HostFunctionRegistry) -> Self {
@@ -663,137 +585,19 @@ impl WasmModuleBuilder {
         // Declare locals for expression compilation (Sum uses 4 locals, support up to 3 nested levels)
         let mut func = Function::new([(12, ValType::I32)]);
 
-        match &predicate.body {
-            PredicateBody::Comparison(comparison) => match comparison {
-                Comparison::AlwaysTrue => {
-                    func.instruction(&Instruction::I32Const(1));
-                }
-                Comparison::AlwaysFalse => {
-                    func.instruction(&Instruction::I32Const(0));
-                }
-                Comparison::Equal(left, right) => {
-                    self.generate_field_load(&mut func, left, model)?;
-                    self.generate_field_load(&mut func, right, model)?;
-                    func.instruction(&Instruction::I32Eq);
-                }
-                Comparison::NotEqual(left, right) => {
-                    self.generate_field_load(&mut func, left, model)?;
-                    self.generate_field_load(&mut func, right, model)?;
-                    func.instruction(&Instruction::I32Ne);
-                }
-                Comparison::LessThan(left, right) => {
-                    self.generate_field_load(&mut func, left, model)?;
-                    self.generate_field_load(&mut func, right, model)?;
-                    func.instruction(&Instruction::I32LtS);
-                }
-                Comparison::LessThanOrEqual(left, right) => {
-                    self.generate_field_load(&mut func, left, model)?;
-                    self.generate_field_load(&mut func, right, model)?;
-                    func.instruction(&Instruction::I32LeS);
-                }
-                Comparison::GreaterThan(left, right) => {
-                    self.generate_field_load(&mut func, left, model)?;
-                    self.generate_field_load(&mut func, right, model)?;
-                    func.instruction(&Instruction::I32GtS);
-                }
-                Comparison::GreaterThanOrEqual(left, right) => {
-                    self.generate_field_load(&mut func, left, model)?;
-                    self.generate_field_load(&mut func, right, model)?;
-                    func.instruction(&Instruction::I32GeS);
-                }
-            },
-            PredicateBody::Expression(expression) => {
-                // Parameters are at 0-(arity-1), so locals start at arity
-                let mut locals = LocalAllocator::new(predicate.arity);
-                self.compile_expression(
-                    &mut func,
-                    expression,
-                    model,
-                    u32::MAX,
-                    u32::MAX,
-                    &mut locals,
-                )?;
-            }
-        }
+        // Parameters are at 0-(arity-1), so locals start at arity
+        let mut locals = LocalAllocator::new(predicate.arity);
+        self.compile_expression(
+            &mut func,
+            &predicate.body,
+            model,
+            u32::MAX,
+            u32::MAX,
+            &mut locals,
+        )?;
 
         func.instruction(&Instruction::End);
         Ok(func)
-    }
-
-    fn generate_field_load(
-        &self,
-        func: &mut Function,
-        access: &FieldAccess,
-        model: &DomainModel,
-    ) -> SolverForgeResult<()> {
-        let class = model.classes.get(&access.class_name).ok_or_else(|| {
-            SolverForgeError::WasmGeneration(format!("Class not found: {}", access.class_name))
-        })?;
-
-        let layout = self
-            .layout_calculator
-            .get_layout(&class.name)
-            .ok_or_else(|| {
-                SolverForgeError::WasmGeneration(format!(
-                    "Layout not found for class: {}",
-                    class.name
-                ))
-            })?;
-
-        let field_layout = layout
-            .field_offsets
-            .get(&access.field_name)
-            .ok_or_else(|| {
-                SolverForgeError::WasmGeneration(format!(
-                    "Field not found: {}.{}",
-                    access.class_name, access.field_name
-                ))
-            })?;
-
-        func.instruction(&Instruction::LocalGet(access.param_index));
-
-        match field_layout.wasm_type {
-            WasmMemoryType::I32 | WasmMemoryType::Pointer => {
-                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
-                    offset: field_layout.offset as u64,
-                    align: 2,
-                    memory_index: 0,
-                }));
-            }
-            WasmMemoryType::I64 => {
-                func.instruction(&Instruction::I64Load(wasm_encoder::MemArg {
-                    offset: field_layout.offset as u64,
-                    align: 3,
-                    memory_index: 0,
-                }));
-                func.instruction(&Instruction::I32WrapI64);
-            }
-            WasmMemoryType::F32 => {
-                func.instruction(&Instruction::F32Load(wasm_encoder::MemArg {
-                    offset: field_layout.offset as u64,
-                    align: 2,
-                    memory_index: 0,
-                }));
-                func.instruction(&Instruction::I32TruncF32S);
-            }
-            WasmMemoryType::F64 => {
-                func.instruction(&Instruction::F64Load(wasm_encoder::MemArg {
-                    offset: field_layout.offset as u64,
-                    align: 3,
-                    memory_index: 0,
-                }));
-                func.instruction(&Instruction::I32TruncF64S);
-            }
-            WasmMemoryType::ArrayPointer => {
-                func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
-                    offset: field_layout.offset as u64,
-                    align: 2,
-                    memory_index: 0,
-                }));
-            }
-        }
-
-        Ok(())
     }
 
     /// Compile an expression tree into WASM instructions
@@ -820,13 +624,14 @@ impl WasmModuleBuilder {
                     func.instruction(&Instruction::I32WrapI64);
                 }
             }
+            Expression::Int64Literal { value } => {
+                func.instruction(&Instruction::I64Const(*value));
+            }
             Expression::BoolLiteral { value } => {
                 func.instruction(&Instruction::I32Const(if *value { 1 } else { 0 }));
             }
             Expression::FloatLiteral { value } => {
-                // Convert to i32 for integer context (truncating)
                 func.instruction(&Instruction::F64Const(*value));
-                func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::StringLiteral { value } => {
                 // Return pointer to string constant in data section
@@ -851,7 +656,7 @@ impl WasmModuleBuilder {
                 class_name,
                 field_name,
             } => {
-                // Compile the object expression to get the pointer
+                // Compile the object expression to get the pointer (always i32)
                 self.compile_expression(func, object, model, remap_from, remap_to_local, locals)?;
 
                 // Load the field from memory
@@ -890,7 +695,6 @@ impl WasmModuleBuilder {
                             align: 3,
                             memory_index: 0,
                         }));
-                        func.instruction(&Instruction::I32WrapI64);
                     }
                     WasmMemoryType::F32 => {
                         func.instruction(&Instruction::F32Load(wasm_encoder::MemArg {
@@ -898,7 +702,6 @@ impl WasmModuleBuilder {
                             align: 2,
                             memory_index: 0,
                         }));
-                        func.instruction(&Instruction::I32TruncF32S);
                     }
                     WasmMemoryType::F64 => {
                         func.instruction(&Instruction::F64Load(wasm_encoder::MemArg {
@@ -906,7 +709,6 @@ impl WasmModuleBuilder {
                             align: 3,
                             memory_index: 0,
                         }));
-                        func.instruction(&Instruction::I32TruncF64S);
                     }
                     WasmMemoryType::ArrayPointer => {
                         func.instruction(&Instruction::I32Load(wasm_encoder::MemArg {
@@ -1011,6 +813,38 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::I32GeS);
             }
 
+            // ===== i64 Comparisons =====
+            Expression::Eq64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Eq);
+            }
+            Expression::Ne64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Ne);
+            }
+            Expression::Lt64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64LtS);
+            }
+            Expression::Le64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64LeS);
+            }
+            Expression::Gt64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64GtS);
+            }
+            Expression::Ge64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64GeS);
+            }
+
             // ===== Logical Operations =====
             Expression::And { left, right } => {
                 self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
@@ -1058,99 +892,76 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::I32DivS);
             }
 
+            // ===== i64 Arithmetic Operations =====
+            Expression::Add64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Add);
+            }
+            Expression::Sub64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Sub);
+            }
+            Expression::Mul64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Mul);
+            }
+            Expression::Div64 { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64DivS);
+            }
+
             // ===== Float Arithmetic Operations =====
-            // These operations work on f64. Convert i32 operands to f64 as needed.
             Expression::FloatAdd { left, right } => {
                 self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(left) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(right) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Add);
             }
             Expression::FloatSub { left, right } => {
                 self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(left) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(right) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Sub);
             }
             Expression::FloatMul { left, right } => {
                 self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(left) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(right) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Mul);
             }
             Expression::FloatDiv { left, right } => {
                 self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(left) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(right) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Div);
             }
 
             // ===== Math Functions =====
-            // These expect f64 input and produce f64 output.
             Expression::Sqrt { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Sqrt);
             }
             Expression::FloatAbs { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Abs);
             }
             Expression::Round { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Nearest);
-                // Round produces f64, convert back to i32 for integer context
                 func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::Floor { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Floor);
                 func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::Ceil { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Ceil);
                 func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::Sin { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 let func_idx =
                     self.host_function_indices
                         .get("hsin")
@@ -1164,9 +975,6 @@ impl WasmModuleBuilder {
             }
             Expression::Cos { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 let func_idx =
                     self.host_function_indices
                         .get("hcos")
@@ -1180,9 +988,6 @@ impl WasmModuleBuilder {
             }
             Expression::Asin { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 let func_idx = self
                     .host_function_indices
                     .get("hasin")
@@ -1196,9 +1001,6 @@ impl WasmModuleBuilder {
             }
             Expression::Acos { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 let func_idx = self
                     .host_function_indices
                     .get("hacos")
@@ -1212,9 +1014,6 @@ impl WasmModuleBuilder {
             }
             Expression::Atan { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 let func_idx = self
                     .host_function_indices
                     .get("hatan")
@@ -1228,13 +1027,7 @@ impl WasmModuleBuilder {
             }
             Expression::Atan2 { y, x } => {
                 self.compile_expression(func, y, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(y) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 self.compile_expression(func, x, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(x) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 let func_idx = self
                     .host_function_indices
                     .get("hatan2")
@@ -1247,11 +1040,7 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::Call(func_idx));
             }
             Expression::Radians { operand } => {
-                // radians = degrees * PI / 180
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
-                if !Self::expr_produces_f64(operand) {
-                    func.instruction(&Instruction::F64ConvertI32S);
-                }
                 func.instruction(&Instruction::F64Const(std::f64::consts::PI / 180.0));
                 func.instruction(&Instruction::F64Mul);
             }
@@ -1306,7 +1095,7 @@ impl WasmModuleBuilder {
                 function_name,
                 args,
             } => {
-                // Compile all arguments
+                // Compile all arguments (default to i32)
                 for arg in args {
                     self.compile_expression(func, arg, model, remap_from, remap_to_local, locals)?;
                 }
@@ -1518,7 +1307,7 @@ impl WasmModuleBuilder {
                 then_branch,
                 else_branch,
             } => {
-                // Compile condition
+                // Compile condition (always i32 boolean)
                 self.compile_expression(
                     func,
                     condition,
@@ -1528,7 +1317,7 @@ impl WasmModuleBuilder {
                     locals,
                 )?;
 
-                // WASM if-else structure
+                // WASM if-else structure - produces i32 result
                 func.instruction(&Instruction::If(wasm_encoder::BlockType::Result(
                     ValType::I32,
                 )));
@@ -1556,6 +1345,62 @@ impl WasmModuleBuilder {
                 )?;
 
                 func.instruction(&Instruction::End);
+            }
+
+            // ===== Conditional (i64 result) =====
+            Expression::IfThenElse64 {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                // Compile condition (always i32 boolean)
+                self.compile_expression(
+                    func,
+                    condition,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+
+                // WASM if-else structure - produces i64 result
+                func.instruction(&Instruction::If(wasm_encoder::BlockType::Result(
+                    ValType::I64,
+                )));
+
+                // Compile then branch
+                self.compile_expression(
+                    func,
+                    then_branch,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+
+                func.instruction(&Instruction::Else);
+
+                // Compile else branch
+                self.compile_expression(
+                    func,
+                    else_branch,
+                    model,
+                    remap_from,
+                    remap_to_local,
+                    locals,
+                )?;
+
+                func.instruction(&Instruction::End);
+            }
+
+            // ===== Type Conversions =====
+            Expression::I64ToI32 { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I32WrapI64);
+            }
+            Expression::I32ToI64 { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64ExtendI32S);
             }
         }
 
@@ -1811,12 +1656,12 @@ mod tests {
 
     #[test]
     fn test_predicate_generation() {
+        use crate::wasm::{Expr, FieldAccessExt};
+
         let model = create_test_model();
-        let predicate = PredicateDefinition::equal(
-            "same_room",
-            FieldAccess::new(0, "Lesson", "roomId"),
-            FieldAccess::new(1, "Lesson", "roomId"),
-        );
+        let left = Expr::param(0).get("Lesson", "roomId");
+        let right = Expr::param(1).get("Lesson", "roomId");
+        let predicate = PredicateDefinition::from_expression("same_room", 2, Expr::eq(left, right));
 
         let builder = WasmModuleBuilder::new()
             .with_domain_model(model)
@@ -1837,8 +1682,10 @@ mod tests {
 
     #[test]
     fn test_always_true_predicate() {
+        use crate::wasm::Expr;
+
         let model = create_test_model();
-        let predicate = PredicateDefinition::always_true("always_true", 1);
+        let predicate = PredicateDefinition::from_expression("always_true", 1, Expr::bool(true));
 
         let builder = WasmModuleBuilder::new()
             .with_domain_model(model)
@@ -1860,12 +1707,12 @@ mod tests {
 
     #[test]
     fn test_predicate_missing_class() {
+        use crate::wasm::{Expr, FieldAccessExt};
+
         let model = create_test_model();
-        let predicate = PredicateDefinition::equal(
-            "bad_pred",
-            FieldAccess::new(0, "NonExistent", "field"),
-            FieldAccess::new(1, "NonExistent", "field"),
-        );
+        let left = Expr::param(0).get("NonExistent", "field");
+        let right = Expr::param(1).get("NonExistent", "field");
+        let predicate = PredicateDefinition::from_expression("bad_pred", 2, Expr::eq(left, right));
 
         let builder = WasmModuleBuilder::new()
             .with_domain_model(model)
@@ -1877,12 +1724,12 @@ mod tests {
 
     #[test]
     fn test_predicate_missing_field() {
+        use crate::wasm::{Expr, FieldAccessExt};
+
         let model = create_test_model();
-        let predicate = PredicateDefinition::equal(
-            "bad_pred",
-            FieldAccess::new(0, "Lesson", "nonexistent"),
-            FieldAccess::new(1, "Lesson", "nonexistent"),
-        );
+        let left = Expr::param(0).get("Lesson", "nonexistent");
+        let right = Expr::param(1).get("Lesson", "nonexistent");
+        let predicate = PredicateDefinition::from_expression("bad_pred", 2, Expr::eq(left, right));
 
         let builder = WasmModuleBuilder::new()
             .with_domain_model(model)
@@ -1905,30 +1752,61 @@ mod tests {
     }
 
     #[test]
-    fn test_comparison_variants() {
-        let model = create_test_model();
-        let left = FieldAccess::new(0, "Lesson", "id");
-        let right = FieldAccess::new(1, "Lesson", "id");
+    fn test_comparison_expression_variants() {
+        use crate::wasm::{Expr, FieldAccessExt};
 
-        let comparisons = vec![
-            ("eq", Comparison::Equal(left.clone(), right.clone())),
-            ("ne", Comparison::NotEqual(left.clone(), right.clone())),
-            ("lt", Comparison::LessThan(left.clone(), right.clone())),
+        let model = create_test_model();
+
+        // Test all comparison operations via Expression
+        let comparisons: Vec<(&str, Expression)> = vec![
+            (
+                "eq",
+                Expr::eq(
+                    Expr::param(0).get("Lesson", "id"),
+                    Expr::param(1).get("Lesson", "id"),
+                ),
+            ),
+            (
+                "ne",
+                Expr::ne(
+                    Expr::param(0).get("Lesson", "id"),
+                    Expr::param(1).get("Lesson", "id"),
+                ),
+            ),
+            (
+                "lt",
+                Expr::lt(
+                    Expr::param(0).get("Lesson", "id"),
+                    Expr::param(1).get("Lesson", "id"),
+                ),
+            ),
             (
                 "le",
-                Comparison::LessThanOrEqual(left.clone(), right.clone()),
+                Expr::le(
+                    Expr::param(0).get("Lesson", "id"),
+                    Expr::param(1).get("Lesson", "id"),
+                ),
             ),
-            ("gt", Comparison::GreaterThan(left.clone(), right.clone())),
+            (
+                "gt",
+                Expr::gt(
+                    Expr::param(0).get("Lesson", "id"),
+                    Expr::param(1).get("Lesson", "id"),
+                ),
+            ),
             (
                 "ge",
-                Comparison::GreaterThanOrEqual(left.clone(), right.clone()),
+                Expr::ge(
+                    Expr::param(0).get("Lesson", "id"),
+                    Expr::param(1).get("Lesson", "id"),
+                ),
             ),
-            ("true", Comparison::AlwaysTrue),
-            ("false", Comparison::AlwaysFalse),
+            ("true", Expr::bool(true)),
+            ("false", Expr::bool(false)),
         ];
 
-        for (name, comparison) in comparisons {
-            let predicate = PredicateDefinition::new(name, 2, comparison);
+        for (name, expr) in comparisons {
+            let predicate = PredicateDefinition::from_expression(name, 2, expr);
             let builder = WasmModuleBuilder::new()
                 .with_domain_model(model.clone())
                 .add_predicate(predicate);
@@ -1936,14 +1814,6 @@ mod tests {
             let result = builder.build();
             assert!(result.is_ok(), "Failed for comparison: {}", name);
         }
-    }
-
-    #[test]
-    fn test_field_access_constructor() {
-        let access = FieldAccess::new(0, "Lesson", "room");
-        assert_eq!(access.param_index, 0);
-        assert_eq!(access.class_name, "Lesson");
-        assert_eq!(access.field_name, "room");
     }
 
     #[test]

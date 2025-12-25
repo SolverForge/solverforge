@@ -21,8 +21,11 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "kind")]
 pub enum Expression {
     // ===== Literals =====
-    /// Integer literal (i64)
+    /// Integer literal (i64) - compiles to i32 in WASM
     IntLiteral { value: i64 },
+
+    /// 64-bit integer literal - compiles directly to i64 in WASM
+    Int64Literal { value: i64 },
 
     /// Float literal (f64)
     FloatLiteral { value: f64 },
@@ -89,6 +92,43 @@ pub enum Expression {
         right: Box<Expression>,
     },
 
+    // ===== i64 Comparisons =====
+    /// Equal comparison for i64
+    Eq64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Not equal comparison for i64
+    Ne64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Less than comparison for i64
+    Lt64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Less than or equal comparison for i64
+    Le64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Greater than comparison for i64
+    Gt64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Greater than or equal comparison for i64
+    Ge64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
     // ===== Logical Operations =====
     /// Logical AND (&&)
     And {
@@ -132,6 +172,31 @@ pub enum Expression {
 
     /// Division (/)
     Div {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    // ===== i64 Arithmetic Operations =====
+    /// Addition for i64
+    Add64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Subtraction for i64
+    Sub64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Multiplication for i64
+    Mul64 {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Division for i64
+    Div64 {
         left: Box<Expression>,
         right: Box<Expression>,
     },
@@ -262,13 +327,28 @@ pub enum Expression {
     },
 
     // ===== Conditional =====
-    /// If-then-else conditional expression
+    /// If-then-else conditional expression (produces i32)
     /// Example: if condition { then_branch } else { else_branch }
     IfThenElse {
         condition: Box<Expression>,
         then_branch: Box<Expression>,
         else_branch: Box<Expression>,
     },
+
+    /// If-then-else conditional expression (produces i64)
+    /// Used when branches are i64 values (e.g., datetime arithmetic)
+    IfThenElse64 {
+        condition: Box<Expression>,
+        then_branch: Box<Expression>,
+        else_branch: Box<Expression>,
+    },
+
+    // ===== Type Conversions =====
+    /// Wrap i64 to i32 (truncate)
+    I64ToI32 { operand: Box<Expression> },
+
+    /// Extend i32 to i64 (signed)
+    I32ToI64 { operand: Box<Expression> },
 }
 
 impl Expression {
@@ -345,7 +425,7 @@ impl Expression {
                 field_name,
             },
 
-            // Comparisons
+            // Comparisons (i32)
             Expression::Eq { left, right } => binary!(Eq, left, right),
             Expression::Ne { left, right } => binary!(Ne, left, right),
             Expression::Lt { left, right } => binary!(Lt, left, right),
@@ -353,11 +433,25 @@ impl Expression {
             Expression::Gt { left, right } => binary!(Gt, left, right),
             Expression::Ge { left, right } => binary!(Ge, left, right),
 
+            // Comparisons (i64)
+            Expression::Eq64 { left, right } => binary!(Eq64, left, right),
+            Expression::Ne64 { left, right } => binary!(Ne64, left, right),
+            Expression::Lt64 { left, right } => binary!(Lt64, left, right),
+            Expression::Le64 { left, right } => binary!(Le64, left, right),
+            Expression::Gt64 { left, right } => binary!(Gt64, left, right),
+            Expression::Ge64 { left, right } => binary!(Ge64, left, right),
+
             // Arithmetic (i32)
             Expression::Add { left, right } => binary!(Add, left, right),
             Expression::Sub { left, right } => binary!(Sub, left, right),
             Expression::Mul { left, right } => binary!(Mul, left, right),
             Expression::Div { left, right } => binary!(Div, left, right),
+
+            // Arithmetic (i64)
+            Expression::Add64 { left, right } => binary!(Add64, left, right),
+            Expression::Sub64 { left, right } => binary!(Sub64, left, right),
+            Expression::Mul64 { left, right } => binary!(Mul64, left, right),
+            Expression::Div64 { left, right } => binary!(Div64, left, right),
 
             // Arithmetic (f64)
             Expression::FloatAdd { left, right } => binary!(FloatAdd, left, right),
@@ -456,11 +550,25 @@ impl Expression {
                 then_branch: sub!(then_branch),
                 else_branch: sub!(else_branch),
             },
+            Expression::IfThenElse64 {
+                condition,
+                then_branch,
+                else_branch,
+            } => Expression::IfThenElse64 {
+                condition: sub!(condition),
+                then_branch: sub!(then_branch),
+                else_branch: sub!(else_branch),
+            },
+
+            // Type conversions
+            Expression::I64ToI32 { operand } => unary!(I64ToI32, operand),
+            Expression::I32ToI64 { operand } => unary!(I32ToI64, operand),
 
             // Literals - no params, return as-is
             Expression::Null
             | Expression::BoolLiteral { .. }
             | Expression::IntLiteral { .. }
+            | Expression::Int64Literal { .. }
             | Expression::FloatLiteral { .. }
             | Expression::StringLiteral { .. } => self,
         }

@@ -1428,6 +1428,7 @@ fn try_extract_assignment_pattern(
     arg_names: &[String],
     class_hint: &str,
 ) -> PyResult<Expression> {
+    // Look for an If statement that contains assignments
     for stmt in stmts {
         let stmt_type = stmt.get_type().name()?.to_string();
         if stmt_type == "If" {
@@ -3410,19 +3411,31 @@ fn convert_ast_to_expression(
                     }
                 }
 
-                // Parse keyword arguments as expressions
+                // Parse keyword arguments
                 let keywords_node = node.getattr("keywords")?;
                 let keywords_list = keywords_node.cast::<PyList>()?;
-                let mut keyword_expr_args: Vec<(String, Expression)> = Vec::new();
+                let mut keyword_args: Vec<(String, i64)> = Vec::new();
                 for kw in keywords_list.iter() {
                     let arg_name_opt = kw.getattr("arg")?;
                     if !arg_name_opt.is_none() {
                         let arg_name: String = arg_name_opt.extract()?;
                         let arg_value = kw.getattr("value")?;
-                        if let Some(expr) =
-                            convert_ast_to_expression(py, &arg_value, arg_names, class_hint)?
-                        {
-                            keyword_expr_args.push((arg_name, expr));
+                        // Try to extract as integer constant
+                        let value_type = arg_value.get_type().name()?.to_string();
+                        if value_type == "Constant" {
+                            if let Ok(i) = arg_value.getattr("value")?.extract::<i64>() {
+                                keyword_args.push((arg_name, i));
+                            }
+                        } else if value_type == "UnaryOp" {
+                            // Handle negative numbers like -1
+                            let op = arg_value.getattr("op")?;
+                            let op_type = op.get_type().name()?.to_string();
+                            if op_type == "USub" {
+                                let operand = arg_value.getattr("operand")?;
+                                if let Ok(i) = operand.getattr("value")?.extract::<i64>() {
+                                    keyword_args.push((arg_name, -i));
+                                }
+                            }
                         }
                     }
                 }
@@ -3504,37 +3517,21 @@ fn convert_ast_to_expression(
                         }
                     }
                     "timedelta" => {
-                        // timedelta(seconds=X) -> X (since datetime is epoch seconds)
-                        // Supports days, hours, minutes, seconds - converts to total seconds
-                        let mut result: Option<Expression> = None;
-                        for (name, expr) in &keyword_expr_args {
-                            let multiplier = match name.as_str() {
-                                "days" => 86400i64,
-                                "hours" => 3600i64,
-                                "minutes" => 60i64,
-                                "seconds" => 1i64,
-                                _ => continue,
-                            };
-                            let scaled = if multiplier == 1 {
-                                expr.clone()
-                            } else {
-                                Expression::Mul {
-                                    left: Box::new(expr.clone()),
-                                    right: Box::new(Expression::IntLiteral { value: multiplier }),
-                                }
-                            };
-                            result = Some(match result {
-                                None => scaled,
-                                Some(acc) => Expression::Add {
-                                    left: Box::new(acc),
-                                    right: Box::new(scaled),
-                                },
-                            });
+                        // Convert timedelta to integer seconds
+                        // Supports: days, hours, minutes, seconds keyword args
+                        let mut total_seconds: i64 = 0;
+                        for (name, value) in &keyword_args {
+                            match name.as_str() {
+                                "days" => total_seconds += value * 86400,
+                                "hours" => total_seconds += value * 3600,
+                                "minutes" => total_seconds += value * 60,
+                                "seconds" => total_seconds += value,
+                                _ => {}
+                            }
                         }
-                        if let Some(expr) = result {
-                            return Ok(Some(expr));
-                        }
-                        return Ok(Some(Expression::IntLiteral { value: 0 }));
+                        return Ok(Some(Expression::IntLiteral {
+                            value: total_seconds,
+                        }));
                     }
                     _ => {
                         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(

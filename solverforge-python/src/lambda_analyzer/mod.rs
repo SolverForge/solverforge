@@ -21,6 +21,7 @@
 //! ```
 
 mod ast_convert;
+mod constants;
 mod patterns;
 mod registry;
 #[cfg(test)]
@@ -32,6 +33,7 @@ use ast_convert::{
     convert_constant_to_expression, convert_unaryop_to_expression, extract_arg_names,
     is_empty_collection_guard, is_not_none_check,
 };
+use constants::get_class_constant;
 use patterns::{LoopContext, MutableLoopVar};
 use registry::CLASS_REGISTRY;
 pub use registry::{get_method_from_class, register_class};
@@ -1892,11 +1894,20 @@ fn convert_ast_to_expression(
 
     match node_type.as_str() {
         "Attribute" => {
-            // Field access: x.field
+            // Field access: x.field or class constant: x.CONSTANT
             let value = node.getattr("value")?;
             let attr: String = node.getattr("attr")?.extract()?;
 
             if let Some(base_expr) = convert_ast_to_expression(py, &value, arg_names, class_hint)? {
+                // Check if this is a class constant (self.CONST or param.CONST)
+                // Only check when base is a direct parameter reference
+                if matches!(base_expr, Expression::Param { .. }) {
+                    if let Some(constant_expr) = get_class_constant(py, class_hint, &attr)? {
+                        log::debug!("Inlined class constant {}.{} in lambda", class_hint, attr);
+                        return Ok(Some(constant_expr));
+                    }
+                }
+
                 Ok(Some(Expression::FieldAccess {
                     object: Box::new(base_expr),
                     class_name,

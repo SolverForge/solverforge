@@ -11,6 +11,28 @@ use super::constants::get_class_constant;
 use super::registry::get_method_from_class;
 use super::type_inference::infer_expression_class;
 
+/// Check if an expression produces a float value.
+pub(super) fn is_float_expr(expr: &Expression) -> bool {
+    matches!(
+        expr,
+        Expression::FloatLiteral { .. }
+            | Expression::FloatDiv { .. }
+            | Expression::FloatMul { .. }
+            | Expression::FloatAdd { .. }
+            | Expression::FloatSub { .. }
+            | Expression::Sqrt { .. }
+            | Expression::FloatAbs { .. }
+            | Expression::Sin { .. }
+            | Expression::Cos { .. }
+            | Expression::Asin { .. }
+            | Expression::Acos { .. }
+            | Expression::Atan { .. }
+            | Expression::Atan2 { .. }
+            | Expression::Radians { .. }
+            | Expression::IntToFloat { .. }
+    )
+}
+
 /// Extract argument names from Python AST arguments node.
 pub(crate) fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
     let arg_list = args.getattr("args")?;
@@ -220,11 +242,24 @@ pub(crate) fn convert_binop_to_expression(
                     left: Box::new(l),
                     right: Box::new(r),
                 },
-                "Mult" => Expression::Mul {
+                "Mult" => {
+                    if is_float_expr(&l) || is_float_expr(&r) {
+                        Expression::FloatMul {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    } else {
+                        Expression::Mul {
+                            left: Box::new(l),
+                            right: Box::new(r),
+                        }
+                    }
+                }
+                "Div" => Expression::FloatDiv {
                     left: Box::new(l),
                     right: Box::new(r),
                 },
-                "Div" | "FloorDiv" => Expression::Div {
+                "FloorDiv" => Expression::Div {
                     left: Box::new(l),
                     right: Box::new(r),
                 },

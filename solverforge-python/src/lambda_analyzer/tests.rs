@@ -246,9 +246,10 @@ fn test_analyze_arithmetic_mul() {
 fn test_analyze_arithmetic_div() {
     pyo3::Python::initialize();
     Python::attach(|py| {
+        // Python `/` is true division, produces FloatDiv
         let expr = analyze_lambda_source(py, "lambda x: x.value / 2", 1, "Entity").unwrap();
         match &expr {
-            Expression::Div { left, right } => {
+            Expression::FloatDiv { left, right } => {
                 assert!(
                     matches!(left.as_ref(), Expression::FieldAccess { field_name, .. } if field_name == "value")
                 );
@@ -257,7 +258,7 @@ fn test_analyze_arithmetic_div() {
                     Expression::IntLiteral { value: 2 }
                 ));
             }
-            _ => panic!("Expected Div, got {:?}", expr),
+            _ => panic!("Expected FloatDiv, got {:?}", expr),
         }
     });
 }

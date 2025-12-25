@@ -12,6 +12,7 @@ use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 use std::collections::HashMap;
 
+use super::ast_convert::is_float_expr;
 use super::conditionals;
 use super::type_inference::infer_expression_class;
 
@@ -222,8 +223,17 @@ fn convert_ast_with_local_var_substitution(
             build_method_call_fn,
         )?;
 
+        let use_float = is_float_expr(&left_expr) || is_float_expr(&right_expr);
         return Ok(match op_type.as_str() {
+            "Add" if use_float => Expression::FloatAdd {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
             "Add" => Expression::Add {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
+            "Sub" if use_float => Expression::FloatSub {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
@@ -231,11 +241,19 @@ fn convert_ast_with_local_var_substitution(
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
+            "Mult" if use_float => Expression::FloatMul {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
             "Mult" => Expression::Mul {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
-            "Div" | "TrueDiv" => Expression::Div {
+            "Div" | "TrueDiv" => Expression::FloatDiv {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
+            "FloorDiv" => Expression::Div {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },

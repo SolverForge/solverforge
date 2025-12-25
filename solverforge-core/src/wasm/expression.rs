@@ -136,6 +136,31 @@ pub enum Expression {
         right: Box<Expression>,
     },
 
+    // ===== Float Arithmetic Operations =====
+    /// Float addition (f64)
+    FloatAdd {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Float subtraction (f64)
+    FloatSub {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Float multiplication (f64)
+    FloatMul {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
+    /// Float division (f64)
+    FloatDiv {
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+
     // ===== Math Functions =====
     /// Square root (WASM f64.sqrt intrinsic)
     Sqrt { operand: Box<Expression> },
@@ -328,11 +353,17 @@ impl Expression {
             Expression::Gt { left, right } => binary!(Gt, left, right),
             Expression::Ge { left, right } => binary!(Ge, left, right),
 
-            // Arithmetic
+            // Arithmetic (i32)
             Expression::Add { left, right } => binary!(Add, left, right),
             Expression::Sub { left, right } => binary!(Sub, left, right),
             Expression::Mul { left, right } => binary!(Mul, left, right),
             Expression::Div { left, right } => binary!(Div, left, right),
+
+            // Arithmetic (f64)
+            Expression::FloatAdd { left, right } => binary!(FloatAdd, left, right),
+            Expression::FloatSub { left, right } => binary!(FloatSub, left, right),
+            Expression::FloatMul { left, right } => binary!(FloatMul, left, right),
+            Expression::FloatDiv { left, right } => binary!(FloatDiv, left, right),
 
             // Math functions - unary
             Expression::Sqrt { operand } => unary!(Sqrt, operand),

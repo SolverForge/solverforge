@@ -170,6 +170,28 @@ impl WasmModuleBuilder {
         }
     }
 
+    /// Check if an expression produces an f64 value on the WASM stack.
+    fn expr_produces_f64(expr: &Expression) -> bool {
+        matches!(
+            expr,
+            Expression::FloatLiteral { .. }
+                | Expression::FloatAdd { .. }
+                | Expression::FloatSub { .. }
+                | Expression::FloatMul { .. }
+                | Expression::FloatDiv { .. }
+                | Expression::Sqrt { .. }
+                | Expression::FloatAbs { .. }
+                | Expression::Sin { .. }
+                | Expression::Cos { .. }
+                | Expression::Asin { .. }
+                | Expression::Acos { .. }
+                | Expression::Atan { .. }
+                | Expression::Atan2 { .. }
+                | Expression::Radians { .. }
+                | Expression::IntToFloat { .. }
+        )
+    }
+
     pub fn with_host_functions(mut self, registry: HostFunctionRegistry) -> Self {
         self.host_functions = registry;
         self
@@ -1036,29 +1058,99 @@ impl WasmModuleBuilder {
                 func.instruction(&Instruction::I32DivS);
             }
 
+            // ===== Float Arithmetic Operations =====
+            // These operations work on f64. Convert i32 operands to f64 as needed.
+            Expression::FloatAdd { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(left) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(right) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                func.instruction(&Instruction::F64Add);
+            }
+            Expression::FloatSub { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(left) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(right) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                func.instruction(&Instruction::F64Sub);
+            }
+            Expression::FloatMul { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(left) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(right) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                func.instruction(&Instruction::F64Mul);
+            }
+            Expression::FloatDiv { left, right } => {
+                self.compile_expression(func, left, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(left) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                self.compile_expression(func, right, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(right) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
+                func.instruction(&Instruction::F64Div);
+            }
+
             // ===== Math Functions =====
+            // These expect f64 input and produce f64 output.
             Expression::Sqrt { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 func.instruction(&Instruction::F64Sqrt);
             }
             Expression::FloatAbs { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 func.instruction(&Instruction::F64Abs);
             }
             Expression::Round { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 func.instruction(&Instruction::F64Nearest);
+                // Round produces f64, convert back to i32 for integer context
+                func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::Floor { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 func.instruction(&Instruction::F64Floor);
+                func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::Ceil { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 func.instruction(&Instruction::F64Ceil);
+                func.instruction(&Instruction::I32TruncF64S);
             }
             Expression::Sin { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 let func_idx =
                     self.host_function_indices
                         .get("hsin")
@@ -1072,6 +1164,9 @@ impl WasmModuleBuilder {
             }
             Expression::Cos { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 let func_idx =
                     self.host_function_indices
                         .get("hcos")
@@ -1085,6 +1180,9 @@ impl WasmModuleBuilder {
             }
             Expression::Asin { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 let func_idx = self
                     .host_function_indices
                     .get("hasin")
@@ -1098,6 +1196,9 @@ impl WasmModuleBuilder {
             }
             Expression::Acos { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 let func_idx = self
                     .host_function_indices
                     .get("hacos")
@@ -1111,6 +1212,9 @@ impl WasmModuleBuilder {
             }
             Expression::Atan { operand } => {
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 let func_idx = self
                     .host_function_indices
                     .get("hatan")
@@ -1124,7 +1228,13 @@ impl WasmModuleBuilder {
             }
             Expression::Atan2 { y, x } => {
                 self.compile_expression(func, y, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(y) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 self.compile_expression(func, x, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(x) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 let func_idx = self
                     .host_function_indices
                     .get("hatan2")
@@ -1139,6 +1249,9 @@ impl WasmModuleBuilder {
             Expression::Radians { operand } => {
                 // radians = degrees * PI / 180
                 self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                if !Self::expr_produces_f64(operand) {
+                    func.instruction(&Instruction::F64ConvertI32S);
+                }
                 func.instruction(&Instruction::F64Const(std::f64::consts::PI / 180.0));
                 func.instruction(&Instruction::F64Mul);
             }

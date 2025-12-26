@@ -32,6 +32,9 @@ impl InferredType {
     /// - Otherwise I32
     pub fn promote(self, other: InferredType) -> InferredType {
         match (self, other) {
+            // Null is transparent - takes the type of the other operand
+            // This handles "field is None" where field type determines the comparison
+            (InferredType::Null, t) | (t, InferredType::Null) => t,
             // Float propagates
             (InferredType::F64, _) | (_, InferredType::F64) => InferredType::F64,
             // I64 propagates

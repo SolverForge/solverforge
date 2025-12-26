@@ -488,7 +488,8 @@ pub fn infer_expression_type(expr: &Expression) -> InferredType {
         | Expression::Sub64 { .. }
         | Expression::Mul64 { .. }
         | Expression::Div64 { .. }
-        | Expression::IfThenElse64 { .. } => InferredType::I64,
+        | Expression::IfThenElse64 { .. }
+        | Expression::I32ToI64 { .. } => InferredType::I64,
 
         // I32
         Expression::IntLiteral { .. }
@@ -500,7 +501,10 @@ pub fn infer_expression_type(expr: &Expression) -> InferredType {
         | Expression::FloatToInt { .. }
         | Expression::Round { .. }
         | Expression::Floor { .. }
-        | Expression::Ceil { .. } => InferredType::I32,
+        | Expression::Ceil { .. }
+        | Expression::I64ToI32 { .. }
+        | Expression::Sum { .. }
+        | Expression::ListContains { .. } => InferredType::I32,
 
         // String
         Expression::StringLiteral { .. } => InferredType::String,

@@ -43,33 +43,38 @@ pub(crate) fn infer_expression_class(
 fn extract_concrete_class_from_type<'py>(
     field_type: &Bound<'py, PyAny>,
 ) -> Option<(String, Bound<'py, PyAny>)> {
-    // Check if it's a simple class (has __name__ that's a string, not a generic)
+    // First check if it's a generic type with __origin__ (like Optional[X], ClassVar[X], list[X])
+    // We must check this BEFORE __name__ because Optional[X] has __name__ = "Optional"
+    if field_type.getattr("__origin__").is_ok() {
+        // It's a generic type - look at __args__ to find the concrete inner type
+        if let Ok(args) = field_type.getattr("__args__") {
+            if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
+                for arg in args_tuple.iter() {
+                    // Skip NoneType args (from Optional = Union[T, None])
+                    if let Ok(arg_name) = arg.getattr("__name__") {
+                        if let Ok(name) = arg_name.extract::<String>() {
+                            if name == "NoneType" {
+                                continue;
+                            }
+                        }
+                    }
+                    // Recursively try to extract from this arg
+                    if let Some(result) = extract_concrete_class_from_type(&arg) {
+                        return Some(result);
+                    }
+                }
+            }
+        }
+        return None;
+    }
+
+    // No __origin__, check if it's a simple class with __name__
     if let Ok(type_name) = field_type.getattr("__name__") {
         if let Ok(name) = type_name.extract::<String>() {
             // Skip NoneType
             if name != "NoneType" {
                 log::debug!("Found concrete class: {}", name);
                 return Some((name, field_type.clone()));
-            }
-        }
-    }
-
-    // Check if it's a generic type with __args__ (like Optional[X], ClassVar[X], list[X])
-    if let Ok(args) = field_type.getattr("__args__") {
-        if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
-            for arg in args_tuple.iter() {
-                // Skip NoneType args (from Optional)
-                if let Ok(arg_name) = arg.getattr("__name__") {
-                    if let Ok(name) = arg_name.extract::<String>() {
-                        if name == "NoneType" {
-                            continue;
-                        }
-                    }
-                }
-                // Recursively try to extract from this arg
-                if let Some(result) = extract_concrete_class_from_type(&arg) {
-                    return Some(result);
-                }
             }
         }
     }

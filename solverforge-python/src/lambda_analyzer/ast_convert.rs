@@ -3,8 +3,8 @@
 //! This module contains functions for converting Python AST nodes
 //! to solverforge Expression trees.
 //!
-//! Type context is threaded through conversion functions via `ExpectedType`
-//! to ensure proper type selection (i32 vs i64 vs f64) for literals and operations.
+//! Type inference is performed FIRST by analyzing the AST structure,
+//! then expressions are emitted ONCE with the correct types.
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -14,35 +14,439 @@ use super::constants::get_class_constant;
 use super::registry::{get_method_from_class, CLASS_REGISTRY};
 use super::type_inference::infer_expression_class;
 
+/// Inferred type from AST analysis.
+///
+/// This enum represents the type of a value as determined by analyzing
+/// the AST structure BEFORE converting to expressions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InferredType {
+    /// 32-bit integer (default for integer literals and operations)
+    I32,
+    /// 64-bit integer (datetime fields, large integers, timedelta)
+    I64,
+    /// 64-bit floating point
+    F64,
+    /// Boolean
+    Bool,
+    /// String
+    String,
+    /// Null/None
+    Null,
+    /// Unknown type (couldn't be determined)
+    Unknown,
+}
+
+impl InferredType {
+    /// Promote two numeric types to a common type for binary operations.
+    /// - If either is F64, result is F64
+    /// - If either is I64, result is I64
+    /// - Otherwise I32
+    pub fn promote(self, other: InferredType) -> InferredType {
+        match (self, other) {
+            // Float propagates
+            (InferredType::F64, _) | (_, InferredType::F64) => InferredType::F64,
+            // I64 propagates
+            (InferredType::I64, _) | (_, InferredType::I64) => InferredType::I64,
+            // Both I32
+            (InferredType::I32, InferredType::I32) => InferredType::I32,
+            // Unknown cases - be conservative
+            _ => InferredType::Unknown,
+        }
+    }
+}
+
 /// Expected type context for expression conversion.
 ///
-/// This is passed down during AST conversion to inform child expressions
-/// what type their parent expects. This enables proper literal type selection
-/// (e.g., Int64Literal vs IntLiteral) without post-hoc wrapping.
+/// This is derived from InferredType and passed to conversion functions
+/// to ensure literals are emitted with the correct type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[allow(dead_code)] // I32 kept for API completeness
 pub enum ExpectedType {
-    /// No specific expectation - use default types
+    /// No specific expectation - use default types (I32 for integers)
     #[default]
     Any,
-    /// Expect i32 (default for most integer operations)
-    I32,
     /// Expect i64 (for datetime fields, large integers)
     I64,
     /// Expect f64 (for floating point)
     F64,
 }
 
-/// Check if an expression produces a float result.
-/// Used to select between int/float arithmetic operations.
-pub fn is_float_expr(expr: &Expression) -> bool {
+/// Infer the type of an AST node WITHOUT converting it to an Expression.
+///
+/// This is the first pass of type inference - we analyze the AST structure
+/// to determine what type each expression will produce, THEN we emit
+/// the correct expressions in a single pass.
+pub(crate) fn infer_ast_type(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<InferredType> {
+    let node_type = node.get_type().name()?.to_string();
+
+    match node_type.as_str() {
+        "Constant" => {
+            let value = node.getattr("value")?;
+            if value.is_none() {
+                Ok(InferredType::Null)
+            } else if value.extract::<bool>().is_ok() {
+                Ok(InferredType::Bool)
+            } else if value.extract::<i64>().is_ok() {
+                // Integer literal - default to I32 unless value exceeds range
+                if let Ok(i) = value.extract::<i64>() {
+                    if i < i32::MIN as i64 || i > i32::MAX as i64 {
+                        Ok(InferredType::I64)
+                    } else {
+                        Ok(InferredType::I32)
+                    }
+                } else {
+                    Ok(InferredType::I32)
+                }
+            } else if value.extract::<f64>().is_ok() {
+                Ok(InferredType::F64)
+            } else if value.extract::<String>().is_ok() {
+                Ok(InferredType::String)
+            } else {
+                Ok(InferredType::Unknown)
+            }
+        }
+
+        "Name" => {
+            let id: String = node.getattr("id")?.extract()?;
+            if id == "None" {
+                Ok(InferredType::Null)
+            } else if id == "True" || id == "False" {
+                Ok(InferredType::Bool)
+            } else if arg_names.contains(&id) {
+                // Lambda parameter - type depends on class, treat as Unknown
+                Ok(InferredType::Unknown)
+            } else {
+                Ok(InferredType::Unknown)
+            }
+        }
+
+        "Attribute" => {
+            // Field access - look up field type from class registry
+            let attr: String = node.getattr("attr")?.extract()?;
+
+            // Determine the class of the base object
+            let value = node.getattr("value")?;
+            let base_class = infer_base_class(py, &value, arg_names, class_hint)?;
+
+            // Look up the field type
+            infer_field_type(py, &base_class, &attr)
+        }
+
+        "BinOp" => {
+            let op = node.getattr("op")?;
+            let op_type = op.get_type().name()?.to_string();
+            let left = node.getattr("left")?;
+            let right = node.getattr("right")?;
+
+            // Python `/` always produces float
+            if op_type == "Div" {
+                return Ok(InferredType::F64);
+            }
+
+            // For other ops, promote the operand types
+            let left_type = infer_ast_type(py, &left, arg_names, class_hint)?;
+            let right_type = infer_ast_type(py, &right, arg_names, class_hint)?;
+
+            Ok(left_type.promote(right_type))
+        }
+
+        "Compare" => {
+            // Comparisons always return boolean
+            Ok(InferredType::Bool)
+        }
+
+        "BoolOp" => {
+            // Boolean operations return boolean
+            Ok(InferredType::Bool)
+        }
+
+        "UnaryOp" => {
+            let op = node.getattr("op")?;
+            let op_type = op.get_type().name()?.to_string();
+
+            if op_type == "Not" {
+                Ok(InferredType::Bool)
+            } else {
+                // USub, UAdd - propagate operand type
+                let operand = node.getattr("operand")?;
+                infer_ast_type(py, &operand, arg_names, class_hint)
+            }
+        }
+
+        "Call" => {
+            let func = node.getattr("func")?;
+            let func_type = func.get_type().name()?.to_string();
+
+            if func_type == "Name" {
+                let func_name: String = func.getattr("id")?.extract()?;
+                match func_name.as_str() {
+                    // timedelta always produces i64 (seconds for datetime arithmetic)
+                    "timedelta" => Ok(InferredType::I64),
+                    // len returns i32
+                    "len" => Ok(InferredType::I32),
+                    // round/floor/ceil return i32 (truncated from float)
+                    "round" => Ok(InferredType::I32),
+                    // int() casts to i32
+                    "int" => Ok(InferredType::I32),
+                    // float() casts to f64
+                    "float" => Ok(InferredType::F64),
+                    // max/min/abs - propagate from arguments
+                    "max" | "min" | "abs" => {
+                        let args = node.getattr("args")?;
+                        let args_list = args.cast::<PyList>()?;
+                        if !args_list.is_empty() {
+                            infer_ast_type(py, &args_list.get_item(0)?, arg_names, class_hint)
+                        } else {
+                            Ok(InferredType::Unknown)
+                        }
+                    }
+                    _ => Ok(InferredType::Unknown),
+                }
+            } else if func_type == "Attribute" {
+                // Method call or module.function
+                let value = func.getattr("value")?;
+                let method_name: String = func.getattr("attr")?.extract()?;
+                let value_type = value.get_type().name()?.to_string();
+
+                if value_type == "Name" {
+                    let module_name: String = value.getattr("id")?.extract()?;
+                    if module_name == "math" {
+                        // All math functions return float
+                        return Ok(InferredType::F64);
+                    }
+                }
+
+                // Method call - would need to analyze the method body
+                // For now, return Unknown and let the method inlining handle it
+                let _ = method_name;
+                Ok(InferredType::Unknown)
+            } else {
+                Ok(InferredType::Unknown)
+            }
+        }
+
+        _ => Ok(InferredType::Unknown),
+    }
+}
+
+/// Infer the class name of a base expression for field access.
+fn infer_base_class(
+    py: Python<'_>,
+    node: &Bound<'_, PyAny>,
+    arg_names: &[String],
+    class_hint: &str,
+) -> PyResult<String> {
+    let node_type = node.get_type().name()?.to_string();
+
+    match node_type.as_str() {
+        "Name" => {
+            let id: String = node.getattr("id")?.extract()?;
+            // If it's the first lambda parameter, use class_hint
+            if arg_names.first() == Some(&id) {
+                Ok(class_hint.to_string())
+            } else {
+                Ok(id)
+            }
+        }
+        "Attribute" => {
+            // Chained field access: x.field1.field2
+            let attr: String = node.getattr("attr")?.extract()?;
+            let value = node.getattr("value")?;
+            let base_class = infer_base_class(py, &value, arg_names, class_hint)?;
+
+            // Look up the type of this field to get the class for the next field
+            if let Some(field_class) = get_field_class_name(py, &base_class, &attr) {
+                Ok(field_class)
+            } else {
+                Ok(base_class)
+            }
+        }
+        _ => Ok(class_hint.to_string()),
+    }
+}
+
+/// Look up a field's class name from the registry.
+fn get_field_class_name(py: Python<'_>, class_name: &str, field_name: &str) -> Option<String> {
+    let class_ref: Option<Py<PyAny>> = {
+        let registry = CLASS_REGISTRY.read().unwrap();
+        if let Some(ref map) = *registry {
+            map.get(class_name).map(|c| c.clone_ref(py))
+        } else {
+            None
+        }
+    };
+
+    let class = class_ref?;
+    let class_bound = class.bind(py);
+
+    let get_type_hints = py
+        .import("typing")
+        .and_then(|m| m.getattr("get_type_hints"))
+        .ok()?;
+    let hints = get_type_hints.call1((&class_bound,)).ok()?;
+    let field_type = hints.get_item(field_name).ok()?;
+
+    // Extract the class name from the type (handling Optional, etc.)
+    extract_type_class_name(&field_type)
+}
+
+/// Extract the class name from a Python type, handling generics like Optional[X].
+fn extract_type_class_name(field_type: &Bound<'_, PyAny>) -> Option<String> {
+    // Check for generic types with __origin__ (Optional, List, etc.)
+    if field_type.getattr("__origin__").is_ok() {
+        if let Ok(args) = field_type.getattr("__args__") {
+            if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
+                for arg in args_tuple.iter() {
+                    // Skip NoneType
+                    if let Ok(name) = arg.getattr("__name__") {
+                        if let Ok(n) = name.extract::<String>() {
+                            if n != "NoneType" {
+                                return Some(n);
+                            }
+                        }
+                    }
+                    // Recurse into nested generics
+                    if let Some(result) = extract_type_class_name(&arg) {
+                        return Some(result);
+                    }
+                }
+            }
+        }
+        return None;
+    }
+
+    // Simple class with __name__
+    if let Ok(name) = field_type.getattr("__name__") {
+        if let Ok(n) = name.extract::<String>() {
+            if n != "NoneType" {
+                return Some(n);
+            }
+        }
+    }
+
+    None
+}
+
+/// Infer the type of a field from the class registry.
+fn infer_field_type(py: Python<'_>, class_name: &str, field_name: &str) -> PyResult<InferredType> {
+    let class_ref: Option<Py<PyAny>> = {
+        let registry = CLASS_REGISTRY.read().unwrap();
+        if let Some(ref map) = *registry {
+            map.get(class_name).map(|c| c.clone_ref(py))
+        } else {
+            None
+        }
+    };
+
+    let Some(class) = class_ref else {
+        return Ok(InferredType::Unknown);
+    };
+
+    let class_bound = class.bind(py);
+
+    let get_type_hints = py
+        .import("typing")
+        .and_then(|m| m.getattr("get_type_hints"));
+    let Ok(get_type_hints) = get_type_hints else {
+        return Ok(InferredType::Unknown);
+    };
+
+    let hints = get_type_hints.call1((&class_bound,));
+    let Ok(hints) = hints else {
+        return Ok(InferredType::Unknown);
+    };
+
+    let field_type = hints.get_item(field_name);
+    let Ok(field_type) = field_type else {
+        return Ok(InferredType::Unknown);
+    };
+
+    // Check the type name
+    let type_name = get_concrete_type_name(&field_type);
+
+    match type_name.as_deref() {
+        Some("datetime") => Ok(InferredType::I64),
+        Some("timedelta") => Ok(InferredType::I64),
+        Some("int") => Ok(InferredType::I32),
+        Some("float") => Ok(InferredType::F64),
+        Some("bool") => Ok(InferredType::Bool),
+        Some("str") => Ok(InferredType::String),
+        _ => Ok(InferredType::Unknown),
+    }
+}
+
+/// Get the concrete type name from a Python type, handling generics.
+fn get_concrete_type_name(field_type: &Bound<'_, PyAny>) -> Option<String> {
+    // Check for generic types with __origin__
+    if field_type.getattr("__origin__").is_ok() {
+        if let Ok(args) = field_type.getattr("__args__") {
+            if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
+                for arg in args_tuple.iter() {
+                    if let Ok(name) = arg.getattr("__name__") {
+                        if let Ok(n) = name.extract::<String>() {
+                            if n != "NoneType" {
+                                return Some(n);
+                            }
+                        }
+                    }
+                    // Recurse
+                    if let Some(result) = get_concrete_type_name(&arg) {
+                        return Some(result);
+                    }
+                }
+            }
+        }
+        return None;
+    }
+
+    // Simple class
+    if let Ok(name) = field_type.getattr("__name__") {
+        if let Ok(n) = name.extract::<String>() {
+            return Some(n);
+        }
+    }
+
+    None
+}
+
+/// Infer the type of an already-converted Expression.
+///
+/// This is used when we need to determine the type of an expression
+/// after it has been converted from AST. Useful for local variable
+/// substitution scenarios.
+pub fn infer_expression_type(expr: &Expression) -> InferredType {
     match expr {
-        Expression::FloatLiteral { .. } => true,
-        Expression::FloatAdd { .. }
+        // Boolean
+        Expression::BoolLiteral { .. }
+        | Expression::Not { .. }
+        | Expression::And { .. }
+        | Expression::Or { .. }
+        | Expression::Eq { .. }
+        | Expression::Ne { .. }
+        | Expression::Lt { .. }
+        | Expression::Le { .. }
+        | Expression::Gt { .. }
+        | Expression::Ge { .. }
+        | Expression::Eq64 { .. }
+        | Expression::Ne64 { .. }
+        | Expression::Lt64 { .. }
+        | Expression::Le64 { .. }
+        | Expression::Gt64 { .. }
+        | Expression::Ge64 { .. }
+        | Expression::IsNull { .. }
+        | Expression::IsNotNull { .. } => InferredType::Bool,
+
+        // Float
+        Expression::FloatLiteral { .. }
+        | Expression::FloatAdd { .. }
         | Expression::FloatSub { .. }
         | Expression::FloatMul { .. }
-        | Expression::FloatDiv { .. } => true,
-        Expression::Sqrt { .. }
+        | Expression::FloatDiv { .. }
+        | Expression::Sqrt { .. }
         | Expression::FloatAbs { .. }
         | Expression::Sin { .. }
         | Expression::Cos { .. }
@@ -50,85 +454,45 @@ pub fn is_float_expr(expr: &Expression) -> bool {
         | Expression::Acos { .. }
         | Expression::Atan { .. }
         | Expression::Atan2 { .. }
-        | Expression::Radians { .. } => true,
-        Expression::IntToFloat { .. } => true,
-        Expression::IfThenElse {
-            then_branch,
-            else_branch,
-            ..
-        } => is_float_expr(then_branch) || is_float_expr(else_branch),
-        _ => false,
-    }
-}
+        | Expression::Radians { .. }
+        | Expression::IntToFloat { .. } => InferredType::F64,
 
-/// Check if an expression produces an i64 result.
-/// Used to select between i32/i64 comparison and arithmetic operations.
-pub fn is_i64_expr(expr: &Expression) -> bool {
-    match expr {
-        // Explicit i64 literal
-        Expression::Int64Literal { .. } => true,
-        // i64 arithmetic operations
-        Expression::Add64 { .. }
+        // I64
+        Expression::Int64Literal { .. }
+        | Expression::Add64 { .. }
         | Expression::Sub64 { .. }
         | Expression::Mul64 { .. }
-        | Expression::Div64 { .. } => true,
-        // Large integer literals that don't fit in i32
-        Expression::IntLiteral { value } => *value < i32::MIN as i64 || *value > i32::MAX as i64,
+        | Expression::Div64 { .. }
+        | Expression::IfThenElse64 { .. } => InferredType::I64,
+
+        // I32
+        Expression::IntLiteral { .. }
+        | Expression::Add { .. }
+        | Expression::Sub { .. }
+        | Expression::Mul { .. }
+        | Expression::Div { .. }
+        | Expression::Length { .. }
+        | Expression::FloatToInt { .. }
+        | Expression::Round { .. }
+        | Expression::Floor { .. }
+        | Expression::Ceil { .. } => InferredType::I32,
+
+        // String
+        Expression::StringLiteral { .. } => InferredType::String,
+
+        // Null
+        Expression::Null => InferredType::Null,
+
+        // IfThenElse - check branches
         Expression::IfThenElse {
             then_branch,
             else_branch,
             ..
-        } => is_i64_expr(then_branch) || is_i64_expr(else_branch),
-        Expression::IfThenElse64 { .. } => true,
-        _ => false,
+        } => infer_expression_type(then_branch).promote(infer_expression_type(else_branch)),
+
+        // Default to Unknown for complex cases
+        _ => InferredType::Unknown,
     }
-}
-
-/// Check if a FieldAccess expression references an i64 field.
-/// This looks up the Python type annotation and checks for datetime types.
-pub fn is_i64_field_access(py: Python<'_>, expr: &Expression) -> bool {
-    if let Expression::FieldAccess {
-        class_name,
-        field_name,
-        ..
-    } = expr
-    {
-        // Look up the field type from the class registry
-        let class_ref: Option<Py<PyAny>> = {
-            let registry = CLASS_REGISTRY.read().unwrap();
-            if let Some(ref map) = *registry {
-                map.get(class_name).map(|c| c.clone_ref(py))
-            } else {
-                None
-            }
-        };
-
-        if let Some(class) = class_ref {
-            let class_bound = class.bind(py);
-            if let Ok(get_type_hints) = py
-                .import("typing")
-                .and_then(|m| m.getattr("get_type_hints"))
-            {
-                if let Ok(hints) = get_type_hints.call1((&class_bound,)) {
-                    if let Ok(field_type) = hints.get_item(field_name) {
-                        // Check if field type is datetime
-                        if let Ok(type_name) = field_type.getattr("__name__") {
-                            if let Ok(name) = type_name.extract::<String>() {
-                                // datetime fields are stored as i64 timestamps
-                                return name == "datetime";
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    false
-}
-
-/// Check if either expression produces an i64 result, including field access.
-pub fn is_i64_operand(py: Python<'_>, expr: &Expression) -> bool {
-    is_i64_expr(expr) || is_i64_field_access(py, expr)
 }
 
 /// Extract argument names from Python AST arguments node.
@@ -147,10 +511,10 @@ pub(crate) fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyR
 
 /// Convert Python Compare AST node to Expression.
 ///
-/// Type context propagation:
-/// 1. First convert both sides with ExpectedType::Any
-/// 2. If either operand is i64, re-convert non-i64 operand with ExpectedType::I64
-/// 3. This ensures literals get the correct type from the start
+/// Single-pass type inference:
+/// 1. Infer types from AST nodes (without converting)
+/// 2. Promote types to determine operation type
+/// 3. Convert ONCE with correct expected type
 pub(crate) fn convert_compare_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
@@ -171,40 +535,26 @@ pub(crate) fn convert_compare_to_expression(
 
     let right_node = &comparators[0];
 
-    // First pass: convert both with Any to determine types
-    let left_initial =
-        convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::Any)?;
-    let right_initial =
-        convert_ast_to_expression(py, right_node, arg_names, class_hint, ExpectedType::Any)?;
+    // STEP 1: Infer types from AST (no conversion yet)
+    let left_type = infer_ast_type(py, &left_node, arg_names, class_hint)?;
+    let right_type = infer_ast_type(py, right_node, arg_names, class_hint)?;
 
-    let (Some(left_init), Some(right_init)) = (left_initial, right_initial) else {
-        return Ok(None);
+    // STEP 2: Promote to determine operation type
+    let promoted_type = left_type.promote(right_type);
+    let use_i64 = promoted_type == InferredType::I64;
+
+    // STEP 3: Convert ONCE with correct expected type
+    let expected = if use_i64 {
+        ExpectedType::I64
+    } else {
+        ExpectedType::Any
     };
 
-    // Determine if we need i64 operations
-    let left_is_i64 = is_i64_operand(py, &left_init);
-    let right_is_i64 = is_i64_operand(py, &right_init);
-    let use_i64 = left_is_i64 || right_is_i64;
+    let left = convert_ast_to_expression(py, &left_node, arg_names, class_hint, expected)?;
+    let right = convert_ast_to_expression(py, right_node, arg_names, class_hint, expected)?;
 
-    // Second pass: re-convert with proper type context if needed
-    let (left, right) = if use_i64 {
-        let left = if left_is_i64 {
-            left_init
-        } else {
-            // Re-convert left with i64 context
-            convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::I64)?
-                .unwrap_or(left_init)
-        };
-        let right = if right_is_i64 {
-            right_init
-        } else {
-            // Re-convert right with i64 context
-            convert_ast_to_expression(py, right_node, arg_names, class_hint, ExpectedType::I64)?
-                .unwrap_or(right_init)
-        };
-        (left, right)
-    } else {
-        (left_init, right_init)
+    let (Some(left), Some(right)) = (left, right) else {
+        return Ok(None);
     };
 
     let op_type = ops[0].get_type().name()?.to_string();
@@ -383,7 +733,10 @@ pub(crate) fn convert_boolop_to_expression(
 
 /// Convert Python UnaryOp AST node to Expression.
 ///
-/// For unary minus, type context is propagated to ensure proper literal types.
+/// Single-pass type inference:
+/// 1. Infer type from operand AST
+/// 2. Convert ONCE with correct expected type
+/// 3. Emit correct expression based on inferred type
 pub(crate) fn convert_unaryop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
@@ -393,50 +746,64 @@ pub(crate) fn convert_unaryop_to_expression(
 ) -> PyResult<Option<Expression>> {
     let op = node.getattr("op")?;
     let operand = node.getattr("operand")?;
-
     let op_type = op.get_type().name()?.to_string();
 
-    if let Some(operand_expr) =
-        convert_ast_to_expression(py, &operand, arg_names, class_hint, expected_type)?
-    {
-        let expr = match op_type.as_str() {
-            "Not" => Expression::Not {
-                operand: Box::new(operand_expr),
-            },
-            "USub" => {
-                // Unary minus: -x
-                // Use the same type as the operand
-                if is_i64_operand(py, &operand_expr) || expected_type == ExpectedType::I64 {
-                    Expression::Sub64 {
-                        left: Box::new(Expression::Int64Literal { value: 0 }),
-                        right: Box::new(operand_expr),
-                    }
-                } else if is_float_expr(&operand_expr) || expected_type == ExpectedType::F64 {
-                    Expression::FloatSub {
-                        left: Box::new(Expression::FloatLiteral { value: 0.0 }),
-                        right: Box::new(operand_expr),
-                    }
-                } else {
-                    Expression::Sub {
-                        left: Box::new(Expression::IntLiteral { value: 0 }),
-                        right: Box::new(operand_expr),
-                    }
-                }
+    // STEP 1: Infer type from operand AST
+    let operand_type = infer_ast_type(py, &operand, arg_names, class_hint)?;
+
+    // Determine the actual type to use (considering expected type context)
+    let actual_type = match expected_type {
+        ExpectedType::I64 => InferredType::I64,
+        ExpectedType::F64 => InferredType::F64,
+        ExpectedType::Any => operand_type,
+    };
+
+    // STEP 2: Convert ONCE with correct expected type
+    let conversion_expected = match actual_type {
+        InferredType::I64 => ExpectedType::I64,
+        InferredType::F64 => ExpectedType::F64,
+        _ => ExpectedType::Any,
+    };
+
+    let Some(operand_expr) =
+        convert_ast_to_expression(py, &operand, arg_names, class_hint, conversion_expected)?
+    else {
+        return Ok(None);
+    };
+
+    // STEP 3: Emit correct expression based on inferred type
+    let expr = match op_type.as_str() {
+        "Not" => Expression::Not {
+            operand: Box::new(operand_expr),
+        },
+        "USub" => {
+            // Unary minus: -x implemented as 0 - x
+            match actual_type {
+                InferredType::I64 => Expression::Sub64 {
+                    left: Box::new(Expression::Int64Literal { value: 0 }),
+                    right: Box::new(operand_expr),
+                },
+                InferredType::F64 => Expression::FloatSub {
+                    left: Box::new(Expression::FloatLiteral { value: 0.0 }),
+                    right: Box::new(operand_expr),
+                },
+                _ => Expression::Sub {
+                    left: Box::new(Expression::IntLiteral { value: 0 }),
+                    right: Box::new(operand_expr),
+                },
             }
-            _ => return Ok(None),
-        };
-        Ok(Some(expr))
-    } else {
-        Ok(None)
-    }
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(expr))
 }
 
 /// Convert Python BinOp AST node to Expression.
 ///
-/// Type context propagation:
-/// 1. First convert both sides with ExpectedType::Any
-/// 2. If either operand is i64, re-convert non-i64 operand with ExpectedType::I64
-/// 3. This ensures literals get the correct type from the start
+/// Single-pass type inference:
+/// 1. Infer types from AST nodes (without converting)
+/// 2. Promote types to determine operation type
+/// 3. Convert ONCE with correct expected type
 pub(crate) fn convert_binop_to_expression(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
@@ -446,58 +813,35 @@ pub(crate) fn convert_binop_to_expression(
     let op = node.getattr("op")?;
     let left_node = node.getattr("left")?;
     let right_node = node.getattr("right")?;
-
-    // First pass: convert both with Any to determine types
-    let left_initial =
-        convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::Any)?;
-    let right_initial =
-        convert_ast_to_expression(py, &right_node, arg_names, class_hint, ExpectedType::Any)?;
-
-    let (Some(l_init), Some(r_init)) = (left_initial, right_initial) else {
-        return Ok(None);
-    };
-
     let op_type = op.get_type().name()?.to_string();
 
-    // Determine type requirements
-    let use_float = is_float_expr(&l_init) || is_float_expr(&r_init);
-    let left_is_i64 = is_i64_operand(py, &l_init);
-    let right_is_i64 = is_i64_operand(py, &r_init);
-    let use_i64 = left_is_i64 || right_is_i64;
+    // STEP 1: Infer types from AST (no conversion yet)
+    let left_type = infer_ast_type(py, &left_node, arg_names, class_hint)?;
+    let right_type = infer_ast_type(py, &right_node, arg_names, class_hint)?;
 
-    // Second pass: re-convert with proper type context if needed
-    let (l, r) = if use_float {
-        // Float operations - re-convert with F64 context if needed
-        let l = if is_float_expr(&l_init) {
-            l_init
-        } else {
-            convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::F64)?
-                .unwrap_or(l_init)
-        };
-        let r = if is_float_expr(&r_init) {
-            r_init
-        } else {
-            convert_ast_to_expression(py, &right_node, arg_names, class_hint, ExpectedType::F64)?
-                .unwrap_or(r_init)
-        };
-        (l, r)
-    } else if use_i64 {
-        // i64 operations - re-convert non-i64 operand with I64 context
-        let l = if left_is_i64 {
-            l_init
-        } else {
-            convert_ast_to_expression(py, &left_node, arg_names, class_hint, ExpectedType::I64)?
-                .unwrap_or(l_init)
-        };
-        let r = if right_is_i64 {
-            r_init
-        } else {
-            convert_ast_to_expression(py, &right_node, arg_names, class_hint, ExpectedType::I64)?
-                .unwrap_or(r_init)
-        };
-        (l, r)
+    // STEP 2: Promote to determine operation type
+    // Python `/` always produces float regardless of operand types
+    let promoted_type = if op_type == "Div" {
+        InferredType::F64
     } else {
-        (l_init, r_init)
+        left_type.promote(right_type)
+    };
+
+    let use_float = promoted_type == InferredType::F64;
+    let use_i64 = promoted_type == InferredType::I64;
+
+    // STEP 3: Convert ONCE with correct expected type
+    let expected = match promoted_type {
+        InferredType::F64 => ExpectedType::F64,
+        InferredType::I64 => ExpectedType::I64,
+        _ => ExpectedType::Any,
+    };
+
+    let l = convert_ast_to_expression(py, &left_node, arg_names, class_hint, expected)?;
+    let r = convert_ast_to_expression(py, &right_node, arg_names, class_hint, expected)?;
+
+    let (Some(l), Some(r)) = (l, r) else {
+        return Ok(None);
     };
 
     let expr = match op_type.as_str() {
@@ -584,7 +928,7 @@ pub(crate) fn convert_binop_to_expression(
 /// The `expected_type` parameter guides literal type selection:
 /// - `ExpectedType::I64` produces `Int64Literal` for integers
 /// - `ExpectedType::F64` produces `FloatLiteral` (converting int if needed)
-/// - `ExpectedType::Any` or `ExpectedType::I32` uses default types
+/// - `ExpectedType::Any` uses default types (I32 for integers)
 pub(crate) fn convert_constant_to_expression(
     node: &Bound<'_, PyAny>,
     expected_type: ExpectedType,
@@ -605,9 +949,7 @@ pub(crate) fn convert_constant_to_expression(
                 match expected_type {
                     ExpectedType::I64 => Ok(Some(Expression::Int64Literal { value: i })),
                     ExpectedType::F64 => Ok(Some(Expression::FloatLiteral { value: i as f64 })),
-                    ExpectedType::Any | ExpectedType::I32 => {
-                        Ok(Some(Expression::IntLiteral { value: i }))
-                    }
+                    ExpectedType::Any => Ok(Some(Expression::IntLiteral { value: i })),
                 }
             } else if let Ok(f) = value.extract::<f64>() {
                 Ok(Some(Expression::FloatLiteral { value: f }))
@@ -1001,30 +1343,26 @@ fn convert_method_call(
 
 /// Convert built-in function call.
 ///
-/// Type context is used for:
-/// - timedelta: always returns Int64Literal (used with datetime)
-/// - max/min/abs: respects i64 context for operands
+/// Single-pass type inference:
+/// 1. Infer types from AST arguments (without converting)
+/// 2. Promote types to determine operation type
+/// 3. Convert ONCE with correct expected type
 fn convert_builtin_call(
     py: Python<'_>,
     node: &Bound<'_, PyAny>,
     func_name: &str,
     arg_names: &[String],
     class_hint: &str,
-    expected_type: ExpectedType,
+    _expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let args_node = node.getattr("args")?;
     let args_list = args_node.cast::<PyList>()?;
 
-    // First pass: convert positional arguments with Any to determine types
-    let mut call_args = Vec::new();
+    // STEP 1: Infer types from AST (no conversion yet)
+    let mut arg_types = Vec::new();
     for arg in args_list.iter() {
-        if let Some(arg_expr) =
-            convert_ast_to_expression(py, &arg, arg_names, class_hint, ExpectedType::Any)?
-        {
-            call_args.push(arg_expr);
-        } else {
-            return Ok(None);
-        }
+        let arg_type = infer_ast_type(py, &arg, arg_names, class_hint)?;
+        arg_types.push(arg_type);
     }
 
     // Parse keyword arguments (for timedelta)
@@ -1056,29 +1394,31 @@ fn convert_builtin_call(
         }
     }
 
-    // Check if any argument is i64 (for datetime operations) OR if expected type is i64
-    let use_i64 =
-        expected_type == ExpectedType::I64 || call_args.iter().any(|arg| is_i64_operand(py, arg));
+    // STEP 2: Promote types to determine operation type
+    let promoted_type = arg_types
+        .iter()
+        .copied()
+        .reduce(|a, b| a.promote(b))
+        .unwrap_or(InferredType::I32);
+    let use_i64 = promoted_type == InferredType::I64;
 
-    // Second pass: re-convert arguments with proper type context if needed
-    let call_args = if use_i64 {
-        let mut reconverted = Vec::new();
-        for (i, arg) in args_list.iter().enumerate() {
-            // Keep already-i64 arguments, re-convert others with I64 context
-            if is_i64_operand(py, &call_args[i]) {
-                reconverted.push(call_args[i].clone());
-            } else if let Some(arg_expr) =
-                convert_ast_to_expression(py, &arg, arg_names, class_hint, ExpectedType::I64)?
-            {
-                reconverted.push(arg_expr);
-            } else {
-                reconverted.push(call_args[i].clone());
-            }
-        }
-        reconverted
+    // STEP 3: Convert ONCE with correct expected type
+    let expected = if use_i64 {
+        ExpectedType::I64
     } else {
-        call_args
+        ExpectedType::Any
     };
+
+    let mut call_args = Vec::new();
+    for arg in args_list.iter() {
+        if let Some(arg_expr) =
+            convert_ast_to_expression(py, &arg, arg_names, class_hint, expected)?
+        {
+            call_args.push(arg_expr);
+        } else {
+            return Ok(None);
+        }
+    }
 
     // Handle specific built-in functions
     match func_name {

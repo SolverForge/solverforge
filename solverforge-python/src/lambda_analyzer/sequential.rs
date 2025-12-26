@@ -12,7 +12,7 @@ use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 use std::collections::HashMap;
 
-use super::ast_convert::is_float_expr;
+use super::ast_convert::{infer_expression_type, InferredType};
 use super::conditionals;
 use super::type_inference::infer_expression_class;
 
@@ -223,7 +223,9 @@ fn convert_ast_with_local_var_substitution(
             build_method_call_fn,
         )?;
 
-        let use_float = is_float_expr(&left_expr) || is_float_expr(&right_expr);
+        let left_type = infer_expression_type(&left_expr);
+        let right_type = infer_expression_type(&right_expr);
+        let use_float = left_type == InferredType::F64 || right_type == InferredType::F64;
         return Ok(match op_type.as_str() {
             "Add" if use_float => Expression::FloatAdd {
                 left: Box::new(left_expr),

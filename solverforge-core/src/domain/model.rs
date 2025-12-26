@@ -1,4 +1,4 @@
-use super::DomainClass;
+use super::{DomainClass, FieldType, PlanningAnnotation};
 use crate::SolverForgeError;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -39,8 +39,58 @@ impl DomainModel {
         self.solution_class.as_deref()
     }
 
+    /// Looks up the element type of a value range provider by its ID.
+    fn lookup_value_range_provider_element_type(&self, provider_id: &str) -> Option<String> {
+        for class in self.classes.values() {
+            for field in &class.fields {
+                for annotation in &field.annotations {
+                    if let PlanningAnnotation::ValueRangeProvider { id } = annotation {
+                        let effective_id = id.as_deref().unwrap_or(&field.name);
+                        if effective_id == provider_id {
+                            // Extract element type from the field's FieldType
+                            match &field.field_type {
+                                FieldType::List { element_type }
+                                | FieldType::Array { element_type }
+                                | FieldType::Set { element_type } => {
+                                    return Some(element_type.to_type_string());
+                                }
+                                // If not a collection, return the type directly
+                                _ => return Some(field.field_type.to_type_string()),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Looks up the element type for a list variable by its name.
+    /// Used for shadow variables that reference a source list variable.
+    fn lookup_list_variable_element_type(&self, variable_name: &str) -> Option<String> {
+        for class in self.classes.values() {
+            for field in &class.fields {
+                if field.name == variable_name {
+                    for annotation in &field.annotations {
+                        if let PlanningAnnotation::PlanningListVariable {
+                            value_range_provider_refs,
+                            ..
+                        } = annotation
+                        {
+                            if !value_range_provider_refs.is_empty() {
+                                return self.lookup_value_range_provider_element_type(
+                                    &value_range_provider_refs[0],
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
-        use crate::domain::PlanningAnnotation;
         use crate::solver::{DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor};
 
         let mut result = indexmap::IndexMap::new();
@@ -84,8 +134,48 @@ impl DomainModel {
                     DomainAccessor::new(getter)
                 };
 
-                // Derive field type from domain type
-                let field_type = field.field_type.to_type_string();
+                // Resolve element types for annotations that reference list variables
+                let field_type = if let Some(provider_refs) =
+                    field.annotations.iter().find_map(|a| {
+                        if let PlanningAnnotation::PlanningListVariable {
+                            value_range_provider_refs,
+                            ..
+                        } = a
+                        {
+                            if !value_range_provider_refs.is_empty() {
+                                return Some(value_range_provider_refs);
+                            }
+                        }
+                        None
+                    }) {
+                    // Planning list variable: resolve from value range provider
+                    let provider_id = &provider_refs[0];
+                    let element_type = self
+                        .lookup_value_range_provider_element_type(provider_id)
+                        .unwrap_or_else(|| {
+                            panic!("Value range provider '{}' not found", provider_id)
+                        });
+                    format!("{}[]", element_type)
+                } else if let Some(source_var) = field.annotations.iter().find_map(|a| match a {
+                    PlanningAnnotation::NextElementShadowVariable {
+                        source_variable_name,
+                    }
+                    | PlanningAnnotation::PreviousElementShadowVariable {
+                        source_variable_name,
+                    }
+                    | PlanningAnnotation::InverseRelationShadowVariable {
+                        source_variable_name,
+                    } => Some(source_variable_name.as_str()),
+                    _ => None,
+                }) {
+                    // Shadow variable referencing a list: resolve element type from source list variable
+                    self.lookup_list_variable_element_type(source_var)
+                        .unwrap_or_else(|| {
+                            panic!("Source list variable '{}' not found", source_var)
+                        })
+                } else {
+                    field.field_type.to_type_string()
+                };
 
                 let field_descriptor = FieldDescriptor::new(field_type)
                     .with_accessor(accessor)

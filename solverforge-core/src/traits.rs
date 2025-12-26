@@ -3,33 +3,6 @@
 //! These traits define the interface for planning entities and solutions
 //! that can be solved by the constraint solver. They are typically implemented
 //! via derive macros from the `solverforge-derive` crate.
-//!
-//! # Example
-//!
-//! ```ignore
-//! use solverforge_derive::{PlanningEntity, PlanningSolution};
-//! use solverforge_core::{PlanningEntity, PlanningSolution, HardSoftScore};
-//!
-//! #[derive(PlanningEntity)]
-//! struct Lesson {
-//!     #[planning_id]
-//!     id: String,
-//!     #[planning_variable(value_range_provider = "rooms")]
-//!     room: Option<Room>,
-//! }
-//!
-//! #[derive(PlanningSolution)]
-//! #[constraint_provider = "define_constraints"]
-//! struct Timetable {
-//!     #[problem_fact_collection]
-//!     #[value_range_provider(id = "rooms")]
-//!     rooms: Vec<Room>,
-//!     #[planning_entity_collection]
-//!     lessons: Vec<Lesson>,
-//!     #[planning_score]
-//!     score: Option<HardSoftScore>,
-//! }
-//! ```
 
 use crate::constraints::ConstraintSet;
 use crate::domain::{DomainClass, DomainModel};

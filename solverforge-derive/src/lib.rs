@@ -71,7 +71,16 @@ mod solution;
 /// ```
 #[proc_macro_derive(
     PlanningEntity,
-    attributes(planning_id, planning_variable, planning_list_variable)
+    attributes(
+        planning_id,
+        planning_variable,
+        planning_list_variable,
+        inverse_relation_shadow,
+        index_shadow,
+        next_element_shadow,
+        previous_element_shadow,
+        anchor_shadow
+    )
 )]
 pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
     entity::derive_planning_entity_impl(input)

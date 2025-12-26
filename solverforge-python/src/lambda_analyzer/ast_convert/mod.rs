@@ -6,507 +6,27 @@
 //! Type inference is performed FIRST by analyzing the AST structure,
 //! then expressions are emitted ONCE with the correct types.
 
+mod guards;
+mod inference;
+mod types;
+
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 
 use super::constants::get_class_constant;
-use super::registry::{get_method_from_class, CLASS_REGISTRY};
-use super::type_inference::infer_expression_class;
+use super::registry::get_method_from_class;
+use super::type_inference::{get_wasm_field_type, infer_expression_class};
+use inference::{infer_ast_type, try_inline_property};
 
-/// Inferred type from AST analysis.
-///
-/// This enum represents the type of a value as determined by analyzing
-/// the AST structure BEFORE converting to expressions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InferredType {
-    /// 32-bit integer (default for integer literals and operations)
-    I32,
-    /// 64-bit integer (datetime fields, large integers, timedelta)
-    I64,
-    /// 64-bit floating point
-    F64,
-    /// Boolean
-    Bool,
-    /// String
-    String,
-    /// Null/None
-    Null,
-    /// Unknown type (couldn't be determined)
-    Unknown,
-}
-
-impl InferredType {
-    /// Promote two numeric types to a common type for binary operations.
-    /// - If either is F64, result is F64
-    /// - If either is I64, result is I64
-    /// - Otherwise I32
-    pub fn promote(self, other: InferredType) -> InferredType {
-        match (self, other) {
-            // Float propagates
-            (InferredType::F64, _) | (_, InferredType::F64) => InferredType::F64,
-            // I64 propagates
-            (InferredType::I64, _) | (_, InferredType::I64) => InferredType::I64,
-            // Both I32
-            (InferredType::I32, InferredType::I32) => InferredType::I32,
-            // Unknown cases - be conservative
-            _ => InferredType::Unknown,
-        }
-    }
-}
-
-/// Expected type context for expression conversion.
-///
-/// This is derived from InferredType and passed to conversion functions
-/// to ensure literals are emitted with the correct type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ExpectedType {
-    /// No specific expectation - use default types (I32 for integers)
-    #[default]
-    Any,
-    /// Expect i64 (for datetime fields, large integers)
-    I64,
-    /// Expect f64 (for floating point)
-    F64,
-}
-
-/// Infer the type of an AST node WITHOUT converting it to an Expression.
-///
-/// This is the first pass of type inference - we analyze the AST structure
-/// to determine what type each expression will produce, THEN we emit
-/// the correct expressions in a single pass.
-pub(crate) fn infer_ast_type(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    arg_names: &[String],
-    class_hint: &str,
-) -> PyResult<InferredType> {
-    let node_type = node.get_type().name()?.to_string();
-
-    match node_type.as_str() {
-        "Constant" => {
-            let value = node.getattr("value")?;
-            if value.is_none() {
-                Ok(InferredType::Null)
-            } else if value.extract::<bool>().is_ok() {
-                Ok(InferredType::Bool)
-            } else if value.extract::<i64>().is_ok() {
-                // Integer literal - default to I32 unless value exceeds range
-                if let Ok(i) = value.extract::<i64>() {
-                    if i < i32::MIN as i64 || i > i32::MAX as i64 {
-                        Ok(InferredType::I64)
-                    } else {
-                        Ok(InferredType::I32)
-                    }
-                } else {
-                    Ok(InferredType::I32)
-                }
-            } else if value.extract::<f64>().is_ok() {
-                Ok(InferredType::F64)
-            } else if value.extract::<String>().is_ok() {
-                Ok(InferredType::String)
-            } else {
-                Ok(InferredType::Unknown)
-            }
-        }
-
-        "Name" => {
-            let id: String = node.getattr("id")?.extract()?;
-            if id == "None" {
-                Ok(InferredType::Null)
-            } else if id == "True" || id == "False" {
-                Ok(InferredType::Bool)
-            } else if arg_names.contains(&id) {
-                // Lambda parameter - type depends on class, treat as Unknown
-                Ok(InferredType::Unknown)
-            } else {
-                Ok(InferredType::Unknown)
-            }
-        }
-
-        "Attribute" => {
-            // Field access - look up field type from class registry
-            let attr: String = node.getattr("attr")?.extract()?;
-
-            // Determine the class of the base object
-            let value = node.getattr("value")?;
-            let base_class = infer_base_class(py, &value, arg_names, class_hint)?;
-
-            // Look up the field type
-            infer_field_type(py, &base_class, &attr)
-        }
-
-        "BinOp" => {
-            let op = node.getattr("op")?;
-            let op_type = op.get_type().name()?.to_string();
-            let left = node.getattr("left")?;
-            let right = node.getattr("right")?;
-
-            // Python `/` always produces float
-            if op_type == "Div" {
-                return Ok(InferredType::F64);
-            }
-
-            // For other ops, promote the operand types
-            let left_type = infer_ast_type(py, &left, arg_names, class_hint)?;
-            let right_type = infer_ast_type(py, &right, arg_names, class_hint)?;
-
-            Ok(left_type.promote(right_type))
-        }
-
-        "Compare" => {
-            // Comparisons always return boolean
-            Ok(InferredType::Bool)
-        }
-
-        "BoolOp" => {
-            // Boolean operations return boolean
-            Ok(InferredType::Bool)
-        }
-
-        "UnaryOp" => {
-            let op = node.getattr("op")?;
-            let op_type = op.get_type().name()?.to_string();
-
-            if op_type == "Not" {
-                Ok(InferredType::Bool)
-            } else {
-                // USub, UAdd - propagate operand type
-                let operand = node.getattr("operand")?;
-                infer_ast_type(py, &operand, arg_names, class_hint)
-            }
-        }
-
-        "Call" => {
-            let func = node.getattr("func")?;
-            let func_type = func.get_type().name()?.to_string();
-
-            if func_type == "Name" {
-                let func_name: String = func.getattr("id")?.extract()?;
-                match func_name.as_str() {
-                    // timedelta always produces i64 (seconds for datetime arithmetic)
-                    "timedelta" => Ok(InferredType::I64),
-                    // len returns i32
-                    "len" => Ok(InferredType::I32),
-                    // round/floor/ceil return i32 (truncated from float)
-                    "round" => Ok(InferredType::I32),
-                    // int() casts to i32
-                    "int" => Ok(InferredType::I32),
-                    // float() casts to f64
-                    "float" => Ok(InferredType::F64),
-                    // max/min/abs - propagate from arguments
-                    "max" | "min" | "abs" => {
-                        let args = node.getattr("args")?;
-                        let args_list = args.cast::<PyList>()?;
-                        if !args_list.is_empty() {
-                            infer_ast_type(py, &args_list.get_item(0)?, arg_names, class_hint)
-                        } else {
-                            Ok(InferredType::Unknown)
-                        }
-                    }
-                    _ => Ok(InferredType::Unknown),
-                }
-            } else if func_type == "Attribute" {
-                // Method call or module.function
-                let value = func.getattr("value")?;
-                let method_name: String = func.getattr("attr")?.extract()?;
-                let value_type = value.get_type().name()?.to_string();
-
-                if value_type == "Name" {
-                    let module_name: String = value.getattr("id")?.extract()?;
-                    if module_name == "math" {
-                        // All math functions return float
-                        return Ok(InferredType::F64);
-                    }
-                }
-
-                // Method call - would need to analyze the method body
-                // For now, return Unknown and let the method inlining handle it
-                let _ = method_name;
-                Ok(InferredType::Unknown)
-            } else {
-                Ok(InferredType::Unknown)
-            }
-        }
-
-        _ => Ok(InferredType::Unknown),
-    }
-}
-
-/// Infer the class name of a base expression for field access.
-fn infer_base_class(
-    py: Python<'_>,
-    node: &Bound<'_, PyAny>,
-    arg_names: &[String],
-    class_hint: &str,
-) -> PyResult<String> {
-    let node_type = node.get_type().name()?.to_string();
-
-    match node_type.as_str() {
-        "Name" => {
-            let id: String = node.getattr("id")?.extract()?;
-            // If it's the first lambda parameter, use class_hint
-            if arg_names.first() == Some(&id) {
-                Ok(class_hint.to_string())
-            } else {
-                Ok(id)
-            }
-        }
-        "Attribute" => {
-            // Chained field access: x.field1.field2
-            let attr: String = node.getattr("attr")?.extract()?;
-            let value = node.getattr("value")?;
-            let base_class = infer_base_class(py, &value, arg_names, class_hint)?;
-
-            // Look up the type of this field to get the class for the next field
-            if let Some(field_class) = get_field_class_name(py, &base_class, &attr) {
-                Ok(field_class)
-            } else {
-                Ok(base_class)
-            }
-        }
-        _ => Ok(class_hint.to_string()),
-    }
-}
-
-/// Look up a field's class name from the registry.
-fn get_field_class_name(py: Python<'_>, class_name: &str, field_name: &str) -> Option<String> {
-    let class_ref: Option<Py<PyAny>> = {
-        let registry = CLASS_REGISTRY.read().unwrap();
-        if let Some(ref map) = *registry {
-            map.get(class_name).map(|c| c.clone_ref(py))
-        } else {
-            None
-        }
-    };
-
-    let class = class_ref?;
-    let class_bound = class.bind(py);
-
-    let get_type_hints = py
-        .import("typing")
-        .and_then(|m| m.getattr("get_type_hints"))
-        .ok()?;
-    let hints = get_type_hints.call1((&class_bound,)).ok()?;
-    let field_type = hints.get_item(field_name).ok()?;
-
-    // Extract the class name from the type (handling Optional, etc.)
-    extract_type_class_name(&field_type)
-}
-
-/// Extract the class name from a Python type, handling generics like Optional[X].
-fn extract_type_class_name(field_type: &Bound<'_, PyAny>) -> Option<String> {
-    // Check for generic types with __origin__ (Optional, List, etc.)
-    if field_type.getattr("__origin__").is_ok() {
-        if let Ok(args) = field_type.getattr("__args__") {
-            if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
-                for arg in args_tuple.iter() {
-                    // Skip NoneType
-                    if let Ok(name) = arg.getattr("__name__") {
-                        if let Ok(n) = name.extract::<String>() {
-                            if n != "NoneType" {
-                                return Some(n);
-                            }
-                        }
-                    }
-                    // Recurse into nested generics
-                    if let Some(result) = extract_type_class_name(&arg) {
-                        return Some(result);
-                    }
-                }
-            }
-        }
-        return None;
-    }
-
-    // Simple class with __name__
-    if let Ok(name) = field_type.getattr("__name__") {
-        if let Ok(n) = name.extract::<String>() {
-            if n != "NoneType" {
-                return Some(n);
-            }
-        }
-    }
-
-    None
-}
-
-/// Infer the type of a field from the class registry.
-fn infer_field_type(py: Python<'_>, class_name: &str, field_name: &str) -> PyResult<InferredType> {
-    let class_ref: Option<Py<PyAny>> = {
-        let registry = CLASS_REGISTRY.read().unwrap();
-        if let Some(ref map) = *registry {
-            map.get(class_name).map(|c| c.clone_ref(py))
-        } else {
-            None
-        }
-    };
-
-    let Some(class) = class_ref else {
-        return Ok(InferredType::Unknown);
-    };
-
-    let class_bound = class.bind(py);
-
-    let get_type_hints = py
-        .import("typing")
-        .and_then(|m| m.getattr("get_type_hints"));
-    let Ok(get_type_hints) = get_type_hints else {
-        return Ok(InferredType::Unknown);
-    };
-
-    let hints = get_type_hints.call1((&class_bound,));
-    let Ok(hints) = hints else {
-        return Ok(InferredType::Unknown);
-    };
-
-    let field_type = hints.get_item(field_name);
-    let Ok(field_type) = field_type else {
-        return Ok(InferredType::Unknown);
-    };
-
-    // Check the type name
-    let type_name = get_concrete_type_name(&field_type);
-
-    match type_name.as_deref() {
-        Some("datetime") => Ok(InferredType::I64),
-        Some("timedelta") => Ok(InferredType::I64),
-        Some("int") => Ok(InferredType::I32),
-        Some("float") => Ok(InferredType::F64),
-        Some("bool") => Ok(InferredType::Bool),
-        Some("str") => Ok(InferredType::String),
-        _ => Ok(InferredType::Unknown),
-    }
-}
-
-/// Get the concrete type name from a Python type, handling generics.
-fn get_concrete_type_name(field_type: &Bound<'_, PyAny>) -> Option<String> {
-    // Check for generic types with __origin__
-    if field_type.getattr("__origin__").is_ok() {
-        if let Ok(args) = field_type.getattr("__args__") {
-            if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
-                for arg in args_tuple.iter() {
-                    if let Ok(name) = arg.getattr("__name__") {
-                        if let Ok(n) = name.extract::<String>() {
-                            if n != "NoneType" {
-                                return Some(n);
-                            }
-                        }
-                    }
-                    // Recurse
-                    if let Some(result) = get_concrete_type_name(&arg) {
-                        return Some(result);
-                    }
-                }
-            }
-        }
-        return None;
-    }
-
-    // Simple class
-    if let Ok(name) = field_type.getattr("__name__") {
-        if let Ok(n) = name.extract::<String>() {
-            return Some(n);
-        }
-    }
-
-    None
-}
-
-/// Infer the type of an already-converted Expression.
-///
-/// This is used when we need to determine the type of an expression
-/// after it has been converted from AST. Useful for local variable
-/// substitution scenarios.
-pub fn infer_expression_type(expr: &Expression) -> InferredType {
-    match expr {
-        // Boolean
-        Expression::BoolLiteral { .. }
-        | Expression::Not { .. }
-        | Expression::And { .. }
-        | Expression::Or { .. }
-        | Expression::Eq { .. }
-        | Expression::Ne { .. }
-        | Expression::Lt { .. }
-        | Expression::Le { .. }
-        | Expression::Gt { .. }
-        | Expression::Ge { .. }
-        | Expression::Eq64 { .. }
-        | Expression::Ne64 { .. }
-        | Expression::Lt64 { .. }
-        | Expression::Le64 { .. }
-        | Expression::Gt64 { .. }
-        | Expression::Ge64 { .. }
-        | Expression::IsNull { .. }
-        | Expression::IsNotNull { .. } => InferredType::Bool,
-
-        // Float
-        Expression::FloatLiteral { .. }
-        | Expression::FloatAdd { .. }
-        | Expression::FloatSub { .. }
-        | Expression::FloatMul { .. }
-        | Expression::FloatDiv { .. }
-        | Expression::Sqrt { .. }
-        | Expression::FloatAbs { .. }
-        | Expression::Sin { .. }
-        | Expression::Cos { .. }
-        | Expression::Asin { .. }
-        | Expression::Acos { .. }
-        | Expression::Atan { .. }
-        | Expression::Atan2 { .. }
-        | Expression::Radians { .. }
-        | Expression::IntToFloat { .. } => InferredType::F64,
-
-        // I64
-        Expression::Int64Literal { .. }
-        | Expression::Add64 { .. }
-        | Expression::Sub64 { .. }
-        | Expression::Mul64 { .. }
-        | Expression::Div64 { .. }
-        | Expression::IfThenElse64 { .. } => InferredType::I64,
-
-        // I32
-        Expression::IntLiteral { .. }
-        | Expression::Add { .. }
-        | Expression::Sub { .. }
-        | Expression::Mul { .. }
-        | Expression::Div { .. }
-        | Expression::Length { .. }
-        | Expression::FloatToInt { .. }
-        | Expression::Round { .. }
-        | Expression::Floor { .. }
-        | Expression::Ceil { .. } => InferredType::I32,
-
-        // String
-        Expression::StringLiteral { .. } => InferredType::String,
-
-        // Null
-        Expression::Null => InferredType::Null,
-
-        // IfThenElse - check branches
-        Expression::IfThenElse {
-            then_branch,
-            else_branch,
-            ..
-        } => infer_expression_type(then_branch).promote(infer_expression_type(else_branch)),
-
-        // Default to Unknown for complex cases
-        _ => InferredType::Unknown,
-    }
-}
+// Re-export for use in other modules
+pub(crate) use guards::{is_empty_collection_guard, is_not_none_check};
+pub use inference::infer_expression_type;
+pub use types::{ExpectedType, InferredType};
 
 /// Extract argument names from Python AST arguments node.
 pub(crate) fn extract_arg_names(_py: Python<'_>, args: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
-    let arg_list = args.getattr("args")?;
-    let list = arg_list.cast::<PyList>()?;
-
-    let mut names = Vec::new();
-    for arg in list.iter() {
-        let arg_name: String = arg.getattr("arg")?.extract()?;
-        names.push(arg_name);
-    }
-
-    Ok(names)
+    inference::extract_arg_names(_py, args)
 }
 
 /// Convert Python Compare AST node to Expression.
@@ -753,6 +273,7 @@ pub(crate) fn convert_unaryop_to_expression(
 
     // Determine the actual type to use (considering expected type context)
     let actual_type = match expected_type {
+        ExpectedType::I32 => InferredType::I32,
         ExpectedType::I64 => InferredType::I64,
         ExpectedType::F64 => InferredType::F64,
         ExpectedType::Any => operand_type,
@@ -760,6 +281,7 @@ pub(crate) fn convert_unaryop_to_expression(
 
     // STEP 2: Convert ONCE with correct expected type
     let conversion_expected = match actual_type {
+        InferredType::I32 => ExpectedType::I32,
         InferredType::I64 => ExpectedType::I64,
         InferredType::F64 => ExpectedType::F64,
         _ => ExpectedType::Any,
@@ -832,6 +354,7 @@ pub(crate) fn convert_binop_to_expression(
 
     // STEP 3: Convert ONCE with correct expected type
     let expected = match promoted_type {
+        InferredType::I32 => ExpectedType::I32,
         InferredType::F64 => ExpectedType::F64,
         InferredType::I64 => ExpectedType::I64,
         _ => ExpectedType::Any,
@@ -947,6 +470,7 @@ pub(crate) fn convert_constant_to_expression(
             } else if let Ok(i) = value.extract::<i64>() {
                 // Choose literal type based on expected type context
                 match expected_type {
+                    ExpectedType::I32 => Ok(Some(Expression::IntLiteral { value: i })),
                     ExpectedType::I64 => Ok(Some(Expression::Int64Literal { value: i })),
                     ExpectedType::F64 => Ok(Some(Expression::FloatLiteral { value: i as f64 })),
                     ExpectedType::Any => Ok(Some(Expression::IntLiteral { value: i })),
@@ -964,115 +488,6 @@ pub(crate) fn convert_constant_to_expression(
     }
 }
 
-/// Check if a condition AST node is an "empty collection guard" pattern: len(x) == 0
-pub(crate) fn is_empty_collection_guard(
-    _py: Python<'_>,
-    condition: &Bound<'_, PyAny>,
-) -> PyResult<bool> {
-    let node_type = condition.get_type().name()?.to_string();
-    if node_type != "Compare" {
-        return Ok(false);
-    }
-
-    // Check left side is len(...)
-    let left = condition.getattr("left")?;
-    let left_type = left.get_type().name()?.to_string();
-    if left_type != "Call" {
-        return Ok(false);
-    }
-
-    let func = left.getattr("func")?;
-    let func_type = func.get_type().name()?.to_string();
-    if func_type != "Name" {
-        return Ok(false);
-    }
-
-    let func_name: String = func.getattr("id")?.extract()?;
-    if func_name != "len" {
-        return Ok(false);
-    }
-
-    // Check comparator is == 0
-    let ops = condition.getattr("ops")?;
-    let ops_list = ops.cast::<PyList>()?;
-    if ops_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let op = ops_list.get_item(0)?;
-    let op_type = op.get_type().name()?.to_string();
-    if op_type != "Eq" {
-        return Ok(false);
-    }
-
-    let comparators = condition.getattr("comparators")?;
-    let comps_list = comparators.cast::<PyList>()?;
-    if comps_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let comp = comps_list.get_item(0)?;
-    let comp_type = comp.get_type().name()?.to_string();
-    if comp_type != "Constant" {
-        return Ok(false);
-    }
-
-    if let Ok(value) = comp.getattr("value") {
-        if let Ok(0i64) = value.extract() {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
-}
-
-/// Check if a condition AST node is an "is not None" check: X is not None
-pub(crate) fn is_not_none_check(_py: Python<'_>, condition: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let node_type = condition.get_type().name()?.to_string();
-    if node_type != "Compare" {
-        return Ok(false);
-    }
-
-    // Check operator is IsNot
-    let ops = condition.getattr("ops")?;
-    let ops_list = ops.cast::<PyList>()?;
-    if ops_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let op = ops_list.get_item(0)?;
-    let op_type = op.get_type().name()?.to_string();
-    if op_type != "IsNot" {
-        return Ok(false);
-    }
-
-    // Check comparator is None
-    let comparators = condition.getattr("comparators")?;
-    let comps_list = comparators.cast::<PyList>()?;
-    if comps_list.len() != 1 {
-        return Ok(false);
-    }
-
-    let comp = comps_list.get_item(0)?;
-    let comp_type = comp.get_type().name()?.to_string();
-
-    // Check if it's the None constant
-    if comp_type == "Constant" {
-        if let Ok(value) = comp.getattr("value") {
-            if value.is_none() {
-                return Ok(true);
-            }
-        }
-    } else if comp_type == "Name" {
-        let name: String = comp.getattr("id")?.extract()?;
-        if name == "None" {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
-}
-
 /// Convert Python AST node to Expression tree.
 ///
 /// This is the main AST conversion function that handles all node types.
@@ -1087,11 +502,10 @@ pub(crate) fn convert_ast_to_expression(
     expected_type: ExpectedType,
 ) -> PyResult<Option<Expression>> {
     let node_type = node.get_type().name()?.to_string();
-    let class_name = class_hint.to_string();
 
     match node_type.as_str() {
         "Attribute" => {
-            // Field access: x.field or class constant: x.CONSTANT
+            // Field access: x.field, property access: x.prop, or class constant: x.CONSTANT
             let value = node.getattr("value")?;
             let attr: String = node.getattr("attr")?.extract()?;
 
@@ -1107,10 +521,24 @@ pub(crate) fn convert_ast_to_expression(
                     }
                 }
 
+                // Determine the class of the base object for property lookup
+                let obj_class = infer_expression_class(py, &base_expr, class_hint)?
+                    .unwrap_or_else(|| class_hint.to_string());
+
+                // Check if this is a property that needs to be inlined
+                if let Some(inlined) = try_inline_property(py, &obj_class, &attr, &base_expr)? {
+                    log::debug!("Inlined property {}.{} in lambda", obj_class, attr);
+                    return Ok(Some(inlined));
+                }
+
+                // Look up the WASM type for this field
+                let wasm_type = get_wasm_field_type(py, &obj_class, &attr);
+
                 Ok(Some(Expression::FieldAccess {
                     object: Box::new(base_expr),
-                    class_name,
-                    field_name: attr,
+                    class_name: obj_class.clone(),
+                    field_name: attr.clone(),
+                    field_type: wasm_type,
                 }))
             } else {
                 Ok(None)
@@ -1292,6 +720,13 @@ fn convert_method_call(
     // Convert method call arguments
     let args_node = node.getattr("args")?;
     let args_list = args_node.cast::<PyList>()?;
+
+    // Handle built-in type methods based on expression type
+    let obj_type = infer_expression_type(&obj_expr);
+    // timedelta.total_seconds() - timedelta is already i64 seconds, just return it
+    if let (InferredType::I64, "total_seconds") = (obj_type, method_name) {
+        return Ok(Some(obj_expr));
+    }
 
     // Determine the actual class of the object for method lookup
     let obj_class = infer_expression_class(py, &obj_expr, class_hint)?

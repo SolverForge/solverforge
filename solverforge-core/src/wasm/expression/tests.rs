@@ -1,4 +1,4 @@
-use super::Expression;
+use super::{Expression, WasmFieldType};
 
 #[test]
 fn test_int_literal() {
@@ -72,6 +72,7 @@ fn test_field_access() {
         object: Box::new(Expression::Param { index: 0 }),
         class_name: "Employee".into(),
         field_name: "name".into(),
+        field_type: WasmFieldType::String,
     };
 
     match expr {
@@ -79,6 +80,7 @@ fn test_field_access() {
             object,
             class_name,
             field_name,
+            ..
         } => {
             assert_eq!(class_name, "Employee");
             assert_eq!(field_name, "name");
@@ -125,6 +127,7 @@ fn test_serialize_field_access() {
         object: Box::new(Expression::Param { index: 0 }),
         class_name: "Employee".into(),
         field_name: "name".into(),
+        field_type: WasmFieldType::String,
     };
 
     let json = serde_json::to_string(&expr).unwrap();
@@ -139,6 +142,7 @@ fn test_complex_expression() {
             object: Box::new(Expression::Param { index: 0 }),
             class_name: "Shift".into(),
             field_name: "employee".into(),
+            field_type: WasmFieldType::Object,
         }),
         right: Box::new(Expression::Null),
     };
@@ -318,6 +322,7 @@ fn test_complex_logical_expression() {
                 object: Box::new(Expression::Param { index: 0 }),
                 class_name: "Shift".into(),
                 field_name: "employee".into(),
+                field_type: WasmFieldType::Object,
             }),
         }),
         right: Box::new(Expression::Eq {
@@ -325,6 +330,7 @@ fn test_complex_logical_expression() {
                 object: Box::new(Expression::Param { index: 0 }),
                 class_name: "Employee".into(),
                 field_name: "skill".into(),
+                field_type: WasmFieldType::String,
             }),
             right: Box::new(Expression::IntLiteral { value: 42 }),
         }),
@@ -342,6 +348,7 @@ fn test_time_calculation_expression() {
             object: Box::new(Expression::Param { index: 0 }),
             class_name: "Shift".into(),
             field_name: "start".into(),
+            field_type: WasmFieldType::I64,
         }),
         right: Box::new(Expression::IntLiteral { value: 24 }),
     };
@@ -360,11 +367,13 @@ fn test_host_call() {
                 object: Box::new(Expression::Param { index: 0 }),
                 class_name: "Employee".into(),
                 field_name: "skill".into(),
+                field_type: WasmFieldType::String,
             },
             Expression::FieldAccess {
                 object: Box::new(Expression::Param { index: 1 }),
                 class_name: "Shift".into(),
                 field_name: "requiredSkill".into(),
+                field_type: WasmFieldType::String,
             },
         ],
     };
@@ -416,6 +425,7 @@ fn test_complex_host_call_expression() {
                 object: Box::new(Expression::Param { index: 0 }),
                 class_name: "Shift".into(),
                 field_name: "employee".into(),
+                field_type: WasmFieldType::Object,
             }),
         }),
         right: Box::new(Expression::HostCall {
@@ -425,11 +435,13 @@ fn test_complex_host_call_expression() {
                     object: Box::new(Expression::Param { index: 0 }),
                     class_name: "Employee".into(),
                     field_name: "skill".into(),
+                    field_type: WasmFieldType::String,
                 },
                 Expression::FieldAccess {
                     object: Box::new(Expression::Param { index: 1 }),
                     class_name: "Shift".into(),
                     field_name: "requiredSkill".into(),
+                    field_type: WasmFieldType::String,
                 },
             ],
         }),
@@ -447,11 +459,13 @@ fn test_list_contains() {
             object: Box::new(Expression::Param { index: 0 }),
             class_name: "Employee".into(),
             field_name: "skills".into(),
+            field_type: WasmFieldType::Object,
         }),
         element: Box::new(Expression::FieldAccess {
             object: Box::new(Expression::Param { index: 1 }),
             class_name: "Shift".into(),
             field_name: "requiredSkill".into(),
+            field_type: WasmFieldType::String,
         }),
     };
 
@@ -506,11 +520,13 @@ fn test_substitute_param_in_field_access() {
         object: Box::new(Expression::Param { index: 0 }),
         class_name: "Employee".into(),
         field_name: "name".into(),
+        field_type: WasmFieldType::String,
     };
     let substitute = Expression::FieldAccess {
         object: Box::new(Expression::Param { index: 1 }),
         class_name: "Container".into(),
         field_name: "item".into(),
+        field_type: WasmFieldType::Object,
     };
 
     let result = expr.substitute_param(0, &substitute);
@@ -560,11 +576,13 @@ fn test_substitute_param_in_comparison() {
             object: Box::new(Expression::Param { index: 0 }),
             class_name: "A".into(),
             field_name: "value".into(),
+            field_type: WasmFieldType::I32,
         }),
         right: Box::new(Expression::FieldAccess {
             object: Box::new(Expression::Param { index: 1 }),
             class_name: "B".into(),
             field_name: "value".into(),
+            field_type: WasmFieldType::I32,
         }),
     };
     let substitute = Expression::IntLiteral { value: 5 };
@@ -669,6 +687,7 @@ fn test_substitute_param_in_sum() {
             object: Box::new(Expression::Param { index: 0 }),
             class_name: "Vehicle".into(),
             field_name: "visits".into(),
+            field_type: WasmFieldType::Object,
         }),
         item_var_name: "visit".into(),
         item_param_index: 1,
@@ -677,6 +696,7 @@ fn test_substitute_param_in_sum() {
             object: Box::new(Expression::Param { index: 1 }),
             class_name: "Visit".into(),
             field_name: "demand".into(),
+            field_type: WasmFieldType::I32,
         }),
     };
 
@@ -684,6 +704,7 @@ fn test_substitute_param_in_sum() {
         object: Box::new(Expression::Param { index: 2 }),
         class_name: "Solution".into(),
         field_name: "vehicle".into(),
+        field_type: WasmFieldType::Object,
     };
 
     let result = expr.substitute_param(0, &substitute);
@@ -720,6 +741,7 @@ fn test_substitute_param_unary_ops() {
         object: Box::new(Expression::Param { index: 1 }),
         class_name: "X".into(),
         field_name: "y".into(),
+        field_type: WasmFieldType::Object,
     };
 
     let result = expr.substitute_param(0, &substitute);

@@ -39,10 +39,12 @@ impl Expression {
                 object,
                 class_name,
                 field_name,
+                field_type,
             } => Expression::FieldAccess {
                 object: sub!(object),
                 class_name,
                 field_name,
+                field_type,
             },
 
             // Comparisons (i32)

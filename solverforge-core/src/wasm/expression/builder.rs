@@ -374,6 +374,7 @@ impl FieldAccessExt for Expression {
             object: Box::new(self),
             class_name: class_name.into(),
             field_name: field_name.into(),
+            field_type: super::WasmFieldType::Object,
         }
     }
 }
@@ -415,6 +416,7 @@ mod tests {
                 object,
                 class_name,
                 field_name,
+                ..
             } => {
                 assert_eq!(class_name, "Employee");
                 assert_eq!(field_name, "name");
@@ -564,6 +566,7 @@ mod tests {
                 class_name,
                 field_name,
                 object,
+                ..
             } => {
                 assert_eq!(class_name, "Employee");
                 assert_eq!(field_name, "name");

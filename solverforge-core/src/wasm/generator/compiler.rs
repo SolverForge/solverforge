@@ -94,6 +94,7 @@ impl<'a> ExpressionCompiler<'a> {
                 object,
                 class_name,
                 field_name,
+                ..
             } => {
                 self.compile_expression(func, object, model, remap_from, remap_to_local, locals)?;
 

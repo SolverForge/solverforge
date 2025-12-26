@@ -112,11 +112,24 @@ pub fn try_extract_sequential_expression_pattern(
 
     // Wrap with early return if present
     if let Some((condition, early_value)) = early_return_if {
-        return Ok(Expression::IfThenElse {
-            condition: Box::new(condition),
-            then_branch: Box::new(early_value),
-            else_branch: Box::new(result),
-        });
+        // Check if branches produce i64 values (datetime, timedelta)
+        let then_type = infer_expression_type(&early_value);
+        let else_type = infer_expression_type(&result);
+        let use_i64 = then_type == InferredType::I64 || else_type == InferredType::I64;
+
+        return if use_i64 {
+            Ok(Expression::IfThenElse64 {
+                condition: Box::new(condition),
+                then_branch: Box::new(early_value),
+                else_branch: Box::new(result),
+            })
+        } else {
+            Ok(Expression::IfThenElse {
+                condition: Box::new(condition),
+                then_branch: Box::new(early_value),
+                else_branch: Box::new(result),
+            })
+        };
     }
 
     Ok(result)
@@ -226,8 +239,13 @@ fn convert_ast_with_local_var_substitution(
         let left_type = infer_expression_type(&left_expr);
         let right_type = infer_expression_type(&right_expr);
         let use_float = left_type == InferredType::F64 || right_type == InferredType::F64;
+        let use_i64 = left_type == InferredType::I64 || right_type == InferredType::I64;
         return Ok(match op_type.as_str() {
             "Add" if use_float => Expression::FloatAdd {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
+            "Add" if use_i64 => Expression::Add64 {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
@@ -239,6 +257,10 @@ fn convert_ast_with_local_var_substitution(
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
+            "Sub" if use_i64 => Expression::Sub64 {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
             "Sub" => Expression::Sub {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
@@ -247,11 +269,19 @@ fn convert_ast_with_local_var_substitution(
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
+            "Mult" if use_i64 => Expression::Mul64 {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
             "Mult" => Expression::Mul {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },
             "Div" | "TrueDiv" => Expression::FloatDiv {
+                left: Box::new(left_expr),
+                right: Box::new(right_expr),
+            },
+            "FloorDiv" if use_i64 => Expression::Div64 {
                 left: Box::new(left_expr),
                 right: Box::new(right_expr),
             },

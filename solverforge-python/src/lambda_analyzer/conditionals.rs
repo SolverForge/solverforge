@@ -7,7 +7,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 
-use super::ast_convert::{is_empty_collection_guard, is_not_none_check};
+use super::ast_convert::{
+    infer_expression_type, is_empty_collection_guard, is_not_none_check, InferredType,
+};
 
 /// Type alias for AST conversion functions.
 pub type ConvertFn =
@@ -91,11 +93,25 @@ pub(super) fn extract_if_else(
         )
     })?;
 
-    Ok(Expression::IfThenElse {
-        condition: Box::new(condition),
-        then_branch: Box::new(then_expr),
-        else_branch: Box::new(else_expr),
-    })
+    // Check if branches produce i64 values (datetime, timedelta)
+    // If so, use IfThenElse64 to produce correct WASM types
+    let then_type = infer_expression_type(&then_expr);
+    let else_type = infer_expression_type(&else_expr);
+    let use_i64 = then_type == InferredType::I64 || else_type == InferredType::I64;
+
+    if use_i64 {
+        Ok(Expression::IfThenElse64 {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_expr),
+            else_branch: Box::new(else_expr),
+        })
+    } else {
+        Ok(Expression::IfThenElse {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_expr),
+            else_branch: Box::new(else_expr),
+        })
+    }
 }
 
 /// Extract assignment-based pattern for methods that assign to self.field instead of returning.
@@ -171,11 +187,24 @@ fn extract_if_assignment(
         }
     };
 
-    Ok(Expression::IfThenElse {
-        condition: Box::new(condition),
-        then_branch: Box::new(then_expr),
-        else_branch: Box::new(else_expr),
-    })
+    // Check if branches produce i64 values (datetime, timedelta)
+    let then_type = infer_expression_type(&then_expr);
+    let else_type = infer_expression_type(&else_expr);
+    let use_i64 = then_type == InferredType::I64 || else_type == InferredType::I64;
+
+    if use_i64 {
+        Ok(Expression::IfThenElse64 {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_expr),
+            else_branch: Box::new(else_expr),
+        })
+    } else {
+        Ok(Expression::IfThenElse {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_expr),
+            else_branch: Box::new(else_expr),
+        })
+    }
 }
 
 /// Extract the value expression from a branch (handles both Return and Assign to self.field).
@@ -395,11 +424,24 @@ pub(super) fn extract_early_return(
         )
     })?;
 
-    Ok(Expression::IfThenElse {
-        condition: Box::new(condition),
-        then_branch: Box::new(then_expr),
-        else_branch: Box::new(else_expr),
-    })
+    // Check if branches produce i64 values (datetime, timedelta)
+    let then_type = infer_expression_type(&then_expr);
+    let else_type = infer_expression_type(&else_expr);
+    let use_i64 = then_type == InferredType::I64 || else_type == InferredType::I64;
+
+    if use_i64 {
+        Ok(Expression::IfThenElse64 {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_expr),
+            else_branch: Box::new(else_expr),
+        })
+    } else {
+        Ok(Expression::IfThenElse {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_expr),
+            else_branch: Box::new(else_expr),
+        })
+    }
 }
 
 /// Try to detect and extract an if-early-return pattern from a single If statement.

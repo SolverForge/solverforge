@@ -7,11 +7,12 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use solverforge_core::wasm::Expression;
 
+use super::ast_convert::{infer_expression_type, InferredType};
 use super::conditionals::{self, ConvertFn};
 use super::patterns::{LoopContext, MutableLoopVar};
 use super::registry::CLASS_REGISTRY;
 use super::type_inference::{
-    create_sum_over_collection, get_field_type_and_register, infer_item_type,
+    create_sum_over_collection, get_field_type_and_register, get_wasm_field_type, infer_item_type,
 };
 
 /// Type alias for method call builder function.
@@ -157,19 +158,44 @@ pub(super) fn try_extract_accumulation_pattern(
                     convert_fn,
                     build_method_call_fn,
                 )? {
-                    result = Expression::Add {
-                        left: Box::new(result),
-                        right: Box::new(post_expr),
+                    // Check if operands are i64 values
+                    let left_type = infer_expression_type(&result);
+                    let right_type = infer_expression_type(&post_expr);
+                    let use_i64 = left_type == InferredType::I64 || right_type == InferredType::I64;
+
+                    result = if use_i64 {
+                        Expression::Add64 {
+                            left: Box::new(result),
+                            right: Box::new(post_expr),
+                        }
+                    } else {
+                        Expression::Add {
+                            left: Box::new(result),
+                            right: Box::new(post_expr),
+                        }
                     };
                 }
             }
 
             // Wrap in IfThenElse if there's an early return
             if let Some((condition, early_value)) = early_return_if {
-                result = Expression::IfThenElse {
-                    condition: Box::new(condition),
-                    then_branch: Box::new(early_value),
-                    else_branch: Box::new(result),
+                // Check if branches produce i64 values (datetime, timedelta)
+                let then_type = infer_expression_type(&early_value);
+                let else_type = infer_expression_type(&result);
+                let use_i64 = then_type == InferredType::I64 || else_type == InferredType::I64;
+
+                result = if use_i64 {
+                    Expression::IfThenElse64 {
+                        condition: Box::new(condition),
+                        then_branch: Box::new(early_value),
+                        else_branch: Box::new(result),
+                    }
+                } else {
+                    Expression::IfThenElse {
+                        condition: Box::new(condition),
+                        then_branch: Box::new(early_value),
+                        else_branch: Box::new(result),
+                    }
                 };
             }
 
@@ -277,10 +303,13 @@ fn convert_ast_with_mutable_var_substitution(
                         };
 
                         // Access the tracked field on the last element
+                        let field_wasm_type =
+                            get_wasm_field_type(py, item_class_name, &mv.item_field);
                         let last_elem_field = Expression::FieldAccess {
                             object: Box::new(last_elem),
                             class_name: item_class_name.to_string(),
                             field_name: mv.item_field.clone(),
+                            field_type: field_wasm_type,
                         };
 
                         // Convert call arguments
@@ -575,11 +604,13 @@ fn convert_ast_with_mutable_vars(
                             };
 
                             // Condition: loop_var.prev_field is None
+                            let prev_field_type = get_wasm_field_type(py, class_hint, &prev_field);
                             let condition = Expression::IsNull {
                                 operand: Box::new(Expression::FieldAccess {
                                     object: Box::new(loop_var_param.clone()),
                                     class_name: class_hint.to_string(),
                                     field_name: prev_field.clone(),
+                                    field_type: prev_field_type,
                                 }),
                             };
 
@@ -606,12 +637,16 @@ fn convert_ast_with_mutable_vars(
                                 object: Box::new(loop_var_param.clone()),
                                 class_name: class_hint.to_string(),
                                 field_name: prev_field.clone(),
+                                field_type: prev_field_type,
                             };
                             // Then get the field from it
+                            let item_field_type =
+                                get_wasm_field_type(py, class_hint, &mv.item_field);
                             let prev_item_field = Expression::FieldAccess {
                                 object: Box::new(prev_item),
                                 class_name: class_hint.to_string(),
                                 field_name: mv.item_field.clone(),
+                                field_type: item_field_type,
                             };
 
                             let else_branch = build_method_call_fn(
@@ -622,11 +657,25 @@ fn convert_ast_with_mutable_vars(
                                 outer_class_hint,
                             )?;
 
-                            return Ok(Some(Expression::IfThenElse {
-                                condition: Box::new(condition),
-                                then_branch: Box::new(then_branch),
-                                else_branch: Box::new(else_branch),
-                            }));
+                            // Check if branches produce i64 values (datetime, timedelta)
+                            let then_type = infer_expression_type(&then_branch);
+                            let else_type = infer_expression_type(&else_branch);
+                            let use_i64 =
+                                then_type == InferredType::I64 || else_type == InferredType::I64;
+
+                            if use_i64 {
+                                return Ok(Some(Expression::IfThenElse64 {
+                                    condition: Box::new(condition),
+                                    then_branch: Box::new(then_branch),
+                                    else_branch: Box::new(else_branch),
+                                }));
+                            } else {
+                                return Ok(Some(Expression::IfThenElse {
+                                    condition: Box::new(condition),
+                                    then_branch: Box::new(then_branch),
+                                    else_branch: Box::new(else_branch),
+                                }));
+                            }
                         }
                     }
                 }

@@ -7,6 +7,27 @@ pub use builder::{Expr, FieldAccessExt};
 
 use serde::{Deserialize, Serialize};
 
+/// WASM type for field access expressions.
+///
+/// This enum represents the WASM type that a field access will produce.
+/// Used for type inference to select correct operation variants (e.g., Add vs Add64).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum WasmFieldType {
+    /// 32-bit integer (default for int fields)
+    I32,
+    /// 64-bit integer (for datetime, timedelta fields)
+    I64,
+    /// 64-bit float
+    F64,
+    /// Boolean (represented as i32 in WASM)
+    Bool,
+    /// String (represented as handle in WASM)
+    String,
+    /// Object reference (represented as handle in WASM)
+    #[default]
+    Object,
+}
+
 /// Rich expression tree for constraint predicates
 ///
 /// This enum represents a complete expression language for building constraint predicates.
@@ -43,6 +64,10 @@ pub enum Expression {
         object: Box<Expression>,
         class_name: String,
         field_name: String,
+        /// WASM type of the field for type inference.
+        /// Defaults to Object for unknown types.
+        #[serde(default)]
+        field_type: WasmFieldType,
     },
 
     // ===== Comparisons =====

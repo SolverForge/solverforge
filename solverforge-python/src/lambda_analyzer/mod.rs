@@ -36,7 +36,7 @@ mod sequential;
 mod tests;
 mod type_inference;
 
-use ast_convert::{convert_ast_to_expression, ExpectedType};
+use ast_convert::{convert_ast_to_expression, infer_expression_type, ExpectedType, InferredType};
 #[cfg(test)]
 use lambda_parsing::analyze_lambda_source;
 pub use registry::{get_method_from_class, register_class};
@@ -221,6 +221,13 @@ fn build_method_call_expr(
     args: &[Expression],
     class_hint: &str,
 ) -> PyResult<Expression> {
+    // Handle built-in type methods based on expression type
+    let base_type = infer_expression_type(&base);
+    // timedelta.total_seconds() - timedelta is already i64 seconds, just return it
+    if let (InferredType::I64, "total_seconds") = (base_type, method_name) {
+        return Ok(base);
+    }
+
     // For methods, we need to inline them
     // Get the base class from the expression by looking up field types
     let base_class = match &base {

@@ -3,6 +3,7 @@
 //! These tests verify lambda source parsing by calling analyze_lambda_source directly.
 
 use super::*;
+use solverforge_core::wasm::WasmFieldType;
 
 #[test]
 fn test_generate_lambda_name_unique() {
@@ -255,7 +256,7 @@ fn test_analyze_arithmetic_div() {
                 );
                 assert!(matches!(
                     right.as_ref(),
-                    Expression::IntLiteral { value: 2 }
+                    Expression::FloatLiteral { value } if (*value - 2.0).abs() < f64::EPSILON
                 ));
             }
             _ => panic!("Expected FloatDiv, got {:?}", expr),
@@ -393,6 +394,7 @@ fn test_substitute_param_replaces_correctly() {
             object: Box::new(Expression::Param { index: 0 }),
             class_name: "Test".to_string(),
             field_name: "x".to_string(),
+            field_type: WasmFieldType::I32,
         },
     );
 

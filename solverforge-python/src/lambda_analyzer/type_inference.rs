@@ -6,7 +6,7 @@
 
 use super::registry::{register_class, CLASS_REGISTRY};
 use pyo3::prelude::*;
-use solverforge_core::wasm::Expression;
+use solverforge_core::wasm::{Expression, WasmFieldType};
 
 /// Infer the class type of an expression.
 /// For FieldAccess, looks up the field type from the parent class.
@@ -80,6 +80,110 @@ fn extract_concrete_class_from_type<'py>(
     }
 
     None
+}
+
+/// Get the WASM type for a field based on Python type hints.
+///
+/// Maps Python types to WASM types:
+/// - datetime, timedelta -> I64
+/// - int -> I32
+/// - float -> F64
+/// - bool -> Bool
+/// - str -> String
+/// - Other classes -> Object
+pub(crate) fn get_wasm_field_type(
+    py: Python<'_>,
+    class_name: &str,
+    field_name: &str,
+) -> WasmFieldType {
+    // Clone class reference while holding lock, then release before Python operations
+    let class_ref: Option<Py<PyAny>> = {
+        let registry = CLASS_REGISTRY.read().unwrap();
+        if let Some(ref map) = *registry {
+            map.get(class_name).map(|c| c.clone_ref(py))
+        } else {
+            None
+        }
+    };
+
+    // Get the field's type hint from Python
+    if let Some(class) = class_ref {
+        let class_bound = class.bind(py);
+
+        // Get type hints from the class
+        if let Ok(get_type_hints) = py
+            .import("typing")
+            .and_then(|m| m.getattr("get_type_hints"))
+        {
+            if let Ok(hints) = get_type_hints.call1((&class_bound,)) {
+                if let Ok(field_type) = hints.get_item(field_name) {
+                    return python_type_to_wasm_type(py, &field_type);
+                }
+            }
+        }
+    }
+
+    // Default to Object for unknown types
+    WasmFieldType::Object
+}
+
+/// Convert a Python type annotation to a WasmFieldType.
+#[allow(clippy::only_used_in_recursion)]
+fn python_type_to_wasm_type(py: Python<'_>, field_type: &Bound<'_, PyAny>) -> WasmFieldType {
+    // Handle generic types (Optional[X], ClassVar[X], etc.)
+    if let Ok(origin) = field_type.getattr("__origin__") {
+        // Check if it's Optional (Union with None)
+        if let Ok(origin_name) = origin.getattr("__name__") {
+            if let Ok(name) = origin_name.extract::<String>() {
+                if name == "list" || name == "List" {
+                    return WasmFieldType::Object;
+                }
+            }
+        }
+        // For Optional[X], ClassVar[X], etc., look at the inner type
+        if let Ok(args) = field_type.getattr("__args__") {
+            if let Ok(args_tuple) = args.cast::<pyo3::types::PyTuple>() {
+                for arg in args_tuple.iter() {
+                    // Skip NoneType
+                    if let Ok(arg_name) = arg.getattr("__name__") {
+                        if let Ok(name) = arg_name.extract::<String>() {
+                            if name == "NoneType" {
+                                continue;
+                            }
+                        }
+                    }
+                    // Recursively check the inner type
+                    let inner_type = python_type_to_wasm_type(py, &arg);
+                    if inner_type != WasmFieldType::Object {
+                        return inner_type;
+                    }
+                }
+            }
+        }
+        return WasmFieldType::Object;
+    }
+
+    // Check for module and name to identify datetime types
+    let type_name = field_type
+        .getattr("__name__")
+        .ok()
+        .and_then(|n| n.extract::<String>().ok());
+    let type_module = field_type
+        .getattr("__module__")
+        .ok()
+        .and_then(|m| m.extract::<String>().ok());
+
+    match (type_module.as_deref(), type_name.as_deref()) {
+        // datetime module types -> I64
+        (Some("datetime"), Some("datetime" | "timedelta" | "date" | "time")) => WasmFieldType::I64,
+        // Built-in types
+        (Some("builtins"), Some("int")) => WasmFieldType::I32,
+        (Some("builtins"), Some("float")) => WasmFieldType::F64,
+        (Some("builtins"), Some("bool")) => WasmFieldType::Bool,
+        (Some("builtins"), Some("str")) => WasmFieldType::String,
+        // Default to Object
+        _ => WasmFieldType::Object,
+    }
 }
 
 /// Look up a field's type from a class and register it if found.
@@ -163,9 +267,9 @@ pub(crate) fn get_field_type_and_register(
 pub(crate) fn infer_item_type(py: Python<'_>, collection_expr: &Expression) -> PyResult<String> {
     match collection_expr {
         Expression::FieldAccess {
-            object: _,
             class_name,
             field_name,
+            ..
         } => {
             // Clone class reference while holding lock, then release before Python operations
             let class_ref: Option<Py<PyAny>> = {

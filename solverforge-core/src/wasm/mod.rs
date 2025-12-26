@@ -3,7 +3,7 @@ mod generator;
 mod host_functions;
 mod memory;
 
-pub use expression::{Expr, Expression, FieldAccessExt};
+pub use expression::{Expr, Expression, FieldAccessExt, WasmFieldType};
 pub use generator::{PredicateDefinition, WasmModuleBuilder};
 pub use host_functions::{HostFunctionDef, HostFunctionRegistry, WasmType};
 pub use memory::{FieldLayout, LayoutCalculator, MemoryLayout, WasmMemoryType};

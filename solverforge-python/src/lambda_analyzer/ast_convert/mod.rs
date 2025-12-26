@@ -81,7 +81,28 @@ pub(crate) fn convert_compare_to_expression(
 
     let expr = match op_type.as_str() {
         "Eq" => {
-            if use_i64 {
+            // Check for "== None" pattern - use null check instead of equality
+            if matches!(right, Expression::Null) {
+                if use_i64 {
+                    Expression::IsNull64 {
+                        operand: Box::new(left),
+                    }
+                } else {
+                    Expression::IsNull {
+                        operand: Box::new(left),
+                    }
+                }
+            } else if matches!(left, Expression::Null) {
+                if use_i64 {
+                    Expression::IsNull64 {
+                        operand: Box::new(right),
+                    }
+                } else {
+                    Expression::IsNull {
+                        operand: Box::new(right),
+                    }
+                }
+            } else if use_i64 {
                 Expression::Eq64 {
                     left: Box::new(left),
                     right: Box::new(right),
@@ -94,7 +115,28 @@ pub(crate) fn convert_compare_to_expression(
             }
         }
         "NotEq" => {
-            if use_i64 {
+            // Check for "!= None" pattern - use null check instead of inequality
+            if matches!(right, Expression::Null) {
+                if use_i64 {
+                    Expression::IsNotNull64 {
+                        operand: Box::new(left),
+                    }
+                } else {
+                    Expression::IsNotNull {
+                        operand: Box::new(left),
+                    }
+                }
+            } else if matches!(left, Expression::Null) {
+                if use_i64 {
+                    Expression::IsNotNull64 {
+                        operand: Box::new(right),
+                    }
+                } else {
+                    Expression::IsNotNull {
+                        operand: Box::new(right),
+                    }
+                }
+            } else if use_i64 {
                 Expression::Ne64 {
                     left: Box::new(left),
                     right: Box::new(right),

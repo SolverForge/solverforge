@@ -440,14 +440,16 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
             )
         };
     }
-    if type_str == "i32" || type_str == "i64" || type_str == "isize" {
+    // i32 types -> Int (WASM i32)
+    if type_str == "i32" || type_str == "u32" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
-                ::solverforge_core::domain::PrimitiveType::Long
+                ::solverforge_core::domain::PrimitiveType::Int
             )
         };
     }
-    if type_str == "u32" || type_str == "u64" || type_str == "usize" {
+    // i64 types -> Long (WASM i64)
+    if type_str == "i64" || type_str == "u64" || type_str == "isize" || type_str == "usize" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
@@ -465,6 +467,15 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Bool
+            )
+        };
+    }
+
+    // Handle DateTime types (stored as i64 epoch seconds/millis)
+    if is_datetime_type(&type_str) {
+        return quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
             )
         };
     }
@@ -500,7 +511,12 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 ::solverforge_core::domain::PrimitiveType::String
             )
         },
-        "i32" | "i64" | "isize" | "u32" | "u64" | "usize" => quote! {
+        "i32" | "u32" => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::Int
+            )
+        },
+        "i64" | "u64" | "isize" | "usize" => quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
             )
@@ -515,6 +531,11 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 ::solverforge_core::domain::PrimitiveType::Bool
             )
         },
+        _ if is_datetime_type(type_str) => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
+            )
+        },
         _ => {
             let type_name = extract_type_name(type_str);
             quote! {
@@ -522,6 +543,23 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
             }
         }
     }
+}
+
+/// Check if a type string represents a DateTime type.
+fn is_datetime_type(type_str: &str) -> bool {
+    // NaiveDateTime variants
+    type_str == "NaiveDateTime"
+        || type_str == "chrono::NaiveDateTime"
+        || type_str == "::chrono::NaiveDateTime"
+        // DateTime<Utc> variants
+        || type_str == "DateTime<Utc>"
+        || type_str == "chrono::DateTime<Utc>"
+        || type_str == "::chrono::DateTime<Utc>"
+        || type_str == "chrono::DateTime<chrono::Utc>"
+        // NaiveDate variants (date without time)
+        || type_str == "NaiveDate"
+        || type_str == "chrono::NaiveDate"
+        || type_str == "::chrono::NaiveDate"
 }
 
 /// Extract the simple type name from a potentially qualified type.
@@ -553,6 +591,30 @@ fn generate_planning_id(planning_id_field: &Ident, fields: &[FieldInfo]) -> Toke
     }
 }
 
+/// Check if a type string represents a primitive type that has Value::from impl.
+fn is_primitive_type(type_str: &str) -> bool {
+    matches!(
+        type_str.replace(' ', "").as_str(),
+        "String"
+            | "&str"
+            | "i32"
+            | "i64"
+            | "u32"
+            | "u64"
+            | "isize"
+            | "usize"
+            | "f32"
+            | "f64"
+            | "bool"
+    )
+}
+
+/// Check if a type string represents a Vec of Strings.
+fn is_vec_string(type_str: &str) -> bool {
+    let normalized = type_str.replace(' ', "");
+    normalized == "Vec<String>" || normalized == "Vec<&str>"
+}
+
 /// Generate the to_value() method implementation.
 fn generate_to_value(fields: &[FieldInfo]) -> TokenStream2 {
     let field_insertions: Vec<TokenStream2> = fields
@@ -562,22 +624,64 @@ fn generate_to_value(fields: &[FieldInfo]) -> TokenStream2 {
             let field_name_str = field.name.to_string();
             let field_ty = &field.ty;
 
-            // Check if this is an Option type
             let type_str = quote!(#field_ty).to_string();
-            if type_str.contains("Option") {
-                quote! {
-                    map.insert(
-                        #field_name_str.to_string(),
-                        self.#field_name.as_ref()
-                            .map(|v| ::solverforge_core::Value::from(v.clone()))
-                            .unwrap_or(::solverforge_core::Value::Null)
-                    );
+            let normalized = type_str.replace(' ', "");
+
+            // Handle Option<T> types
+            if normalized.starts_with("Option<") && normalized.ends_with('>') {
+                let inner = &normalized[7..normalized.len() - 1];
+                if is_primitive_type(inner) {
+                    // Option<primitive> - use Value::from
+                    quote! {
+                        map.insert(
+                            #field_name_str.to_string(),
+                            self.#field_name.as_ref()
+                                .map(|v| ::solverforge_core::Value::from(v.clone()))
+                                .unwrap_or(::solverforge_core::Value::Null)
+                        );
+                    }
+                } else {
+                    // Option<complex> - use serde
+                    quote! {
+                        map.insert(
+                            #field_name_str.to_string(),
+                            match &self.#field_name {
+                                Some(v) => ::serde_json::to_value(v)
+                                    .map(::solverforge_core::Value::from_json_value)
+                                    .unwrap_or(::solverforge_core::Value::Null),
+                                None => ::solverforge_core::Value::Null,
+                            }
+                        );
+                    }
                 }
-            } else {
+            } else if is_primitive_type(&normalized) {
+                // Primitive type - use Value::from directly
                 quote! {
                     map.insert(
                         #field_name_str.to_string(),
                         ::solverforge_core::Value::from(self.#field_name.clone())
+                    );
+                }
+            } else if is_vec_string(&normalized) {
+                // Vec<String> - convert each to Value::String
+                quote! {
+                    map.insert(
+                        #field_name_str.to_string(),
+                        ::solverforge_core::Value::Array(
+                            self.#field_name.iter()
+                                .map(|s| ::solverforge_core::Value::String(s.clone()))
+                                .collect()
+                        )
+                    );
+                }
+            } else {
+                // Complex type - use serde serialization
+                quote! {
+                    map.insert(
+                        #field_name_str.to_string(),
+                        ::serde_json::to_value(&self.#field_name)
+                            .map(::solverforge_core::Value::from_json_value)
+                            .unwrap_or(::solverforge_core::Value::Null)
                     );
                 }
             }
@@ -600,48 +704,44 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
             let field_name_str = field.name.to_string();
             let field_ty = &field.ty;
 
-            // Check if this is an Option type
             let type_str = quote!(#field_ty).to_string();
-            if type_str.contains("Option < String >") || type_str.contains("Option<String>") {
-                quote! {
-                    let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| {
-                            match v {
+            let normalized = type_str.replace(' ', "");
+
+            // Handle Option<T> types
+            if normalized.starts_with("Option<") && normalized.ends_with('>') {
+                let inner = &normalized[7..normalized.len() - 1];
+                if inner == "String" {
+                    quote! {
+                        let #field_name: #field_ty = map.get(#field_name_str)
+                            .and_then(|v| match v {
                                 ::solverforge_core::Value::Null => None,
                                 ::solverforge_core::Value::String(s) => Some(s.clone()),
                                 _ => None,
-                            }
-                        });
-                }
-            } else if type_str.contains("Option < i64 >")
-                || type_str.contains("Option<i64>")
-                || type_str.contains("Option < i32 >")
-                || type_str.contains("Option<i32>")
-            {
-                quote! {
-                    let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| {
-                            match v {
+                            });
+                    }
+                } else if inner == "i64" || inner == "i32" {
+                    quote! {
+                        let #field_name: #field_ty = map.get(#field_name_str)
+                            .and_then(|v| match v {
                                 ::solverforge_core::Value::Null => None,
                                 ::solverforge_core::Value::Int(i) => Some(*i as _),
                                 _ => None,
-                            }
-                        });
-                }
-            } else if type_str.contains("Option") {
-                // Generic Option handling
-                quote! {
-                    let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| {
-                            match v {
+                            });
+                    }
+                } else {
+                    // Complex Option type - use serde
+                    quote! {
+                        let #field_name: #field_ty = map.get(#field_name_str)
+                            .and_then(|v| match v {
                                 ::solverforge_core::Value::Null => None,
-                                ::solverforge_core::Value::String(s) => s.parse().ok(),
-                                ::solverforge_core::Value::Int(i) => Some(*i as _),
-                                _ => None,
-                            }
-                        });
+                                _ => {
+                                    let json = ::serde_json::to_value(v).ok()?;
+                                    ::serde_json::from_value(json).ok()
+                                }
+                            });
+                    }
                 }
-            } else if type_str.contains("String") {
+            } else if normalized == "String" {
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
                         .and_then(|v| v.as_str())
@@ -650,7 +750,7 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
                             format!("Missing or invalid field: {}", #field_name_str)
                         ))?;
                 }
-            } else if type_str.contains("i64") || type_str.contains("i32") {
+            } else if normalized == "i64" || normalized == "i32" {
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
                         .and_then(|v| v.as_int())
@@ -659,7 +759,16 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
                             format!("Missing or invalid field: {}", #field_name_str)
                         ))?;
                 }
-            } else if type_str.contains("bool") {
+            } else if normalized == "f64" || normalized == "f32" {
+                quote! {
+                    let #field_name: #field_ty = map.get(#field_name_str)
+                        .and_then(|v| v.as_float())
+                        .map(|f| f as #field_ty)
+                        .ok_or_else(|| ::solverforge_core::SolverForgeError::Serialization(
+                            format!("Missing or invalid field: {}", #field_name_str)
+                        ))?;
+                }
+            } else if normalized == "bool" {
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
                         .and_then(|v| v.as_bool())
@@ -667,15 +776,35 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
                             format!("Missing or invalid field: {}", #field_name_str)
                         ))?;
                 }
-            } else {
-                // For other types, try a generic conversion
+            } else if is_vec_string(&normalized) {
+                // Vec<String>
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| s.parse().ok())
-                        .ok_or_else(|| ::solverforge_core::SolverForgeError::Serialization(
-                            format!("Missing or invalid field: {}", #field_name_str)
-                        ))?;
+                        .and_then(|v| match v {
+                            ::solverforge_core::Value::Array(arr) => Some(
+                                arr.iter()
+                                    .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            ),
+                            _ => None,
+                        })
+                        .unwrap_or_default();
+                }
+            } else {
+                // Complex type - use serde deserialization
+                quote! {
+                    let #field_name: #field_ty = {
+                        let val = map.get(#field_name_str)
+                            .ok_or_else(|| ::solverforge_core::SolverForgeError::Serialization(
+                                format!("Missing field: {}", #field_name_str)
+                            ))?;
+                        let json = ::serde_json::to_value(val)
+                            .map_err(|e| ::solverforge_core::SolverForgeError::Serialization(e.to_string()))?;
+                        ::serde_json::from_value(json)
+                            .map_err(|e| ::solverforge_core::SolverForgeError::Serialization(
+                                format!("Failed to deserialize {}: {}", #field_name_str, e)
+                            ))?
+                    };
                 }
             }
         })

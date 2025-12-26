@@ -332,14 +332,16 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
             )
         };
     }
-    if type_str == "i32" || type_str == "i64" || type_str == "isize" {
+    // i32 types -> Int (WASM i32)
+    if type_str == "i32" || type_str == "u32" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
-                ::solverforge_core::domain::PrimitiveType::Long
+                ::solverforge_core::domain::PrimitiveType::Int
             )
         };
     }
-    if type_str == "u32" || type_str == "u64" || type_str == "usize" {
+    // i64 types -> Long (WASM i64)
+    if type_str == "i64" || type_str == "u64" || type_str == "isize" || type_str == "usize" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
@@ -357,6 +359,15 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Bool
+            )
+        };
+    }
+
+    // Handle DateTime types (stored as i64 epoch seconds/millis)
+    if is_datetime_type(&type_str) {
+        return quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
             )
         };
     }
@@ -391,7 +402,12 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 ::solverforge_core::domain::PrimitiveType::String
             )
         },
-        "i32" | "i64" | "isize" | "u32" | "u64" | "usize" => quote! {
+        "i32" | "u32" => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::Int
+            )
+        },
+        "i64" | "u64" | "isize" | "usize" => quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
             )
@@ -432,6 +448,11 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 )
             }
         }
+        _ if is_datetime_type(type_str) => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
+            )
+        },
         _ => {
             let type_name = extract_type_name(type_str);
             quote! {
@@ -439,6 +460,23 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
             }
         }
     }
+}
+
+/// Check if a type string represents a DateTime type.
+fn is_datetime_type(type_str: &str) -> bool {
+    // NaiveDateTime variants
+    type_str == "NaiveDateTime"
+        || type_str == "chrono::NaiveDateTime"
+        || type_str == "::chrono::NaiveDateTime"
+        // DateTime<Utc> variants
+        || type_str == "DateTime<Utc>"
+        || type_str == "chrono::DateTime<Utc>"
+        || type_str == "::chrono::DateTime<Utc>"
+        || type_str == "chrono::DateTime<chrono::Utc>"
+        // NaiveDate variants (date without time)
+        || type_str == "NaiveDate"
+        || type_str == "chrono::NaiveDate"
+        || type_str == "::chrono::NaiveDate"
 }
 
 /// Extract the simple type name from a potentially qualified type.
@@ -492,19 +530,26 @@ fn generate_to_json(fields: &[SolutionFieldInfo]) -> TokenStream2 {
                     }
                 }
             } else if type_str.contains("Option") {
+                // Option<T> - use serde for complex inner types
                 quote! {
                     map.insert(
                         #field_name_str.to_string(),
-                        self.#field_name.as_ref()
-                            .map(|v| ::solverforge_core::Value::from(v.clone()))
-                            .unwrap_or(::solverforge_core::Value::Null)
+                        match &self.#field_name {
+                            Some(v) => ::serde_json::to_value(v)
+                                .map(::solverforge_core::Value::from_json_value)
+                                .unwrap_or(::solverforge_core::Value::Null),
+                            None => ::solverforge_core::Value::Null,
+                        }
                     );
                 }
             } else {
+                // Complex type - use serde serialization
                 quote! {
                     map.insert(
                         #field_name_str.to_string(),
-                        ::solverforge_core::Value::from(self.#field_name.clone())
+                        ::serde_json::to_value(&self.#field_name)
+                            .map(::solverforge_core::Value::from_json_value)
+                            .unwrap_or(::solverforge_core::Value::Null)
                     );
                 }
             }

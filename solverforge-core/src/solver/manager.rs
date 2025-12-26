@@ -13,7 +13,7 @@ use crate::solver::{
     TerminationConfig,
 };
 use crate::traits::PlanningSolution;
-use crate::wasm::WasmModuleBuilder;
+use crate::wasm::{HostFunctionRegistry, WasmModuleBuilder};
 
 /// Manages multiple concurrent solves for planning problems.
 ///
@@ -88,10 +88,20 @@ where
         let domain_model = S::domain_model();
         let constraints = S::constraints();
 
-        // Build WASM module
-        let wasm_base64 = WasmModuleBuilder::new()
-            .with_domain_model(domain_model.clone())
-            .build_base64()?;
+        // Extract predicates from constraints (expressions that need to be compiled to WASM)
+        let predicates = constraints.extract_predicates();
+
+        // Build WASM module (with standard host functions for list operations)
+        let mut builder = WasmModuleBuilder::new()
+            .with_host_functions(HostFunctionRegistry::with_standard_functions())
+            .with_domain_model(domain_model.clone());
+
+        // Add all constraint predicates to the WASM module
+        for predicate in predicates {
+            builder = builder.add_predicate(predicate);
+        }
+
+        let wasm_base64 = builder.build_base64()?;
 
         // Build the solve request (same as TypedSolver::solve)
         let domain_dto = domain_model.to_dto();

@@ -100,13 +100,13 @@ impl NamedExpression {
 
 impl From<NamedExpression> for WasmFunction {
     fn from(named: NamedExpression) -> WasmFunction {
-        WasmFunction::new(named.name)
+        WasmFunction::with_expression(named.name, named.expression)
     }
 }
 
 impl From<&NamedExpression> for WasmFunction {
     fn from(named: &NamedExpression) -> WasmFunction {
-        WasmFunction::new(&named.name)
+        WasmFunction::with_expression(&named.name, named.expression.clone())
     }
 }
 

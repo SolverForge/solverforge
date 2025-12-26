@@ -1,4 +1,5 @@
 use crate::constraints::{StreamComponent, WasmFunction};
+use crate::wasm::PredicateDefinition;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,6 +112,231 @@ impl ConstraintSet {
             .iter()
             .map(|c| (c.full_name(), c.components.clone()))
             .collect()
+    }
+
+    /// Extracts all predicate definitions from the constraints.
+    ///
+    /// This walks through all constraint components and extracts `WasmFunction`s
+    /// that have associated expressions, converting them to `PredicateDefinition`s
+    /// for compilation into the WASM module.
+    pub fn extract_predicates(&self) -> Vec<PredicateDefinition> {
+        let mut predicates = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+
+        for constraint in &self.constraints {
+            Self::collect_predicates_from_components(
+                &constraint.components,
+                &mut predicates,
+                &mut seen,
+            );
+        }
+
+        predicates
+    }
+
+    fn collect_predicates_from_components(
+        components: &[StreamComponent],
+        predicates: &mut Vec<PredicateDefinition>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        for component in components {
+            Self::collect_from_component(component, predicates, seen);
+        }
+    }
+
+    fn collect_from_component(
+        component: &StreamComponent,
+        predicates: &mut Vec<PredicateDefinition>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        match component {
+            StreamComponent::Filter { predicate } => {
+                Self::add_predicate_if_new(predicate, 1, predicates, seen);
+            }
+            StreamComponent::Penalize {
+                scale_by: Some(scale_by),
+                ..
+            }
+            | StreamComponent::Reward {
+                scale_by: Some(scale_by),
+                ..
+            }
+            | StreamComponent::Impact {
+                scale_by: Some(scale_by),
+                ..
+            } => {
+                // Scale functions can have different arities depending on stream type
+                // Most commonly it's 1 (single entity) but could be 2+ for joins
+                Self::add_predicate_if_new(scale_by, 1, predicates, seen);
+            }
+            StreamComponent::Map { mappers } | StreamComponent::Expand { mappers } => {
+                for mapper in mappers {
+                    Self::add_predicate_if_new(mapper, 1, predicates, seen);
+                }
+            }
+            StreamComponent::GroupBy { keys, .. } => {
+                for key in keys {
+                    Self::add_predicate_if_new(key, 1, predicates, seen);
+                }
+            }
+            StreamComponent::FlattenLast { map: Some(map) } => {
+                Self::add_predicate_if_new(map, 1, predicates, seen);
+            }
+            StreamComponent::IndictWith {
+                indicted_object_provider,
+            } => {
+                Self::add_predicate_if_new(indicted_object_provider, 1, predicates, seen);
+            }
+            StreamComponent::JustifyWith {
+                justification_supplier,
+            } => {
+                Self::add_predicate_if_new(justification_supplier, 1, predicates, seen);
+            }
+            StreamComponent::Concat { other_components } => {
+                Self::collect_predicates_from_components(other_components, predicates, seen);
+            }
+            StreamComponent::ForEachUniquePair { joiners, .. }
+            | StreamComponent::Join { joiners, .. }
+            | StreamComponent::IfExists { joiners, .. }
+            | StreamComponent::IfNotExists { joiners, .. }
+            | StreamComponent::IfExistsOther { joiners, .. }
+            | StreamComponent::IfNotExistsOther { joiners, .. }
+            | StreamComponent::IfExistsIncludingUnassigned { joiners, .. }
+            | StreamComponent::IfNotExistsIncludingUnassigned { joiners, .. } => {
+                Self::collect_from_joiners(joiners, predicates, seen);
+            }
+            // Components without functions
+            StreamComponent::ForEach { .. }
+            | StreamComponent::ForEachIncludingUnassigned { .. }
+            | StreamComponent::Complement { .. }
+            | StreamComponent::Distinct
+            | StreamComponent::Penalize { scale_by: None, .. }
+            | StreamComponent::Reward { scale_by: None, .. }
+            | StreamComponent::Impact { scale_by: None, .. }
+            | StreamComponent::FlattenLast { map: None } => {}
+        }
+    }
+
+    fn collect_from_joiners(
+        joiners: &[crate::constraints::Joiner],
+        predicates: &mut Vec<PredicateDefinition>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        use crate::constraints::Joiner;
+        for joiner in joiners {
+            match joiner {
+                Joiner::Equal {
+                    map,
+                    left_map,
+                    right_map,
+                    relation_predicate,
+                    hasher,
+                } => {
+                    if let Some(f) = map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = left_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = right_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = relation_predicate {
+                        Self::add_predicate_if_new(f, 2, predicates, seen);
+                    }
+                    if let Some(f) = hasher {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                }
+                Joiner::LessThan {
+                    map,
+                    left_map,
+                    right_map,
+                    comparator,
+                }
+                | Joiner::LessThanOrEqual {
+                    map,
+                    left_map,
+                    right_map,
+                    comparator,
+                }
+                | Joiner::GreaterThan {
+                    map,
+                    left_map,
+                    right_map,
+                    comparator,
+                }
+                | Joiner::GreaterThanOrEqual {
+                    map,
+                    left_map,
+                    right_map,
+                    comparator,
+                } => {
+                    if let Some(f) = map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = left_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = right_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    Self::add_predicate_if_new(comparator, 2, predicates, seen);
+                }
+                Joiner::Overlapping {
+                    start_map,
+                    end_map,
+                    left_start_map,
+                    left_end_map,
+                    right_start_map,
+                    right_end_map,
+                    comparator,
+                } => {
+                    if let Some(f) = start_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = end_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = left_start_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = left_end_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = right_start_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = right_end_map {
+                        Self::add_predicate_if_new(f, 1, predicates, seen);
+                    }
+                    if let Some(f) = comparator {
+                        Self::add_predicate_if_new(f, 2, predicates, seen);
+                    }
+                }
+                Joiner::Filtering { filter } => {
+                    Self::add_predicate_if_new(filter, 2, predicates, seen);
+                }
+            }
+        }
+    }
+
+    fn add_predicate_if_new(
+        func: &WasmFunction,
+        arity: u32,
+        predicates: &mut Vec<PredicateDefinition>,
+        seen: &mut std::collections::HashSet<String>,
+    ) {
+        if let Some(expr) = func.expression() {
+            if !seen.contains(func.name()) {
+                seen.insert(func.name().to_string());
+                predicates.push(PredicateDefinition::from_expression(
+                    func.name(),
+                    arity,
+                    expr.clone(),
+                ));
+            }
+        }
     }
 }
 

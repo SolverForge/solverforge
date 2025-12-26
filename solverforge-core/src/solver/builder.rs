@@ -27,7 +27,7 @@ use crate::solver::{
     TerminationConfig,
 };
 use crate::traits::PlanningSolution;
-use crate::wasm::WasmModuleBuilder;
+use crate::wasm::{HostFunctionRegistry, WasmModuleBuilder};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -218,10 +218,21 @@ impl<S: PlanningSolution> SolverBuilder<S> {
     /// - Predicate functions from constraints
     fn generate_wasm_module(&self) -> SolverForgeResult<String> {
         let domain_model = S::domain_model();
+        let constraints = S::constraints();
 
-        WasmModuleBuilder::new()
-            .with_domain_model(domain_model)
-            .build_base64()
+        // Extract predicates from constraints (expressions that need to be compiled to WASM)
+        let predicates = constraints.extract_predicates();
+
+        let mut builder = WasmModuleBuilder::new()
+            .with_host_functions(HostFunctionRegistry::with_standard_functions())
+            .with_domain_model(domain_model);
+
+        // Add all constraint predicates to the WASM module
+        for predicate in predicates {
+            builder = builder.add_predicate(predicate);
+        }
+
+        builder.build_base64()
     }
 
     /// Builds a `TypedSolver` that can solve instances of the solution type.

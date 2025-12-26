@@ -461,7 +461,9 @@ pub fn infer_expression_type(expr: &Expression) -> InferredType {
         | Expression::Gt64 { .. }
         | Expression::Ge64 { .. }
         | Expression::IsNull { .. }
-        | Expression::IsNotNull { .. } => InferredType::Bool,
+        | Expression::IsNotNull { .. }
+        | Expression::IsNull64 { .. }
+        | Expression::IsNotNull64 { .. } => InferredType::Bool,
 
         // Float
         Expression::FloatLiteral { .. }

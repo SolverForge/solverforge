@@ -108,6 +108,8 @@ impl Expression {
             Expression::Not { operand } => unary!(Not, operand),
             Expression::IsNull { operand } => unary!(IsNull, operand),
             Expression::IsNotNull { operand } => unary!(IsNotNull, operand),
+            Expression::IsNull64 { operand } => unary!(IsNull64, operand),
+            Expression::IsNotNull64 { operand } => unary!(IsNotNull64, operand),
 
             // Host calls
             Expression::HostCall {

@@ -161,8 +161,14 @@ pub(crate) fn convert_compare_to_expression(
         "Is" => {
             // Check for "is None" pattern
             if matches!(right, Expression::Null) {
-                Expression::IsNull {
-                    operand: Box::new(left),
+                if use_i64 {
+                    Expression::IsNull64 {
+                        operand: Box::new(left),
+                    }
+                } else {
+                    Expression::IsNull {
+                        operand: Box::new(left),
+                    }
                 }
             } else if use_i64 {
                 Expression::Eq64 {
@@ -179,8 +185,14 @@ pub(crate) fn convert_compare_to_expression(
         "IsNot" => {
             // Check for "is not None" pattern
             if matches!(right, Expression::Null) {
-                Expression::IsNotNull {
-                    operand: Box::new(left),
+                if use_i64 {
+                    Expression::IsNotNull64 {
+                        operand: Box::new(left),
+                    }
+                } else {
+                    Expression::IsNotNull {
+                        operand: Box::new(left),
+                    }
                 }
             } else if use_i64 {
                 Expression::Ne64 {

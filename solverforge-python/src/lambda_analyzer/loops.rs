@@ -5,7 +5,7 @@
 
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use solverforge_core::wasm::Expression;
+use solverforge_core::wasm::{Expression, WasmFieldType};
 
 use super::ast_convert::{infer_expression_type, InferredType};
 use super::conditionals::{self, ConvertFn};
@@ -605,13 +605,20 @@ fn convert_ast_with_mutable_vars(
 
                             // Condition: loop_var.prev_field is None
                             let prev_field_type = get_wasm_field_type(py, class_hint, &prev_field);
-                            let condition = Expression::IsNull {
-                                operand: Box::new(Expression::FieldAccess {
-                                    object: Box::new(loop_var_param.clone()),
-                                    class_name: class_hint.to_string(),
-                                    field_name: prev_field.clone(),
-                                    field_type: prev_field_type,
-                                }),
+                            let field_access = Expression::FieldAccess {
+                                object: Box::new(loop_var_param.clone()),
+                                class_name: class_hint.to_string(),
+                                field_name: prev_field.clone(),
+                                field_type: prev_field_type,
+                            };
+                            let condition = if prev_field_type == WasmFieldType::I64 {
+                                Expression::IsNull64 {
+                                    operand: Box::new(field_access),
+                                }
+                            } else {
+                                Expression::IsNull {
+                                    operand: Box::new(field_access),
+                                }
                             };
 
                             // Then branch: init_expr.method(args)

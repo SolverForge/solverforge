@@ -160,11 +160,17 @@ pub enum Expression {
     /// Logical NOT (!)
     Not { operand: Box<Expression> },
 
-    /// Null check (is null)
+    /// Null check (is null) - for i32 operands
     IsNull { operand: Box<Expression> },
 
-    /// Not-null check (is not null)
+    /// Not-null check (is not null) - for i32 operands
     IsNotNull { operand: Box<Expression> },
+
+    /// Null check (is null) - for i64 operands
+    IsNull64 { operand: Box<Expression> },
+
+    /// Not-null check (is not null) - for i64 operands
+    IsNotNull64 { operand: Box<Expression> },
 
     // ===== Arithmetic Operations =====
     /// Addition (+)

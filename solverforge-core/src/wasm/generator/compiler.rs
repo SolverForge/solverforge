@@ -303,6 +303,15 @@ impl<'a> ExpressionCompiler<'a> {
                 func.instruction(&Instruction::I32Const(0));
                 func.instruction(&Instruction::I32Ne);
             }
+            Expression::IsNull64 { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Eqz);
+            }
+            Expression::IsNotNull64 { operand } => {
+                self.compile_expression(func, operand, model, remap_from, remap_to_local, locals)?;
+                func.instruction(&Instruction::I64Const(0));
+                func.instruction(&Instruction::I64Ne);
+            }
 
             // ===== Arithmetic Operations =====
             Expression::Add { left, right } => {

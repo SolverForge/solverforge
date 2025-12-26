@@ -29,11 +29,11 @@ struct ListVariableInfo {
 
 /// Information about a shadow variable attribute.
 enum ShadowVariableInfo {
-    InverseRelation { source: String },
+    InverseRelation { source: String, entity_type: String },
     Index { source: String },
-    NextElement { source: String },
-    PreviousElement { source: String },
-    Anchor { source: String },
+    NextElement { source: String, entity_type: String },
+    PreviousElement { source: String, entity_type: String },
+    Anchor { source: String, entity_type: String },
 }
 
 /// Implementation of the `#[derive(PlanningEntity)]` macro.
@@ -225,41 +225,57 @@ fn parse_shadow_variable_attr(attrs: &[Attribute]) -> Option<ShadowVariableInfo>
     for attr in attrs {
         // Check each shadow variable attribute type
         if attr.path().is_ident("inverse_relation_shadow") {
-            if let Some(source) = parse_source_attr(attr) {
-                return Some(ShadowVariableInfo::InverseRelation { source });
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::InverseRelation {
+                    source,
+                    entity_type,
+                });
             }
         } else if attr.path().is_ident("index_shadow") {
-            if let Some(source) = parse_source_attr(attr) {
+            if let Some((source, _)) = parse_shadow_attr(attr) {
                 return Some(ShadowVariableInfo::Index { source });
             }
         } else if attr.path().is_ident("next_element_shadow") {
-            if let Some(source) = parse_source_attr(attr) {
-                return Some(ShadowVariableInfo::NextElement { source });
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::NextElement {
+                    source,
+                    entity_type,
+                });
             }
         } else if attr.path().is_ident("previous_element_shadow") {
-            if let Some(source) = parse_source_attr(attr) {
-                return Some(ShadowVariableInfo::PreviousElement { source });
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::PreviousElement {
+                    source,
+                    entity_type,
+                });
             }
         } else if attr.path().is_ident("anchor_shadow") {
-            if let Some(source) = parse_source_attr(attr) {
-                return Some(ShadowVariableInfo::Anchor { source });
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::Anchor {
+                    source,
+                    entity_type,
+                });
             }
         }
     }
     None
 }
 
-/// Parse the source = "..." from a shadow variable attribute.
-fn parse_source_attr(attr: &Attribute) -> Option<String> {
+/// Parse the source = "..." and entity = "..." from a shadow variable attribute.
+fn parse_shadow_attr(attr: &Attribute) -> Option<(String, String)> {
     let mut source = None;
+    let mut entity_type = None;
     let _ = attr.parse_nested_meta(|meta| {
         if meta.path.is_ident("source") {
             let value: LitStr = meta.value()?.parse()?;
             source = Some(value.value());
+        } else if meta.path.is_ident("entity") {
+            let value: LitStr = meta.value()?.parse()?;
+            entity_type = Some(value.value());
         }
         Ok(())
     });
-    source
+    source.map(|s| (s, entity_type.unwrap_or_default()))
 }
 
 /// Parse a struct-level attribute with format #[attr_name = "value"]
@@ -290,7 +306,21 @@ fn generate_domain_class(
         .iter()
         .map(|field| {
             let field_name = field.name.to_string();
-            let field_type = rust_type_to_field_type(&field.ty);
+
+            // For shadow variables with entity_type, use that instead of Rust type
+            let field_type = if let Some(sv) = &field.shadow_variable {
+                match sv {
+                    ShadowVariableInfo::InverseRelation { entity_type, .. }
+                    | ShadowVariableInfo::NextElement { entity_type, .. }
+                    | ShadowVariableInfo::PreviousElement { entity_type, .. }
+                    | ShadowVariableInfo::Anchor { entity_type, .. } if !entity_type.is_empty() => {
+                        quote! { ::solverforge_core::domain::FieldType::object(#entity_type) }
+                    }
+                    _ => rust_type_to_field_type(&field.ty),
+                }
+            } else {
+                rust_type_to_field_type(&field.ty)
+            };
 
             let mut annotations = Vec::new();
 
@@ -356,7 +386,7 @@ fn generate_domain_class(
 
             if let Some(sv) = &field.shadow_variable {
                 match sv {
-                    ShadowVariableInfo::InverseRelation { source } => {
+                    ShadowVariableInfo::InverseRelation { source, .. } => {
                         annotations.push(quote! {
                             .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::inverse_relation_shadow(#source)
@@ -370,21 +400,21 @@ fn generate_domain_class(
                             )
                         });
                     }
-                    ShadowVariableInfo::NextElement { source } => {
+                    ShadowVariableInfo::NextElement { source, .. } => {
                         annotations.push(quote! {
                             .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::next_element_shadow(#source)
                             )
                         });
                     }
-                    ShadowVariableInfo::PreviousElement { source } => {
+                    ShadowVariableInfo::PreviousElement { source, .. } => {
                         annotations.push(quote! {
                             .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::previous_element_shadow(#source)
                             )
                         });
                     }
-                    ShadowVariableInfo::Anchor { source } => {
+                    ShadowVariableInfo::Anchor { source, .. } => {
                         annotations.push(quote! {
                             .with_annotation(
                                 ::solverforge_core::domain::PlanningAnnotation::anchor_shadow(#source)

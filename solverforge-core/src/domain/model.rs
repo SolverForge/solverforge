@@ -65,48 +65,6 @@ impl DomainModel {
         None
     }
 
-    /// Looks up the element type for a list variable by its name.
-    /// Used for NextElementShadowVariable and PreviousElementShadowVariable.
-    fn lookup_list_variable_element_type(&self, variable_name: &str) -> Option<String> {
-        for class in self.classes.values() {
-            for field in &class.fields {
-                if field.name == variable_name {
-                    for annotation in &field.annotations {
-                        if let PlanningAnnotation::PlanningListVariable {
-                            value_range_provider_refs,
-                            ..
-                        } = annotation
-                        {
-                            if !value_range_provider_refs.is_empty() {
-                                return self.lookup_value_range_provider_element_type(
-                                    &value_range_provider_refs[0],
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    /// Looks up the class that owns a list variable by the variable's name.
-    /// Used for InverseRelationShadowVariable which points to the owner entity.
-    fn lookup_list_variable_owner_class(&self, variable_name: &str) -> Option<String> {
-        for (class_name, class) in &self.classes {
-            for field in &class.fields {
-                if field.name == variable_name {
-                    for annotation in &field.annotations {
-                        if matches!(annotation, PlanningAnnotation::PlanningListVariable { .. }) {
-                            return Some(class_name.clone());
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
-
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
         use crate::solver::{DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor};
 
@@ -151,7 +109,7 @@ impl DomainModel {
                     DomainAccessor::new(getter)
                 };
 
-                // Resolve element types for annotations that reference list variables
+                // Resolve element types for planning list variables
                 let field_type = if let Some(provider_refs) =
                     field.annotations.iter().find_map(|a| {
                         if let PlanningAnnotation::PlanningListVariable {
@@ -173,32 +131,8 @@ impl DomainModel {
                             panic!("Value range provider '{}' not found", provider_id)
                         });
                     format!("{}[]", element_type)
-                } else if let Some(source_var) = field.annotations.iter().find_map(|a| match a {
-                    PlanningAnnotation::NextElementShadowVariable {
-                        source_variable_name,
-                    }
-                    | PlanningAnnotation::PreviousElementShadowVariable {
-                        source_variable_name,
-                    } => Some(source_variable_name.as_str()),
-                    _ => None,
-                }) {
-                    // Next/Previous element shadow: resolve to element type of source list
-                    self.lookup_list_variable_element_type(source_var)
-                        .unwrap_or_else(|| {
-                            panic!("Source list variable '{}' not found", source_var)
-                        })
-                } else if let Some(source_var) = field.annotations.iter().find_map(|a| match a {
-                    PlanningAnnotation::InverseRelationShadowVariable {
-                        source_variable_name,
-                    } => Some(source_variable_name.as_str()),
-                    _ => None,
-                }) {
-                    // Inverse relation shadow: resolve to owner class of source list
-                    self.lookup_list_variable_owner_class(source_var)
-                        .unwrap_or_else(|| {
-                            panic!("Source list variable '{}' not found", source_var)
-                        })
                 } else {
+                    // Use the field type directly (shadow variables set their type in derive macro)
                     field.field_type.to_type_string()
                 };
 

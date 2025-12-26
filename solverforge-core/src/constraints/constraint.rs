@@ -110,7 +110,7 @@ impl ConstraintSet {
     pub fn to_dto(&self) -> indexmap::IndexMap<String, Vec<StreamComponent>> {
         self.constraints
             .iter()
-            .map(|c| (c.full_name(), c.components.clone()))
+            .map(|c| (c.name.clone(), c.components.clone()))
             .collect()
     }
 

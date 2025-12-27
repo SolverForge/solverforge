@@ -1,4 +1,4 @@
-use super::DomainClass;
+use super::{DomainClass, FieldType, PlanningAnnotation};
 use crate::SolverForgeError;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -39,8 +39,33 @@ impl DomainModel {
         self.solution_class.as_deref()
     }
 
+    /// Looks up the element type of a value range provider by its ID.
+    fn lookup_value_range_provider_element_type(&self, provider_id: &str) -> Option<String> {
+        for class in self.classes.values() {
+            for field in &class.fields {
+                for annotation in &field.annotations {
+                    if let PlanningAnnotation::ValueRangeProvider { id } = annotation {
+                        let effective_id = id.as_deref().unwrap_or(&field.name);
+                        if effective_id == provider_id {
+                            // Extract element type from the field's FieldType
+                            match &field.field_type {
+                                FieldType::List { element_type }
+                                | FieldType::Array { element_type }
+                                | FieldType::Set { element_type } => {
+                                    return Some(element_type.to_type_string());
+                                }
+                                // If not a collection, return the type directly
+                                _ => return Some(field.field_type.to_type_string()),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
-        use crate::domain::PlanningAnnotation;
         use crate::solver::{DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor};
 
         let mut result = indexmap::IndexMap::new();
@@ -84,8 +109,32 @@ impl DomainModel {
                     DomainAccessor::new(getter)
                 };
 
-                // Derive field type from domain type
-                let field_type = field.field_type.to_type_string();
+                // Resolve element types for planning list variables
+                let field_type = if let Some(provider_refs) =
+                    field.annotations.iter().find_map(|a| {
+                        if let PlanningAnnotation::PlanningListVariable {
+                            value_range_provider_refs,
+                            ..
+                        } = a
+                        {
+                            if !value_range_provider_refs.is_empty() {
+                                return Some(value_range_provider_refs);
+                            }
+                        }
+                        None
+                    }) {
+                    // Planning list variable: resolve from value range provider
+                    let provider_id = &provider_refs[0];
+                    let element_type = self
+                        .lookup_value_range_provider_element_type(provider_id)
+                        .unwrap_or_else(|| {
+                            panic!("Value range provider '{}' not found", provider_id)
+                        });
+                    format!("{}[]", element_type)
+                } else {
+                    // Use the field type directly (shadow variables set their type in derive macro)
+                    field.field_type.to_type_string()
+                };
 
                 let field_descriptor = FieldDescriptor::new(field_type)
                     .with_accessor(accessor)
@@ -174,6 +223,61 @@ impl DomainModel {
         }
 
         Ok(())
+    }
+
+    /// Sets the compute expression for a CascadingUpdateShadowVariable.
+    ///
+    /// This must be called for each cascading update shadow variable before WASM
+    /// generation, or the build will fail with an error.
+    ///
+    /// # Arguments
+    /// * `class_name` - The entity class name (e.g., "Visit")
+    /// * `field_name` - The field name with the shadow variable
+    /// * `expression` - The expression to compute the shadow value
+    ///
+    /// # Returns
+    /// Ok(()) if the annotation was found and updated, Err otherwise.
+    pub fn set_cascading_expression(
+        &mut self,
+        class_name: &str,
+        field_name: &str,
+        expression: crate::wasm::Expression,
+    ) -> Result<(), SolverForgeError> {
+        let class = self.classes.get_mut(class_name).ok_or_else(|| {
+            SolverForgeError::Validation(format!("Class '{}' not found", class_name))
+        })?;
+
+        let field = class
+            .fields
+            .iter_mut()
+            .find(|f| f.name == field_name)
+            .ok_or_else(|| {
+                SolverForgeError::Validation(format!(
+                    "Field '{}' not found in class '{}'",
+                    field_name, class_name
+                ))
+            })?;
+
+        let found = field.annotations.iter_mut().any(|ann| {
+            if let PlanningAnnotation::CascadingUpdateShadowVariable {
+                compute_expression, ..
+            } = ann
+            {
+                *compute_expression = Some(expression.clone());
+                true
+            } else {
+                false
+            }
+        });
+
+        if found {
+            Ok(())
+        } else {
+            Err(SolverForgeError::Validation(format!(
+                "Field '{}' in class '{}' has no CascadingUpdateShadowVariable annotation",
+                field_name, class_name
+            )))
+        }
     }
 }
 

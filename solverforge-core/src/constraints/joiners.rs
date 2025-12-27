@@ -1,12 +1,29 @@
+use crate::wasm::Expression;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct WasmFunction {
     name: String,
     relation_function: Option<String>,
     hash_function: Option<String>,
     comparator_function: Option<String>,
+    /// The expression to compile into WASM. Set when created from a NamedExpression.
+    /// Skipped during serialization as only the name is sent to the solver service.
+    expression: Option<Expression>,
 }
+
+// Implement PartialEq manually to compare by name only (for serialization round-trips)
+impl PartialEq for WasmFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.relation_function == other.relation_function
+            && self.hash_function == other.hash_function
+            && self.comparator_function == other.comparator_function
+        // expression is intentionally not compared - it's runtime metadata
+    }
+}
+
+impl Eq for WasmFunction {}
 
 impl Serialize for WasmFunction {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -34,6 +51,18 @@ impl WasmFunction {
             relation_function: None,
             hash_function: None,
             comparator_function: None,
+            expression: None,
+        }
+    }
+
+    /// Creates a WasmFunction with an associated expression.
+    pub fn with_expression(name: impl Into<String>, expression: Expression) -> Self {
+        Self {
+            name: name.into(),
+            relation_function: None,
+            hash_function: None,
+            comparator_function: None,
+            expression: Some(expression),
         }
     }
 
@@ -67,10 +96,16 @@ impl WasmFunction {
     pub fn comparator_function(&self) -> Option<&str> {
         self.comparator_function.as_deref()
     }
+
+    /// Returns the expression if one was set (from a NamedExpression).
+    pub fn expression(&self) -> Option<&Expression> {
+        self.expression.as_ref()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "relation")]
+#[allow(clippy::large_enum_variant)]
 pub enum Joiner {
     #[serde(rename = "equal")]
     Equal {

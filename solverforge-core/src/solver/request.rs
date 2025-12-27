@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Solve request matching solverforge-wasm-service's PlanningProblem schema
 /// Uses IndexMap for domain and constraints to preserve insertion order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolveRequest {
     pub domain: IndexMap<String, DomainObjectDto>,
@@ -78,7 +78,7 @@ impl SolveRequest {
 /// Domain object definition with fields and optional mapper
 /// Fields use IndexMap to preserve insertion order, which is critical
 /// for correct WASM memory layout alignment.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DomainObjectDto {
     pub fields: IndexMap<String, FieldDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -120,7 +120,7 @@ impl Default for DomainObjectDto {
 }
 
 /// Field descriptor with type, accessor, and annotations
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDescriptor {
     #[serde(rename = "type")]
     pub field_type: String,

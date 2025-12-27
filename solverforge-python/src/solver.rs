@@ -804,6 +804,7 @@ impl PySolverFactory {
                     for annotation in &field.annotations {
                         if let PlanningAnnotation::CascadingUpdateShadowVariable {
                             target_method_name,
+                            ..
                         } = annotation
                         {
                             // Get the method from the Python class

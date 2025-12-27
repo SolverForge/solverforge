@@ -18,6 +18,8 @@ struct SolutionFieldInfo {
 /// Information parsed from the struct-level attributes.
 struct SolutionInfo {
     constraint_provider: Option<String>,
+    /// Additional domain structs to include in the domain model.
+    domain_structs: Vec<Type>,
 }
 
 /// Implementation of the `#[derive(PlanningSolution)]` macro.
@@ -123,7 +125,8 @@ pub fn derive_planning_solution_impl(input: TokenStream) -> TokenStream {
     };
 
     // Generate domain_model() implementation
-    let domain_model_impl = generate_domain_model(&name_str, &field_infos);
+    let domain_model_impl =
+        generate_domain_model(&name_str, &field_infos, &solution_info.domain_structs);
 
     // Generate to_json() implementation
     let to_json_impl = generate_to_json(&field_infos);
@@ -167,6 +170,7 @@ pub fn derive_planning_solution_impl(input: TokenStream) -> TokenStream {
 /// Parse struct-level attributes for PlanningSolution.
 fn parse_solution_attrs(attrs: &[Attribute]) -> SolutionInfo {
     let mut constraint_provider = None;
+    let mut domain_structs = Vec::new();
 
     for attr in attrs {
         if attr.path().is_ident("constraint_provider") {
@@ -178,11 +182,21 @@ fn parse_solution_attrs(attrs: &[Attribute]) -> SolutionInfo {
                     }
                 }
             }
+        } else if attr.path().is_ident("domain_structs") {
+            // Parse #[domain_structs(Type1, Type2, ...)]
+            if let syn::Meta::List(list) = &attr.meta {
+                let types: syn::Result<syn::punctuated::Punctuated<Type, syn::Token![,]>> =
+                    list.parse_args_with(syn::punctuated::Punctuated::parse_terminated);
+                if let Ok(parsed) = types {
+                    domain_structs.extend(parsed.into_iter());
+                }
+            }
         }
     }
 
     SolutionInfo {
         constraint_provider,
+        domain_structs,
     }
 }
 
@@ -229,7 +243,21 @@ fn extract_inner_option_type(ty: &Type) -> TokenStream2 {
 }
 
 /// Generate the domain_model() method implementation.
-fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> TokenStream2 {
+fn generate_domain_model(
+    struct_name: &str,
+    fields: &[SolutionFieldInfo],
+    domain_structs: &[Type],
+) -> TokenStream2 {
+    // Collect domain struct classes from #[domain_structs(...)]
+    let domain_struct_additions: Vec<TokenStream2> = domain_structs
+        .iter()
+        .map(|ty| {
+            quote! {
+                .add_class(<#ty as ::solverforge_core::DomainStruct>::domain_class())
+            }
+        })
+        .collect();
+
     // Collect entity classes from planning_entity_collection fields
     let entity_class_additions: Vec<TokenStream2> = fields
         .iter()
@@ -294,6 +322,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
 
     quote! {
         ::solverforge_core::domain::DomainModel::builder()
+            #(#domain_struct_additions)*
             #(#entity_class_additions)*
             .add_class(
                 ::solverforge_core::domain::DomainClass::new(#struct_name)
@@ -332,14 +361,16 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
             )
         };
     }
-    if type_str == "i32" || type_str == "i64" || type_str == "isize" {
+    // i32 types -> Int (WASM i32)
+    if type_str == "i32" || type_str == "u32" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
-                ::solverforge_core::domain::PrimitiveType::Long
+                ::solverforge_core::domain::PrimitiveType::Int
             )
         };
     }
-    if type_str == "u32" || type_str == "u64" || type_str == "usize" {
+    // i64 types -> Long (WASM i64)
+    if type_str == "i64" || type_str == "u64" || type_str == "isize" || type_str == "usize" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
@@ -357,6 +388,15 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Bool
+            )
+        };
+    }
+
+    // Handle DateTime types (stored as i64 epoch seconds/millis)
+    if is_datetime_type(&type_str) {
+        return quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
             )
         };
     }
@@ -391,7 +431,12 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 ::solverforge_core::domain::PrimitiveType::String
             )
         },
-        "i32" | "i64" | "isize" | "u32" | "u64" | "usize" => quote! {
+        "i32" | "u32" => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::Int
+            )
+        },
+        "i64" | "u64" | "isize" | "usize" => quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
             )
@@ -432,6 +477,11 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 )
             }
         }
+        _ if is_datetime_type(type_str) => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
+            )
+        },
         _ => {
             let type_name = extract_type_name(type_str);
             quote! {
@@ -439,6 +489,23 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
             }
         }
     }
+}
+
+/// Check if a type string represents a DateTime type.
+fn is_datetime_type(type_str: &str) -> bool {
+    // NaiveDateTime variants
+    type_str == "NaiveDateTime"
+        || type_str == "chrono::NaiveDateTime"
+        || type_str == "::chrono::NaiveDateTime"
+        // DateTime<Utc> variants
+        || type_str == "DateTime<Utc>"
+        || type_str == "chrono::DateTime<Utc>"
+        || type_str == "::chrono::DateTime<Utc>"
+        || type_str == "chrono::DateTime<chrono::Utc>"
+        // NaiveDate variants (date without time)
+        || type_str == "NaiveDate"
+        || type_str == "chrono::NaiveDate"
+        || type_str == "::chrono::NaiveDate"
 }
 
 /// Extract the simple type name from a potentially qualified type.
@@ -492,19 +559,26 @@ fn generate_to_json(fields: &[SolutionFieldInfo]) -> TokenStream2 {
                     }
                 }
             } else if type_str.contains("Option") {
+                // Option<T> - use serde for complex inner types
                 quote! {
                     map.insert(
                         #field_name_str.to_string(),
-                        self.#field_name.as_ref()
-                            .map(|v| ::solverforge_core::Value::from(v.clone()))
-                            .unwrap_or(::solverforge_core::Value::Null)
+                        match &self.#field_name {
+                            Some(v) => ::serde_json::to_value(v)
+                                .map(::solverforge_core::Value::from_json_value)
+                                .unwrap_or(::solverforge_core::Value::Null),
+                            None => ::solverforge_core::Value::Null,
+                        }
                     );
                 }
             } else {
+                // Complex type - use serde serialization
                 quote! {
                     map.insert(
                         #field_name_str.to_string(),
-                        ::solverforge_core::Value::from(self.#field_name.clone())
+                        ::serde_json::to_value(&self.#field_name)
+                            .map(::solverforge_core::Value::from_json_value)
+                            .unwrap_or(::solverforge_core::Value::Null)
                     );
                 }
             }
@@ -521,13 +595,135 @@ fn generate_to_json(fields: &[SolutionFieldInfo]) -> TokenStream2 {
 
 /// Generate the from_json() method implementation.
 fn generate_from_json(struct_name: &Ident, fields: &[SolutionFieldInfo]) -> TokenStream2 {
-    let field_extractions: Vec<TokenStream2> = fields
+    // Separate fields into phases for proper entity deduplication:
+    // Phase 1: Value range providers - register canonical entities
+    // Phase 2: Planning entity collections (non-VRP) - use canonical lookups
+    // Other: Everything else
+
+    // VRP fields that are ALSO entity collections - register canonical entities
+    let vrp_entity_extractions: Vec<TokenStream2> = fields
         .iter()
+        .filter(|f| f.value_range_provider_id.is_some() && f.is_planning_entity_collection)
         .map(|field| {
             let field_name = &field.name;
             let field_name_str = field.name.to_string();
             let field_ty = &field.ty;
+            let element_type = extract_vec_element_type(&field.ty);
+            let element_type_str = quote!(#element_type).to_string().replace(' ', "");
 
+            quote! {
+                let #field_name: #field_ty = match map.get(#field_name_str) {
+                    Some(::solverforge_core::Value::Array(arr)) => {
+                        arr.iter()
+                            .filter_map(|v| {
+                                let entity = <#element_type as ::solverforge_core::PlanningEntity>::from_value(v).ok()?;
+                                let id = ::solverforge_core::PlanningEntity::planning_id(&entity);
+                                // Register canonical entity for later lookup
+                                ::solverforge_core::entity_context::register_canonical(
+                                    #element_type_str,
+                                    &id,
+                                    v.clone()
+                                );
+                                Some(entity)
+                            })
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                };
+            }
+        })
+        .collect();
+
+    // VRP fields that are problem fact collections (not entities) - no registration
+    let vrp_fact_extractions: Vec<TokenStream2> = fields
+        .iter()
+        .filter(|f| f.value_range_provider_id.is_some() && !f.is_planning_entity_collection)
+        .map(|field| {
+            let field_name = &field.name;
+            let field_name_str = field.name.to_string();
+            let field_ty = &field.ty;
+            let element_type = extract_vec_element_type(&field.ty);
+
+            quote! {
+                let #field_name: #field_ty = match map.get(#field_name_str) {
+                    Some(::solverforge_core::Value::Array(arr)) => {
+                        arr.iter()
+                            .filter_map(|v| {
+                                ::serde_json::from_value::<#element_type>(
+                                    ::serde_json::to_value(v).ok()?
+                                ).ok()
+                            })
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                };
+            }
+        })
+        .collect();
+
+    let entity_extractions: Vec<TokenStream2> = fields
+        .iter()
+        .filter(|f| f.is_planning_entity_collection && f.value_range_provider_id.is_none())
+        .map(|field| {
+            let field_name = &field.name;
+            let field_name_str = field.name.to_string();
+            let field_ty = &field.ty;
+            let element_type = extract_vec_element_type(&field.ty);
+
+            // Entity collections that are not VRPs use normal from_value
+            // Their list variables will use canonical lookups internally
+            quote! {
+                let #field_name: #field_ty = match map.get(#field_name_str) {
+                    Some(::solverforge_core::Value::Array(arr)) => {
+                        arr.iter()
+                            .filter_map(|v| <#element_type as ::solverforge_core::PlanningEntity>::from_value(v).ok())
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                };
+            }
+        })
+        .collect();
+
+    // Problem fact collections without VRP - basic deserialization
+    let problem_fact_extractions: Vec<TokenStream2> = fields
+        .iter()
+        .filter(|f| f.is_problem_fact_collection && f.value_range_provider_id.is_none())
+        .map(|field| {
+            let field_name = &field.name;
+            let field_name_str = field.name.to_string();
+            let field_ty = &field.ty;
+            let element_type = extract_vec_element_type(&field.ty);
+
+            quote! {
+                let #field_name: #field_ty = match map.get(#field_name_str) {
+                    Some(::solverforge_core::Value::Array(arr)) => {
+                        arr.iter()
+                            .filter_map(|v| {
+                                ::serde_json::from_value::<#element_type>(
+                                    ::serde_json::to_value(v).ok()?
+                                ).ok()
+                            })
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                };
+            }
+        })
+        .collect();
+
+    // Other fields: not entity collections, not VRP, not problem fact collections (score, etc.)
+    let other_extractions: Vec<TokenStream2> = fields
+        .iter()
+        .filter(|f| {
+            !f.is_planning_entity_collection
+                && f.value_range_provider_id.is_none()
+                && !f.is_problem_fact_collection
+        })
+        .map(|field| {
+            let field_name = &field.name;
+            let field_name_str = field.name.to_string();
+            let field_ty = &field.ty;
             let type_str = quote!(#field_ty).to_string();
 
             if field.is_planning_score {
@@ -536,36 +732,21 @@ fn generate_from_json(struct_name: &Ident, fields: &[SolutionFieldInfo]) -> Toke
                     let #field_name: #field_ty = None;
                 }
             } else if type_str.contains("Vec") {
-                if field.is_planning_entity_collection {
-                    // Planning entity collection - use from_value
-                    let element_type = extract_vec_element_type(&field.ty);
-                    quote! {
-                        let #field_name: #field_ty = match map.get(#field_name_str) {
-                            Some(::solverforge_core::Value::Array(arr)) => {
-                                arr.iter()
-                                    .filter_map(|v| <#element_type as ::solverforge_core::PlanningEntity>::from_value(v).ok())
-                                    .collect()
-                            }
-                            _ => Vec::new(),
-                        };
-                    }
-                } else {
-                    // Problem fact collection - basic deserialization
-                    let element_type = extract_vec_element_type(&field.ty);
-                    quote! {
-                        let #field_name: #field_ty = match map.get(#field_name_str) {
-                            Some(::solverforge_core::Value::Array(arr)) => {
-                                arr.iter()
-                                    .filter_map(|v| {
-                                        ::serde_json::from_value::<#element_type>(
-                                            ::serde_json::to_value(v).ok()?
-                                        ).ok()
-                                    })
-                                    .collect()
-                            }
-                            _ => Vec::new(),
-                        };
-                    }
+                // Problem fact collection (non-entity) - basic deserialization
+                let element_type = extract_vec_element_type(&field.ty);
+                quote! {
+                    let #field_name: #field_ty = match map.get(#field_name_str) {
+                        Some(::solverforge_core::Value::Array(arr)) => {
+                            arr.iter()
+                                .filter_map(|v| {
+                                    ::serde_json::from_value::<#element_type>(
+                                        ::serde_json::to_value(v).ok()?
+                                    ).ok()
+                                })
+                                .collect()
+                        }
+                        _ => Vec::new(),
+                    };
                 }
             } else if type_str.contains("Option") {
                 quote! {
@@ -630,7 +811,24 @@ fn generate_from_json(struct_name: &Ident, fields: &[SolutionFieldInfo]) -> Toke
 
         match value {
             ::solverforge_core::Value::Object(map) => {
-                #(#field_extractions)*
+                // Initialize entity context for deduplication
+                let _ctx = ::solverforge_core::entity_context::EntityContextGuard::new();
+
+                // Phase 1a: VRP entity collections - register canonical entities
+                #(#vrp_entity_extractions)*
+
+                // Phase 1b: VRP problem fact collections - no registration needed
+                #(#vrp_fact_extractions)*
+
+                // Phase 2: Entity collections (non-VRP) - their list vars use canonical lookups
+                #(#entity_extractions)*
+
+                // Phase 3: Problem fact collections (non-VRP)
+                #(#problem_fact_extractions)*
+
+                // Phase 4: Other fields (score, etc.)
+                #(#other_extractions)*
+
                 Ok(#struct_name {
                     #(#field_names),*
                 })

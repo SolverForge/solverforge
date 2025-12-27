@@ -269,29 +269,66 @@ impl WasmModuleBuilder {
 
         // Generate cascading update shadow variable functions
         // These are called by Java when a shadow variable needs recalculation
-        for class in model.classes.values() {
-            for field in &class.fields {
-                for annotation in &field.annotations {
-                    if let crate::domain::PlanningAnnotation::CascadingUpdateShadowVariable {
-                        target_method_name,
-                    } = annotation
-                    {
-                        let func_name = format!("{}_{}", class.name, target_method_name);
-                        // Function takes entity pointer (i32) and returns the computed value (i64)
-                        // For now, return 0 (null) as a stub - actual implementation requires
-                        // access to shadow variables and pre-computed data
-                        let cascade_type_idx = self.add_function_type(
-                            &mut type_section,
-                            vec![ValType::I32],
-                            vec![ValType::I64],
-                        );
-                        function_section.function(cascade_type_idx);
-                        code_section.function(&codegen::generate_cascading_update_stub());
-                        export_section.export(&func_name, ExportKind::Func, func_idx);
-                        func_idx += 1;
-                    }
-                }
-            }
+        // Collect annotations first to avoid borrow issues
+        let cascading_updates: Vec<_> = model
+            .classes
+            .values()
+            .flat_map(|class| {
+                class.fields.iter().flat_map(move |field| {
+                    field.annotations.iter().filter_map(move |annotation| {
+                        if let crate::domain::PlanningAnnotation::CascadingUpdateShadowVariable {
+                            target_method_name,
+                            compute_expression,
+                        } = annotation
+                        {
+                            Some((
+                                format!("{}_{}", class.name, target_method_name),
+                                compute_expression.clone(),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                })
+            })
+            .collect();
+
+        for (func_name, compute_expression) in cascading_updates {
+            // Expression MUST be provided - fail build if missing
+            let expr = compute_expression.ok_or_else(|| {
+                SolverForgeError::WasmGeneration(format!(
+                    "CascadingUpdateShadowVariable '{}' has no compute_expression. \
+                     Call set_cascading_expression() on DomainModel before WASM build.",
+                    func_name
+                ))
+            })?;
+
+            // Function takes entity pointer (i32) and returns the computed value (i64)
+            let cascade_type_idx =
+                self.add_function_type(&mut type_section, vec![ValType::I32], vec![ValType::I64]);
+            function_section.function(cascade_type_idx);
+
+            // Compile the expression: Param(0) is the entity pointer
+            let mut func = Function::new([(12, ValType::I32), (4, ValType::I64)]);
+            let mut locals = LocalAllocator::new(1); // 1 param: entity pointer
+            let compiler = ExpressionCompiler {
+                layout_calculator: &self.layout_calculator,
+                host_function_indices: &self.host_function_indices,
+                get_string_constant_offset: &|s: &str| self.get_string_constant_offset(s),
+            };
+            compiler.compile_expression(
+                &mut func,
+                &expr,
+                &model,
+                u32::MAX,
+                u32::MAX,
+                &mut locals,
+            )?;
+            func.instruction(&Instruction::End);
+
+            code_section.function(&func);
+            export_section.export(&func_name, ExportKind::Func, func_idx);
+            func_idx += 1;
         }
 
         // Generate predicate functions

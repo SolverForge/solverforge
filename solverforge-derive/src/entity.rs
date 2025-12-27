@@ -481,9 +481,11 @@ fn generate_domain_class(
                         });
                     }
                     ShadowVariableInfo::CascadingUpdate { target_method_name, .. } => {
+                        // Use pending version - app must call set_cascading_expression()
+                        // on DomainModel before WASM build
                         annotations.push(quote! {
                             .with_annotation(
-                                ::solverforge_core::domain::PlanningAnnotation::cascading_update_shadow(#target_method_name)
+                                ::solverforge_core::domain::PlanningAnnotation::cascading_update_shadow_pending(#target_method_name)
                             )
                         });
                     }

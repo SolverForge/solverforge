@@ -10,6 +10,31 @@ use crate::score::Score;
 use crate::value::Value;
 use crate::SolverForgeResult;
 
+/// Trait for structs that can be represented in the domain model.
+///
+/// This trait is used for nested structs (like `Location`) that are not
+/// planning entities but need their fields accessible in WASM memory for
+/// constraint evaluation and shadow variable computation.
+///
+/// # Derive Macro
+///
+/// This trait is typically implemented via `#[derive(DomainStruct)]`:
+///
+/// ```ignore
+/// #[derive(DomainStruct, Clone)]
+/// struct Location {
+///     latitude: f64,
+///     longitude: f64,
+/// }
+/// ```
+///
+/// When a `PlanningSolution` references types that implement `DomainStruct`,
+/// those classes are automatically included in the domain model.
+pub trait DomainStruct: Send + Sync {
+    /// Returns the domain class descriptor for this struct.
+    fn domain_class() -> DomainClass;
+}
+
 /// Marker trait for types that can be used as planning entities.
 ///
 /// A planning entity is an object that can be changed during solving.

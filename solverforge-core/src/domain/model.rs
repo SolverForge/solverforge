@@ -224,6 +224,61 @@ impl DomainModel {
 
         Ok(())
     }
+
+    /// Sets the compute expression for a CascadingUpdateShadowVariable.
+    ///
+    /// This must be called for each cascading update shadow variable before WASM
+    /// generation, or the build will fail with an error.
+    ///
+    /// # Arguments
+    /// * `class_name` - The entity class name (e.g., "Visit")
+    /// * `field_name` - The field name with the shadow variable
+    /// * `expression` - The expression to compute the shadow value
+    ///
+    /// # Returns
+    /// Ok(()) if the annotation was found and updated, Err otherwise.
+    pub fn set_cascading_expression(
+        &mut self,
+        class_name: &str,
+        field_name: &str,
+        expression: crate::wasm::Expression,
+    ) -> Result<(), SolverForgeError> {
+        let class = self.classes.get_mut(class_name).ok_or_else(|| {
+            SolverForgeError::Validation(format!("Class '{}' not found", class_name))
+        })?;
+
+        let field = class
+            .fields
+            .iter_mut()
+            .find(|f| f.name == field_name)
+            .ok_or_else(|| {
+                SolverForgeError::Validation(format!(
+                    "Field '{}' not found in class '{}'",
+                    field_name, class_name
+                ))
+            })?;
+
+        let found = field.annotations.iter_mut().any(|ann| {
+            if let PlanningAnnotation::CascadingUpdateShadowVariable {
+                compute_expression, ..
+            } = ann
+            {
+                *compute_expression = Some(expression.clone());
+                true
+            } else {
+                false
+            }
+        });
+
+        if found {
+            Ok(())
+        } else {
+            Err(SolverForgeError::Validation(format!(
+                "Field '{}' in class '{}' has no CascadingUpdateShadowVariable annotation",
+                field_name, class_name
+            )))
+        }
+    }
 }
 
 #[derive(Debug, Default)]

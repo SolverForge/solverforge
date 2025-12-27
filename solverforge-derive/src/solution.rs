@@ -18,6 +18,8 @@ struct SolutionFieldInfo {
 /// Information parsed from the struct-level attributes.
 struct SolutionInfo {
     constraint_provider: Option<String>,
+    /// Additional domain structs to include in the domain model.
+    domain_structs: Vec<Type>,
 }
 
 /// Implementation of the `#[derive(PlanningSolution)]` macro.
@@ -123,7 +125,8 @@ pub fn derive_planning_solution_impl(input: TokenStream) -> TokenStream {
     };
 
     // Generate domain_model() implementation
-    let domain_model_impl = generate_domain_model(&name_str, &field_infos);
+    let domain_model_impl =
+        generate_domain_model(&name_str, &field_infos, &solution_info.domain_structs);
 
     // Generate to_json() implementation
     let to_json_impl = generate_to_json(&field_infos);
@@ -167,6 +170,7 @@ pub fn derive_planning_solution_impl(input: TokenStream) -> TokenStream {
 /// Parse struct-level attributes for PlanningSolution.
 fn parse_solution_attrs(attrs: &[Attribute]) -> SolutionInfo {
     let mut constraint_provider = None;
+    let mut domain_structs = Vec::new();
 
     for attr in attrs {
         if attr.path().is_ident("constraint_provider") {
@@ -178,11 +182,21 @@ fn parse_solution_attrs(attrs: &[Attribute]) -> SolutionInfo {
                     }
                 }
             }
+        } else if attr.path().is_ident("domain_structs") {
+            // Parse #[domain_structs(Type1, Type2, ...)]
+            if let syn::Meta::List(list) = &attr.meta {
+                let types: syn::Result<syn::punctuated::Punctuated<Type, syn::Token![,]>> =
+                    list.parse_args_with(syn::punctuated::Punctuated::parse_terminated);
+                if let Ok(parsed) = types {
+                    domain_structs.extend(parsed.into_iter());
+                }
+            }
         }
     }
 
     SolutionInfo {
         constraint_provider,
+        domain_structs,
     }
 }
 
@@ -229,7 +243,21 @@ fn extract_inner_option_type(ty: &Type) -> TokenStream2 {
 }
 
 /// Generate the domain_model() method implementation.
-fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> TokenStream2 {
+fn generate_domain_model(
+    struct_name: &str,
+    fields: &[SolutionFieldInfo],
+    domain_structs: &[Type],
+) -> TokenStream2 {
+    // Collect domain struct classes from #[domain_structs(...)]
+    let domain_struct_additions: Vec<TokenStream2> = domain_structs
+        .iter()
+        .map(|ty| {
+            quote! {
+                .add_class(<#ty as ::solverforge_core::DomainStruct>::domain_class())
+            }
+        })
+        .collect();
+
     // Collect entity classes from planning_entity_collection fields
     let entity_class_additions: Vec<TokenStream2> = fields
         .iter()
@@ -294,6 +322,7 @@ fn generate_domain_model(struct_name: &str, fields: &[SolutionFieldInfo]) -> Tok
 
     quote! {
         ::solverforge_core::domain::DomainModel::builder()
+            #(#domain_struct_additions)*
             #(#entity_class_additions)*
             .add_class(
                 ::solverforge_core::domain::DomainClass::new(#struct_name)

@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::wasm::Expression;
+
 /// Helper for skip_serializing_if on boolean fields
 fn is_false(b: &bool) -> bool {
     !*b
@@ -32,7 +34,7 @@ fn is_none<T>(opt: &Option<T>) -> bool {
 /// Serialization matches the Java solver service expectations exactly:
 /// - Tag: `"annotation"` (not `"type"`)
 /// - Field names use camelCase
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "annotation")]
 pub enum PlanningAnnotation {
     /// Marks a field as the unique identifier for a planning entity.
@@ -174,6 +176,11 @@ pub enum PlanningAnnotation {
         /// The method name to call for computing the value.
         #[serde(rename = "target_method_name")]
         target_method_name: String,
+        /// Expression that computes the shadow variable value.
+        /// Param(0) refers to the entity itself (the entity pointer).
+        /// REQUIRED for WASM generation - build fails if None.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        compute_expression: Option<Expression>,
     },
 
     /// Shadow variable that piggybacks on another shadow variable's updates.
@@ -336,10 +343,26 @@ impl PlanningAnnotation {
         }
     }
 
-    /// Creates a CascadingUpdateShadowVariable annotation.
-    pub fn cascading_update_shadow(target_method_name: impl Into<String>) -> Self {
+    /// Creates a CascadingUpdateShadowVariable annotation with expression.
+    /// Use this when you have the compute expression ready.
+    pub fn cascading_update_shadow(
+        target_method_name: impl Into<String>,
+        compute_expression: Expression,
+    ) -> Self {
         PlanningAnnotation::CascadingUpdateShadowVariable {
             target_method_name: target_method_name.into(),
+            compute_expression: Some(compute_expression),
+        }
+    }
+
+    /// Creates a CascadingUpdateShadowVariable annotation without expression.
+    /// The expression MUST be set before WASM generation or build will fail.
+    /// This is used by the derive macro; call set_cascading_expression on
+    /// the DomainModel to provide the expression before building.
+    pub fn cascading_update_shadow_pending(target_method_name: impl Into<String>) -> Self {
+        PlanningAnnotation::CascadingUpdateShadowVariable {
+            target_method_name: target_method_name.into(),
+            compute_expression: None,
         }
     }
 
@@ -905,9 +928,14 @@ mod tests {
 
     #[test]
     fn test_cascading_update_shadow() {
-        let ann = PlanningAnnotation::cascading_update_shadow("updateArrivalTime");
+        use crate::wasm::Expression;
+        let expr = Expression::Int64Literal { value: 0 };
+        let ann = PlanningAnnotation::cascading_update_shadow("updateArrivalTime", expr);
         match &ann {
-            PlanningAnnotation::CascadingUpdateShadowVariable { target_method_name } => {
+            PlanningAnnotation::CascadingUpdateShadowVariable {
+                target_method_name,
+                compute_expression: _,
+            } => {
                 assert_eq!(target_method_name, "updateArrivalTime");
             }
             _ => panic!("Expected CascadingUpdateShadowVariable"),
@@ -979,12 +1007,13 @@ mod tests {
 
     #[test]
     fn test_json_cascading_update_shadow() {
-        let ann = PlanningAnnotation::cascading_update_shadow("updateArrivalTime");
+        use crate::wasm::Expression;
+        let expr = Expression::Int64Literal { value: 42 };
+        let ann = PlanningAnnotation::cascading_update_shadow("updateArrivalTime", expr);
         let json = serde_json::to_string(&ann).unwrap();
-        assert_eq!(
-            json,
-            r#"{"annotation":"CascadingUpdateShadowVariable","target_method_name":"updateArrivalTime"}"#
-        );
+        // Expression is serialized with the annotation
+        assert!(json.contains(r#""annotation":"CascadingUpdateShadowVariable""#));
+        assert!(json.contains(r#""target_method_name":"updateArrivalTime""#));
         let parsed: PlanningAnnotation = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, ann);
     }
@@ -1003,13 +1032,17 @@ mod tests {
 
     #[test]
     fn test_all_shadow_variables_are_shadows() {
+        use crate::wasm::Expression;
         let shadows = vec![
             PlanningAnnotation::inverse_relation_shadow("test"),
             PlanningAnnotation::index_shadow("test"),
             PlanningAnnotation::next_element_shadow("test"),
             PlanningAnnotation::previous_element_shadow("test"),
             PlanningAnnotation::anchor_shadow("test"),
-            PlanningAnnotation::cascading_update_shadow("test"),
+            PlanningAnnotation::cascading_update_shadow(
+                "test",
+                Expression::Int64Literal { value: 0 },
+            ),
             PlanningAnnotation::piggyback_shadow("test"),
         ];
         for shadow in shadows {

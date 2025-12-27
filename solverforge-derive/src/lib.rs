@@ -32,6 +32,7 @@
 
 use proc_macro::TokenStream;
 
+mod domain_struct;
 mod entity;
 mod solution;
 
@@ -139,6 +140,7 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
     PlanningSolution,
     attributes(
         constraint_provider,
+        domain_structs,
         problem_fact_collection,
         problem_fact,
         planning_entity_collection,
@@ -149,4 +151,36 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
 )]
 pub fn derive_planning_solution(input: TokenStream) -> TokenStream {
     solution::derive_planning_solution_impl(input)
+}
+
+/// Derive macro for implementing the `DomainStruct` trait.
+///
+/// Use this for nested structs (like `Location`) that are not planning entities
+/// but need their fields accessible in WASM memory for constraint evaluation
+/// and shadow variable computation.
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(DomainStruct, Clone)]
+/// struct Location {
+///     latitude: f64,
+///     longitude: f64,
+/// }
+/// ```
+///
+/// The struct's fields will be registered in the domain model, enabling
+/// expressions to access them via nested field access:
+///
+/// ```ignore
+/// Expression::FieldAccess {
+///     object: Box::new(visit_location_expr),
+///     class_name: "Location".to_string(),
+///     field_name: "latitude".to_string(),
+///     field_type: WasmFieldType::F64,
+/// }
+/// ```
+#[proc_macro_derive(DomainStruct)]
+pub fn derive_domain_struct(input: TokenStream) -> TokenStream {
+    domain_struct::derive_domain_struct_impl(input)
 }

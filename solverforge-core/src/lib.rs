@@ -42,6 +42,7 @@ pub mod analysis;
 mod bridge;
 pub mod constraints;
 pub mod domain;
+pub mod entity_context;
 mod error;
 mod handles;
 pub mod score;
@@ -76,9 +77,9 @@ pub use solver::{
     SolverFactory, SolverManager, SolverService, SolverStats, TerminationConfig, TypedSolver,
     DEFAULT_SERVICE_URL,
 };
-pub use traits::{PlanningEntity, PlanningSolution};
+pub use traits::{DomainStruct, PlanningEntity, PlanningSolution};
 pub use value::Value;
 pub use wasm::{
-    Comparison, Expr, Expression, FieldAccess, FieldAccessExt, FieldLayout, LayoutCalculator,
-    MemoryLayout, PredicateDefinition, WasmMemoryType, WasmModuleBuilder,
+    Expr, Expression, FieldAccessExt, FieldLayout, LayoutCalculator, MemoryLayout,
+    PredicateDefinition, WasmMemoryType, WasmModuleBuilder,
 };

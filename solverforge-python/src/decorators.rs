@@ -214,7 +214,8 @@ fn extract_annotations(
             } else if is_annotation_marker::<PyCascadingUpdateShadowVariable>(py, &marker) {
                 if let Ok(shadow) = marker.cast::<PyCascadingUpdateShadowVariable>() {
                     let shadow_ref = shadow.borrow();
-                    annotations.push(PlanningAnnotation::cascading_update_shadow(
+                    // Use pending version - expression will be set later from analyzed method body
+                    annotations.push(PlanningAnnotation::cascading_update_shadow_pending(
                         shadow_ref.target_method_name.clone(),
                     ));
                 }

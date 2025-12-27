@@ -1,7 +1,7 @@
 use super::PlanningAnnotation;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DomainClass {
     pub name: String,
     #[serde(default)]
@@ -58,7 +58,7 @@ impl DomainClass {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDescriptor {
     pub name: String,
     #[serde(rename = "type")]

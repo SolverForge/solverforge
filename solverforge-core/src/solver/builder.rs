@@ -4,19 +4,7 @@
 //! extracting domain models, constraints, and generating WASM modules from types
 //! that implement the `PlanningSolution` trait.
 //!
-//! # Example
-//!
-//! ```ignore
-//! use solverforge_core::{SolverBuilder, TerminationConfig, PlanningSolution};
-//!
-//! // Given a type implementing PlanningSolution (usually via derive macro)
-//! let solver = SolverBuilder::<Timetable>::new()
-//!     .with_service_url("http://localhost:8080")
-//!     .with_termination(TerminationConfig::new().with_spent_limit("PT5M"))
-//!     .build()?;
-//!
-//! let solution = solver.solve(problem)?;
-//! ```
+//! See the unit tests in this module for usage examples.
 
 use crate::bridge::LanguageBridge;
 use crate::constraints::ConstraintSet;
@@ -27,7 +15,7 @@ use crate::solver::{
     TerminationConfig,
 };
 use crate::traits::PlanningSolution;
-use crate::wasm::WasmModuleBuilder;
+use crate::wasm::{HostFunctionRegistry, WasmModuleBuilder};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -42,14 +30,6 @@ pub const DEFAULT_SERVICE_URL: &str = "http://localhost:8080";
 /// # Type Parameters
 ///
 /// - `S`: The solution type that implements `PlanningSolution`
-///
-/// # Example
-///
-/// ```ignore
-/// let solver = SolverBuilder::<Timetable>::new()
-///     .with_termination(TerminationConfig::new().with_spent_limit("PT5M"))
-///     .build()?;
-/// ```
 pub struct SolverBuilder<S: PlanningSolution> {
     service_url: String,
     termination: Option<TerminationConfig>,
@@ -83,69 +63,30 @@ impl<S: PlanningSolution> SolverBuilder<S> {
     }
 
     /// Sets the URL of the solver service.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let builder = SolverBuilder::<Timetable>::new()
-    ///     .with_service_url("http://solver.example.com:8080");
-    /// ```
     pub fn with_service_url(mut self, url: impl Into<String>) -> Self {
         self.service_url = url.into();
         self
     }
 
     /// Sets the termination configuration.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let builder = SolverBuilder::<Timetable>::new()
-    ///     .with_termination(
-    ///         TerminationConfig::new()
-    ///             .with_spent_limit("PT5M")
-    ///             .with_best_score_feasible(true)
-    ///     );
-    /// ```
     pub fn with_termination(mut self, termination: TerminationConfig) -> Self {
         self.termination = Some(termination);
         self
     }
 
     /// Sets the environment mode for the solver.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let builder = SolverBuilder::<Timetable>::new()
-    ///     .with_environment_mode(EnvironmentMode::Reproducible);
-    /// ```
     pub fn with_environment_mode(mut self, mode: EnvironmentMode) -> Self {
         self.environment_mode = Some(mode);
         self
     }
 
     /// Sets the random seed for reproducible solving.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let builder = SolverBuilder::<Timetable>::new()
-    ///     .with_random_seed(42);
-    /// ```
     pub fn with_random_seed(mut self, seed: u64) -> Self {
         self.random_seed = Some(seed);
         self
     }
 
     /// Sets the move thread count for parallel solving.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let builder = SolverBuilder::<Timetable>::new()
-    ///     .with_move_thread_count(MoveThreadCount::Auto);
-    /// ```
     pub fn with_move_thread_count(mut self, count: MoveThreadCount) -> Self {
         self.move_thread_count = Some(count);
         self
@@ -218,10 +159,21 @@ impl<S: PlanningSolution> SolverBuilder<S> {
     /// - Predicate functions from constraints
     fn generate_wasm_module(&self) -> SolverForgeResult<String> {
         let domain_model = S::domain_model();
+        let constraints = S::constraints();
 
-        WasmModuleBuilder::new()
-            .with_domain_model(domain_model)
-            .build_base64()
+        // Extract predicates from constraints (expressions that need to be compiled to WASM)
+        let predicates = constraints.extract_predicates();
+
+        let mut builder = WasmModuleBuilder::new()
+            .with_host_functions(HostFunctionRegistry::with_standard_functions())
+            .with_domain_model(domain_model);
+
+        // Add all constraint predicates to the WASM module
+        for predicate in predicates {
+            builder = builder.add_predicate(predicate);
+        }
+
+        builder.build_base64()
     }
 
     /// Builds a `TypedSolver` that can solve instances of the solution type.
@@ -229,14 +181,6 @@ impl<S: PlanningSolution> SolverBuilder<S> {
     /// # Errors
     ///
     /// Returns an error if WASM module generation fails.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let solver = SolverBuilder::<Timetable>::new()
-    ///     .with_termination(TerminationConfig::new().with_spent_limit("PT5M"))
-    ///     .build()?;
-    /// ```
     pub fn build<B: LanguageBridge>(self) -> SolverForgeResult<TypedSolver<S, B>> {
         let config = self.build_config();
         let domain_model = S::domain_model();
@@ -326,20 +270,6 @@ impl<S: PlanningSolution, B: LanguageBridge> TypedSolver<S, B> {
     ///
     /// The solved solution with planning variables assigned, or an error
     /// if solving fails.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let problem = Timetable {
-    ///     timeslots: vec![...],
-    ///     rooms: vec![...],
-    ///     lessons: vec![...],
-    ///     score: None,
-    /// };
-    ///
-    /// let solution = solver.solve(problem)?;
-    /// println!("Score: {:?}", solution.score());
-    /// ```
     pub fn solve(&self, problem: S) -> SolverForgeResult<S> {
         // Serialize the problem to JSON
         let problem_json = problem.to_json()?;

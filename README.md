@@ -251,7 +251,7 @@ Available shadow types:
 
 ## Python Bindings
 
-Python bindings with Timefold-compatible API:
+Python bindings with Timefold-compatible API (requires Python 3.13+):
 
 ```bash
 pip install solverforge

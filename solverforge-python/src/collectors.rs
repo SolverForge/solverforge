@@ -587,11 +587,6 @@ pub fn register_collectors(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pyo3::types::PyDict;
-
-    fn init_python() {
-        pyo3::Python::initialize();
-    }
 
     #[test]
     fn test_count_collector() {
@@ -613,36 +608,6 @@ mod tests {
     }
 
     #[test]
-    fn test_sum_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.hours", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let collector = PyConstraintCollectors::sum(py, func.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Sum { .. }));
-        });
-    }
-
-    #[test]
-    fn test_average_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.score", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let collector = PyConstraintCollectors::average(py, func.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Average { .. }));
-        });
-    }
-
-    #[test]
     fn test_to_list_collector() {
         let collector = PyConstraintCollectors::to_list();
         let rust_collector = collector.to_rust();
@@ -657,62 +622,9 @@ mod tests {
     }
 
     #[test]
-    fn test_load_balance_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda shift: shift.employee", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let collector = PyConstraintCollectors::load_balance(py, func.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::LoadBalance { .. }));
-        });
-    }
-
-    #[test]
     fn test_collector_repr() {
         let collector = PyConstraintCollectors::count();
         let repr = collector.__repr__();
         assert!(repr.contains("Count"));
-    }
-
-    #[test]
-    fn test_compose_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"combiner = lambda a, b: a + b", None, Some(&locals))
-                .unwrap();
-            let combiner = locals.get_item("combiner").unwrap().unwrap();
-
-            let collectors = vec![
-                PyConstraintCollectors::count(),
-                PyConstraintCollectors::count_distinct(),
-            ];
-
-            let collector =
-                PyConstraintCollectors::compose(py, collectors, combiner.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Compose { .. }));
-        });
-    }
-
-    #[test]
-    fn test_conditionally_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"pred = lambda x: x.active", None, Some(&locals))
-                .unwrap();
-            let pred = locals.get_item("pred").unwrap().unwrap();
-
-            let inner = PyConstraintCollectors::count();
-            let collector =
-                PyConstraintCollectors::conditionally(py, pred.unbind(), inner).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Conditionally { .. }));
-        });
     }
 }

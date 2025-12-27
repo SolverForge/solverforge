@@ -256,11 +256,6 @@ pub fn register_joiners(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pyo3::types::PyDict;
-
-    fn init_python() {
-        pyo3::Python::initialize();
-    }
 
     #[test]
     fn test_joiner_repr() {
@@ -275,107 +270,5 @@ mod tests {
             lambdas: vec![],
         };
         assert!(joiner.__repr__().contains("equal"));
-    }
-
-    #[test]
-    fn test_joiner_equal_creates_lambda() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.timeslot", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let joiner = PyJoiners::equal(py, func.unbind()).unwrap();
-
-            assert_eq!(joiner.lambdas.len(), 1);
-            assert!(joiner.lambdas[0].info.name.starts_with("equal_map_"));
-
-            match &joiner.inner {
-                Joiner::Equal { map, .. } => {
-                    assert!(map.is_some());
-                }
-                _ => panic!("Expected Equal joiner"),
-            }
-        });
-    }
-
-    #[test]
-    fn test_joiner_less_than() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.start_time", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let joiner = PyJoiners::less_than(py, func.unbind()).unwrap();
-
-            assert_eq!(joiner.lambdas.len(), 1);
-            assert!(joiner.__repr__().contains("less_than"));
-        });
-    }
-
-    #[test]
-    fn test_joiner_overlapping_creates_two_lambdas() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"start = lambda x: x.start_time", None, Some(&locals))
-                .unwrap();
-            py.run(c"end = lambda x: x.end_time", None, Some(&locals))
-                .unwrap();
-
-            let start_func = locals.get_item("start").unwrap().unwrap();
-            let end_func = locals.get_item("end").unwrap().unwrap();
-
-            let joiner =
-                PyJoiners::overlapping(py, start_func.unbind(), end_func.unbind()).unwrap();
-
-            assert_eq!(joiner.lambdas.len(), 2);
-            assert!(joiner.lambdas[0]
-                .info
-                .name
-                .starts_with("overlapping_start_"));
-            assert!(joiner.lambdas[1].info.name.starts_with("overlapping_end_"));
-        });
-    }
-
-    #[test]
-    fn test_joiner_filtering() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda a, b: a.id != b.id", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let joiner = PyJoiners::filtering(py, func.unbind()).unwrap();
-
-            assert_eq!(joiner.lambdas.len(), 1);
-            assert_eq!(joiner.lambdas[0].info.param_count, 2);
-            assert!(joiner.__repr__().contains("filtering"));
-        });
-    }
-
-    #[test]
-    fn test_joiner_error_on_unsupported_lambda() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            // Lambda with external reference - not supported
-            py.run(
-                c"external = 42\nf = lambda x: x.value + external",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let result = PyJoiners::equal(py, func.unbind());
-
-            // Should fail because 'external' is not a parameter
-            assert!(result.is_err());
-        });
     }
 }

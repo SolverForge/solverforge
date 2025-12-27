@@ -3,39 +3,37 @@
 //! These traits define the interface for planning entities and solutions
 //! that can be solved by the constraint solver. They are typically implemented
 //! via derive macros from the `solverforge-derive` crate.
-//!
-//! # Example
-//!
-//! ```ignore
-//! use solverforge_derive::{PlanningEntity, PlanningSolution};
-//! use solverforge_core::{PlanningEntity, PlanningSolution, HardSoftScore};
-//!
-//! #[derive(PlanningEntity)]
-//! struct Lesson {
-//!     #[planning_id]
-//!     id: String,
-//!     #[planning_variable(value_range_provider = "rooms")]
-//!     room: Option<Room>,
-//! }
-//!
-//! #[derive(PlanningSolution)]
-//! #[constraint_provider = "define_constraints"]
-//! struct Timetable {
-//!     #[problem_fact_collection]
-//!     #[value_range_provider(id = "rooms")]
-//!     rooms: Vec<Room>,
-//!     #[planning_entity_collection]
-//!     lessons: Vec<Lesson>,
-//!     #[planning_score]
-//!     score: Option<HardSoftScore>,
-//! }
-//! ```
 
 use crate::constraints::ConstraintSet;
 use crate::domain::{DomainClass, DomainModel};
 use crate::score::Score;
 use crate::value::Value;
 use crate::SolverForgeResult;
+
+/// Trait for structs that can be represented in the domain model.
+///
+/// This trait is used for nested structs (like `Location`) that are not
+/// planning entities but need their fields accessible in WASM memory for
+/// constraint evaluation and shadow variable computation.
+///
+/// # Derive Macro
+///
+/// This trait is typically implemented via `#[derive(DomainStruct)]`:
+///
+/// ```ignore
+/// #[derive(DomainStruct, Clone)]
+/// struct Location {
+///     latitude: f64,
+///     longitude: f64,
+/// }
+/// ```
+///
+/// When a `PlanningSolution` references types that implement `DomainStruct`,
+/// those classes are automatically included in the domain model.
+pub trait DomainStruct: Send + Sync {
+    /// Returns the domain class descriptor for this struct.
+    fn domain_class() -> DomainClass;
+}
 
 /// Marker trait for types that can be used as planning entities.
 ///

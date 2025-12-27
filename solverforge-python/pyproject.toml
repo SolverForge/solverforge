@@ -8,15 +8,13 @@ version = "0.2.6"
 description = "Python bindings for SolverForge constraint solver"
 readme = "README.md"
 license = { text = "Apache-2.0" }
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
@@ -32,6 +30,6 @@ Repository = "https://github.com/solverforge/solverforge"
 Changelog = "https://github.com/solverforge/solverforge/blob/main/CHANGELOG.md"
 
 [tool.maturin]
-features = ["pyo3/extension-module", "pyo3/abi3-py310"]
+features = ["pyo3/extension-module", "pyo3/abi3-py313"]
 python-source = "python"
 module-name = "solverforge._solverforge"

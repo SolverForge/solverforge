@@ -6,7 +6,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
 //! use solverforge_core::wasm::{Expr, FieldAccessExt};
 //! use solverforge_core::constraints::{NamedExpression, StreamComponent};
 //!
@@ -45,9 +45,12 @@ impl NamedExpression {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use solverforge_core::wasm::Expr;
+    /// use solverforge_core::constraints::NamedExpression;
+    ///
     /// let expr = NamedExpression::new(Expr::is_not_null(Expr::param(0)));
-    /// // Name will be something like "expr_0", "expr_1", etc.
+    /// assert!(expr.name().starts_with("expr_"));
     /// ```
     pub fn new(expression: Expression) -> Self {
         let counter = EXPR_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -64,11 +67,15 @@ impl NamedExpression {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
+    /// use solverforge_core::wasm::{Expr, FieldAccessExt};
+    /// use solverforge_core::constraints::NamedExpression;
+    ///
     /// let has_room = NamedExpression::with_name(
     ///     "lesson_has_room",
     ///     Expr::is_not_null(Expr::param(0).get("Lesson", "room"))
     /// );
+    /// assert_eq!(has_room.name(), "lesson_has_room");
     /// ```
     pub fn with_name(name: impl Into<String>, expression: Expression) -> Self {
         Self {
@@ -100,13 +107,13 @@ impl NamedExpression {
 
 impl From<NamedExpression> for WasmFunction {
     fn from(named: NamedExpression) -> WasmFunction {
-        WasmFunction::new(named.name)
+        WasmFunction::with_expression(named.name, named.expression)
     }
 }
 
 impl From<&NamedExpression> for WasmFunction {
     fn from(named: &NamedExpression) -> WasmFunction {
-        WasmFunction::new(&named.name)
+        WasmFunction::with_expression(&named.name, named.expression.clone())
     }
 }
 

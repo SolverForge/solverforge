@@ -406,13 +406,14 @@ impl StreamComponent {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```
     /// use solverforge_core::wasm::{Expr, FieldAccessExt};
     /// use solverforge_core::constraints::{StreamComponent, IntoNamedExpression};
     ///
     /// let has_room = Expr::is_not_null(Expr::param(0).get("Lesson", "room"))
     ///     .named_as("has_room");
     /// let filter = StreamComponent::filter_expr(has_room);
+    /// assert!(matches!(filter, StreamComponent::Filter { .. }));
     /// ```
     pub fn filter_expr(expr: NamedExpression) -> Self {
         StreamComponent::Filter {

@@ -38,9 +38,9 @@ pub use solverforge_service::*;
 /// Commonly used types for constraint solving
 pub mod prelude {
     pub use solverforge_core::{
-        HardSoftScore, PlanningEntity, PlanningSolution, Score, SimpleScore, SolveRequest,
-        SolveResponse, Solver, SolverBuilder, SolverFactory, SolverForgeError, SolverForgeResult,
-        Value,
+        DomainStruct, HardSoftScore, PlanningEntity, PlanningSolution, Score, SimpleScore,
+        SolveRequest, SolveResponse, Solver, SolverBuilder, SolverFactory, SolverForgeError,
+        SolverForgeResult, Value,
     };
-    pub use solverforge_derive::{PlanningEntity, PlanningSolution};
+    pub use solverforge_derive::{DomainStruct, PlanningEntity, PlanningSolution};
 }

@@ -13,7 +13,7 @@ use crate::solver::{
     TerminationConfig,
 };
 use crate::traits::PlanningSolution;
-use crate::wasm::WasmModuleBuilder;
+use crate::wasm::{Expression, HostFunctionRegistry, WasmModuleBuilder};
 
 /// Manages multiple concurrent solves for planning problems.
 ///
@@ -41,6 +41,8 @@ pub struct SolverManager<S: PlanningSolution, ProblemId: Eq + Hash + Clone> {
     active_solves: HashMap<ProblemId, ManagedSolve<S>>,
     service: Arc<dyn SolverService>,
     config: SolverConfig,
+    /// Cascading update expressions: (class_name, field_name, expression)
+    cascading_expressions: Vec<(String, String, Expression)>,
 }
 
 struct ManagedSolve<S: PlanningSolution> {
@@ -59,6 +61,7 @@ where
             active_solves: HashMap::new(),
             service,
             config: SolverConfig::default(),
+            cascading_expressions: Vec::new(),
         }
     }
 
@@ -74,6 +77,26 @@ where
         self
     }
 
+    /// Registers a cascading update expression for a shadow variable.
+    ///
+    /// This expression will be compiled to WASM and called by the solver
+    /// when the shadow variable needs to be recomputed.
+    ///
+    /// # Arguments
+    /// * `class_name` - The entity class name (e.g., "Visit")
+    /// * `field_name` - The field with the cascading update shadow variable
+    /// * `expression` - The expression to compute the shadow value
+    pub fn with_cascading_expression(
+        mut self,
+        class_name: impl Into<String>,
+        field_name: impl Into<String>,
+        expression: Expression,
+    ) -> Self {
+        self.cascading_expressions
+            .push((class_name.into(), field_name.into(), expression));
+        self
+    }
+
     /// Starts solving a problem with the given ID.
     ///
     /// Returns an error if a solve with this ID is already in progress.
@@ -85,13 +108,28 @@ where
         }
 
         // Build request using the same logic as TypedSolver
-        let domain_model = S::domain_model();
+        let mut domain_model = S::domain_model();
         let constraints = S::constraints();
 
-        // Build WASM module
-        let wasm_base64 = WasmModuleBuilder::new()
-            .with_domain_model(domain_model.clone())
-            .build_base64()?;
+        // Apply registered cascading update expressions to the domain model
+        for (class_name, field_name, expression) in &self.cascading_expressions {
+            domain_model.set_cascading_expression(class_name, field_name, expression.clone())?;
+        }
+
+        // Extract predicates from constraints (expressions that need to be compiled to WASM)
+        let predicates = constraints.extract_predicates();
+
+        // Build WASM module (with standard host functions for list operations)
+        let mut builder = WasmModuleBuilder::new()
+            .with_host_functions(HostFunctionRegistry::with_standard_functions())
+            .with_domain_model(domain_model.clone());
+
+        // Add all constraint predicates to the WASM module
+        for predicate in predicates {
+            builder = builder.add_predicate(predicate);
+        }
+
+        let wasm_base64 = builder.build_base64()?;
 
         // Build the solve request (same as TypedSolver::solve)
         let domain_dto = domain_model.to_dto();

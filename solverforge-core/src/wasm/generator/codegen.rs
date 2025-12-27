@@ -150,6 +150,17 @@ pub(super) fn generate_setter(offset: u32, wasm_type: WasmMemoryType) -> Functio
     func
 }
 
+/// Generate a stub for cascading update shadow variable.
+/// Takes entity pointer (i32), returns computed value (i64).
+/// For now, returns 0 (null) - actual implementation requires shadow variable access.
+pub(super) fn generate_cascading_update_stub() -> Function {
+    let mut func = Function::new([]);
+    // Return 0 (interpreted as null for datetime/i64 values)
+    func.instruction(&Instruction::I64Const(0));
+    func.instruction(&Instruction::End);
+    func
+}
+
 /// Describes a generated function to be added to the module.
 pub(super) struct GeneratedFunction {
     pub name: String,

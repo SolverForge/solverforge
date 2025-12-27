@@ -42,6 +42,7 @@ pub mod analysis;
 mod bridge;
 pub mod constraints;
 pub mod domain;
+pub mod entity_context;
 mod error;
 mod handles;
 pub mod score;

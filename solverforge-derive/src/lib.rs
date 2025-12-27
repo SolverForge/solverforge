@@ -79,7 +79,8 @@ mod solution;
         index_shadow,
         next_element_shadow,
         previous_element_shadow,
-        anchor_shadow
+        anchor_shadow,
+        cascading_update_shadow
     )
 )]
 pub fn derive_planning_entity(input: TokenStream) -> TokenStream {

@@ -267,6 +267,33 @@ impl WasmModuleBuilder {
             }
         }
 
+        // Generate cascading update shadow variable functions
+        // These are called by Java when a shadow variable needs recalculation
+        for class in model.classes.values() {
+            for field in &class.fields {
+                for annotation in &field.annotations {
+                    if let crate::domain::PlanningAnnotation::CascadingUpdateShadowVariable {
+                        target_method_name,
+                    } = annotation
+                    {
+                        let func_name = format!("{}_{}", class.name, target_method_name);
+                        // Function takes entity pointer (i32) and returns the computed value (i64)
+                        // For now, return 0 (null) as a stub - actual implementation requires
+                        // access to shadow variables and pre-computed data
+                        let cascade_type_idx = self.add_function_type(
+                            &mut type_section,
+                            vec![ValType::I32],
+                            vec![ValType::I64],
+                        );
+                        function_section.function(cascade_type_idx);
+                        code_section.function(&codegen::generate_cascading_update_stub());
+                        export_section.export(&func_name, ExportKind::Func, func_idx);
+                        func_idx += 1;
+                    }
+                }
+            }
+        }
+
         // Generate predicate functions
         let predicates: Vec<_> = self
             .predicates

@@ -87,9 +87,8 @@ impl DomainModel {
                     // - PlanningListVariable: solver modifies lists
                     // - ProblemFactCollectionProperty: solution class collections
                     // - PlanningEntityCollectionProperty: solution class entity collections
-                    // - Shadow variables (InverseRelation, PreviousElement, NextElement):
-                    //   Need setters to sync Java-side updates to WASM memory so
-                    //   cascading update expressions can read current values
+                    // - ALL shadow variables: Need setters to sync Java-side updates to WASM
+                    //   memory so constraint evaluation reads current values
                     let setter = if field.annotations.iter().any(|a| {
                         matches!(
                             a,
@@ -100,6 +99,7 @@ impl DomainModel {
                                 | PlanningAnnotation::InverseRelationShadowVariable { .. }
                                 | PlanningAnnotation::PreviousElementShadowVariable { .. }
                                 | PlanningAnnotation::NextElementShadowVariable { .. }
+                                | PlanningAnnotation::CascadingUpdateShadowVariable { .. }
                         )
                     }) {
                         Some(format!("set_{}_{}", name, field.name))

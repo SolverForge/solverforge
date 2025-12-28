@@ -1,6 +1,43 @@
 use crate::constraints::{Collector, Joiner, NamedExpression, WasmFunction};
 use serde::{Deserialize, Serialize};
 
+/// A component in a constraint stream pipeline.
+///
+/// Constraint streams transform entity streams through filtering, joining,
+/// grouping, and finally scoring. Components chain together to form constraints.
+///
+/// # Pipeline Structure
+///
+/// A typical constraint pipeline:
+/// 1. **Source**: `for_each("Lesson")` - iterate over entities
+/// 2. **Filter**: `filter(predicate)` - exclude non-matching entities
+/// 3. **Join**: `join("Timeslot")` - combine with another entity type
+/// 4. **Score**: `penalize("1hard")` or `reward("1soft")` - apply scoring
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::constraints::StreamComponent;
+///
+/// // Simple penalty: penalize each lesson by 1 hard point
+/// let stream = vec![
+///     StreamComponent::for_each("Lesson"),
+///     StreamComponent::penalize("1hard"),
+/// ];
+///
+/// // Unique pair constraint: penalize conflicting lessons
+/// let conflict = vec![
+///     StreamComponent::for_each_unique_pair("Lesson"),
+///     StreamComponent::penalize("1hard"),
+/// ];
+/// ```
+///
+/// # Score Weights
+///
+/// Weights specify the penalty/reward magnitude:
+/// - `"1hard"` - 1 hard constraint violation
+/// - `"10soft"` - 10 soft constraint points
+/// - `"1hard/5soft"` - both hard and soft impact
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum StreamComponent {
@@ -137,6 +174,16 @@ pub enum StreamComponent {
 }
 
 impl StreamComponent {
+    /// Iterates over all entities of the given class.
+    ///
+    /// This is the most common way to start a constraint stream.
+    /// Only considers entities with assigned planning variables.
+    ///
+    /// ```
+    /// use solverforge_core::constraints::StreamComponent;
+    ///
+    /// let source = StreamComponent::for_each("Lesson");
+    /// ```
     pub fn for_each(class_name: impl Into<String>) -> Self {
         StreamComponent::ForEach {
             class_name: class_name.into(),
@@ -149,6 +196,17 @@ impl StreamComponent {
         }
     }
 
+    /// Iterates over all unique pairs of entities of the given class.
+    ///
+    /// Use this for constraints that compare two entities of the same type,
+    /// like detecting room conflicts between lessons.
+    ///
+    /// ```
+    /// use solverforge_core::constraints::StreamComponent;
+    ///
+    /// // Pairs: (A,B), (A,C), (B,C) - no duplicates like (B,A)
+    /// let pairs = StreamComponent::for_each_unique_pair("Lesson");
+    /// ```
     pub fn for_each_unique_pair(class_name: impl Into<String>) -> Self {
         StreamComponent::ForEachUniquePair {
             class_name: class_name.into(),
@@ -326,6 +384,19 @@ impl StreamComponent {
         }
     }
 
+    /// Penalizes matching entities by a fixed weight.
+    ///
+    /// The weight reduces the solution score. Higher penalties are worse.
+    ///
+    /// ```
+    /// use solverforge_core::constraints::StreamComponent;
+    ///
+    /// // Hard constraint: 1 point per violation
+    /// let hard = StreamComponent::penalize("1hard");
+    ///
+    /// // Soft constraint: 100 points per violation
+    /// let soft = StreamComponent::penalize("100soft");
+    /// ```
     pub fn penalize(weight: impl Into<String>) -> Self {
         StreamComponent::Penalize {
             weight: weight.into(),
@@ -340,6 +411,16 @@ impl StreamComponent {
         }
     }
 
+    /// Rewards matching entities by a fixed weight.
+    ///
+    /// The weight increases the solution score. Higher rewards are better.
+    ///
+    /// ```
+    /// use solverforge_core::constraints::StreamComponent;
+    ///
+    /// // Reward preferred assignments
+    /// let bonus = StreamComponent::reward("10soft");
+    /// ```
     pub fn reward(weight: impl Into<String>) -> Self {
         StreamComponent::Reward {
             weight: weight.into(),

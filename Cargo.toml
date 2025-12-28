@@ -1,5 +1,5 @@
 [workspace]
-members = ["solverforge", "solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-service"]
+members = ["solverforge", "solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-service", "test-support"]
 resolver = "2"
 
 [workspace.package]

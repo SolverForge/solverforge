@@ -5,6 +5,34 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
+/// A score with hard and soft components.
+///
+/// Hard constraints must be satisfied (hard_score >= 0 for feasibility).
+/// Soft constraints are optimization goals.
+///
+/// # Comparison
+///
+/// Scores are compared lexicographically: hard score dominates soft.
+/// A score with `hard=-1` is always worse than `hard=0`, regardless of soft.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::HardSoftScore;
+/// use solverforge_core::score::Score; // for is_feasible()
+///
+/// let score = HardSoftScore::of(-2, -150);
+/// assert_eq!(score.hard_score, -2);
+/// assert_eq!(score.soft_score, -150);
+///
+/// // Parse from string
+/// let parsed = HardSoftScore::parse("-2hard/-150soft").unwrap();
+/// assert_eq!(score, parsed);
+///
+/// // Feasibility check
+/// assert!(!score.is_feasible()); // hard < 0
+/// assert!(HardSoftScore::of(0, -500).is_feasible()); // hard >= 0
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct HardSoftScore {
     pub hard_score: i64,
@@ -428,6 +456,55 @@ mod tests {
             let json = serde_json::to_string(&score).unwrap();
             let parsed: HardSoftScore = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed, score);
+        }
+    }
+
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        // Use bounded range to avoid overflow in arithmetic tests
+        const SCORE_RANGE: std::ops::Range<i64> = -1_000_000..1_000_000;
+
+        proptest! {
+            /// Parsing the Display output should return the original score.
+            #[test]
+            fn parse_display_roundtrip(h in any::<i64>(), s in any::<i64>()) {
+                let score = HardSoftScore::of(h, s);
+                let displayed = score.to_string();
+                let parsed = HardSoftScore::parse(&displayed).unwrap();
+                prop_assert_eq!(score, parsed);
+            }
+
+            /// Addition is commutative (bounded to avoid overflow).
+            #[test]
+            fn addition_commutative(h1 in SCORE_RANGE, s1 in SCORE_RANGE,
+                                    h2 in SCORE_RANGE, s2 in SCORE_RANGE) {
+                let a = HardSoftScore::of(h1, s1);
+                let b = HardSoftScore::of(h2, s2);
+                prop_assert_eq!(a + b, b + a);
+            }
+
+            /// Double negation is identity.
+            #[test]
+            fn double_negation_identity(h in any::<i64>(), s in any::<i64>()) {
+                let score = HardSoftScore::of(h, s);
+                prop_assert_eq!(score, -(-score));
+            }
+
+            /// Zero is additive identity.
+            #[test]
+            fn zero_additive_identity(h in any::<i64>(), s in any::<i64>()) {
+                let score = HardSoftScore::of(h, s);
+                prop_assert_eq!(score + HardSoftScore::ZERO, score);
+            }
+
+            /// Feasibility depends only on hard score being non-negative.
+            #[test]
+            fn feasibility_depends_on_hard(h in any::<i64>(), s in any::<i64>()) {
+                let score = HardSoftScore::of(h, s);
+                prop_assert_eq!(score.is_feasible(), h >= 0);
+            }
         }
     }
 

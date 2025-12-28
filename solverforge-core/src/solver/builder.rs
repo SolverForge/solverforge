@@ -4,7 +4,44 @@
 //! extracting domain models, constraints, and generating WASM modules from types
 //! that implement the `PlanningSolution` trait.
 //!
-//! See the unit tests in this module for usage examples.
+//! # Example
+//!
+//! ```ignore
+//! use solverforge::prelude::*;
+//!
+//! // Define your solution type with derive macros
+//! #[derive(PlanningSolution, Clone)]
+//! struct Timetable {
+//!     #[planning_entity_collection]
+//!     lessons: Vec<Lesson>,
+//!     #[planning_score]
+//!     score: HardSoftScore,
+//! }
+//!
+//! // Build and configure the solver
+//! let solver = SolverBuilder::<Timetable>::new()
+//!     .with_termination(TerminationConfig::new().with_spent_limit("PT30S"))
+//!     .with_environment_mode(EnvironmentMode::Reproducible)
+//!     .build::<NoBridge>()?;
+//!
+//! // Solve
+//! let solution = solver.solve(problem)?;
+//! ```
+//!
+//! # Termination
+//!
+//! Configure when solving stops using [`TerminationConfig`]:
+//!
+//! - Time limit: `with_spent_limit("PT5M")` - stop after 5 minutes
+//! - Unimproved time: `with_unimproved_spent_limit("PT30S")` - stop if no improvement for 30s
+//! - Feasibility: `with_best_score_feasible(true)` - stop when a feasible solution is found
+//! - Move count: `with_move_count_limit(100000)` - stop after 100k moves
+//!
+//! # Environment Modes
+//!
+//! - `EnvironmentMode::Reproducible` - deterministic solving (default for testing)
+//! - `EnvironmentMode::FastAssert` - assertions enabled, random solving
+//! - `EnvironmentMode::FullAssert` - all assertions, slowest but catches bugs
 
 use crate::bridge::LanguageBridge;
 use crate::constraints::ConstraintSet;

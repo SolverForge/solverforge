@@ -308,7 +308,7 @@ fn test_planning_variable_value_range_provider() {
     let class = SimpleLesson::domain_class();
     let room_field = class.fields.iter().find(|f| f.name == "room").unwrap();
 
-    let has_variable_annotation = room_field.planning_annotations.iter().any(|ann| {
+    let has_variable_annotation = room_field.annotations.iter().any(|ann| {
         matches!(
             ann,
             PlanningAnnotation::PlanningVariable {
@@ -325,7 +325,7 @@ fn test_planning_variable_allows_unassigned_false() {
     let class = ComplexLesson::domain_class();
     let timeslot_field = class.fields.iter().find(|f| f.name == "timeslot").unwrap();
 
-    let allows_unassigned = timeslot_field.planning_annotations.iter().any(|ann| {
+    let allows_unassigned = timeslot_field.annotations.iter().any(|ann| {
         matches!(
             ann,
             PlanningAnnotation::PlanningVariable {
@@ -342,7 +342,7 @@ fn test_planning_variable_allows_unassigned_true() {
     let class = ComplexLesson::domain_class();
     let room_field = class.fields.iter().find(|f| f.name == "room").unwrap();
 
-    let allows_unassigned = room_field.planning_annotations.iter().any(|ann| {
+    let allows_unassigned = room_field.annotations.iter().any(|ann| {
         matches!(
             ann,
             PlanningAnnotation::PlanningVariable {

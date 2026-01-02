@@ -459,7 +459,7 @@ fn test_employee_schedule_domain_model() {
         .get_planning_variables()
         .find(|f| f.name == "employee")
         .unwrap();
-    let allows_unassigned = employee_var.planning_annotations.iter().any(|ann| {
+    let allows_unassigned = employee_var.annotations.iter().any(|ann| {
         matches!(
             ann,
             PlanningAnnotation::PlanningVariable {
@@ -637,7 +637,7 @@ fn test_value_range_providers() {
         .iter()
         .find(|f| f.name == "timeslots")
         .unwrap();
-    let has_vrp = timeslots_field.planning_annotations.iter().any(|ann| {
+    let has_vrp = timeslots_field.annotations.iter().any(|ann| {
         matches!(
             ann,
             PlanningAnnotation::ValueRangeProvider { id: Some(ref vrp_id), .. } if vrp_id == "timeslots"
@@ -647,7 +647,7 @@ fn test_value_range_providers() {
 
     // Check rooms field has value range provider
     let rooms_field = solution.fields.iter().find(|f| f.name == "rooms").unwrap();
-    let has_vrp = rooms_field.planning_annotations.iter().any(|ann| {
+    let has_vrp = rooms_field.annotations.iter().any(|ann| {
         matches!(
             ann,
             PlanningAnnotation::ValueRangeProvider { id: Some(ref vrp_id), .. } if vrp_id == "rooms"
@@ -665,7 +665,7 @@ fn test_problem_fact_collections() {
         .fields
         .iter()
         .filter(|f| {
-            f.planning_annotations
+            f.annotations
                 .iter()
                 .any(|ann| matches!(ann, PlanningAnnotation::ProblemFactCollectionProperty))
         })
@@ -683,7 +683,7 @@ fn test_planning_entity_collections() {
         .fields
         .iter()
         .filter(|f| {
-            f.planning_annotations
+            f.annotations
                 .iter()
                 .any(|ann| matches!(ann, PlanningAnnotation::PlanningEntityCollectionProperty))
         })
@@ -700,7 +700,7 @@ fn test_score_field_configuration() {
 
     let score_field = solution.fields.iter().find(|f| f.name == "score").unwrap();
     let has_planning_score = score_field
-        .planning_annotations
+        .annotations
         .iter()
         .any(|ann| matches!(ann, PlanningAnnotation::PlanningScore { .. }));
     assert!(has_planning_score);

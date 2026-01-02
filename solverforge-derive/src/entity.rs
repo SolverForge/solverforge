@@ -11,6 +11,8 @@ struct FieldInfo {
     ty: Type,
     is_planning_id: bool,
     planning_variable: Option<PlanningVariableInfo>,
+    list_variable: Option<ListVariableInfo>,
+    shadow_variable: Option<ShadowVariableInfo>,
 }
 
 /// Information about a planning variable attribute.
@@ -19,11 +21,51 @@ struct PlanningVariableInfo {
     allows_unassigned: bool,
 }
 
+/// Information about a planning list variable attribute.
+struct ListVariableInfo {
+    value_range_provider_refs: Vec<String>,
+    allows_unassigned_values: bool,
+    /// The element type for the list (e.g., "Visit"). REQUIRED.
+    element_type: String,
+}
+
+/// Information about a shadow variable attribute.
+#[allow(dead_code)]
+enum ShadowVariableInfo {
+    InverseRelation {
+        source: String,
+        entity_type: String,
+    },
+    Index {
+        source: String,
+    },
+    NextElement {
+        source: String,
+        entity_type: String,
+    },
+    PreviousElement {
+        source: String,
+        entity_type: String,
+    },
+    Anchor {
+        source: String,
+        entity_type: String,
+    },
+    CascadingUpdate {
+        target_method_name: String,
+        source_variable_name: Option<String>,
+    },
+}
+
 /// Implementation of the `#[derive(PlanningEntity)]` macro.
 pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let name_str = name.to_string();
+
+    // Parse struct-level attributes
+    let difficulty_comparator = parse_string_attr(&input.attrs, "difficulty_comparator");
+    let strength_comparator = parse_string_attr(&input.attrs, "strength_comparator");
 
     // Extract fields from struct
     let fields = match &input.data {
@@ -58,6 +100,8 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
 
         let is_planning_id = has_attribute(&field.attrs, "planning_id");
         let planning_variable = parse_planning_variable_attr(&field.attrs);
+        let list_variable = parse_planning_list_variable_attr(&field.attrs);
+        let shadow_variable = parse_shadow_variable_attr(&field.attrs);
 
         if is_planning_id {
             if planning_id_field.is_some() {
@@ -76,6 +120,8 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
             ty: field_ty.clone(),
             is_planning_id,
             planning_variable,
+            list_variable,
+            shadow_variable,
         });
     }
 
@@ -93,7 +139,12 @@ pub fn derive_planning_entity_impl(input: TokenStream) -> TokenStream {
     };
 
     // Generate domain_class() implementation
-    let domain_class_impl = generate_domain_class(&name_str, &field_infos);
+    let domain_class_impl = generate_domain_class(
+        &name_str,
+        &field_infos,
+        difficulty_comparator,
+        strength_comparator,
+    );
 
     // Generate planning_id() implementation
     let planning_id_impl = generate_planning_id(planning_id_field, &field_infos);
@@ -160,19 +211,181 @@ fn parse_planning_variable_attr(attrs: &[Attribute]) -> Option<PlanningVariableI
     None
 }
 
+/// Parse the #[planning_list_variable(...)] attribute using syn 2.x API.
+fn parse_planning_list_variable_attr(attrs: &[Attribute]) -> Option<ListVariableInfo> {
+    for attr in attrs {
+        if attr.path().is_ident("planning_list_variable") {
+            let mut value_range_provider_refs = Vec::new();
+            let mut allows_unassigned_values = false;
+            let mut element_type = String::new();
+
+            // Parse nested meta using syn 2.x API
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("value_range_provider") {
+                    let value: LitStr = meta.value()?.parse()?;
+                    value_range_provider_refs.push(value.value());
+                } else if meta.path.is_ident("allows_unassigned_values") {
+                    let value: LitBool = meta.value()?.parse()?;
+                    allows_unassigned_values = value.value();
+                } else if meta.path.is_ident("element_type") {
+                    let value: LitStr = meta.value()?.parse()?;
+                    element_type = value.value();
+                }
+                Ok(())
+            });
+
+            if element_type.is_empty() {
+                panic!("planning_list_variable requires element_type parameter, e.g., #[planning_list_variable(value_range_provider = \"visits\", element_type = \"Visit\")]");
+            }
+
+            return Some(ListVariableInfo {
+                value_range_provider_refs,
+                allows_unassigned_values,
+                element_type,
+            });
+        }
+    }
+    None
+}
+
+/// Parse shadow variable attributes from a field.
+/// Supports: inverse_relation_shadow, index_shadow, next_element_shadow,
+/// previous_element_shadow, anchor_shadow
+fn parse_shadow_variable_attr(attrs: &[Attribute]) -> Option<ShadowVariableInfo> {
+    for attr in attrs {
+        // Check each shadow variable attribute type
+        if attr.path().is_ident("inverse_relation_shadow") {
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::InverseRelation {
+                    source,
+                    entity_type,
+                });
+            }
+        } else if attr.path().is_ident("index_shadow") {
+            if let Some((source, _)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::Index { source });
+            }
+        } else if attr.path().is_ident("next_element_shadow") {
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::NextElement {
+                    source,
+                    entity_type,
+                });
+            }
+        } else if attr.path().is_ident("previous_element_shadow") {
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::PreviousElement {
+                    source,
+                    entity_type,
+                });
+            }
+        } else if attr.path().is_ident("anchor_shadow") {
+            if let Some((source, entity_type)) = parse_shadow_attr(attr) {
+                return Some(ShadowVariableInfo::Anchor {
+                    source,
+                    entity_type,
+                });
+            }
+        } else if attr.path().is_ident("cascading_update_shadow") {
+            let mut target_method = None;
+            let mut source_var = None;
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("target_method") {
+                    let value: LitStr = meta.value()?.parse()?;
+                    target_method = Some(value.value());
+                } else if meta.path.is_ident("source") {
+                    let value: LitStr = meta.value()?.parse()?;
+                    source_var = Some(value.value());
+                }
+                Ok(())
+            });
+            if let Some(method) = target_method {
+                return Some(ShadowVariableInfo::CascadingUpdate {
+                    target_method_name: method,
+                    source_variable_name: source_var,
+                });
+            }
+        }
+    }
+    None
+}
+
+/// Parse the source = "..." and entity = "..." from a shadow variable attribute.
+fn parse_shadow_attr(attr: &Attribute) -> Option<(String, String)> {
+    let mut source = None;
+    let mut entity_type = None;
+    let _ = attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("source") {
+            let value: LitStr = meta.value()?.parse()?;
+            source = Some(value.value());
+        } else if meta.path.is_ident("entity") {
+            let value: LitStr = meta.value()?.parse()?;
+            entity_type = Some(value.value());
+        }
+        Ok(())
+    });
+    source.map(|s| (s, entity_type.unwrap_or_default()))
+}
+
+/// Parse a struct-level attribute with format #[attr_name = "value"]
+fn parse_string_attr(attrs: &[Attribute], name: &str) -> Option<String> {
+    for attr in attrs {
+        if attr.path().is_ident(name) {
+            // Try to parse as name-value pair
+            if let syn::Meta::NameValue(nv) = &attr.meta {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        return Some(lit_str.value());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Generate the domain_class() method implementation.
-fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream2 {
+fn generate_domain_class(
+    struct_name: &str,
+    fields: &[FieldInfo],
+    difficulty_comparator: Option<String>,
+    strength_comparator: Option<String>,
+) -> TokenStream2 {
     let field_descriptors: Vec<TokenStream2> = fields
         .iter()
         .map(|field| {
             let field_name = field.name.to_string();
-            let field_type = rust_type_to_field_type(&field.ty);
+
+            // Determine field type based on annotations
+            let field_type = if let Some(lv) = &field.list_variable {
+                // For planning list variables, use the specified element_type
+                let et = &lv.element_type;
+                quote! { ::solverforge_core::domain::FieldType::list(::solverforge_core::domain::FieldType::object(#et)) }
+            } else if let Some(sv) = &field.shadow_variable {
+                // For shadow variables with entity_type, use that instead of Rust type
+                let entity_type_str = match sv {
+                    ShadowVariableInfo::InverseRelation { entity_type, .. } => Some(entity_type.as_str()),
+                    ShadowVariableInfo::NextElement { entity_type, .. } => Some(entity_type.as_str()),
+                    ShadowVariableInfo::PreviousElement { entity_type, .. } => Some(entity_type.as_str()),
+                    ShadowVariableInfo::Anchor { entity_type, .. } => Some(entity_type.as_str()),
+                    ShadowVariableInfo::Index { .. } => None,
+                    // CascadingUpdate uses the field's Rust type (typically DateTime or i64)
+                    ShadowVariableInfo::CascadingUpdate { .. } => None,
+                };
+                if let Some(et) = entity_type_str.filter(|s| !s.is_empty()) {
+                    quote! { ::solverforge_core::domain::FieldType::object(#et) }
+                } else {
+                    rust_type_to_field_type(&field.ty)
+                }
+            } else {
+                rust_type_to_field_type(&field.ty)
+            };
 
             let mut annotations = Vec::new();
 
             if field.is_planning_id {
                 annotations.push(quote! {
-                    .with_planning_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningId)
+                    .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningId)
                 });
             }
 
@@ -186,7 +399,7 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
 
                 if allows_unassigned {
                     annotations.push(quote! {
-                        .with_planning_annotation(
+                        .with_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_variable_unassigned(
                                 vec![#(#refs),*]
                             )
@@ -194,12 +407,88 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
                     });
                 } else {
                     annotations.push(quote! {
-                        .with_planning_annotation(
+                        .with_annotation(
                             ::solverforge_core::domain::PlanningAnnotation::planning_variable(
                                 vec![#(#refs),*]
                             )
                         )
                     });
+                }
+            }
+
+            if let Some(lv) = &field.list_variable {
+                let refs: Vec<_> = lv
+                    .value_range_provider_refs
+                    .iter()
+                    .map(|s| quote! { #s.to_string() })
+                    .collect();
+                let allows_unassigned_values = lv.allows_unassigned_values;
+
+                if allows_unassigned_values {
+                    annotations.push(quote! {
+                        .with_annotation(
+                            ::solverforge_core::domain::PlanningAnnotation::planning_list_variable_unassigned(
+                                vec![#(#refs),*]
+                            )
+                        )
+                    });
+                } else {
+                    annotations.push(quote! {
+                        .with_annotation(
+                            ::solverforge_core::domain::PlanningAnnotation::planning_list_variable(
+                                vec![#(#refs),*]
+                            )
+                        )
+                    });
+                }
+            }
+
+            if let Some(sv) = &field.shadow_variable {
+                match sv {
+                    ShadowVariableInfo::InverseRelation { source, .. } => {
+                        annotations.push(quote! {
+                            .with_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::inverse_relation_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::Index { source } => {
+                        annotations.push(quote! {
+                            .with_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::index_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::NextElement { source, .. } => {
+                        annotations.push(quote! {
+                            .with_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::next_element_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::PreviousElement { source, .. } => {
+                        annotations.push(quote! {
+                            .with_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::previous_element_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::Anchor { source, .. } => {
+                        annotations.push(quote! {
+                            .with_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::anchor_shadow(#source)
+                            )
+                        });
+                    }
+                    ShadowVariableInfo::CascadingUpdate { target_method_name, .. } => {
+                        // Use pending version - app must call set_cascading_expression()
+                        // on DomainModel before WASM build
+                        annotations.push(quote! {
+                            .with_annotation(
+                                ::solverforge_core::domain::PlanningAnnotation::cascading_update_shadow_pending(#target_method_name)
+                            )
+                        });
+                    }
                 }
             }
 
@@ -212,9 +501,27 @@ fn generate_domain_class(struct_name: &str, fields: &[FieldInfo]) -> TokenStream
         })
         .collect();
 
+    // Build class-level annotations
+    let mut class_annotations = Vec::new();
+    class_annotations.push(quote! {
+        .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningEntity)
+    });
+
+    if let Some(dc) = difficulty_comparator {
+        class_annotations.push(quote! {
+            .with_annotation(::solverforge_core::domain::PlanningAnnotation::difficulty_comparator(#dc))
+        });
+    }
+
+    if let Some(sc) = strength_comparator {
+        class_annotations.push(quote! {
+            .with_annotation(::solverforge_core::domain::PlanningAnnotation::strength_comparator(#sc))
+        });
+    }
+
     quote! {
         ::solverforge_core::domain::DomainClass::new(#struct_name)
-            .with_annotation(::solverforge_core::domain::PlanningAnnotation::PlanningEntity)
+            #(#class_annotations)*
             #(#field_descriptors)*
     }
 }
@@ -231,14 +538,16 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
             )
         };
     }
-    if type_str == "i32" || type_str == "i64" || type_str == "isize" {
+    // i32 types -> Int (WASM i32)
+    if type_str == "i32" || type_str == "u32" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
-                ::solverforge_core::domain::PrimitiveType::Long
+                ::solverforge_core::domain::PrimitiveType::Int
             )
         };
     }
-    if type_str == "u32" || type_str == "u64" || type_str == "usize" {
+    // i64 types -> Long (WASM i64)
+    if type_str == "i64" || type_str == "u64" || type_str == "isize" || type_str == "usize" {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
@@ -256,6 +565,15 @@ fn rust_type_to_field_type(ty: &Type) -> TokenStream2 {
         return quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Bool
+            )
+        };
+    }
+
+    // Handle DateTime types (stored as i64 epoch seconds/millis)
+    if is_datetime_type(&type_str) {
+        return quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
             )
         };
     }
@@ -291,7 +609,12 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 ::solverforge_core::domain::PrimitiveType::String
             )
         },
-        "i32" | "i64" | "isize" | "u32" | "u64" | "usize" => quote! {
+        "i32" | "u32" => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::Int
+            )
+        },
+        "i64" | "u64" | "isize" | "usize" => quote! {
             ::solverforge_core::domain::FieldType::Primitive(
                 ::solverforge_core::domain::PrimitiveType::Long
             )
@@ -306,6 +629,11 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
                 ::solverforge_core::domain::PrimitiveType::Bool
             )
         },
+        _ if is_datetime_type(type_str) => quote! {
+            ::solverforge_core::domain::FieldType::Primitive(
+                ::solverforge_core::domain::PrimitiveType::DateTime
+            )
+        },
         _ => {
             let type_name = extract_type_name(type_str);
             quote! {
@@ -313,6 +641,23 @@ fn inner_type_to_field_type(type_str: &str) -> TokenStream2 {
             }
         }
     }
+}
+
+/// Check if a type string represents a DateTime type.
+fn is_datetime_type(type_str: &str) -> bool {
+    // NaiveDateTime variants
+    type_str == "NaiveDateTime"
+        || type_str == "chrono::NaiveDateTime"
+        || type_str == "::chrono::NaiveDateTime"
+        // DateTime<Utc> variants
+        || type_str == "DateTime<Utc>"
+        || type_str == "chrono::DateTime<Utc>"
+        || type_str == "::chrono::DateTime<Utc>"
+        || type_str == "chrono::DateTime<chrono::Utc>"
+        // NaiveDate variants (date without time)
+        || type_str == "NaiveDate"
+        || type_str == "chrono::NaiveDate"
+        || type_str == "::chrono::NaiveDate"
 }
 
 /// Extract the simple type name from a potentially qualified type.
@@ -344,6 +689,30 @@ fn generate_planning_id(planning_id_field: &Ident, fields: &[FieldInfo]) -> Toke
     }
 }
 
+/// Check if a type string represents a primitive type that has Value::from impl.
+fn is_primitive_type(type_str: &str) -> bool {
+    matches!(
+        type_str.replace(' ', "").as_str(),
+        "String"
+            | "&str"
+            | "i32"
+            | "i64"
+            | "u32"
+            | "u64"
+            | "isize"
+            | "usize"
+            | "f32"
+            | "f64"
+            | "bool"
+    )
+}
+
+/// Check if a type string represents a Vec of Strings.
+fn is_vec_string(type_str: &str) -> bool {
+    let normalized = type_str.replace(' ', "");
+    normalized == "Vec<String>" || normalized == "Vec<&str>"
+}
+
 /// Generate the to_value() method implementation.
 fn generate_to_value(fields: &[FieldInfo]) -> TokenStream2 {
     let field_insertions: Vec<TokenStream2> = fields
@@ -353,22 +722,98 @@ fn generate_to_value(fields: &[FieldInfo]) -> TokenStream2 {
             let field_name_str = field.name.to_string();
             let field_ty = &field.ty;
 
-            // Check if this is an Option type
             let type_str = quote!(#field_ty).to_string();
-            if type_str.contains("Option") {
-                quote! {
+            let normalized = type_str.replace(' ', "");
+
+            // Planning list variable: serialize elements appropriately
+            // If Vec<String> or Vec<primitive>, serialize directly (they ARE the IDs)
+            // If Vec<Entity>, serialize as planning IDs
+            if field.list_variable.is_some() {
+                // Check if the Vec element type is String or primitive
+                if normalized.starts_with("Vec<") && normalized.ends_with('>') {
+                    let inner = &normalized[4..normalized.len() - 1];
+                    if inner == "String" || is_primitive_type(inner) {
+                        // Vec<String> or Vec<primitive> - these ARE the IDs, serialize directly
+                        return quote! {
+                            map.insert(
+                                #field_name_str.to_string(),
+                                ::solverforge_core::Value::Array(
+                                    self.#field_name.iter()
+                                        .map(|item| ::solverforge_core::Value::from(item.clone()))
+                                        .collect()
+                                )
+                            );
+                        };
+                    }
+                }
+                // Vec<Entity> - serialize as planning IDs
+                return quote! {
                     map.insert(
                         #field_name_str.to_string(),
-                        self.#field_name.as_ref()
-                            .map(|v| ::solverforge_core::Value::from(v.clone()))
-                            .unwrap_or(::solverforge_core::Value::Null)
+                        ::solverforge_core::Value::Array(
+                            self.#field_name.iter()
+                                .map(|item| ::solverforge_core::PlanningEntity::planning_id(item))
+                                .collect()
+                        )
                     );
+                };
+            }
+
+            // Handle Option<T> types
+            if normalized.starts_with("Option<") && normalized.ends_with('>') {
+                let inner = &normalized[7..normalized.len() - 1];
+                if is_primitive_type(inner) {
+                    // Option<primitive> - use Value::from
+                    quote! {
+                        map.insert(
+                            #field_name_str.to_string(),
+                            self.#field_name.as_ref()
+                                .map(|v| ::solverforge_core::Value::from(v.clone()))
+                                .unwrap_or(::solverforge_core::Value::Null)
+                        );
+                    }
+                } else {
+                    // Option<complex> - use serde
+                    quote! {
+                        map.insert(
+                            #field_name_str.to_string(),
+                            match &self.#field_name {
+                                Some(v) => ::serde_json::to_value(v)
+                                    .map(::solverforge_core::Value::from_json_value)
+                                    .unwrap_or(::solverforge_core::Value::Null),
+                                None => ::solverforge_core::Value::Null,
+                            }
+                        );
+                    }
                 }
-            } else {
+            } else if is_primitive_type(&normalized) {
+                // Primitive type - use Value::from directly
                 quote! {
                     map.insert(
                         #field_name_str.to_string(),
                         ::solverforge_core::Value::from(self.#field_name.clone())
+                    );
+                }
+            } else if is_vec_string(&normalized) {
+                // Vec<String> - convert each to Value::String
+                quote! {
+                    map.insert(
+                        #field_name_str.to_string(),
+                        ::solverforge_core::Value::Array(
+                            self.#field_name.iter()
+                                .map(|s| ::solverforge_core::Value::String(s.clone()))
+                                .collect()
+                        )
+                    );
+                }
+            } else {
+                // Complex type - use serde serialization
+                quote! {
+                    map.insert(
+                        #field_name_str.to_string(),
+                        ::serde_json::to_value(&self.#field_name)
+                            .map(::solverforge_core::Value::from_json_value)
+                            .unwrap_or(::solverforge_core::Value::Null)
                     );
                 }
             }
@@ -391,48 +836,44 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
             let field_name_str = field.name.to_string();
             let field_ty = &field.ty;
 
-            // Check if this is an Option type
             let type_str = quote!(#field_ty).to_string();
-            if type_str.contains("Option < String >") || type_str.contains("Option<String>") {
-                quote! {
-                    let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| {
-                            match v {
+            let normalized = type_str.replace(' ', "");
+
+            // Handle Option<T> types
+            if normalized.starts_with("Option<") && normalized.ends_with('>') {
+                let inner = &normalized[7..normalized.len() - 1];
+                if inner == "String" {
+                    quote! {
+                        let #field_name: #field_ty = map.get(#field_name_str)
+                            .and_then(|v| match v {
                                 ::solverforge_core::Value::Null => None,
                                 ::solverforge_core::Value::String(s) => Some(s.clone()),
                                 _ => None,
-                            }
-                        });
-                }
-            } else if type_str.contains("Option < i64 >")
-                || type_str.contains("Option<i64>")
-                || type_str.contains("Option < i32 >")
-                || type_str.contains("Option<i32>")
-            {
-                quote! {
-                    let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| {
-                            match v {
+                            });
+                    }
+                } else if inner == "i64" || inner == "i32" {
+                    quote! {
+                        let #field_name: #field_ty = map.get(#field_name_str)
+                            .and_then(|v| match v {
                                 ::solverforge_core::Value::Null => None,
                                 ::solverforge_core::Value::Int(i) => Some(*i as _),
                                 _ => None,
-                            }
-                        });
-                }
-            } else if type_str.contains("Option") {
-                // Generic Option handling
-                quote! {
-                    let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| {
-                            match v {
+                            });
+                    }
+                } else {
+                    // Complex Option type - use serde
+                    quote! {
+                        let #field_name: #field_ty = map.get(#field_name_str)
+                            .and_then(|v| match v {
                                 ::solverforge_core::Value::Null => None,
-                                ::solverforge_core::Value::String(s) => s.parse().ok(),
-                                ::solverforge_core::Value::Int(i) => Some(*i as _),
-                                _ => None,
-                            }
-                        });
+                                _ => {
+                                    let json = ::serde_json::to_value(v).ok()?;
+                                    ::serde_json::from_value(json).ok()
+                                }
+                            });
+                    }
                 }
-            } else if type_str.contains("String") {
+            } else if normalized == "String" {
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
                         .and_then(|v| v.as_str())
@@ -441,7 +882,7 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
                             format!("Missing or invalid field: {}", #field_name_str)
                         ))?;
                 }
-            } else if type_str.contains("i64") || type_str.contains("i32") {
+            } else if normalized == "i64" || normalized == "i32" {
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
                         .and_then(|v| v.as_int())
@@ -450,7 +891,16 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
                             format!("Missing or invalid field: {}", #field_name_str)
                         ))?;
                 }
-            } else if type_str.contains("bool") {
+            } else if normalized == "f64" || normalized == "f32" {
+                quote! {
+                    let #field_name: #field_ty = map.get(#field_name_str)
+                        .and_then(|v| v.as_float())
+                        .map(|f| f as #field_ty)
+                        .ok_or_else(|| ::solverforge_core::SolverForgeError::Serialization(
+                            format!("Missing or invalid field: {}", #field_name_str)
+                        ))?;
+                }
+            } else if normalized == "bool" {
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
                         .and_then(|v| v.as_bool())
@@ -458,15 +908,92 @@ fn generate_from_value(struct_name: &Ident, fields: &[FieldInfo]) -> TokenStream
                             format!("Missing or invalid field: {}", #field_name_str)
                         ))?;
                 }
-            } else {
-                // For other types, try a generic conversion
+            } else if field.list_variable.is_some() {
+                // Planning list variable: handle based on element type
+                // Check if the Vec element type is String or primitive
+                if normalized.starts_with("Vec<") && normalized.ends_with('>') {
+                    let inner = &normalized[4..normalized.len() - 1];
+                    if inner == "String" {
+                        // Vec<String> - these ARE the IDs, deserialize directly
+                        return quote! {
+                            let #field_name: #field_ty = map.get(#field_name_str)
+                                .and_then(|v| match v {
+                                    ::solverforge_core::Value::Array(arr) => Some(
+                                        arr.iter()
+                                            .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                            .collect()
+                                    ),
+                                    _ => None,
+                                })
+                                .unwrap_or_default();
+                        };
+                    } else if is_primitive_type(inner) {
+                        // Vec<primitive> - deserialize directly
+                        return quote! {
+                            let #field_name: #field_ty = map.get(#field_name_str)
+                                .and_then(|v| match v {
+                                    ::solverforge_core::Value::Array(arr) => {
+                                        let json = ::serde_json::to_value(arr).ok()?;
+                                        ::serde_json::from_value(json).ok()
+                                    },
+                                    _ => None,
+                                })
+                                .unwrap_or_default();
+                        };
+                    }
+                }
+                // Vec<Entity> - lookup elements by ID from entity context
+                let element_type_str = field.list_variable.as_ref().unwrap().element_type.clone();
                 quote! {
                     let #field_name: #field_ty = map.get(#field_name_str)
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| s.parse().ok())
-                        .ok_or_else(|| ::solverforge_core::SolverForgeError::Serialization(
-                            format!("Missing or invalid field: {}", #field_name_str)
-                        ))?;
+                        .and_then(|v| match v {
+                            ::solverforge_core::Value::Array(arr) => Some(
+                                arr.iter()
+                                    .filter_map(|id_value| {
+                                        ::solverforge_core::entity_context::lookup_canonical(
+                                            #element_type_str,
+                                            id_value
+                                        ).and_then(|entity_value| {
+                                            // Recursively deserialize from canonical Value
+                                            let json = ::serde_json::to_value(&entity_value).ok()?;
+                                            ::serde_json::from_value(json).ok()
+                                        })
+                                    })
+                                    .collect()
+                            ),
+                            _ => None,
+                        })
+                        .unwrap_or_default();
+                }
+            } else if is_vec_string(&normalized) {
+                // Vec<String>
+                quote! {
+                    let #field_name: #field_ty = map.get(#field_name_str)
+                        .and_then(|v| match v {
+                            ::solverforge_core::Value::Array(arr) => Some(
+                                arr.iter()
+                                    .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                                    .collect()
+                            ),
+                            _ => None,
+                        })
+                        .unwrap_or_default();
+                }
+            } else {
+                // Complex type - use serde deserialization
+                quote! {
+                    let #field_name: #field_ty = {
+                        let val = map.get(#field_name_str)
+                            .ok_or_else(|| ::solverforge_core::SolverForgeError::Serialization(
+                                format!("Missing field: {}", #field_name_str)
+                            ))?;
+                        let json = ::serde_json::to_value(val)
+                            .map_err(|e| ::solverforge_core::SolverForgeError::Serialization(e.to_string()))?;
+                        ::serde_json::from_value(json)
+                            .map_err(|e| ::solverforge_core::SolverForgeError::Serialization(
+                                format!("Failed to deserialize {}: {}", #field_name_str, e)
+                            ))?
+                    };
                 }
             }
         })

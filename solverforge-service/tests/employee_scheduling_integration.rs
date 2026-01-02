@@ -154,7 +154,7 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
             DomainClass::new("Employee")
                 .with_field(
                     FieldDescriptor::new("name", FieldType::Primitive(PrimitiveType::String))
-                        .with_planning_annotation(PlanningAnnotation::PlanningId),
+                        .with_annotation(PlanningAnnotation::PlanningId),
                 )
                 .with_field(FieldDescriptor::new(
                     "skills",
@@ -178,12 +178,12 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
                 .with_annotation(PlanningAnnotation::PlanningEntity)
                 .with_field(
                     FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                        .with_planning_annotation(PlanningAnnotation::PlanningId),
+                        .with_annotation(PlanningAnnotation::PlanningId),
                 )
                 .with_field(
                     FieldDescriptor::new("employee", FieldType::object("Employee"))
-                        .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
-                            "employees".to_string(),
+                        .with_annotation(PlanningAnnotation::planning_variable(vec![
+                            "employees".to_string()
                         ])),
                 )
                 .with_field(FieldDescriptor::new(
@@ -211,34 +211,30 @@ fn build_employee_scheduling_model() -> solverforge_core::domain::DomainModel {
                         "employees",
                         FieldType::list(FieldType::object("Employee")),
                     )
-                    .with_planning_annotation(PlanningAnnotation::ProblemFactCollectionProperty)
-                    .with_planning_annotation(
-                        PlanningAnnotation::value_range_provider("employees"),
+                    .with_annotation(PlanningAnnotation::ProblemFactCollectionProperty)
+                    .with_annotation(
+                        PlanningAnnotation::value_range_provider_with_id("employees"),
                     ),
                 )
                 .with_field(
                     FieldDescriptor::new("shifts", FieldType::list(FieldType::object("Shift")))
-                        .with_planning_annotation(
-                            PlanningAnnotation::PlanningEntityCollectionProperty,
-                        ),
+                        .with_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
                 )
                 .with_field(
                     FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                        .with_planning_annotation(PlanningAnnotation::planning_score()),
+                        .with_annotation(PlanningAnnotation::planning_score()),
                 ),
         )
         .build()
 }
 
-/// Build skillMismatch predicate: employee.skill != shift.requiredSkill
-/// Pattern: single-parameter constraint with null checks and string comparison
+/// skillMismatch: employee assigned but lacks required skill
 fn build_skill_mismatch_predicate() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
     let shift = Expr::param(0);
     let employee = shift.clone().get("Shift", "employee");
 
-    // employee != null AND !employee.skills.contains(shift.requiredSkill)
     let predicate = Expr::and(
         Expr::is_not_null(employee.clone()),
         Expr::not(Expr::list_contains(
@@ -250,8 +246,7 @@ fn build_skill_mismatch_predicate() -> solverforge_core::wasm::PredicateDefiniti
     solverforge_core::wasm::PredicateDefinition::from_expression("skillMismatch", 1, predicate)
 }
 
-/// Build shiftsOverlap predicate: same employee AND time ranges overlap
-/// Pattern: two-parameter constraint with reference equality and range checking
+/// shiftsOverlap: same employee assigned to overlapping shifts (i64 datetime)
 fn build_shifts_overlap_predicate() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
@@ -260,25 +255,24 @@ fn build_shifts_overlap_predicate() -> solverforge_core::wasm::PredicateDefiniti
 
     let emp1 = shift1.clone().get("Shift", "employee");
     let emp2 = shift2.clone().get("Shift", "employee");
-
-    // Same employee: emp1 != null AND emp1 == emp2
     let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
 
-    // Time ranges overlap: start1 < end2 AND start2 < end1
-    let ranges_overlap = Expr::ranges_overlap(
+    // DateTime fields are i64, use i64 comparisons
+    let ranges_overlap = Expr::ranges_overlap64(
         shift1.clone().get("Shift", "start"),
-        shift1.clone().get("Shift", "end"),
+        shift1.get("Shift", "end"),
         shift2.clone().get("Shift", "start"),
         shift2.get("Shift", "end"),
     );
 
-    let predicate = Expr::and(same_employee, ranges_overlap);
-
-    solverforge_core::wasm::PredicateDefinition::from_expression("shiftsOverlap", 2, predicate)
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "shiftsOverlap",
+        2,
+        Expr::and(same_employee, ranges_overlap),
+    )
 }
 
-/// Build getMinuteOverlap weigher: returns minutes of overlap between two shifts
-/// Formula: (min(end1, end2) - max(start1, start2)) / 60
+/// getMinuteOverlap: minutes of overlap between two shifts (i64 datetime arithmetic)
 fn build_get_minute_overlap_weigher() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
@@ -290,16 +284,12 @@ fn build_get_minute_overlap_weigher() -> solverforge_core::wasm::PredicateDefini
     let start2 = shift2.clone().get("Shift", "start");
     let end2 = shift2.get("Shift", "end");
 
-    // overlap_start = max(start1, start2)
+    // All datetime ops in i64
     let overlap_start =
-        Expr::if_then_else(Expr::gt(start1.clone(), start2.clone()), start1, start2);
-
-    // overlap_end = min(end1, end2)
-    let overlap_end = Expr::if_then_else(Expr::lt(end1.clone(), end2.clone()), end1, end2);
-
-    // overlap_minutes = (overlap_end - overlap_start) / 60
-    let overlap_seconds = Expr::sub(overlap_end, overlap_start);
-    let overlap_minutes = Expr::div(overlap_seconds, Expr::int(60));
+        Expr::if_then_else64(Expr::gt64(start1.clone(), start2.clone()), start1, start2);
+    let overlap_end = Expr::if_then_else64(Expr::lt64(end1.clone(), end2.clone()), end1, end2);
+    let overlap_seconds = Expr::sub64(overlap_end, overlap_start);
+    let overlap_minutes = Expr::i64_to_i32(Expr::div64(overlap_seconds, Expr::int64(60)));
 
     solverforge_core::wasm::PredicateDefinition::from_expression(
         "getMinuteOverlap",
@@ -308,8 +298,7 @@ fn build_get_minute_overlap_weigher() -> solverforge_core::wasm::PredicateDefini
     )
 }
 
-/// Build sameEmployeeSameDay predicate: same employee AND same day
-/// Pattern: arithmetic expressions with division for day calculation
+/// sameEmployeeSameDay: same employee on same calendar day (i64 datetime)
 fn build_same_employee_same_day_predicate() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
@@ -318,26 +307,20 @@ fn build_same_employee_same_day_predicate() -> solverforge_core::wasm::Predicate
 
     let emp1 = shift1.clone().get("Shift", "employee");
     let emp2 = shift2.clone().get("Shift", "employee");
-
-    // Same employee check
     let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
 
-    // Same day: start1 / 86400 == start2 / 86400 (86400 seconds in a day)
-    let day1 = Expr::div(shift1.get("Shift", "start"), Expr::int(86400));
-    let day2 = Expr::div(shift2.get("Shift", "start"), Expr::int(86400));
-    let same_day = Expr::eq(day1, day2);
-
-    let predicate = Expr::and(same_employee, same_day);
+    // DateTime / 86400 = day number (i64 ops, eq64 returns i32)
+    let day1 = Expr::div64(shift1.get("Shift", "start"), Expr::int64(86400));
+    let day2 = Expr::div64(shift2.get("Shift", "start"), Expr::int64(86400));
 
     solverforge_core::wasm::PredicateDefinition::from_expression(
         "sameEmployeeSameDay",
         2,
-        predicate,
+        Expr::and(same_employee, Expr::eq64(day1, day2)),
     )
 }
 
-/// Build lessThan10HoursBetween predicate: gap between shifts < 10 hours
-/// Pattern: nested conditional logic with if-then-else for complex calculations
+/// lessThan10HoursBetween: gap between shifts < 10 hours (i64 datetime)
 fn build_less_than_10_hours_between_predicate() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
@@ -346,44 +329,32 @@ fn build_less_than_10_hours_between_predicate() -> solverforge_core::wasm::Predi
 
     let emp1 = shift1.clone().get("Shift", "employee");
     let emp2 = shift2.clone().get("Shift", "employee");
-
-    // Same employee check
     let same_employee = Expr::and(Expr::is_not_null(emp1.clone()), Expr::eq(emp1, emp2));
 
     let start1 = shift1.clone().get("Shift", "start");
-    let end1 = shift1.clone().get("Shift", "end");
+    let end1 = shift1.get("Shift", "end");
     let start2 = shift2.clone().get("Shift", "start");
     let end2 = shift2.get("Shift", "end");
 
-    // Gap calculation with nested if-then-else (in seconds):
-    // if end1 <= start2 then start2 - end1
-    // else if end2 <= start1 then start1 - end2
-    // else 999999 (large number for overlapping case - handled by shiftsOverlap)
-    let gap_seconds = Expr::if_then_else(
-        Expr::le(end1.clone(), start2.clone()),
-        Expr::sub(start2.clone(), end1.clone()),
-        Expr::if_then_else(
-            Expr::le(end2.clone(), start1.clone()),
-            Expr::sub(start1, end2),
-            Expr::int(999999), // Large number for overlapping case
+    // Gap in seconds (i64), compare to 36000 (10 hours)
+    let gap_seconds = Expr::if_then_else64(
+        Expr::le64(end1.clone(), start2.clone()),
+        Expr::sub64(start2, end1),
+        Expr::if_then_else64(
+            Expr::le64(end2.clone(), start1.clone()),
+            Expr::sub64(start1, end2),
+            Expr::int64(999999),
         ),
     );
-
-    // Convert to hours: gap_seconds / 3600
-    let gap_hours = Expr::div(gap_seconds, Expr::int(3600));
-    let gap_too_small = Expr::lt(gap_hours, Expr::int(10));
-    let predicate = Expr::and(same_employee, gap_too_small);
 
     solverforge_core::wasm::PredicateDefinition::from_expression(
         "lessThan10HoursBetween",
         2,
-        predicate,
+        Expr::and(same_employee, Expr::lt64(gap_seconds, Expr::int64(36000))),
     )
 }
 
-/// Build getRestDeficit weigher: returns (10 hours in minutes) - actual gap in minutes
-/// Formula: (10 * 60) - (gap_seconds / 60)
-/// This represents how many minutes short of the required 10-hour rest
+/// getRestDeficit: minutes short of 10-hour rest (i64 datetime)
 fn build_get_rest_deficit_weigher() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
@@ -395,91 +366,79 @@ fn build_get_rest_deficit_weigher() -> solverforge_core::wasm::PredicateDefiniti
     let start2 = shift2.clone().get("Shift", "start");
     let end2 = shift2.get("Shift", "end");
 
-    // Gap calculation (in seconds):
-    // if end1 <= start2 then start2 - end1
-    // else if end2 <= start1 then start1 - end2
-    // else 0 (overlapping case)
-    let gap_seconds = Expr::if_then_else(
-        Expr::le(end1.clone(), start2.clone()),
-        Expr::sub(start2.clone(), end1.clone()),
-        Expr::if_then_else(
-            Expr::le(end2.clone(), start1.clone()),
-            Expr::sub(start1, end2),
-            Expr::int(0), // Overlapping case
+    let gap_seconds = Expr::if_then_else64(
+        Expr::le64(end1.clone(), start2.clone()),
+        Expr::sub64(start2, end1),
+        Expr::if_then_else64(
+            Expr::le64(end2.clone(), start1.clone()),
+            Expr::sub64(start1, end2),
+            Expr::int64(0),
         ),
     );
 
-    // gap_minutes = gap_seconds / 60
-    let gap_minutes = Expr::div(gap_seconds, Expr::int(60));
-
-    // rest_deficit = (10 * 60) - gap_minutes = 600 - gap_minutes
+    // 600 - gap_minutes (all in i32 at the end)
+    let gap_minutes = Expr::i64_to_i32(Expr::div64(gap_seconds, Expr::int64(60)));
     let rest_deficit = Expr::sub(Expr::int(600), gap_minutes);
 
     solverforge_core::wasm::PredicateDefinition::from_expression("getRestDeficit", 2, rest_deficit)
 }
 
-/// Build shiftOverlapsDate predicate: checks if a shift overlaps with a given date (epoch day)
-/// A shift overlaps a date if: shift.start's day == date OR shift.end's day == date
+/// shiftOverlapsDate: shift overlaps given date (i64 datetime, i32 date param)
 fn build_shift_overlaps_date_predicate() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
     let shift = Expr::param(0);
-    let date = Expr::param(1); // LocalDate as epoch day (i64)
+    let date = Expr::param(1); // epoch day as i32
 
-    // shift.start and shift.end are epoch seconds
-    // Convert to epoch day by dividing by 86400
-    let start_day = Expr::div(shift.clone().get("Shift", "start"), Expr::int(86400));
-    let end_day = Expr::div(shift.get("Shift", "end"), Expr::int(86400));
+    // Convert datetime to day (i64 / 86400), then compare with i32 date
+    let start_day = Expr::i64_to_i32(Expr::div64(
+        shift.clone().get("Shift", "start"),
+        Expr::int64(86400),
+    ));
+    let end_day = Expr::i64_to_i32(Expr::div64(shift.get("Shift", "end"), Expr::int64(86400)));
 
-    // shift overlaps date if start_day == date OR end_day == date
-    let overlaps = Expr::or(Expr::eq(start_day, date.clone()), Expr::eq(end_day, date));
-
-    solverforge_core::wasm::PredicateDefinition::from_expression("shiftOverlapsDate", 2, overlaps)
+    solverforge_core::wasm::PredicateDefinition::from_expression(
+        "shiftOverlapsDate",
+        2,
+        Expr::or(Expr::eq(start_day, date.clone()), Expr::eq(end_day, date)),
+    )
 }
 
-/// Build getShiftDateOverlapMinutes weigher: calculates overlap minutes between a shift and a date
-/// The date is considered as [date 00:00:00, date 23:59:59]
-/// Formula: max(0, min(shift_end, day_end) - max(shift_start, day_start)) / 60
+/// getShiftDateOverlapMinutes: overlap minutes between shift and date (i64 datetime)
 fn build_get_shift_date_overlap_minutes_weigher() -> solverforge_core::wasm::PredicateDefinition {
     use solverforge_core::wasm::{Expr, FieldAccessExt};
 
     let shift = Expr::param(0);
-    let date = Expr::param(1); // LocalDate as epoch day (i64)
+    let date = Expr::param(1); // epoch day as i32
 
-    // Day boundaries in epoch seconds
-    let day_start = Expr::mul(date.clone(), Expr::int(86400)); // date * 86400
-    let day_end = Expr::add(
-        Expr::mul(date, Expr::int(86400)),
-        Expr::int(86399), // date * 86400 + 86399 (23:59:59)
+    // Convert i32 date to i64 epoch seconds for day boundaries
+    let date_i64 = Expr::i32_to_i64(date);
+    let day_start = Expr::mul64(date_i64.clone(), Expr::int64(86400));
+    let day_end = Expr::add64(
+        Expr::mul64(date_i64, Expr::int64(86400)),
+        Expr::int64(86399),
     );
 
     let shift_start = shift.clone().get("Shift", "start");
     let shift_end = shift.get("Shift", "end");
 
-    // overlap_start = max(shift_start, day_start)
-    let overlap_start = Expr::if_then_else(
-        Expr::gt(shift_start.clone(), day_start.clone()),
+    let overlap_start = Expr::if_then_else64(
+        Expr::gt64(shift_start.clone(), day_start.clone()),
         shift_start,
         day_start,
     );
-
-    // overlap_end = min(shift_end, day_end)
-    let overlap_end = Expr::if_then_else(
-        Expr::lt(shift_end.clone(), day_end.clone()),
+    let overlap_end = Expr::if_then_else64(
+        Expr::lt64(shift_end.clone(), day_end.clone()),
         shift_end,
         day_end,
     );
-
-    // overlap_seconds = max(0, overlap_end - overlap_start)
-    let overlap_diff = Expr::sub(overlap_end, overlap_start);
-    let overlap_seconds = Expr::if_then_else(
-        Expr::gt(overlap_diff.clone(), Expr::int(0)),
+    let overlap_diff = Expr::sub64(overlap_end, overlap_start);
+    let overlap_seconds = Expr::if_then_else64(
+        Expr::gt64(overlap_diff.clone(), Expr::int64(0)),
         overlap_diff,
-        Expr::int(0),
+        Expr::int64(0),
     );
-
-    // overlap_minutes = overlap_seconds / 60
-    let overlap_minutes = Expr::div(overlap_seconds, Expr::int(60));
+    let overlap_minutes = Expr::i64_to_i32(Expr::div64(overlap_seconds, Expr::int64(60)));
 
     solverforge_core::wasm::PredicateDefinition::from_expression(
         "getShiftDateOverlapMinutes",

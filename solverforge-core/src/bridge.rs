@@ -23,7 +23,7 @@ pub trait LanguageBridge: Send + Sync {
     fn get_list_item(&self, obj: ObjectHandle, index: usize) -> SolverForgeResult<Value>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClassInfo {
     pub name: String,
     pub fields: Vec<FieldInfo>,
@@ -50,7 +50,7 @@ impl ClassInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldInfo {
     pub name: String,
     pub field_type: FieldType,

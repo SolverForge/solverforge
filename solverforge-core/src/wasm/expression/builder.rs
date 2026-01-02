@@ -1,4 +1,4 @@
-use crate::wasm::Expression;
+use super::Expression;
 
 /// Fluent builder for constructing expression trees
 ///
@@ -20,9 +20,15 @@ pub struct Expr;
 impl Expr {
     // ===== Literals =====
 
-    /// Create an integer literal
+    /// Create an integer literal (compiles to i32)
     pub fn int(value: i64) -> Expression {
         Expression::IntLiteral { value }
+    }
+
+    /// Create a 64-bit integer literal (compiles directly to i64)
+    /// Use for datetime arithmetic and other i64 operations.
+    pub fn int64(value: i64) -> Expression {
+        Expression::Int64Literal { value }
     }
 
     /// Create a boolean literal
@@ -87,6 +93,56 @@ impl Expr {
     /// Greater than or equal comparison (>=)
     pub fn ge(left: Expression, right: Expression) -> Expression {
         Expression::Ge {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    // ===== i64 Comparisons =====
+
+    /// Equal comparison for i64 (==)
+    pub fn eq64(left: Expression, right: Expression) -> Expression {
+        Expression::Eq64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Not equal comparison for i64 (!=)
+    pub fn ne64(left: Expression, right: Expression) -> Expression {
+        Expression::Ne64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Less than comparison for i64 (<)
+    pub fn lt64(left: Expression, right: Expression) -> Expression {
+        Expression::Lt64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Less than or equal comparison for i64 (<=)
+    pub fn le64(left: Expression, right: Expression) -> Expression {
+        Expression::Le64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Greater than comparison for i64 (>)
+    pub fn gt64(left: Expression, right: Expression) -> Expression {
+        Expression::Gt64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Greater than or equal comparison for i64 (>=)
+    pub fn ge64(left: Expression, right: Expression) -> Expression {
+        Expression::Ge64 {
             left: Box::new(left),
             right: Box::new(right),
         }
@@ -165,6 +221,40 @@ impl Expr {
         }
     }
 
+    // ===== i64 Arithmetic Operations =====
+
+    /// Addition for i64 (+)
+    pub fn add64(left: Expression, right: Expression) -> Expression {
+        Expression::Add64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Subtraction for i64 (-)
+    pub fn sub64(left: Expression, right: Expression) -> Expression {
+        Expression::Sub64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Multiplication for i64 (*)
+    pub fn mul64(left: Expression, right: Expression) -> Expression {
+        Expression::Mul64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    /// Division for i64 (/)
+    pub fn div64(left: Expression, right: Expression) -> Expression {
+        Expression::Div64 {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
     // ===== Host Function Calls =====
 
     /// Call a host function
@@ -197,7 +287,7 @@ impl Expr {
         Self::host_call("hstringEquals", vec![left, right])
     }
 
-    /// Check if two time ranges overlap
+    /// Check if two time ranges overlap (i32 version)
     ///
     /// Equivalent to: start1 < end2 && start2 < end1
     pub fn ranges_overlap(
@@ -209,9 +299,22 @@ impl Expr {
         Self::and(Self::lt(start1, end2), Self::lt(start2, end1))
     }
 
+    /// Check if two time ranges overlap (i64 version for datetime)
+    ///
+    /// Equivalent to: start1 < end2 && start2 < end1
+    /// Use this for datetime fields stored as i64.
+    pub fn ranges_overlap64(
+        start1: Expression,
+        end1: Expression,
+        start2: Expression,
+        end2: Expression,
+    ) -> Expression {
+        Self::and(Self::lt64(start1, end2), Self::lt64(start2, end1))
+    }
+
     // ===== Conditional =====
 
-    /// If-then-else conditional expression
+    /// If-then-else conditional expression (produces i32)
     pub fn if_then_else(
         condition: Expression,
         then_branch: Expression,
@@ -221,6 +324,38 @@ impl Expr {
             condition: Box::new(condition),
             then_branch: Box::new(then_branch),
             else_branch: Box::new(else_branch),
+        }
+    }
+
+    /// If-then-else conditional expression (produces i64)
+    /// Use for datetime arithmetic where branches return i64 values.
+    pub fn if_then_else64(
+        condition: Expression,
+        then_branch: Expression,
+        else_branch: Expression,
+    ) -> Expression {
+        Expression::IfThenElse64 {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: Box::new(else_branch),
+        }
+    }
+
+    // ===== Type Conversions =====
+
+    /// Wrap i64 to i32 (truncate)
+    /// Use to convert i64 arithmetic results to i32 for final comparisons.
+    pub fn i64_to_i32(operand: Expression) -> Expression {
+        Expression::I64ToI32 {
+            operand: Box::new(operand),
+        }
+    }
+
+    /// Extend i32 to i64 (signed)
+    /// Use to convert i32 values (like date epoch days) to i64 for datetime arithmetic.
+    pub fn i32_to_i64(operand: Expression) -> Expression {
+        Expression::I32ToI64 {
+            operand: Box::new(operand),
         }
     }
 }
@@ -239,6 +374,7 @@ impl FieldAccessExt for Expression {
             object: Box::new(self),
             class_name: class_name.into(),
             field_name: field_name.into(),
+            field_type: super::WasmFieldType::Object,
         }
     }
 }
@@ -280,6 +416,7 @@ mod tests {
                 object,
                 class_name,
                 field_name,
+                ..
             } => {
                 assert_eq!(class_name, "Employee");
                 assert_eq!(field_name, "name");
@@ -429,6 +566,7 @@ mod tests {
                 class_name,
                 field_name,
                 object,
+                ..
             } => {
                 assert_eq!(class_name, "Employee");
                 assert_eq!(field_name, "name");

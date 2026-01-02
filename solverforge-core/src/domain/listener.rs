@@ -15,27 +15,32 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use solverforge_core::domain::listener::{VariableListener, VariableListenerContext};
+//! ```
+//! use solverforge_core::domain::listener::VariableListener;
 //!
 //! // Define a listener that updates arrival time based on previous task
+//! #[derive(Debug)]
 //! struct ArrivalTimeListener;
 //!
 //! impl VariableListener for ArrivalTimeListener {
-//!     fn before_variable_changed(&self, ctx: &mut VariableListenerContext, entity_id: &str) {
+//!     fn before_variable_changed(
+//!         &self,
+//!         _ctx: &mut dyn solverforge_core::domain::listener::VariableListenerContext,
+//!         _entity_id: &str
+//!     ) {
 //!         // Store previous state if needed
 //!     }
 //!
-//!     fn after_variable_changed(&self, ctx: &mut VariableListenerContext, entity_id: &str) {
+//!     fn after_variable_changed(
+//!         &self,
+//!         _ctx: &mut dyn solverforge_core::domain::listener::VariableListenerContext,
+//!         _entity_id: &str
+//!     ) {
 //!         // Recalculate arrival time based on previous task's departure
-//!         let entity = ctx.get_entity(entity_id).unwrap();
-//!         if let Some(prev_id) = entity.get("previousTask").and_then(|v| v.as_str()) {
-//!             let prev = ctx.get_entity(prev_id).unwrap();
-//!             let departure = prev.get("departureTime").and_then(|v| v.as_i64()).unwrap_or(0);
-//!             ctx.set_shadow_variable(entity_id, "arrivalTime", serde_json::json!(departure + 30));
-//!         }
 //!     }
 //! }
+//!
+//! let listener = ArrivalTimeListener;
 //! ```
 
 use serde::{Deserialize, Serialize};

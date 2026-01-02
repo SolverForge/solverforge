@@ -1,5 +1,29 @@
 use serde::{Deserialize, Serialize};
 
+/// Configuration for when the solver should stop.
+///
+/// Combine multiple criteria - the solver stops when ANY criterion is met.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::solver::TerminationConfig;
+///
+/// // Stop after 5 minutes OR when a feasible solution is found
+/// let termination = TerminationConfig::new()
+///     .with_spent_limit("PT5M")
+///     .with_best_score_feasible(true);
+///
+/// assert_eq!(termination.spent_limit, Some("PT5M".to_string()));
+/// ```
+///
+/// # Time Format
+///
+/// Time limits use ISO-8601 duration format:
+/// - `PT30S` = 30 seconds
+/// - `PT5M` = 5 minutes
+/// - `PT1H` = 1 hour
+/// - `PT1H30M` = 1 hour 30 minutes
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminationConfig {

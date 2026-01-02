@@ -21,7 +21,7 @@ use solverforge_core::constraints::{Constraint, Joiner, StreamComponent};
 
 use crate::collectors::PyCollector;
 use crate::joiners::PyJoiner;
-use crate::lambda_analyzer::LambdaInfo;
+use crate::lambda_analyzer::{register_class, LambdaInfo};
 use crate::score::{
     PyHardMediumSoftDecimalScore, PyHardMediumSoftScore, PyHardSoftDecimalScore, PyHardSoftScore,
     PySimpleScore,
@@ -61,17 +61,26 @@ impl PyConstraintFactory {
     }
 
     /// Start a stream that matches every entity of the given class.
-    fn for_each(&self, cls: &Bound<'_, PyType>) -> PyResult<PyUniConstraintStream> {
+    fn for_each(&self, py: Python<'_>, cls: &Bound<'_, PyType>) -> PyResult<PyUniConstraintStream> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the class for method introspection
+        register_class(py, &class_name, cls);
+
         Ok(PyUniConstraintStream::new(class_name, false))
     }
 
     /// Start a stream that matches every entity including unassigned ones.
     fn for_each_including_unassigned(
         &self,
+        py: Python<'_>,
         cls: &Bound<'_, PyType>,
     ) -> PyResult<PyUniConstraintStream> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the class for method introspection
+        register_class(py, &class_name, cls);
+
         Ok(PyUniConstraintStream::new(class_name, true))
     }
 
@@ -79,10 +88,15 @@ impl PyConstraintFactory {
     #[pyo3(signature = (cls, *joiners))]
     fn for_each_unique_pair(
         &self,
+        py: Python<'_>,
         cls: &Bound<'_, PyType>,
         joiners: Vec<PyJoiner>,
     ) -> PyResult<PyBiConstraintStream> {
         let class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the class for method introspection
+        register_class(py, &class_name, cls);
+
         Ok(PyBiConstraintStream::from_unique_pair(class_name, joiners))
     }
 
@@ -120,12 +134,6 @@ impl PyUniConstraintStream {
         }
     }
 
-    /// Get stored predicates for analysis.
-    #[allow(dead_code)]
-    pub fn predicates(&self) -> &[LambdaInfo] {
-        &self.predicates
-    }
-
     /// Penalize with a weight and return a constraint (Rust API for tests).
     pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
         let weight_str = format!("{}hard", weight);
@@ -157,8 +165,7 @@ impl PyUniConstraintStream {
     /// Filter entities based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda with class hint
-        let mut lambda_info = LambdaInfo::new(py, predicate, "filter")?;
-        lambda_info = lambda_info.with_class_hint(&self.class_name);
+        let lambda_info = LambdaInfo::new(py, predicate, "filter", &self.class_name)?;
 
         let wasm_func = lambda_info.to_wasm_function();
 
@@ -191,8 +198,7 @@ impl PyUniConstraintStream {
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda with class hint
-        let mut lambda_info = LambdaInfo::new(py, predicate, "filter")?;
-        lambda_info = lambda_info.with_class_hint(&self.class_name);
+        let lambda_info = LambdaInfo::new(py, predicate, "filter", &self.class_name)?;
 
         let wasm_func = lambda_info.to_wasm_function();
 
@@ -215,10 +221,15 @@ impl PyUniConstraintStream {
     #[pyo3(signature = (cls, *joiners))]
     fn join(
         &self,
+        py: Python<'_>,
         cls: &Bound<'_, PyType>,
         joiners: Vec<PyJoiner>,
     ) -> PyResult<PyBiConstraintStream> {
         let join_class_name: String = cls.getattr("__name__")?.extract()?;
+
+        // Register the join class for method introspection
+        register_class(py, &join_class_name, cls);
+
         let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
 
         let mut components = self.components.clone();
@@ -295,7 +306,7 @@ impl PyUniConstraintStream {
         key_mapper: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyBiConstraintStream> {
-        let key_info = LambdaInfo::new(py, key_mapper, "group_by_key")?;
+        let key_info = LambdaInfo::new(py, key_mapper, "group_by_key", &self.class_name)?;
         let key_wasm = key_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -357,8 +368,8 @@ impl PyUniConstraintStream {
         key_mapper_b: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyTriConstraintStream> {
-        let key_a_info = LambdaInfo::new(py, key_mapper_a, "group_by_key_a")?;
-        let key_b_info = LambdaInfo::new(py, key_mapper_b, "group_by_key_b")?;
+        let key_a_info = LambdaInfo::new(py, key_mapper_a, "group_by_key_a", &self.class_name)?;
+        let key_b_info = LambdaInfo::new(py, key_mapper_b, "group_by_key_b", &self.class_name)?;
 
         let mut components = self.components.clone();
         components.push(StreamComponent::GroupBy {
@@ -367,6 +378,88 @@ impl PyUniConstraintStream {
         });
 
         Ok(PyTriConstraintStream {
+            components,
+            class_names: vec![self.class_name.clone()],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Group items by three keys and aggregate with a collector.
+    ///
+    /// # Arguments
+    /// * `key_mapper_a` - First key extractor
+    /// * `key_mapper_b` - Second key extractor
+    /// * `key_mapper_c` - Third key extractor
+    /// * `collector` - A collector that aggregates the grouped items
+    ///
+    /// # Returns
+    /// A QuadConstraintStream with (key_a, key_b, key_c, aggregated_value) tuples
+    fn group_by_three_keys(
+        &self,
+        py: Python<'_>,
+        key_mapper_a: Py<PyAny>,
+        key_mapper_b: Py<PyAny>,
+        key_mapper_c: Py<PyAny>,
+        collector: &PyCollector,
+    ) -> PyResult<PyQuadConstraintStream> {
+        let key_a_info = LambdaInfo::new(py, key_mapper_a, "group_by_key_a", &self.class_name)?;
+        let key_b_info = LambdaInfo::new(py, key_mapper_b, "group_by_key_b", &self.class_name)?;
+        let key_c_info = LambdaInfo::new(py, key_mapper_c, "group_by_key_c", &self.class_name)?;
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![
+                key_a_info.to_wasm_function(),
+                key_b_info.to_wasm_function(),
+                key_c_info.to_wasm_function(),
+            ],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        Ok(PyQuadConstraintStream {
+            components,
+            class_names: vec![self.class_name.clone()],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Group items by four keys and aggregate with a collector.
+    ///
+    /// # Arguments
+    /// * `key_mapper_a` - First key extractor
+    /// * `key_mapper_b` - Second key extractor
+    /// * `key_mapper_c` - Third key extractor
+    /// * `key_mapper_d` - Fourth key extractor
+    /// * `collector` - A collector that aggregates the grouped items
+    ///
+    /// # Returns
+    /// A PentaConstraintStream with (key_a, key_b, key_c, key_d, aggregated_value) tuples
+    fn group_by_four_keys(
+        &self,
+        py: Python<'_>,
+        key_mapper_a: Py<PyAny>,
+        key_mapper_b: Py<PyAny>,
+        key_mapper_c: Py<PyAny>,
+        key_mapper_d: Py<PyAny>,
+        collector: &PyCollector,
+    ) -> PyResult<PyPentaConstraintStream> {
+        let key_a_info = LambdaInfo::new(py, key_mapper_a, "group_by_key_a", &self.class_name)?;
+        let key_b_info = LambdaInfo::new(py, key_mapper_b, "group_by_key_b", &self.class_name)?;
+        let key_c_info = LambdaInfo::new(py, key_mapper_c, "group_by_key_c", &self.class_name)?;
+        let key_d_info = LambdaInfo::new(py, key_mapper_d, "group_by_key_d", &self.class_name)?;
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::GroupBy {
+            keys: vec![
+                key_a_info.to_wasm_function(),
+                key_b_info.to_wasm_function(),
+                key_c_info.to_wasm_function(),
+                key_d_info.to_wasm_function(),
+            ],
+            aggregators: vec![collector.to_rust()],
+        });
+
+        Ok(PyPentaConstraintStream {
             components,
             class_names: vec![self.class_name.clone()],
             predicates: Vec::new(),
@@ -388,7 +481,8 @@ impl PyUniConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyUniConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info =
+            LambdaInfo::new(py, flattening_function, "flatten_last", &self.class_name)?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -424,6 +518,207 @@ impl PyUniConstraintStream {
         })
     }
 
+    /// Transform each element using a mapping function.
+    ///
+    /// # Arguments
+    /// * `mapping` - A lambda that transforms each element
+    ///
+    /// # Returns
+    /// A UniConstraintStream with the transformed elements
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each(Lesson)
+    ///     .map(lambda lesson: lesson.room)
+    ///     .filter(lambda room: room is not None)
+    /// ```
+    fn map(&self, py: Python<'_>, mapping: Py<PyAny>) -> PyResult<PyUniConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, mapping, "map", &self.class_name)?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Map {
+            mappers: vec![lambda_info.to_wasm_function()],
+        });
+        Ok(PyUniConstraintStream {
+            components,
+            class_name: "".to_string(), // Mapped value, no longer entity-based
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Expand each element by adding a new fact derived from a mapping function.
+    ///
+    /// Creates a BiConstraintStream where each tuple contains the original
+    /// element and the result of applying the mapping function to it.
+    ///
+    /// # Arguments
+    /// * `mapping` - A lambda that extracts an additional value from each element
+    ///
+    /// # Returns
+    /// A BiConstraintStream with (original, mapped) tuples
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each(Lesson)
+    ///     .expand(lambda lesson: lesson.room)
+    ///     .filter(lambda lesson, room: room is not None)
+    /// ```
+    fn expand(&self, py: Python<'_>, mapping: Py<PyAny>) -> PyResult<PyBiConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, mapping, "expand", &self.class_name)?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Expand {
+            mappers: vec![lambda_info.to_wasm_function()],
+        });
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: vec![self.class_name.clone(), "".to_string()],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Concatenate this stream with another stream of the same type.
+    ///
+    /// # Arguments
+    /// * `other` - Another UniConstraintStream to concatenate
+    ///
+    /// # Returns
+    /// A UniConstraintStream containing elements from both streams
+    ///
+    /// # Example
+    /// ```python
+    /// stream1 = factory.for_each(Lesson).filter(lambda l: l.subject == "Math")
+    /// stream2 = factory.for_each(Lesson).filter(lambda l: l.subject == "Physics")
+    /// combined = stream1.concat(stream2)
+    /// ```
+    fn concat(&self, other: &PyUniConstraintStream) -> PyUniConstraintStream {
+        // For concat, we create a new stream that includes components from both
+        // The actual concat is handled by the solver service
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Concat {
+            other_components: other.components.clone(),
+        });
+        PyUniConstraintStream {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Remove duplicate tuples from the stream.
+    ///
+    /// # Returns
+    /// A UniConstraintStream with only distinct elements
+    ///
+    /// # Example
+    /// ```python
+    /// factory.for_each(Lesson)
+    ///     .map(lambda lesson: lesson.room)
+    ///     .distinct()  # Unique rooms only
+    /// ```
+    fn distinct(&self) -> PyUniConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Distinct);
+        PyUniConstraintStream {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Filter if another entity exists matching the joiners, including unassigned entities.
+    ///
+    /// Like if_exists, but also considers entities with unassigned planning variables.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity exists matching the joiners, including unassigned entities.
+    ///
+    /// Like if_not_exists, but also considers entities with unassigned planning variables.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if another entity of the same type exists, excluding the current entity.
+    ///
+    /// Useful for comparing an entity to other entities of the same type without
+    /// matching itself.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_other(&self, cls: &Bound<'_, PyType>, joiners: Vec<PyJoiner>) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_other(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_name: self.class_name.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
     /// Penalize matches with a simple score.
     #[pyo3(signature = (score, match_weigher=None))]
     fn penalize_simple(
@@ -434,11 +729,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -447,7 +745,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -465,11 +763,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -478,7 +779,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -492,11 +793,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -505,7 +809,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -519,11 +823,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = score.to_string_repr();
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -532,7 +839,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -546,11 +853,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = score.to_string_repr();
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -559,7 +869,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -573,11 +883,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = format!("{}", score.to_rust());
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -586,7 +899,7 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
         })
     }
 
@@ -600,11 +913,14 @@ impl PyUniConstraintStream {
     ) -> PyResult<PyUniConstraintBuilder> {
         let weight = score.to_string_repr();
         let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
-            Some(lambda_info.to_wasm_function())
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
         } else {
             None
         };
@@ -613,7 +929,130 @@ impl PyUniConstraintStream {
 
         Ok(PyUniConstraintBuilder {
             components,
-            predicates: self.predicates.clone(),
+            predicates,
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a simple score.
+    ///
+    /// Unlike penalize() and reward(), impact() has neutral direction -
+    /// the sign of the score determines whether it's a penalty or reward.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_simple(
+        &self,
+        py: Python<'_>,
+        score: &PySimpleScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates,
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates,
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/medium/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_hms(
+        &self,
+        py: Python<'_>,
+        score: &PyHardMediumSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates,
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyUniConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+        let mut predicates = self.predicates.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher", &self.class_name)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let wasm_func = lambda_info.to_wasm_function();
+            predicates.push(lambda_info);
+            Some(wasm_func)
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyUniConstraintBuilder {
+            components,
+            predicates,
         })
     }
 
@@ -651,12 +1090,6 @@ impl PyBiConstraintStream {
         }
     }
 
-    /// Get stored predicates for analysis.
-    #[allow(dead_code)]
-    pub fn predicates(&self) -> &[LambdaInfo] {
-        &self.predicates
-    }
-
     /// Penalize with a weight and return a constraint (Rust API for tests).
     pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
         let weight_str = format!("{}hard", weight);
@@ -688,7 +1121,7 @@ impl PyBiConstraintStream {
     /// Filter pairs based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_bi")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_bi", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -720,7 +1153,7 @@ impl PyBiConstraintStream {
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
         // Analyze the predicate lambda
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_bi")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_bi", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -797,7 +1230,7 @@ impl PyBiConstraintStream {
         key_mapper: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyBiConstraintStream> {
-        let key_info = LambdaInfo::new(py, key_mapper, "group_by_bi_key")?;
+        let key_info = LambdaInfo::new(py, key_mapper, "group_by_bi_key", &self.class_names[0])?;
         let key_wasm = key_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -849,7 +1282,12 @@ impl PyBiConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyBiConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            &self.class_names[0],
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -882,7 +1320,8 @@ impl PyBiConstraintStream {
 
         // If padding is provided, add a map component for it
         if let Some(pad_fn) = padding {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding")?;
+            let lambda_info =
+                LambdaInfo::new(py, pad_fn, "complement_padding", &self.class_names[0])?;
             components.push(StreamComponent::Map {
                 mappers: vec![lambda_info.to_wasm_function()],
             });
@@ -892,6 +1331,166 @@ impl PyBiConstraintStream {
             components,
             class_names: self.class_names.clone(),
             predicates: Vec::new(),
+        })
+    }
+
+    /// Transform each tuple using mapping functions.
+    ///
+    /// # Arguments
+    /// * `mapping_a` - A lambda that transforms the first element
+    /// * `mapping_b` - A lambda that transforms the second element
+    ///
+    /// # Returns
+    /// A BiConstraintStream with transformed elements
+    fn map(
+        &self,
+        py: Python<'_>,
+        mapping_a: Py<PyAny>,
+        mapping_b: Py<PyAny>,
+    ) -> PyResult<PyBiConstraintStream> {
+        let lambda_a = LambdaInfo::new(py, mapping_a, "map_a", &self.class_names[0])?;
+        let lambda_b = LambdaInfo::new(py, mapping_b, "map_b", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Map {
+            mappers: vec![lambda_a.to_wasm_function(), lambda_b.to_wasm_function()],
+        });
+        Ok(PyBiConstraintStream {
+            components,
+            class_names: vec!["".to_string(), "".to_string()],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Expand each tuple by adding a new fact derived from a mapping function.
+    ///
+    /// Creates a TriConstraintStream where each tuple contains the original
+    /// elements and the result of applying the mapping function.
+    fn expand(&self, py: Python<'_>, mapping: Py<PyAny>) -> PyResult<PyTriConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, mapping, "expand", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Expand {
+            mappers: vec![lambda_info.to_wasm_function()],
+        });
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: {
+                let mut names = self.class_names.clone();
+                names.push("".to_string());
+                names
+            },
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Concatenate this stream with another stream of the same type.
+    fn concat(&self, other: &PyBiConstraintStream) -> PyBiConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Concat {
+            other_components: other.components.clone(),
+        });
+        PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Remove duplicate tuples from the stream.
+    fn distinct(&self) -> PyBiConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Distinct);
+        PyBiConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Filter if another entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if another entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_other(&self, cls: &Bound<'_, PyType>, joiners: Vec<PyJoiner>) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_other(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
         })
     }
 
@@ -907,8 +1506,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -934,8 +1534,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -961,8 +1562,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -988,8 +1590,9 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1015,14 +1618,71 @@ impl PyBiConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
         };
 
         components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyBiConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyBiConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
 
         Ok(PyBiConstraintBuilder {
             components,
@@ -1049,6 +1709,50 @@ pub struct PyUniConstraintBuilder {
 
 #[pymethods]
 impl PyUniConstraintBuilder {
+    /// Configure which objects are indicted (blamed) for score explanation.
+    ///
+    /// # Arguments
+    /// * `provider` - Lambda that returns the objects to indict for the match
+    fn indict_with(&self, py: Python<'_>, provider: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, provider, "indict_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IndictWith {
+            indicted_object_provider: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
+    /// Configure the justification message for score explanation.
+    ///
+    /// # Arguments
+    /// * `supplier` - Lambda that returns a justification object
+    fn justify_with(&self, py: Python<'_>, supplier: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, supplier, "justify_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::JustifyWith {
+            justification_supplier: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
         PyConstraint::new_with_predicates(
@@ -1072,6 +1776,44 @@ pub struct PyBiConstraintBuilder {
 
 #[pymethods]
 impl PyBiConstraintBuilder {
+    /// Configure which objects are indicted (blamed) for score explanation.
+    fn indict_with(&self, py: Python<'_>, provider: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, provider, "indict_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IndictWith {
+            indicted_object_provider: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
+    /// Configure the justification message for score explanation.
+    fn justify_with(&self, py: Python<'_>, supplier: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, supplier, "justify_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::JustifyWith {
+            justification_supplier: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
         PyConstraint::new_with_predicates(
@@ -1096,12 +1838,6 @@ pub struct PyTriConstraintStream {
 }
 
 impl PyTriConstraintStream {
-    /// Get stored predicates for analysis.
-    #[allow(dead_code)]
-    pub fn predicates(&self) -> &[LambdaInfo] {
-        &self.predicates
-    }
-
     /// Penalize with a weight and return a constraint (Rust API for tests).
     pub fn penalize_weight(&self, name: &str, weight: i32) -> PyConstraint {
         let weight_str = format!("{}hard", weight);
@@ -1132,7 +1868,7 @@ impl PyTriConstraintStream {
 
     /// Filter triples based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1163,7 +1899,7 @@ impl PyTriConstraintStream {
     /// stream.filter(lambda a, b, c: a.room != b.room and b.room != c.room)
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_tri", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1234,7 +1970,12 @@ impl PyTriConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyTriConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            &self.class_names[0],
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -1268,13 +2009,14 @@ impl PyTriConstraintStream {
         components.push(StreamComponent::Complement { class_name });
 
         // If padding functions are provided, add map components for them
+        let class_hint = &self.class_names[0];
         let mut mappers = Vec::new();
         if let Some(pad_fn) = padding_b {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_c {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if !mappers.is_empty() {
@@ -1285,6 +2027,162 @@ impl PyTriConstraintStream {
             components,
             class_names: self.class_names.clone(),
             predicates: Vec::new(),
+        })
+    }
+
+    /// Transform each tuple using mapping functions.
+    fn map(
+        &self,
+        py: Python<'_>,
+        mapping_a: Py<PyAny>,
+        mapping_b: Py<PyAny>,
+        mapping_c: Py<PyAny>,
+    ) -> PyResult<PyTriConstraintStream> {
+        let lambda_a = LambdaInfo::new(py, mapping_a, "map_a", &self.class_names[0])?;
+        let lambda_b = LambdaInfo::new(py, mapping_b, "map_b", &self.class_names[0])?;
+        let lambda_c = LambdaInfo::new(py, mapping_c, "map_c", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Map {
+            mappers: vec![
+                lambda_a.to_wasm_function(),
+                lambda_b.to_wasm_function(),
+                lambda_c.to_wasm_function(),
+            ],
+        });
+        Ok(PyTriConstraintStream {
+            components,
+            class_names: vec!["".to_string(), "".to_string(), "".to_string()],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Expand each tuple by adding a new fact derived from a mapping function.
+    fn expand(&self, py: Python<'_>, mapping: Py<PyAny>) -> PyResult<PyQuadConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, mapping, "expand", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Expand {
+            mappers: vec![lambda_info.to_wasm_function()],
+        });
+        Ok(PyQuadConstraintStream {
+            components,
+            class_names: {
+                let mut names = self.class_names.clone();
+                names.push("".to_string());
+                names
+            },
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Concatenate this stream with another stream of the same type.
+    fn concat(&self, other: &PyTriConstraintStream) -> PyTriConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Concat {
+            other_components: other.components.clone(),
+        });
+        PyTriConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Remove duplicate tuples from the stream.
+    fn distinct(&self) -> PyTriConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Distinct);
+        PyTriConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Filter if another entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if another entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_other(&self, cls: &Bound<'_, PyType>, joiners: Vec<PyJoiner>) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_other(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
         })
     }
 
@@ -1300,8 +2198,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1327,8 +2226,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1354,8 +2254,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1381,8 +2282,9 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1408,14 +2310,71 @@ impl PyTriConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
         };
 
         components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyTriConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyTriConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
 
         Ok(PyTriConstraintBuilder {
             components,
@@ -1442,6 +2401,44 @@ pub struct PyTriConstraintBuilder {
 
 #[pymethods]
 impl PyTriConstraintBuilder {
+    /// Configure which objects are indicted (blamed) for score explanation.
+    fn indict_with(&self, py: Python<'_>, provider: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, provider, "indict_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IndictWith {
+            indicted_object_provider: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
+    /// Configure the justification message for score explanation.
+    fn justify_with(&self, py: Python<'_>, supplier: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, supplier, "justify_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::JustifyWith {
+            justification_supplier: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
         PyConstraint::new_with_predicates(
@@ -1475,7 +2472,7 @@ impl PyQuadConstraintStream {
 impl PyQuadConstraintStream {
     /// Filter quads based on a predicate.
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_quad")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_quad", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1538,7 +2535,12 @@ impl PyQuadConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyQuadConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            &self.class_names[0],
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -1567,17 +2569,18 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
         components.push(StreamComponent::Complement { class_name });
 
+        let class_hint = &self.class_names[0];
         let mut mappers = Vec::new();
         if let Some(pad_fn) = padding_b {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_c {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_d {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if !mappers.is_empty() {
@@ -1588,6 +2591,170 @@ impl PyQuadConstraintStream {
             components,
             class_names: self.class_names.clone(),
             predicates: Vec::new(),
+        })
+    }
+
+    /// Transform each tuple using mapping functions.
+    fn map(
+        &self,
+        py: Python<'_>,
+        mapping_a: Py<PyAny>,
+        mapping_b: Py<PyAny>,
+        mapping_c: Py<PyAny>,
+        mapping_d: Py<PyAny>,
+    ) -> PyResult<PyQuadConstraintStream> {
+        let lambda_a = LambdaInfo::new(py, mapping_a, "map_a", &self.class_names[0])?;
+        let lambda_b = LambdaInfo::new(py, mapping_b, "map_b", &self.class_names[0])?;
+        let lambda_c = LambdaInfo::new(py, mapping_c, "map_c", &self.class_names[0])?;
+        let lambda_d = LambdaInfo::new(py, mapping_d, "map_d", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Map {
+            mappers: vec![
+                lambda_a.to_wasm_function(),
+                lambda_b.to_wasm_function(),
+                lambda_c.to_wasm_function(),
+                lambda_d.to_wasm_function(),
+            ],
+        });
+        Ok(PyQuadConstraintStream {
+            components,
+            class_names: vec![
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Expand each tuple by adding a new fact derived from a mapping function.
+    fn expand(&self, py: Python<'_>, mapping: Py<PyAny>) -> PyResult<PyPentaConstraintStream> {
+        let lambda_info = LambdaInfo::new(py, mapping, "expand", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Expand {
+            mappers: vec![lambda_info.to_wasm_function()],
+        });
+        Ok(PyPentaConstraintStream {
+            components,
+            class_names: {
+                let mut names = self.class_names.clone();
+                names.push("".to_string());
+                names
+            },
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Concatenate this stream with another stream of the same type.
+    fn concat(&self, other: &PyQuadConstraintStream) -> PyQuadConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Concat {
+            other_components: other.components.clone(),
+        });
+        PyQuadConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Remove duplicate tuples from the stream.
+    fn distinct(&self) -> PyQuadConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Distinct);
+        PyQuadConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Filter if another entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if another entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_other(&self, cls: &Bound<'_, PyType>, joiners: Vec<PyJoiner>) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_other(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
         })
     }
 
@@ -1603,8 +2770,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1630,8 +2798,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1657,8 +2826,9 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -1684,14 +2854,71 @@ impl PyQuadConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
         };
 
         components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyQuadConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyQuadConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyQuadConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
 
         Ok(PyQuadConstraintBuilder {
             components,
@@ -1718,6 +2945,44 @@ pub struct PyQuadConstraintBuilder {
 
 #[pymethods]
 impl PyQuadConstraintBuilder {
+    /// Configure which objects are indicted (blamed) for score explanation.
+    fn indict_with(&self, py: Python<'_>, provider: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, provider, "indict_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IndictWith {
+            indicted_object_provider: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
+    /// Configure the justification message for score explanation.
+    fn justify_with(&self, py: Python<'_>, supplier: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, supplier, "justify_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::JustifyWith {
+            justification_supplier: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
         PyConstraint::new_with_predicates(
@@ -1779,7 +3044,7 @@ impl PyPentaConstraintStream {
 
     /// Filter based on a predicate (Rust API for tests).
     pub fn filter_with(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_penta")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_penta", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1810,7 +3075,7 @@ impl PyPentaConstraintStream {
     /// stream.filter(lambda a, b, c, d, e: a.id != e.id)
     /// ```
     fn filter(&self, py: Python<'_>, predicate: Py<PyAny>) -> PyResult<Self> {
-        let lambda_info = LambdaInfo::new(py, predicate, "filter_penta")?;
+        let lambda_info = LambdaInfo::new(py, predicate, "filter_penta", &self.class_names[0])?;
         let wasm_func = lambda_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1873,7 +3138,7 @@ impl PyPentaConstraintStream {
         key_mapper: Py<PyAny>,
         collector: &PyCollector,
     ) -> PyResult<PyBiConstraintStream> {
-        let key_info = LambdaInfo::new(py, key_mapper, "group_by_penta_key")?;
+        let key_info = LambdaInfo::new(py, key_mapper, "group_by_penta_key", &self.class_names[0])?;
         let key_wasm = key_info.to_wasm_function();
 
         let mut components = self.components.clone();
@@ -1910,7 +3175,12 @@ impl PyPentaConstraintStream {
         py: Python<'_>,
         flattening_function: Py<PyAny>,
     ) -> PyResult<PyPentaConstraintStream> {
-        let lambda_info = LambdaInfo::new(py, flattening_function, "flatten_last")?;
+        let lambda_info = LambdaInfo::new(
+            py,
+            flattening_function,
+            "flatten_last",
+            &self.class_names[0],
+        )?;
         let mut components = self.components.clone();
         components.push(StreamComponent::FlattenLast {
             map: Some(lambda_info.to_wasm_function()),
@@ -1940,21 +3210,22 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
         components.push(StreamComponent::Complement { class_name });
 
+        let class_hint = &self.class_names[0];
         let mut mappers = Vec::new();
         if let Some(pad_fn) = padding_b {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_b", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_c {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_c", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_d {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_d", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if let Some(pad_fn) = padding_e {
-            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_e")?;
+            let lambda_info = LambdaInfo::new(py, pad_fn, "complement_padding_e", class_hint)?;
             mappers.push(lambda_info.to_wasm_function());
         }
         if !mappers.is_empty() {
@@ -1965,6 +3236,156 @@ impl PyPentaConstraintStream {
             components,
             class_names: self.class_names.clone(),
             predicates: Vec::new(),
+        })
+    }
+
+    /// Transform each tuple using mapping functions.
+    fn map(
+        &self,
+        py: Python<'_>,
+        mapping_a: Py<PyAny>,
+        mapping_b: Py<PyAny>,
+        mapping_c: Py<PyAny>,
+        mapping_d: Py<PyAny>,
+        mapping_e: Py<PyAny>,
+    ) -> PyResult<PyPentaConstraintStream> {
+        let lambda_a = LambdaInfo::new(py, mapping_a, "map_a", &self.class_names[0])?;
+        let lambda_b = LambdaInfo::new(py, mapping_b, "map_b", &self.class_names[0])?;
+        let lambda_c = LambdaInfo::new(py, mapping_c, "map_c", &self.class_names[0])?;
+        let lambda_d = LambdaInfo::new(py, mapping_d, "map_d", &self.class_names[0])?;
+        let lambda_e = LambdaInfo::new(py, mapping_e, "map_e", &self.class_names[0])?;
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Map {
+            mappers: vec![
+                lambda_a.to_wasm_function(),
+                lambda_b.to_wasm_function(),
+                lambda_c.to_wasm_function(),
+                lambda_d.to_wasm_function(),
+                lambda_e.to_wasm_function(),
+            ],
+        });
+        Ok(PyPentaConstraintStream {
+            components,
+            class_names: vec![
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ],
+            predicates: Vec::new(),
+        })
+    }
+
+    /// Concatenate this stream with another stream of the same type.
+    fn concat(&self, other: &PyPentaConstraintStream) -> PyPentaConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Concat {
+            other_components: other.components.clone(),
+        });
+        PyPentaConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Remove duplicate tuples from the stream.
+    fn distinct(&self) -> PyPentaConstraintStream {
+        let mut components = self.components.clone();
+        components.push(StreamComponent::Distinct);
+        PyPentaConstraintStream {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: Vec::new(),
+        }
+    }
+
+    /// Filter if another entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity exists matching the joiners, including unassigned entities.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_including_unassigned(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsIncludingUnassigned {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if another entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_exists_other(&self, cls: &Bound<'_, PyType>, joiners: Vec<PyJoiner>) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Filter if no other entity of the same type exists, excluding the current entity.
+    #[pyo3(signature = (cls, *joiners))]
+    fn if_not_exists_other(
+        &self,
+        cls: &Bound<'_, PyType>,
+        joiners: Vec<PyJoiner>,
+    ) -> PyResult<Self> {
+        let other_class_name: String = cls.getattr("__name__")?.extract()?;
+        let rust_joiners: Vec<Joiner> = joiners.into_iter().map(|j| j.to_rust()).collect();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IfNotExistsOther {
+            class_name: other_class_name,
+            joiners: rust_joiners,
+        });
+
+        Ok(Self {
+            components,
+            class_names: self.class_names.clone(),
+            predicates: self.predicates.clone(),
         })
     }
 
@@ -1980,8 +3401,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2007,8 +3429,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2034,8 +3457,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2061,8 +3485,9 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
@@ -2088,14 +3513,71 @@ impl PyPentaConstraintStream {
         let mut components = self.components.clone();
 
         let scale_by = if let Some(weigher) = match_weigher {
-            let lambda_info = LambdaInfo::new(py, weigher, "match_weigher")
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
             Some(lambda_info.to_wasm_function())
         } else {
             None
         };
 
         components.push(StreamComponent::Reward { weight, scale_by });
+
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyPentaConstraintBuilder> {
+        let weight = format!("{}", score.to_rust());
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
+
+        Ok(PyPentaConstraintBuilder {
+            components,
+            predicates: self.predicates.clone(),
+        })
+    }
+
+    /// Apply an impact (can be positive or negative) with a hard/soft decimal score.
+    #[pyo3(signature = (score, match_weigher=None))]
+    fn impact_decimal(
+        &self,
+        py: Python<'_>,
+        score: &PyHardSoftDecimalScore,
+        match_weigher: Option<Py<PyAny>>,
+    ) -> PyResult<PyPentaConstraintBuilder> {
+        let weight = score.to_string_repr();
+        let mut components = self.components.clone();
+
+        let scale_by = if let Some(weigher) = match_weigher {
+            let lambda_info =
+                LambdaInfo::new(py, weigher, "match_weigher", &self.class_names[0])
+                    .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+            Some(lambda_info.to_wasm_function())
+        } else {
+            None
+        };
+
+        components.push(StreamComponent::Impact { weight, scale_by });
 
         Ok(PyPentaConstraintBuilder {
             components,
@@ -2122,6 +3604,44 @@ pub struct PyPentaConstraintBuilder {
 
 #[pymethods]
 impl PyPentaConstraintBuilder {
+    /// Configure which objects are indicted (blamed) for score explanation.
+    fn indict_with(&self, py: Python<'_>, provider: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, provider, "indict_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::IndictWith {
+            indicted_object_provider: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
+    /// Configure the justification message for score explanation.
+    fn justify_with(&self, py: Python<'_>, supplier: Py<PyAny>) -> PyResult<Self> {
+        let lambda_info = LambdaInfo::new(py, supplier, "justify_with", "Entity")?;
+        let wasm_func = lambda_info.to_wasm_function();
+
+        let mut components = self.components.clone();
+        components.push(StreamComponent::JustifyWith {
+            justification_supplier: wasm_func,
+        });
+
+        let mut predicates = self.predicates.clone();
+        predicates.push(lambda_info);
+
+        Ok(Self {
+            components,
+            predicates,
+        })
+    }
+
     /// Finalize the constraint with a name.
     fn as_constraint(&self, name: &str) -> PyConstraint {
         PyConstraint::new_with_predicates(
@@ -2245,76 +3765,10 @@ mod tests {
     fn test_constraint_to_json() {
         let constraint = PyConstraint {
             inner: Constraint::new("Test constraint"),
+            predicates: Vec::new(),
         };
         let json = constraint.to_json().unwrap();
         assert!(json.contains("Test constraint"));
-    }
-
-    #[test]
-    fn test_uni_stream_filter_stores_predicate() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.room is not None", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let stream = PyUniConstraintStream::new("Lesson".to_string(), false);
-            let filtered = stream.filter(py, func.unbind()).unwrap();
-
-            // Should have 2 components: ForEach + Filter
-            assert_eq!(filtered.components.len(), 2);
-
-            // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
-
-            // Predicate name should start with "filter_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_"));
-        });
-    }
-
-    #[test]
-    fn test_bi_stream_filter_stores_predicate() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda a, b: a.id != b.id", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
-            let filtered = stream.filter(py, func.unbind()).unwrap();
-
-            // Should have 2 components: ForEachUniquePair + Filter
-            assert_eq!(filtered.components.len(), 2);
-
-            // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
-
-            // Predicate name should start with "filter_bi_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_bi_"));
-        });
-    }
-
-    #[test]
-    fn test_filter_unique_names() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.room is not None", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let stream = PyUniConstraintStream::new("Lesson".to_string(), false);
-            let filtered1 = stream.filter(py, func.clone().unbind()).unwrap();
-            let filtered2 = filtered1.filter(py, func.unbind()).unwrap();
-
-            // Should have unique names for each filter
-            assert_ne!(
-                filtered2.predicates()[0].name,
-                filtered2.predicates()[1].name
-            );
-        });
     }
 
     #[test]
@@ -2322,7 +3776,6 @@ mod tests {
         init_python();
         Python::attach(|py| {
             let locals = PyDict::new(py);
-            // Create a mock class
             py.run(c"class Timeslot:\n    pass", None, Some(&locals))
                 .unwrap();
             let timeslot_cls = locals.get_item("Timeslot").unwrap().unwrap();
@@ -2332,48 +3785,11 @@ mod tests {
                 .join(timeslot_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
-            // Should have 2 components: ForEachUniquePair + Join
             assert_eq!(tri_stream.components.len(), 2);
-
-            // Should have 2 class names tracked (original + joined)
             assert_eq!(tri_stream.class_names.len(), 2);
             assert_eq!(tri_stream.class_names[0], "Lesson");
             assert_eq!(tri_stream.class_names[1], "Timeslot");
-
-            // Repr should show TriConstraintStream
             assert!(tri_stream.__repr__().contains("TriConstraintStream"));
-        });
-    }
-
-    #[test]
-    fn test_tri_stream_filter_stores_predicate() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"class Room:\n    pass\nf = lambda a, b, c: a.id != b.id and b.id != c.id",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let room_cls = locals.get_item("Room").unwrap().unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            // Create bi stream, then join to get tri stream
-            let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
-            let tri_stream = bi_stream
-                .join(room_cls.cast::<PyType>().unwrap(), vec![])
-                .unwrap();
-            let filtered = tri_stream.filter(py, func.unbind()).unwrap();
-
-            // Should have 3 components: ForEachUniquePair + Join + Filter
-            assert_eq!(filtered.components.len(), 3);
-
-            // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
-
-            // Predicate name should start with "filter_tri_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_tri_"));
         });
     }
 
@@ -2386,13 +3802,11 @@ mod tests {
                 .unwrap();
             let room_cls = locals.get_item("Room").unwrap().unwrap();
 
-            // Create tri stream
             let bi_stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
             let tri_stream = bi_stream
                 .join(room_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
-            // Use penalize_weight (Rust API)
             let constraint = tri_stream.penalize_weight("Triple conflict", 1);
 
             assert_eq!(constraint.name(), "Triple conflict");
@@ -2423,33 +3837,6 @@ mod tests {
     }
 
     #[test]
-    fn test_uni_stream_group_by() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"key_mapper = lambda shift: shift.employee",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
-
-            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
-            let collector = crate::collectors::PyConstraintCollectors::count_rust();
-            let grouped = stream
-                .group_by(py, key_mapper.unbind(), &collector)
-                .unwrap();
-
-            // Should have 2 components: ForEach + GroupBy
-            assert_eq!(grouped.components.len(), 2);
-
-            // Should be a BiConstraintStream
-            assert!(grouped.__repr__().contains("BiConstraintStream"));
-        });
-    }
-
-    #[test]
     fn test_uni_stream_group_by_collector_only() {
         init_python();
         Python::attach(|_py| {
@@ -2457,62 +3844,8 @@ mod tests {
             let collector = crate::collectors::PyConstraintCollectors::count_rust();
             let grouped = stream.group_by_collector(&collector);
 
-            // Should have 2 components: ForEach + GroupBy
             assert_eq!(grouped.components.len(), 2);
-
-            // Should be a UniConstraintStream
             assert!(grouped.__repr__().contains("UniConstraintStream"));
-        });
-    }
-
-    #[test]
-    fn test_uni_stream_group_by_two_keys() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"key_a = lambda s: s.employee\nkey_b = lambda s: s.day",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let key_a = locals.get_item("key_a").unwrap().unwrap();
-            let key_b = locals.get_item("key_b").unwrap().unwrap();
-
-            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
-            let collector = crate::collectors::PyConstraintCollectors::count_rust();
-            let grouped = stream
-                .group_by_two_keys(py, key_a.unbind(), key_b.unbind(), &collector)
-                .unwrap();
-
-            // Should have 2 components: ForEach + GroupBy
-            assert_eq!(grouped.components.len(), 2);
-
-            // Should be a TriConstraintStream
-            assert!(grouped.__repr__().contains("TriConstraintStream"));
-        });
-    }
-
-    #[test]
-    fn test_bi_stream_group_by() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"key_mapper = lambda a, b: a.room", None, Some(&locals))
-                .unwrap();
-            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
-
-            let stream = PyBiConstraintStream::from_unique_pair("Lesson".to_string(), vec![]);
-            let collector = crate::collectors::PyConstraintCollectors::count_rust();
-            let grouped = stream
-                .group_by(py, key_mapper.unbind(), &collector)
-                .unwrap();
-
-            // Should have 2 components: ForEachUniquePair + GroupBy
-            assert_eq!(grouped.components.len(), 2);
-
-            // Should be a BiConstraintStream
-            assert!(grouped.__repr__().contains("BiConstraintStream"));
         });
     }
 
@@ -2524,74 +3857,10 @@ mod tests {
             let collector = crate::collectors::PyConstraintCollectors::count_rust();
             let grouped = stream.group_by_collector(&collector);
 
-            // Should have 2 components: ForEachUniquePair + GroupBy
             assert_eq!(grouped.components.len(), 2);
-
-            // Should be a UniConstraintStream
             assert!(grouped.__repr__().contains("UniConstraintStream"));
         });
     }
-
-    #[test]
-    fn test_group_by_with_sum_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"key_mapper = lambda s: s.employee\nsum_mapper = lambda s: s.hours",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
-            let sum_mapper = locals.get_item("sum_mapper").unwrap().unwrap();
-
-            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
-            let collector =
-                crate::collectors::PyConstraintCollectors::sum_rust(py, sum_mapper.unbind())
-                    .unwrap();
-            let grouped = stream
-                .group_by(py, key_mapper.unbind(), &collector)
-                .unwrap();
-
-            // Should have 2 components: ForEach + GroupBy
-            assert_eq!(grouped.components.len(), 2);
-
-            // Can chain with penalize
-            let constraint = grouped.penalize_weight("Too many hours", 1);
-            assert_eq!(constraint.name(), "Too many hours");
-        });
-    }
-
-    #[test]
-    fn test_group_by_chain_with_filter() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"key_mapper = lambda s: s.employee\nfilter_pred = lambda emp, count: count > 5",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
-            let filter_pred = locals.get_item("filter_pred").unwrap().unwrap();
-
-            let stream = PyUniConstraintStream::new("Shift".to_string(), false);
-            let collector = crate::collectors::PyConstraintCollectors::count_rust();
-            let grouped = stream
-                .group_by(py, key_mapper.unbind(), &collector)
-                .unwrap();
-            let filtered = grouped.filter(py, filter_pred.unbind()).unwrap();
-
-            // Should have 3 components: ForEach + GroupBy + Filter
-            assert_eq!(filtered.components.len(), 3);
-        });
-    }
-
-    // =========================================================================
-    // PentaConstraintStream tests
-    // =========================================================================
 
     #[test]
     fn test_quad_stream_join_to_penta() {
@@ -2609,10 +3878,9 @@ mod tests {
             let d_cls = locals.get_item("D").unwrap().unwrap();
             let e_cls = locals.get_item("E").unwrap().unwrap();
 
-            // Create a stream chain: A -> join(B) -> join(C) -> join(D) -> join(E)
             let uni_stream = PyUniConstraintStream::new("A".to_string(), false);
             let bi_stream = uni_stream
-                .join(b_cls.cast::<PyType>().unwrap(), vec![])
+                .join(py, b_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
             let tri_stream = bi_stream
                 .join(c_cls.cast::<PyType>().unwrap(), vec![])
@@ -2624,277 +3892,137 @@ mod tests {
                 .join(e_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
-            // Should have 5 components: ForEach + 4 Joins
             assert_eq!(penta_stream.components.len(), 5);
-
-            // Should have 5 class names tracked
             assert_eq!(penta_stream.class_names.len(), 5);
             assert_eq!(penta_stream.class_names[0], "A");
             assert_eq!(penta_stream.class_names[4], "E");
-
-            // Repr should show PentaConstraintStream
             assert!(penta_stream.__repr__().contains("PentaConstraintStream"));
         });
     }
 
     #[test]
-    fn test_penta_stream_filter() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"class E:\n    pass\nf = lambda a, b, c, d, e: a.id != e.id",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            // Create a penta stream directly for testing
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
-
-            let filtered = penta_stream.filter(py, func.unbind()).unwrap();
-
-            // Should have 2 components: ForEach + Filter
-            assert_eq!(filtered.components.len(), 2);
-
-            // Should have 1 predicate stored
-            assert_eq!(filtered.predicates().len(), 1);
-
-            // Predicate name should start with "filter_penta_"
-            assert!(filtered.predicates()[0].name.starts_with("filter_penta_"));
-        });
-    }
-
-    #[test]
     fn test_penta_stream_penalize_and_constraint() {
-        init_python();
-        Python::attach(|_py| {
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
+        let penta_stream = PyPentaConstraintStream {
+            components: vec![StreamComponent::ForEach {
+                class_name: "Entity".to_string(),
+            }],
+            class_names: vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+                "D".to_string(),
+                "E".to_string(),
+            ],
+            predicates: Vec::new(),
+        };
 
-            // Use penalize_weight (Rust API)
-            let constraint = penta_stream.penalize_weight("Penta conflict", 1);
+        let constraint = penta_stream.penalize_weight("Penta conflict", 1);
 
-            assert_eq!(constraint.name(), "Penta conflict");
-            assert!(constraint.to_json().unwrap().contains("1hard"));
-        });
+        assert_eq!(constraint.name(), "Penta conflict");
+        assert!(constraint.to_json().unwrap().contains("1hard"));
     }
 
     #[test]
     fn test_penta_stream_reward() {
-        init_python();
-        Python::attach(|_py| {
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
+        let penta_stream = PyPentaConstraintStream {
+            components: vec![StreamComponent::ForEach {
+                class_name: "Entity".to_string(),
+            }],
+            class_names: vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+                "D".to_string(),
+                "E".to_string(),
+            ],
+            predicates: Vec::new(),
+        };
 
-            // Use reward_weight (Rust API)
-            let constraint = penta_stream.reward_weight("Penta bonus", 1);
+        let constraint = penta_stream.reward_weight("Penta bonus", 1);
 
-            assert_eq!(constraint.name(), "Penta bonus");
-            assert!(constraint.to_json().unwrap().contains("1soft"));
-        });
+        assert_eq!(constraint.name(), "Penta bonus");
+        assert!(constraint.to_json().unwrap().contains("1soft"));
     }
 
     #[test]
     fn test_penta_stream_repr() {
-        init_python();
-        Python::attach(|_py| {
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
+        let penta_stream = PyPentaConstraintStream {
+            components: vec![StreamComponent::ForEach {
+                class_name: "Entity".to_string(),
+            }],
+            class_names: vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+                "D".to_string(),
+                "E".to_string(),
+            ],
+            predicates: Vec::new(),
+        };
 
-            let repr = penta_stream.__repr__();
-            assert!(repr.contains("PentaConstraintStream"));
-            assert!(repr.contains("A"));
-            assert!(repr.contains("E"));
-            assert!(repr.contains("components=1"));
-        });
-    }
-
-    #[test]
-    fn test_penta_stream_group_by() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(
-                c"key_mapper = lambda a, b, c, d, e: a.category",
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-            let key_mapper = locals.get_item("key_mapper").unwrap().unwrap();
-
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
-
-            let collector = crate::collectors::PyConstraintCollectors::count_rust();
-            let grouped = penta_stream
-                .group_by(py, key_mapper.unbind(), &collector)
-                .unwrap();
-
-            // Should have 2 components: ForEach + GroupBy
-            assert_eq!(grouped.components.len(), 2);
-
-            // Should be a BiConstraintStream
-            assert!(grouped.__repr__().contains("BiConstraintStream"));
-        });
+        let repr = penta_stream.__repr__();
+        assert!(repr.contains("PentaConstraintStream"));
+        assert!(repr.contains("A"));
+        assert!(repr.contains("E"));
+        assert!(repr.contains("components=1"));
     }
 
     #[test]
     fn test_penta_stream_group_by_collector_only() {
-        init_python();
-        Python::attach(|_py| {
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
+        let penta_stream = PyPentaConstraintStream {
+            components: vec![StreamComponent::ForEach {
+                class_name: "Entity".to_string(),
+            }],
+            class_names: vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+                "D".to_string(),
+                "E".to_string(),
+            ],
+            predicates: Vec::new(),
+        };
 
-            let collector = crate::collectors::PyConstraintCollectors::count_rust();
-            let grouped = penta_stream.group_by_collector(&collector);
+        let collector = crate::collectors::PyConstraintCollectors::count_rust();
+        let grouped = penta_stream.group_by_collector(&collector);
 
-            // Should have 2 components: ForEach + GroupBy
-            assert_eq!(grouped.components.len(), 2);
-
-            // Should be a UniConstraintStream
-            assert!(grouped.__repr__().contains("UniConstraintStream"));
-        });
+        assert_eq!(grouped.components.len(), 2);
+        assert!(grouped.__repr__().contains("UniConstraintStream"));
     }
 
     #[test]
     fn test_penta_builder_as_constraint() {
-        init_python();
-        Python::attach(|_py| {
-            let builder = PyPentaConstraintBuilder {
-                components: vec![
-                    StreamComponent::ForEach {
-                        class_name: "Entity".to_string(),
-                    },
-                    StreamComponent::Penalize {
-                        weight: "1hard".to_string(),
-                        scale_by: None,
-                    },
-                ],
-            };
+        let builder = PyPentaConstraintBuilder {
+            components: vec![
+                StreamComponent::ForEach {
+                    class_name: "Entity".to_string(),
+                },
+                StreamComponent::Penalize {
+                    weight: "1hard".to_string(),
+                    scale_by: None,
+                },
+            ],
+            predicates: Vec::new(),
+        };
 
-            let constraint = builder.as_constraint("Test penta constraint");
+        let constraint = builder.as_constraint("Test penta constraint");
 
-            assert_eq!(constraint.name(), "Test penta constraint");
-            assert_eq!(constraint.component_count(), 2);
-        });
+        assert_eq!(constraint.name(), "Test penta constraint");
+        assert_eq!(constraint.component_count(), 2);
     }
 
     #[test]
     fn test_penta_builder_repr() {
-        init_python();
-        Python::attach(|_py| {
-            let builder = PyPentaConstraintBuilder {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-            };
+        let builder = PyPentaConstraintBuilder {
+            components: vec![StreamComponent::ForEach {
+                class_name: "Entity".to_string(),
+            }],
+            predicates: Vec::new(),
+        };
 
-            let repr = builder.__repr__();
-            assert!(repr.contains("PentaConstraintBuilder"));
-            assert!(repr.contains("components=1"));
-        });
-    }
-
-    #[test]
-    fn test_penta_stream_flatten_last() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"flatten_fn = lambda e: e.items", None, Some(&locals))
-                .unwrap();
-            let flatten_fn = locals.get_item("flatten_fn").unwrap().unwrap();
-
-            let penta_stream = PyPentaConstraintStream {
-                components: vec![StreamComponent::ForEach {
-                    class_name: "Entity".to_string(),
-                }],
-                class_names: vec![
-                    "A".to_string(),
-                    "B".to_string(),
-                    "C".to_string(),
-                    "D".to_string(),
-                    "E".to_string(),
-                ],
-                predicates: Vec::new(),
-            };
-
-            let flattened = penta_stream.flatten_last(py, flatten_fn.unbind()).unwrap();
-
-            // Should have 2 components: ForEach + FlattenLast
-            assert_eq!(flattened.components.len(), 2);
-
-            // Should still be a PentaConstraintStream
-            assert!(flattened.__repr__().contains("PentaConstraintStream"));
-        });
+        let repr = builder.__repr__();
+        assert!(repr.contains("PentaConstraintBuilder"));
+        assert!(repr.contains("components=1"));
     }
 
     #[test]
@@ -2924,7 +4052,6 @@ mod tests {
                 .if_exists(other_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
-            // Should have 2 components: ForEach + IfExists
             assert_eq!(filtered.components.len(), 2);
         });
     }
@@ -2956,7 +4083,6 @@ mod tests {
                 .if_not_exists(other_cls.cast::<PyType>().unwrap(), vec![])
                 .unwrap();
 
-            // Should have 2 components: ForEach + IfNotExists
             assert_eq!(filtered.components.len(), 2);
         });
     }

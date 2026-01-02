@@ -3,39 +3,37 @@
 //! These traits define the interface for planning entities and solutions
 //! that can be solved by the constraint solver. They are typically implemented
 //! via derive macros from the `solverforge-derive` crate.
-//!
-//! # Example
-//!
-//! ```ignore
-//! use solverforge_derive::{PlanningEntity, PlanningSolution};
-//! use solverforge_core::{PlanningEntity, PlanningSolution, HardSoftScore};
-//!
-//! #[derive(PlanningEntity)]
-//! struct Lesson {
-//!     #[planning_id]
-//!     id: String,
-//!     #[planning_variable(value_range_provider = "rooms")]
-//!     room: Option<Room>,
-//! }
-//!
-//! #[derive(PlanningSolution)]
-//! #[constraint_provider = "define_constraints"]
-//! struct Timetable {
-//!     #[problem_fact_collection]
-//!     #[value_range_provider(id = "rooms")]
-//!     rooms: Vec<Room>,
-//!     #[planning_entity_collection]
-//!     lessons: Vec<Lesson>,
-//!     #[planning_score]
-//!     score: Option<HardSoftScore>,
-//! }
-//! ```
 
 use crate::constraints::ConstraintSet;
 use crate::domain::{DomainClass, DomainModel};
 use crate::score::Score;
 use crate::value::Value;
 use crate::SolverForgeResult;
+
+/// Trait for structs that can be represented in the domain model.
+///
+/// This trait is used for nested structs (like `Location`) that are not
+/// planning entities but need their fields accessible in WASM memory for
+/// constraint evaluation and shadow variable computation.
+///
+/// # Derive Macro
+///
+/// This trait is typically implemented via `#[derive(DomainStruct)]`:
+///
+/// ```ignore
+/// #[derive(DomainStruct, Clone)]
+/// struct Location {
+///     latitude: f64,
+///     longitude: f64,
+/// }
+/// ```
+///
+/// When a `PlanningSolution` references types that implement `DomainStruct`,
+/// those classes are automatically included in the domain model.
+pub trait DomainStruct: Send + Sync {
+    /// Returns the domain class descriptor for this struct.
+    fn domain_class() -> DomainClass;
+}
 
 /// Marker trait for types that can be used as planning entities.
 ///
@@ -179,17 +177,16 @@ mod tests {
                 .with_annotation(PlanningAnnotation::PlanningEntity)
                 .with_field(
                     FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                        .with_planning_annotation(PlanningAnnotation::PlanningId),
+                        .with_annotation(PlanningAnnotation::PlanningId),
                 )
                 .with_field(FieldDescriptor::new(
                     "subject",
                     FieldType::Primitive(PrimitiveType::String),
                 ))
                 .with_field(
-                    FieldDescriptor::new("room", FieldType::object("Room"))
-                        .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
-                            "rooms".to_string(),
-                        ])),
+                    FieldDescriptor::new("room", FieldType::object("Room")).with_annotation(
+                        PlanningAnnotation::planning_variable(vec!["rooms".to_string()]),
+                    ),
                 )
         }
 
@@ -259,11 +256,9 @@ mod tests {
                                 "rooms",
                                 FieldType::list(FieldType::object("Room")),
                             )
-                            .with_planning_annotation(
-                                PlanningAnnotation::ProblemFactCollectionProperty,
-                            )
-                            .with_planning_annotation(
-                                PlanningAnnotation::value_range_provider("rooms"),
+                            .with_annotation(PlanningAnnotation::ProblemFactCollectionProperty)
+                            .with_annotation(
+                                PlanningAnnotation::value_range_provider_with_id("rooms"),
                             ),
                         )
                         .with_field(
@@ -271,13 +266,11 @@ mod tests {
                                 "lessons",
                                 FieldType::list(FieldType::object("Lesson")),
                             )
-                            .with_planning_annotation(
-                                PlanningAnnotation::PlanningEntityCollectionProperty,
-                            ),
+                            .with_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
                         )
                         .with_field(
                             FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                                .with_planning_annotation(PlanningAnnotation::planning_score()),
+                                .with_annotation(PlanningAnnotation::planning_score()),
                         ),
                 )
                 .build()

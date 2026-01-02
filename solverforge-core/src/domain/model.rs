@@ -1,4 +1,4 @@
-use super::DomainClass;
+use super::{DomainClass, FieldType, PlanningAnnotation};
 use crate::SolverForgeError;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -39,12 +39,34 @@ impl DomainModel {
         self.solution_class.as_deref()
     }
 
+    /// Looks up the element type of a value range provider by its ID.
+    fn lookup_value_range_provider_element_type(&self, provider_id: &str) -> Option<String> {
+        for class in self.classes.values() {
+            for field in &class.fields {
+                for annotation in &field.annotations {
+                    if let PlanningAnnotation::ValueRangeProvider { id } = annotation {
+                        let effective_id = id.as_deref().unwrap_or(&field.name);
+                        if effective_id == provider_id {
+                            // Extract element type from the field's FieldType
+                            match &field.field_type {
+                                FieldType::List { element_type }
+                                | FieldType::Array { element_type }
+                                | FieldType::Set { element_type } => {
+                                    return Some(element_type.to_type_string());
+                                }
+                                // If not a collection, return the type directly
+                                _ => return Some(field.field_type.to_type_string()),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     pub fn to_dto(&self) -> indexmap::IndexMap<String, crate::solver::DomainObjectDto> {
-        use crate::domain::PlanningAnnotation as DomainAnnotation;
-        use crate::solver::{
-            DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor,
-            PlanningAnnotation as SolverAnnotation,
-        };
+        use crate::solver::{DomainAccessor, DomainObjectDto, DomainObjectMapper, FieldDescriptor};
 
         let mut result = indexmap::IndexMap::new();
 
@@ -65,13 +87,19 @@ impl DomainModel {
                     // - PlanningListVariable: solver modifies lists
                     // - ProblemFactCollectionProperty: solution class collections
                     // - PlanningEntityCollectionProperty: solution class entity collections
-                    let setter = if field.planning_annotations.iter().any(|a| {
+                    // - ALL shadow variables: Need setters to sync Java-side updates to WASM
+                    //   memory so constraint evaluation reads current values
+                    let setter = if field.annotations.iter().any(|a| {
                         matches!(
                             a,
-                            DomainAnnotation::PlanningVariable { .. }
-                                | DomainAnnotation::PlanningListVariable { .. }
-                                | DomainAnnotation::ProblemFactCollectionProperty
-                                | DomainAnnotation::PlanningEntityCollectionProperty
+                            PlanningAnnotation::PlanningVariable { .. }
+                                | PlanningAnnotation::PlanningListVariable { .. }
+                                | PlanningAnnotation::ProblemFactCollectionProperty
+                                | PlanningAnnotation::PlanningEntityCollectionProperty
+                                | PlanningAnnotation::InverseRelationShadowVariable { .. }
+                                | PlanningAnnotation::PreviousElementShadowVariable { .. }
+                                | PlanningAnnotation::NextElementShadowVariable { .. }
+                                | PlanningAnnotation::CascadingUpdateShadowVariable { .. }
                         )
                     }) {
                         Some(format!("set_{}_{}", name, field.name))
@@ -87,50 +115,46 @@ impl DomainModel {
                     DomainAccessor::new(getter)
                 };
 
-                // Convert domain annotations to solver annotations
-                let mut annotations = Vec::new();
-                for ann in &field.planning_annotations {
-                    match ann {
-                        DomainAnnotation::PlanningId => {
-                            annotations.push(SolverAnnotation::PlanningId);
+                // Resolve element types for planning list variables
+                let field_type = if let Some(provider_refs) =
+                    field.annotations.iter().find_map(|a| {
+                        if let PlanningAnnotation::PlanningListVariable {
+                            value_range_provider_refs,
+                            ..
+                        } = a
+                        {
+                            if !value_range_provider_refs.is_empty() {
+                                return Some(value_range_provider_refs);
+                            }
                         }
-                        DomainAnnotation::PlanningVariable {
-                            allows_unassigned, ..
-                        } => {
-                            annotations.push(SolverAnnotation::PlanningVariable {
-                                allows_unassigned: *allows_unassigned,
-                            });
-                        }
-                        DomainAnnotation::PlanningListVariable { .. } => {
-                            // List variables use the same PlanningVariable annotation
-                            annotations.push(SolverAnnotation::PlanningVariable {
-                                allows_unassigned: false,
-                            });
-                        }
-                        DomainAnnotation::PlanningScore { .. } => {
-                            annotations.push(SolverAnnotation::PlanningScore);
-                        }
-                        DomainAnnotation::ValueRangeProvider { .. } => {
-                            annotations.push(SolverAnnotation::ValueRangeProvider);
-                        }
-                        DomainAnnotation::ProblemFactCollectionProperty => {
-                            annotations.push(SolverAnnotation::ProblemFactCollectionProperty);
-                        }
-                        DomainAnnotation::PlanningEntityCollectionProperty => {
-                            annotations.push(SolverAnnotation::PlanningEntityCollectionProperty);
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Derive field type from domain type
-                let field_type = field.field_type.to_type_string();
+                        None
+                    }) {
+                    // Planning list variable: resolve from value range provider
+                    let provider_id = &provider_refs[0];
+                    let element_type = self
+                        .lookup_value_range_provider_element_type(provider_id)
+                        .unwrap_or_else(|| {
+                            panic!("Value range provider '{}' not found", provider_id)
+                        });
+                    format!("{}[]", element_type)
+                } else {
+                    // Use the field type directly (shadow variables set their type in derive macro)
+                    field.field_type.to_type_string()
+                };
 
                 let field_descriptor = FieldDescriptor::new(field_type)
                     .with_accessor(accessor)
-                    .with_annotations(annotations);
+                    .with_annotations(field.annotations.clone());
 
                 dto = dto.with_field(&field.name, field_descriptor);
+            }
+
+            // Add class-level annotations
+            if class.is_planning_entity() {
+                dto = dto.with_annotation(crate::solver::ClassAnnotation::PlanningEntity);
+            }
+            if class.is_planning_solution() {
+                dto = dto.with_annotation(crate::solver::ClassAnnotation::PlanningSolution);
             }
 
             // Add mapper for solution class (PlanningSolution)
@@ -205,6 +229,61 @@ impl DomainModel {
         }
 
         Ok(())
+    }
+
+    /// Sets the compute expression for a CascadingUpdateShadowVariable.
+    ///
+    /// This must be called for each cascading update shadow variable before WASM
+    /// generation, or the build will fail with an error.
+    ///
+    /// # Arguments
+    /// * `class_name` - The entity class name (e.g., "Visit")
+    /// * `field_name` - The field name with the shadow variable
+    /// * `expression` - The expression to compute the shadow value
+    ///
+    /// # Returns
+    /// Ok(()) if the annotation was found and updated, Err otherwise.
+    pub fn set_cascading_expression(
+        &mut self,
+        class_name: &str,
+        field_name: &str,
+        expression: crate::wasm::Expression,
+    ) -> Result<(), SolverForgeError> {
+        let class = self.classes.get_mut(class_name).ok_or_else(|| {
+            SolverForgeError::Validation(format!("Class '{}' not found", class_name))
+        })?;
+
+        let field = class
+            .fields
+            .iter_mut()
+            .find(|f| f.name == field_name)
+            .ok_or_else(|| {
+                SolverForgeError::Validation(format!(
+                    "Field '{}' not found in class '{}'",
+                    field_name, class_name
+                ))
+            })?;
+
+        let found = field.annotations.iter_mut().any(|ann| {
+            if let PlanningAnnotation::CascadingUpdateShadowVariable {
+                compute_expression, ..
+            } = ann
+            {
+                *compute_expression = Some(expression.clone());
+                true
+            } else {
+                false
+            }
+        });
+
+        if found {
+            Ok(())
+        } else {
+            Err(SolverForgeError::Validation(format!(
+                "Field '{}' in class '{}' has no CascadingUpdateShadowVariable annotation",
+                field_name, class_name
+            )))
+        }
     }
 }
 
@@ -281,10 +360,10 @@ mod tests {
                     "id",
                     FieldType::Primitive(crate::domain::PrimitiveType::String),
                 )
-                .with_planning_annotation(PlanningAnnotation::PlanningId),
+                .with_annotation(PlanningAnnotation::PlanningId),
             )
             .with_field(
-                FieldDescriptor::new("room", FieldType::object("Room")).with_planning_annotation(
+                FieldDescriptor::new("room", FieldType::object("Room")).with_annotation(
                     PlanningAnnotation::planning_variable(vec!["rooms".to_string()]),
                 ),
             )
@@ -295,15 +374,15 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningSolution)
             .with_field(
                 FieldDescriptor::new("lessons", FieldType::list(FieldType::object("Lesson")))
-                    .with_planning_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
+                    .with_annotation(PlanningAnnotation::PlanningEntityCollectionProperty),
             )
             .with_field(
                 FieldDescriptor::new("rooms", FieldType::list(FieldType::object("Room")))
-                    .with_planning_annotation(PlanningAnnotation::value_range_provider("rooms")),
+                    .with_annotation(PlanningAnnotation::value_range_provider_with_id("rooms")),
             )
             .with_field(
                 FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                    .with_planning_annotation(PlanningAnnotation::planning_score()),
+                    .with_annotation(PlanningAnnotation::planning_score()),
             )
     }
 
@@ -403,7 +482,7 @@ mod tests {
                     "id",
                     FieldType::Primitive(crate::domain::PrimitiveType::String),
                 )
-                .with_planning_annotation(PlanningAnnotation::PlanningId),
+                .with_annotation(PlanningAnnotation::PlanningId),
             );
 
         let model = DomainModel::builder()

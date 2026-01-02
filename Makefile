@@ -8,7 +8,8 @@ export JAVA_HOME PATH
 # Submodule paths
 JAVA_SERVICE := solverforge-wasm-service
 
-.PHONY: all build test test-verbose test-rust test-java clean fmt clippy help
+.PHONY: all build test test-verbose test-rust test-java clean fmt clippy help \
+        test-doc test-unit test-quick test-all test-match test-list test-count
 
 # Default target
 all: build test
@@ -22,6 +23,17 @@ build-rust:
 
 build-java:
 	cd $(JAVA_SERVICE) && mvn package -DskipTests -q
+
+# Rebuild Java service and update cache (for development)
+rebuild-java:
+	@echo "Clearing cached JAR..."
+	rm -f ~/.cache/solverforge/solverforge-wasm-service-*-runner.jar
+	@echo "Building Java service..."
+	cd $(JAVA_SERVICE) && mvn package -DskipTests -q
+	@echo "Copying JAR to cache..."
+	mkdir -p ~/.cache/solverforge
+	cp $(JAVA_SERVICE)/target/solverforge-wasm-service-*-runner.jar ~/.cache/solverforge/
+	@echo "Done. New JAR deployed to cache."
 
 build-release:
 	cargo build --workspace --release
@@ -59,6 +71,38 @@ test-java:
 # Run Java tests with output
 test-java-verbose:
 	cd $(JAVA_SERVICE) && mvn test -X
+
+# ============== Test Layers ==============
+# Organized by scope: doc → unit → integration
+
+# Doctests only - verifies documentation examples compile and work
+test-doc:
+	cargo test --workspace --doc --exclude solverforge-python
+
+# Unit tests only (inline #[cfg(test)] modules, no integration tests)
+test-unit:
+	cargo test --workspace --lib --exclude solverforge-python
+
+# Quick check: doctests + unit tests (fast feedback during development)
+test-quick: test-doc test-unit
+
+# Full test suite: all layers
+test-all: test-doc test-unit test-integration
+
+# Run tests matching a pattern
+# Usage: make test-match PATTERN=score
+PATTERN ?= ""
+test-match:
+	cargo test --workspace --exclude solverforge-python $(PATTERN)
+
+# List all tests without running them
+test-list:
+	@cargo test --workspace --exclude solverforge-python -- --list 2>&1 | grep ': test$$' | sort
+
+# Count tests per module
+test-count:
+	@cargo test --workspace --exclude solverforge-python -- --list 2>&1 | grep ': test$$' | \
+		cut -d: -f1 | rev | cut -d: -f2- | rev | sort | uniq -c | sort -rn
 
 # ============== Lint & Format ==============
 
@@ -219,6 +263,7 @@ help:
 	@echo "  make build          - Build both Rust and Java"
 	@echo "  make build-rust     - Build Rust workspace"
 	@echo "  make build-java     - Build Java service"
+	@echo "  make rebuild-java   - Rebuild Java and update cache (dev)"
 	@echo "  make build-release  - Build Rust in release mode"
 	@echo ""
 	@echo "Test:"
@@ -231,6 +276,15 @@ help:
 	@echo "  make test-one TEST=name - Run specific test with output"
 	@echo "  make debug-test TEST=name - Run test with debug logging"
 	@echo "  make solve-test TEST=name - Run test showing solver output"
+	@echo ""
+	@echo "Test Layers (fast feedback):"
+	@echo "  make test-doc       - Run doctests only"
+	@echo "  make test-unit      - Run unit tests only (no integration)"
+	@echo "  make test-quick     - Run doctests + unit tests"
+	@echo "  make test-all       - Run all test layers"
+	@echo "  make test-match PATTERN=x - Run tests matching pattern"
+	@echo "  make test-list      - List all tests"
+	@echo "  make test-count     - Count tests per module"
 	@echo ""
 	@echo "Lint:"
 	@echo "  make fmt            - Format code"

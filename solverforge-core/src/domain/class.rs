@@ -1,7 +1,7 @@
-use super::{PlanningAnnotation, ShadowAnnotation};
+use super::PlanningAnnotation;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DomainClass {
     pub name: String,
     #[serde(default)]
@@ -58,14 +58,13 @@ impl DomainClass {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDescriptor {
     pub name: String,
+    #[serde(rename = "type")]
     pub field_type: FieldType,
     #[serde(default)]
-    pub planning_annotations: Vec<PlanningAnnotation>,
-    #[serde(default)]
-    pub shadow_annotations: Vec<ShadowAnnotation>,
+    pub annotations: Vec<PlanningAnnotation>,
     #[serde(default)]
     pub accessor: Option<DomainAccessor>,
 }
@@ -75,19 +74,13 @@ impl FieldDescriptor {
         Self {
             name: name.into(),
             field_type,
-            planning_annotations: Vec::new(),
-            shadow_annotations: Vec::new(),
+            annotations: Vec::new(),
             accessor: None,
         }
     }
 
-    pub fn with_planning_annotation(mut self, annotation: PlanningAnnotation) -> Self {
-        self.planning_annotations.push(annotation);
-        self
-    }
-
-    pub fn with_shadow_annotation(mut self, annotation: ShadowAnnotation) -> Self {
-        self.shadow_annotations.push(annotation);
+    pub fn with_annotation(mut self, annotation: PlanningAnnotation) -> Self {
+        self.annotations.push(annotation);
         self
     }
 
@@ -97,20 +90,18 @@ impl FieldDescriptor {
     }
 
     pub fn is_planning_variable(&self) -> bool {
-        self.planning_annotations
-            .iter()
-            .any(|a| a.is_any_variable())
+        self.annotations.iter().any(|a| a.is_any_variable())
     }
 
     pub fn is_shadow_variable(&self) -> bool {
-        !self.shadow_annotations.is_empty()
+        self.annotations.iter().any(|a| a.is_shadow_variable())
     }
 
     pub fn has_annotation<F>(&self, predicate: F) -> bool
     where
         F: Fn(&PlanningAnnotation) -> bool,
     {
-        self.planning_annotations.iter().any(predicate)
+        self.annotations.iter().any(predicate)
     }
 }
 
@@ -296,10 +287,10 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningEntity)
             .with_field(
                 FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                    .with_planning_annotation(PlanningAnnotation::PlanningId),
+                    .with_annotation(PlanningAnnotation::PlanningId),
             )
             .with_field(
-                FieldDescriptor::new("room", FieldType::object("Room")).with_planning_annotation(
+                FieldDescriptor::new("room", FieldType::object("Room")).with_annotation(
                     PlanningAnnotation::planning_variable(vec!["rooms".to_string()]),
                 ),
             );
@@ -313,7 +304,7 @@ mod tests {
     #[test]
     fn test_field_descriptor() {
         let field = FieldDescriptor::new("room", FieldType::object("Room"))
-            .with_planning_annotation(PlanningAnnotation::planning_variable(vec![
+            .with_annotation(PlanningAnnotation::planning_variable(vec![
                 "rooms".to_string()
             ]))
             .with_accessor(DomainAccessor::from_field_name("room"));
@@ -330,7 +321,7 @@ mod tests {
     #[test]
     fn test_shadow_field() {
         let field = FieldDescriptor::new("vehicle", FieldType::object("Vehicle"))
-            .with_shadow_annotation(ShadowAnnotation::inverse_relation("visits"));
+            .with_annotation(PlanningAnnotation::inverse_relation_shadow("visits"));
 
         assert!(!field.is_planning_variable());
         assert!(field.is_shadow_variable());
@@ -407,7 +398,7 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningSolution)
             .with_field(
                 FieldDescriptor::new("score", FieldType::Score(ScoreType::HardSoft))
-                    .with_planning_annotation(PlanningAnnotation::planning_score()),
+                    .with_annotation(PlanningAnnotation::planning_score()),
             );
 
         assert!(solution.is_planning_solution());
@@ -420,7 +411,7 @@ mod tests {
             .with_annotation(PlanningAnnotation::PlanningEntity)
             .with_field(
                 FieldDescriptor::new("id", FieldType::Primitive(PrimitiveType::String))
-                    .with_planning_annotation(PlanningAnnotation::PlanningId),
+                    .with_annotation(PlanningAnnotation::PlanningId),
             );
 
         let json = serde_json::to_string(&class).unwrap();

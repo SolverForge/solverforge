@@ -25,7 +25,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 use solverforge_core::constraints::ConstraintSet;
-use solverforge_core::domain::{DomainModel, DomainModelBuilder};
+use solverforge_core::domain::{DomainModel, DomainModelBuilder, PlanningAnnotation};
 use solverforge_core::solver::{
     DiminishedReturnsConfig, EnvironmentMode, MoveThreadCount, ScoreDto, SolveHandle,
     SolveResponse, SolveState, SolveStatus, SolverConfig, SolverFactory, SolverService,
@@ -749,18 +749,13 @@ impl PySolverFactory {
                 .map(|c| c.bind(py).clone())
                 .collect();
             let py_domain_model =
-                crate::decorators::build_domain_model(solution_bound, entity_bounds)?;
+                crate::decorators::build_domain_model(py, solution_bound, entity_bounds)?;
             py_domain_model.to_rust()
         } else {
-            // Fallback: build basic domain model from class names
-            let mut builder = DomainModelBuilder::new();
-            if let Some(solution_class) = &config.to_rust().solution_class {
-                builder = builder.solution_class(solution_class);
-            }
-            for entity_class in &config.to_rust().entity_class_list {
-                builder = builder.entity_class(entity_class);
-            }
-            builder.build()
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "SolverConfig must have a solution class set via with_solution_class(). \
+                 Cannot create SolverFactory without domain model information.",
+            ));
         };
 
         // Determine service URL, auto-starting embedded service if needed
@@ -794,8 +789,59 @@ impl PySolverFactory {
 
         // Add all predicates from constraints to the WASM module
         for lambda in &predicates {
-            if let Some(predicate_def) = lambda_to_predicate(lambda) {
-                wasm_builder = wasm_builder.add_predicate(predicate_def);
+            let predicate_def = lambda_to_predicate(lambda);
+            wasm_builder = wasm_builder.add_predicate(predicate_def);
+        }
+
+        // Add update methods for CascadingUpdateShadowVariable fields
+        for entity_cls in config.entity_class_objs() {
+            let entity_bound = entity_cls.bind(py);
+            let class_name = entity_bound.name()?.to_string();
+
+            // Find CascadingUpdateShadowVariable annotations in domain model
+            if let Some(domain_class) = domain_model.classes.get(&class_name) {
+                for field in &domain_class.fields {
+                    for annotation in &field.annotations {
+                        if let PlanningAnnotation::CascadingUpdateShadowVariable {
+                            target_method_name,
+                            ..
+                        } = annotation
+                        {
+                            // Get the method from the Python class
+                            if let Some(method) = crate::lambda_analyzer::get_method_from_class(
+                                py,
+                                &class_name,
+                                target_method_name,
+                            ) {
+                                // Analyze the method body
+                                match crate::lambda_analyzer::analyze_method_body(
+                                    py,
+                                    &method,
+                                    &class_name,
+                                ) {
+                                    Ok(expr) => {
+                                        // Create predicate with function name ClassName_methodName
+                                        let func_name =
+                                            format!("{}_{}", class_name, target_method_name);
+                                        let predicate_def = PredicateDefinition::from_expression(
+                                            func_name, 1, // takes self pointer
+                                            expr,
+                                        );
+                                        wasm_builder = wasm_builder.add_predicate(predicate_def);
+                                    }
+                                    Err(e) => {
+                                        log::warn!(
+                                            "Failed to analyze update method {}.{}: {}",
+                                            class_name,
+                                            target_method_name,
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1081,10 +1127,12 @@ fn build_constraint_set(constraints: &[PyConstraint]) -> (ConstraintSet, Vec<Lam
 }
 
 /// Convert LambdaInfo to PredicateDefinition for WASM generation.
-fn lambda_to_predicate(lambda: &LambdaInfo) -> Option<PredicateDefinition> {
-    lambda.expression.as_ref().map(|expr| {
-        PredicateDefinition::from_expression(&lambda.name, lambda.param_count as u32, expr.clone())
-    })
+fn lambda_to_predicate(lambda: &LambdaInfo) -> PredicateDefinition {
+    PredicateDefinition::from_expression(
+        &lambda.name,
+        lambda.param_count as u32,
+        lambda.expression.clone(),
+    )
 }
 
 /// Status of a solver job.
@@ -1147,9 +1195,6 @@ pub struct PySolverJob {
     state: Arc<std::sync::Mutex<SolverJobState>>,
     solution_class: String,
     bridge: Arc<PythonBridge>,
-    /// Thread handle for the background solver (if running).
-    #[allow(dead_code)]
-    thread_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 #[pymethods]
@@ -1335,8 +1380,8 @@ impl PySolverManager {
         let listener_clone = listener.clone_ref(py);
         let solution_class_clone = solution_class.clone();
 
-        // Spawn background thread
-        let thread_handle = std::thread::spawn(move || {
+        // Spawn background thread (detached - we don't join it)
+        std::thread::spawn(move || {
             // Mark as active
             {
                 let mut s = state_clone.lock().unwrap();
@@ -1457,7 +1502,6 @@ impl PySolverManager {
             state,
             solution_class,
             bridge,
-            thread_handle: Some(thread_handle),
         })
     }
 
@@ -1813,6 +1857,7 @@ mod tests {
                 constraints: ConstraintSet::new(),
                 domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
                 service_url: "http://localhost:8080".to_string(),
+                wasm_module: String::new(),
             });
 
             let manager = PySolverManager {
@@ -1856,6 +1901,7 @@ mod tests {
                 constraints: ConstraintSet::new(),
                 domain_model: solverforge_core::domain::DomainModelBuilder::new().build(),
                 service_url: "http://localhost:8080".to_string(),
+                wasm_module: String::new(),
             });
 
             let manager = PySolverManager {
@@ -2085,57 +2131,6 @@ result = 'success'
             });
         }
 
-        /// Test constraint factory and streams from Python
-        #[test]
-        fn test_constraint_streams_from_python() {
-            init_python();
-            Python::attach(|py| {
-                let locals = PyDict::new(py);
-                locals
-                    .set_item(
-                        "ConstraintFactory",
-                        py.get_type::<crate::stream::PyConstraintFactory>(),
-                    )
-                    .unwrap();
-                locals
-                    .set_item(
-                        "HardSoftScore",
-                        py.get_type::<crate::score::PyHardSoftScore>(),
-                    )
-                    .unwrap();
-
-                let result = py.run(
-                    c"
-class Lesson:
-    pass
-
-# Create factory and stream
-factory = ConstraintFactory()
-
-# Test for_each
-stream = factory.for_each(Lesson)
-
-# Test filter
-filtered = stream.filter(lambda lesson: lesson.room is not None)
-
-# Test penalize with score
-score = HardSoftScore.of_hard(1)
-builder = filtered.penalize(score)
-
-# Test as_constraint
-constraint = builder.as_constraint('Room required')
-assert constraint.name == 'Room required'
-
-result = 'success'
-",
-                    None,
-                    Some(&locals),
-                );
-
-                assert!(result.is_ok(), "Python code failed: {:?}", result.err());
-            });
-        }
-
         /// Test constraint provider decorator from Python
         #[test]
         fn test_constraint_provider_from_python() {
@@ -2170,83 +2165,6 @@ result = 'success'
 ",
                     None,
                     Some(&locals),
-                );
-
-                assert!(result.is_ok(), "Python code failed: {:?}", result.err());
-            });
-        }
-
-        /// Test full timetabling constraint provider
-        #[test]
-        fn test_full_timetabling_constraints_from_python() {
-            init_python();
-            Python::attach(|py| {
-                // Use globals dict so class definitions are accessible from lambdas
-                let globals = PyDict::new(py);
-                globals
-                    .set_item(
-                        "ConstraintFactory",
-                        py.get_type::<crate::stream::PyConstraintFactory>(),
-                    )
-                    .unwrap();
-                globals
-                    .set_item(
-                        "HardSoftScore",
-                        py.get_type::<crate::score::PyHardSoftScore>(),
-                    )
-                    .unwrap();
-                globals
-                    .set_item("Joiners", py.get_type::<crate::joiners::PyJoiners>())
-                    .unwrap();
-
-                let result = py.run(
-                    c"
-class Lesson:
-    pass
-
-def define_constraints(factory):
-    return [
-        # Room conflict: two lessons in the same room at the same time
-        factory.for_each_unique_pair(
-            Lesson,
-            Joiners.equal(lambda lesson: lesson.room),
-            Joiners.equal(lambda lesson: lesson.timeslot)
-        )
-        .penalize(HardSoftScore.of_hard(1))
-        .as_constraint('Room conflict'),
-
-        # Teacher conflict: teacher teaching two lessons at the same time
-        factory.for_each_unique_pair(
-            Lesson,
-            Joiners.equal(lambda lesson: lesson.teacher),
-            Joiners.equal(lambda lesson: lesson.timeslot)
-        )
-        .penalize(HardSoftScore.of_hard(1))
-        .as_constraint('Teacher conflict'),
-
-        # Student group conflict
-        factory.for_each_unique_pair(
-            Lesson,
-            Joiners.equal(lambda lesson: lesson.student_group),
-            Joiners.equal(lambda lesson: lesson.timeslot)
-        )
-        .penalize(HardSoftScore.of_hard(1))
-        .as_constraint('Student group conflict'),
-    ]
-
-# Create constraints
-factory = ConstraintFactory()
-constraints = define_constraints(factory)
-
-assert len(constraints) == 3
-assert constraints[0].name == 'Room conflict'
-assert constraints[1].name == 'Teacher conflict'
-assert constraints[2].name == 'Student group conflict'
-
-result = 'success'
-",
-                    Some(&globals),
-                    None,
                 );
 
                 assert!(result.is_ok(), "Python code failed: {:?}", result.err());

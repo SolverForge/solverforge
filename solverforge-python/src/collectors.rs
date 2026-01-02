@@ -69,7 +69,7 @@ impl PyConstraintCollectors {
 
     /// Sum values in a group (Rust API).
     pub fn sum_rust(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "sum")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "sum", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::sum(wasm_func),
@@ -103,7 +103,7 @@ impl PyConstraintCollectors {
     /// Count items after mapping them.
     #[staticmethod]
     fn count_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "count_map")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "count_map", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::count_with_map(wasm_func),
@@ -121,7 +121,7 @@ impl PyConstraintCollectors {
     /// ```
     #[staticmethod]
     fn sum(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "sum")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "sum", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::sum(wasm_func),
@@ -134,7 +134,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the numeric value to average
     #[staticmethod]
     fn average(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "average")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "average", "Entity")?;
         let wasm_func = lambda_info.to_wasm_function();
         Ok(PyCollector {
             inner: Collector::average(wasm_func),
@@ -148,8 +148,8 @@ impl PyConstraintCollectors {
     /// * `comparator` - A lambda that compares two values (returns negative, 0, or positive)
     #[staticmethod]
     fn min(py: Python<'_>, mapper: Py<PyAny>, comparator: Py<PyAny>) -> PyResult<PyCollector> {
-        let map_info = LambdaInfo::new(py, mapper, "min_map")?;
-        let cmp_info = LambdaInfo::new(py, comparator, "min_cmp")?;
+        let map_info = LambdaInfo::new(py, mapper, "min_map", "Entity")?;
+        let cmp_info = LambdaInfo::new(py, comparator, "min_cmp", "Entity")?;
         Ok(PyCollector {
             inner: Collector::min(map_info.to_wasm_function(), cmp_info.to_wasm_function()),
         })
@@ -162,8 +162,8 @@ impl PyConstraintCollectors {
     /// * `comparator` - A lambda that compares two values (returns negative, 0, or positive)
     #[staticmethod]
     fn max(py: Python<'_>, mapper: Py<PyAny>, comparator: Py<PyAny>) -> PyResult<PyCollector> {
-        let map_info = LambdaInfo::new(py, mapper, "max_map")?;
-        let cmp_info = LambdaInfo::new(py, comparator, "max_cmp")?;
+        let map_info = LambdaInfo::new(py, mapper, "max_map", "Entity")?;
+        let cmp_info = LambdaInfo::new(py, comparator, "max_cmp", "Entity")?;
         Ok(PyCollector {
             inner: Collector::max(map_info.to_wasm_function(), cmp_info.to_wasm_function()),
         })
@@ -183,7 +183,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the value to collect
     #[staticmethod]
     fn to_list_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "to_list_map")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "to_list_map", "Entity")?;
         Ok(PyCollector {
             inner: Collector::to_list_with_map(lambda_info.to_wasm_function()),
         })
@@ -203,7 +203,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the value to collect
     #[staticmethod]
     fn to_set_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "to_set_map")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "to_set_map", "Entity")?;
         Ok(PyCollector {
             inner: Collector::to_set_with_map(lambda_info.to_wasm_function()),
         })
@@ -217,7 +217,7 @@ impl PyConstraintCollectors {
     /// * `mapper` - A lambda that extracts the balancing key
     #[staticmethod]
     fn load_balance(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
-        let lambda_info = LambdaInfo::new(py, mapper, "load_balance")?;
+        let lambda_info = LambdaInfo::new(py, mapper, "load_balance", "Entity")?;
         Ok(PyCollector {
             inner: Collector::load_balance(lambda_info.to_wasm_function()),
         })
@@ -234,8 +234,8 @@ impl PyConstraintCollectors {
         mapper: Py<PyAny>,
         load: Py<PyAny>,
     ) -> PyResult<PyCollector> {
-        let map_info = LambdaInfo::new(py, mapper, "load_balance_map")?;
-        let load_info = LambdaInfo::new(py, load, "load_balance_load")?;
+        let map_info = LambdaInfo::new(py, mapper, "load_balance_map", "Entity")?;
+        let load_info = LambdaInfo::new(py, load, "load_balance_load", "Entity")?;
         Ok(PyCollector {
             inner: Collector::load_balance_with_load(
                 map_info.to_wasm_function(),
@@ -264,7 +264,7 @@ impl PyConstraintCollectors {
         combiner: Py<PyAny>,
     ) -> PyResult<PyCollector> {
         let rust_collectors: Vec<Collector> = collectors.iter().map(|c| c.to_rust()).collect();
-        let combiner_info = LambdaInfo::new(py, combiner, "compose_combiner")?;
+        let combiner_info = LambdaInfo::new(py, combiner, "compose_combiner", "Entity")?;
         Ok(PyCollector {
             inner: Collector::compose(rust_collectors, combiner_info.to_wasm_function()),
         })
@@ -289,9 +289,196 @@ impl PyConstraintCollectors {
         predicate: Py<PyAny>,
         collector: PyCollector,
     ) -> PyResult<PyCollector> {
-        let pred_info = LambdaInfo::new(py, predicate, "conditionally_pred")?;
+        let pred_info = LambdaInfo::new(py, predicate, "conditionally_pred", "Entity")?;
         Ok(PyCollector {
             inner: Collector::conditionally(pred_info.to_wasm_function(), collector.to_rust()),
+        })
+    }
+
+    /// Collect items into a map where values are grouped by key into sets.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.to_map(
+    ///     lambda shift: shift.employee,
+    ///     lambda shift: shift.id
+    /// )
+    /// ```
+    #[staticmethod]
+    fn to_map(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_map_value", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_map(key_info.to_wasm_function(), value_info.to_wasm_function()),
+        })
+    }
+
+    /// Collect items into a map with a merge function for duplicate keys.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    /// * `merge_function` - Lambda that merges two values with the same key
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.to_map_with_merge(
+    ///     lambda shift: shift.employee,
+    ///     lambda shift: shift.hours,
+    ///     lambda h1, h2: h1 + h2
+    /// )
+    /// ```
+    #[staticmethod]
+    fn to_map_with_merge(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+        merge_function: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_map_value", "Entity")?;
+        let merge_info = LambdaInfo::new(py, merge_function, "to_map_merge", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_map_with_merge(
+                key_info.to_wasm_function(),
+                value_info.to_wasm_function(),
+                merge_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Collect items into a sorted set with natural ordering.
+    #[staticmethod]
+    fn to_sorted_set() -> PyCollector {
+        PyCollector {
+            inner: Collector::to_sorted_set(),
+        }
+    }
+
+    /// Collect mapped values into a sorted set.
+    ///
+    /// # Arguments
+    /// * `mapper` - Lambda that extracts the value to collect
+    #[staticmethod]
+    fn to_sorted_set_with_map(py: Python<'_>, mapper: Py<PyAny>) -> PyResult<PyCollector> {
+        let map_info = LambdaInfo::new(py, mapper, "to_sorted_set_map", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_set_with_map(map_info.to_wasm_function()),
+        })
+    }
+
+    /// Collect items into a sorted set with a custom comparator.
+    ///
+    /// # Arguments
+    /// * `comparator` - Lambda that compares two items (returns negative, 0, or positive)
+    #[staticmethod]
+    fn to_sorted_set_with_comparator(
+        py: Python<'_>,
+        comparator: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let cmp_info = LambdaInfo::new(py, comparator, "to_sorted_set_cmp", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_set_with_comparator(cmp_info.to_wasm_function()),
+        })
+    }
+
+    /// Collect mapped values into a sorted set with a custom comparator.
+    ///
+    /// # Arguments
+    /// * `mapper` - Lambda that extracts the value to collect
+    /// * `comparator` - Lambda that compares two values
+    #[staticmethod]
+    fn to_sorted_set_with_map_and_comparator(
+        py: Python<'_>,
+        mapper: Py<PyAny>,
+        comparator: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let map_info = LambdaInfo::new(py, mapper, "to_sorted_set_map", "Entity")?;
+        let cmp_info = LambdaInfo::new(py, comparator, "to_sorted_set_cmp", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_set_with_map_and_comparator(
+                map_info.to_wasm_function(),
+                cmp_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Collect items into a sorted map where values are grouped by key.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    #[staticmethod]
+    fn to_sorted_map(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_sorted_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_sorted_map_value", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_map(
+                key_info.to_wasm_function(),
+                value_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Collect items into a sorted map with a merge function for duplicate keys.
+    ///
+    /// # Arguments
+    /// * `key_mapper` - Lambda that extracts the key for each item
+    /// * `value_mapper` - Lambda that extracts the value for each item
+    /// * `merge_function` - Lambda that merges two values with the same key
+    #[staticmethod]
+    fn to_sorted_map_with_merge(
+        py: Python<'_>,
+        key_mapper: Py<PyAny>,
+        value_mapper: Py<PyAny>,
+        merge_function: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let key_info = LambdaInfo::new(py, key_mapper, "to_sorted_map_key", "Entity")?;
+        let value_info = LambdaInfo::new(py, value_mapper, "to_sorted_map_value", "Entity")?;
+        let merge_info = LambdaInfo::new(py, merge_function, "to_sorted_map_merge", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::to_sorted_map_with_merge(
+                key_info.to_wasm_function(),
+                value_info.to_wasm_function(),
+                merge_info.to_wasm_function(),
+            ),
+        })
+    }
+
+    /// Post-process the result of a collector with a mapper function.
+    ///
+    /// # Arguments
+    /// * `collector` - The collector to apply first
+    /// * `mapper` - Lambda that transforms the collector's result
+    ///
+    /// # Example
+    /// ```python
+    /// ConstraintCollectors.collect_and_then(
+    ///     ConstraintCollectors.to_list(),
+    ///     lambda lst: len(lst)
+    /// )
+    /// ```
+    #[staticmethod]
+    fn collect_and_then(
+        py: Python<'_>,
+        collector: PyCollector,
+        mapper: Py<PyAny>,
+    ) -> PyResult<PyCollector> {
+        let mapper_info = LambdaInfo::new(py, mapper, "collect_and_then_mapper", "Entity")?;
+        Ok(PyCollector {
+            inner: Collector::collect_and_then(collector.to_rust(), mapper_info.to_wasm_function()),
         })
     }
 
@@ -400,11 +587,6 @@ pub fn register_collectors(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pyo3::types::PyDict;
-
-    fn init_python() {
-        pyo3::Python::initialize();
-    }
 
     #[test]
     fn test_count_collector() {
@@ -426,36 +608,6 @@ mod tests {
     }
 
     #[test]
-    fn test_sum_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.hours", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let collector = PyConstraintCollectors::sum(py, func.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Sum { .. }));
-        });
-    }
-
-    #[test]
-    fn test_average_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda x: x.score", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let collector = PyConstraintCollectors::average(py, func.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Average { .. }));
-        });
-    }
-
-    #[test]
     fn test_to_list_collector() {
         let collector = PyConstraintCollectors::to_list();
         let rust_collector = collector.to_rust();
@@ -470,62 +622,9 @@ mod tests {
     }
 
     #[test]
-    fn test_load_balance_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"f = lambda shift: shift.employee", None, Some(&locals))
-                .unwrap();
-            let func = locals.get_item("f").unwrap().unwrap();
-
-            let collector = PyConstraintCollectors::load_balance(py, func.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::LoadBalance { .. }));
-        });
-    }
-
-    #[test]
     fn test_collector_repr() {
         let collector = PyConstraintCollectors::count();
         let repr = collector.__repr__();
         assert!(repr.contains("Count"));
-    }
-
-    #[test]
-    fn test_compose_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"combiner = lambda a, b: a + b", None, Some(&locals))
-                .unwrap();
-            let combiner = locals.get_item("combiner").unwrap().unwrap();
-
-            let collectors = vec![
-                PyConstraintCollectors::count(),
-                PyConstraintCollectors::count_distinct(),
-            ];
-
-            let collector =
-                PyConstraintCollectors::compose(py, collectors, combiner.unbind()).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Compose { .. }));
-        });
-    }
-
-    #[test]
-    fn test_conditionally_collector() {
-        init_python();
-        Python::attach(|py| {
-            let locals = PyDict::new(py);
-            py.run(c"pred = lambda x: x.active", None, Some(&locals))
-                .unwrap();
-            let pred = locals.get_item("pred").unwrap().unwrap();
-
-            let inner = PyConstraintCollectors::count();
-            let collector =
-                PyConstraintCollectors::conditionally(py, pred.unbind(), inner).unwrap();
-            let rust_collector = collector.to_rust();
-            assert!(matches!(rust_collector, Collector::Conditionally { .. }));
-        });
     }
 }

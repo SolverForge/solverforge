@@ -1,11 +1,12 @@
 use crate::constraints::StreamComponent;
+use crate::domain::PlanningAnnotation;
 use crate::solver::TerminationConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 /// Solve request matching solverforge-wasm-service's PlanningProblem schema
 /// Uses IndexMap for domain and constraints to preserve insertion order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolveRequest {
     pub domain: IndexMap<String, DomainObjectDto>,
@@ -21,6 +22,11 @@ pub struct SolveRequest {
     pub environment_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub termination: Option<TerminationConfig>,
+    /// Pre-computed method results for methods that couldn't be inlined.
+    /// Maps method_hash to a table of (object_key -> result).
+    /// Object keys are strings like "ptr1_ptr2" for 2-arg methods.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub precomputed: Option<IndexMap<i32, IndexMap<String, i32>>>,
 }
 
 impl SolveRequest {
@@ -44,6 +50,7 @@ impl SolveRequest {
             problem,
             environment_mode: None,
             termination: None,
+            precomputed: None,
         }
     }
 
@@ -61,16 +68,24 @@ impl SolveRequest {
         self.termination = Some(termination);
         self
     }
+
+    pub fn with_precomputed(mut self, precomputed: IndexMap<i32, IndexMap<String, i32>>) -> Self {
+        self.precomputed = Some(precomputed);
+        self
+    }
 }
 
 /// Domain object definition with fields and optional mapper
 /// Fields use IndexMap to preserve insertion order, which is critical
 /// for correct WASM memory layout alignment.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DomainObjectDto {
     pub fields: IndexMap<String, FieldDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mapper: Option<DomainObjectMapper>,
+    /// Class-level annotations (e.g., PlanningEntity)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub annotations: Vec<ClassAnnotation>,
 }
 
 impl DomainObjectDto {
@@ -78,7 +93,13 @@ impl DomainObjectDto {
         Self {
             fields: IndexMap::new(),
             mapper: None,
+            annotations: Vec::new(),
         }
+    }
+
+    pub fn with_annotation(mut self, annotation: ClassAnnotation) -> Self {
+        self.annotations.push(annotation);
+        self
     }
 
     pub fn with_field(mut self, name: impl Into<String>, field: FieldDescriptor) -> Self {
@@ -99,7 +120,7 @@ impl Default for DomainObjectDto {
 }
 
 /// Field descriptor with type, accessor, and annotations
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDescriptor {
     #[serde(rename = "type")]
     pub field_type: String,
@@ -181,57 +202,12 @@ impl DomainObjectMapper {
     }
 }
 
-fn is_false(b: &bool) -> bool {
-    !*b
-}
-
-/// Planning annotation types matching Java's PlanningAnnotation hierarchy
+/// Class-level annotations (applied to the class itself, not fields)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "annotation")]
-pub enum PlanningAnnotation {
-    PlanningVariable {
-        #[serde(default, rename = "allowsUnassigned", skip_serializing_if = "is_false")]
-        allows_unassigned: bool,
-    },
-    PlanningId,
-    PlanningScore,
-    ValueRangeProvider,
-    ProblemFactCollectionProperty,
-    PlanningEntityCollectionProperty,
-}
-
-impl PlanningAnnotation {
-    pub fn planning_variable() -> Self {
-        PlanningAnnotation::PlanningVariable {
-            allows_unassigned: false,
-        }
-    }
-
-    pub fn planning_variable_allows_unassigned() -> Self {
-        PlanningAnnotation::PlanningVariable {
-            allows_unassigned: true,
-        }
-    }
-
-    pub fn planning_id() -> Self {
-        PlanningAnnotation::PlanningId
-    }
-
-    pub fn planning_score() -> Self {
-        PlanningAnnotation::PlanningScore
-    }
-
-    pub fn value_range_provider() -> Self {
-        PlanningAnnotation::ValueRangeProvider
-    }
-
-    pub fn problem_fact_collection_property() -> Self {
-        PlanningAnnotation::ProblemFactCollectionProperty
-    }
-
-    pub fn planning_entity_collection_property() -> Self {
-        PlanningAnnotation::PlanningEntityCollectionProperty
-    }
+pub enum ClassAnnotation {
+    PlanningEntity,
+    PlanningSolution,
 }
 
 /// List accessor for WASM list operations
@@ -334,7 +310,7 @@ mod tests {
                 "employee",
                 FieldDescriptor::new("Employee")
                     .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                    .with_annotation(PlanningAnnotation::planning_variable()),
+                    .with_annotation(PlanningAnnotation::planning_variable(vec![])),
             );
 
         assert_eq!(dto.fields.len(), 2);
@@ -358,6 +334,7 @@ mod tests {
         let field = FieldDescriptor::new("Employee")
             .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
             .with_annotation(PlanningAnnotation::PlanningVariable {
+                value_range_provider_refs: vec![],
                 allows_unassigned: false,
             });
 
@@ -380,15 +357,17 @@ mod tests {
     #[test]
     fn test_planning_annotation_constructors() {
         assert!(matches!(
-            PlanningAnnotation::planning_variable(),
+            PlanningAnnotation::planning_variable(vec![]),
             PlanningAnnotation::PlanningVariable {
-                allows_unassigned: false
+                allows_unassigned: false,
+                ..
             }
         ));
         assert!(matches!(
-            PlanningAnnotation::planning_variable_allows_unassigned(),
+            PlanningAnnotation::planning_variable_unassigned(vec![]),
             PlanningAnnotation::PlanningVariable {
-                allows_unassigned: true
+                allows_unassigned: true,
+                ..
             }
         ));
         assert!(matches!(
@@ -397,11 +376,11 @@ mod tests {
         ));
         assert!(matches!(
             PlanningAnnotation::planning_score(),
-            PlanningAnnotation::PlanningScore
+            PlanningAnnotation::PlanningScore { .. }
         ));
         assert!(matches!(
             PlanningAnnotation::value_range_provider(),
-            PlanningAnnotation::ValueRangeProvider
+            PlanningAnnotation::ValueRangeProvider { .. }
         ));
     }
 
@@ -476,6 +455,7 @@ mod tests {
     #[test]
     fn test_planning_annotation_json_serialization() {
         let variable = PlanningAnnotation::PlanningVariable {
+            value_range_provider_refs: vec![],
             allows_unassigned: false,
         };
         let json = serde_json::to_string(&variable).unwrap();
@@ -484,6 +464,7 @@ mod tests {
         assert!(!json.contains("allowsUnassigned"));
 
         let variable_unassigned = PlanningAnnotation::PlanningVariable {
+            value_range_provider_refs: vec![],
             allows_unassigned: true,
         };
         let json2 = serde_json::to_string(&variable_unassigned).unwrap();
@@ -521,7 +502,7 @@ mod tests {
     fn test_field_descriptor_json_serialization() {
         let field = FieldDescriptor::new("Employee")
             .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-            .with_annotation(PlanningAnnotation::planning_variable());
+            .with_annotation(PlanningAnnotation::planning_variable(vec![]));
 
         let json = serde_json::to_string(&field).unwrap();
         assert!(json.contains("\"type\":\"Employee\""));
@@ -556,7 +537,7 @@ mod tests {
                 "employee",
                 FieldDescriptor::new("Employee")
                     .with_accessor(DomainAccessor::getter_setter("getEmployee", "setEmployee"))
-                    .with_annotation(PlanningAnnotation::planning_variable()),
+                    .with_annotation(PlanningAnnotation::planning_variable(vec![])),
             ),
         );
 

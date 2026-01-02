@@ -4,7 +4,7 @@
 //! to interact with Python objects.
 
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyDict, PyList, PyTuple};
 use solverforge_core::domain::{FieldType, PlanningAnnotation, PrimitiveType};
 use solverforge_core::{
     ClassInfo, FieldInfo, FunctionHandle, LanguageBridge, ObjectHandle, SolverForgeError,
@@ -155,12 +155,44 @@ impl PythonBridge {
             }
         }
 
-        // Fallback: try repr
-        let repr = obj
-            .repr()
+        // Handle datetime objects - convert to ISO 8601 string
+        let type_name = obj
+            .get_type()
+            .name()
             .map(|s| s.to_string())
             .unwrap_or_else(|_| "<unknown>".to_string());
-        Ok(Value::String(repr))
+
+        if type_name == "datetime" {
+            if let Ok(iso_str) = obj.call_method0("isoformat") {
+                if let Ok(s) = iso_str.extract::<String>() {
+                    return Ok(Value::String(s));
+                }
+            }
+        }
+
+        // Handle timedelta objects - convert to total seconds
+        if type_name == "timedelta" {
+            if let Ok(total_seconds) = obj.call_method0("total_seconds") {
+                if let Ok(secs) = total_seconds.extract::<f64>() {
+                    return Ok(Value::Float(secs));
+                }
+            }
+        }
+
+        // Handle tuple (like list)
+        if let Ok(tuple) = obj.cast::<PyTuple>() {
+            let mut arr = Vec::new();
+            for item in tuple.iter() {
+                arr.push(Self::py_to_value(&item)?);
+            }
+            return Ok(Value::Array(arr));
+        }
+
+        // Cannot convert this type - return error with type info
+        Err(SolverForgeError::Bridge(format!(
+            "Cannot convert Python object of type '{}' to Value. Supported types: None, bool, int, float, str, list, dict, datetime, timedelta, or objects with __dict__",
+            type_name
+        )))
     }
 
     /// Convert a Value to a Python object.

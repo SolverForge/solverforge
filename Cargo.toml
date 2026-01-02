@@ -1,9 +1,9 @@
 [workspace]
-members = ["solverforge", "solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-service"]
+members = ["solverforge", "solverforge-core", "solverforge-derive", "solverforge-python", "solverforge-service", "test-support"]
 resolver = "2"
 
 [workspace.package]
-version = "0.2.6"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge"

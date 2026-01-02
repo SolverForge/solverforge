@@ -1,0 +1,11 @@
+[package]
+name = "test-support"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+solverforge-core = { path = "../solverforge-core" }
+proptest = { workspace = true }
+serde_json = { workspace = true }

@@ -1,6 +1,6 @@
 {
   "name": "solverforge",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "private": true,
   "description": "Version management for SolverForge",
   "scripts": {
@@ -38,10 +38,6 @@
       {
         "filename": "solverforge-service/Cargo.toml",
         "updater": "scripts/cargo-dep-version.js"
-      },
-      {
-        "filename": "solverforge-wasm-service/pom.xml",
-        "updater": "scripts/pom-version.js"
       }
     ],
     "tagPrefix": "v",

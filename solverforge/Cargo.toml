@@ -13,6 +13,6 @@ description = "Constraint solver library powered by Timefold"
 readme = "README.md"
 
 [dependencies]
-solverforge-core = { version = "0.2.6", path = "../solverforge-core" }
-solverforge-derive = { version = "0.2.6", path = "../solverforge-derive" }
-solverforge-service = { version = "0.2.6", path = "../solverforge-service" }
+solverforge-core = { version = "0.3.0", path = "../solverforge-core" }
+solverforge-derive = { version = "0.3.0", path = "../solverforge-derive" }
+solverforge-service = { version = "0.3.0", path = "../solverforge-service" }

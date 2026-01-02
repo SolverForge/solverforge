@@ -16,7 +16,7 @@ readme = "README.md"
 crate-type = ["rlib"]
 
 [dependencies]
-solverforge-core = { version = "0.2.6", path = "../solverforge-core" }
+solverforge-core = { version = "0.3.0", path = "../solverforge-core" }
 reqwest = { workspace = true, features = ["blocking"] }
 log = { workspace = true }
 thiserror = { workspace = true }

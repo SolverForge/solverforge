@@ -2,6 +2,22 @@
 
 A Rust constraint solver library that bridges to Timefold JVM via WebAssembly and HTTP.
 
+## Current Status (v0.3.0)
+
+**What works:**
+- Language bindings (Rust, Python) are functional
+- Infrastructure is complete: HTTP communication, WASM generation, embedded solver service
+- Constraint stream API mirrors Timefold's API
+- All derive macros and annotations
+
+**Known issues:**
+- Score corruption under certain conditions due to memory layout misalignment between Rust and dynamically-generated Java classes
+- Pointer handling issues in the WASM/Java boundary layer
+
+These issues stem from the fundamental challenge of cross-language constraint solving: the hot path evaluates millions of moves, and any boundary crossing in this tight loop compounds dramatically. For more details, see [Why Java Interop is Difficult in SolverForge Core](https://solverforge.org/blog/2025/12/30/why-java-interop-is-difficult-in-solverforge-core/).
+
+**Recommendation:** Use `FULL_ASSERT` mode during development to catch score corruption early. Production use should be validated thoroughly.
+
 ## Installation
 
 ```bash

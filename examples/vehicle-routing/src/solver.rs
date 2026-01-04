@@ -1,6 +1,6 @@
 //! Solver service for Vehicle Routing Problem.
 //!
-//! Uses Late Acceptance local search with ListChangeMove for route optimization.
+//! Uses Late Acceptance local search with list-change moves (visit relocation).
 //! Incremental scoring via TypedScoreDirector for O(1) move evaluation.
 
 use parking_lot::RwLock;

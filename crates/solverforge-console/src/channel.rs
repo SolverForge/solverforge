@@ -233,4 +233,35 @@ impl Channel {
 
         let _ = self.sender.send(event);
     }
+
+    /// Sends a solver status update.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use solverforge_console::channel::Channel;
+    /// # use solverforge_console::backend::SolverState;
+    /// # use std::sync::mpsc;
+    /// # let (sender, _) = mpsc::channel();
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
+    /// // Report that solving has started
+    /// channel.status(SolverState::Solving);
+    ///
+    /// // Later, report completion
+    /// channel.status(SolverState::Completed);
+    /// ```
+    pub fn status(&self, status: crate::backend::SolverState) {
+        let event = ConsoleEvent {
+            job_id: self.job_id.clone(),
+            solver_id: self.solver_id,
+            channel_name: self.name.clone(),
+            message: ChannelMessage::SolverStatus {
+                thread_id: thread::current().id(),
+                status,
+            },
+            timestamp: Instant::now(),
+        };
+
+        let _ = self.sender.send(event);
+    }
 }

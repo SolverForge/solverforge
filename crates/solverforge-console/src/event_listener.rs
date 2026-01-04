@@ -176,6 +176,7 @@ where
         let mut console = self.console.write();
         let core = console.core_channel();
 
+        core.status(crate::backend::SolverState::Solving);
         core.info("Solving started");
     }
 
@@ -193,8 +194,10 @@ where
         let core = console.core_channel();
 
         if is_terminated_early {
+            core.status(crate::backend::SolverState::TerminatedEarly);
             core.warn("Solving terminated early");
         } else {
+            core.status(crate::backend::SolverState::Completed);
             core.info("Solving completed");
         }
 

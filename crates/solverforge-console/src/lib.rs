@@ -76,7 +76,6 @@ pub mod channel;
 pub mod console;
 pub mod event_listener;
 pub mod formatter;
-pub mod simple;
 
 // Re-exports for convenience
 pub use console::{ConsoleInstance, ConsoleManager, ConsoleMode};

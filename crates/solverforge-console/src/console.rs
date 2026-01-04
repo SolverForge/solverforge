@@ -14,20 +14,19 @@ use crate::channel::Channel;
 static SOLVER_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Console output mode.
+///
+/// Currently only TUI mode is supported. This enum exists for potential
+/// future expansion but for now only provides the rich terminal UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsoleMode {
     /// Rich terminal UI with live updates (ratatui-based).
     Tui,
-    /// Simple colored terminal output.
-    Simple,
-    /// No output (for benchmarks and production).
-    Silent,
 }
 
 /// Global console manager.
 ///
 /// The console manager coordinates all console instances and runs the output
-/// backend (TUI or simple mode).
+/// backend (TUI mode).
 ///
 /// # Examples
 ///
@@ -62,14 +61,14 @@ pub struct ConsoleManager {
 }
 
 impl ConsoleManager {
-    /// Creates a new console manager with the specified mode.
+    /// Creates a new console manager.
     ///
     /// # Examples
     ///
     /// ```
     /// use solverforge_console::{ConsoleManager, ConsoleMode};
     ///
-    /// let manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// let manager = ConsoleManager::new(ConsoleMode::Tui);
     /// ```
     pub fn new(mode: ConsoleMode) -> Self {
         let (backend, receiver) = ConsoleBackend::new();
@@ -91,7 +90,7 @@ impl ConsoleManager {
     /// ```
     /// use solverforge_console::{ConsoleManager, ConsoleMode};
     ///
-    /// let mut manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
     /// let console = manager.create_console("my-optimization-job".to_string());
     /// ```
     pub fn create_console(&self, job_id: String) -> ConsoleInstance {
@@ -100,11 +99,8 @@ impl ConsoleManager {
 
     /// Runs the console backend (blocking).
     ///
-    /// This method blocks and processes console events. For TUI mode, it runs
-    /// the interactive terminal UI. For Simple mode, it prints formatted output
-    /// to stdout. For Silent mode, it discards all events.
-    ///
-    /// Typically run in a separate thread:
+    /// This method blocks and runs the TUI event loop. Must be run in a
+    /// separate thread to avoid blocking the solver.
     ///
     /// # Examples
     ///
@@ -114,6 +110,7 @@ impl ConsoleManager {
     /// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
     /// let console = manager.create_console("job-1".to_string());
     ///
+    /// // Run TUI in separate thread
     /// let handle = std::thread::spawn(move || {
     ///     manager.run();
     /// });
@@ -124,22 +121,12 @@ impl ConsoleManager {
     /// handle.join().ok();
     /// ```
     pub fn run(mut self) {
-        let receiver = self.receiver.take()
+        let _receiver = self.receiver.take()
             .expect("ConsoleManager::run called more than once");
 
-        match self.mode {
-            ConsoleMode::Tui => {
-                // TODO: Run TUI event loop
-                unimplemented!("TUI mode not yet implemented")
-            }
-            ConsoleMode::Simple => {
-                crate::simple::run_simple(receiver);
-            }
-            ConsoleMode::Silent => {
-                // Discard all events
-                while receiver.recv().is_ok() {}
-            }
-        }
+        // Run TUI event loop
+        // TODO: Implement TUI
+        unimplemented!("TUI mode not yet implemented")
     }
 }
 
@@ -153,7 +140,7 @@ impl ConsoleManager {
 /// ```
 /// use solverforge_console::{ConsoleManager, ConsoleMode};
 ///
-/// let mut manager = ConsoleManager::new(ConsoleMode::Simple);
+/// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
 /// let mut console = manager.create_console("vrp-001".to_string());
 ///
 /// // Get core channel (always available)
@@ -195,7 +182,7 @@ impl ConsoleInstance {
     ///
     /// ```
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
     /// let console = manager.create_console("my-job".to_string());
     /// assert_eq!(console.job_id(), "my-job");
     /// ```
@@ -211,7 +198,7 @@ impl ConsoleInstance {
     ///
     /// ```
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
     /// let console = manager.create_console("job-1".to_string());
     /// let solver_id = console.solver_id();
     /// // solver_id is a unique sequential ID (e.g., 1, 2, 3...)

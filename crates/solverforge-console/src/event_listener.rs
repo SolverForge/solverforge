@@ -21,7 +21,7 @@ use crate::formatter::{format_duration, format_number};
 /// use solverforge_console::event_listener::ConsoleEventListener;
 /// use std::sync::Arc;
 ///
-/// let mut manager = ConsoleManager::new(ConsoleMode::Simple);
+/// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
 /// let mut console = manager.create_console("vrp-job-001".to_string());
 ///
 /// // Create event listener for solver integration
@@ -46,7 +46,7 @@ impl ConsoleEventListener {
     /// use solverforge_console::{ConsoleManager, ConsoleMode};
     /// use solverforge_console::event_listener::ConsoleEventListener;
     ///
-    /// let mut manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
     /// let console = manager.create_console("job-001".to_string());
     /// let listener = ConsoleEventListener::new(console);
     /// ```

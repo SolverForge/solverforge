@@ -8,10 +8,19 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
+use tracing_subscriber::EnvFilter;
 use vehicle_routing::console;
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing (logs from vehicle_routing at INFO level)
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("vehicle_routing=info".parse().unwrap()),
+        )
+        .init();
+
     // Print colorful banner
     console::print_banner();
 

@@ -6,16 +6,9 @@
 //!
 //! This example demonstrates how to model and solve the problem using SolverForge.
 
-use std::any::TypeId;
-
+use rand::Rng;
 use solverforge::prelude::*;
-use solverforge::{
-    ChangeMove, ChangeMoveSelector, EntityDescriptor,
-    StepCountTermination, TypedEntityExtractor,
-    ConstructionPhaseFactory, LocalSearchPhaseFactory, SolverPhaseFactory,
-    QueuedEntityPlacer, FromSolutionEntitySelector, StaticTypedValueSelector,
-    SimpleScoreDirector,
-};
+use solverforge::{planning_entity, planning_solution};
 
 /// Planning Entity: A queen that needs to be placed.
 #[planning_entity]
@@ -79,12 +72,51 @@ impl NQueensSolution {
     }
 }
 
-/// Calculates the score (number of constraint violations).
+/// Creates constraints for N-Queens using the fluent API.
 ///
 /// Constraints:
 /// 1. No two queens on the same row
 /// 2. No two queens on the same ascending diagonal
 /// 3. No two queens on the same descending diagonal
+fn create_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
+    let factory = ConstraintFactory::<NQueensSolution, SimpleScore>::new();
+
+    // Row conflict: two queens with same row
+    let row_conflict = factory
+        .clone()
+        .for_each_unique_pair(
+            |s: &NQueensSolution| s.queens.as_slice(),
+            joiner::equal(|q: &Queen| q.row),
+        )
+        .filter(|a: &Queen, b: &Queen| a.row.is_some() && b.row.is_some())
+        .penalize(SimpleScore::of(1))
+        .as_constraint("Row conflict");
+
+    // Ascending diagonal conflict: queens where (row - column) is the same
+    let asc_diagonal = factory
+        .clone()
+        .for_each_unique_pair(
+            |s: &NQueensSolution| s.queens.as_slice(),
+            joiner::equal(|q: &Queen| q.row.map(|r| r - q.column)),
+        )
+        .filter(|a: &Queen, b: &Queen| a.row.is_some() && b.row.is_some())
+        .penalize(SimpleScore::of(1))
+        .as_constraint("Ascending diagonal conflict");
+
+    // Descending diagonal conflict: queens where (row + column) is the same
+    let desc_diagonal = factory
+        .for_each_unique_pair(
+            |s: &NQueensSolution| s.queens.as_slice(),
+            joiner::equal(|q: &Queen| q.row.map(|r| r + q.column)),
+        )
+        .filter(|a: &Queen, b: &Queen| a.row.is_some() && b.row.is_some())
+        .penalize(SimpleScore::of(1))
+        .as_constraint("Descending diagonal conflict");
+
+    (row_conflict, asc_diagonal, desc_diagonal)
+}
+
+/// Calculates the score directly (for validation and display).
 fn calculate_score(solution: &NQueensSolution) -> SimpleScore {
     let mut conflicts = 0i64;
 
@@ -116,102 +148,103 @@ fn calculate_score(solution: &NQueensSolution) -> SimpleScore {
     SimpleScore::of(-conflicts)
 }
 
-fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-    &s.queens
-}
+/// Runs construction heuristic: round-robin row assignment.
+fn construction_heuristic(
+    director: &mut TypedScoreDirector<NQueensSolution, impl ConstraintSet<NQueensSolution, SimpleScore>>,
+    n: i32,
+) -> SimpleScore {
+    let _ = director.calculate_score();
 
-fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-    &mut s.queens
-}
+    // Assign each queen to a unique row (round-robin)
+    for queen_idx in 0..director.working_solution().queens.len() {
+        if director.working_solution().queens[queen_idx].row.is_some() {
+            continue;
+        }
 
-// Zero-erasure typed getter/setter for solution-level access
-fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i32> {
-    s.queens.get(idx).and_then(|q| q.row)
-}
-
-fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i32>) {
-    if let Some(queen) = s.queens.get_mut(idx) {
-        queen.row = v;
+        let row = (queen_idx as i32) % n;
+        director.before_variable_changed(queen_idx);
+        director.working_solution_mut().queens[queen_idx].row = Some(row);
+        director.after_variable_changed(queen_idx);
     }
+
+    director.get_score()
 }
 
-/// Creates the solution descriptor with entity extractors.
-fn create_descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Queen",
-        "queens",
-        get_queens,
-        get_queens_mut,
-    ));
+/// Runs hill climbing local search.
+fn hill_climbing(
+    director: &mut TypedScoreDirector<NQueensSolution, impl ConstraintSet<NQueensSolution, SimpleScore>>,
+    n: i32,
+    max_steps: u64,
+) -> SimpleScore {
+    let mut current_score = director.get_score();
+    let mut rng = rand::thread_rng();
+    let values: Vec<i32> = (0..n).collect();
 
-    let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-        .with_extractor(extractor);
+    for _step in 0..max_steps {
+        if current_score.is_feasible() {
+            break; // Found optimal solution
+        }
 
-    SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc)
-}
+        // Generate random change move
+        let queen_idx = rng.gen_range(0..director.working_solution().queens.len());
+        let new_row = values[rng.gen_range(0..values.len())];
+        let old_row = director.working_solution().queens[queen_idx].row;
 
-/// Creates a ScoreDirector using the score calculation.
-fn create_score_director(
-    solution: NQueensSolution,
-) -> SimpleScoreDirector<NQueensSolution, fn(&NQueensSolution) -> SimpleScore> {
-    let descriptor = create_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score)
+        // Skip no-op
+        if old_row == Some(new_row) {
+            continue;
+        }
+
+        // Apply move
+        director.before_variable_changed(queen_idx);
+        director.working_solution_mut().queens[queen_idx].row = Some(new_row);
+        director.after_variable_changed(queen_idx);
+        let new_score = director.get_score();
+
+        // Accept if better or equal
+        if new_score >= current_score {
+            current_score = new_score;
+        } else {
+            // Undo
+            director.before_variable_changed(queen_idx);
+            director.working_solution_mut().queens[queen_idx].row = old_row;
+            director.after_variable_changed(queen_idx);
+        }
+    }
+
+    current_score
 }
 
 fn main() {
     println!("SolverForge N-Queens Example");
     println!("============================\n");
 
-    // Create a 4-Queens problem (also works with larger n)
+    // Create a 4-Queens problem
     let n = 4;
     let solution = NQueensSolution::new(n);
 
     println!("Problem: {} queens on a {}x{} board", n, n, n);
     println!("Queens are fixed to columns, solver will assign rows.\n");
 
-    // Create the score director
-    let director = create_score_director(solution);
+    // Create typed constraints and score director
+    let constraints = create_constraints();
+    let mut director = TypedScoreDirector::new(solution, constraints);
 
-    // Create value range (possible rows)
-    let values: Vec<i32> = (0..n).collect();
+    // Phase 1: Construction heuristic
+    println!("Running Construction Heuristic...");
+    let score = construction_heuristic(&mut director, n);
+    println!("After construction: {}", score);
 
-    type NQueensMove = ChangeMove<NQueensSolution, i32>;
-
-    // Create phases using factories
-    // Phase 1: Construction heuristic to build initial solution
-    let values1 = values.clone();
-    let construction_factory = ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(
-        move || {
-            let es = Box::new(FromSolutionEntitySelector::new(0));
-            let vs = Box::new(StaticTypedValueSelector::new(values1.clone()));
-            Box::new(QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, "row"))
-        },
-    );
-    let construction_phase = construction_factory.create_phase();
-
-    // Phase 2: Local search to improve the solution
-    let values2 = values.clone();
-    let local_search_factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-        move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-            get_queen_row, set_queen_row, 0, "row", values2.clone()
-        )),
-    ).with_step_limit(100);
-    let local_search = local_search_factory.create_phase();
-
-    // Create and configure solver
-    let mut solver = Solver::new(vec![construction_phase, local_search])
-        .with_termination(Box::new(StepCountTermination::new(200)));
-
-    println!("Solving with Construction Heuristic + Hill Climbing Local Search...\n");
-
-    // Solve!
-    let result = solver.solve_with_director(Box::new(director));
+    // Phase 2: Hill climbing local search
+    println!("Running Hill Climbing (max 100 steps)...");
+    let score = hill_climbing(&mut director, n, 100);
+    println!("After local search: {}", score);
 
     // Display result
+    let result = director.working_solution().clone();
     result.print_board();
 
-    let score = result.score().unwrap_or_else(|| calculate_score(&result));
+    let score = result.score.unwrap_or_else(|| calculate_score(&result));
     if score.is_feasible() {
         println!("\nSolution is OPTIMAL! No queens threaten each other.");
     } else {
@@ -235,35 +268,21 @@ fn main() {
     // Try 8-Queens
     let n = 8;
     let solution = NQueensSolution::new(n);
-    let director = create_score_director(solution);
+    let constraints = create_constraints();
+    let mut director = TypedScoreDirector::new(solution, constraints);
 
-    let values: Vec<i32> = (0..n).collect();
-    let values1 = values.clone();
-    let construction_factory = ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::best_fit(
-        move || {
-            let es = Box::new(FromSolutionEntitySelector::new(0));
-            let vs = Box::new(StaticTypedValueSelector::new(values1.clone()));
-            Box::new(QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, "row"))
-        },
-    );
-    let construction_phase = construction_factory.create_phase();
+    println!("Running Construction Heuristic...");
+    let score = construction_heuristic(&mut director, n);
+    println!("After construction: {}", score);
 
-    let values2 = values.clone();
-    let local_search_factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-        move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-            get_queen_row, set_queen_row, 0, "row", values2.clone()
-        )),
-    ).with_step_limit(500);
-    let local_search = local_search_factory.create_phase();
+    println!("Running Hill Climbing (max 500 steps)...");
+    let score = hill_climbing(&mut director, n, 500);
+    println!("After local search: {}", score);
 
-    let mut solver = Solver::new(vec![construction_phase, local_search]);
-
-    println!("Solving 8-Queens with Best Fit Construction + Hill Climbing...\n");
-
-    let result = solver.solve_with_director(Box::new(director));
+    let result = director.working_solution().clone();
     result.print_board();
 
-    let score = result.score().unwrap_or_else(|| calculate_score(&result));
+    let score = result.score.unwrap_or_else(|| calculate_score(&result));
     if score.is_feasible() {
         println!("\nSolution is OPTIMAL!");
     } else {

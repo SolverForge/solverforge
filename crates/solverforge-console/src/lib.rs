@@ -73,9 +73,11 @@
 pub mod backend;
 pub mod channel;
 pub mod console;
+pub mod event_listener;
 pub mod formatter;
 
 // Re-exports for convenience
 pub use console::{ConsoleInstance, ConsoleManager, ConsoleMode};
 pub use channel::{Channel, LogLevel};
 pub use backend::{ChannelMessage, ConsoleEvent};
+pub use event_listener::ConsoleEventListener;

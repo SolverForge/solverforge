@@ -1,11 +1,17 @@
 //! Console management and coordination.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
-use uuid::Uuid;
 
 use crate::backend::{ConsoleBackend, ConsoleEvent};
 use crate::channel::Channel;
+
+/// Global atomic counter for generating unique solver IDs.
+///
+/// This counter is incremented atomically for each new ConsoleInstance,
+/// providing lock-free sequential solver IDs.
+static SOLVER_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Console output mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,8 +133,7 @@ impl ConsoleManager {
                 unimplemented!("TUI mode not yet implemented")
             }
             ConsoleMode::Simple => {
-                // TODO: Run simple terminal output
-                unimplemented!("Simple mode not yet implemented")
+                crate::simple::run_simple(receiver);
             }
             ConsoleMode::Silent => {
                 // Discard all events
@@ -162,7 +167,7 @@ impl ConsoleManager {
 #[derive(Debug, Clone)]
 pub struct ConsoleInstance {
     job_id: String,
-    solver_id: Uuid,
+    solver_id: u64,
     backend: ConsoleBackend,
     channels: HashMap<String, Channel>,
 }
@@ -170,7 +175,7 @@ pub struct ConsoleInstance {
 impl ConsoleInstance {
     /// Creates a new console instance.
     fn new(job_id: String, backend: ConsoleBackend) -> Self {
-        let solver_id = Uuid::new_v4();
+        let solver_id = SOLVER_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
         let mut instance = Self {
             job_id: job_id.clone(),
             solver_id,
@@ -198,7 +203,9 @@ impl ConsoleInstance {
         &self.job_id
     }
 
-    /// Returns the solver ID (UUID) for this console instance.
+    /// Returns the solver ID for this console instance.
+    ///
+    /// Each solver instance gets a unique sequential ID from an atomic counter.
     ///
     /// # Examples
     ///
@@ -207,9 +214,10 @@ impl ConsoleInstance {
     /// # let manager = ConsoleManager::new(ConsoleMode::Simple);
     /// let console = manager.create_console("job-1".to_string());
     /// let solver_id = console.solver_id();
-    /// // solver_id is a unique UUID
+    /// // solver_id is a unique sequential ID (e.g., 1, 2, 3...)
+    /// assert!(solver_id > 0);
     /// ```
-    pub fn solver_id(&self) -> Uuid {
+    pub fn solver_id(&self) -> u64 {
         self.solver_id
     }
 

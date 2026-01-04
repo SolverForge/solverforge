@@ -3,7 +3,6 @@
 use std::sync::mpsc;
 use std::thread::ThreadId;
 use std::time::Instant;
-use uuid::Uuid;
 
 /// Message sent from a channel to the console backend.
 #[derive(Debug, Clone)]
@@ -44,8 +43,8 @@ pub enum ChannelMessage {
 pub struct ConsoleEvent {
     /// Job identifier (user-provided).
     pub job_id: String,
-    /// Solver instance identifier (auto-generated UUID).
-    pub solver_id: Uuid,
+    /// Solver instance identifier (auto-generated sequential ID).
+    pub solver_id: u64,
     /// Channel name that generated the event.
     pub channel_name: String,
     /// The actual channel message.

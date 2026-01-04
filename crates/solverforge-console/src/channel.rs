@@ -3,7 +3,6 @@
 use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
-use uuid::Uuid;
 
 use crate::backend::{ChannelMessage, ConsoleEvent};
 
@@ -28,15 +27,14 @@ pub enum LogLevel {
 /// # Examples
 ///
 /// ```
-/// use solverforge_console::channel::{Channel, LogLevel};
+/// use solverforge_console::channel::Channel;
 /// use std::sync::mpsc;
-/// use uuid::Uuid;
 ///
 /// let (sender, _receiver) = mpsc::channel();
 /// let channel = Channel::new(
 ///     "myapp".to_string(),
 ///     "job-001".to_string(),
-///     Uuid::new_v4(),
+///     1,
 ///     sender,
 /// );
 ///
@@ -48,7 +46,7 @@ pub enum LogLevel {
 pub struct Channel {
     name: String,
     job_id: String,
-    solver_id: Uuid,
+    solver_id: u64,
     sender: mpsc::Sender<ConsoleEvent>,
 }
 
@@ -59,12 +57,12 @@ impl Channel {
     ///
     /// * `name` - Channel name (e.g., "core", "myapp")
     /// * `job_id` - Job identifier for correlation
-    /// * `solver_id` - Solver instance identifier
+    /// * `solver_id` - Solver instance identifier (sequential ID)
     /// * `sender` - MPSC sender to console backend
     pub fn new(
         name: String,
         job_id: String,
-        solver_id: Uuid,
+        solver_id: u64,
         sender: mpsc::Sender<ConsoleEvent>,
     ) -> Self {
         Self {

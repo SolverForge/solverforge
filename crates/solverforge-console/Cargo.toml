@@ -18,14 +18,6 @@ solverforge-solver = { workspace = true }
 ratatui = "0.29"
 crossterm = "0.28"
 
-# Formatting and colors
-owo-colors = "4"
-num-format = "0.4"
-
-# Core utilities
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = "0.4"
-
 # Optional serialization for JSON output
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }

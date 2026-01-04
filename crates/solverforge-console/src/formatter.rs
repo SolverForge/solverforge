@@ -1,7 +1,6 @@
 //! Formatting utilities for console output.
 
 use std::time::Duration;
-use num_format::{Locale, ToFormattedString};
 
 /// Formats a duration in a human-readable format.
 ///
@@ -37,6 +36,8 @@ pub fn format_duration(duration: Duration) -> String {
 
 /// Formats a number with thousands separators.
 ///
+/// Inserts commas every 3 digits from right to left.
+///
 /// # Examples
 ///
 /// ```
@@ -47,7 +48,22 @@ pub fn format_duration(duration: Duration) -> String {
 /// assert_eq!(format_number(1234567), "1,234,567");
 /// ```
 pub fn format_number(n: u64) -> String {
-    n.to_formatted_string(&Locale::en)
+    if n == 0 {
+        return "0".to_string();
+    }
+
+    let s = n.to_string();
+    let mut result = String::new();
+    let chars: Vec<char> = s.chars().collect();
+
+    for (i, ch) in chars.iter().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            result.push(',');
+        }
+        result.push(*ch);
+    }
+
+    result.chars().rev().collect()
 }
 
 /// Formats a rate (items per second).

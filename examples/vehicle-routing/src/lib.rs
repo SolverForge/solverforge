@@ -21,6 +21,5 @@ pub mod constraints;
 pub mod demo_data;
 pub mod domain;
 pub mod geometry;
-pub mod listener;
 pub mod routing;
 pub mod solver;

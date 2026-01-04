@@ -26,15 +26,18 @@ pub use event::{
 };
 pub use heuristic::{
     // Move types
-    ChangeMove, CompositeMove, ListRuinMove, Move, MoveArena, PillarChangeMove, PillarSwapMove,
-    RuinMove, SwapMove,
+    ChangeMove, CompositeMove, CutPoint, KOptMove, ListRuinMove, Move, MoveArena,
+    PillarChangeMove, PillarSwapMove, RuinMove, SwapMove,
+    // K-opt reconnection patterns
+    k_opt_reconnection,
     // Selectors
     AllEntitiesSelector, ChangeMoveSelector, DefaultPillarSelector, EntityReference,
     EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
-    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
-    MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
-    NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector, SelectionOrder,
-    StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector, TypedValueSelector,
+    KOptConfig, KOptMoveSelector, ListPositionDistanceMeter, ListRuinMoveSelector,
+    MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector, MoveSelector,
+    NearbyDistanceMeter, NearbyEntitySelector, NearbyKOptMoveSelector, NearbySelectionConfig,
+    Pillar, PillarSelector, RuinMoveSelector, SelectionOrder, StaticTypedValueSelector,
+    SubPillarConfig, SwapMoveSelector, TypedValueSelector,
 };
 pub use phase::{
     construction::{

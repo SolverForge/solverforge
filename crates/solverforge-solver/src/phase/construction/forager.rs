@@ -581,7 +581,7 @@ mod tests {
     }
 
     fn value_strength(m: &TestMove) -> i64 {
-        m.to_value().map(|&v| v).unwrap_or(0)
+        m.to_value().copied().unwrap_or(0)
     }
 
     #[test]

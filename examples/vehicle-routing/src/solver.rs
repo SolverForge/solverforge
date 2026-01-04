@@ -15,7 +15,7 @@ use tracing::{debug, info};
 
 use crate::constraints::create_constraints;
 use crate::domain::VehicleRoutePlan;
-use crate::listener::VrpConsoleListener;
+use solverforge_console::ConsoleEventListener;
 
 /// Default solving time: 30 seconds.
 const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
@@ -206,8 +206,8 @@ impl SolverService {
         let job_clone = job.clone();
 
         tokio::task::spawn_blocking(move || {
-            // Create listener for this solve job
-            let listener = VrpConsoleListener::new(&job_id);
+            // Create generic listener
+            let listener = ConsoleEventListener::new(&job_id);
             solve_blocking(job_clone, rx, config, listener);
         });
     }
@@ -237,7 +237,7 @@ fn solve_blocking(
     job: Arc<RwLock<SolveJob>>,
     mut stop_rx: oneshot::Receiver<()>,
     config: SolverConfig,
-    listener: VrpConsoleListener,
+    listener: ConsoleEventListener,
 ) {
     let initial_plan = job.read().plan.clone();
     let job_id = job.read().id.clone();

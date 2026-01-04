@@ -3,10 +3,10 @@
 //! Provides specialized widgets for displaying solver state, metrics,
 //! thread activity, and multi-channel output.
 
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use crate::backend::{ChannelMessage, ConsoleEvent};
@@ -108,7 +108,7 @@ pub struct OverviewState {
 
 /// Renders the thread activity panel.
 ///
-/// Displays progress indicators for each active solver thread.
+/// Displays progress indicators for each active solver thread using animated Gauge widgets.
 ///
 /// # Arguments
 ///
@@ -116,30 +116,65 @@ pub struct OverviewState {
 /// * `area` - Screen area for the thread activity panel
 /// * `threads` - Thread activity state
 pub fn render_thread_activity(frame: &mut Frame, area: Rect, threads: &[ThreadState]) {
-    let items: Vec<ListItem> = threads
-        .iter()
-        .map(|thread| {
-            let progress_bar = create_progress_bar(thread.progress, 20);
-            let line = Line::from(vec![
-                Span::raw(format!("Thread-{:?} ", thread.thread_id)),
-                Span::styled(progress_bar, Style::default().fg(Color::Green)),
-                Span::raw(format!(" {} ", thread.phase)),
-                Span::styled(
-                    format_duration(thread.phase_elapsed),
-                    Style::default().fg(Color::Gray),
-                ),
-            ]);
-            ListItem::new(line)
-        })
-        .collect();
-
     let block = Block::default()
         .title("Thread Activity")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Magenta));
 
-    let list = List::new(items).block(block);
-    frame.render_widget(list, area);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if threads.is_empty() {
+        return;
+    }
+
+    // Create vertical layout for each thread (2 lines per thread: label + gauge)
+    let constraints: Vec<Constraint> = threads
+        .iter()
+        .flat_map(|_| vec![Constraint::Length(1), Constraint::Length(1)])
+        .collect();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(inner);
+
+    // Render each thread with label + gauge
+    for (i, thread) in threads.iter().enumerate() {
+        let label_area = chunks[i * 2];
+        let gauge_area = chunks[i * 2 + 1];
+
+        // Render thread label
+        let label = Paragraph::new(format!(
+            "Thread-{} │ {} │ {}",
+            thread.thread_id,
+            thread.phase,
+            format_duration(thread.phase_elapsed)
+        ))
+        .style(Style::default().fg(Color::Gray));
+        frame.render_widget(label, label_area);
+
+        // Determine gauge color based on progress (gradient: Red → Yellow → Green → Cyan)
+        let progress_percent = (thread.progress * 100.0) as u8;
+        let gauge_color = match progress_percent {
+            0..=33 => Color::Red,      // Startup/warming up
+            34..=66 => Color::Yellow,  // Active solving
+            67..=99 => Color::Green,   // Near completion
+            _ => Color::Cyan,          // Complete
+        };
+
+        // Render animated gauge
+        let gauge = Gauge::default()
+            .gauge_style(
+                Style::default()
+                    .fg(gauge_color)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .ratio(thread.progress)
+            .label(format!("{:.0}%", thread.progress * 100.0));
+
+        frame.render_widget(gauge, gauge_area);
+    }
 }
 
 /// State for a single thread.
@@ -311,38 +346,6 @@ fn format_event_line(event: &ConsoleEvent, max_width: usize) -> ListItem<'static
             ListItem::new(line)
         }
     }
-}
-
-/// Creates a text-based progress bar.
-///
-/// # Arguments
-///
-/// * `progress` - Progress ratio (0.0 to 1.0)
-/// * `width` - Width of the progress bar in characters
-///
-/// # Returns
-///
-/// A string representing the progress bar with filled and empty segments.
-///
-/// # Examples
-///
-/// ```
-/// use solverforge_console::tui::widgets::create_progress_bar;
-///
-/// let bar = create_progress_bar(0.5, 10);
-/// assert_eq!(bar.chars().count(), 12); // 10 + 2 brackets
-/// assert!(bar.starts_with('['));
-/// assert!(bar.ends_with(']'));
-/// ```
-pub fn create_progress_bar(progress: f64, width: usize) -> String {
-    let filled = (progress * width as f64).round() as usize;
-    let empty = width.saturating_sub(filled);
-
-    format!(
-        "[{}{}]",
-        "█".repeat(filled),
-        "░".repeat(empty)
-    )
 }
 
 /// Formats a duration for display.

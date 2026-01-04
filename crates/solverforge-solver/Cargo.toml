@@ -6,9 +6,9 @@ license.workspace = true
 description = "Solver engine for SolverForge"
 
 [dependencies]
-solverforge-core.workspace = true
-solverforge-scoring.workspace = true
-solverforge-config.workspace = true
+solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
+solverforge-scoring = { version = "0.4.0", path = "../solverforge-scoring" }
+solverforge-config = { version = "0.4.0", path = "../solverforge-config" }
 thiserror.workspace = true
 tracing.workspace = true
 rand.workspace = true

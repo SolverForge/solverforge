@@ -2,7 +2,8 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, OnceLock};
+use parking_lot::Mutex;
 
 use crate::backend::{ConsoleBackend, ConsoleEvent};
 use crate::channel::Channel;
@@ -12,6 +13,9 @@ use crate::channel::Channel;
 /// This counter is incremented atomically for each new ConsoleInstance,
 /// providing lock-free sequential solver IDs.
 static SOLVER_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+/// Global console manager singleton.
+static CONSOLE_MANAGER: OnceLock<ConsoleManager> = OnceLock::new();
 
 /// Console output mode.
 ///
@@ -23,60 +27,88 @@ pub enum ConsoleMode {
     Tui,
 }
 
-/// Global console manager.
+/// Global console manager (singleton).
 ///
-/// The console manager coordinates all console instances and runs the output
-/// backend (TUI mode).
+/// The console manager is a global singleton that coordinates all console instances
+/// and runs the TUI backend. Users initialize it once at startup and access it from
+/// anywhere in the code.
+///
+/// # Usage Pattern
+///
+/// 1. **Wire once at startup**: Call `ConsoleManager::init()` in main
+/// 2. **Run TUI thread**: Spawn thread calling `ConsoleManager::run()`
+/// 3. **Use anywhere**: Call `ConsoleManager::global().create_console(job_id)` to get instances
 ///
 /// # Examples
 ///
-/// ```
+/// ```no_run
 /// use solverforge_console::{ConsoleManager, ConsoleMode};
 ///
-/// // Create manager in TUI mode
-/// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
+/// // In main.rs - wire once
+/// ConsoleManager::init(ConsoleMode::Tui);
 ///
-/// // Create console for a specific job
-/// let console = manager.create_console("vrp-job-001".to_string());
-///
-/// // Use console channels
-/// let mut console_clone = console.clone();
-/// let core = console_clone.core_channel();
-/// core.info("Solver initialized");
-///
-/// // Run TUI in separate thread
-/// let handle = std::thread::spawn(move || {
-///     manager.run();
+/// // Start TUI in background thread
+/// std::thread::spawn(|| {
+///     ConsoleManager::run();
 /// });
 ///
-/// // ... run solver ...
-/// # drop(console);
-/// # drop(handle);
+/// // Anywhere in code - just use it
+/// let mut console = ConsoleManager::global().create_console("job-1".to_string());
+/// let core = console.core_channel();
+/// core.info("Solver starting");
 /// ```
 #[derive(Debug)]
 pub struct ConsoleManager {
-    backend: ConsoleBackend,
-    receiver: Option<mpsc::Receiver<ConsoleEvent>>,
+    backend: Arc<ConsoleBackend>,
+    receiver: Arc<Mutex<Option<mpsc::Receiver<ConsoleEvent>>>>,
     mode: ConsoleMode,
 }
 
 impl ConsoleManager {
-    /// Creates a new console manager.
+    /// Initializes the global console manager.
+    ///
+    /// Must be called once at startup before using the console system.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called more than once.
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use solverforge_console::{ConsoleManager, ConsoleMode};
     ///
-    /// let manager = ConsoleManager::new(ConsoleMode::Tui);
+    /// // In main.rs - call once at startup
+    /// ConsoleManager::init(ConsoleMode::Tui);
     /// ```
-    pub fn new(mode: ConsoleMode) -> Self {
+    pub fn init(mode: ConsoleMode) {
         let (backend, receiver) = ConsoleBackend::new();
-        Self {
-            backend,
-            receiver: Some(receiver),
+        let manager = Self {
+            backend: Arc::new(backend),
+            receiver: Arc::new(Mutex::new(Some(receiver))),
             mode,
-        }
+        };
+        CONSOLE_MANAGER.set(manager)
+            .expect("ConsoleManager::init() called more than once");
+    }
+
+    /// Returns the global console manager instance.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `init()` has not been called.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use solverforge_console::ConsoleManager;
+    ///
+    /// // Access global instance from anywhere
+    /// let console = ConsoleManager::global().create_console("job-1".to_string());
+    /// ```
+    pub fn global() -> &'static ConsoleManager {
+        CONSOLE_MANAGER.get()
+            .expect("ConsoleManager not initialized - call ConsoleManager::init() first")
     }
 
     /// Creates a console instance for a specific job.
@@ -87,11 +119,10 @@ impl ConsoleManager {
     ///
     /// # Examples
     ///
-    /// ```
-    /// use solverforge_console::{ConsoleManager, ConsoleMode};
+    /// ```no_run
+    /// use solverforge_console::ConsoleManager;
     ///
-    /// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// let console = manager.create_console("my-optimization-job".to_string());
+    /// let console = ConsoleManager::global().create_console("vrp-001".to_string());
     /// ```
     pub fn create_console(&self, job_id: String) -> ConsoleInstance {
         ConsoleInstance::new(job_id, self.backend.clone())
@@ -102,27 +133,32 @@ impl ConsoleManager {
     /// This method blocks and runs the TUI event loop. Must be run in a
     /// separate thread to avoid blocking the solver.
     ///
+    /// # Panics
+    ///
+    /// Panics if `init()` has not been called or if `run()` is called more than once.
+    ///
     /// # Examples
     ///
     /// ```no_run
     /// use solverforge_console::{ConsoleManager, ConsoleMode};
     ///
-    /// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// let console = manager.create_console("job-1".to_string());
+    /// ConsoleManager::init(ConsoleMode::Tui);
     ///
-    /// // Run TUI in separate thread
-    /// let handle = std::thread::spawn(move || {
-    ///     manager.run();
+    /// // Run TUI in background thread
+    /// let handle = std::thread::spawn(|| {
+    ///     ConsoleManager::run();
     /// });
     ///
-    /// // ... use console ...
+    /// // ... use console elsewhere ...
     ///
-    /// # drop(console);
     /// handle.join().ok();
     /// ```
-    pub fn run(mut self) {
-        let receiver = self.receiver.take()
-            .expect("ConsoleManager::run called more than once");
+    pub fn run() {
+        let receiver = Self::global()
+            .receiver
+            .lock()
+            .take()
+            .expect("ConsoleManager::run() called more than once");
 
         // Run TUI event loop
         crate::tui::run_tui(receiver).expect("Failed to run TUI");
@@ -136,11 +172,10 @@ impl ConsoleManager {
 ///
 /// # Examples
 ///
-/// ```
-/// use solverforge_console::{ConsoleManager, ConsoleMode};
+/// ```no_run
+/// use solverforge_console::ConsoleManager;
 ///
-/// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
-/// let mut console = manager.create_console("vrp-001".to_string());
+/// let mut console = ConsoleManager::global().create_console("vrp-001".to_string());
 ///
 /// // Get core channel (always available)
 /// let core = console.core_channel();
@@ -154,13 +189,13 @@ impl ConsoleManager {
 pub struct ConsoleInstance {
     job_id: String,
     solver_id: u64,
-    backend: ConsoleBackend,
+    backend: Arc<ConsoleBackend>,
     channels: HashMap<String, Channel>,
 }
 
 impl ConsoleInstance {
     /// Creates a new console instance.
-    fn new(job_id: String, backend: ConsoleBackend) -> Self {
+    fn new(job_id: String, backend: Arc<ConsoleBackend>) -> Self {
         let solver_id = SOLVER_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
         let mut instance = Self {
             job_id: job_id.clone(),
@@ -179,10 +214,10 @@ impl ConsoleInstance {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// let console = manager.create_console("my-job".to_string());
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// let console = ConsoleManager::global().create_console("my-job".to_string());
     /// assert_eq!(console.job_id(), "my-job");
     /// ```
     pub fn job_id(&self) -> &str {
@@ -195,10 +230,10 @@ impl ConsoleInstance {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// let console = manager.create_console("job-1".to_string());
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// let console = ConsoleManager::global().create_console("job-1".to_string());
     /// let solver_id = console.solver_id();
     /// // solver_id is a unique sequential ID (e.g., 1, 2, 3...)
     /// assert!(solver_id > 0);
@@ -214,10 +249,10 @@ impl ConsoleInstance {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// # let mut console = manager.create_console("job".to_string());
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// # let mut console = ConsoleManager::global().create_console("job".to_string());
     /// let app_channel = console.channel("myapp");
     /// app_channel.info("Application message");
     ///
@@ -241,10 +276,10 @@ impl ConsoleInstance {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// # let mut console = manager.create_console("job".to_string());
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// # let mut console = ConsoleManager::global().create_console("job".to_string());
     /// let core = console.core_channel();
     /// core.info("Solver initialized");
     /// ```

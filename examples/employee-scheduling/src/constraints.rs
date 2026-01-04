@@ -6,8 +6,6 @@
 use chrono::NaiveDate;
 use solverforge::prelude::*;
 use solverforge::stream::joiner::equal_bi;
-use solverforge::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-use std::any::TypeId;
 
 use crate::domain::{Employee, EmployeeSchedule, Shift};
 
@@ -228,30 +226,3 @@ fn shift_date_overlap_minutes(shift: &Shift, date: NaiveDate) -> i64 {
     }
 }
 
-// ============================================================================
-// Solution Descriptor (for Solver infrastructure integration)
-// ============================================================================
-
-fn get_shifts(s: &EmployeeSchedule) -> &Vec<Shift> {
-    &s.shifts
-}
-
-fn get_shifts_mut(s: &mut EmployeeSchedule) -> &mut Vec<Shift> {
-    &mut s.shifts
-}
-
-/// Creates a solution descriptor for the employee scheduling domain.
-///
-/// This enables using `TypedScoreDirector` with the full Solver infrastructure.
-pub fn create_solution_descriptor() -> SolutionDescriptor {
-    let shift_extractor = Box::new(TypedEntityExtractor::new(
-        "Shift",
-        "shifts",
-        get_shifts,
-        get_shifts_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Shift", TypeId::of::<Shift>(), "shifts").with_extractor(shift_extractor);
-
-    SolutionDescriptor::new("EmployeeSchedule", TypeId::of::<EmployeeSchedule>()).with_entity(entity_desc)
-}

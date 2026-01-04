@@ -12,4 +12,3 @@ pub mod demo_data;
 pub mod domain;
 pub mod incremental_constraints;
 pub mod solver;
-pub mod typed_solver;

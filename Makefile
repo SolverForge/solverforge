@@ -190,16 +190,14 @@ pre-release: banner
 
 # ============== Publishing ==============
 
-publish-crates-dry: banner
+publish-crates-dry: test banner
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
-	@printf "$(CYAN)$(BOLD)║              Dry-Run Publishing                          ║$(RESET)\n"
+	@printf "$(CYAN)$(BOLD)║              Pre-Publish Verification                    ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
+	@printf "$(GREEN)$(CHECK) All tests passed$(RESET)\n"
 	@printf "$(ARROW) Publishing order: $(GRAY)core → macros → scoring → config → solver → benchmark → facade$(RESET)\n\n"
-	@for crate in solverforge-core solverforge-macros solverforge-scoring solverforge-config solverforge-solver solverforge-benchmark solverforge; do \
-		printf "$(PROGRESS) Dry-run: $$crate...\n"; \
-		cargo publish -p $$crate --dry-run --allow-dirty || exit 1; \
-	done
-	@printf "\n$(GREEN)$(CHECK) All crates ready for publishing$(RESET)\n\n"
+	@printf "$(GRAY)Note: cargo publish --dry-run cannot validate unpublished workspace inter-dependencies.$(RESET)\n"
+	@printf "$(GRAY)Tests passing indicates crates are ready. Use 'make publish-crates' to publish.$(RESET)\n\n"
 
 publish-crates: banner
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"

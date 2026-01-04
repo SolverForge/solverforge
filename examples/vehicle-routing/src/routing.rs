@@ -10,7 +10,7 @@ use petgraph::algo::{astar, dijkstra};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 /// Overpass API URL.
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
@@ -183,19 +183,31 @@ out body;"#,
 
         debug!("Overpass query:\n{}", query);
 
+        info!("Preparing Overpass query for bbox: {:.4},{:.4} to {:.4},{:.4}",
+            bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng);
+
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(30))
+            .read_timeout(std::time::Duration::from_secs(180))
             .timeout(std::time::Duration::from_secs(180))
             .user_agent("SolverForge/0.4.0")
             .build()
             .map_err(|e| RoutingError::Network(e.to_string()))?;
+
+        info!("Sending request to Overpass API...");
+
         let response = client
             .post(OVERPASS_URL)
             .body(query)
             .header("Content-Type", "text/plain")
             .send()
             .await
-            .map_err(|e| RoutingError::Network(e.to_string()))?;
+            .map_err(|e| {
+                error!("Overpass request failed: {}", e);
+                RoutingError::Network(e.to_string())
+            })?;
+
+        info!("Received response: status={}", response.status());
 
         if !response.status().is_success() {
             return Err(RoutingError::Network(format!(

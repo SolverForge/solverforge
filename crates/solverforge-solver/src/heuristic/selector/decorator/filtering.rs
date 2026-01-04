@@ -169,7 +169,7 @@ mod tests {
     }
 
     fn high_value_filter(m: &ChangeMove<TaskSolution, i32>) -> bool {
-        m.to_value().map_or(false, |v| *v > 50)
+        m.to_value().is_some_and(|v| *v > 50)
     }
 
     #[test]

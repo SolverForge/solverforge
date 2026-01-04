@@ -27,7 +27,9 @@ impl TerminationBuilder {
     ///
     /// Multiple termination conditions are combined with OR logic
     /// (any condition being met will terminate solving).
-    pub fn build<S: PlanningSolution>(config: &TerminationConfig) -> Option<Box<dyn Termination<S>>> {
+    pub fn build<S: PlanningSolution>(
+        config: &TerminationConfig,
+    ) -> Option<Box<dyn Termination<S>>> {
         let mut terminations: Vec<Box<dyn Termination<S>>> = Vec::new();
 
         // Time-based termination

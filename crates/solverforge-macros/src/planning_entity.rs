@@ -2,9 +2,9 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Data, Fields, Error};
+use syn::{Data, DeriveInput, Error, Fields};
 
-use crate::{has_attribute, get_attribute, parse_attribute_bool, parse_attribute_string};
+use crate::{get_attribute, has_attribute, parse_attribute_bool, parse_attribute_string};
 
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let name = &input.ident;
@@ -14,13 +14,27 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => &fields.named,
-            _ => return Err(Error::new_spanned(&input, "#[planning_entity] requires named fields")),
+            _ => {
+                return Err(Error::new_spanned(
+                    &input,
+                    "#[planning_entity] requires named fields",
+                ))
+            }
         },
-        _ => return Err(Error::new_spanned(&input, "#[planning_entity] only works on structs")),
+        _ => {
+            return Err(Error::new_spanned(
+                &input,
+                "#[planning_entity] only works on structs",
+            ))
+        }
     };
 
-    let id_field = fields.iter().find(|f| has_attribute(&f.attrs, "planning_id"));
-    let pin_field = fields.iter().find(|f| has_attribute(&f.attrs, "planning_pin"));
+    let id_field = fields
+        .iter()
+        .find(|f| has_attribute(&f.attrs, "planning_id"));
+    let pin_field = fields
+        .iter()
+        .find(|f| has_attribute(&f.attrs, "planning_pin"));
 
     let is_pinned_impl = if let Some(field) = pin_field {
         let field_name = field.ident.as_ref().unwrap();
@@ -45,7 +59,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name = field.ident.as_ref().unwrap();
             let field_name_str = field_name.to_string();
             let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
-            let allows_unassigned = parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false);
+            let allows_unassigned =
+                parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false);
             let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
             let value_range_provider = parse_attribute_string(attr, "value_range_provider");
 

@@ -413,10 +413,18 @@ mod tests {
         // Equal distribution: 2 shifts each
         let solution = Solution {
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
             ],
         };
 
@@ -439,10 +447,18 @@ mod tests {
         // Unequal: employee 0 has 3, employee 1 has 1
         let solution = Solution {
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
             ],
         };
 
@@ -466,10 +482,18 @@ mod tests {
         // Employee 0: 2, Employee 1: 2, plus unassigned (ignored)
         let solution = Solution {
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
                 Shift { employee_id: None },
             ],
         };
@@ -492,10 +516,18 @@ mod tests {
 
         let solution = Solution {
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
             ],
         };
 
@@ -547,11 +579,21 @@ mod tests {
         // Single employee with 5 shifts - no variance possible
         let solution = Solution {
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
             ],
         };
 
@@ -573,10 +615,18 @@ mod tests {
 
         let solution = Solution {
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
             ],
         };
 

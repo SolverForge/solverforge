@@ -195,11 +195,10 @@ mod tests {
 
     fn create_scope() -> SolverScope<TestSolution> {
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
-        let director = SimpleScoreDirector::with_calculator(
-            TestSolution { score: None },
-            descriptor,
-            |_| SimpleScore::of(0),
-        );
+        let director =
+            SimpleScoreDirector::with_calculator(TestSolution { score: None }, descriptor, |_| {
+                SimpleScore::of(0)
+            });
         SolverScope::new(Box::new(director))
     }
 
@@ -229,26 +228,26 @@ mod tests {
 
     #[test]
     fn test_terminates_with_zero_improvement() {
-        // Use 100ms window so samples don't expire too quickly
+        // Use 200ms window with larger margins for cross-platform reliability
         let termination =
-            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.1);
+            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(200), 0.1);
 
         let scope = create_scope_with_score(SimpleScore::of(-100));
 
         // First call starts tracking at T0
         assert!(!termination.is_terminated(&scope));
 
-        // Wait past grace period but keep first sample in window
-        sleep(Duration::from_millis(50));
+        // Wait well into grace period but keep first sample in window
+        sleep(Duration::from_millis(120));
 
-        // Second call adds sample at T0+50ms (still in window)
+        // Second call adds sample at T0+120ms (still in window)
         // Both samples have score -100, so rate is 0
         assert!(!termination.is_terminated(&scope));
 
-        // Wait a bit more to get past grace period
-        sleep(Duration::from_millis(60));
+        // Wait past grace period with margin for timing variance
+        sleep(Duration::from_millis(100));
 
-        // Third call: past grace period (110ms > 100ms), 2+ samples, rate ~0
+        // Third call: past grace period (220ms > 200ms), 2+ samples, rate ~0
         assert!(termination.is_terminated(&scope));
     }
 
@@ -266,7 +265,12 @@ mod tests {
 
         // Significant improvement: -100 -> 0 = +100 improvement over ~60ms
         // Rate = 100 / 0.060 = ~1667/s, well above 10/s threshold
-        scope.set_best_solution(TestSolution { score: Some(SimpleScore::of(0)) }, SimpleScore::of(0));
+        scope.set_best_solution(
+            TestSolution {
+                score: Some(SimpleScore::of(0)),
+            },
+            SimpleScore::of(0),
+        );
         assert!(!termination.is_terminated(&scope));
     }
 

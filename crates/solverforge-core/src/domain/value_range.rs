@@ -4,7 +4,6 @@
 //! planning variables. They can be static (fixed list) or dynamic (computed
 //! from the solution state).
 
-
 /// Provides values for a planning variable.
 ///
 /// This trait is implemented for types that can produce a list of valid values
@@ -211,7 +210,6 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,9 +264,13 @@ mod tests {
             values: vec![],
         };
 
-        let values: Vec<i64> = ValueRangeProvider::<TestSolution, i64>::get_values(&range, &solution);
+        let values: Vec<i64> =
+            ValueRangeProvider::<TestSolution, i64>::get_values(&range, &solution);
         assert_eq!(values, vec![5, 6, 7, 8, 9]);
-        assert_eq!(ValueRangeProvider::<TestSolution, i64>::value_count(&range, &solution), 5);
+        assert_eq!(
+            ValueRangeProvider::<TestSolution, i64>::value_count(&range, &solution),
+            5
+        );
     }
 
     #[test]
@@ -279,8 +281,8 @@ mod tests {
             values: vec![],
         };
 
-        let values: Vec<i32> = ValueRangeProvider::<TestSolution, i32>::get_values(&range, &solution);
+        let values: Vec<i32> =
+            ValueRangeProvider::<TestSolution, i32>::get_values(&range, &solution);
         assert_eq!(values, vec![0, 1, 2]);
     }
-
 }

@@ -10,8 +10,8 @@
 
 use std::fmt::Debug;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Move;
 
@@ -104,9 +104,9 @@ where
 
         // Compare directly - fully typed comparison
         match (&current, &self.to_value) {
-            (None, None) => false, // Both unassigned
+            (None, None) => false,                      // Both unassigned
             (Some(cur), Some(target)) => cur != target, // Different values
-            _ => true, // One assigned, one not
+            _ => true,                                  // One assigned, one not
         }
     }
 
@@ -159,9 +159,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::SimpleScoreDirector;
     use solverforge_core::domain::SolutionDescriptor;
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug, PartialEq)]
@@ -178,8 +178,12 @@ mod tests {
 
     impl PlanningSolution for TaskSolution {
         type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> { self.score }
-        fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
     }
 
     // Typed getter: extracts priority from task at index
@@ -194,7 +198,9 @@ mod tests {
         }
     }
 
-    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(
+        tasks: Vec<Task>,
+    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
         let solution = TaskSolution { tasks, score: None };
         let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>());
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
@@ -203,8 +209,14 @@ mod tests {
     #[test]
     fn test_change_move_is_doable() {
         let tasks = vec![
-            Task { id: 0, priority: Some(1) },
-            Task { id: 1, priority: Some(2) },
+            Task {
+                id: 0,
+                priority: Some(1),
+            },
+            Task {
+                id: 1,
+                priority: Some(2),
+            },
         ];
         let director = create_director(tasks);
 
@@ -219,7 +231,10 @@ mod tests {
 
     #[test]
     fn test_change_move_do_move() {
-        let tasks = vec![Task { id: 0, priority: Some(1) }];
+        let tasks = vec![Task {
+            id: 0,
+            priority: Some(1),
+        }];
         let mut director = create_director(tasks);
 
         let m = ChangeMove::new(0, Some(5), get_priority, set_priority, "priority", 0);
@@ -232,7 +247,10 @@ mod tests {
 
     #[test]
     fn test_change_move_to_none() {
-        let tasks = vec![Task { id: 0, priority: Some(5) }];
+        let tasks = vec![Task {
+            id: 0,
+            priority: Some(5),
+        }];
         let mut director = create_director(tasks);
 
         let m = ChangeMove::new(0, None, get_priority, set_priority, "priority", 0);

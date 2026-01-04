@@ -9,8 +9,8 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::complemented::ComplementedGroupConstraint;
 use super::collector::UniCollector;
+use crate::constraint::complemented::ComplementedGroupConstraint;
 
 /// Zero-erasure constraint stream with complemented groups.
 ///

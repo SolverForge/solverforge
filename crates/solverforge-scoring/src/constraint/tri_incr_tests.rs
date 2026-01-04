@@ -78,11 +78,7 @@ fn test_tri_constraint_incremental() {
     );
 
     let solution = Solution {
-        tasks: vec![
-            Task { team: 1 },
-            Task { team: 1 },
-            Task { team: 1 },
-        ],
+        tasks: vec![Task { team: 1 }, Task { team: 1 }, Task { team: 1 }],
     };
 
     // Initialize with 3 tasks on same team = 1 triple
@@ -113,11 +109,7 @@ fn test_tri_constraint_reward() {
     );
 
     let solution = Solution {
-        tasks: vec![
-            Task { team: 1 },
-            Task { team: 1 },
-            Task { team: 1 },
-        ],
+        tasks: vec![Task { team: 1 }, Task { team: 1 }, Task { team: 1 }],
     };
 
     // One triple = +5 reward

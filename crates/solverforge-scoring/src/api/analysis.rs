@@ -242,7 +242,10 @@ impl<Sc: Score> ScoreExplanation<Sc> {
 
     /// Returns the total match count across all constraints.
     pub fn total_match_count(&self) -> usize {
-        self.constraint_analyses.iter().map(|a| a.match_count()).sum()
+        self.constraint_analyses
+            .iter()
+            .map(|a| a.match_count())
+            .sum()
     }
 
     /// Returns constraints with non-zero scores.
@@ -294,7 +297,10 @@ impl<Sc: Score> Indictment<Sc> {
 
     /// Returns the total number of constraint violations.
     pub fn match_count(&self) -> usize {
-        self.constraint_matches.values().map(|v| v.len()).sum::<usize>()
+        self.constraint_matches
+            .values()
+            .map(|v| v.len())
+            .sum::<usize>()
     }
 
     /// Returns the constraint refs for all violated constraints.

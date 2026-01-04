@@ -273,7 +273,8 @@ where
         let impact = self.impact_type;
 
         // Get or create group accumulator
-        let acc = self.groups
+        let acc = self
+            .groups
             .entry(key.clone())
             .or_insert_with(|| self.collector.create_accumulator());
 
@@ -445,10 +446,7 @@ mod tests {
         );
 
         let solution = Solution {
-            shifts: vec![
-                Shift { employee_id: 1 },
-                Shift { employee_id: 1 },
-            ],
+            shifts: vec![Shift { employee_id: 1 }, Shift { employee_id: 1 }],
         };
 
         // 2 shifts in one group -> reward of +2

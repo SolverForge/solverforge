@@ -6,7 +6,7 @@
 
 mod app;
 mod events;
-mod layout;
+pub mod layout;
 mod widgets;
 
 use std::io;

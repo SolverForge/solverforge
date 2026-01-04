@@ -296,8 +296,7 @@ mod tests {
     #[test]
     fn test_anchor_supply_demand() {
         let mut manager = super::super::SupplyManager::new();
-        let demand: AnchorVariableDemand<Entity, Anchor> =
-            AnchorVariableDemand::new("previous");
+        let demand: AnchorVariableDemand<Entity, Anchor> = AnchorVariableDemand::new("previous");
 
         let supply = manager.demand(&demand);
         let entity = Entity { id: 42 };

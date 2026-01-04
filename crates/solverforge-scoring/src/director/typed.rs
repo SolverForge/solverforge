@@ -168,7 +168,9 @@ where
             return;
         }
 
-        let delta = self.constraints.on_retract_all(&self.working_solution, entity_index);
+        let delta = self
+            .constraints
+            .on_retract_all(&self.working_solution, entity_index);
         self.cached_score = self.cached_score.clone() + delta;
     }
 
@@ -186,7 +188,9 @@ where
             return;
         }
 
-        let delta = self.constraints.on_insert_all(&self.working_solution, entity_index);
+        let delta = self
+            .constraints
+            .on_insert_all(&self.working_solution, entity_index);
         self.cached_score = self.cached_score.clone() + delta;
     }
 
@@ -285,7 +289,8 @@ where
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
-        self.working_solution.set_score(Some(self.cached_score.clone()));
+        self.working_solution
+            .set_score(Some(self.cached_score.clone()));
         self.cached_score.clone()
     }
 
@@ -306,7 +311,9 @@ where
         if !self.initialized {
             return;
         }
-        let delta = self.constraints.on_retract_all(&self.working_solution, entity_index);
+        let delta = self
+            .constraints
+            .on_retract_all(&self.working_solution, entity_index);
         self.cached_score = self.cached_score.clone() + delta;
     }
 
@@ -319,7 +326,9 @@ where
         if !self.initialized {
             return;
         }
-        let delta = self.constraints.on_insert_all(&self.working_solution, entity_index);
+        let delta = self
+            .constraints
+            .on_insert_all(&self.working_solution, entity_index);
         self.cached_score = self.cached_score.clone() + delta;
     }
 

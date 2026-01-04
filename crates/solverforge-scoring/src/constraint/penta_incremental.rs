@@ -156,7 +156,10 @@ where
         self.index_to_key.insert(index, key.clone());
 
         // Add this entity to the key index FIRST
-        self.key_to_indices.entry(key.clone()).or_default().insert(index);
+        self.key_to_indices
+            .entry(key.clone())
+            .or_default()
+            .insert(index);
 
         // Split borrows to allow simultaneous read of key_to_indices and mutation of matches
         let key_to_indices = &self.key_to_indices;

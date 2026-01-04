@@ -2,8 +2,8 @@
 
 use std::fmt::Debug;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 /// A reference to an entity within a solution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -131,11 +131,9 @@ impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[allow(dead_code)]
@@ -171,7 +169,9 @@ mod tests {
         &mut s.queens
     }
 
-    fn create_test_director(n: usize) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(
+        n: usize,
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let queens: Vec<_> = (0..n)
             .map(|i| Queen {
                 id: i as i64,
@@ -189,7 +189,8 @@ mod tests {
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
         let descriptor =

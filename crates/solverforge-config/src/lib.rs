@@ -162,8 +162,8 @@ pub struct TerminationConfig {
 impl TerminationConfig {
     /// Returns the time limit as a Duration, if any.
     pub fn time_limit(&self) -> Option<Duration> {
-        let seconds = self.seconds_spent_limit.unwrap_or(0)
-            + self.minutes_spent_limit.unwrap_or(0) * 60;
+        let seconds =
+            self.seconds_spent_limit.unwrap_or(0) + self.minutes_spent_limit.unwrap_or(0) * 60;
         if seconds > 0 {
             Some(Duration::from_secs(seconds))
         } else {
@@ -518,7 +518,9 @@ mod tests {
         let config = SolverConfig::new()
             .with_random_seed(123)
             .with_termination_seconds(60)
-            .with_phase(PhaseConfig::ConstructionHeuristic(ConstructionHeuristicConfig::default()))
+            .with_phase(PhaseConfig::ConstructionHeuristic(
+                ConstructionHeuristicConfig::default(),
+            ))
             .with_phase(PhaseConfig::LocalSearch(LocalSearchConfig::default()));
 
         assert_eq!(config.random_seed, Some(123));

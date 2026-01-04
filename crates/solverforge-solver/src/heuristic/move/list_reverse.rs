@@ -272,15 +272,8 @@ mod tests {
         let mut director = create_director(tours);
 
         // Reverse [1..4): [1, 2, 3, 4, 5] -> [1, 4, 3, 2, 5]
-        let m = ListReverseMove::<TspSolution, i32>::new(
-            0,
-            1,
-            4,
-            list_len,
-            list_reverse,
-            "cities",
-            0,
-        );
+        let m =
+            ListReverseMove::<TspSolution, i32>::new(0, 1, 4, list_len, list_reverse, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -305,15 +298,8 @@ mod tests {
         }];
         let mut director = create_director(tours);
 
-        let m = ListReverseMove::<TspSolution, i32>::new(
-            0,
-            0,
-            4,
-            list_len,
-            list_reverse,
-            "cities",
-            0,
-        );
+        let m =
+            ListReverseMove::<TspSolution, i32>::new(0, 0, 4, list_len, list_reverse, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -339,15 +325,8 @@ mod tests {
         let director = create_director(tours);
 
         // Reversing a single element is a no-op
-        let m = ListReverseMove::<TspSolution, i32>::new(
-            0,
-            1,
-            2,
-            list_len,
-            list_reverse,
-            "cities",
-            0,
-        );
+        let m =
+            ListReverseMove::<TspSolution, i32>::new(0, 1, 2, list_len, list_reverse, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -359,15 +338,8 @@ mod tests {
         }];
         let director = create_director(tours);
 
-        let m = ListReverseMove::<TspSolution, i32>::new(
-            0,
-            1,
-            10,
-            list_len,
-            list_reverse,
-            "cities",
-            0,
-        );
+        let m =
+            ListReverseMove::<TspSolution, i32>::new(0, 1, 10, list_len, list_reverse, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }

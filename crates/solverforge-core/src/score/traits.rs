@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::ops::{Add, Sub, Neg};
+use std::ops::{Add, Neg, Sub};
 
 /// Core trait for all score types in SolverForge.
 ///

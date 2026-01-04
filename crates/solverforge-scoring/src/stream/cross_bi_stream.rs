@@ -47,7 +47,8 @@ where
     _phantom: PhantomData<(S, A, B, K, Sc)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, TrueFilter, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, Sc>
+    CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, TrueFilter, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -153,11 +154,30 @@ where
     }
 
     /// Penalizes each matching pair with a fixed weight.
-    pub fn penalize(self, weight: Sc) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    pub fn penalize(
+        self,
+        weight: Sc,
+    ) -> CrossBiConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        impl Fn(&A, &B) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Clone,
     {
-        let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
+        let is_hard = weight
+            .to_level_numbers()
+            .first()
+            .map(|&h| h != 0)
+            .unwrap_or(false);
         CrossBiConstraintBuilder {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
@@ -214,11 +234,30 @@ where
     }
 
     /// Rewards each matching pair with a fixed weight.
-    pub fn reward(self, weight: Sc) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    pub fn reward(
+        self,
+        weight: Sc,
+    ) -> CrossBiConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        impl Fn(&A, &B) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Clone,
     {
-        let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
+        let is_hard = weight
+            .to_level_numbers()
+            .first()
+            .map(|&h| h != 0)
+            .unwrap_or(false);
         CrossBiConstraintBuilder {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
@@ -404,7 +443,8 @@ where
     _phantom: PhantomData<(S, A, B, K, Sc)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+    CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -425,8 +465,19 @@ where
     pub fn as_constraint(
         self,
         name: &str,
-    ) -> IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, impl Fn(&A, &B) -> bool + Send + Sync, W, Sc>
-    {
+    ) -> IncrementalCrossBiConstraint<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&A, &B) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
         let filter = self.filter;
         let combined_filter = move |a: &A, b: &B| filter.test(a, b);
 

@@ -6,8 +6,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::heuristic::selector::{EntityReference, EntitySelector, TypedValueSelector};
@@ -161,10 +161,8 @@ where
             .iter(score_director)
             .filter_map(|entity_ref| {
                 // Check if entity is uninitialized using typed getter - zero erasure
-                let current_value = getter(
-                    score_director.working_solution(),
-                    entity_ref.entity_index,
-                );
+                let current_value =
+                    getter(score_director.working_solution(), entity_ref.entity_index);
 
                 // Only include uninitialized entities
                 if current_value.is_some() {
@@ -298,7 +296,13 @@ where
         let solution = score_director.working_solution();
         let cmp = self.comparator;
 
-        placements.sort_by(|a, b| cmp(solution, a.entity_ref.entity_index, b.entity_ref.entity_index));
+        placements.sort_by(|a, b| {
+            cmp(
+                solution,
+                a.entity_ref.entity_index,
+                b.entity_ref.entity_index,
+            )
+        });
 
         placements
     }
@@ -308,11 +312,9 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -358,7 +360,9 @@ mod tests {
         }
     }
 
-    fn create_test_director(initialized: &[bool]) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(
+        initialized: &[bool],
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let queens: Vec<_> = initialized
             .iter()
             .enumerate()
@@ -377,11 +381,13 @@ mod tests {
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
-        let descriptor = SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-            .with_entity(entity_desc);
+        let descriptor =
+            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
+                .with_entity(entity_desc);
 
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
     }

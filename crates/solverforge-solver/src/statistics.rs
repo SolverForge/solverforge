@@ -333,8 +333,7 @@ mod tests {
 
     #[test]
     fn test_phase_statistics_new() {
-        let stats: PhaseStatistics<SimpleScore> =
-            PhaseStatistics::new(0, "ConstructionHeuristic");
+        let stats: PhaseStatistics<SimpleScore> = PhaseStatistics::new(0, "ConstructionHeuristic");
         assert_eq!(stats.phase_index, 0);
         assert_eq!(stats.phase_type, "ConstructionHeuristic");
         assert_eq!(stats.step_count, 0);
@@ -460,8 +459,7 @@ mod tests {
     fn test_collector_thread_safety() {
         use std::sync::Arc;
 
-        let collector: Arc<StatisticsCollector<SimpleScore>> =
-            Arc::new(StatisticsCollector::new());
+        let collector: Arc<StatisticsCollector<SimpleScore>> = Arc::new(StatisticsCollector::new());
 
         let handles: Vec<_> = (0..4)
             .map(|_| {

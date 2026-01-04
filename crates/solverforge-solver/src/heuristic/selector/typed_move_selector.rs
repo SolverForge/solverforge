@@ -6,8 +6,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::{ChangeMove, Move, SwapMove};
 
@@ -126,20 +126,27 @@ where
         let value_selector = &self.value_selector;
 
         // Lazy iteration: O(1) per .next() call, no upfront allocation
-        let iter = self.entity_selector.iter(score_director).flat_map(move |entity_ref| {
-            value_selector
-                .iter_typed(score_director, entity_ref.descriptor_index, entity_ref.entity_index)
-                .map(move |value| {
-                    ChangeMove::new(
+        let iter = self
+            .entity_selector
+            .iter(score_director)
+            .flat_map(move |entity_ref| {
+                value_selector
+                    .iter_typed(
+                        score_director,
+                        entity_ref.descriptor_index,
                         entity_ref.entity_index,
-                        Some(value),
-                        getter,
-                        setter,
-                        variable_name,
-                        descriptor_index,
                     )
-                })
-        });
+                    .map(move |value| {
+                        ChangeMove::new(
+                            entity_ref.entity_index,
+                            Some(value),
+                            getter,
+                            setter,
+                            variable_name,
+                            descriptor_index,
+                        )
+                    })
+            });
 
         Box::new(iter)
     }
@@ -299,11 +306,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -320,8 +325,12 @@ mod tests {
 
     impl PlanningSolution for TaskSolution {
         type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> { self.score }
-        fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
     }
 
     fn get_tasks(s: &TaskSolution) -> &Vec<Task> {
@@ -344,7 +353,9 @@ mod tests {
         }
     }
 
-    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(
+        tasks: Vec<Task>,
+    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
         let solution = TaskSolution { tasks, score: None };
 
         let extractor = Box::new(TypedEntityExtractor::new(
@@ -352,8 +363,9 @@ mod tests {
             "tasks",
             get_tasks,
             get_tasks_mut,
-        ));let entity_desc = EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
-            .with_extractor(extractor);
+        ));
+        let entity_desc =
+            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
 
         let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
             .with_entity(entity_desc);
@@ -364,9 +376,18 @@ mod tests {
     #[test]
     fn test_change_move_selector() {
         let director = create_director(vec![
-            Task { id: 0, priority: Some(1) },
-            Task { id: 1, priority: Some(2) },
-            Task { id: 2, priority: Some(3) },
+            Task {
+                id: 0,
+                priority: Some(1),
+            },
+            Task {
+                id: 1,
+                priority: Some(2),
+            },
+            Task {
+                id: 2,
+                priority: Some(3),
+            },
         ]);
 
         // Verify entity IDs
@@ -376,7 +397,11 @@ mod tests {
         assert_eq!(solution.tasks[2].id, 2);
 
         let selector = ChangeMoveSelector::<TaskSolution, i32>::simple(
-            get_priority, set_priority, 0, "priority", vec![10, 20, 30],
+            get_priority,
+            set_priority,
+            0,
+            "priority",
+            vec![10, 20, 30],
         );
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
@@ -394,14 +419,29 @@ mod tests {
     #[test]
     fn test_swap_move_selector() {
         let director = create_director(vec![
-            Task { id: 0, priority: Some(1) },
-            Task { id: 1, priority: Some(2) },
-            Task { id: 2, priority: Some(3) },
-            Task { id: 3, priority: Some(4) },
+            Task {
+                id: 0,
+                priority: Some(1),
+            },
+            Task {
+                id: 1,
+                priority: Some(2),
+            },
+            Task {
+                id: 2,
+                priority: Some(3),
+            },
+            Task {
+                id: 3,
+                priority: Some(4),
+            },
         ]);
 
         let selector = SwapMoveSelector::<TaskSolution, i32>::simple(
-            get_priority, set_priority, 0, "priority",
+            get_priority,
+            set_priority,
+            0,
+            "priority",
         );
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
@@ -418,12 +458,17 @@ mod tests {
 
     #[test]
     fn test_change_do_and_undo() {
-        let mut director = create_director(vec![
-            Task { id: 0, priority: Some(1) },
-        ]);
+        let mut director = create_director(vec![Task {
+            id: 0,
+            priority: Some(1),
+        }]);
 
         let selector = ChangeMoveSelector::<TaskSolution, i32>::simple(
-            get_priority, set_priority, 0, "priority", vec![99],
+            get_priority,
+            set_priority,
+            0,
+            "priority",
+            vec![99],
         );
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
@@ -452,12 +497,21 @@ mod tests {
     #[test]
     fn test_swap_do_and_undo() {
         let mut director = create_director(vec![
-            Task { id: 0, priority: Some(10) },
-            Task { id: 1, priority: Some(20) },
+            Task {
+                id: 0,
+                priority: Some(10),
+            },
+            Task {
+                id: 1,
+                priority: Some(20),
+            },
         ]);
 
         let selector = SwapMoveSelector::<TaskSolution, i32>::simple(
-            get_priority, set_priority, 0, "priority",
+            get_priority,
+            set_priority,
+            0,
+            "priority",
         );
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();

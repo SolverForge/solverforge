@@ -124,23 +124,7 @@ where
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc>
-    FlattenedBiConstraintStream<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        Sc,
-    >
+    FlattenedBiConstraintStream<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -431,8 +415,7 @@ impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc: Score> 
     >
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FlattenedBiConstraintStream")
-            .finish()
+        f.debug_struct("FlattenedBiConstraintStream").finish()
     }
 }
 

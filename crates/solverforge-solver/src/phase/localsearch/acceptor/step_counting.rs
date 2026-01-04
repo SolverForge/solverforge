@@ -172,7 +172,8 @@ mod tests {
         acceptor.step_ended(&SimpleScore::of(-130));
 
         // Now at step 3, should reject non-improving
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-130), &SimpleScore::of(-140))); // step 3
+        assert!(!acceptor.is_accepted(&SimpleScore::of(-130), &SimpleScore::of(-140)));
+        // step 3
     }
 
     #[test]
@@ -192,7 +193,8 @@ mod tests {
         // Can take more non-improving steps again
         acceptor.step_ended(&SimpleScore::of(-60));
         acceptor.step_ended(&SimpleScore::of(-70));
-        assert!(acceptor.is_accepted(&SimpleScore::of(-70), &SimpleScore::of(-80))); // still within limit
+        assert!(acceptor.is_accepted(&SimpleScore::of(-70), &SimpleScore::of(-80)));
+        // still within limit
     }
 
     #[test]

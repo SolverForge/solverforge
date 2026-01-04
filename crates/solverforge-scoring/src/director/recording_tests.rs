@@ -4,8 +4,7 @@ use super::recording::RecordingScoreDirector;
 use super::SimpleScoreDirector;
 use crate::ScoreDirector;
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor,
-    TypedEntityExtractor,
+    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
 use solverforge_core::score::SimpleScore;
 use std::any::TypeId;
@@ -81,8 +80,9 @@ fn create_test_descriptor() -> SolutionDescriptor {
         "queens",
         get_queens,
         get_queens_mut,
-    ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-        .with_extractor(extractor);
+    ));
+    let entity_desc =
+        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
 
     SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
         .with_entity(entity_desc)
@@ -91,13 +91,15 @@ fn create_test_descriptor() -> SolutionDescriptor {
 #[test]
 fn test_recording_register_undo() {
     let solution = NQueensSolution {
-        queens: vec![Queen { id: 0, row: Some(0) }],
+        queens: vec![Queen {
+            id: 0,
+            row: Some(0),
+        }],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
@@ -131,16 +133,24 @@ fn test_recording_register_undo() {
 fn test_recording_multiple_undo() {
     let solution = NQueensSolution {
         queens: vec![
-            Queen { id: 0, row: Some(0) },
-            Queen { id: 1, row: Some(1) },
-            Queen { id: 2, row: Some(2) },
+            Queen {
+                id: 0,
+                row: Some(0),
+            },
+            Queen {
+                id: 1,
+                row: Some(1),
+            },
+            Queen {
+                id: 2,
+                row: Some(2),
+            },
         ],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
@@ -169,13 +179,15 @@ fn test_recording_multiple_undo() {
 #[test]
 fn test_recording_undo_same_entity_twice() {
     let solution = NQueensSolution {
-        queens: vec![Queen { id: 0, row: Some(0) }],
+        queens: vec![Queen {
+            id: 0,
+            row: Some(0),
+        }],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
@@ -206,13 +218,15 @@ fn test_recording_undo_same_entity_twice() {
 #[test]
 fn test_recording_reset() {
     let solution = NQueensSolution {
-        queens: vec![Queen { id: 0, row: Some(0) }],
+        queens: vec![Queen {
+            id: 0,
+            row: Some(0),
+        }],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     let mut recording = RecordingScoreDirector::new(&mut inner);
 
@@ -227,15 +241,20 @@ fn test_recording_reset() {
 fn test_recording_calculate_score() {
     let solution = NQueensSolution {
         queens: vec![
-            Queen { id: 0, row: Some(0) },
-            Queen { id: 1, row: Some(1) },
+            Queen {
+                id: 0,
+                row: Some(0),
+            },
+            Queen {
+                id: 1,
+                row: Some(1),
+            },
         ],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     let mut recording = RecordingScoreDirector::new(&mut inner);
 
@@ -267,8 +286,7 @@ fn test_recording_undo_none_to_some() {
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
@@ -291,13 +309,15 @@ fn test_recording_undo_none_to_some() {
 #[test]
 fn test_recording_undo_some_to_none() {
     let solution = NQueensSolution {
-        queens: vec![Queen { id: 0, row: Some(5) }],
+        queens: vec![Queen {
+            id: 0,
+            row: Some(5),
+        }],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
@@ -325,8 +345,7 @@ fn test_recording_is_incremental() {
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     let recording = RecordingScoreDirector::new(&mut inner);
     assert!(!recording.is_incremental()); // SimpleScoreDirector is not incremental
@@ -336,15 +355,20 @@ fn test_recording_is_incremental() {
 fn test_recording_entity_count() {
     let solution = NQueensSolution {
         queens: vec![
-            Queen { id: 0, row: Some(0) },
-            Queen { id: 1, row: Some(1) },
+            Queen {
+                id: 0,
+                row: Some(0),
+            },
+            Queen {
+                id: 1,
+                row: Some(1),
+            },
         ],
         score: None,
     };
 
     let descriptor = create_test_descriptor();
-    let mut inner =
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
     let recording = RecordingScoreDirector::new(&mut inner);
     assert_eq!(recording.entity_count(0), Some(2));

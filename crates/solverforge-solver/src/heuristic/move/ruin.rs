@@ -236,8 +236,8 @@ mod tests {
         ));
         let entity_desc =
             EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>())
-            .with_entity(entity_desc);
+        let descriptor =
+            SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>()).with_entity(entity_desc);
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
     }
 

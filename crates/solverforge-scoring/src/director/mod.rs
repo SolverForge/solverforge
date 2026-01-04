@@ -277,9 +277,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{
-        EntityDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use std::any::TypeId;
 
@@ -342,7 +340,8 @@ mod tests {
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
         SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
@@ -353,16 +352,29 @@ mod tests {
     fn test_simple_score_director_calculate_score() {
         let solution = NQueensSolution {
             queens: vec![
-                Queen { id: 0, row: Some(0) },
-                Queen { id: 1, row: Some(1) },
-                Queen { id: 2, row: Some(2) },
-                Queen { id: 3, row: Some(3) },
+                Queen {
+                    id: 0,
+                    row: Some(0),
+                },
+                Queen {
+                    id: 1,
+                    row: Some(1),
+                },
+                Queen {
+                    id: 2,
+                    row: Some(2),
+                },
+                Queen {
+                    id: 3,
+                    row: Some(3),
+                },
             ],
             score: None,
         };
 
         let descriptor = create_test_descriptor();
-        let mut director = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+        let mut director =
+            SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
 
         // All on diagonal = 6 diagonal conflicts
         let score = director.calculate_score();
@@ -372,7 +384,10 @@ mod tests {
     #[test]
     fn test_score_director_factory() {
         let solution = NQueensSolution {
-            queens: vec![Queen { id: 0, row: Some(0) }],
+            queens: vec![Queen {
+                id: 0,
+                row: Some(0),
+            }],
             score: None,
         };
 

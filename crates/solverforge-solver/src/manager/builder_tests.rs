@@ -5,7 +5,7 @@ use std::time::Duration;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
 
-use super::{LocalSearchType, ConstructionType, SolverManagerBuilder};
+use super::{ConstructionType, LocalSearchType, SolverManagerBuilder};
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -30,7 +30,10 @@ fn test_builder_with_time_limit() {
 
     let manager = builder.build().unwrap();
     // Verify the manager works by calculating a score
-    let solution = TestSolution { value: 5, score: None };
+    let solution = TestSolution {
+        value: 5,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-5));
 }
@@ -44,7 +47,10 @@ fn test_builder_with_phases() {
 
     let manager = builder.build().unwrap();
     // Verify the manager works by calculating a score
-    let solution = TestSolution { value: 10, score: None };
+    let solution = TestSolution {
+        value: 10,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-10));
 }
@@ -54,7 +60,10 @@ fn test_local_search_types() {
     assert_eq!(LocalSearchType::default(), LocalSearchType::HillClimbing);
 
     let tabu = LocalSearchType::TabuSearch { tabu_size: 10 };
-    assert!(matches!(tabu, LocalSearchType::TabuSearch { tabu_size: 10 }));
+    assert!(matches!(
+        tabu,
+        LocalSearchType::TabuSearch { tabu_size: 10 }
+    ));
 
     let sa = LocalSearchType::SimulatedAnnealing {
         starting_temp: 1.0,

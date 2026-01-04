@@ -12,15 +12,18 @@
 //! - [`SupplyManager`]: Registry holding all active supplies
 //! - [`ListVariableStateSupply`]: Centralized tracking for list variable shadow state
 
-mod inverse;
 mod anchor;
+mod inverse;
 mod list_state;
 
-pub use inverse::{SingletonInverseVariableSupply, SingletonInverseVariableDemand, ExternalizedSingletonInverseVariableSupply};
-pub use anchor::{AnchorVariableSupply, AnchorVariableDemand, ExternalizedAnchorVariableSupply};
+pub use anchor::{AnchorVariableDemand, AnchorVariableSupply, ExternalizedAnchorVariableSupply};
+pub use inverse::{
+    ExternalizedSingletonInverseVariableSupply, SingletonInverseVariableDemand,
+    SingletonInverseVariableSupply,
+};
 pub use list_state::{
-    ListVariableStateSupply, ListVariableStateDemand, ElementPosition,
-    IndexVariableSupply, InverseVariableSupply,
+    ElementPosition, IndexVariableSupply, InverseVariableSupply, ListVariableStateDemand,
+    ListVariableStateSupply,
 };
 
 use std::any::{Any, TypeId};
@@ -147,7 +150,8 @@ impl SupplyManager {
     /// This is useful when supplies are created externally and need to be
     /// registered with the manager.
     pub fn register<S: Supply>(&mut self, key: DemandKey, supply: Arc<S>) {
-        self.supplies.insert(key, supply as Arc<dyn Any + Send + Sync>);
+        self.supplies
+            .insert(key, supply as Arc<dyn Any + Send + Sync>);
     }
 
     /// Gets an existing supply without creating one.

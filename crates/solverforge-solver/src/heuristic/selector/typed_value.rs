@@ -6,8 +6,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 /// A typed value selector that yields values of type `V` directly.
 ///
@@ -150,11 +150,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -171,18 +169,26 @@ mod tests {
 
     impl PlanningSolution for TaskSolution {
         type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> { self.score }
-        fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
     }
 
-    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(
+        tasks: Vec<Task>,
+    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
         let solution = TaskSolution { tasks, score: None };
         let extractor = Box::new(TypedEntityExtractor::new(
-            "Task", "tasks",
+            "Task",
+            "tasks",
             |s: &TaskSolution| &s.tasks,
             |s: &mut TaskSolution| &mut s.tasks,
-        ));let entity_desc = EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
-            .with_extractor(extractor);
+        ));
+        let entity_desc =
+            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
             .with_entity(entity_desc);
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
@@ -190,7 +196,10 @@ mod tests {
 
     #[test]
     fn test_static_typed_value_selector() {
-        let director = create_director(vec![Task { id: 0, priority: None }]);
+        let director = create_director(vec![Task {
+            id: 0,
+            priority: None,
+        }]);
         let selector = StaticTypedValueSelector::<TaskSolution, i32>::new(vec![1, 2, 3, 4, 5]);
 
         let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
@@ -201,8 +210,14 @@ mod tests {
     #[test]
     fn test_from_solution_typed_value_selector() {
         let director = create_director(vec![
-            Task { id: 0, priority: Some(10) },
-            Task { id: 1, priority: Some(20) },
+            Task {
+                id: 0,
+                priority: Some(10),
+            },
+            Task {
+                id: 1,
+                priority: Some(20),
+            },
         ]);
 
         // Verify entity IDs
@@ -211,13 +226,14 @@ mod tests {
         assert_eq!(solution.tasks[1].id, 1);
 
         // Extract priorities directly from solution - zero erasure
-        let selector = FromSolutionTypedValueSelector::new(|sd: &dyn ScoreDirector<TaskSolution>| {
-            sd.working_solution()
-                .tasks
-                .iter()
-                .filter_map(|t| t.priority)
-                .collect()
-        });
+        let selector =
+            FromSolutionTypedValueSelector::new(|sd: &dyn ScoreDirector<TaskSolution>| {
+                sd.working_solution()
+                    .tasks
+                    .iter()
+                    .filter_map(|t| t.priority)
+                    .collect()
+            });
 
         let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
         assert_eq!(values, vec![10, 20]);

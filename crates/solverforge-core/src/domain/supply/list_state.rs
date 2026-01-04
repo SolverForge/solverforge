@@ -219,7 +219,13 @@ where
     }
 
     /// Updates an element's position with entity equality check.
-    pub fn change_element_with_eq<F>(&self, entity: Entity, element: &Element, index: usize, entity_eq: F) -> bool
+    pub fn change_element_with_eq<F>(
+        &self,
+        entity: Entity,
+        element: &Element,
+        index: usize,
+        entity_eq: F,
+    ) -> bool
     where
         F: Fn(&Entity, &Entity) -> bool,
     {
@@ -306,7 +312,10 @@ where
 
     /// Returns true if the element is assigned to a list.
     pub fn is_assigned(&self, element: &Element) -> bool {
-        self.element_position_map.read().unwrap().contains_key(element)
+        self.element_position_map
+            .read()
+            .unwrap()
+            .contains_key(element)
     }
 
     /// Returns the variable name this supply tracks.
@@ -431,8 +440,7 @@ mod tests {
 
     #[test]
     fn test_add_and_get_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> =
-            ListVariableStateSupply::new("tasks");
+        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
         supply.initialize(3);
 
         let vehicle = Vehicle {
@@ -451,8 +459,7 @@ mod tests {
 
     #[test]
     fn test_remove_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> =
-            ListVariableStateSupply::new("tasks");
+        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
         supply.initialize(3);
 
         let vehicle = Vehicle {
@@ -471,8 +478,7 @@ mod tests {
 
     #[test]
     fn test_change_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> =
-            ListVariableStateSupply::new("tasks");
+        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
         supply.initialize(1);
 
         let vehicle = Vehicle {
@@ -495,8 +501,7 @@ mod tests {
 
     #[test]
     fn test_element_position() {
-        let supply: ListVariableStateSupply<Task, Vehicle> =
-            ListVariableStateSupply::new("tasks");
+        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
         supply.initialize(1);
 
         let vehicle = Vehicle {
@@ -519,8 +524,7 @@ mod tests {
 
     #[test]
     fn test_demand() {
-        let demand: ListVariableStateDemand<Task, Vehicle> =
-            ListVariableStateDemand::new("tasks");
+        let demand: ListVariableStateDemand<Task, Vehicle> = ListVariableStateDemand::new("tasks");
         let supply = demand.create_supply();
 
         assert_eq!(supply.variable_name(), "tasks");
@@ -528,8 +532,7 @@ mod tests {
 
     #[test]
     fn test_previous_next_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> =
-            ListVariableStateSupply::new("tasks");
+        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
         supply.initialize(3);
 
         let task0 = Task { id: 0 };

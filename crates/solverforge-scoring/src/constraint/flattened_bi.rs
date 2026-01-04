@@ -131,24 +131,7 @@ pub struct FlattenedBiConstraint<
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
-    FlattenedBiConstraint<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        W,
-        Sc,
-    >
+    FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
 where
     S: 'static,
     A: Clone + 'static,
@@ -270,24 +253,7 @@ where
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
     IncrementalConstraint<S, Sc>
-    for FlattenedBiConstraint<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        W,
-        Sc,
-    >
+    for FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -420,24 +386,7 @@ where
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc: Score> std::fmt::Debug
-    for FlattenedBiConstraint<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        W,
-        Sc,
-    >
+    for FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FlattenedBiConstraint")
@@ -471,8 +420,7 @@ mod tests {
         employees: Vec<Employee>,
     }
 
-    fn create_test_constraint(
-    ) -> FlattenedBiConstraint<
+    fn create_test_constraint() -> FlattenedBiConstraint<
         Schedule,
         Shift,
         Employee,

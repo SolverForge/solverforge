@@ -22,7 +22,7 @@ fn test_evaluate_no_conflicts() {
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
-        |q: &Queen| q.row, // Key by row for grouping
+        |q: &Queen| q.row,                    // Key by row for grouping
         |a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
@@ -115,10 +115,7 @@ fn test_incremental_retract() {
     );
 
     let solution = NQueensSolution {
-        queens: vec![
-            Queen { row: 0, col: 0 },
-            Queen { row: 0, col: 1 },
-        ],
+        queens: vec![Queen { row: 0, col: 0 }, Queen { row: 0, col: 1 }],
     };
 
     // Initialize and insert both queens
@@ -214,10 +211,7 @@ fn test_reset() {
     );
 
     let solution = NQueensSolution {
-        queens: vec![
-            Queen { row: 0, col: 0 },
-            Queen { row: 0, col: 1 },
-        ],
+        queens: vec![Queen { row: 0, col: 0 }, Queen { row: 0, col: 1 }],
     };
 
     constraint.initialize(&solution);

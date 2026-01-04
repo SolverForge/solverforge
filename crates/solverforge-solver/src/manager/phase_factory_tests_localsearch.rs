@@ -2,13 +2,13 @@
 
 use super::*;
 use crate::heuristic::r#move::ChangeMove;
-use crate::heuristic::selector::{ChangeMoveSelector, FromSolutionEntitySelector, StaticTypedValueSelector};
+use crate::heuristic::selector::{
+    ChangeMoveSelector, FromSolutionEntitySelector, StaticTypedValueSelector,
+};
 use crate::heuristic::MoveSelector;
 use crate::phase::construction::{EntityPlacer, QueuedEntityPlacer};
 use crate::scope::SolverScope;
-use solverforge_core::domain::{
-    EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-};
+use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
@@ -79,11 +79,12 @@ fn create_test_director(
         "tasks",
         get_tasks,
         get_tasks_mut,
-    ));let entity_desc = EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
-        .with_extractor(extractor);
+    ));
+    let entity_desc =
+        EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
 
-    let descriptor =
-        SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc);
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc);
 
     SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score)
 }
@@ -244,7 +245,10 @@ fn test_local_search_phase_factory_tabu_search_solves() {
     phase.solve(&mut solver_scope);
 
     let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
-    assert!(final_score >= initial_score, "Best score should not decrease");
+    assert!(
+        final_score >= initial_score,
+        "Best score should not decrease"
+    );
 }
 
 #[test]
@@ -281,7 +285,10 @@ fn test_local_search_phase_factory_late_acceptance_solves() {
     phase.solve(&mut solver_scope);
 
     let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
-    assert!(final_score >= initial_score, "Best score should not decrease");
+    assert!(
+        final_score >= initial_score,
+        "Best score should not decrease"
+    );
 }
 
 #[test]
@@ -376,11 +383,10 @@ fn test_construction_then_local_search() {
     let construction_factory =
         ConstructionPhaseFactory::<TestSolution, TestMove, _>::best_fit(create_placer_factory());
 
-    let local_search_factory =
-        LocalSearchPhaseFactory::<TestSolution, TestMove, _>::hill_climbing(
-            create_move_selector_factory(),
-        )
-        .with_step_limit(10);
+    let local_search_factory = LocalSearchPhaseFactory::<TestSolution, TestMove, _>::hill_climbing(
+        create_move_selector_factory(),
+    )
+    .with_step_limit(10);
 
     let mut solver_scope = create_unassigned_solver_scope(3);
 
@@ -446,9 +452,11 @@ fn test_multiple_local_search_phases_different_acceptors() {
 #[test]
 fn test_factory_can_be_boxed_as_trait_object() {
     let factories: Vec<Box<dyn SolverPhaseFactory<TestSolution>>> = vec![
-        Box::new(ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
-            create_placer_factory(),
-        )),
+        Box::new(
+            ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
+                create_placer_factory(),
+            ),
+        ),
         Box::new(
             LocalSearchPhaseFactory::<TestSolution, TestMove, _>::hill_climbing(
                 create_move_selector_factory(),
@@ -469,9 +477,8 @@ fn test_factory_can_be_boxed_as_trait_object() {
 
 #[test]
 fn test_construction_phase_factory_with_empty_solution() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(create_placer_factory());
 
     let mut solver_scope = create_unassigned_solver_scope(0);
 

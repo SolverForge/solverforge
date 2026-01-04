@@ -6,8 +6,7 @@
 ///
 /// This enum controls how entities, values, or moves are ordered when
 /// iterating through a selector.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum SelectionOrder {
     /// Inherit the selection order from the parent configuration.
     ///
@@ -126,7 +125,6 @@ impl SelectionOrder {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,7 +132,10 @@ mod tests {
     #[test]
     fn test_resolve_inherit_from_random() {
         let order = SelectionOrder::Inherit;
-        assert_eq!(order.resolve(SelectionOrder::Random), SelectionOrder::Random);
+        assert_eq!(
+            order.resolve(SelectionOrder::Random),
+            SelectionOrder::Random
+        );
     }
 
     #[test]
@@ -160,7 +161,10 @@ mod tests {
     fn test_resolve_non_inherit() {
         let order = SelectionOrder::Original;
         // Non-inherit should not change
-        assert_eq!(order.resolve(SelectionOrder::Random), SelectionOrder::Original);
+        assert_eq!(
+            order.resolve(SelectionOrder::Random),
+            SelectionOrder::Original
+        );
     }
 
     #[test]

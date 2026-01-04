@@ -24,38 +24,34 @@ pub mod stream;
 // ============================================================================
 
 pub use constraint::{
-    IncrementalUniConstraint, IncrementalBiConstraint,
-    IncrementalCrossBiConstraint, IncrementalTriConstraint,
-    IncrementalQuadConstraint, IncrementalPentaConstraint,
-    GroupedUniConstraint,
+    GroupedUniConstraint, IncrementalBiConstraint, IncrementalCrossBiConstraint,
+    IncrementalPentaConstraint, IncrementalQuadConstraint, IncrementalTriConstraint,
+    IncrementalUniConstraint,
 };
 
 // ============================================================================
 // Constraint Set (Tuple-Based, Zero-Erasure)
 // ============================================================================
 
-pub use api::constraint_set::{ConstraintSet, ConstraintResult, IncrementalConstraint};
+pub use api::constraint_set::{ConstraintResult, ConstraintSet, IncrementalConstraint};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // ============================================================================
 // Score Directors
 // ============================================================================
 
-pub use director::{
-    ScoreDirector, ScoreDirectorFactory,
-    SimpleScoreDirector,
-    RecordingScoreDirector,
-};
 pub use director::typed::TypedScoreDirector;
+pub use director::{
+    RecordingScoreDirector, ScoreDirector, ScoreDirectorFactory, SimpleScoreDirector,
+};
 
 // ============================================================================
 // Analysis (for score explanation)
 // ============================================================================
 
 pub use api::analysis::{
-    ScoreExplanation, ConstraintAnalysis, ConstraintJustification,
-    DetailedConstraintMatch, DetailedConstraintEvaluation,
-    Indictment, IndictmentMap, EntityRef,
+    ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
+    DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
 };
 
 // ============================================================================
@@ -63,7 +59,6 @@ pub use api::analysis::{
 // ============================================================================
 
 pub use stream::{
-    ConstraintFactory, UniConstraintStream, UniConstraintBuilder,
-    BiConstraintStream, BiConstraintBuilder,
-    GroupedConstraintStream, GroupedConstraintBuilder,
+    BiConstraintBuilder, BiConstraintStream, ConstraintFactory, GroupedConstraintBuilder,
+    GroupedConstraintStream, UniConstraintBuilder, UniConstraintStream,
 };

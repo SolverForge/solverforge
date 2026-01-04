@@ -311,8 +311,8 @@ mod tests {
             get_queens,
             get_queens_mut,
         ));
-        let entity_desc =
-            EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+            .with_extractor(extractor);
 
         let descriptor =
             SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())

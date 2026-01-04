@@ -35,7 +35,8 @@ where
     _phantom: PhantomData<(S, A, B)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+    IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     S: 'static,
     A: Clone + 'static,
@@ -274,7 +275,11 @@ where
                     let entity_b = EntityRef::new(b);
                     let justification = ConstraintJustification::new(vec![entity_a, entity_b]);
                     let score = self.compute_score(a, b);
-                    matches.push(DetailedConstraintMatch::new(cref.clone(), score, justification));
+                    matches.push(DetailedConstraintMatch::new(
+                        cref.clone(),
+                        score,
+                        justification,
+                    ));
                 }
             }
         }

@@ -103,7 +103,8 @@ where
     _phantom: PhantomData<(S, A, B, K, Sc)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, FA, W, Sc> IfExistsUniConstraint<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
+    IfExistsUniConstraint<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
 where
     S: 'static,
     A: Clone + 'static,
@@ -310,13 +311,7 @@ mod tests {
             ImpactType::Penalty,
             ExistenceMode::Exists,
             |s: &Schedule| s.tasks.as_slice(),
-            |s: &Schedule| {
-                s.workers
-                    .iter()
-                    .filter(|w| !w.available)
-                    .cloned()
-                    .collect()
-            },
+            |s: &Schedule| s.workers.iter().filter(|w| !w.available).cloned().collect(),
             |t: &Task| t.assignee,
             |w: &Worker| Some(w.id),
             |t: &Task| t.assignee.is_some(),
@@ -326,13 +321,28 @@ mod tests {
 
         let schedule = Schedule {
             tasks: vec![
-                Task { _id: 0, assignee: Some(0) }, // assigned to unavailable
-                Task { _id: 1, assignee: Some(1) }, // assigned to available
-                Task { _id: 2, assignee: None },    // unassigned
+                Task {
+                    _id: 0,
+                    assignee: Some(0),
+                }, // assigned to unavailable
+                Task {
+                    _id: 1,
+                    assignee: Some(1),
+                }, // assigned to available
+                Task {
+                    _id: 2,
+                    assignee: None,
+                }, // unassigned
             ],
             workers: vec![
-                Worker { id: 0, available: false },
-                Worker { id: 1, available: true },
+                Worker {
+                    id: 0,
+                    available: false,
+                },
+                Worker {
+                    id: 1,
+                    available: true,
+                },
             ],
         };
 
@@ -349,13 +359,7 @@ mod tests {
             ImpactType::Penalty,
             ExistenceMode::NotExists,
             |s: &Schedule| s.tasks.as_slice(),
-            |s: &Schedule| {
-                s.workers
-                    .iter()
-                    .filter(|w| w.available)
-                    .cloned()
-                    .collect()
-            },
+            |s: &Schedule| s.workers.iter().filter(|w| w.available).cloned().collect(),
             |t: &Task| t.assignee,
             |w: &Worker| Some(w.id),
             |t: &Task| t.assignee.is_some(),
@@ -365,13 +369,28 @@ mod tests {
 
         let schedule = Schedule {
             tasks: vec![
-                Task { _id: 0, assignee: Some(0) }, // assigned to unavailable - no match in available
-                Task { _id: 1, assignee: Some(1) }, // assigned to available
-                Task { _id: 2, assignee: None },    // unassigned - filtered out by filter_a
+                Task {
+                    _id: 0,
+                    assignee: Some(0),
+                }, // assigned to unavailable - no match in available
+                Task {
+                    _id: 1,
+                    assignee: Some(1),
+                }, // assigned to available
+                Task {
+                    _id: 2,
+                    assignee: None,
+                }, // unassigned - filtered out by filter_a
             ],
             workers: vec![
-                Worker { id: 0, available: false },
-                Worker { id: 1, available: true },
+                Worker {
+                    id: 0,
+                    available: false,
+                },
+                Worker {
+                    id: 1,
+                    available: true,
+                },
             ],
         };
 

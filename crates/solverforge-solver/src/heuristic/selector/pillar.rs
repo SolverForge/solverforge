@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::entity::{EntityReference, EntitySelector};
 
@@ -219,10 +219,7 @@ where
                 entity_ref.descriptor_index,
                 entity_ref.entity_index,
             );
-            value_to_entities
-                .entry(value)
-                .or_default()
-                .push(entity_ref);
+            value_to_entities.entry(value).or_default().push(entity_ref);
         }
 
         // Filter by minimum size and create pillars
@@ -262,11 +259,9 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -301,7 +296,9 @@ mod tests {
         &mut s.employees
     }
 
-    fn create_test_director(employees: Vec<Employee>) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
+    fn create_test_director(
+        employees: Vec<Employee>,
+    ) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
         let solution = ScheduleSolution {
             employees,
             score: None,
@@ -312,7 +309,8 @@ mod tests {
             "employees",
             get_employees,
             get_employees_mut,
-        ));let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
+        ));
+        let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
             .with_extractor(extractor);
 
         let descriptor =
@@ -324,10 +322,7 @@ mod tests {
 
     #[test]
     fn test_pillar_new() {
-        let pillar = Pillar::new(vec![
-            EntityReference::new(0, 0),
-            EntityReference::new(0, 1),
-        ]);
+        let pillar = Pillar::new(vec![EntityReference::new(0, 0), EntityReference::new(0, 1)]);
 
         assert_eq!(pillar.size(), 2);
         assert!(!pillar.is_empty());
@@ -345,12 +340,30 @@ mod tests {
     fn test_default_pillar_selector_groups_by_value() {
         // Create employees with shifts: [1, 1, 2, 2, 2, 3]
         let employees = vec![
-            Employee { id: 0, shift: Some(1) },
-            Employee { id: 1, shift: Some(1) },
-            Employee { id: 2, shift: Some(2) },
-            Employee { id: 3, shift: Some(2) },
-            Employee { id: 4, shift: Some(2) },
-            Employee { id: 5, shift: Some(3) },
+            Employee {
+                id: 0,
+                shift: Some(1),
+            },
+            Employee {
+                id: 1,
+                shift: Some(1),
+            },
+            Employee {
+                id: 2,
+                shift: Some(2),
+            },
+            Employee {
+                id: 3,
+                shift: Some(2),
+            },
+            Employee {
+                id: 4,
+                shift: Some(2),
+            },
+            Employee {
+                id: 5,
+                shift: Some(3),
+            },
         ];
         let director = create_test_director(employees);
 
@@ -388,12 +401,30 @@ mod tests {
     fn test_pillar_selector_with_minimum_size() {
         // Create employees with shifts: [1, 1, 2, 2, 2, 3]
         let employees = vec![
-            Employee { id: 0, shift: Some(1) },
-            Employee { id: 1, shift: Some(1) },
-            Employee { id: 2, shift: Some(2) },
-            Employee { id: 3, shift: Some(2) },
-            Employee { id: 4, shift: Some(2) },
-            Employee { id: 5, shift: Some(3) },
+            Employee {
+                id: 0,
+                shift: Some(1),
+            },
+            Employee {
+                id: 1,
+                shift: Some(1),
+            },
+            Employee {
+                id: 2,
+                shift: Some(2),
+            },
+            Employee {
+                id: 3,
+                shift: Some(2),
+            },
+            Employee {
+                id: 4,
+                shift: Some(2),
+            },
+            Employee {
+                id: 5,
+                shift: Some(3),
+            },
         ];
         let director = create_test_director(employees);
 
@@ -426,10 +457,16 @@ mod tests {
     fn test_pillar_selector_with_none_values() {
         // Create employees with some unassigned
         let employees = vec![
-            Employee { id: 0, shift: Some(1) },
+            Employee {
+                id: 0,
+                shift: Some(1),
+            },
             Employee { id: 1, shift: None },
             Employee { id: 2, shift: None },
-            Employee { id: 3, shift: Some(1) },
+            Employee {
+                id: 3,
+                shift: Some(1),
+            },
         ];
         let director = create_test_director(employees);
 

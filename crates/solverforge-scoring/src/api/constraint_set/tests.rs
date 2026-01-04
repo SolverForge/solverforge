@@ -88,11 +88,16 @@ fn entity_count(s: &TestSolution) -> usize {
 #[test]
 fn test_empty_constraint_set() {
     let constraints: () = ();
-    let solution = TestSolution { values: vec![Some(1), None] };
+    let solution = TestSolution {
+        values: vec![Some(1), None],
+    };
 
     let score: SimpleScore = constraints.evaluate_all(&solution);
     assert_eq!(score, SimpleScore::of(0));
-    assert_eq!(<() as ConstraintSet<TestSolution, SimpleScore>>::constraint_count(&constraints), 0);
+    assert_eq!(
+        <() as ConstraintSet<TestSolution, SimpleScore>>::constraint_count(&constraints),
+        0
+    );
 }
 
 #[test]
@@ -105,7 +110,9 @@ fn test_single_constraint() {
     );
 
     let constraints = (constraint,);
-    let solution = TestSolution { values: vec![Some(1), None, None] };
+    let solution = TestSolution {
+        values: vec![Some(1), None, None],
+    };
 
     assert_eq!(constraints.evaluate_all(&solution), SimpleScore::of(-2));
     assert_eq!(constraints.constraint_count(), 1);
@@ -127,7 +134,9 @@ fn test_two_constraints() {
     );
 
     let constraints = (c1, c2);
-    let solution = TestSolution { values: vec![Some(10), None, Some(3)] };
+    let solution = TestSolution {
+        values: vec![Some(10), None, Some(3)],
+    };
 
     // c1: 1 unassigned (-1)
     // c2: 1 high value (-2)
@@ -145,7 +154,9 @@ fn test_incremental_insert() {
     );
 
     let mut constraints = (c1,);
-    let solution = TestSolution { values: vec![None, Some(5), None] };
+    let solution = TestSolution {
+        values: vec![None, Some(5), None],
+    };
 
     // Entity 0 is unassigned -> delta = -1
     let delta = constraints.on_insert_all(&solution, 0);
@@ -166,7 +177,9 @@ fn test_incremental_retract() {
     );
 
     let mut constraints = (c1,);
-    let solution = TestSolution { values: vec![None, Some(5)] };
+    let solution = TestSolution {
+        values: vec![None, Some(5)],
+    };
 
     // Retract unassigned entity -> delta = +1 (removes penalty)
     let delta = constraints.on_retract_all(&solution, 0);
@@ -209,7 +222,7 @@ fn test_sixteen_constraints() {
     );
 
     let solution = TestSolution {
-        values: vec![Some(5), Some(10), Some(15)]
+        values: vec![Some(5), Some(10), Some(15)],
     };
 
     // Only values 5, 10, 15 match -> 3 penalties

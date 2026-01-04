@@ -2,9 +2,9 @@
 
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, Sub, Neg};
+use std::ops::{Add, Neg, Sub};
 
-use super::traits::{Score, ParseableScore, ScoreParseError};
+use super::traits::{ParseableScore, Score, ScoreParseError};
 
 /// A score with a configurable number of hard and soft levels.
 ///
@@ -293,7 +293,12 @@ impl fmt::Display for BendableScore {
         let hard_str: Vec<String> = self.hard_scores.iter().map(|s| s.to_string()).collect();
         let soft_str: Vec<String> = self.soft_scores.iter().map(|s| s.to_string()).collect();
 
-        write!(f, "[{}]hard/[{}]soft", hard_str.join("/"), soft_str.join("/"))
+        write!(
+            f,
+            "[{}]hard/[{}]soft",
+            hard_str.join("/"),
+            soft_str.join("/")
+        )
     }
 }
 
@@ -317,10 +322,7 @@ impl ParseableScore for BendableScore {
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .ok_or_else(|| ScoreParseError {
-                message: format!(
-                    "Hard score part '{}' must be wrapped in brackets",
-                    parts[0]
-                ),
+                message: format!("Hard score part '{}' must be wrapped in brackets", parts[0]),
             })?;
 
         let soft_part = parts[1]

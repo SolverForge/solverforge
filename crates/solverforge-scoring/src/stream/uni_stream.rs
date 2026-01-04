@@ -141,7 +141,13 @@ where
         // Convert uni-filter to bi-filter that applies to left entity only
         let bi_filter = UniLeftBiFilter::new(self.filter);
 
-        CrossBiConstraintStream::new_with_filter(self.extractor, extractor_b, key_a, key_b, bi_filter)
+        CrossBiConstraintStream::new_with_filter(
+            self.extractor,
+            extractor_b,
+            key_a,
+            key_b,
+            bi_filter,
+        )
     }
 
     /// Groups entities by key and aggregates with a collector.

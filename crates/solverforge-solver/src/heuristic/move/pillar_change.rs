@@ -11,8 +11,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Move;
 
@@ -128,11 +128,7 @@ where
 
         // Notify before changes for all entities
         for &idx in &self.entity_indices {
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                idx,
-                self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
         // Apply new value to all entities using typed setter - zero erasure
@@ -146,11 +142,7 @@ where
 
         // Notify after changes
         for &idx in &self.entity_indices {
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                idx,
-                self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
         // Register typed undo closure
@@ -178,11 +170,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -199,8 +189,12 @@ mod tests {
 
     impl PlanningSolution for ScheduleSolution {
         type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> { self.score }
-        fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
     }
 
     // Typed getter - zero erasure
@@ -215,18 +209,26 @@ mod tests {
         }
     }
 
-    fn create_director(employees: Vec<Employee>) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
-        let solution = ScheduleSolution { employees, score: None };
+    fn create_director(
+        employees: Vec<Employee>,
+    ) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
+        let solution = ScheduleSolution {
+            employees,
+            score: None,
+        };
 
         let extractor = Box::new(TypedEntityExtractor::new(
-            "Employee", "employees",
+            "Employee",
+            "employees",
             |s: &ScheduleSolution| &s.employees,
             |s: &mut ScheduleSolution| &mut s.employees,
-        ));let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
+        ));
+        let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
             .with_extractor(extractor);
 
-        let descriptor = SolutionDescriptor::new("ScheduleSolution", TypeId::of::<ScheduleSolution>())
-            .with_entity(entity_desc);
+        let descriptor =
+            SolutionDescriptor::new("ScheduleSolution", TypeId::of::<ScheduleSolution>())
+                .with_entity(entity_desc);
 
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
     }
@@ -234,14 +236,28 @@ mod tests {
     #[test]
     fn test_pillar_change_all_entities() {
         let mut director = create_director(vec![
-            Employee { id: 0, shift: Some(1) },
-            Employee { id: 1, shift: Some(1) },
-            Employee { id: 2, shift: Some(2) },
+            Employee {
+                id: 0,
+                shift: Some(1),
+            },
+            Employee {
+                id: 1,
+                shift: Some(1),
+            },
+            Employee {
+                id: 2,
+                shift: Some(2),
+            },
         ]);
 
         // Change pillar [0, 1] from shift 1 to shift 5
         let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![0, 1], Some(5), get_shift, set_shift, "shift", 0,
+            vec![0, 1],
+            Some(5),
+            get_shift,
+            set_shift,
+            "shift",
+            0,
         );
 
         assert!(m.is_doable(&director));
@@ -274,12 +290,23 @@ mod tests {
     #[test]
     fn test_pillar_change_same_value_not_doable() {
         let director = create_director(vec![
-            Employee { id: 0, shift: Some(5) },
-            Employee { id: 1, shift: Some(5) },
+            Employee {
+                id: 0,
+                shift: Some(5),
+            },
+            Employee {
+                id: 1,
+                shift: Some(5),
+            },
         ]);
 
         let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![0, 1], Some(5), get_shift, set_shift, "shift", 0,
+            vec![0, 1],
+            Some(5),
+            get_shift,
+            set_shift,
+            "shift",
+            0,
         );
 
         assert!(!m.is_doable(&director));
@@ -287,10 +314,18 @@ mod tests {
 
     #[test]
     fn test_pillar_change_empty_pillar_not_doable() {
-        let director = create_director(vec![Employee { id: 0, shift: Some(1) }]);
+        let director = create_director(vec![Employee {
+            id: 0,
+            shift: Some(1),
+        }]);
 
         let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![], Some(5), get_shift, set_shift, "shift", 0,
+            vec![],
+            Some(5),
+            get_shift,
+            set_shift,
+            "shift",
+            0,
         );
 
         assert!(!m.is_doable(&director));
@@ -299,7 +334,12 @@ mod tests {
     #[test]
     fn test_pillar_change_entity_indices() {
         let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![1, 3, 5], Some(5), get_shift, set_shift, "shift", 0,
+            vec![1, 3, 5],
+            Some(5),
+            get_shift,
+            set_shift,
+            "shift",
+            0,
         );
         assert_eq!(m.entity_indices(), &[1, 3, 5]);
     }

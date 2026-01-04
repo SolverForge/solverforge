@@ -245,9 +245,7 @@ mod benchmarks {
                 |s: &Schedule| s.shifts.as_slice(),
                 |s: &Shift| s.employee_id,
                 |a: &Shift, b: &Shift| {
-                    a.id < b.id
-                        && a.start_hour < b.end_hour
-                        && b.start_hour < a.end_hour
+                    a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
                 },
                 |_a: &Shift, _b: &Shift| SimpleScore::of(10),
                 false,

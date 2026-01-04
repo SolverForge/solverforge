@@ -1,7 +1,8 @@
 [package]
 name = "nqueens"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 
 [dependencies]
 solverforge.workspace = true
+rand = "0.8"

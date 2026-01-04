@@ -11,8 +11,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Move;
 
@@ -201,11 +201,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -222,8 +220,12 @@ mod tests {
 
     impl PlanningSolution for TaskSolution {
         type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> { self.score }
-        fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
     }
 
     fn get_tasks(s: &TaskSolution) -> &Vec<Task> {
@@ -246,15 +248,19 @@ mod tests {
         }
     }
 
-    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(
+        tasks: Vec<Task>,
+    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
         let solution = TaskSolution { tasks, score: None };
 
         let extractor = Box::new(TypedEntityExtractor::new(
-            "Task", "tasks",
+            "Task",
+            "tasks",
             get_tasks,
             get_tasks_mut,
-        ));let entity_desc = EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
-            .with_extractor(extractor);
+        ));
+        let entity_desc =
+            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
 
         let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
             .with_entity(entity_desc);
@@ -265,8 +271,14 @@ mod tests {
     #[test]
     fn test_swap_move_do_and_undo() {
         let tasks = vec![
-            Task { id: 0, priority: Some(1) },
-            Task { id: 1, priority: Some(5) },
+            Task {
+                id: 0,
+                priority: Some(1),
+            },
+            Task {
+                id: 1,
+                priority: Some(5),
+            },
         ];
         let mut director = create_director(tasks);
 
@@ -298,18 +310,30 @@ mod tests {
     #[test]
     fn test_swap_same_value_not_doable() {
         let tasks = vec![
-            Task { id: 0, priority: Some(5) },
-            Task { id: 1, priority: Some(5) },
+            Task {
+                id: 0,
+                priority: Some(5),
+            },
+            Task {
+                id: 1,
+                priority: Some(5),
+            },
         ];
         let director = create_director(tasks);
 
         let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
-        assert!(!m.is_doable(&director), "swapping same values should not be doable");
+        assert!(
+            !m.is_doable(&director),
+            "swapping same values should not be doable"
+        );
     }
 
     #[test]
     fn test_swap_self_not_doable() {
-        let tasks = vec![Task { id: 0, priority: Some(1) }];
+        let tasks = vec![Task {
+            id: 0,
+            priority: Some(1),
+        }];
         let director = create_director(tasks);
 
         let m = SwapMove::<TaskSolution, i32>::new(0, 0, get_priority, set_priority, "priority", 0);

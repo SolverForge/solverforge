@@ -82,9 +82,15 @@ fn test_planning_solution_derives_correctly() {
     };
 
     // PlanningSolution trait is implemented
-    assert_eq!(PlanningSolutionTrait::score(&schedule), Some(HardSoftScore::of(0, 0)));
+    assert_eq!(
+        PlanningSolutionTrait::score(&schedule),
+        Some(HardSoftScore::of(0, 0))
+    );
 
     let mut schedule2 = schedule.clone();
     PlanningSolutionTrait::set_score(&mut schedule2, Some(HardSoftScore::of(-1, -5)));
-    assert_eq!(PlanningSolutionTrait::score(&schedule2), Some(HardSoftScore::of(-1, -5)));
+    assert_eq!(
+        PlanningSolutionTrait::score(&schedule2),
+        Some(HardSoftScore::of(-1, -5))
+    );
 }

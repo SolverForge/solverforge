@@ -181,11 +181,13 @@ fn test_entity_tabu_accepts_improving() {
     );
 
     // Should accept improving move
-    assert!(<EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
-        &acceptor,
-        &SimpleScore::of(-10),
-        &SimpleScore::of(-5)
-    ));
+    assert!(
+        <EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
+            &acceptor,
+            &SimpleScore::of(-10),
+            &SimpleScore::of(-5)
+        )
+    );
 }
 
 #[test]
@@ -197,11 +199,13 @@ fn test_entity_tabu_accepts_equal() {
     );
 
     // Should accept equal move
-    assert!(<EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
-        &acceptor,
-        &SimpleScore::of(-10),
-        &SimpleScore::of(-10)
-    ));
+    assert!(
+        <EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
+            &acceptor,
+            &SimpleScore::of(-10),
+            &SimpleScore::of(-10)
+        )
+    );
 }
 
 #[test]
@@ -213,11 +217,13 @@ fn test_entity_tabu_rejects_worsening() {
     );
 
     // Should reject worsening move
-    assert!(!<EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
-        &acceptor,
-        &SimpleScore::of(-5),
-        &SimpleScore::of(-10)
-    ));
+    assert!(
+        !<EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
+            &acceptor,
+            &SimpleScore::of(-5),
+            &SimpleScore::of(-10)
+        )
+    );
 }
 
 #[test]
@@ -232,7 +238,10 @@ fn test_entity_tabu_tracking() {
     <EntityTabuAcceptor as Acceptor<DummySolution>>::step_started(&mut acceptor);
     acceptor.record_entity_move(1);
     acceptor.record_entity_move(2);
-    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(&mut acceptor, &SimpleScore::of(-5));
+    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(
+        &mut acceptor,
+        &SimpleScore::of(-5),
+    );
 
     // Entities 1 and 2 should be tabu
     assert!(acceptor.is_entity_tabu(1));
@@ -251,15 +260,24 @@ fn test_entity_tabu_eviction() {
     // Fill tabu list with 3 entities
     <EntityTabuAcceptor as Acceptor<DummySolution>>::step_started(&mut acceptor);
     acceptor.record_entity_move(1);
-    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(&mut acceptor, &SimpleScore::of(-9));
+    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(
+        &mut acceptor,
+        &SimpleScore::of(-9),
+    );
 
     <EntityTabuAcceptor as Acceptor<DummySolution>>::step_started(&mut acceptor);
     acceptor.record_entity_move(2);
-    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(&mut acceptor, &SimpleScore::of(-8));
+    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(
+        &mut acceptor,
+        &SimpleScore::of(-8),
+    );
 
     <EntityTabuAcceptor as Acceptor<DummySolution>>::step_started(&mut acceptor);
     acceptor.record_entity_move(3);
-    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(&mut acceptor, &SimpleScore::of(-7));
+    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(
+        &mut acceptor,
+        &SimpleScore::of(-7),
+    );
 
     // All three should be tabu
     assert!(acceptor.is_entity_tabu(1));
@@ -269,7 +287,10 @@ fn test_entity_tabu_eviction() {
     // Add another entity, which should evict entity 1
     <EntityTabuAcceptor as Acceptor<DummySolution>>::step_started(&mut acceptor);
     acceptor.record_entity_move(4);
-    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(&mut acceptor, &SimpleScore::of(-6));
+    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(
+        &mut acceptor,
+        &SimpleScore::of(-6),
+    );
 
     // Entity 1 should no longer be tabu (evicted)
     assert!(!acceptor.is_entity_tabu(1));
@@ -289,7 +310,10 @@ fn test_entity_tabu_phase_ended_clears() {
 
     <EntityTabuAcceptor as Acceptor<DummySolution>>::step_started(&mut acceptor);
     acceptor.record_entity_move(1);
-    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(&mut acceptor, &SimpleScore::of(-5));
+    <EntityTabuAcceptor as Acceptor<DummySolution>>::step_ended(
+        &mut acceptor,
+        &SimpleScore::of(-5),
+    );
 
     assert!(acceptor.is_entity_tabu(1));
 

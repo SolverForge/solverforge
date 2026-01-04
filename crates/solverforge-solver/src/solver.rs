@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::SolverForgeError;
+use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
@@ -114,10 +114,7 @@ impl<S: PlanningSolution> Solver<S> {
     /// Solves using the provided score director.
     ///
     /// This is the main solving method that executes all phases.
-    pub fn solve_with_director(
-        &mut self,
-        score_director: Box<dyn ScoreDirector<S>>,
-    ) -> S {
+    pub fn solve_with_director(&mut self, score_director: Box<dyn ScoreDirector<S>>) -> S {
         self.solving.store(true, Ordering::SeqCst);
         self.terminate_early_flag.store(false, Ordering::SeqCst);
 
@@ -227,11 +224,9 @@ mod tests {
     use crate::heuristic::selector::ChangeMoveSelector;
     use crate::manager::SolverPhaseFactory;
     use crate::termination::StepCountTermination;
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -305,13 +300,16 @@ mod tests {
         SimpleScore::of(-conflicts)
     }
 
-    fn create_test_director(solution: NQueensSolution) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(
+        solution: NQueensSolution,
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let extractor = Box::new(TypedEntityExtractor::new(
             "Queen",
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
         let descriptor =
@@ -332,15 +330,20 @@ mod tests {
         use crate::manager::LocalSearchPhaseFactory;
 
         let values: Vec<i32> = (0..4).collect();
-        let factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-                get_queen_row, set_queen_row, 0, "row", values.clone()
-            )),
-        ).with_step_limit(10);
+        let factory =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
+                    get_queen_row,
+                    set_queen_row,
+                    0,
+                    "row",
+                    values.clone(),
+                ))
+            })
+            .with_step_limit(10);
         let local_search = factory.create_phase();
 
-        let solver: Solver<NQueensSolution> =
-            Solver::new(vec![]).with_phase(local_search);
+        let solver: Solver<NQueensSolution> = Solver::new(vec![]).with_phase(local_search);
 
         assert!(!solver.is_solving());
     }
@@ -371,11 +374,17 @@ mod tests {
         assert!(initial_score < SimpleScore::of(0)); // Should have conflicts
 
         let values: Vec<i32> = (0..n).collect();
-        let factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-                get_queen_row, set_queen_row, 0, "row", values.clone()
-            )),
-        ).with_step_limit(50);
+        let factory =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
+                    get_queen_row,
+                    set_queen_row,
+                    0,
+                    "row",
+                    values.clone(),
+                ))
+            })
+            .with_step_limit(50);
         let local_search = factory.create_phase();
 
         let mut solver = Solver::new(vec![local_search]);
@@ -408,18 +417,23 @@ mod tests {
         let director = create_test_director(solution);
 
         let values: Vec<i32> = (0..n).collect();
-        let factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-                get_queen_row, set_queen_row, 0, "row", values.clone()
-            )),
-        ).with_step_limit(1000);
+        let factory =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
+                    get_queen_row,
+                    set_queen_row,
+                    0,
+                    "row",
+                    values.clone(),
+                ))
+            })
+            .with_step_limit(1000);
         let local_search = factory.create_phase();
 
         // Terminate after just 5 steps
         let termination = StepCountTermination::new(5);
 
-        let mut solver = Solver::new(vec![local_search])
-            .with_termination(Box::new(termination));
+        let mut solver = Solver::new(vec![local_search]).with_termination(Box::new(termination));
 
         let result = solver.solve_with_director(Box::new(director));
 
@@ -444,20 +458,32 @@ mod tests {
 
         // First local search phase with limited steps
         let values1 = values.clone();
-        let factory1 = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-                get_queen_row, set_queen_row, 0, "row", values1.clone()
-            )),
-        ).with_step_limit(10);
+        let factory1 =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
+                    get_queen_row,
+                    set_queen_row,
+                    0,
+                    "row",
+                    values1.clone(),
+                ))
+            })
+            .with_step_limit(10);
         let phase1 = factory1.create_phase();
 
         // Second local search phase
         let values2 = values.clone();
-        let factory2 = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-                get_queen_row, set_queen_row, 0, "row", values2.clone()
-            )),
-        ).with_step_limit(10);
+        let factory2 =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
+                    get_queen_row,
+                    set_queen_row,
+                    0,
+                    "row",
+                    values2.clone(),
+                ))
+            })
+            .with_step_limit(10);
         let phase2 = factory2.create_phase();
 
         let mut solver = Solver::new(vec![phase1, phase2]);

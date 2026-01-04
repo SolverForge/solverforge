@@ -2,8 +2,8 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, ItemStruct, Attribute, Meta, Expr, Lit};
 use syn::parse::Parser;
+use syn::{parse_macro_input, Attribute, DeriveInput, Expr, ItemStruct, Lit, Meta};
 
 mod planning_entity;
 mod planning_solution;
@@ -60,7 +60,10 @@ pub fn problem_fact(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-#[proc_macro_derive(PlanningEntityImpl, attributes(planning_id, planning_variable, planning_list_variable, planning_pin))]
+#[proc_macro_derive(
+    PlanningEntityImpl,
+    attributes(planning_id, planning_variable, planning_list_variable, planning_pin)
+)]
 pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     planning_entity::expand_derive(input)
@@ -68,7 +71,15 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         .into()
 }
 
-#[proc_macro_derive(PlanningSolutionImpl, attributes(planning_entity_collection, problem_fact_collection, planning_score, value_range_provider))]
+#[proc_macro_derive(
+    PlanningSolutionImpl,
+    attributes(
+        planning_entity_collection,
+        problem_fact_collection,
+        planning_score,
+        value_range_provider
+    )
+)]
 pub fn derive_planning_solution(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     planning_solution::expand_derive(input)

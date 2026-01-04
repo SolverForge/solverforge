@@ -11,8 +11,8 @@ decimal = ["solverforge-core/decimal"]
 serde = ["solverforge-core/serde"]
 
 [dependencies]
-solverforge-core.workspace = true
-solverforge-macros.workspace = true
-solverforge-scoring.workspace = true
-solverforge-solver.workspace = true
-solverforge-config.workspace = true
+solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
+solverforge-macros = { version = "0.4.0", path = "../solverforge-macros" }
+solverforge-scoring = { version = "0.4.0", path = "../solverforge-scoring" }
+solverforge-solver = { version = "0.4.0", path = "../solverforge-solver" }
+solverforge-config = { version = "0.4.0", path = "../solverforge-config" }

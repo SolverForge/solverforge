@@ -319,7 +319,14 @@ mod tests {
         assert!(seq.is_empty());
         assert_eq!(seq.len(), 0);
 
-        seq.push(ChangeMove::new(0, Some(42), get_value, set_value, "test", 0));
+        seq.push(ChangeMove::new(
+            0,
+            Some(42),
+            get_value,
+            set_value,
+            "test",
+            0,
+        ));
         assert_eq!(seq.len(), 1);
 
         let m = seq.pop();

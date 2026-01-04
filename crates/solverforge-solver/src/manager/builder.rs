@@ -42,7 +42,7 @@ use crate::termination::{
 };
 
 use super::config::{ConstructionType, LocalSearchType, PhaseConfig};
-use super::{SolverPhaseFactory, SolverManager};
+use super::{SolverManager, SolverPhaseFactory};
 
 /// Builder for creating a [`SolverManager`] with fluent configuration.
 ///
@@ -217,9 +217,8 @@ where
     ///     .with_construction_heuristic_type(ConstructionType::BestFit);
     /// ```
     pub fn with_construction_heuristic_type(mut self, construction_type: ConstructionType) -> Self {
-        self.phase_configs.push(PhaseConfig::ConstructionHeuristic {
-            construction_type,
-        });
+        self.phase_configs
+            .push(PhaseConfig::ConstructionHeuristic { construction_type });
         self
     }
 

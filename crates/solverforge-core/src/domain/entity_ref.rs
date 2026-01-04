@@ -199,17 +199,19 @@ mod tests {
 
     #[test]
     fn test_typed_entity_extractor_count() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
         let solution = TestSolution {
             entities: vec![
-                TestEntity { id: 1, value: Some(10) },
-                TestEntity { id: 2, value: Some(20) },
+                TestEntity {
+                    id: 1,
+                    value: Some(10),
+                },
+                TestEntity {
+                    id: 2,
+                    value: Some(20),
+                },
                 TestEntity { id: 3, value: None },
             ],
         };
@@ -220,17 +222,19 @@ mod tests {
 
     #[test]
     fn test_typed_entity_extractor_get() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
         let solution = TestSolution {
             entities: vec![
-                TestEntity { id: 1, value: Some(10) },
-                TestEntity { id: 2, value: Some(20) },
+                TestEntity {
+                    id: 1,
+                    value: Some(10),
+                },
+                TestEntity {
+                    id: 2,
+                    value: Some(20),
+                },
             ],
         };
 
@@ -247,17 +251,14 @@ mod tests {
 
     #[test]
     fn test_typed_entity_extractor_get_mut() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
         let mut solution = TestSolution {
-            entities: vec![
-                TestEntity { id: 1, value: Some(10) },
-            ],
+            entities: vec![TestEntity {
+                id: 1,
+                value: Some(10),
+            }],
         };
 
         let entity = extractor.get_mut(&mut solution as &mut dyn Any, 0);
@@ -270,17 +271,19 @@ mod tests {
 
     #[test]
     fn test_typed_entity_extractor_entity_refs() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
         let solution = TestSolution {
             entities: vec![
-                TestEntity { id: 1, value: Some(10) },
-                TestEntity { id: 2, value: Some(20) },
+                TestEntity {
+                    id: 1,
+                    value: Some(10),
+                },
+                TestEntity {
+                    id: 2,
+                    value: Some(20),
+                },
             ],
         };
 
@@ -294,12 +297,8 @@ mod tests {
 
     #[test]
     fn test_extractor_wrong_solution_type() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
         let wrong_solution = "not a solution";
         let count = extractor.count(&wrong_solution as &dyn Any);
@@ -318,7 +317,10 @@ mod tests {
         let cloned = extractor.clone();
 
         let solution = TestSolution {
-            entities: vec![TestEntity { id: 1, value: Some(10) }],
+            entities: vec![TestEntity {
+                id: 1,
+                value: Some(10),
+            }],
         };
 
         assert_eq!(cloned.count(&solution as &dyn Any), Some(1));
@@ -326,17 +328,19 @@ mod tests {
 
     #[test]
     fn test_clone_entity_boxed() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
         let solution = TestSolution {
             entities: vec![
-                TestEntity { id: 1, value: Some(10) },
-                TestEntity { id: 2, value: Some(20) },
+                TestEntity {
+                    id: 1,
+                    value: Some(10),
+                },
+                TestEntity {
+                    id: 2,
+                    value: Some(20),
+                },
             ],
         };
 
@@ -363,13 +367,12 @@ mod tests {
 
     #[test]
     fn test_entity_type_id() {
-        let extractor = TypedEntityExtractor::new(
-            "TestEntity",
-            "entities",
-            get_entities,
-            get_entities_mut,
-        );
+        let extractor =
+            TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
-        assert_eq!(extractor.entity_type_id(), std::any::TypeId::of::<TestEntity>());
+        assert_eq!(
+            extractor.entity_type_id(),
+            std::any::TypeId::of::<TestEntity>()
+        );
     }
 }

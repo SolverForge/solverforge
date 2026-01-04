@@ -131,7 +131,11 @@ where
     where
         Sc: Clone,
     {
-        let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
+        let is_hard = weight
+            .to_level_numbers()
+            .first()
+            .map(|&h| h != 0)
+            .unwrap_or(false);
         IfExistsBuilder {
             mode: self.mode,
             extractor_a: self.extractor_a,
@@ -147,7 +151,10 @@ where
     }
 
     /// Penalizes each matching entity with a dynamic weight.
-    pub fn penalize_with<W>(self, weight_fn: W) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
+    pub fn penalize_with<W>(
+        self,
+        weight_fn: W,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
@@ -166,7 +173,10 @@ where
     }
 
     /// Penalizes each matching entity with a dynamic weight, explicitly marked as hard.
-    pub fn penalize_hard_with<W>(self, weight_fn: W) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
+    pub fn penalize_hard_with<W>(
+        self,
+        weight_fn: W,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
@@ -192,7 +202,11 @@ where
     where
         Sc: Clone,
     {
-        let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
+        let is_hard = weight
+            .to_level_numbers()
+            .first()
+            .map(|&h| h != 0)
+            .unwrap_or(false);
         IfExistsBuilder {
             mode: self.mode,
             extractor_a: self.extractor_a,
@@ -208,7 +222,10 @@ where
     }
 
     /// Rewards each matching entity with a dynamic weight.
-    pub fn reward_with<W>(self, weight_fn: W) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
+    pub fn reward_with<W>(
+        self,
+        weight_fn: W,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
@@ -227,7 +244,10 @@ where
     }
 
     /// Rewards each matching entity with a dynamic weight, explicitly marked as hard.
-    pub fn reward_hard_with<W>(self, weight_fn: W) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
+    pub fn reward_hard_with<W>(
+        self,
+        weight_fn: W,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
@@ -321,4 +341,3 @@ impl<S, A, B, K, EA, EB, KA, KB, FA, W, Sc: Score> std::fmt::Debug
             .finish()
     }
 }
-

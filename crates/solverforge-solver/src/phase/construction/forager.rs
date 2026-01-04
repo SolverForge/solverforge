@@ -6,9 +6,9 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
+use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
 use crate::heuristic::r#move::Move;
 
@@ -451,11 +451,9 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::EntityReference;
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -501,7 +499,8 @@ mod tests {
         }
     }
 
-    fn create_test_director() -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let solution = NQueensSolution {
             queens: vec![Queen { row: None }],
             score: None,
@@ -512,7 +511,8 @@ mod tests {
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
         let descriptor =
@@ -581,7 +581,7 @@ mod tests {
     }
 
     fn value_strength(m: &TestMove) -> i64 {
-        m.to_value().map(|&v| v).unwrap_or(0)
+        m.to_value().copied().unwrap_or(0)
     }
 
     #[test]

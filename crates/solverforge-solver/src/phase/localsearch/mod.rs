@@ -9,8 +9,8 @@ mod forager;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -235,11 +235,9 @@ mod tests {
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
     use crate::manager::SolverPhaseFactory;
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -310,7 +308,9 @@ mod tests {
         SimpleScore::of(-conflicts)
     }
 
-    fn create_test_director(rows: &[i32]) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(
+        rows: &[i32],
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let queens: Vec<_> = rows
             .iter()
             .enumerate()
@@ -330,7 +330,8 @@ mod tests {
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
         let descriptor =
@@ -342,9 +343,15 @@ mod tests {
 
     type NQueensMove = ChangeMove<NQueensSolution, i32>;
 
-    fn create_move_selector(values: Vec<i32>) -> Box<dyn MoveSelector<NQueensSolution, NQueensMove>> {
+    fn create_move_selector(
+        values: Vec<i32>,
+    ) -> Box<dyn MoveSelector<NQueensSolution, NQueensMove>> {
         Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-            get_queen_row, set_queen_row, 0, "row", values
+            get_queen_row,
+            set_queen_row,
+            0,
+            "row",
+            values,
         ))
     }
 
@@ -361,18 +368,17 @@ mod tests {
         assert!(initial_score < SimpleScore::of(0));
 
         let values: Vec<i32> = (0..4).collect();
-        let factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || create_move_selector(values.clone()),
-        ).with_step_limit(100);
+        let factory =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                create_move_selector(values.clone())
+            })
+            .with_step_limit(100);
         let mut phase = factory.create_phase();
 
         phase.solve(&mut solver_scope);
 
         // Should have improved (or at least not gotten worse)
-        let final_score = solver_scope
-            .best_score()
-            .cloned()
-            .unwrap_or(initial_score);
+        let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
     }
 
@@ -387,18 +393,17 @@ mod tests {
         let initial_score = solver_scope.calculate_score();
 
         let values: Vec<i32> = (0..4).collect();
-        let factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || create_move_selector(values.clone()),
-        ).with_step_limit(50);
+        let factory =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                create_move_selector(values.clone())
+            })
+            .with_step_limit(50);
         let mut phase = factory.create_phase();
 
         phase.solve(&mut solver_scope);
 
         // Check that we didn't make it worse
-        let final_score = solver_scope
-            .best_score()
-            .cloned()
-            .unwrap_or(initial_score);
+        let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
     }
 
@@ -410,9 +415,11 @@ mod tests {
         let mut solver_scope = SolverScope::new(Box::new(director));
 
         let values: Vec<i32> = (0..4).collect();
-        let factory = LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(
-            move || create_move_selector(values.clone()),
-        ).with_step_limit(3);
+        let factory =
+            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
+                create_move_selector(values.clone())
+            })
+            .with_step_limit(3);
         let mut phase = factory.create_phase();
 
         phase.solve(&mut solver_scope);

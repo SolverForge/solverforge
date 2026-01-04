@@ -230,7 +230,10 @@ where
     /// });
     /// ```
     pub fn tabu_search(tabu_size: usize, move_selector_factory: F) -> Self {
-        Self::new(LocalSearchType::TabuSearch { tabu_size }, move_selector_factory)
+        Self::new(
+            LocalSearchType::TabuSearch { tabu_size },
+            move_selector_factory,
+        )
     }
 
     /// Creates a factory with simulated annealing acceptor.
@@ -321,7 +324,10 @@ where
     /// });
     /// ```
     pub fn late_acceptance(size: usize, move_selector_factory: F) -> Self {
-        Self::new(LocalSearchType::LateAcceptance { size }, move_selector_factory)
+        Self::new(
+            LocalSearchType::LateAcceptance { size },
+            move_selector_factory,
+        )
     }
 
     /// Creates a factory with value tabu acceptor.
@@ -426,9 +432,7 @@ where
                 starting_temp,
                 decay_rate,
             } => Box::new(SimulatedAnnealingAcceptor::new(starting_temp, decay_rate)),
-            LocalSearchType::LateAcceptance { size } => {
-                Box::new(LateAcceptanceAcceptor::new(size))
-            }
+            LocalSearchType::LateAcceptance { size } => Box::new(LateAcceptanceAcceptor::new(size)),
             LocalSearchType::ValueTabuSearch { value_tabu_size } => {
                 Box::new(ValueTabuAcceptor::new(value_tabu_size))
             }

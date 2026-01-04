@@ -180,7 +180,12 @@ pub struct EncodedSegment {
 /// vehicle.visits = vec![0, 1];  // A -> B
 ///
 /// let mut plan = VehicleRoutePlan::new("test", locations, visits, vec![vehicle]);
-/// plan.finalize();
+///
+/// // Set up route geometries (normally done by init_routing)
+/// // Route: depot(0) -> A(1) -> B(2) -> depot(0)
+/// plan.route_geometries.insert((0, 1), vec![(39.95, -75.16), (39.96, -75.17)]);
+/// plan.route_geometries.insert((1, 2), vec![(39.96, -75.17), (39.94, -75.15)]);
+/// plan.route_geometries.insert((2, 0), vec![(39.94, -75.15), (39.95, -75.16)]);
 ///
 /// let segments = encode_routes(&plan);
 /// assert_eq!(segments.len(), 1);  // One vehicle with visits
@@ -206,8 +211,8 @@ pub fn encode_routes(plan: &VehicleRoutePlan) -> Vec<EncodedSegment> {
 
 /// Gets coordinates for a vehicle's complete route (depot -> visits -> depot).
 ///
-/// Uses stored route geometries if available (real road routing),
-/// otherwise falls back to straight lines between locations.
+/// Uses stored route geometries from road network routing.
+/// Returns empty if route geometries are not initialized.
 fn get_route_coords(plan: &VehicleRoutePlan, vehicle: &Vehicle) -> Vec<(f64, f64)> {
     let mut coords = Vec::new();
     let depot_idx = vehicle.home_location_idx;
@@ -235,15 +240,14 @@ fn get_route_coords(plan: &VehicleRoutePlan, vehicle: &Vehicle) -> Vec<(f64, f64
             let skip = if coords.is_empty() { 0 } else { 1 };
             coords.extend(geometry.iter().skip(skip).copied());
         } else {
-            // Straight line fallback: just add destination point
-            if let Some(loc) = plan.get_location(to_idx) {
-                if coords.is_empty() {
-                    // First segment: also add start point
-                    if let Some(start) = plan.get_location(from_idx) {
-                        coords.push((start.latitude, start.longitude));
-                    }
+            // Fallback: use direct lat/lng when road geometry unavailable
+            if coords.is_empty() {
+                if let Some(from_loc) = plan.get_location(from_idx) {
+                    coords.push((from_loc.latitude, from_loc.longitude));
                 }
-                coords.push((loc.latitude, loc.longitude));
+            }
+            if let Some(to_loc) = plan.get_location(to_idx) {
+                coords.push((to_loc.latitude, to_loc.longitude));
             }
         }
     }

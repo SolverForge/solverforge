@@ -1,100 +1,189 @@
-//! Background solver service for Employee Scheduling.
+//! Solver service for Employee Scheduling.
 //!
-//! Uses TypedScoreDirector for incremental scoring (O(1) per move instead of O(n²)).
+//! Uses Late Acceptance local search with change moves.
+//! Incremental scoring via TypedScoreDirector for O(1) move evaluation.
 
 use parking_lot::RwLock;
 use rand::Rng;
-use solverforge::{
-    prelude::*, AcceptorConfig, LateAcceptanceConfig, LocalSearchConfig, PhaseConfig, SolverConfig,
-    TypedScoreDirector,
-};
+use solverforge::prelude::*;
+use solverforge::TypedScoreDirector;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
+use tracing::{debug, info};
 
-use crate::console::{self, PhaseTimer};
+use crate::console::PhaseTimer;
 use crate::constraints::create_fluent_constraints;
 use crate::domain::EmployeeSchedule;
 
-/// Default termination: 30 seconds
-const DEFAULT_TERMINATION_SECONDS: u64 = 30;
+/// Default solving time: 30 seconds.
+const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 
-/// Default late acceptance size.
-const DEFAULT_LATE_ACCEPTANCE_SIZE: usize = 400;
+/// Late acceptance history size.
+const LATE_ACCEPTANCE_SIZE: usize = 400;
+
+/// Solver configuration with termination criteria.
+#[derive(Debug, Clone, Default)]
+pub struct SolverConfig {
+    /// Stop after this duration.
+    pub time_limit: Option<Duration>,
+    /// Stop after this duration without improvement.
+    pub unimproved_time_limit: Option<Duration>,
+    /// Stop after this many steps.
+    pub step_limit: Option<u64>,
+    /// Stop after this many steps without improvement.
+    pub unimproved_step_limit: Option<u64>,
+}
+
+impl SolverConfig {
+    /// Creates a config with default 30-second time limit.
+    pub fn default_config() -> Self {
+        Self {
+            time_limit: Some(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS)),
+            ..Default::default()
+        }
+    }
+
+    /// Checks if any termination condition is met.
+    fn should_terminate(
+        &self,
+        elapsed: Duration,
+        steps: u64,
+        time_since_improvement: Duration,
+        steps_since_improvement: u64,
+    ) -> bool {
+        if let Some(limit) = self.time_limit {
+            if elapsed >= limit {
+                return true;
+            }
+        }
+        if let Some(limit) = self.unimproved_time_limit {
+            if time_since_improvement >= limit {
+                return true;
+            }
+        }
+        if let Some(limit) = self.step_limit {
+            if steps >= limit {
+                return true;
+            }
+        }
+        if let Some(limit) = self.unimproved_step_limit {
+            if steps_since_improvement >= limit {
+                return true;
+            }
+        }
+        false
+    }
+}
 
 /// Status of a solving job.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SolverStatus {
+    /// Not currently solving.
     NotSolving,
+    /// Actively solving.
     Solving,
 }
 
-/// A solving job that can be queried for current state.
+impl SolverStatus {
+    /// Returns the status as a SCREAMING_SNAKE_CASE string for API responses.
+    ///
+    /// ```
+    /// use employee_scheduling::solver::SolverStatus;
+    ///
+    /// assert_eq!(SolverStatus::NotSolving.as_str(), "NOT_SOLVING");
+    /// assert_eq!(SolverStatus::Solving.as_str(), "SOLVING");
+    /// ```
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SolverStatus::NotSolving => "NOT_SOLVING",
+            SolverStatus::Solving => "SOLVING",
+        }
+    }
+}
+
+/// A solving job with current state.
 pub struct SolveJob {
+    /// Unique job identifier.
     pub id: String,
+    /// Current status.
     pub status: SolverStatus,
+    /// Current best schedule.
     pub schedule: EmployeeSchedule,
+    /// Solver configuration.
+    pub config: SolverConfig,
+    /// Stop signal sender.
     stop_signal: Option<oneshot::Sender<()>>,
 }
 
 impl SolveJob {
+    /// Creates a new solve job with default config.
     pub fn new(id: String, schedule: EmployeeSchedule) -> Self {
         Self {
             id,
             status: SolverStatus::NotSolving,
             schedule,
+            config: SolverConfig::default_config(),
+            stop_signal: None,
+        }
+    }
+
+    /// Creates a new solve job with custom config.
+    pub fn with_config(id: String, schedule: EmployeeSchedule, config: SolverConfig) -> Self {
+        Self {
+            id,
+            status: SolverStatus::NotSolving,
+            schedule,
+            config,
             stop_signal: None,
         }
     }
 }
 
-/// Manages solving jobs with configurable solver settings.
+/// Manages Employee Scheduling solving jobs.
+///
+/// # Examples
+///
+/// ```
+/// use employee_scheduling::solver::SolverService;
+/// use employee_scheduling::demo_data::{generate, DemoData};
+///
+/// let service = SolverService::new();
+/// let schedule = generate(DemoData::Small);
+///
+/// // Create a job (doesn't start solving yet)
+/// let job = service.create_job("test-1".to_string(), schedule);
+/// assert_eq!(job.read().status, employee_scheduling::solver::SolverStatus::NotSolving);
+/// ```
 pub struct SolverService {
     jobs: RwLock<HashMap<String, Arc<RwLock<SolveJob>>>>,
-    config: SolverConfig,
 }
 
 impl SolverService {
-    /// Creates a new solver service with default configuration.
-    ///
-    /// Default: 30 seconds termination, Late Acceptance with size 400.
+    /// Creates a new solver service.
     pub fn new() -> Self {
-        Self::with_config(Self::default_config())
-    }
-
-    /// Creates a new solver service with custom configuration.
-    pub fn with_config(config: SolverConfig) -> Self {
         Self {
             jobs: RwLock::new(HashMap::new()),
-            config,
         }
     }
 
-    /// Returns the default solver configuration
-    pub fn default_config() -> SolverConfig {
-        SolverConfig::new()
-            .with_termination_seconds(DEFAULT_TERMINATION_SECONDS)
-            .with_phase(PhaseConfig::ConstructionHeuristic(Default::default()))
-            .with_phase(PhaseConfig::LocalSearch(LocalSearchConfig {
-                acceptor: Some(AcceptorConfig::LateAcceptance(LateAcceptanceConfig {
-                    late_acceptance_size: Some(DEFAULT_LATE_ACCEPTANCE_SIZE),
-                })),
-                termination: None,
-                forager: None,
-                move_selector: None,
-            }))
-    }
-
-    /// Returns a reference to the current configuration.
-    pub fn config(&self) -> &SolverConfig {
-        &self.config
-    }
-
-    /// Creates a new solving job with the given schedule.
+    /// Creates a new job for the given schedule with default config.
     pub fn create_job(&self, id: String, schedule: EmployeeSchedule) -> Arc<RwLock<SolveJob>> {
         let job = Arc::new(RwLock::new(SolveJob::new(id.clone(), schedule)));
+        self.jobs.write().insert(id, job.clone());
+        job
+    }
+
+    /// Creates a new job with custom config.
+    pub fn create_job_with_config(
+        &self,
+        id: String,
+        schedule: EmployeeSchedule,
+        config: SolverConfig,
+    ) -> Arc<RwLock<SolveJob>> {
+        let job = Arc::new(RwLock::new(SolveJob::with_config(id.clone(), schedule, config)));
         self.jobs.write().insert(id, job.clone());
         job
     }
@@ -117,6 +206,7 @@ impl SolverService {
     /// Starts solving a job in the background.
     pub fn start_solving(&self, job: Arc<RwLock<SolveJob>>) {
         let (tx, rx) = oneshot::channel();
+        let config = job.read().config.clone();
 
         {
             let mut job_guard = job.write();
@@ -125,15 +215,13 @@ impl SolverService {
         }
 
         let job_clone = job.clone();
-        let config = self.config.clone();
 
-        // Spawn a blocking task for CPU-bound solving
         tokio::task::spawn_blocking(move || {
             solve_blocking(job_clone, rx, config);
         });
     }
 
-    /// Stops a solving job
+    /// Stops a solving job.
     pub fn stop_solving(&self, id: &str) -> bool {
         if let Some(job) = self.get_job(id) {
             let mut job_guard = job.write();
@@ -153,228 +241,282 @@ impl Default for SolverService {
     }
 }
 
-/// Extracts termination time limit from config.
-fn get_time_limit(config: &SolverConfig) -> Duration {
-    config
-        .termination
-        .as_ref()
-        .and_then(|t| t.time_limit())
-        .unwrap_or(Duration::from_secs(DEFAULT_TERMINATION_SECONDS))
-}
-
-/// Extracts late acceptance size from config.
-fn get_late_acceptance_size(config: &SolverConfig) -> usize {
-    for phase in &config.phases {
-        if let PhaseConfig::LocalSearch(ls) = phase {
-            if let Some(AcceptorConfig::LateAcceptance(la)) = &ls.acceptor {
-                if let Some(size) = la.late_acceptance_size {
-                    return size;
-                }
-            }
-        }
-    }
-    DEFAULT_LATE_ACCEPTANCE_SIZE
-}
-
-/// Runs the solver in a blocking context using TypedScoreDirector for incremental scoring.
+/// Runs the solver in a blocking context.
 fn solve_blocking(
     job: Arc<RwLock<SolveJob>>,
     mut stop_rx: oneshot::Receiver<()>,
     config: SolverConfig,
 ) {
-    use num_format::{Locale, ToFormattedString};
-    use owo_colors::OwoColorize;
-
-    // Extract configuration
-    let time_limit = get_time_limit(&config);
-    let late_acceptance_size = get_late_acceptance_size(&config);
-
-    // Get initial schedule
     let initial_schedule = job.read().schedule.clone();
+    let job_id = job.read().id.clone();
     let solve_start = Instant::now();
 
-    // Print initial state
-    let entity_count = initial_schedule.shifts.len();
-    let variable_count = entity_count;
-    let value_count = initial_schedule.employees.len();
-
-    console::print_solving_started(0, "0hard/0soft", entity_count, variable_count, value_count);
-
-    println!(
-        "  {} Termination: {} seconds",
-        "⚙".bright_black(),
-        time_limit.as_secs().to_string().white()
+    info!(
+        job_id = %job_id,
+        shifts = initial_schedule.shifts.len(),
+        employees = initial_schedule.employees.len(),
+        "Starting Employee Scheduling solver"
     );
 
-    // Employee count for value range (0..n indices)
-    let n_employees = initial_schedule.employees.len();
-
-    // Create typed constraints for incremental scoring (fluent API)
+    // Create typed constraints and score director
     let constraints = create_fluent_constraints();
-    let mut director = TypedScoreDirector::new(initial_schedule, constraints);
+    let mut director = TypedScoreDirector::new(initial_schedule.clone(), constraints);
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 1: Construction Heuristic
-    // ═══════════════════════════════════════════════════════════════════════
-    let mut phase1_timer = PhaseTimer::start("Construction Heuristic", 0);
-
-    // Initialize the score director (populates constraint state)
-    let mut current_score = director.calculate_score();
-
-    for i in 0..director.working_solution().shifts.len() {
-        let required_skill = director.working_solution().shifts[i].required_skill.clone();
-
-        // Find best employee: prefer skill match, but always assign someone
-        let mut best_emp_idx = 0; // Fallback to first employee
-        for (emp_idx, emp) in director.working_solution().employees.iter().enumerate() {
-            if emp.skills.contains(&required_skill) {
-                best_emp_idx = emp_idx;
-                break;
-            }
-        }
-
-        // Always assign (construction heuristic must initialize all entities)
-        director.before_variable_changed(i);
-        director.working_solution_mut().shifts[i].employee_idx = Some(best_emp_idx);
-        director.after_variable_changed(i);
-
-        current_score = director.get_score();
-        phase1_timer.record_move();
-        phase1_timer.record_accepted(&format!("{}", current_score));
-    }
+    // Phase 1: Construction heuristic (round-robin)
+    let mut ch_timer = PhaseTimer::start("ConstructionHeuristic", 0);
+    let mut current_score = construction_heuristic(&mut director, &mut ch_timer);
+    ch_timer.finish();
 
     // Update job with constructed solution
-    {
-        let mut job_guard = job.write();
-        job_guard.schedule = director.clone_working_solution();
-        job_guard.schedule.score = Some(current_score);
+    update_job(&job, &director, current_score);
+
+    // Phase 2: Late Acceptance local search
+    let n_employees = director.working_solution().employees.len();
+    if n_employees == 0 {
+        info!("No employees to optimize");
+        finish_job(&job, &director, current_score);
+        return;
     }
 
-    phase1_timer.finish();
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // PHASE 2: Late Acceptance Local Search (with incremental scoring)
-    // ═══════════════════════════════════════════════════════════════════════
-    let mut phase2_timer = PhaseTimer::start("Late Acceptance Local Search", 1);
-
-    let mut late_scores: Vec<HardSoftDecimalScore> = vec![current_score; late_acceptance_size];
+    let mut ls_timer = PhaseTimer::start("LateAcceptance", 1);
+    let mut late_scores = vec![current_score; LATE_ACCEPTANCE_SIZE];
     let mut step: u64 = 0;
-    let mut moves_evaluated: u64 = 0;
-    let mut moves_accepted: u64 = 0;
     let mut rng = rand::thread_rng();
-    let mut last_print = Instant::now();
-    let n_shifts = director.working_solution().shifts.len();
 
-    // Time-based termination
-    while solve_start.elapsed() < time_limit {
-        // Check for stop signal (terminateEarly)
-        if stop_rx.try_recv().is_ok() {
-            println!(
-                "  {} {}",
-                "⚠".yellow(),
-                "Solving terminated early by user".yellow()
-            );
+    // Track best score and improvement times
+    let mut best_score = current_score;
+    let mut last_improvement_time = solve_start;
+    let mut last_improvement_step: u64 = 0;
+
+    loop {
+        // Check termination conditions
+        let elapsed = solve_start.elapsed();
+        let time_since_improvement = last_improvement_time.elapsed();
+        let steps_since_improvement = step - last_improvement_step;
+
+        if config.should_terminate(elapsed, step, time_since_improvement, steps_since_improvement) {
+            debug!("Termination condition met");
             break;
         }
 
-        // Generate a random move: change one shift's employee assignment
-        let shift_idx = rng.gen_range(0..n_shifts);
-        let old_employee_idx = director.working_solution().shifts[shift_idx].employee_idx;
-
-        // Try a random employee index
-        let new_employee_idx = if n_employees == 0 {
-            None
-        } else {
-            Some(rng.gen_range(0..n_employees))
-        };
-
-        // Skip if no change
-        if new_employee_idx == old_employee_idx {
-            continue;
+        // Check for stop signal
+        if stop_rx.try_recv().is_ok() {
+            info!("Solving terminated early by user");
+            break;
         }
 
-        // INCREMENTAL: Apply move with delta scoring
-        director.before_variable_changed(shift_idx);
-        director.working_solution_mut().shifts[shift_idx].employee_idx = new_employee_idx;
-        director.after_variable_changed(shift_idx);
+        // Generate random change move
+        if let Some((shift_idx, new_employee_idx)) = generate_move(&director, &mut rng) {
+            ls_timer.record_move();
 
-        let new_score = director.get_score(); // O(1) - cached
-        moves_evaluated += 1;
+            // Try the move
+            let old_score = current_score;
+            let old_employee_idx = apply_move(&mut director, shift_idx, new_employee_idx);
+            let new_score = director.get_score();
 
-        // Late Acceptance criterion
-        let late_idx = (step as usize) % late_acceptance_size;
-        let late_score = late_scores[late_idx];
+            // Late acceptance criterion
+            let late_idx = (step as usize) % LATE_ACCEPTANCE_SIZE;
+            let late_score = late_scores[late_idx];
 
-        if new_score >= current_score || new_score >= late_score {
-            // Accept the move
-            moves_accepted += 1;
-            current_score = new_score;
-            late_scores[late_idx] = new_score;
-            phase2_timer.record_accepted(&format!("{}", current_score));
+            if new_score >= old_score || new_score >= late_score {
+                // Accept
+                ls_timer.record_accepted(&current_score.to_string());
+                current_score = new_score;
+                late_scores[late_idx] = new_score;
 
-            // Update job periodically (every 1000 accepted steps)
-            if moves_accepted.is_multiple_of(1000) {
-                let mut job_guard = job.write();
-                job_guard.schedule = director.clone_working_solution();
-                job_guard.schedule.score = Some(current_score);
-            }
-        } else {
-            // Reject - undo move (incremental)
-            director.before_variable_changed(shift_idx);
-            director.working_solution_mut().shifts[shift_idx].employee_idx = old_employee_idx;
-            director.after_variable_changed(shift_idx);
-        }
+                // Track improvements
+                if new_score > best_score {
+                    best_score = new_score;
+                    last_improvement_time = Instant::now();
+                    last_improvement_step = step;
+                }
 
-        step += 1;
-        phase2_timer.record_move();
-
-        // Print progress every second
-        if last_print.elapsed().as_secs() >= 1 {
-            let elapsed = phase2_timer.elapsed();
-            let remaining = time_limit.saturating_sub(solve_start.elapsed());
-            let moves_per_sec = if elapsed.as_secs_f64() > 0.0 {
-                (moves_evaluated as f64 / elapsed.as_secs_f64()) as u64
+                // Periodic update
+                if ls_timer.steps_accepted().is_multiple_of(1000) {
+                    update_job(&job, &director, current_score);
+                    debug!(
+                        step,
+                        moves_accepted = ls_timer.steps_accepted(),
+                        score = %current_score,
+                        elapsed_secs = solve_start.elapsed().as_secs(),
+                        "Progress update"
+                    );
+                }
             } else {
-                0
-            };
+                // Reject - undo
+                undo_move(&mut director, shift_idx, old_employee_idx);
+            }
 
-            println!(
-                "  {} Step {:>6} │ {:.1}s elapsed │ {:.0}s remaining │ {}/sec │ Score: {}",
-                "·".bright_black(),
-                step.to_formatted_string(&Locale::en).white(),
-                elapsed.as_secs_f64(),
-                remaining.as_secs_f64(),
-                moves_per_sec
-                    .to_formatted_string(&Locale::en)
-                    .bright_magenta()
-                    .bold(),
-                format!("{}", current_score).bright_cyan()
-            );
-            last_print = Instant::now();
+            step += 1;
         }
     }
 
-    phase2_timer.finish();
+    ls_timer.finish();
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // Summary
-    // ═══════════════════════════════════════════════════════════════════════
     let total_duration = solve_start.elapsed();
-    let is_feasible = current_score.is_feasible();
 
-    console::print_solving_ended(
-        total_duration,
-        moves_evaluated,
-        2, // phase_count: Construction Heuristic + Local Search
-        &format!("{}", current_score),
-        is_feasible,
+    info!(
+        job_id = %job_id,
+        duration_secs = total_duration.as_secs_f64(),
+        steps = step,
+        score = %current_score,
+        feasible = current_score.is_feasible(),
+        "Solving complete"
     );
 
-    // Final update
-    {
-        let mut job_guard = job.write();
-        job_guard.schedule = director.clone_working_solution();
-        job_guard.schedule.score = Some(current_score);
-        job_guard.status = SolverStatus::NotSolving;
+    finish_job(&job, &director, current_score);
+}
+
+/// Construction heuristic: round-robin employee assignment.
+fn construction_heuristic(
+    director: &mut TypedScoreDirector<EmployeeSchedule, impl ConstraintSet<EmployeeSchedule, HardSoftDecimalScore>>,
+    timer: &mut PhaseTimer,
+) -> HardSoftDecimalScore {
+    // Initialize score
+    let _ = director.calculate_score();
+
+    let n_shifts = director.working_solution().shifts.len();
+    let n_employees = director.working_solution().employees.len();
+
+    if n_employees == 0 || n_shifts == 0 {
+        return director.get_score();
+    }
+
+    // Count already-assigned shifts
+    let assigned_count = director
+        .working_solution()
+        .shifts
+        .iter()
+        .filter(|s| s.employee_idx.is_some())
+        .count();
+
+    // If all shifts already assigned, skip construction
+    if assigned_count == n_shifts {
+        info!("All shifts already assigned, skipping construction heuristic");
+        return director.get_score();
+    }
+
+    // Round-robin assignment for unassigned shifts only
+    let mut employee_idx = 0;
+    for shift_idx in 0..n_shifts {
+        if director.working_solution().shifts[shift_idx].employee_idx.is_some() {
+            continue;
+        }
+
+        timer.record_move();
+        director.before_variable_changed(shift_idx);
+        director.working_solution_mut().shifts[shift_idx].employee_idx = Some(employee_idx);
+        director.after_variable_changed(shift_idx);
+
+        let score = director.get_score();
+        timer.record_accepted(&score.to_string());
+
+        employee_idx = (employee_idx + 1) % n_employees;
+    }
+
+    director.get_score()
+}
+
+/// Generates a random change move (assign a different employee to a shift).
+fn generate_move<R: Rng>(
+    director: &TypedScoreDirector<EmployeeSchedule, impl ConstraintSet<EmployeeSchedule, HardSoftDecimalScore>>,
+    rng: &mut R,
+) -> Option<(usize, Option<usize>)> {
+    let solution = director.working_solution();
+    let n_shifts = solution.shifts.len();
+    let n_employees = solution.employees.len();
+
+    if n_shifts == 0 || n_employees == 0 {
+        return None;
+    }
+
+    // Pick random shift
+    let shift_idx = rng.gen_range(0..n_shifts);
+    let current_employee = solution.shifts[shift_idx].employee_idx;
+
+    // Pick random new employee (different from current)
+    let new_employee_idx = rng.gen_range(0..n_employees);
+
+    // Skip no-op moves
+    if current_employee == Some(new_employee_idx) {
+        return None;
+    }
+
+    Some((shift_idx, Some(new_employee_idx)))
+}
+
+/// Applies a change move, returns the old employee index.
+fn apply_move(
+    director: &mut TypedScoreDirector<EmployeeSchedule, impl ConstraintSet<EmployeeSchedule, HardSoftDecimalScore>>,
+    shift_idx: usize,
+    new_employee_idx: Option<usize>,
+) -> Option<usize> {
+    let old_employee_idx = director.working_solution().shifts[shift_idx].employee_idx;
+
+    director.before_variable_changed(shift_idx);
+    director.working_solution_mut().shifts[shift_idx].employee_idx = new_employee_idx;
+    director.after_variable_changed(shift_idx);
+
+    old_employee_idx
+}
+
+/// Undoes a change move.
+fn undo_move(
+    director: &mut TypedScoreDirector<EmployeeSchedule, impl ConstraintSet<EmployeeSchedule, HardSoftDecimalScore>>,
+    shift_idx: usize,
+    old_employee_idx: Option<usize>,
+) {
+    director.before_variable_changed(shift_idx);
+    director.working_solution_mut().shifts[shift_idx].employee_idx = old_employee_idx;
+    director.after_variable_changed(shift_idx);
+}
+
+/// Updates job with current solution.
+fn update_job(
+    job: &Arc<RwLock<SolveJob>>,
+    director: &TypedScoreDirector<EmployeeSchedule, impl ConstraintSet<EmployeeSchedule, HardSoftDecimalScore>>,
+    score: HardSoftDecimalScore,
+) {
+    let mut job_guard = job.write();
+    job_guard.schedule = director.clone_working_solution();
+    job_guard.schedule.score = Some(score);
+}
+
+/// Finishes job and sets status.
+fn finish_job(
+    job: &Arc<RwLock<SolveJob>>,
+    director: &TypedScoreDirector<EmployeeSchedule, impl ConstraintSet<EmployeeSchedule, HardSoftDecimalScore>>,
+    score: HardSoftDecimalScore,
+) {
+    let mut job_guard = job.write();
+    job_guard.schedule = director.clone_working_solution();
+    job_guard.schedule.score = Some(score);
+    job_guard.status = SolverStatus::NotSolving;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::demo_data::{generate, DemoData};
+
+    #[test]
+    fn test_construction_heuristic() {
+        let schedule = generate(DemoData::Small);
+        let constraints = create_fluent_constraints();
+        let mut director = TypedScoreDirector::new(schedule, constraints);
+
+        let mut timer = PhaseTimer::start("ConstructionHeuristic", 0);
+        let score = construction_heuristic(&mut director, &mut timer);
+
+        // All shifts should be assigned
+        let assigned_count = director
+            .working_solution()
+            .shifts
+            .iter()
+            .filter(|s| s.employee_idx.is_some())
+            .count();
+        let total_shifts = director.working_solution().shifts.len();
+        assert_eq!(assigned_count, total_shifts);
+        assert!(score.hard_scaled() <= 0); // May have some violations
     }
 }

@@ -126,7 +126,13 @@ pub use solverforge_solver::{
     SolverScope, PhaseScope, StepScope,
     Move, ChangeMove, SwapMove, MoveSelector, ChangeMoveSelector, SwapMoveSelector,
     EntitySelector,
+    // K-opt move and selectors
+    CutPoint, KOptMove, KOptConfig, KOptMoveSelector, NearbyKOptMoveSelector,
+    ListPositionDistanceMeter, k_opt_reconnection,
 };
+
+// Re-export heuristic module for advanced move/selector access
+pub use solverforge_solver::heuristic;
 
 // Re-export zero-erasure constraint infrastructure
 pub use solverforge_scoring::{

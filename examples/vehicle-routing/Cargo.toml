@@ -1,13 +1,12 @@
 [package]
 name = "vehicle-routing"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 description = "Vehicle routing quickstart for SolverForge"
 publish = false
 
 [dependencies]
 solverforge = { path = "../../crates/solverforge", features = ["serde"] }
-solverforge-scoring = { path = "../../crates/solverforge-scoring" }
 rand = "0.8"
 
 axum = "0.8"
@@ -26,7 +25,7 @@ chrono = { version = "0.4", features = ["serde"] }
 utoipa = { version = "5", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 petgraph = "0.6"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 ordered-float = "4"
 async-stream = "0.3"
 tokio-stream = "0.1"

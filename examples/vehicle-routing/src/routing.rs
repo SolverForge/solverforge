@@ -2,16 +2,25 @@
 //!
 //! Downloads OpenStreetMap road network data via Overpass API,
 //! builds a graph locally, and computes shortest paths with Dijkstra.
-//! Results are cached in `.osm_cache/` directory.
+//! Results are cached in memory (per-process) and `.osm_cache/` (persistent).
 
 use ordered_float::OrderedFloat;
-use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::algo::{astar, dijkstra};
+use petgraph::graph::{DiGraph, NodeIndex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
-use tracing::{debug, info};
+use std::sync::{Arc, OnceLock};
+use tokio::sync::RwLock;
+use tracing::{debug, error, info};
+
+/// In-memory cache of road networks, keyed by bbox cache key.
+/// First request downloads, subsequent requests reuse the cached network.
+static NETWORK_CACHE: OnceLock<RwLock<HashMap<String, Arc<RoadNetwork>>>> = OnceLock::new();
+
+fn network_cache() -> &'static RwLock<HashMap<String, Arc<RoadNetwork>>> {
+    NETWORK_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
+}
 
 /// Overpass API URL.
 const OVERPASS_URL: &str = "https://overpass-api.de/api/interpreter";
@@ -147,24 +156,61 @@ impl RoadNetwork {
 
     /// Loads or fetches road network for a bounding box.
     ///
-    /// Uses cached data if available, otherwise downloads via Overpass API.
-    pub async fn load_or_fetch(bbox: &BoundingBox) -> Result<Self, RoutingError> {
-        // Check cache
-        fs::create_dir_all(CACHE_DIR)?;
-        let cache_path = Path::new(CACHE_DIR).join(format!("{}.json", bbox.cache_key()));
+    /// Uses three-tier caching:
+    /// 1. In-memory cache (instant, per-process)
+    /// 2. File cache (fast, persists across restarts)
+    /// 3. Overpass API download (slow, ~5-30s)
+    ///
+    /// Thread-safe: concurrent requests for the same bbox will wait for
+    /// the first download to complete rather than downloading multiple times.
+    pub async fn load_or_fetch(bbox: &BoundingBox) -> Result<Arc<Self>, RoutingError> {
+        let cache_key = bbox.cache_key();
 
-        if cache_path.exists() {
-            info!("Loading road network from cache: {:?}", cache_path);
-            return Self::load_from_cache(&cache_path);
+        // 1. Check in-memory cache (fast path, read lock)
+        {
+            let cache = network_cache().read().await;
+            if let Some(network) = cache.get(&cache_key) {
+                info!("Using in-memory cached road network for {}", cache_key);
+                return Ok(Arc::clone(network));
+            }
         }
 
-        // Download from Overpass API
-        info!("Downloading road network from Overpass API");
-        let network = Self::from_bbox(bbox).await?;
+        // 2. Acquire write lock and double-check (another request may have loaded it)
+        let mut cache = network_cache().write().await;
+        if let Some(network) = cache.get(&cache_key) {
+            info!("Using in-memory cached road network for {}", cache_key);
+            return Ok(Arc::clone(network));
+        }
 
-        // Save to cache
-        network.save_to_cache(&cache_path)?;
-        info!("Saved road network to cache: {:?}", cache_path);
+        // 3. Try loading from file cache
+        tokio::fs::create_dir_all(CACHE_DIR).await?;
+        let cache_path = Path::new(CACHE_DIR).join(format!("{}.json", cache_key));
+
+        let network = if tokio::fs::try_exists(&cache_path).await.unwrap_or(false) {
+            info!("Loading road network from file cache: {:?}", cache_path);
+            match Self::load_from_cache(&cache_path).await {
+                Ok(n) => n,
+                Err(e) => {
+                    // File cache failed (corrupted/old version), download fresh
+                    info!("File cache invalid ({}), downloading fresh", e);
+                    let n = Self::from_bbox(bbox).await?;
+                    n.save_to_cache(&cache_path).await?;
+                    info!("Saved road network to file cache: {:?}", cache_path);
+                    n
+                }
+            }
+        } else {
+            // 4. Download from Overpass API
+            info!("Downloading road network from Overpass API");
+            let n = Self::from_bbox(bbox).await?;
+            n.save_to_cache(&cache_path).await?;
+            info!("Saved road network to file cache: {:?}", cache_path);
+            n
+        };
+
+        // Store in memory cache
+        let network = Arc::new(network);
+        cache.insert(cache_key, Arc::clone(&network));
 
         Ok(network)
     }
@@ -184,19 +230,31 @@ out body;"#,
 
         debug!("Overpass query:\n{}", query);
 
+        info!("Preparing Overpass query for bbox: {:.4},{:.4} to {:.4},{:.4}",
+            bbox.min_lat, bbox.min_lng, bbox.max_lat, bbox.max_lng);
+
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(30))
+            .read_timeout(std::time::Duration::from_secs(180))
             .timeout(std::time::Duration::from_secs(180))
             .user_agent("SolverForge/0.4.0")
             .build()
             .map_err(|e| RoutingError::Network(e.to_string()))?;
+
+        info!("Sending request to Overpass API...");
+
         let response = client
             .post(OVERPASS_URL)
             .body(query)
             .header("Content-Type", "text/plain")
             .send()
             .await
-            .map_err(|e| RoutingError::Network(e.to_string()))?;
+            .map_err(|e| {
+                error!("Overpass request failed: {}", e);
+                RoutingError::Network(e.to_string())
+            })?;
+
+        info!("Received response: status={}", response.status());
 
         if !response.status().is_success() {
             return Err(RoutingError::Network(format!(
@@ -462,10 +520,28 @@ out body;"#,
     }
 
     /// Loads road network from cache file.
-    fn load_from_cache(path: &Path) -> Result<Self, RoutingError> {
-        let data = fs::read_to_string(path)?;
-        let cached: CachedNetwork =
-            serde_json::from_str(&data).map_err(|e| RoutingError::Parse(e.to_string()))?;
+    async fn load_from_cache(path: &Path) -> Result<Self, RoutingError> {
+        let data = tokio::fs::read_to_string(path).await?;
+
+        // Parse cached data, handling corrupted files
+        let cached: CachedNetwork = match serde_json::from_str(&data) {
+            Ok(c) => c,
+            Err(e) => {
+                info!("Cache file corrupted, will re-download: {}", e);
+                let _ = tokio::fs::remove_file(path).await;
+                return Err(RoutingError::Parse(e.to_string()));
+            }
+        };
+
+        // Check version - delete old format and re-download
+        if cached.version != CACHE_VERSION {
+            info!(
+                "Cache version mismatch (got {}, need {}), will re-download",
+                cached.version, CACHE_VERSION
+            );
+            let _ = tokio::fs::remove_file(path).await;
+            return Err(RoutingError::Parse("cache version mismatch".into()));
+        }
 
         let mut network = Self::new();
 
@@ -497,7 +573,7 @@ out body;"#,
     }
 
     /// Saves road network to cache file.
-    fn save_to_cache(&self, path: &Path) -> Result<(), RoutingError> {
+    async fn save_to_cache(&self, path: &Path) -> Result<(), RoutingError> {
         let nodes: Vec<CachedNode> = self
             .graph
             .node_indices()
@@ -524,9 +600,13 @@ out body;"#,
             })
             .collect();
 
-        let cached = CachedNetwork { nodes, edges };
+        let cached = CachedNetwork {
+            version: CACHE_VERSION,
+            nodes,
+            edges,
+        };
         let data = serde_json::to_string(&cached).map_err(|e| RoutingError::Parse(e.to_string()))?;
-        fs::write(path, data)?;
+        tokio::fs::write(path, data).await?;
 
         Ok(())
     }
@@ -571,8 +651,13 @@ struct OsmTags {
 // Cache Data Structures
 // ============================================================================
 
+/// Cache format version. Bump this when changing the cache structure.
+const CACHE_VERSION: u32 = 1;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct CachedNetwork {
+    /// Cache format version for automatic invalidation.
+    version: u32,
     nodes: Vec<CachedNode>,
     edges: Vec<CachedEdge>,
 }

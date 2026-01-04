@@ -1,6 +1,6 @@
 //! Solver service for Vehicle Routing Problem.
 //!
-//! Uses Late Acceptance local search with ListChangeMove for route optimization.
+//! Uses Late Acceptance local search with list-change moves (visit relocation).
 //! Incremental scoring via TypedScoreDirector for O(1) move evaluation.
 
 use parking_lot::RwLock;
@@ -414,6 +414,8 @@ fn solve_blocking(
 }
 
 /// Construction heuristic: round-robin visit assignment.
+///
+/// Skips construction if all visits are already assigned (continue mode).
 fn construction_heuristic(
     director: &mut TypedScoreDirector<VehicleRoutePlan, impl ConstraintSet<VehicleRoutePlan, HardSoftScore>>,
     timer: &mut PhaseTimer,
@@ -428,9 +430,34 @@ fn construction_heuristic(
         return director.get_score();
     }
 
-    // Round-robin assignment
+    // Count already-assigned visits
+    let assigned_count: usize = director
+        .working_solution()
+        .vehicles
+        .iter()
+        .map(|v| v.visits.len())
+        .sum();
+
+    // If all visits already assigned, skip construction (continue mode)
+    if assigned_count == n_visits {
+        info!("All visits already assigned, skipping construction heuristic");
+        return director.get_score();
+    }
+
+    // Build set of already-assigned visits
+    let assigned: std::collections::HashSet<usize> = director
+        .working_solution()
+        .vehicles
+        .iter()
+        .flat_map(|v| v.visits.iter().copied())
+        .collect();
+
+    // Round-robin assignment for unassigned visits only
+    let mut vehicle_idx = 0;
     for visit_idx in 0..n_visits {
-        let vehicle_idx = visit_idx % n_vehicles;
+        if assigned.contains(&visit_idx) {
+            continue;
+        }
 
         timer.record_move();
         director.before_variable_changed(vehicle_idx);
@@ -441,6 +468,8 @@ fn construction_heuristic(
 
         let score = director.get_score();
         timer.record_accepted(&score.to_string());
+
+        vehicle_idx = (vehicle_idx + 1) % n_vehicles;
     }
 
     director.get_score()

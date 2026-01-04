@@ -1913,6 +1913,7 @@ name = "solverforge-console"
 version = "0.4.0"
 dependencies = [
  "crossterm",
+ "parking_lot",
  "ratatui",
  "serde",
  "serde_json",
@@ -2511,6 +2512,7 @@ version = "0.4.0"
 dependencies = [
  "async-stream",
  "axum",
+ "chrono",
  "ordered-float",
  "parking_lot",
  "petgraph",

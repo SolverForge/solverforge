@@ -8,6 +8,7 @@ use solverforge_core::PlanningSolution;
 use solverforge_solver::event::{
     PhaseLifecycleListener, SolverEventListener, StepLifecycleListener,
 };
+use std::marker::PhantomData;
 use std::time::Instant;
 
 use crate::{ConsoleInstance, ConsoleManager};
@@ -37,11 +38,12 @@ use crate::formatter::{format_duration, format_number};
 /// // listener.record_accepted(&score.to_string());
 /// ```
 #[derive(Debug)]
-pub struct ConsoleEventListener {
+pub struct ConsoleEventListener<S: PlanningSolution> {
     console: RwLock<ConsoleInstance>,
     solve_start: Instant,
     phase_start: RwLock<Option<Instant>>,
     phase_metrics: RwLock<PhaseMetrics>,
+    _phantom: PhantomData<S>,
 }
 
 /// Internal metrics tracked during a phase.
@@ -52,7 +54,7 @@ struct PhaseMetrics {
     last_score: String,
 }
 
-impl ConsoleEventListener {
+impl<S: PlanningSolution> ConsoleEventListener<S> {
     /// Creates a new event listener for the given job ID.
     ///
     /// The listener creates its own console instance from the global [`ConsoleManager`].
@@ -72,6 +74,7 @@ impl ConsoleEventListener {
             solve_start: Instant::now(),
             phase_start: RwLock::new(None),
             phase_metrics: RwLock::new(PhaseMetrics::default()),
+            _phantom: PhantomData,
         }
     }
 
@@ -157,7 +160,7 @@ impl ConsoleEventListener {
 }
 
 /// Generic implementation for any PlanningSolution type.
-impl<S: PlanningSolution> SolverEventListener<S> for ConsoleEventListener
+impl<S: PlanningSolution + std::fmt::Debug> SolverEventListener<S> for ConsoleEventListener<S>
 where
     S::Score: std::fmt::Display,
 {
@@ -210,7 +213,7 @@ where
 }
 
 /// Generic implementation for any PlanningSolution type.
-impl<S: PlanningSolution> PhaseLifecycleListener<S> for ConsoleEventListener {
+impl<S: PlanningSolution + std::fmt::Debug> PhaseLifecycleListener<S> for ConsoleEventListener<S> {
     fn on_phase_started(&self, phase_index: usize, phase_type: &str) {
         *self.phase_start.write() = Some(Instant::now());
         *self.phase_metrics.write() = PhaseMetrics::default();
@@ -272,7 +275,7 @@ impl<S: PlanningSolution> PhaseLifecycleListener<S> for ConsoleEventListener {
 }
 
 /// Generic implementation for any PlanningSolution type.
-impl<S: PlanningSolution> StepLifecycleListener<S> for ConsoleEventListener {
+impl<S: PlanningSolution + std::fmt::Debug> StepLifecycleListener<S> for ConsoleEventListener<S> {
     fn on_step_started(&self, _step_index: u64) {
         // Step-level events are too granular for console output
         // Metrics are tracked via record_move/record_accepted instead

@@ -238,7 +238,7 @@ fn solve_blocking(
     job: Arc<RwLock<SolveJob>>,
     mut stop_rx: oneshot::Receiver<()>,
     config: SolverConfig,
-    listener: ConsoleEventListener,
+    listener: ConsoleEventListener<VehicleRoutePlan>,
 ) {
     let initial_plan = job.read().plan.clone();
     let job_id = job.read().id.clone();
@@ -269,7 +269,7 @@ fn solve_blocking(
     let n_vehicles = director.working_solution().vehicles.len();
     if n_vehicles == 0 {
         info!("No vehicles to optimize");
-        listener.on_solving_ended(&director.working_solution(), false);
+        listener.on_solving_ended(director.working_solution(), false);
         finish_job(&job, &director, current_score);
         return;
     }
@@ -371,7 +371,7 @@ fn solve_blocking(
         "Solving complete"
     );
 
-    listener.on_solving_ended(&director.working_solution(), false);
+    listener.on_solving_ended(director.working_solution(), false);
 
     finish_job(&job, &director, current_score);
 }

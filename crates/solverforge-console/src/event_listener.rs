@@ -157,7 +157,10 @@ impl ConsoleEventListener {
 }
 
 /// Generic implementation for any PlanningSolution type.
-impl<S: PlanningSolution> SolverEventListener<S> for ConsoleEventListener {
+impl<S: PlanningSolution> SolverEventListener<S> for ConsoleEventListener
+where
+    S::Score: std::fmt::Display,
+{
     fn on_best_solution_changed(&self, _solution: &S, score: &S::Score) {
         let mut console = self.console.write();
         let core = console.core_channel();

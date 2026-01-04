@@ -80,16 +80,16 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(console: Arc<parking_lot::RwLock<solverforge_console::ConsoleInstance>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            solver: SolverService::new(console),
+            solver: SolverService::new(),
         }
     }
 }
 
 /// Creates the API router with CORS and Swagger UI enabled.
-pub fn create_router(console: Arc<parking_lot::RwLock<solverforge_console::ConsoleInstance>>) -> Router {
-    let state = Arc::new(AppState::new(console));
+pub fn create_router() -> Router {
+    let state = Arc::new(AppState::new());
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

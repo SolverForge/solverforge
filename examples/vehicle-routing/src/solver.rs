@@ -15,6 +15,7 @@ use tracing::{debug, info};
 
 use crate::constraints::create_constraints;
 use crate::domain::VehicleRoutePlan;
+use solverforge::{PhaseLifecycleListener, SolverEventListener};
 use solverforge_console::ConsoleEventListener;
 
 /// Default solving time: 30 seconds.

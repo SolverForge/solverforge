@@ -88,6 +88,11 @@ pub use solverforge_config::{
 // Re-export solver
 pub use solverforge_solver::{Solver, SolverFactory};
 
+// Re-export event listeners
+pub use solverforge_solver::event::{
+    SolverEventListener, PhaseLifecycleListener, StepLifecycleListener,
+};
+
 // Re-export solver manager and phase factories
 pub use solverforge_solver::manager::{
     CloneablePhaseFactory, ClosurePhaseFactory, ConstructionPhaseFactory, ConstructionType,

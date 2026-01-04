@@ -1,154 +1,282 @@
-//! Event listener integration for SolverForge event system.
+//! Generic event listener for solver monitoring.
+//!
+//! The [`ConsoleEventListener`] works with any [`PlanningSolution`] type and provides
+//! full explainability through console channels without requiring custom code.
 
-use std::fmt::Display;
+use parking_lot::RwLock;
+use solverforge_core::PlanningSolution;
+use solverforge_solver::event::{
+    PhaseLifecycleListener, SolverEventListener, StepLifecycleListener,
+};
 use std::time::Instant;
 
-use solverforge_core::domain::PlanningSolution;
-use solverforge_solver::event::{SolverEventListener, PhaseLifecycleListener, StepLifecycleListener};
-
-use crate::console::ConsoleInstance;
+use crate::{ConsoleInstance, ConsoleManager};
 use crate::formatter::{format_duration, format_number};
 
-/// Event listener that sends solver events to SERIO Console.
+/// Generic event listener for solver monitoring.
 ///
-/// This listener integrates with SolverForge's event system and routes
-/// events to console channels with automatic formatting and thread tagging.
+/// This listener works with any problem type (VRP, scheduling, N-queens, etc.) without
+/// requiring custom implementations. It automatically tracks solver progress, phase metrics,
+/// and solution quality through console channels.
 ///
 /// # Examples
 ///
+/// ```no_run
+/// use solverforge_console::{ConsoleManager, ConsoleMode, ConsoleEventListener};
+///
+/// // Initialize console (once at startup)
+/// ConsoleManager::init(ConsoleMode::Tui);
+/// std::thread::spawn(|| ConsoleManager::run());
+///
+/// // Create generic listener for any problem type
+/// let listener = ConsoleEventListener::new("my-job-123");
+///
+/// // Attach to solver and use...
+/// // listener.on_solving_started(&solution);
+/// // listener.record_move();
+/// // listener.record_accepted(&score.to_string());
 /// ```
-/// use solverforge_console::{ConsoleManager, ConsoleMode};
-/// use solverforge_console::event_listener::ConsoleEventListener;
-/// use std::sync::Arc;
-///
-/// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
-/// let mut console = manager.create_console("vrp-job-001".to_string());
-///
-/// // Create event listener for solver integration
-/// let listener = Arc::new(ConsoleEventListener::new(console.clone()));
-///
-/// // Add to solver event system
-/// // solver.add_solver_listener(listener.clone());
-/// // solver.add_phase_listener(listener.clone());
-/// ```
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ConsoleEventListener {
-    console: ConsoleInstance,
-    phase_start_time: Option<Instant>,
+    console: RwLock<ConsoleInstance>,
+    solve_start: Instant,
+    phase_start: RwLock<Option<Instant>>,
+    phase_metrics: RwLock<PhaseMetrics>,
+}
+
+/// Internal metrics tracked during a phase.
+#[derive(Debug, Default, Clone)]
+struct PhaseMetrics {
+    steps_accepted: u64,
+    moves_evaluated: u64,
+    last_score: String,
 }
 
 impl ConsoleEventListener {
-    /// Creates a new console event listener.
+    /// Creates a new event listener for the given job ID.
+    ///
+    /// The listener creates its own console instance from the global [`ConsoleManager`].
     ///
     /// # Examples
     ///
-    /// ```
-    /// use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// use solverforge_console::event_listener::ConsoleEventListener;
+    /// ```no_run
+    /// use solverforge_console::{ConsoleManager, ConsoleMode, ConsoleEventListener};
     ///
-    /// let mut manager = ConsoleManager::new(ConsoleMode::Tui);
-    /// let console = manager.create_console("job-001".to_string());
-    /// let listener = ConsoleEventListener::new(console);
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// let listener = ConsoleEventListener::new("vrp-job-001");
     /// ```
-    pub fn new(console: ConsoleInstance) -> Self {
+    pub fn new(job_id: &str) -> Self {
+        let console = ConsoleManager::global().create_console(job_id.to_string());
         Self {
-            console,
-            phase_start_time: None,
+            console: RwLock::new(console),
+            solve_start: Instant::now(),
+            phase_start: RwLock::new(None),
+            phase_metrics: RwLock::new(PhaseMetrics::default()),
         }
     }
 
-    /// Returns a reference to the console instance.
-    pub fn console(&self) -> &ConsoleInstance {
-        &self.console
+    /// Records a move evaluation.
+    ///
+    /// Call this after each move is evaluated in the solver loop to track move throughput.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use solverforge_console::{ConsoleManager, ConsoleMode, ConsoleEventListener};
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// # let listener = ConsoleEventListener::new("job");
+    /// // In solver loop
+    /// listener.record_move();
+    /// ```
+    pub fn record_move(&self) {
+        self.phase_metrics.write().moves_evaluated += 1;
     }
 
-    /// Returns a mutable reference to the console instance.
-    pub fn console_mut(&mut self) -> &mut ConsoleInstance {
-        &mut self.console
+    /// Records a move acceptance with the current score.
+    ///
+    /// Call this when a move is accepted to track acceptance rate and score progression.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use solverforge_console::{ConsoleManager, ConsoleMode, ConsoleEventListener};
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// # let listener = ConsoleEventListener::new("job");
+    /// // After accepting a move
+    /// listener.record_accepted("0hard/-1234soft");
+    /// ```
+    pub fn record_accepted(&self, score: &str) {
+        let mut metrics = self.phase_metrics.write();
+        metrics.steps_accepted += 1;
+        metrics.last_score = score.to_string();
+    }
+
+    /// Reports periodic progress to the console.
+    ///
+    /// Call this every N steps (e.g., every 10,000 moves) to emit progress updates.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use solverforge_console::{ConsoleManager, ConsoleMode, ConsoleEventListener};
+    /// # ConsoleManager::init(ConsoleMode::Tui);
+    /// # let listener = ConsoleEventListener::new("job");
+    /// // Every 10,000 moves
+    /// if step % 10000 == 0 {
+    ///     listener.report_step_progress(step);
+    /// }
+    /// ```
+    pub fn report_step_progress(&self, step: u64) {
+        let metrics = self.phase_metrics.read();
+        let phase_elapsed = self
+            .phase_start
+            .read()
+            .map(|start| start.elapsed())
+            .unwrap_or_default();
+
+        let moves_per_sec = if phase_elapsed.as_secs_f64() > 0.0 {
+            (metrics.moves_evaluated as f64 / phase_elapsed.as_secs_f64()) as u64
+        } else {
+            0
+        };
+
+        let mut console = self.console.write();
+        let solver_channel = console.channel("solver");
+
+        solver_channel.info(&format!(
+            "Step {} | {} | {}/sec | {}",
+            format_number(step),
+            format_duration(phase_elapsed),
+            format_number(moves_per_sec),
+            metrics.last_score
+        ));
+
+        solver_channel.metric("moves_per_sec", &moves_per_sec.to_string());
+        solver_channel.metric("steps_accepted", &metrics.steps_accepted.to_string());
     }
 }
 
-impl<S> SolverEventListener<S> for ConsoleEventListener
-where
-    S: PlanningSolution,
-    S::Score: Display,
-{
+/// Generic implementation for any PlanningSolution type.
+impl<S: PlanningSolution> SolverEventListener<S> for ConsoleEventListener {
     fn on_best_solution_changed(&self, _solution: &S, score: &S::Score) {
-        let mut console = self.console.clone();
+        let mut console = self.console.write();
         let core = console.core_channel();
-        core.info(format!("New best solution: {}", score));
+
+        core.info(&format!("New best solution: {}", score));
+        core.metric("best_score", &score.to_string());
     }
 
     fn on_solving_started(&self, _solution: &S) {
-        let mut console = self.console.clone();
+        let mut console = self.console.write();
         let core = console.core_channel();
+
         core.info("Solving started");
     }
 
     fn on_solving_ended(&self, _solution: &S, is_terminated_early: bool) {
-        let mut console = self.console.clone();
+        let total_duration = self.solve_start.elapsed();
+        let metrics = self.phase_metrics.read();
+
+        let moves_per_sec = if total_duration.as_secs_f64() > 0.0 {
+            (metrics.moves_evaluated as f64 / total_duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+
+        let mut console = self.console.write();
         let core = console.core_channel();
+
         if is_terminated_early {
-            core.info("Solving ended (terminated early)");
+            core.warn("Solving terminated early");
         } else {
             core.info("Solving completed");
         }
+
+        core.info(&format!(
+            "Total time: {}, best score: {}, move speed: {}/sec",
+            format_duration(total_duration),
+            metrics.last_score,
+            format_number(moves_per_sec)
+        ));
+
+        core.metric("total_duration_ms", &total_duration.as_millis().to_string());
+        core.metric("total_moves", &metrics.moves_evaluated.to_string());
+        core.metric("total_steps", &metrics.steps_accepted.to_string());
+        core.metric("final_score", &metrics.last_score);
     }
 }
 
-impl<S> PhaseLifecycleListener<S> for ConsoleEventListener
-where
-    S: PlanningSolution,
-    S::Score: Display,
-{
+/// Generic implementation for any PlanningSolution type.
+impl<S: PlanningSolution> PhaseLifecycleListener<S> for ConsoleEventListener {
     fn on_phase_started(&self, phase_index: usize, phase_type: &str) {
-        // Store start time for duration calculation
-        let mut self_mut = self.clone();
-        self_mut.phase_start_time = Some(Instant::now());
+        *self.phase_start.write() = Some(Instant::now());
+        *self.phase_metrics.write() = PhaseMetrics::default();
 
-        let mut console = self.console.clone();
-        let core = console.core_channel();
-        core.info(format!("Phase {} ({}) started", phase_index, phase_type));
+        let mut console = self.console.write();
+        let solver_channel = console.channel("solver");
+
+        solver_channel.info(&format!("Phase {} ({}) started", phase_index, phase_type));
     }
 
     fn on_phase_ended(&self, phase_index: usize, phase_type: &str) {
-        let mut console = self.console.clone();
-        let core = console.core_channel();
+        let phase_duration = self
+            .phase_start
+            .read()
+            .map(|start| start.elapsed())
+            .unwrap_or_default();
 
-        if let Some(start_time) = self.phase_start_time {
-            let duration = start_time.elapsed();
-            core.info(format!(
-                "Phase {} ({}) ended after {}",
-                phase_index,
-                phase_type,
-                format_duration(duration)
-            ));
+        let metrics = self.phase_metrics.read();
+
+        let moves_per_sec = if phase_duration.as_secs_f64() > 0.0 {
+            (metrics.moves_evaluated as f64 / phase_duration.as_secs_f64()) as u64
         } else {
-            core.info(format!("Phase {} ({}) ended", phase_index, phase_type));
-        }
+            0
+        };
+
+        let acceptance_rate = if metrics.moves_evaluated > 0 {
+            (metrics.steps_accepted as f64 / metrics.moves_evaluated as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let mut console = self.console.write();
+        let solver_channel = console.channel("solver");
+
+        solver_channel.info(&format!(
+            "Phase {} ({}) ended: time ({}), best score ({}), speed ({}/sec), steps ({}, {:.1}% accepted)",
+            phase_index,
+            phase_type,
+            format_duration(phase_duration),
+            metrics.last_score,
+            format_number(moves_per_sec),
+            format_number(metrics.steps_accepted),
+            acceptance_rate
+        ));
+
+        solver_channel.metric(
+            &format!("phase_{}_duration_ms", phase_index),
+            &phase_duration.as_millis().to_string(),
+        );
+        solver_channel.metric(
+            &format!("phase_{}_moves_per_sec", phase_index),
+            &moves_per_sec.to_string(),
+        );
+        solver_channel.metric(
+            &format!("phase_{}_acceptance_rate", phase_index),
+            &format!("{:.1}", acceptance_rate),
+        );
     }
 }
 
-impl<S> StepLifecycleListener<S> for ConsoleEventListener
-where
-    S: PlanningSolution,
-    S::Score: Display,
-{
-    fn on_step_started(&self, step_index: u64) {
-        // Sample: only log every 10,000 steps to avoid overhead
-        if step_index % 10_000 == 0 {
-            let mut console = self.console.clone();
-            let core = console.core_channel();
-            core.debug(format!("Step {}", format_number(step_index)));
-        }
+/// Generic implementation for any PlanningSolution type.
+impl<S: PlanningSolution> StepLifecycleListener<S> for ConsoleEventListener {
+    fn on_step_started(&self, _step_index: u64) {
+        // Step-level events are too granular for console output
+        // Metrics are tracked via record_move/record_accepted instead
     }
 
-    fn on_step_ended(&self, step_index: u64, score: &S::Score) {
-        // Sample: only log every 10,000 steps
-        if step_index % 10_000 == 0 {
-            let mut console = self.console.clone();
-            let core = console.core_channel();
-            core.debug(format!("Step {} completed: {}", format_number(step_index), score));
-        }
+    fn on_step_ended(&self, _step_index: u64, _score: &S::Score) {
+        // Step-level events are too granular for console output
+        // Use report_step_progress for periodic updates
     }
 }

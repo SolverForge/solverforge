@@ -1394,6 +1394,9 @@ function solve() {
   // Clear geometry cache - will be refreshed when solution updates
   routeGeometries = null;
 
+  // Disable button immediately to prevent double-clicks
+  $("#solveButton").prop("disabled", true).addClass("disabled");
+
   $.ajax({
     url: "/route-plans",
     type: "POST",
@@ -1402,10 +1405,12 @@ function solve() {
     dataType: "text",
     success: function (data) {
       scheduleId = data.replace(/"/g, ""); // Remove quotes from UUID
+      $("#solveButton").prop("disabled", false).removeClass("disabled");
       refreshSolvingButtons(true);
     },
     error: function (xhr, ajaxOptions, thrownError) {
       showError("Start solving failed.", xhr);
+      $("#solveButton").prop("disabled", false).removeClass("disabled");
       refreshSolvingButtons(false);
     },
   });

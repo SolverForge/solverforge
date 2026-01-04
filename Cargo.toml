@@ -7,6 +7,7 @@ members = [
     "crates/solverforge-solver",
     "crates/solverforge-config",
     "crates/solverforge-benchmark",
+    "crates/solverforge-console",
     "crates/solverforge",
     "examples/nqueens",
 ]
@@ -26,6 +27,7 @@ solverforge-scoring = { path = "crates/solverforge-scoring" }
 solverforge-solver = { path = "crates/solverforge-solver" }
 solverforge-config = { path = "crates/solverforge-config" }
 solverforge-benchmark = { path = "crates/solverforge-benchmark" }
+solverforge-console = { path = "crates/solverforge-console" }
 solverforge = { path = "crates/solverforge" }
 
 # External dependencies

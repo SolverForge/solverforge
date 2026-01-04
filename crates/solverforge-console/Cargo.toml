@@ -1,0 +1,33 @@
+[package]
+name = "solverforge-console"
+version = "0.4.0"
+edition = "2021"
+authors = ["SolverForge Contributors"]
+license = "Apache-2.0"
+description = "SERIO Console - Production-grade console and logging system for SolverForge"
+repository = "https://github.com/solverforge/solverforge"
+keywords = ["optimization", "solver", "console", "tui", "logging"]
+categories = ["command-line-interface", "development-tools"]
+
+[dependencies]
+# Terminal UI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Formatting and colors
+owo-colors = "4"
+num-format = "0.4"
+
+# Core utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = "0.4"
+
+# Optional serialization for JSON output
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+
+[features]
+default = []
+json = ["serde", "serde_json"]

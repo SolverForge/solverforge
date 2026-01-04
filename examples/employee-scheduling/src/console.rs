@@ -307,7 +307,14 @@ fn format_score(score: &str) -> String {
 
 /// Returns a timestamp string.
 fn timestamp() -> String {
-    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string()
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| {
+            let secs = d.as_secs();
+            let millis = d.subsec_millis();
+            format!("{}.{:03}", secs, millis)
+        })
+        .unwrap_or_else(|_| "0.000".to_string())
 }
 
 /// Calculates an approximate problem scale.

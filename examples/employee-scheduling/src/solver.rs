@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 use tracing::{debug, info};
 
-use crate::console::PhaseTimer;
+use crate::console::{self, PhaseTimer};
 use crate::constraints::create_fluent_constraints;
 use crate::domain::EmployeeSchedule;
 
@@ -251,6 +251,12 @@ fn solve_blocking(
     let job_id = job.read().id.clone();
     let solve_start = Instant::now();
 
+    // Print problem configuration
+    console::print_config(
+        initial_schedule.shifts.len(),
+        initial_schedule.employees.len(),
+    );
+
     info!(
         job_id = %job_id,
         shifts = initial_schedule.shifts.len(),
@@ -267,6 +273,15 @@ fn solve_blocking(
     let mut current_score = construction_heuristic(&mut director, &mut ch_timer);
     ch_timer.finish();
 
+    // Print solving started after construction
+    console::print_solving_started(
+        solve_start.elapsed().as_millis() as u64,
+        &current_score.to_string(),
+        initial_schedule.shifts.len(),
+        initial_schedule.shifts.len(),
+        initial_schedule.employees.len(),
+    );
+
     // Update job with constructed solution
     update_job(&job, &director, current_score);
 
@@ -274,6 +289,13 @@ fn solve_blocking(
     let n_employees = director.working_solution().employees.len();
     if n_employees == 0 {
         info!("No employees to optimize");
+        console::print_solving_ended(
+            solve_start.elapsed(),
+            0,
+            1,
+            &current_score.to_string(),
+            current_score.is_feasible(),
+        );
         finish_job(&job, &director, current_score);
         return;
     }
@@ -342,6 +364,16 @@ fn solve_blocking(
                         "Progress update"
                     );
                 }
+
+                // Periodic console progress (every 10000 moves)
+                if ls_timer.moves_evaluated().is_multiple_of(10000) {
+                    console::print_step_progress(
+                        ls_timer.steps_accepted(),
+                        ls_timer.elapsed(),
+                        ls_timer.moves_evaluated(),
+                        &current_score.to_string(),
+                    );
+                }
             } else {
                 // Reject - undo
                 undo_move(&mut director, shift_idx, old_employee_idx);
@@ -362,6 +394,14 @@ fn solve_blocking(
         score = %current_score,
         feasible = current_score.is_feasible(),
         "Solving complete"
+    );
+
+    console::print_solving_ended(
+        total_duration,
+        step,
+        2,
+        &current_score.to_string(),
+        current_score.is_feasible(),
     );
 
     finish_job(&job, &director, current_score);

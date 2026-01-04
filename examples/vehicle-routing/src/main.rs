@@ -43,7 +43,7 @@ async fn main() {
         .layer(cors);
 
     // Bind and serve
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8082));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 7860));
     println!(
         "{} Server listening on {}",
         "▸".bright_green(),
@@ -52,7 +52,7 @@ async fn main() {
     println!(
         "{} Open {} in your browser\n",
         "▸".bright_green(),
-        "http://localhost:8082".bright_cyan().underline()
+        "http://localhost:7860".bright_cyan().underline()
     );
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

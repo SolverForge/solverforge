@@ -294,7 +294,6 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        id: usize,
         visits: Vec<i32>,
     }
 
@@ -361,7 +360,6 @@ mod tests {
     #[test]
     fn intra_list_swap() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3, 4, 5],
         }];
         let mut director = create_director(vehicles);
@@ -391,11 +389,9 @@ mod tests {
     fn inter_list_swap() {
         let vehicles = vec![
             Vehicle {
-                id: 0,
-                visits: vec![1, 2, 3],
+                    visits: vec![1, 2, 3],
             },
             Vehicle {
-                id: 1,
                 visits: vec![10, 20, 30],
             },
         ];
@@ -427,7 +423,6 @@ mod tests {
     #[test]
     fn same_position_not_doable() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3],
         }];
         let director = create_director(vehicles);
@@ -442,7 +437,6 @@ mod tests {
     #[test]
     fn same_values_not_doable() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![5, 5, 5],
         }];
         let director = create_director(vehicles);
@@ -457,7 +451,6 @@ mod tests {
     #[test]
     fn invalid_position_not_doable() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3],
         }];
         let director = create_director(vehicles);

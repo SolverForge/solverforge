@@ -121,12 +121,11 @@ impl ConsoleManager {
     /// handle.join().ok();
     /// ```
     pub fn run(mut self) {
-        let _receiver = self.receiver.take()
+        let receiver = self.receiver.take()
             .expect("ConsoleManager::run called more than once");
 
         // Run TUI event loop
-        // TODO: Implement TUI
-        unimplemented!("TUI mode not yet implemented")
+        crate::tui::run_tui(receiver).expect("Failed to run TUI");
     }
 }
 

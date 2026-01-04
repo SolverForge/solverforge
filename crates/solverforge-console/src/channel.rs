@@ -80,9 +80,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// assert_eq!(channel.name(), "test");
     /// ```
     pub fn name(&self) -> &str {
@@ -98,9 +97,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::{Channel, LogLevel};
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// channel.log(LogLevel::Info, "Solver initialized".to_string());
     /// ```
     pub fn log(&self, level: LogLevel, message: String) {
@@ -126,9 +124,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// channel.debug("Entering function foo()");
     /// ```
     pub fn debug(&self, message: impl Into<String>) {
@@ -142,9 +139,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// channel.info("Problem loaded successfully");
     /// ```
     pub fn info(&self, message: impl Into<String>) {
@@ -158,9 +154,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// channel.warn("Memory usage above 80%");
     /// ```
     pub fn warn(&self, message: impl Into<String>) {
@@ -174,9 +169,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// channel.error("Failed to load constraint data");
     /// ```
     pub fn error(&self, message: impl Into<String>) {
@@ -190,9 +184,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// channel.metric("moves_evaluated", "123456");
     /// channel.metric("best_score", "0hard/-1234soft");
     /// ```
@@ -219,9 +212,8 @@ impl Channel {
     /// ```
     /// # use solverforge_console::channel::Channel;
     /// # use std::sync::mpsc;
-    /// # use uuid::Uuid;
     /// # let (sender, _) = mpsc::channel();
-    /// # let channel = Channel::new("test".to_string(), "job".to_string(), Uuid::new_v4(), sender);
+    /// # let channel = Channel::new("test".to_string(), "job".to_string(), 1, sender);
     /// // Report progress: 500 out of 1000 steps completed
     /// channel.progress(500, 1000, "Constructing initial solution");
     /// ```

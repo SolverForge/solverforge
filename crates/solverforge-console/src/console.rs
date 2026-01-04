@@ -216,7 +216,7 @@ impl ConsoleInstance {
     ///
     /// ```
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
     /// # let mut console = manager.create_console("job".to_string());
     /// let app_channel = console.channel("myapp");
     /// app_channel.info("Application message");
@@ -243,7 +243,7 @@ impl ConsoleInstance {
     ///
     /// ```
     /// # use solverforge_console::{ConsoleManager, ConsoleMode};
-    /// # let manager = ConsoleManager::new(ConsoleMode::Simple);
+    /// # let manager = ConsoleManager::new(ConsoleMode::Tui);
     /// # let mut console = manager.create_console("job".to_string());
     /// let core = console.core_channel();
     /// core.info("Solver initialized");

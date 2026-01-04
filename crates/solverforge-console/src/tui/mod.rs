@@ -89,10 +89,20 @@ pub fn run_tui(receiver: mpsc::Receiver<ConsoleEvent>) -> io::Result<()> {
 /// Handles keyboard input events.
 ///
 /// Returns true if the application should quit.
+///
+/// # Keyboard shortcuts
+///
+/// - `q`, `Q`, `Esc`: Quit TUI (solver continues in background)
+/// - `Ctrl+C`: Quit TUI (solver continues in background)
+/// - `Up`/`Down`: Scroll log
+/// - `PageUp`/`PageDown`: Page scroll
 fn handle_key_event(key: KeyEvent, app: &mut TuiApp) -> bool {
     match key.code {
-        KeyCode::Char('q') | KeyCode::Esc => true,
+        // Quit keys - both 'q' and 'Q' exit the TUI cleanly
+        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => true,
         KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => true,
+
+        // Scrolling
         KeyCode::Up => {
             app.scroll_up();
             false
@@ -109,6 +119,7 @@ fn handle_key_event(key: KeyEvent, app: &mut TuiApp) -> bool {
             app.page_down();
             false
         }
+
         _ => false,
     }
 }

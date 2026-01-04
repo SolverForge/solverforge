@@ -7,7 +7,6 @@ publish = false
 
 [dependencies]
 solverforge = { path = "../../crates/solverforge", features = ["serde"] }
-solverforge-scoring = { path = "../../crates/solverforge-scoring" }
 rand = "0.8"
 
 axum = "0.8"

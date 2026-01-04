@@ -6,7 +6,7 @@
 use chrono::NaiveDate;
 use solverforge::prelude::*;
 use solverforge::stream::joiner::equal_bi;
-use solverforge::TypedEntityExtractor;
+use solverforge::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use std::any::TypeId;
 
 use crate::domain::{Employee, EmployeeSchedule, Shift};

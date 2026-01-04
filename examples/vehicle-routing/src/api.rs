@@ -646,9 +646,15 @@ impl RoutePlanDto {
 async fn create_route_plan(
     State(state): State<Arc<AppState>>,
     Json(dto): Json<RoutePlanDto>,
-) -> String {
+) -> Result<String, StatusCode> {
     let id = Uuid::new_v4().to_string();
-    let plan = dto.to_domain();
+    let mut plan = dto.to_domain();
+
+    // Initialize road routing (uses cached network - instant after first download)
+    if let Err(e) = plan.init_routing().await {
+        tracing::error!("Road routing initialization failed: {}", e);
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
 
     // Convert termination config from DTO
     let config = if let Some(term) = &dto.termination {
@@ -664,7 +670,7 @@ async fn create_route_plan(
 
     let job = state.solver.create_job_with_config(id.clone(), plan, config);
     state.solver.start_solving(job);
-    id
+    Ok(id)
 }
 
 /// GET /route-plans - List all route plan IDs.

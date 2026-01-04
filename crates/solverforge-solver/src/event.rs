@@ -272,7 +272,10 @@ impl LoggingEventListener {
 
 impl<S: PlanningSolution> SolverEventListener<S> for LoggingEventListener {
     fn on_best_solution_changed(&self, _solution: &S, score: &S::Score) {
-        println!("{}[Event] New best solution found with score: {:?}", self.prefix, score);
+        println!(
+            "{}[Event] New best solution found with score: {:?}",
+            self.prefix, score
+        );
     }
 
     fn on_solving_started(&self, _solution: &S) {

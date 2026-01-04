@@ -134,8 +134,7 @@ where
 }
 
 /// Thread count configuration for partitioned search.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThreadCount {
     /// Automatically determine based on available CPU cores.
     #[default]
@@ -145,7 +144,6 @@ pub enum ThreadCount {
     /// Use a specific number of threads.
     Specific(usize),
 }
-
 
 impl ThreadCount {
     /// Resolves the thread count to an actual number.
@@ -165,12 +163,9 @@ impl ThreadCount {
                     .unwrap_or(1);
                 std::cmp::min(cpus, partition_count)
             }
-            ThreadCount::Unlimited => {
-                
-                std::thread::available_parallelism()
-                    .map(|p| p.get())
-                    .unwrap_or(1)
-            }
+            ThreadCount::Unlimited => std::thread::available_parallelism()
+                .map(|p| p.get())
+                .unwrap_or(1),
             ThreadCount::Specific(n) => std::cmp::min(*n, partition_count),
         }
     }

@@ -14,8 +14,8 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::entity::{EntityReference, EntitySelector};
 use super::mimic::MimicRecorder;
@@ -60,8 +60,7 @@ pub trait NearbyDistanceMeter<Origin, Destination>: Send + Sync + Debug {
 }
 
 /// Distribution type for nearby selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NearbyDistributionType {
     /// Select all candidates sorted by distance (up to a maximum).
     #[default]
@@ -71,7 +70,6 @@ pub enum NearbyDistributionType {
     /// Use a block distribution for k-opt style moves.
     Block,
 }
-
 
 /// Configuration for nearby selection.
 #[derive(Debug, Clone)]
@@ -225,17 +223,14 @@ impl<S: PlanningSolution, M: DynDistanceMeter + 'static> EntitySelector<S>
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use crate::heuristic::selector::mimic::{MimicRecordingEntitySelector, MimicRecorder};
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use crate::heuristic::selector::mimic::{MimicRecorder, MimicRecordingEntitySelector};
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[allow(dead_code)]
@@ -303,15 +298,46 @@ mod tests {
         }
     }
 
-    fn create_test_director() -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
+    fn create_test_director(
+    ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
         // Create a grid of locations: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
         let locations = vec![
-            Location { id: 0, x: 0.0, y: 0.0, assigned_to: None },
-            Location { id: 1, x: 1.0, y: 0.0, assigned_to: None },
-            Location { id: 2, x: 2.0, y: 0.0, assigned_to: None },
-            Location { id: 3, x: 0.0, y: 1.0, assigned_to: None },
-            Location { id: 4, x: 1.0, y: 1.0, assigned_to: None },
-            Location { id: 5, x: 2.0, y: 1.0, assigned_to: None },
+            Location {
+                id: 0,
+                x: 0.0,
+                y: 0.0,
+                assigned_to: None,
+            },
+            Location {
+                id: 1,
+                x: 1.0,
+                y: 0.0,
+                assigned_to: None,
+            },
+            Location {
+                id: 2,
+                x: 2.0,
+                y: 0.0,
+                assigned_to: None,
+            },
+            Location {
+                id: 3,
+                x: 0.0,
+                y: 1.0,
+                assigned_to: None,
+            },
+            Location {
+                id: 4,
+                x: 1.0,
+                y: 1.0,
+                assigned_to: None,
+            },
+            Location {
+                id: 5,
+                x: 2.0,
+                y: 1.0,
+                assigned_to: None,
+            },
         ];
 
         let solution = RoutingSolution {
@@ -324,7 +350,8 @@ mod tests {
             "locations",
             get_locations,
             get_locations_mut,
-        ));let entity_desc = EntityDescriptor::new("Location", TypeId::of::<Location>(), "locations")
+        ));
+        let entity_desc = EntityDescriptor::new("Location", TypeId::of::<Location>(), "locations")
             .with_extractor(extractor);
 
         let descriptor =
@@ -353,12 +380,8 @@ mod tests {
         let dest_child = Box::new(FromSolutionEntitySelector::new(0));
         let distance_meter = EuclideanDistanceMeter::new(&director.working_solution().locations);
         let nearby_config = NearbySelectionConfig::default();
-        let nearby_selector = NearbyEntitySelector::new(
-            dest_child,
-            recorder.clone(),
-            distance_meter,
-            nearby_config,
-        );
+        let nearby_selector =
+            NearbyEntitySelector::new(dest_child, recorder.clone(), distance_meter, nearby_config);
 
         // Select origin entity (location 0 at 0,0)
         let mut origin_iter = origin_selector.iter(&director);
@@ -390,12 +413,8 @@ mod tests {
         let dest_child = Box::new(FromSolutionEntitySelector::new(0));
         let distance_meter = EuclideanDistanceMeter::new(&director.working_solution().locations);
         let nearby_config = NearbySelectionConfig::default().with_max_nearby_size(2);
-        let nearby_selector = NearbyEntitySelector::new(
-            dest_child,
-            recorder.clone(),
-            distance_meter,
-            nearby_config,
-        );
+        let nearby_selector =
+            NearbyEntitySelector::new(dest_child, recorder.clone(), distance_meter, nearby_config);
 
         // Select origin
         let mut origin_iter = origin_selector.iter(&director);
@@ -417,12 +436,8 @@ mod tests {
         let dest_child = Box::new(FromSolutionEntitySelector::new(0));
         let distance_meter = EuclideanDistanceMeter::new(&director.working_solution().locations);
         let nearby_config = NearbySelectionConfig::default();
-        let nearby_selector = NearbyEntitySelector::new(
-            dest_child,
-            recorder.clone(),
-            distance_meter,
-            nearby_config,
-        );
+        let nearby_selector =
+            NearbyEntitySelector::new(dest_child, recorder.clone(), distance_meter, nearby_config);
 
         // Select origin (entity 0)
         let mut origin_iter = origin_selector.iter(&director);

@@ -2,8 +2,7 @@
 
 use super::*;
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor,
-    TypedEntityExtractor,
+    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
 use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;
@@ -41,7 +40,8 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
     &mut s.queens
 }
 
-fn create_test_director() -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+fn create_test_director(
+) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
     let solution = NQueensSolution {
         queens: vec![Queen { row: None }, Queen { row: None }],
         score: None,
@@ -52,8 +52,9 @@ fn create_test_director() -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQuee
         "queens",
         get_queens,
         get_queens_mut,
-    ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-        .with_extractor(extractor);
+    ));
+    let entity_desc =
+        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
 
     let descriptor = SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
         .with_entity(entity_desc);

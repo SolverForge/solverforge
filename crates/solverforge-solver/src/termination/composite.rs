@@ -30,7 +30,9 @@ impl<S: PlanningSolution> OrCompositeTermination<S> {
 
 impl<S: PlanningSolution> Termination<S> for OrCompositeTermination<S> {
     fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
-        self.terminations.iter().any(|t| t.is_terminated(solver_scope))
+        self.terminations
+            .iter()
+            .any(|t| t.is_terminated(solver_scope))
     }
 }
 
@@ -58,6 +60,9 @@ impl<S: PlanningSolution> AndCompositeTermination<S> {
 impl<S: PlanningSolution> Termination<S> for AndCompositeTermination<S> {
     fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
         !self.terminations.is_empty()
-            && self.terminations.iter().all(|t| t.is_terminated(solver_scope))
+            && self
+                .terminations
+                .iter()
+                .all(|t| t.is_terminated(solver_scope))
     }
 }

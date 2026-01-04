@@ -165,4 +165,3 @@ pub trait PlanningId {
     /// This must never return a value that changes during solving.
     fn planning_id(&self) -> Self::Id;
 }
-

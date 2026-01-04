@@ -150,7 +150,10 @@ fn calculate_score(solution: &NQueensSolution) -> SimpleScore {
 
 /// Runs construction heuristic: round-robin row assignment.
 fn construction_heuristic(
-    director: &mut TypedScoreDirector<NQueensSolution, impl ConstraintSet<NQueensSolution, SimpleScore>>,
+    director: &mut TypedScoreDirector<
+        NQueensSolution,
+        impl ConstraintSet<NQueensSolution, SimpleScore>,
+    >,
     n: i32,
 ) -> SimpleScore {
     let _ = director.calculate_score();
@@ -172,7 +175,10 @@ fn construction_heuristic(
 
 /// Runs hill climbing local search.
 fn hill_climbing(
-    director: &mut TypedScoreDirector<NQueensSolution, impl ConstraintSet<NQueensSolution, SimpleScore>>,
+    director: &mut TypedScoreDirector<
+        NQueensSolution,
+        impl ConstraintSet<NQueensSolution, SimpleScore>,
+    >,
     n: i32,
     max_steps: u64,
 ) -> SimpleScore {

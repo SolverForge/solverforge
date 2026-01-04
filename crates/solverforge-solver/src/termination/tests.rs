@@ -23,11 +23,9 @@ impl PlanningSolution for TestSolution {
 
 fn create_scope() -> SolverScope<TestSolution> {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    let director = SimpleScoreDirector::with_calculator(
-        TestSolution { score: None },
-        desc,
-        |_| SimpleScore::of(0),
-    );
+    let director = SimpleScoreDirector::with_calculator(TestSolution { score: None }, desc, |_| {
+        SimpleScore::of(0)
+    });
     SolverScope::new(Box::new(director))
 }
 
@@ -109,8 +107,9 @@ fn test_best_score_feasible_termination_not_feasible() {
 fn test_best_score_feasible_termination_custom() {
     let scope = create_scope_with_score(SimpleScore::of(-3));
     // Custom feasibility: score >= -5 is considered feasible
-    let term =
-        BestScoreFeasibleTermination::<TestSolution, _>::new(|score: &SimpleScore| *score >= SimpleScore::of(-5));
+    let term = BestScoreFeasibleTermination::<TestSolution, _>::new(|score: &SimpleScore| {
+        *score >= SimpleScore::of(-5)
+    });
 
     assert!(term.is_terminated(&scope));
 }

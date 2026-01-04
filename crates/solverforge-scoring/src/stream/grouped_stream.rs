@@ -10,9 +10,9 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::grouped::GroupedUniConstraint;
 use super::collector::UniCollector;
 use super::complemented_stream::ComplementedConstraintStream;
+use crate::constraint::grouped::GroupedUniConstraint;
 
 /// Zero-erasure constraint stream over grouped entities.
 ///
@@ -128,7 +128,10 @@ where
     /// // Priority 1: 2 tasks, Priority 2: 1 task, Total: -3
     /// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-3));
     /// ```
-    pub fn penalize_with<W>(self, weight_fn: W) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    pub fn penalize_with<W>(
+        self,
+        weight_fn: W,
+    ) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
@@ -144,7 +147,10 @@ where
     }
 
     /// Penalizes each group with a weight, explicitly marked as hard constraint.
-    pub fn penalize_hard_with<W>(self, weight_fn: W) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    pub fn penalize_hard_with<W>(
+        self,
+        weight_fn: W,
+    ) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
@@ -176,7 +182,10 @@ where
     }
 
     /// Rewards each group with a weight, explicitly marked as hard constraint.
-    pub fn reward_hard_with<W>(self, weight_fn: W) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    pub fn reward_hard_with<W>(
+        self,
+        weight_fn: W,
+    ) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
@@ -248,7 +257,19 @@ where
         extractor_b: EB,
         key_b: KB,
         default_fn: D,
-    ) -> ComplementedConstraintStream<S, A, B, K, E, EB, impl Fn(&A) -> Option<K> + Send + Sync, KB, C, D, Sc>
+    ) -> ComplementedConstraintStream<
+        S,
+        A,
+        B,
+        K,
+        E,
+        EB,
+        impl Fn(&A) -> Option<K> + Send + Sync,
+        KB,
+        C,
+        D,
+        Sc,
+    >
     where
         B: Clone + Send + Sync + 'static,
         EB: Fn(&S) -> &[B] + Send + Sync,
@@ -343,7 +364,9 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, Sc: Score> std::fmt::Debug for GroupedConstraintStream<S, A, K, E, KF, C, Sc> {
+impl<S, A, K, E, KF, C, Sc: Score> std::fmt::Debug
+    for GroupedConstraintStream<S, A, K, E, KF, C, Sc>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupedConstraintStream").finish()
     }
@@ -400,10 +423,7 @@ where
     ///
     /// assert_eq!(constraint.name(), "Category penalty");
     /// ```
-    pub fn as_constraint(
-        self,
-        name: &str,
-    ) -> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc> {
+    pub fn as_constraint(self, name: &str) -> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc> {
         GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -416,7 +436,9 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, W, Sc: Score> std::fmt::Debug for GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc> {
+impl<S, A, K, E, KF, C, W, Sc: Score> std::fmt::Debug
+    for GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupedConstraintBuilder")
             .field("impact_type", &self.impact_type)

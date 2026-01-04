@@ -195,11 +195,10 @@ mod tests {
 
     fn create_scope() -> SolverScope<TestSolution> {
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
-        let director = SimpleScoreDirector::with_calculator(
-            TestSolution { score: None },
-            descriptor,
-            |_| SimpleScore::of(0),
-        );
+        let director =
+            SimpleScoreDirector::with_calculator(TestSolution { score: None }, descriptor, |_| {
+                SimpleScore::of(0)
+            });
         SolverScope::new(Box::new(director))
     }
 
@@ -266,7 +265,12 @@ mod tests {
 
         // Significant improvement: -100 -> 0 = +100 improvement over ~60ms
         // Rate = 100 / 0.060 = ~1667/s, well above 10/s threshold
-        scope.set_best_solution(TestSolution { score: Some(SimpleScore::of(0)) }, SimpleScore::of(0));
+        scope.set_best_solution(
+            TestSolution {
+                score: Some(SimpleScore::of(0)),
+            },
+            SimpleScore::of(0),
+        );
         assert!(!termination.is_terminated(&scope));
     }
 

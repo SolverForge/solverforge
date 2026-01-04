@@ -80,8 +80,7 @@ where
     }
 }
 
-impl<S, A, E, F, W, Sc> IncrementalConstraint<S, Sc>
-    for IncrementalUniConstraint<S, A, E, F, W, Sc>
+impl<S, A, E, F, W, Sc> IncrementalConstraint<S, Sc> for IncrementalUniConstraint<S, A, E, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Debug + Send + Sync + 'static,
@@ -161,7 +160,11 @@ where
             .map(|entity| {
                 let entity_ref = EntityRef::new(entity);
                 let justification = ConstraintJustification::new(vec![entity_ref]);
-                DetailedConstraintMatch::new(cref.clone(), self.compute_delta(entity), justification)
+                DetailedConstraintMatch::new(
+                    cref.clone(),
+                    self.compute_delta(entity),
+                    justification,
+                )
             })
             .collect()
     }

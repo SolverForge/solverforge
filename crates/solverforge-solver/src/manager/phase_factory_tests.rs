@@ -5,11 +5,9 @@ use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
 use crate::phase::construction::{EntityPlacer, ForagerType, QueuedEntityPlacer};
 use crate::scope::SolverScope;
-use solverforge_scoring::SimpleScoreDirector;
-use solverforge_core::domain::{
-    EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-};
+use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
+use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
 
 // ==================== Test Domain ====================
@@ -70,7 +68,9 @@ fn calculate_score(solution: &TestSolution) -> SimpleScore {
 }
 
 /// Creates a score director with the given tasks.
-fn create_test_director(tasks: Vec<Task>) -> SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore> {
+fn create_test_director(
+    tasks: Vec<Task>,
+) -> SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore> {
     let solution = TestSolution { tasks, score: None };
 
     let extractor = Box::new(TypedEntityExtractor::new(
@@ -78,8 +78,9 @@ fn create_test_director(tasks: Vec<Task>) -> SimpleScoreDirector<TestSolution, i
         "tasks",
         get_tasks,
         get_tasks_mut,
-    ));let entity_desc = EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
-        .with_extractor(extractor);
+    ));
+    let entity_desc =
+        EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
 
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
@@ -89,9 +90,7 @@ fn create_test_director(tasks: Vec<Task>) -> SimpleScoreDirector<TestSolution, i
 
 /// Creates a solver scope with unassigned tasks.
 fn create_unassigned_solver_scope(count: usize) -> SolverScope<TestSolution> {
-    let tasks: Vec<Task> = (0..count)
-        .map(|id| Task { id, priority: None })
-        .collect();
+    let tasks: Vec<Task> = (0..count).map(|id| Task { id, priority: None }).collect();
     let director = create_test_director(tasks);
     SolverScope::new(Box::new(director))
 }
@@ -101,8 +100,8 @@ type TestMove = ChangeMove<TestSolution, i64>;
 // ==================== Helper Factories ====================
 
 /// Creates a simple placer factory for construction phases.
-fn create_placer_factory() -> impl Fn() -> Box<dyn EntityPlacer<TestSolution, TestMove>> + Send + Sync
-{
+fn create_placer_factory(
+) -> impl Fn() -> Box<dyn EntityPlacer<TestSolution, TestMove>> + Send + Sync {
     || {
         let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
         let value_selector = Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
@@ -140,9 +139,8 @@ fn test_forager_type_variants() {
 
 #[test]
 fn test_construction_phase_factory_first_fit_creates_phase() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(create_placer_factory());
 
     let phase = factory.create_phase();
     assert_eq!(phase.phase_type_name(), "ConstructionHeuristic");
@@ -150,9 +148,8 @@ fn test_construction_phase_factory_first_fit_creates_phase() {
 
 #[test]
 fn test_construction_phase_factory_best_fit_creates_phase() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::best_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::best_fit(create_placer_factory());
 
     let phase = factory.create_phase();
     assert_eq!(phase.phase_type_name(), "ConstructionHeuristic");
@@ -179,9 +176,8 @@ fn test_construction_phase_factory_new_with_forager_type() {
 
 #[test]
 fn test_construction_phase_factory_first_fit_solves() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(create_placer_factory());
 
     let mut solver_scope = create_unassigned_solver_scope(3);
 
@@ -208,9 +204,8 @@ fn test_construction_phase_factory_first_fit_solves() {
 
 #[test]
 fn test_construction_phase_factory_best_fit_solves() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::best_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::best_fit(create_placer_factory());
 
     let mut solver_scope = create_unassigned_solver_scope(3);
 
@@ -236,20 +231,18 @@ fn test_construction_phase_factory_best_fit_solves() {
 
     // Best fit should pick the highest priorities (5, 5, 5 or similar)
     // Since our score calculator rewards higher priorities
-    let total_priority: i64 = final_solution
-        .tasks
-        .iter()
-        .filter_map(|t| t.priority)
-        .sum();
+    let total_priority: i64 = final_solution.tasks.iter().filter_map(|t| t.priority).sum();
     // With BestFit and values [1,2,3,4,5], each task should get 5
-    assert_eq!(total_priority, 15, "BestFit should assign highest priorities");
+    assert_eq!(
+        total_priority, 15,
+        "BestFit should assign highest priorities"
+    );
 }
 
 #[test]
 fn test_construction_phase_factory_creates_fresh_phases() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(create_placer_factory());
 
     // Create multiple phases - they should be independent
     let phase1 = factory.create_phase();
@@ -262,13 +255,11 @@ fn test_construction_phase_factory_creates_fresh_phases() {
 
 #[test]
 fn test_construction_phase_factory_implements_solver_phase_factory() {
-    let factory = ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
-        create_placer_factory(),
-    );
+    let factory =
+        ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(create_placer_factory());
 
     // Verify we can use it as a trait object
     let factory_ref: &dyn SolverPhaseFactory<TestSolution> = &factory;
     let phase = factory_ref.create_phase();
     assert_eq!(phase.phase_type_name(), "ConstructionHeuristic");
 }
-

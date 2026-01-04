@@ -321,22 +321,25 @@ mod tests {
             metric: i64,
         }
 
-        let collector = load_balance(
-            |lb: &LoadBalanced| lb.value,
-            |lb: &LoadBalanced| lb.metric,
-        );
+        let collector = load_balance(|lb: &LoadBalanced| lb.value, |lb: &LoadBalanced| lb.metric);
         let mut acc = collector.create_accumulator();
 
         // Default state
         assert_eq!(acc.finish().unfairness(), 0);
 
         // Add A with metric 2
-        let a = LoadBalanced { value: "A", metric: 2 };
+        let a = LoadBalanced {
+            value: "A",
+            metric: 2,
+        };
         acc.accumulate(&collector.extract(&a));
         assert_eq!(acc.finish().unfairness(), 0); // Single item
 
         // Add B with metric 1 → A=2, B=1
-        let b = LoadBalanced { value: "B", metric: 1 };
+        let b = LoadBalanced {
+            value: "B",
+            metric: 1,
+        };
         acc.accumulate(&collector.extract(&b));
         // sqrt((2-1.5)² + (1-1.5)²) = sqrt(0.5) ≈ 0.707 → rounds to 1
         assert_eq!(acc.finish().unfairness(), 1);

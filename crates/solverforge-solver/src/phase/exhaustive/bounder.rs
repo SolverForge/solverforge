@@ -5,8 +5,8 @@
 
 use std::fmt::Debug;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 /// Calculates score bounds for exhaustive search pruning.
 ///
@@ -22,10 +22,8 @@ pub trait ScoreBounder<S: PlanningSolution>: Send + Debug {
     /// - Greater than or equal to any actual achievable score
     ///
     /// Returns `None` if no bound can be computed.
-    fn calculate_optimistic_bound(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-    ) -> Option<S::Score>;
+    fn calculate_optimistic_bound(&self, score_director: &dyn ScoreDirector<S>)
+        -> Option<S::Score>;
 
     /// Calculates the pessimistic bound for the current solution state.
     ///

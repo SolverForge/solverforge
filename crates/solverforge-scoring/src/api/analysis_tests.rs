@@ -70,10 +70,8 @@ fn test_constraint_justification() {
         name: "Bob".to_string(),
     };
 
-    let just = ConstraintJustification::new(vec![
-        EntityRef::new(&entity1),
-        EntityRef::new(&entity2),
-    ]);
+    let just =
+        ConstraintJustification::new(vec![EntityRef::new(&entity1), EntityRef::new(&entity2)]);
 
     assert_eq!(just.entities.len(), 2);
     assert!(just.description.contains("Alice"));
@@ -116,10 +114,7 @@ fn test_indictment_map() {
     let match1 = DetailedConstraintMatch::new(
         constraint_ref.clone(),
         SimpleScore::of(-1),
-        ConstraintJustification::new(vec![
-            EntityRef::new(&entity1),
-            EntityRef::new(&entity2),
-        ]),
+        ConstraintJustification::new(vec![EntityRef::new(&entity1), EntityRef::new(&entity2)]),
     );
 
     let map = IndictmentMap::from_matches(vec![match1]);

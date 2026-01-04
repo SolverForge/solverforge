@@ -121,7 +121,10 @@ impl<S: PlanningSolution> Ord for PriorityNode<S> {
             }
             ExplorationType::ScoreFirst => {
                 // Better score = higher priority
-                self.node.score().partial_cmp(other.node.score()).unwrap_or(std::cmp::Ordering::Equal)
+                self.node
+                    .score()
+                    .partial_cmp(other.node.score())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }
             ExplorationType::OptimisticBoundFirst => {
                 // Better bound = higher priority

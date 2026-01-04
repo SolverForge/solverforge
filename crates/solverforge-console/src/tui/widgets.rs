@@ -282,6 +282,34 @@ fn format_event_line(event: &ConsoleEvent, max_width: usize) -> ListItem<'static
 
             ListItem::new(line)
         }
+        ChannelMessage::SolverStatus { thread_id, status } => {
+            use crate::backend::SolverState;
+
+            let status_text = match status {
+                SolverState::Solving => "Solving",
+                SolverState::Completed => "Completed",
+                SolverState::TerminatedEarly => "Terminated",
+            };
+
+            let thread_prefix = format!("[{:?}] ", thread_id);
+            let status_label = "STATUS";
+            let prefix_len = thread_prefix.chars().count() + status_label.chars().count() + 1;
+
+            let message_max_width = max_width.saturating_sub(prefix_len);
+            let truncated_status = truncate_text(status_text, message_max_width);
+
+            let line = Line::from(vec![
+                Span::styled(thread_prefix, Style::default().fg(Color::DarkGray)),
+                Span::styled(status_label, Style::default().fg(Color::Magenta)),
+                Span::raw(" "),
+                Span::styled(
+                    truncated_status,
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                ),
+            ]);
+
+            ListItem::new(line)
+        }
     }
 }
 

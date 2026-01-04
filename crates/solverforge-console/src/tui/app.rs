@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use ratatui::Frame;
 
-use crate::backend::{ChannelMessage, ConsoleEvent};
+use crate::backend::{ChannelMessage, ConsoleEvent, SolverState};
 
 use super::layout::{calculate_channel_split, calculate_layout};
 use super::widgets::{
@@ -32,6 +32,8 @@ pub struct TuiApp {
     best_score: Option<String>,
     /// Thread states (thread_id -> state)
     threads: HashMap<String, ThreadState>,
+    /// Solver states (job_id -> solver state)
+    solver_status: HashMap<String, SolverState>,
 }
 
 impl TuiApp {
@@ -45,6 +47,7 @@ impl TuiApp {
             start_time: Instant::now(),
             best_score: None,
             threads: HashMap::new(),
+            solver_status: HashMap::new(),
         }
     }
 
@@ -62,11 +65,17 @@ impl TuiApp {
             }
         }
 
+        // Update solver status if present
+        if let ChannelMessage::SolverStatus { status, .. } = &event.message {
+            self.solver_status.insert(event.job_id.clone(), *status);
+        }
+
         // Update thread state
         let thread_id = match &event.message {
             ChannelMessage::Log { thread_id, .. }
             | ChannelMessage::Metric { thread_id, .. }
-            | ChannelMessage::Progress { thread_id, .. } => format!("{:?}", thread_id),
+            | ChannelMessage::Progress { thread_id, .. }
+            | ChannelMessage::SolverStatus { thread_id, .. } => format!("{:?}", thread_id),
         };
 
         self.threads
@@ -168,14 +177,24 @@ impl TuiApp {
             .map(|(j, s)| (j.clone(), *s))
             .unwrap_or_else(|| ("N/A".to_string(), 0));
 
+        // Determine status from solver_status map, falling back to thread-based heuristic
+        let status = if let Some(state) = self.solver_status.get(&job_id) {
+            match state {
+                SolverState::Solving => "Solving",
+                SolverState::Completed => "Completed",
+                SolverState::TerminatedEarly => "Terminated",
+            }
+            .to_string()
+        } else if !self.threads.is_empty() {
+            "Solving".to_string()
+        } else {
+            "Idle".to_string()
+        };
+
         OverviewState {
             job_id,
             solver_id,
-            status: if !self.threads.is_empty() {
-                "Solving".to_string()
-            } else {
-                "Idle".to_string()
-            },
+            status,
             best_score: self
                 .best_score
                 .clone()

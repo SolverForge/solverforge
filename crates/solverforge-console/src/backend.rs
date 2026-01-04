@@ -4,6 +4,29 @@ use std::sync::mpsc;
 use std::thread::ThreadId;
 use std::time::Instant;
 
+/// Current solver lifecycle state.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_console::backend::SolverState;
+///
+/// let state = SolverState::Solving;
+/// assert!(matches!(state, SolverState::Solving));
+///
+/// let completed = SolverState::Completed;
+/// assert!(matches!(completed, SolverState::Completed));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SolverState {
+    /// Solver is actively running.
+    Solving,
+    /// Solver completed normally.
+    Completed,
+    /// Solver terminated early (e.g., timeout, user interrupt).
+    TerminatedEarly,
+}
+
 /// Message sent from a channel to the console backend.
 #[derive(Debug, Clone)]
 pub enum ChannelMessage {
@@ -35,6 +58,13 @@ pub enum ChannelMessage {
         total: u64,
         /// Progress message.
         message: String,
+    },
+    /// Solver status update.
+    SolverStatus {
+        /// Thread that generated the status update.
+        thread_id: ThreadId,
+        /// Current solver state.
+        status: SolverState,
     },
 }
 

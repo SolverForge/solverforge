@@ -125,10 +125,7 @@ impl<S: PlanningSolution> SolverHandle<S> {
     }
 
     /// Submits a boxed problem change to the solver.
-    pub fn add_problem_change_boxed(
-        &self,
-        change: BoxedProblemChange<S>,
-    ) -> ProblemChangeResult {
+    pub fn add_problem_change_boxed(&self, change: BoxedProblemChange<S>) -> ProblemChangeResult {
         if !self.solving.load(Ordering::SeqCst) {
             return ProblemChangeResult::SolverNotRunning;
         }
@@ -171,7 +168,10 @@ impl<S: PlanningSolution> Debug for SolverHandle<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SolverHandle")
             .field("solving", &self.solving.load(Ordering::SeqCst))
-            .field("terminate_early", &self.terminate_early.load(Ordering::SeqCst))
+            .field(
+                "terminate_early",
+                &self.terminate_early.load(Ordering::SeqCst),
+            )
             .finish()
     }
 }

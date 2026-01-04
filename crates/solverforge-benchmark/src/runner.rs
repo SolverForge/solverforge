@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
-use solverforge_solver::statistics::StatisticsCollector;
 use solverforge_solver::solver::Solver;
+use solverforge_solver::statistics::StatisticsCollector;
 
 use crate::config::BenchmarkConfig;
 use crate::result::{BenchmarkResult, BenchmarkRun};
@@ -107,11 +107,8 @@ where
         }
 
         // Measurement runs
-        let mut result = BenchmarkResult::new(
-            self.config.name(),
-            &self.solver_name,
-            &self.problem_name,
-        );
+        let mut result =
+            BenchmarkResult::new(self.config.name(), &self.solver_name, &self.problem_name);
 
         for run_index in 0..self.config.run_count() {
             let collector = Arc::new(StatisticsCollector::new());
@@ -135,7 +132,10 @@ where
     fn run_once(
         &self,
         collector: Option<Arc<StatisticsCollector<S::Score>>>,
-    ) -> (S, solverforge_solver::statistics::SolverStatistics<S::Score>) {
+    ) -> (
+        S,
+        solverforge_solver::statistics::SolverStatistics<S::Score>,
+    ) {
         let problem = (self.problem_factory)();
         let director = (self.director_factory)(problem);
         let mut solver = (self.solver_factory)();

@@ -45,7 +45,10 @@ fn test_solver_manager_builder_builds_successfully() {
         .expect("Failed to build SolverManager");
 
     // Verify manager is usable
-    let solution = TestSolution { value: 10, score: None };
+    let solution = TestSolution {
+        value: 10,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-10));
 }
@@ -57,7 +60,10 @@ fn test_solver_manager_builder_with_time_limit() {
         .build()
         .expect("Failed to build SolverManager with time limit");
 
-    let solution = TestSolution { value: 5, score: None };
+    let solution = TestSolution {
+        value: 5,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-5));
 }
@@ -69,7 +75,10 @@ fn test_solver_manager_builder_with_step_limit() {
         .build()
         .expect("Failed to build SolverManager with step limit");
 
-    let solution = TestSolution { value: 7, score: None };
+    let solution = TestSolution {
+        value: 7,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-7));
 }
@@ -82,7 +91,10 @@ fn test_solver_manager_builder_with_combined_limits() {
         .build()
         .expect("Failed to build SolverManager with combined limits");
 
-    let solution = TestSolution { value: 3, score: None };
+    let solution = TestSolution {
+        value: 3,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-3));
 }
@@ -94,7 +106,10 @@ fn test_solver_manager_builder_with_construction_heuristic() {
         .build()
         .expect("Failed to build SolverManager with construction heuristic");
 
-    let solution = TestSolution { value: 2, score: None };
+    let solution = TestSolution {
+        value: 2,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-2));
 }
@@ -106,7 +121,10 @@ fn test_solver_manager_builder_with_local_search() {
         .build()
         .expect("Failed to build SolverManager with local search");
 
-    let solution = TestSolution { value: 4, score: None };
+    let solution = TestSolution {
+        value: 4,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-4));
 }
@@ -121,7 +139,10 @@ fn test_solver_manager_builder_chained_configuration() {
         .build()
         .expect("Failed to build SolverManager with chained configuration");
 
-    let solution = TestSolution { value: 8, score: None };
+    let solution = TestSolution {
+        value: 8,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-8));
 }
@@ -256,8 +277,9 @@ fn test_create_solver_with_phase_factories() {
 
 #[test]
 fn test_create_solver_with_termination() {
-    let termination_factory: Box<dyn Fn() -> Box<dyn crate::termination::Termination<TestSolution>> + Send + Sync> =
-        Box::new(|| Box::new(StepCountTermination::new(50)));
+    let termination_factory: Box<
+        dyn Fn() -> Box<dyn crate::termination::Termination<TestSolution>> + Send + Sync,
+    > = Box::new(|| Box::new(StepCountTermination::new(50)));
 
     let manager = SolverManager::new(
         |s: &TestSolution| SimpleScore::of(-s.value),
@@ -282,7 +304,10 @@ fn test_score_calculator_returns_arc() {
     let calculator = manager.score_calculator();
 
     // Test the calculator directly
-    let solution = TestSolution { value: 15, score: None };
+    let solution = TestSolution {
+        value: 15,
+        score: None,
+    };
     let score = calculator(&solution);
     assert_eq!(score, SimpleScore::of(-15));
 }
@@ -293,7 +318,10 @@ fn test_calculate_score_basic() {
         .build()
         .expect("Failed to build SolverManager");
 
-    let solution = TestSolution { value: 10, score: None };
+    let solution = TestSolution {
+        value: 10,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-10));
 }
@@ -304,7 +332,10 @@ fn test_calculate_score_zero() {
         .build()
         .expect("Failed to build SolverManager");
 
-    let solution = TestSolution { value: 0, score: None };
+    let solution = TestSolution {
+        value: 0,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(0));
 }
@@ -315,7 +346,10 @@ fn test_calculate_score_negative_value() {
         .build()
         .expect("Failed to build SolverManager");
 
-    let solution = TestSolution { value: -5, score: None };
+    let solution = TestSolution {
+        value: -5,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(5)); // -(-5) = 5
 }
@@ -327,9 +361,18 @@ fn test_calculate_score_multiple_solutions() {
         .expect("Failed to build SolverManager");
 
     let solutions = [
-        TestSolution { value: 1, score: None },
-        TestSolution { value: 2, score: None },
-        TestSolution { value: 3, score: None },
+        TestSolution {
+            value: 1,
+            score: None,
+        },
+        TestSolution {
+            value: 2,
+            score: None,
+        },
+        TestSolution {
+            value: 3,
+            score: None,
+        },
     ];
 
     for (i, solution) in solutions.iter().enumerate() {
@@ -341,13 +384,14 @@ fn test_calculate_score_multiple_solutions() {
 #[test]
 fn test_calculate_score_complex_calculator() {
     // More complex score calculator: sum of squares
-    let manager = SolverManager::<TestSolution>::builder(|s| {
-        SimpleScore::of(-(s.value * s.value))
-    })
-    .build()
-    .expect("Failed to build SolverManager");
+    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-(s.value * s.value)))
+        .build()
+        .expect("Failed to build SolverManager");
 
-    let solution = TestSolution { value: 4, score: None };
+    let solution = TestSolution {
+        value: 4,
+        score: None,
+    };
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-16)); // -(4^2) = -16
 }
@@ -358,7 +402,10 @@ fn test_score_calculator_and_calculate_score_consistent() {
         .build()
         .expect("Failed to build SolverManager");
 
-    let solution = TestSolution { value: 7, score: None };
+    let solution = TestSolution {
+        value: 7,
+        score: None,
+    };
 
     // Both methods should return the same result
     let calculator = manager.score_calculator();
@@ -368,4 +415,3 @@ fn test_score_calculator_and_calculate_score_consistent() {
     assert_eq!(score_via_calculator, score_via_method);
     assert_eq!(score_via_method, SimpleScore::of(-14));
 }
-

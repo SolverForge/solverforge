@@ -49,7 +49,12 @@ use super::filter::{FnQuadFilter, TriFilter};
 use super::joiner::Joiner;
 use super::quad_stream::QuadConstraintStream;
 
-super::arity_stream_macros::impl_arity_stream!(tri, TriConstraintStream, TriConstraintBuilder, IncrementalTriConstraint);
+super::arity_stream_macros::impl_arity_stream!(
+    tri,
+    TriConstraintStream,
+    TriConstraintBuilder,
+    IncrementalTriConstraint
+);
 
 // join_self method - transitions to QuadConstraintStream
 impl<S, A, K, E, KE, F, Sc> TriConstraintStream<S, A, K, E, KE, F, Sc>
@@ -109,9 +114,8 @@ where
         F: 'static,
     {
         let filter = self.filter;
-        let combined_filter = move |a: &A, b: &A, c: &A, d: &A| {
-            filter.test(a, b, c) && joiner.matches(a, d)
-        };
+        let combined_filter =
+            move |a: &A, b: &A, c: &A, d: &A| filter.test(a, b, c) && joiner.matches(a, d);
 
         QuadConstraintStream::new_self_join_with_filter(
             self.extractor,

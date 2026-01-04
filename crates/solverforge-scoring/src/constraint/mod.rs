@@ -29,11 +29,11 @@ pub mod tri_incremental;
 #[cfg(test)]
 mod bi_incr_tests;
 #[cfg(test)]
-mod tri_incr_tests;
+mod penta_incr_tests;
 #[cfg(test)]
 mod quad_incr_tests;
 #[cfg(test)]
-mod penta_incr_tests;
+mod tri_incr_tests;
 
 pub use balance::BalanceConstraint;
 pub use bi_incremental::IncrementalBiConstraint;

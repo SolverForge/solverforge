@@ -5,9 +5,7 @@ use std::any::TypeId;
 use std::sync::Arc;
 use std::time::Duration;
 
-use solverforge_core::domain::{
-    EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-};
+use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;
 
@@ -91,7 +89,8 @@ fn create_entity_director(
         "entities",
         get_entities,
         get_entities_mut,
-    ));let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+    ));
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
         .with_extractor(extractor);
 
     let descriptor =
@@ -111,9 +110,18 @@ type EntityMove = ChangeMove<EntityTestSolution, i64>;
 fn test_solver_with_step_limit_termination() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity { id: 0, value: Some(0) },
-            TestEntity { id: 1, value: Some(0) },
-            TestEntity { id: 2, value: Some(0) },
+            TestEntity {
+                id: 0,
+                value: Some(0),
+            },
+            TestEntity {
+                id: 1,
+                value: Some(0),
+            },
+            TestEntity {
+                id: 2,
+                value: Some(0),
+            },
         ],
         target_sum: 10,
         score: None,
@@ -154,8 +162,14 @@ fn test_solver_with_step_limit_termination() {
 fn test_solver_with_time_limit_termination() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity { id: 0, value: Some(1) },
-            TestEntity { id: 1, value: Some(2) },
+            TestEntity {
+                id: 0,
+                value: Some(1),
+            },
+            TestEntity {
+                id: 1,
+                value: Some(2),
+            },
         ],
         target_sum: 5,
         score: None,
@@ -178,8 +192,14 @@ fn test_solver_with_time_limit_termination() {
 fn test_solver_with_combined_termination() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity { id: 0, value: Some(0) },
-            TestEntity { id: 1, value: Some(0) },
+            TestEntity {
+                id: 0,
+                value: Some(0),
+            },
+            TestEntity {
+                id: 1,
+                value: Some(0),
+            },
         ],
         target_sum: 6,
         score: None,
@@ -203,9 +223,18 @@ fn test_solver_with_combined_termination() {
 fn test_solver_manager_solve_improves_score() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity { id: 0, value: Some(0) },
-            TestEntity { id: 1, value: Some(0) },
-            TestEntity { id: 2, value: Some(0) },
+            TestEntity {
+                id: 0,
+                value: Some(0),
+            },
+            TestEntity {
+                id: 1,
+                value: Some(0),
+            },
+            TestEntity {
+                id: 2,
+                value: Some(0),
+            },
         ],
         target_sum: 6,
         score: None,
@@ -229,11 +258,7 @@ fn test_solver_manager_solve_improves_score() {
         })
         .with_step_limit(100);
 
-    let manager = SolverManager::new(
-        calculate_entity_score,
-        vec![Box::new(phase_factory)],
-        None,
-    );
+    let manager = SolverManager::new(calculate_entity_score, vec![Box::new(phase_factory)], None);
 
     let mut solver = manager.create_solver();
     let result = solver.solve_with_director(Box::new(director));
@@ -292,18 +317,21 @@ fn test_phase_factory_creates_fresh_phases_each_time() {
     let _ = manager.create_solver();
     let _ = manager.create_solver();
 
-    assert_eq!(
-        creation_count.load(std::sync::atomic::Ordering::SeqCst),
-        3
-    );
+    assert_eq!(creation_count.load(std::sync::atomic::Ordering::SeqCst), 3);
 }
 
 #[test]
 fn test_solver_manager_with_entity_solution() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity { id: 0, value: Some(2) },
-            TestEntity { id: 1, value: Some(3) },
+            TestEntity {
+                id: 0,
+                value: Some(2),
+            },
+            TestEntity {
+                id: 1,
+                value: Some(3),
+            },
         ],
         target_sum: 5,
         score: None,
@@ -358,14 +386,23 @@ fn test_solver_manager_builder_with_local_search_variants() {
         .build()
         .expect("Failed to build with late acceptance");
 
-    let solution = TestSolution { value: 5, score: None };
-    assert_eq!(hill_climbing.calculate_score(&solution), SimpleScore::of(-5));
+    let solution = TestSolution {
+        value: 5,
+        score: None,
+    };
+    assert_eq!(
+        hill_climbing.calculate_score(&solution),
+        SimpleScore::of(-5)
+    );
     assert_eq!(tabu_search.calculate_score(&solution), SimpleScore::of(-5));
     assert_eq!(
         simulated_annealing.calculate_score(&solution),
         SimpleScore::of(-5)
     );
-    assert_eq!(late_acceptance.calculate_score(&solution), SimpleScore::of(-5));
+    assert_eq!(
+        late_acceptance.calculate_score(&solution),
+        SimpleScore::of(-5)
+    );
 }
 
 #[test]
@@ -380,7 +417,10 @@ fn test_solver_manager_builder_with_construction_types() {
         .build()
         .expect("Failed to build with best fit");
 
-    let solution = TestSolution { value: 3, score: None };
+    let solution = TestSolution {
+        value: 3,
+        score: None,
+    };
     assert_eq!(first_fit.calculate_score(&solution), SimpleScore::of(-3));
     assert_eq!(best_fit.calculate_score(&solution), SimpleScore::of(-3));
 }
@@ -392,6 +432,9 @@ fn test_solver_manager_with_local_search_steps() {
         .build()
         .expect("Failed to build with local search steps");
 
-    let solution = TestSolution { value: 6, score: None };
+    let solution = TestSolution {
+        value: 6,
+        score: None,
+    };
     assert_eq!(manager.calculate_score(&solution), SimpleScore::of(-6));
 }

@@ -11,11 +11,13 @@ pub mod mimic;
 pub mod nearby;
 pub mod pillar;
 pub mod ruin;
+mod selection_order;
 pub mod typed_move_selector;
 pub mod typed_value;
-mod selection_order;
 
-pub use entity::{AllEntitiesSelector, EntityReference, EntitySelector, FromSolutionEntitySelector};
+pub use entity::{
+    AllEntitiesSelector, EntityReference, EntitySelector, FromSolutionEntitySelector,
+};
 pub use k_opt::{KOptConfig, KOptMoveSelector, ListPositionDistanceMeter, NearbyKOptMoveSelector};
 pub use list_ruin::ListRuinMoveSelector;
 pub use mimic::{MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector};

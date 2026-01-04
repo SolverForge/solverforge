@@ -316,7 +316,12 @@ where
                 // Remove late elements (now at early position with late_len)
                 let late_at_early = sublist_remove(s, entity, early_start, early_start + late_len);
                 // Remove early elements (now at new_late_pos with early_len)
-                let early_at_late = sublist_remove(s, entity, new_late_pos - late_len, new_late_pos - late_len + early_len);
+                let early_at_late = sublist_remove(
+                    s,
+                    entity,
+                    new_late_pos - late_len,
+                    new_late_pos - late_len + early_len,
+                );
                 // Insert early back at early
                 sublist_insert(s, entity, early_start, early_at_late);
                 // Insert late back at late
@@ -365,9 +370,11 @@ where
 
             score_director.register_undo(Box::new(move |s: &mut S| {
                 // Remove second elements from first list
-                let second_at_first = sublist_remove(s, first_entity, first_start, first_start + second_len);
+                let second_at_first =
+                    sublist_remove(s, first_entity, first_start, first_start + second_len);
                 // Remove first elements from second list
-                let first_at_second = sublist_remove(s, second_entity, second_start, second_start + first_len);
+                let first_at_second =
+                    sublist_remove(s, second_entity, second_start, second_start + first_len);
                 // Restore originals
                 sublist_insert(s, first_entity, first_start, first_at_second);
                 sublist_insert(s, second_entity, second_start, second_at_first);

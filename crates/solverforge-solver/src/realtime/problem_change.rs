@@ -237,18 +237,17 @@ mod tests {
 
     impl ProblemChange<TaskSchedule> for AddTask {
         fn apply(&self, score_director: &mut dyn ScoreDirector<TaskSchedule>) {
-            score_director.working_solution_mut().tasks.push(Task {
-                id: self.id,
-            });
+            score_director
+                .working_solution_mut()
+                .tasks
+                .push(Task { id: self.id });
             score_director.trigger_variable_listeners();
         }
     }
 
     #[test]
     fn struct_problem_change() {
-        let mut director = create_director(vec![Task {
-            id: 0,
-        }]);
+        let mut director = create_director(vec![Task { id: 0 }]);
 
         let change = AddTask { id: 1 };
         change.apply(&mut director);
@@ -259,9 +258,7 @@ mod tests {
 
     #[test]
     fn closure_problem_change() {
-        let mut director = create_director(vec![Task {
-            id: 0,
-        }]);
+        let mut director = create_director(vec![Task { id: 0 }]);
 
         let change = ClosureProblemChange::<TaskSchedule, _>::new("remove_all", |sd| {
             sd.working_solution_mut().tasks.clear();

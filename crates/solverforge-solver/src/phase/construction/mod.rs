@@ -147,11 +147,9 @@ mod tests {
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
     use crate::manager::{ConstructionPhaseFactory, SolverPhaseFactory};
-    use solverforge_scoring::SimpleScoreDirector;
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -224,9 +222,14 @@ mod tests {
         SimpleScore::of(-conflicts)
     }
 
-    fn create_test_director(n: i32) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(
+        n: i32,
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let queens: Vec<_> = (0..n)
-            .map(|col| Queen { column: col, row: None })
+            .map(|col| Queen {
+                column: col,
+                row: None,
+            })
             .collect();
 
         let solution = NQueensSolution {
@@ -240,7 +243,8 @@ mod tests {
             "queens",
             get_queens,
             get_queens_mut,
-        ));let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
             .with_extractor(extractor);
 
         let descriptor =
@@ -255,7 +259,14 @@ mod tests {
     fn create_placer(values: Vec<i32>) -> Box<dyn EntityPlacer<NQueensSolution, NQueensMove>> {
         let es = Box::new(FromSolutionEntitySelector::new(0));
         let vs = Box::new(StaticTypedValueSelector::new(values));
-        Box::new(QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, "row"))
+        Box::new(QueuedEntityPlacer::new(
+            es,
+            vs,
+            get_queen_row,
+            set_queen_row,
+            0,
+            "row",
+        ))
     }
 
     #[test]
@@ -264,9 +275,10 @@ mod tests {
         let mut solver_scope = SolverScope::new(Box::new(director));
 
         let values: Vec<i32> = (0..4).collect();
-        let factory = ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(
-            move || create_placer(values.clone()),
-        );
+        let factory =
+            ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(move || {
+                create_placer(values.clone())
+            });
         let mut phase = factory.create_phase();
 
         phase.solve(&mut solver_scope);
@@ -288,9 +300,10 @@ mod tests {
         let mut solver_scope = SolverScope::new(Box::new(director));
 
         let values: Vec<i32> = (0..4).collect();
-        let factory = ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::best_fit(
-            move || create_placer(values.clone()),
-        );
+        let factory =
+            ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::best_fit(move || {
+                create_placer(values.clone())
+            });
         let mut phase = factory.create_phase();
 
         phase.solve(&mut solver_scope);
@@ -312,9 +325,10 @@ mod tests {
         let mut solver_scope = SolverScope::new(Box::new(director));
 
         let values: Vec<i32> = vec![];
-        let factory = ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(
-            move || create_placer(values.clone()),
-        );
+        let factory =
+            ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(move || {
+                create_placer(values.clone())
+            });
         let mut phase = factory.create_phase();
 
         // Should not panic

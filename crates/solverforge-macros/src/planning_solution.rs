@@ -2,7 +2,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Data, Fields, Error};
+use syn::{Data, DeriveInput, Error, Fields};
 
 use crate::has_attribute;
 
@@ -14,15 +14,30 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => &fields.named,
-            _ => return Err(Error::new_spanned(&input, "#[planning_solution] requires named fields")),
+            _ => {
+                return Err(Error::new_spanned(
+                    &input,
+                    "#[planning_solution] requires named fields",
+                ))
+            }
         },
-        _ => return Err(Error::new_spanned(&input, "#[planning_solution] only works on structs")),
+        _ => {
+            return Err(Error::new_spanned(
+                &input,
+                "#[planning_solution] only works on structs",
+            ))
+        }
     };
 
     let score_field = fields
         .iter()
         .find(|f| has_attribute(&f.attrs, "planning_score"))
-        .ok_or_else(|| Error::new_spanned(&input, "#[planning_solution] requires a #[planning_score] field"))?;
+        .ok_or_else(|| {
+            Error::new_spanned(
+                &input,
+                "#[planning_solution] requires a #[planning_score] field",
+            )
+        })?;
 
     let score_field_name = score_field.ident.as_ref().unwrap();
     let score_type = extract_option_inner_type(&score_field.ty)?;

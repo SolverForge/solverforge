@@ -6,34 +6,30 @@
 //! - `ProblemFact`: Immutable input data
 //! - `PlanningId`: Unique identification for entities
 
-mod traits;
 mod descriptor;
-mod variable;
-mod value_range;
 mod entity_ref;
-pub mod supply;
 pub mod listener;
+pub mod supply;
+mod traits;
+mod value_range;
+mod variable;
 
-pub use traits::{PlanningSolution, PlanningEntity, ProblemFact, PlanningId};
 pub use descriptor::{
-    SolutionDescriptor, EntityDescriptor, VariableDescriptor,
-    ProblemFactDescriptor,
+    EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, VariableDescriptor,
 };
-pub use variable::{VariableType, ShadowVariableKind, ValueRangeType, ChainedVariableInfo};
-pub use entity_ref::{EntityRef, EntityExtractor, TypedEntityExtractor};
-pub use supply::{
-    Supply, SupplyDemand, SupplyManager, DemandKey,
-    SingletonInverseVariableSupply, ExternalizedSingletonInverseVariableSupply,
-    AnchorVariableSupply, ExternalizedAnchorVariableSupply,
-    ListVariableStateSupply, ListVariableStateDemand, ElementPosition,
-    IndexVariableSupply, InverseVariableSupply,
-};
+pub use entity_ref::{EntityExtractor, EntityRef, TypedEntityExtractor};
 pub use listener::{
-    VariableListener, ListVariableListener,
-    VariableNotification, ListVariableNotification,
+    ListVariableListener, ListVariableNotification, VariableListener, VariableNotification,
 };
+pub use supply::{
+    AnchorVariableSupply, DemandKey, ElementPosition, ExternalizedAnchorVariableSupply,
+    ExternalizedSingletonInverseVariableSupply, IndexVariableSupply, InverseVariableSupply,
+    ListVariableStateDemand, ListVariableStateSupply, SingletonInverseVariableSupply, Supply,
+    SupplyDemand, SupplyManager,
+};
+pub use traits::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use value_range::{
+    ComputedValueRangeProvider, FieldValueRangeProvider, IntegerRange, StaticValueRange,
     ValueRangeProvider,
-    FieldValueRangeProvider, ComputedValueRangeProvider,
-    StaticValueRange, IntegerRange,
 };
+pub use variable::{ChainedVariableInfo, ShadowVariableKind, ValueRangeType, VariableType};

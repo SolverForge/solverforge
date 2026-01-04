@@ -2,9 +2,9 @@
 
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, Sub, Neg};
+use std::ops::{Add, Neg, Sub};
 
-use super::traits::{Score, ParseableScore, ScoreParseError};
+use super::traits::{ParseableScore, Score, ScoreParseError};
 
 /// A score with hard, medium, and soft constraint levels.
 ///

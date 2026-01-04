@@ -3,19 +3,19 @@
 //! Scores are used to compare solutions and guide the optimization process.
 //! All score types are immutable and implement arithmetic operations.
 
-mod traits;
-mod simple;
-mod hard_soft;
-mod hard_medium_soft;
 mod bendable;
+mod hard_medium_soft;
+mod hard_soft;
 mod hard_soft_decimal;
+mod simple;
+mod traits;
 
-pub use traits::{ParseableScore, Score, ScoreParseError};
-pub use simple::SimpleScore;
-pub use hard_soft::HardSoftScore;
-pub use hard_medium_soft::HardMediumSoftScore;
 pub use bendable::BendableScore;
+pub use hard_medium_soft::HardMediumSoftScore;
+pub use hard_soft::HardSoftScore;
 pub use hard_soft_decimal::HardSoftDecimalScore;
+pub use simple::SimpleScore;
+pub use traits::{ParseableScore, Score, ScoreParseError};
 
 /// Score level representing different constraint priorities
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

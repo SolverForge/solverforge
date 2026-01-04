@@ -410,7 +410,12 @@ mod tests {
     fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
         s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
     }
-    fn sublist_remove(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
+    fn sublist_remove(
+        s: &mut TspSolution,
+        entity_idx: usize,
+        start: usize,
+        end: usize,
+    ) -> Vec<i32> {
         s.tours
             .get_mut(entity_idx)
             .map(|t| t.cities.drain(start..end).collect())

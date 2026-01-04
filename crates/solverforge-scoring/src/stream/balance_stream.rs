@@ -9,8 +9,8 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::balance::BalanceConstraint;
 use super::filter::UniFilter;
+use crate::constraint::balance::BalanceConstraint;
 
 /// Zero-erasure stream for building balance constraints.
 ///
@@ -92,7 +92,11 @@ where
     ///
     /// The final score is `base_score.multiply(std_dev)`, negated for penalty.
     pub fn penalize(self, base_score: Sc) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc> {
-        let is_hard = base_score.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
+        let is_hard = base_score
+            .to_level_numbers()
+            .first()
+            .map(|&h| h != 0)
+            .unwrap_or(false);
         BalanceConstraintBuilder {
             extractor: self.extractor,
             filter: self.filter,
@@ -108,7 +112,11 @@ where
     ///
     /// The final score is `base_score.multiply(std_dev)`.
     pub fn reward(self, base_score: Sc) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc> {
-        let is_hard = base_score.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
+        let is_hard = base_score
+            .to_level_numbers()
+            .first()
+            .map(|&h| h != 0)
+            .unwrap_or(false);
         BalanceConstraintBuilder {
             extractor: self.extractor,
             filter: self.filter,

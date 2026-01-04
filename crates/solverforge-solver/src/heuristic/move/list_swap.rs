@@ -389,7 +389,7 @@ mod tests {
     fn inter_list_swap() {
         let vehicles = vec![
             Vehicle {
-                    visits: vec![1, 2, 3],
+                visits: vec![1, 2, 3],
             },
             Vehicle {
                 visits: vec![10, 20, 30],

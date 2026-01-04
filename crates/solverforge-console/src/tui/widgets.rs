@@ -190,11 +190,14 @@ pub fn render_channel(
     events: &[ConsoleEvent],
     scroll_offset: usize,
 ) {
+    // Calculate max width for text, accounting for borders (2) and padding (2)
+    let max_width = (area.width.saturating_sub(4)) as usize;
+
     let items: Vec<ListItem> = events
         .iter()
         .skip(scroll_offset)
         .take(area.height.saturating_sub(2) as usize)
-        .map(|event| format_event_line(event))
+        .map(|event| format_event_line(event, max_width))
         .collect();
 
     let block = Block::default()
@@ -206,8 +209,13 @@ pub fn render_channel(
     frame.render_widget(list, area);
 }
 
-/// Formats a console event as a list item.
-fn format_event_line(event: &ConsoleEvent) -> ListItem<'static> {
+/// Formats a console event as a list item with text truncation.
+///
+/// # Arguments
+///
+/// * `event` - Console event to format
+/// * `max_width` - Maximum width for the entire line (including prefixes)
+fn format_event_line(event: &ConsoleEvent, max_width: usize) -> ListItem<'static> {
     match &event.message {
         ChannelMessage::Log { thread_id, level, message } => {
             let level_style = match level {
@@ -224,43 +232,52 @@ fn format_event_line(event: &ConsoleEvent) -> ListItem<'static> {
                 LogLevel::Error => "ERROR",
             };
 
+            // Calculate prefix length: "[ThreadId(X)] LEVEL "
+            let thread_prefix = format!("[{:?}] ", thread_id);
+            let prefix_len = thread_prefix.chars().count() + level_text.chars().count() + 1;
+
+            // Calculate remaining space for message
+            let message_max_width = max_width.saturating_sub(prefix_len);
+            let truncated_message = truncate_text(message, message_max_width);
+
             let line = Line::from(vec![
-                Span::styled(
-                    format!("[{:?}] ", thread_id),
-                    Style::default().fg(Color::DarkGray),
-                ),
+                Span::styled(thread_prefix, Style::default().fg(Color::DarkGray)),
                 Span::styled(level_text, level_style),
                 Span::raw(" "),
-                Span::raw(message.clone()),
+                Span::raw(truncated_message),
             ]);
 
             ListItem::new(line)
         }
         ChannelMessage::Metric { thread_id, key, value } => {
+            let thread_prefix = format!("[{:?}] ", thread_id);
+            let prefix_len = thread_prefix.chars().count() + key.chars().count() + 2; // +2 for ": "
+
+            let value_max_width = max_width.saturating_sub(prefix_len);
+            let truncated_value = truncate_text(value, value_max_width);
+
             let line = Line::from(vec![
-                Span::styled(
-                    format!("[{:?}] ", thread_id),
-                    Style::default().fg(Color::DarkGray),
-                ),
+                Span::styled(thread_prefix, Style::default().fg(Color::DarkGray)),
                 Span::styled(key.clone(), Style::default().fg(Color::Green)),
                 Span::raw(": "),
-                Span::styled(value.clone(), Style::default().fg(Color::Yellow)),
+                Span::styled(truncated_value, Style::default().fg(Color::Yellow)),
             ]);
 
             ListItem::new(line)
         }
         ChannelMessage::Progress { thread_id, current, total, message } => {
             let percentage = (*current as f64 / *total as f64 * 100.0) as u8;
+            let thread_prefix = format!("[{:?}] ", thread_id);
+            let percent_text = format!("{}% ", percentage);
+            let prefix_len = thread_prefix.chars().count() + percent_text.chars().count();
+
+            let message_max_width = max_width.saturating_sub(prefix_len);
+            let truncated_message = truncate_text(message, message_max_width);
+
             let line = Line::from(vec![
-                Span::styled(
-                    format!("[{:?}] ", thread_id),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(
-                    format!("{}% ", percentage),
-                    Style::default().fg(Color::Magenta),
-                ),
-                Span::raw(message.clone()),
+                Span::styled(thread_prefix, Style::default().fg(Color::DarkGray)),
+                Span::styled(percent_text, Style::default().fg(Color::Magenta)),
+                Span::raw(truncated_message),
             ]);
 
             ListItem::new(line)
@@ -333,5 +350,43 @@ pub fn format_duration(duration: std::time::Duration) -> String {
         format!("{}.{}s", secs, duration.subsec_millis() / 100)
     } else {
         format!("{}ms", duration.as_millis())
+    }
+}
+
+/// Truncates text to fit within a maximum width, adding ellipsis if needed.
+///
+/// Uses Unicode character counting to ensure correct width calculation.
+///
+/// # Arguments
+///
+/// * `text` - Text to truncate
+/// * `max_width` - Maximum width in characters
+///
+/// # Returns
+///
+/// Truncated text with "..." suffix if the original exceeds max_width.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_console::tui::widgets::truncate_text;
+///
+/// let short = truncate_text("Hello", 10);
+/// assert_eq!(short, "Hello");
+///
+/// let long = truncate_text("This is a very long message", 15);
+/// assert_eq!(long, "This is a ve...");
+/// assert_eq!(long.chars().count(), 15);
+/// ```
+pub fn truncate_text(text: &str, max_width: usize) -> String {
+    let char_count = text.chars().count();
+
+    if char_count <= max_width {
+        text.to_string()
+    } else if max_width <= 3 {
+        "...".chars().take(max_width).collect()
+    } else {
+        let truncated: String = text.chars().take(max_width - 3).collect();
+        format!("{}...", truncated)
     }
 }

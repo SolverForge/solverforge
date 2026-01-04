@@ -69,7 +69,16 @@ async function fetchRouteGeometries() {
     const response = await fetch(`/route-plans/${scheduleId}/geometry`);
     if (response.ok) {
       const data = await response.json();
-      return data.geometries || null;
+      // Transform segments array into map: { vehicleId: [polyline] }
+      const geometries = {};
+      for (const segment of data.segments || []) {
+        const vehicleId = String(segment.vehicle_idx);
+        if (!geometries[vehicleId]) {
+          geometries[vehicleId] = [];
+        }
+        geometries[vehicleId].push(segment.polyline);
+      }
+      return Object.keys(geometries).length > 0 ? geometries : null;
     }
   } catch (e) {
     console.warn('Could not fetch route geometries:', e);

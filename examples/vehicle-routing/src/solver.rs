@@ -241,6 +241,7 @@ fn solve_blocking(
 ) {
     let initial_plan = job.read().plan.clone();
     let job_id = job.read().id.clone();
+    let solve_start = Instant::now();
 
     info!(
         job_id = %job_id,
@@ -253,19 +254,12 @@ fn solve_blocking(
     let constraints = create_constraints();
     let mut director = TypedScoreDirector::new(initial_plan.clone(), constraints);
 
-    // Phase 1: Construction heuristic (round-robin)
-    let mut ch_timer = PhaseTimer::start("ConstructionHeuristic", 0);
-    let mut current_score = construction_heuristic(&mut director, &mut ch_timer);
-    ch_timer.finish();
+    listener.on_solving_started(&initial_plan);
 
-    // Print solving started after construction
-    console::print_solving_started(
-        solve_start.elapsed().as_millis() as u64,
-        &current_score.to_string(),
-        initial_plan.visits.len(),
-        initial_plan.visits.len(),
-        initial_plan.vehicles.len(),
-    );
+    // Phase 1: Construction heuristic (round-robin)
+    listener.on_phase_started(0, "ConstructionHeuristic");
+    let mut current_score = construction_heuristic(&mut director);
+    listener.on_phase_ended(0, "ConstructionHeuristic");
 
     // Update job with constructed solution
     update_job(&job, &director, current_score);
@@ -274,26 +268,24 @@ fn solve_blocking(
     let n_vehicles = director.working_solution().vehicles.len();
     if n_vehicles == 0 {
         info!("No vehicles to optimize");
-        console::print_solving_ended(
-            solve_start.elapsed(),
-            0,
-            1,
-            &current_score.to_string(),
-            current_score.is_feasible(),
-        );
+        listener.on_solving_ended(&director.working_solution(), false);
         finish_job(&job, &director, current_score);
         return;
     }
 
-    let mut ls_timer = PhaseTimer::start("LateAcceptance", 1);
+    listener.on_phase_started(1, "LateAcceptance");
     let mut late_scores = vec![current_score; LATE_ACCEPTANCE_SIZE];
     let mut step: u64 = 0;
     let mut rng = rand::thread_rng();
 
     // Track best score and improvement times
     let mut best_score = current_score;
-    let mut last_improvement_time = solve_start;
+    let mut last_improvement_time = Instant::now();
     let mut last_improvement_step: u64 = 0;
+
+    // Track metrics for periodic reporting
+    let mut steps_accepted: u64 = 0;
+    let mut moves_evaluated: u64 = 0;
 
     loop {
         // Check termination conditions
@@ -316,7 +308,8 @@ fn solve_blocking(
         if let Some((src_vehicle, src_pos, dst_vehicle, dst_pos)) =
             generate_move(&director, &mut rng)
         {
-            ls_timer.record_move();
+            moves_evaluated += 1;
+            listener.record_move();
 
             // Try the move
             let old_score = current_score;
@@ -329,7 +322,8 @@ fn solve_blocking(
 
             if new_score >= old_score || new_score >= late_score {
                 // Accept
-                ls_timer.record_accepted(&current_score.to_string());
+                steps_accepted += 1;
+                listener.record_accepted(&current_score.to_string());
                 current_score = new_score;
                 late_scores[late_idx] = new_score;
 
@@ -341,11 +335,11 @@ fn solve_blocking(
                 }
 
                 // Periodic update
-                if ls_timer.steps_accepted().is_multiple_of(1000) {
+                if steps_accepted.is_multiple_of(1000) {
                     update_job(&job, &director, current_score);
                     debug!(
                         step,
-                        moves_accepted = ls_timer.steps_accepted(),
+                        moves_accepted = steps_accepted,
                         score = %current_score,
                         elapsed_secs = solve_start.elapsed().as_secs(),
                         "Progress update"
@@ -353,13 +347,8 @@ fn solve_blocking(
                 }
 
                 // Periodic console progress (every 10000 moves)
-                if ls_timer.moves_evaluated().is_multiple_of(10000) {
-                    console::print_step_progress(
-                        ls_timer.steps_accepted(),
-                        ls_timer.elapsed(),
-                        ls_timer.moves_evaluated(),
-                        &current_score.to_string(),
-                    );
+                if moves_evaluated.is_multiple_of(10000) {
+                    listener.report_step_progress(step);
                 }
             } else {
                 // Reject - undo
@@ -370,27 +359,18 @@ fn solve_blocking(
         }
     }
 
-    ls_timer.finish();
-
-    let total_duration = solve_start.elapsed();
-    let total_moves = step;
+    listener.on_phase_ended(1, "LateAcceptance");
 
     info!(
         job_id = %job_id,
-        duration_secs = total_duration.as_secs_f64(),
+        duration_secs = solve_start.elapsed().as_secs_f64(),
         steps = step,
         score = %current_score,
         feasible = current_score.is_feasible(),
         "Solving complete"
     );
 
-    console::print_solving_ended(
-        total_duration,
-        total_moves,
-        2,
-        &current_score.to_string(),
-        current_score.is_feasible(),
-    );
+    listener.on_solving_ended(&director.working_solution(), false);
 
     finish_job(&job, &director, current_score);
 }
@@ -400,7 +380,6 @@ fn solve_blocking(
 /// Skips construction if all visits are already assigned (continue mode).
 fn construction_heuristic(
     director: &mut TypedScoreDirector<VehicleRoutePlan, impl ConstraintSet<VehicleRoutePlan, HardSoftScore>>,
-    timer: &mut PhaseTimer,
 ) -> HardSoftScore {
     // Initialize score
     let _ = director.calculate_score();
@@ -441,15 +420,11 @@ fn construction_heuristic(
             continue;
         }
 
-        timer.record_move();
         director.before_variable_changed(vehicle_idx);
         director.working_solution_mut().vehicles[vehicle_idx]
             .visits
             .push(visit_idx);
         director.after_variable_changed(vehicle_idx);
-
-        let score = director.get_score();
-        timer.record_accepted(&score.to_string());
 
         vehicle_idx = (vehicle_idx + 1) % n_vehicles;
     }
@@ -612,9 +587,7 @@ mod tests {
         let constraints = create_constraints();
         let mut director = TypedScoreDirector::new(plan, constraints);
 
-        // Create a timer but don't print (we're in a test)
-        let mut timer = PhaseTimer::start("ConstructionHeuristic", 0);
-        let score = construction_heuristic(&mut director, &mut timer);
+        let score = construction_heuristic(&mut director);
 
         // All visits should be assigned
         let total_visits: usize = director

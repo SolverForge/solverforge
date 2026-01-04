@@ -30,6 +30,7 @@
 mod arena;
 mod change;
 mod composite;
+pub mod k_opt_reconnection;
 mod list_change;
 mod list_reverse;
 mod list_ruin;

@@ -77,8 +77,7 @@ pub struct OverlappingJoiner<Fsa, Fea, Fsb, Feb, T> {
     _phantom: PhantomData<fn() -> T>,
 }
 
-impl<A, B, T, Fsa, Fea, Fsb, Feb> Joiner<A, B>
-    for OverlappingJoiner<Fsa, Fea, Fsb, Feb, T>
+impl<A, B, T, Fsa, Fea, Fsb, Feb> Joiner<A, B> for OverlappingJoiner<Fsa, Fea, Fsb, Feb, T>
 where
     T: Ord,
     Fsa: Fn(&A) -> T + Send + Sync,

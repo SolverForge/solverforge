@@ -101,8 +101,7 @@ where
     }
 }
 
-impl<V, E> SingletonInverseVariableSupply<V, E>
-    for ExternalizedSingletonInverseVariableSupply<V, E>
+impl<V, E> SingletonInverseVariableSupply<V, E> for ExternalizedSingletonInverseVariableSupply<V, E>
 where
     V: Eq + Hash + Clone + Send + Sync + 'static,
     E: Clone + Send + Sync + 'static,

@@ -79,9 +79,7 @@ mod tests {
     use std::sync::Arc;
 
     #[derive(Clone, Debug)]
-    struct Entity {
-        value: Option<i32>,
-    }
+    struct Entity {}
 
     #[derive(Clone, Debug)]
     struct TestSolution {

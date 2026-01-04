@@ -45,7 +45,12 @@
 
 use crate::constraint::penta_incremental::IncrementalPentaConstraint;
 
-super::arity_stream_macros::impl_arity_stream!(penta, PentaConstraintStream, PentaConstraintBuilder, IncrementalPentaConstraint);
+super::arity_stream_macros::impl_arity_stream!(
+    penta,
+    PentaConstraintStream,
+    PentaConstraintBuilder,
+    IncrementalPentaConstraint
+);
 
 // Additional doctests for individual methods
 

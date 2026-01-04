@@ -47,7 +47,12 @@ use super::filter::{BiFilter, FnTriFilter};
 use super::joiner::Joiner;
 use super::tri_stream::TriConstraintStream;
 
-super::arity_stream_macros::impl_arity_stream!(bi, BiConstraintStream, BiConstraintBuilder, IncrementalBiConstraint);
+super::arity_stream_macros::impl_arity_stream!(
+    bi,
+    BiConstraintStream,
+    BiConstraintBuilder,
+    IncrementalBiConstraint
+);
 
 // join_self method - transitions to TriConstraintStream
 impl<S, A, K, E, KE, F, Sc> BiConstraintStream<S, A, K, E, KE, F, Sc>
@@ -105,9 +110,7 @@ where
         F: 'static,
     {
         let filter = self.filter;
-        let combined_filter = move |a: &A, b: &A, c: &A| {
-            filter.test(a, b) && joiner.matches(a, c)
-        };
+        let combined_filter = move |a: &A, b: &A, c: &A| filter.test(a, b) && joiner.matches(a, c);
 
         TriConstraintStream::new_self_join_with_filter(
             self.extractor,

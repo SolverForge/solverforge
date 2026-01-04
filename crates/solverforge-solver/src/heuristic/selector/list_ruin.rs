@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(moves.len(), 5);
         for m in &moves {
             let count = m.ruin_count();
-            assert!(count >= 2 && count <= 3);
+            assert!((2..=3).contains(&count));
         }
     }
 

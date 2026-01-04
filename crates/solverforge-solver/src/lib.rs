@@ -25,19 +25,52 @@ pub use event::{
     SolverEventSupport, StepLifecycleListener,
 };
 pub use heuristic::{
-    // Move types
-    ChangeMove, CompositeMove, CutPoint, KOptMove, ListRuinMove, Move, MoveArena,
-    PillarChangeMove, PillarSwapMove, RuinMove, SwapMove,
     // K-opt reconnection patterns
     k_opt_reconnection,
     // Selectors
-    AllEntitiesSelector, ChangeMoveSelector, DefaultPillarSelector, EntityReference,
-    EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
-    KOptConfig, KOptMoveSelector, ListPositionDistanceMeter, ListRuinMoveSelector,
-    MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector, MoveSelector,
-    NearbyDistanceMeter, NearbyEntitySelector, NearbyKOptMoveSelector, NearbySelectionConfig,
-    Pillar, PillarSelector, RuinMoveSelector, SelectionOrder, StaticTypedValueSelector,
-    SubPillarConfig, SwapMoveSelector, TypedValueSelector,
+    AllEntitiesSelector,
+    // Move types
+    ChangeMove,
+    ChangeMoveSelector,
+    CompositeMove,
+    CutPoint,
+    DefaultPillarSelector,
+    EntityReference,
+    EntitySelector,
+    FromSolutionEntitySelector,
+    FromSolutionTypedValueSelector,
+    KOptConfig,
+    KOptMove,
+    KOptMoveSelector,
+    ListPositionDistanceMeter,
+    ListRuinMove,
+    ListRuinMoveSelector,
+    MimicRecorder,
+    MimicRecordingEntitySelector,
+    MimicReplayingEntitySelector,
+    Move,
+    MoveArena,
+    MoveSelector,
+    NearbyDistanceMeter,
+    NearbyEntitySelector,
+    NearbyKOptMoveSelector,
+    NearbySelectionConfig,
+    Pillar,
+    PillarChangeMove,
+    PillarSelector,
+    PillarSwapMove,
+    RuinMove,
+    RuinMoveSelector,
+    SelectionOrder,
+    StaticTypedValueSelector,
+    SubPillarConfig,
+    SwapMove,
+    SwapMoveSelector,
+    TypedValueSelector,
+};
+pub use manager::{
+    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, LocalSearchType, SolverManager,
+    SolverManagerBuilder, SolverPhaseFactory,
 };
 pub use phase::{
     construction::{
@@ -66,13 +99,9 @@ pub use phase::{
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{Solver, SolverFactory};
+pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
     AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
     OrCompositeTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
-pub use manager::{
-    SolverManager, SolverManagerBuilder, LocalSearchType, ConstructionType,
-    SolverPhaseFactory, CloneablePhaseFactory, ClosurePhaseFactory,
-};
-pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};

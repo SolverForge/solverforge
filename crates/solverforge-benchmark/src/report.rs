@@ -80,13 +80,19 @@ impl CsvExporter {
     }
 
     /// Exports benchmark result to a CSV file.
-    pub fn to_file<Sc: Score + Display>(result: &BenchmarkResult<Sc>, path: impl AsRef<Path>) -> io::Result<()> {
+    pub fn to_file<Sc: Score + Display>(
+        result: &BenchmarkResult<Sc>,
+        path: impl AsRef<Path>,
+    ) -> io::Result<()> {
         let csv = Self::to_string(result);
         fs::write(path, csv)
     }
 
     /// Writes benchmark result as CSV to a writer.
-    pub fn write<Sc: Score + Display, W: Write>(result: &BenchmarkResult<Sc>, mut writer: W) -> io::Result<()> {
+    pub fn write<Sc: Score + Display, W: Write>(
+        result: &BenchmarkResult<Sc>,
+        mut writer: W,
+    ) -> io::Result<()> {
         let csv = Self::to_string(result);
         writer.write_all(csv.as_bytes())
     }
@@ -158,11 +164,36 @@ impl MarkdownReport {
             if let Some(worst) = result.worst_score() {
                 writeln!(output, "| Worst Score | {} |", worst).unwrap();
             }
-            writeln!(output, "| Avg Time | {:.2} ms |", result.avg_solve_time().as_secs_f64() * 1000.0).unwrap();
-            writeln!(output, "| Min Time | {:.2} ms |", result.min_solve_time().as_secs_f64() * 1000.0).unwrap();
-            writeln!(output, "| Max Time | {:.2} ms |", result.max_solve_time().as_secs_f64() * 1000.0).unwrap();
-            writeln!(output, "| Avg Moves/sec | {:.0} |", result.avg_moves_per_second()).unwrap();
-            writeln!(output, "| Avg Acceptance | {:.2}% |", result.avg_acceptance_rate() * 100.0).unwrap();
+            writeln!(
+                output,
+                "| Avg Time | {:.2} ms |",
+                result.avg_solve_time().as_secs_f64() * 1000.0
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "| Min Time | {:.2} ms |",
+                result.min_solve_time().as_secs_f64() * 1000.0
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "| Max Time | {:.2} ms |",
+                result.max_solve_time().as_secs_f64() * 1000.0
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "| Avg Moves/sec | {:.0} |",
+                result.avg_moves_per_second()
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "| Avg Acceptance | {:.2}% |",
+                result.avg_acceptance_rate() * 100.0
+            )
+            .unwrap();
         } else {
             writeln!(output, "*No runs completed.*").unwrap();
         }
@@ -193,13 +224,19 @@ impl MarkdownReport {
     }
 
     /// Writes Markdown report to a file.
-    pub fn to_file<Sc: Score + Display>(result: &BenchmarkResult<Sc>, path: impl AsRef<Path>) -> io::Result<()> {
+    pub fn to_file<Sc: Score + Display>(
+        result: &BenchmarkResult<Sc>,
+        path: impl AsRef<Path>,
+    ) -> io::Result<()> {
         let md = Self::to_string(result);
         fs::write(path, md)
     }
 
     /// Writes Markdown report to a writer.
-    pub fn write<Sc: Score + Display, W: Write>(result: &BenchmarkResult<Sc>, mut writer: W) -> io::Result<()> {
+    pub fn write<Sc: Score + Display, W: Write>(
+        result: &BenchmarkResult<Sc>,
+        mut writer: W,
+    ) -> io::Result<()> {
         let md = Self::to_string(result);
         writer.write_all(md.as_bytes())
     }
@@ -226,8 +263,16 @@ impl MarkdownReport {
 
         writeln!(output, "## Comparison").unwrap();
         writeln!(output).unwrap();
-        writeln!(output, "| Solver | Problem | Best Score | Avg Time (ms) | Moves/sec |").unwrap();
-        writeln!(output, "|--------|---------|------------|---------------|-----------|").unwrap();
+        writeln!(
+            output,
+            "| Solver | Problem | Best Score | Avg Time (ms) | Moves/sec |"
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "|--------|---------|------------|---------------|-----------|"
+        )
+        .unwrap();
 
         for result in results {
             let best = result

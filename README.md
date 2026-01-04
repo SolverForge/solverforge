@@ -361,13 +361,15 @@ SolverForge leverages Rust's zero-cost abstractions:
 
 See the [`examples/`](examples/) directory:
 
-- **Employee Scheduling**: Real-world workforce scheduling with skills, availability, and shift constraints
+- **N-Queens**: Classic constraint satisfaction problem demonstrating SolverForge features
 
 Run examples:
 
 ```bash
-cargo run -p employee-scheduling
+cargo run -p nqueens
 ```
+
+For more comprehensive examples including employee scheduling and vehicle routing, see the [SolverForge Quickstarts](https://github.com/solverforge/solverforge-quickstarts) repository.
 
 ## Status
 

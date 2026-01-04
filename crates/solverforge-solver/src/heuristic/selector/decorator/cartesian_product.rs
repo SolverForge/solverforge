@@ -234,7 +234,8 @@ mod tests {
         ));
         let entity_desc =
             EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("Sol", TypeId::of::<Sol>()).with_entity(entity_desc);
+        let descriptor =
+            SolutionDescriptor::new("Sol", TypeId::of::<Sol>()).with_entity(entity_desc);
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
     }
 
@@ -246,8 +247,7 @@ mod tests {
         }]);
 
         let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel =
-            ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
+        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
 

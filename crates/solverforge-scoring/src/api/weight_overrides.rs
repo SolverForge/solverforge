@@ -216,8 +216,14 @@ mod tests {
         ]);
 
         assert_eq!(overrides.len(), 2);
-        assert_eq!(overrides.get("hard_constraint"), Some(&HardSoftScore::of_hard(1)));
-        assert_eq!(overrides.get("soft_constraint"), Some(&HardSoftScore::of_soft(10)));
+        assert_eq!(
+            overrides.get("hard_constraint"),
+            Some(&HardSoftScore::of_hard(1))
+        );
+        assert_eq!(
+            overrides.get("soft_constraint"),
+            Some(&HardSoftScore::of_soft(10))
+        );
     }
 
     #[test]

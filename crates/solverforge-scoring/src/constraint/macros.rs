@@ -51,7 +51,11 @@ macro_rules! impl_get_matches_nary {
                             EntityRef::new(b),
                         ]);
                         let score = $self.compute_score(a, b);
-                        matches.push(DetailedConstraintMatch::new(cref.clone(), score, justification));
+                        matches.push(DetailedConstraintMatch::new(
+                            cref.clone(),
+                            score,
+                            justification,
+                        ));
                     }
                 }
             }
@@ -91,7 +95,11 @@ macro_rules! impl_get_matches_nary {
                                 EntityRef::new(c),
                             ]);
                             let score = $self.compute_score(a, b, c);
-                            matches.push(DetailedConstraintMatch::new(cref.clone(), score, justification));
+                            matches.push(DetailedConstraintMatch::new(
+                                cref.clone(),
+                                score,
+                                justification,
+                            ));
                         }
                     }
                 }
@@ -136,7 +144,11 @@ macro_rules! impl_get_matches_nary {
                                     EntityRef::new(d),
                                 ]);
                                 let score = $self.compute_score(a, b, c, d);
-                                matches.push(DetailedConstraintMatch::new(cref.clone(), score, justification));
+                                matches.push(DetailedConstraintMatch::new(
+                                    cref.clone(),
+                                    score,
+                                    justification,
+                                ));
                             }
                         }
                     }
@@ -186,7 +198,11 @@ macro_rules! impl_get_matches_nary {
                                         EntityRef::new(e),
                                     ]);
                                     let score = $self.compute_score(a, b, c, d, e);
-                                    matches.push(DetailedConstraintMatch::new(cref.clone(), score, justification));
+                                    matches.push(DetailedConstraintMatch::new(
+                                        cref.clone(),
+                                        score,
+                                        justification,
+                                    ));
                                 }
                             }
                         }

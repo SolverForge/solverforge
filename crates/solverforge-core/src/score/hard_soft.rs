@@ -2,9 +2,9 @@
 
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, Sub, Neg};
+use std::ops::{Add, Neg, Sub};
 
-use super::traits::{Score, ParseableScore, ScoreParseError};
+use super::traits::{ParseableScore, Score, ScoreParseError};
 
 /// A score with separate hard and soft constraint levels.
 ///
@@ -189,17 +189,26 @@ impl ParseableScore for HardSoftScore {
         let parts: Vec<&str> = s.split('/').collect();
         if parts.len() != 2 {
             return Err(ScoreParseError {
-                message: format!("Invalid HardSoftScore format '{}': expected 'Xhard/Ysoft'", s),
+                message: format!(
+                    "Invalid HardSoftScore format '{}': expected 'Xhard/Ysoft'",
+                    s
+                ),
             });
         }
 
-        let hard_str = parts[0].trim().strip_suffix("hard").ok_or_else(|| ScoreParseError {
-            message: format!("Hard score part '{}' must end with 'hard'", parts[0]),
-        })?;
+        let hard_str = parts[0]
+            .trim()
+            .strip_suffix("hard")
+            .ok_or_else(|| ScoreParseError {
+                message: format!("Hard score part '{}' must end with 'hard'", parts[0]),
+            })?;
 
-        let soft_str = parts[1].trim().strip_suffix("soft").ok_or_else(|| ScoreParseError {
-            message: format!("Soft score part '{}' must end with 'soft'", parts[1]),
-        })?;
+        let soft_str = parts[1]
+            .trim()
+            .strip_suffix("soft")
+            .ok_or_else(|| ScoreParseError {
+                message: format!("Soft score part '{}' must end with 'soft'", parts[1]),
+            })?;
 
         let hard = hard_str.parse::<i64>().map_err(|e| ScoreParseError {
             message: format!("Invalid hard score '{}': {}", hard_str, e),

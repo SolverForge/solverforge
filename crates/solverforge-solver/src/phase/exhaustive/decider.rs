@@ -5,8 +5,8 @@
 
 use std::fmt::Debug;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::bounder::ScoreBounder;
 use super::node::ExhaustiveSearchNode;
@@ -116,7 +116,11 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> ExhaustiveSe
                 &self.variable_name,
             );
 
-            (self.setter)(score_director.working_solution_mut(), entity_index, Some(value.clone()));
+            (self.setter)(
+                score_director.working_solution_mut(),
+                entity_index,
+                Some(value.clone()),
+            );
 
             score_director.after_variable_changed(
                 self.descriptor_index,

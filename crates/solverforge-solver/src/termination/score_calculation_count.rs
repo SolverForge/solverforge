@@ -40,7 +40,10 @@ pub struct ScoreCalculationCountTermination<S: PlanningSolution> {
 impl<S: PlanningSolution> Debug for ScoreCalculationCountTermination<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScoreCalculationCountTermination")
-            .field("score_calculation_count_limit", &self.score_calculation_count_limit)
+            .field(
+                "score_calculation_count_limit",
+                &self.score_calculation_count_limit,
+            )
             .finish()
     }
 }
@@ -79,9 +82,7 @@ mod tests {
     use std::sync::Arc;
 
     #[derive(Clone, Debug)]
-    struct Entity {
-        value: Option<i32>,
-    }
+    struct Entity {}
 
     #[derive(Clone, Debug)]
     struct TestSolution {

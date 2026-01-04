@@ -9,8 +9,6 @@ members = [
     "crates/solverforge-benchmark",
     "crates/solverforge",
     "examples/nqueens",
-    "examples/employee-scheduling",
-    "examples/vehicle-routing",
 ]
 
 [workspace.package]
@@ -21,7 +19,7 @@ repository = "https://github.com/solverforge/solverforge-rs"
 rust-version = "1.80"  # Updated for rayon 1.11
 
 [workspace.dependencies]
-# Internal crates
+# Internal crates (path-only; versions specified per-crate for publishing)
 solverforge-core = { path = "crates/solverforge-core" }
 solverforge-macros = { path = "crates/solverforge-macros" }
 solverforge-scoring = { path = "crates/solverforge-scoring" }

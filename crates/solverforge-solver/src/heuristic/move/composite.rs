@@ -237,9 +237,7 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<Sol, impl Fn(&Sol) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<Sol, impl Fn(&Sol) -> SimpleScore> {
         let solution = Sol { tasks, score: None };
         let descriptor = SolutionDescriptor::new("Sol", TypeId::of::<Sol>());
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))

@@ -11,8 +11,8 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Move;
 
@@ -140,11 +140,7 @@ where
 
         // Notify before changes for all entities
         for &idx in self.left_indices.iter().chain(&self.right_indices) {
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                idx,
-                self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
         // Swap: left gets right's value using typed setter - zero erasure
@@ -166,11 +162,7 @@ where
 
         // Notify after changes
         for &idx in self.left_indices.iter().chain(&self.right_indices) {
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                idx,
-                self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
         // Register typed undo closure - restore all original values
@@ -202,11 +194,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use solverforge_core::domain::{
-        EntityDescriptor, SolutionDescriptor, TypedEntityExtractor,
-    };
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -243,7 +233,9 @@ mod tests {
         }
     }
 
-    fn create_director(employees: Vec<Employee>) -> SimpleScoreDirector<Solution, impl Fn(&Solution) -> SimpleScore> {
+    fn create_director(
+        employees: Vec<Employee>,
+    ) -> SimpleScoreDirector<Solution, impl Fn(&Solution) -> SimpleScore> {
         let solution = Solution {
             employees,
             score: None,
@@ -253,24 +245,42 @@ mod tests {
             "employees",
             |s: &Solution| &s.employees,
             |s: &mut Solution| &mut s.employees,
-        ));let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
+        ));
+        let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
             .with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("Solution", TypeId::of::<Solution>())
-            .with_entity(entity_desc);
+        let descriptor =
+            SolutionDescriptor::new("Solution", TypeId::of::<Solution>()).with_entity(entity_desc);
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
     }
 
     #[test]
     fn test_pillar_swap_all_entities() {
         let mut director = create_director(vec![
-            Employee { id: 0, shift: Some(1) },
-            Employee { id: 1, shift: Some(1) },
-            Employee { id: 2, shift: Some(2) },
-            Employee { id: 3, shift: Some(2) },
+            Employee {
+                id: 0,
+                shift: Some(1),
+            },
+            Employee {
+                id: 1,
+                shift: Some(1),
+            },
+            Employee {
+                id: 2,
+                shift: Some(2),
+            },
+            Employee {
+                id: 3,
+                shift: Some(2),
+            },
         ]);
 
         let m = PillarSwapMove::<Solution, i32>::new(
-            vec![0, 1], vec![2, 3], get_shift, set_shift, "shift", 0,
+            vec![0, 1],
+            vec![2, 3],
+            get_shift,
+            set_shift,
+            "shift",
+            0,
         );
         assert!(m.is_doable(&director));
 
@@ -303,21 +313,34 @@ mod tests {
     #[test]
     fn test_pillar_swap_same_value_not_doable() {
         let director = create_director(vec![
-            Employee { id: 0, shift: Some(1) },
-            Employee { id: 1, shift: Some(1) },
+            Employee {
+                id: 0,
+                shift: Some(1),
+            },
+            Employee {
+                id: 1,
+                shift: Some(1),
+            },
         ]);
         let m = PillarSwapMove::<Solution, i32>::new(
-            vec![0], vec![1], get_shift, set_shift, "shift", 0,
+            vec![0],
+            vec![1],
+            get_shift,
+            set_shift,
+            "shift",
+            0,
         );
         assert!(!m.is_doable(&director));
     }
 
     #[test]
     fn test_pillar_swap_empty_pillar_not_doable() {
-        let director = create_director(vec![Employee { id: 0, shift: Some(1) }]);
-        let m = PillarSwapMove::<Solution, i32>::new(
-            vec![], vec![0], get_shift, set_shift, "shift", 0,
-        );
+        let director = create_director(vec![Employee {
+            id: 0,
+            shift: Some(1),
+        }]);
+        let m =
+            PillarSwapMove::<Solution, i32>::new(vec![], vec![0], get_shift, set_shift, "shift", 0);
         assert!(!m.is_doable(&director));
     }
 }

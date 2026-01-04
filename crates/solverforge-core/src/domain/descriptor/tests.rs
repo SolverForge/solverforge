@@ -34,9 +34,8 @@ fn test_entity_descriptor_with_extractor() {
         get_entities_mut,
     ));
 
-    let descriptor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-            .with_extractor(extractor);
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
 
     assert!(descriptor.has_extractor());
 }
@@ -50,14 +49,19 @@ fn test_entity_descriptor_entity_count() {
         get_entities_mut,
     ));
 
-    let descriptor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-            .with_extractor(extractor);
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
 
     let solution = TestSolution {
         entities: vec![
-            TestEntity { id: 1, row: Some(1) },
-            TestEntity { id: 2, row: Some(2) },
+            TestEntity {
+                id: 1,
+                row: Some(1),
+            },
+            TestEntity {
+                id: 2,
+                row: Some(2),
+            },
             TestEntity { id: 3, row: None },
         ],
     };
@@ -74,9 +78,8 @@ fn test_entity_descriptor_get_entity() {
         get_entities_mut,
     ));
 
-    let descriptor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-            .with_extractor(extractor);
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
 
     let solution = TestSolution {
         entities: vec![
@@ -112,9 +115,8 @@ fn test_entity_descriptor_get_entity_mut() {
         get_entities_mut,
     ));
 
-    let descriptor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-            .with_extractor(extractor);
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
 
     let mut solution = TestSolution {
         entities: vec![TestEntity {
@@ -140,9 +142,8 @@ fn test_entity_descriptor_entity_refs() {
         get_entities_mut,
     ));
 
-    let descriptor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-            .with_extractor(extractor);
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
 
     let solution = TestSolution {
         entities: vec![
@@ -172,9 +173,8 @@ fn test_entity_descriptor_for_each_entity() {
         get_entities_mut,
     ));
 
-    let descriptor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-            .with_extractor(extractor);
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
 
     let solution = TestSolution {
         entities: vec![
@@ -237,14 +237,23 @@ fn create_test_entity_descriptor() -> EntityDescriptor {
 fn test_solution_descriptor_total_entity_count() {
     let entity_desc = create_test_entity_descriptor();
 
-    let solution_desc =
-        SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc);
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc);
 
     let solution = TestSolution {
         entities: vec![
-            TestEntity { id: 1, row: Some(1) },
-            TestEntity { id: 2, row: Some(2) },
-            TestEntity { id: 3, row: Some(3) },
+            TestEntity {
+                id: 1,
+                row: Some(1),
+            },
+            TestEntity {
+                id: 2,
+                row: Some(2),
+            },
+            TestEntity {
+                id: 3,
+                row: Some(3),
+            },
         ],
     };
 
@@ -258,13 +267,19 @@ fn test_solution_descriptor_total_entity_count() {
 fn test_solution_descriptor_all_entity_refs() {
     let entity_desc = create_test_entity_descriptor();
 
-    let solution_desc =
-        SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc);
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc);
 
     let solution = TestSolution {
         entities: vec![
-            TestEntity { id: 1, row: Some(1) },
-            TestEntity { id: 2, row: Some(2) },
+            TestEntity {
+                id: 1,
+                row: Some(1),
+            },
+            TestEntity {
+                id: 2,
+                row: Some(2),
+            },
         ],
     };
 
@@ -280,8 +295,8 @@ fn test_solution_descriptor_all_entity_refs() {
 fn test_solution_descriptor_for_each_entity() {
     let entity_desc = create_test_entity_descriptor();
 
-    let solution_desc =
-        SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc);
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc);
 
     let solution = TestSolution {
         entities: vec![
@@ -309,8 +324,8 @@ fn test_solution_descriptor_for_each_entity() {
 fn test_solution_descriptor_get_entity() {
     let entity_desc = create_test_entity_descriptor();
 
-    let solution_desc =
-        SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc);
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc);
 
     let solution = TestSolution {
         entities: vec![
@@ -345,8 +360,8 @@ fn test_solution_descriptor_get_entity() {
 fn test_solution_descriptor_all_extractors_configured() {
     // With extractor
     let entity_desc = create_test_entity_descriptor();
-    let solution_desc =
-        SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc);
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc);
     assert!(solution_desc.all_extractors_configured());
 
     // Without extractor

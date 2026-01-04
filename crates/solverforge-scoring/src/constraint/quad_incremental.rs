@@ -152,7 +152,10 @@ where
         self.index_to_key.insert(index, key.clone());
 
         // Add this entity to the key index FIRST
-        self.key_to_indices.entry(key.clone()).or_default().insert(index);
+        self.key_to_indices
+            .entry(key.clone())
+            .or_default()
+            .insert(index);
 
         // Split borrows to allow simultaneous read of key_to_indices and mutation of matches
         let key_to_indices = &self.key_to_indices;
@@ -253,7 +256,8 @@ where
             // Compute reverse delta
             if i < entities.len() && j < entities.len() && k < entities.len() && l < entities.len()
             {
-                let score = self.compute_score(&entities[i], &entities[j], &entities[k], &entities[l]);
+                let score =
+                    self.compute_score(&entities[i], &entities[j], &entities[k], &entities[l]);
                 total = total - score;
             }
         }
@@ -332,7 +336,8 @@ where
                             let j = indices[pos_j];
                             let k = indices[pos_k];
                             let l = indices[pos_l];
-                            if (self.filter)(&entities[i], &entities[j], &entities[k], &entities[l]) {
+                            if (self.filter)(&entities[i], &entities[j], &entities[k], &entities[l])
+                            {
                                 count += 1;
                             }
                         }

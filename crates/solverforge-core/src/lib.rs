@@ -7,11 +7,14 @@
 //! - Constraint types for incremental evaluation
 
 pub mod constraint;
-pub mod score;
 pub mod domain;
 pub mod error;
+pub mod score;
 
 pub use constraint::{ConstraintRef, ImpactType};
-pub use score::{ParseableScore, Score, ScoreParseError, SimpleScore, HardSoftScore, HardMediumSoftScore, HardSoftDecimalScore, BendableScore};
-pub use domain::{PlanningSolution, PlanningEntity, ProblemFact, PlanningId};
+pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use error::SolverForgeError;
+pub use score::{
+    BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, ParseableScore, Score,
+    ScoreParseError, SimpleScore,
+};

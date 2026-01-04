@@ -26,8 +26,8 @@ use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use solverforge_scoring::ScoreDirector;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;

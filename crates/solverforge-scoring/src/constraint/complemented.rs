@@ -219,7 +219,10 @@ where
         let mut total = Sc::zero();
         for b in entities_b {
             let key = (self.key_b)(b);
-            let result = groups.get(&key).cloned().unwrap_or_else(|| (self.default_fn)(b));
+            let result = groups
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| (self.default_fn)(b));
             total = total + self.compute_score(&result);
         }
 
@@ -330,7 +333,8 @@ where
         let Some(b_idx) = b_idx else {
             // No B entity for this key - A entity doesn't affect score
             // Still track it for retraction
-            let acc = self.groups
+            let acc = self
+                .groups
                 .entry(key.clone())
                 .or_insert_with(|| self.collector.create_accumulator());
             acc.accumulate(&value);
@@ -342,7 +346,8 @@ where
         let b = &entities_b[b_idx];
 
         // Compute old score for this B entity
-        let old_result = self.groups
+        let old_result = self
+            .groups
             .get(&key)
             .map(|acc| acc.finish())
             .unwrap_or_else(|| (self.default_fn)(b));
@@ -353,7 +358,8 @@ where
         };
 
         // Get or create accumulator and add value
-        let acc = self.groups
+        let acc = self
+            .groups
             .entry(key.clone())
             .or_insert_with(|| self.collector.create_accumulator());
         acc.accumulate(&value);
@@ -489,8 +495,12 @@ mod tests {
         let schedule = Schedule {
             employees: vec![Employee { id: 0 }, Employee { id: 1 }],
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
             ],
         };
 
@@ -517,8 +527,12 @@ mod tests {
         let schedule = Schedule {
             employees: vec![Employee { id: 0 }, Employee { id: 1 }],
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
                 Shift { employee_id: None }, // Unassigned - should be skipped
                 Shift { employee_id: None }, // Unassigned - should be skipped
             ],
@@ -548,9 +562,15 @@ mod tests {
         let schedule = Schedule {
             employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
             ],
         };
 
@@ -591,9 +611,13 @@ mod tests {
         let schedule = Schedule {
             employees: vec![Employee { id: 0 }, Employee { id: 1 }],
             shifts: vec![
-                Shift { employee_id: Some(0) },
+                Shift {
+                    employee_id: Some(0),
+                },
                 Shift { employee_id: None }, // Unassigned
-                Shift { employee_id: Some(0) },
+                Shift {
+                    employee_id: Some(0),
+                },
             ],
         };
 
@@ -628,15 +652,17 @@ mod tests {
         );
 
         let schedule = Schedule {
-            employees: vec![
-                Employee { id: 0 },
-                Employee { id: 1 },
-                Employee { id: 2 },
-            ],
+            employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
             ],
         };
 
@@ -665,9 +691,15 @@ mod tests {
         let schedule = Schedule {
             employees: vec![Employee { id: 0 }, Employee { id: 1 }],
             shifts: vec![
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(0) },
-                Shift { employee_id: Some(1) },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(0),
+                },
+                Shift {
+                    employee_id: Some(1),
+                },
             ],
         };
 

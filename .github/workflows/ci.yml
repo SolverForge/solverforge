@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, release/*]
+    branches: [main, release/*, feature/*]
   pull_request:
-    branches: [main]
+    branches: [main, release/*]
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,6 +38,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Build workspace
+        run: cargo build --workspace --all-features
+
+      - name: Run tests
+        run: cargo test --workspace --all-features
+
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -59,3 +68,9 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run integration tests
+        run: cargo test --workspace --all-features --test '*'
+
+      - name: Run doc tests
+        run: cargo test --workspace --doc

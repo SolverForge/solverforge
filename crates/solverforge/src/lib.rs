@@ -128,6 +128,9 @@ pub use solverforge_solver::{
     EntitySelector,
 };
 
+// Re-export heuristic module for advanced move/selector access
+pub use solverforge_solver::heuristic;
+
 // Re-export zero-erasure constraint infrastructure
 pub use solverforge_scoring::{
     // Zero-erasure incremental constraints

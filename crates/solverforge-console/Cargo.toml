@@ -18,6 +18,9 @@ solverforge-solver = { workspace = true }
 ratatui = "0.29"
 crossterm = "0.28"
 
+# Synchronization
+parking_lot = "0.12"
+
 # Optional serialization for JSON output
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }

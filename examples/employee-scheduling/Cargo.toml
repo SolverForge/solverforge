@@ -1,6 +1,6 @@
 [package]
 name = "employee-scheduling"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 description = "Employee scheduling quickstart for SolverForge"
 publish = false

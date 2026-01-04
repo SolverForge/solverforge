@@ -9,7 +9,6 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::algo::{astar, dijkstra};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 use tracing::{debug, info};
 
@@ -150,12 +149,12 @@ impl RoadNetwork {
     /// Uses cached data if available, otherwise downloads via Overpass API.
     pub async fn load_or_fetch(bbox: &BoundingBox) -> Result<Self, RoutingError> {
         // Check cache
-        fs::create_dir_all(CACHE_DIR)?;
+        tokio::fs::create_dir_all(CACHE_DIR).await?;
         let cache_path = Path::new(CACHE_DIR).join(format!("{}.json", bbox.cache_key()));
 
-        if cache_path.exists() {
+        if tokio::fs::try_exists(&cache_path).await.unwrap_or(false) {
             info!("Loading road network from cache: {:?}", cache_path);
-            return Self::load_from_cache(&cache_path);
+            return Self::load_from_cache(&cache_path).await;
         }
 
         // Download from Overpass API
@@ -163,7 +162,7 @@ impl RoadNetwork {
         let network = Self::from_bbox(bbox).await?;
 
         // Save to cache
-        network.save_to_cache(&cache_path)?;
+        network.save_to_cache(&cache_path).await?;
         info!("Saved road network to cache: {:?}", cache_path);
 
         Ok(network)
@@ -462,8 +461,8 @@ out body;"#,
     }
 
     /// Loads road network from cache file.
-    fn load_from_cache(path: &Path) -> Result<Self, RoutingError> {
-        let data = fs::read_to_string(path)?;
+    async fn load_from_cache(path: &Path) -> Result<Self, RoutingError> {
+        let data = tokio::fs::read_to_string(path).await?;
         let cached: CachedNetwork =
             serde_json::from_str(&data).map_err(|e| RoutingError::Parse(e.to_string()))?;
 
@@ -497,7 +496,7 @@ out body;"#,
     }
 
     /// Saves road network to cache file.
-    fn save_to_cache(&self, path: &Path) -> Result<(), RoutingError> {
+    async fn save_to_cache(&self, path: &Path) -> Result<(), RoutingError> {
         let nodes: Vec<CachedNode> = self
             .graph
             .node_indices()
@@ -526,7 +525,7 @@ out body;"#,
 
         let cached = CachedNetwork { nodes, edges };
         let data = serde_json::to_string(&cached).map_err(|e| RoutingError::Parse(e.to_string()))?;
-        fs::write(path, data)?;
+        tokio::fs::write(path, data).await?;
 
         Ok(())
     }

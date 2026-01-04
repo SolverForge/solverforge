@@ -24,8 +24,8 @@ pub struct TuiApp {
     channel_events: HashMap<String, Vec<ConsoleEvent>>,
     /// Scroll offset for log viewing
     scroll_offset: usize,
-    /// Active jobs (job_id -> solver_id)
-    active_jobs: HashMap<String, u64>,
+    /// Active jobs (job_id, solver_id, creation_time) in insertion order
+    active_jobs: Vec<(String, u64, Instant)>,
     /// Solver start time (for elapsed calculation)
     start_time: Instant,
     /// Best score seen so far
@@ -43,7 +43,7 @@ impl TuiApp {
             events: Vec::new(),
             channel_events: HashMap::new(),
             scroll_offset: 0,
-            active_jobs: HashMap::new(),
+            active_jobs: Vec::new(),
             start_time: Instant::now(),
             best_score: None,
             threads: HashMap::new(),
@@ -53,10 +53,11 @@ impl TuiApp {
 
     /// Handles a console event from a solver thread.
     pub fn handle_console_event(&mut self, event: ConsoleEvent) {
-        // Track active jobs
-        self.active_jobs
-            .entry(event.job_id.clone())
-            .or_insert(event.solver_id);
+        // Track active jobs (maintain insertion order)
+        if !self.active_jobs.iter().any(|(id, _, _)| id == &event.job_id) {
+            self.active_jobs
+                .push((event.job_id.clone(), event.solver_id, Instant::now()));
+        }
 
         // Update best score if present
         if let ChannelMessage::Metric { key, value, .. } = &event.message {
@@ -125,8 +126,15 @@ impl TuiApp {
         let thread_count = self.threads.len();
         let panels = calculate_layout(area, thread_count);
 
-        // Render header
-        let job_id = self.active_jobs.keys().next().map(|s| s.as_str());
+        // Render header - show first user job (excluding internal jobs)
+        let job_id = self
+            .active_jobs
+            .iter()
+            .filter(|(job_id, solver_id, _)| {
+                !job_id.starts_with("_internal") && *solver_id != 0
+            })
+            .next()
+            .map(|(job_id, _, _)| job_id.as_str());
         render_header(frame, panels.header, job_id);
 
         // Render overview
@@ -170,11 +178,16 @@ impl TuiApp {
 
     /// Builds overview state from current app state.
     fn build_overview_state(&self) -> OverviewState {
+        // Get first user job (excluding internal jobs)
         let (job_id, solver_id) = self
             .active_jobs
             .iter()
+            .filter(|(job_id, solver_id, _)| {
+                // Filter out internal jobs (starting with "_internal" or solver_id == 0)
+                !job_id.starts_with("_internal") && *solver_id != 0
+            })
             .next()
-            .map(|(j, s)| (j.clone(), *s))
+            .map(|(j, s, _)| (j.clone(), *s))
             .unwrap_or_else(|| ("N/A".to_string(), 0));
 
         // Determine status from solver_status map, falling back to thread-based heuristic

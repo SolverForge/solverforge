@@ -7,7 +7,7 @@ let loadedRoutePlan = null;
 let newVisit = null;
 let visitMarker = null;
 let routeGeometries = null;  // Cache for encoded polyline geometries
-let useRealRoads = false;    // Routing mode toggle state
+let useRealRoads = true;     // Routing mode toggle state (default: real roads)
 const solveButton = $("#solveButton");
 const stopSolvingButton = $("#stopSolvingButton");
 const vehiclesTable = $("#vehicles");
@@ -1575,7 +1575,7 @@ function replaceQuickstartSolverForgeAutoHeaderFooter() {
           </div>
           <div class="ms-auto d-flex align-items-center gap-3">
               <div class="form-check form-switch d-flex align-items-center" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Enable real road routing using OpenStreetMap data. Slower initial load (~5-15s for download), but shows accurate road routes instead of straight lines.">
-                  <input class="form-check-input" type="checkbox" id="realRoadRouting" style="width: 2.5em; height: 1.25em; cursor: pointer;">
+                  <input class="form-check-input" type="checkbox" id="realRoadRouting" checked style="width: 2.5em; height: 1.25em; cursor: pointer;">
                   <label class="form-check-label ms-2" for="realRoadRouting" style="white-space: nowrap; cursor: pointer;">
                       <i class="fas fa-road"></i> Real Roads
                   </label>

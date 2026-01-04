@@ -30,6 +30,7 @@
 mod arena;
 mod change;
 mod composite;
+mod k_opt;
 pub mod k_opt_reconnection;
 mod list_change;
 mod list_reverse;
@@ -50,6 +51,7 @@ use solverforge_scoring::ScoreDirector;
 pub use arena::MoveArena;
 pub use change::ChangeMove;
 pub use composite::CompositeMove;
+pub use k_opt::{CutPoint, KOptMove};
 pub use list_change::ListChangeMove;
 pub use list_reverse::ListReverseMove;
 pub use list_ruin::ListRuinMove;

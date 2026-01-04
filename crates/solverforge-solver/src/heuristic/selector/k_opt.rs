@@ -82,7 +82,7 @@ impl KOptConfig {
     ///
     /// Panics if k < 2 or k > 5.
     pub fn new(k: usize) -> Self {
-        assert!(k >= 2 && k <= 5, "k must be between 2 and 5");
+        assert!((2..=5).contains(&k), "k must be between 2 and 5");
         Self {
             k,
             min_segment_len: 1,
@@ -193,29 +193,32 @@ where
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
-        let iter = self.entity_selector.iter(score_director).flat_map(move |entity_ref| {
-            let entity_idx = entity_ref.entity_index;
-            let solution = score_director.working_solution();
-            let len = list_len(solution, entity_idx);
+        let iter = self
+            .entity_selector
+            .iter(score_director)
+            .flat_map(move |entity_ref| {
+                let entity_idx = entity_ref.entity_index;
+                let solution = score_director.working_solution();
+                let len = list_len(solution, entity_idx);
 
-            // Generate all valid cut combinations
-            let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
+                // Generate all valid cut combinations
+                let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
 
-            cuts_iter.flat_map(move |cuts| {
-                // For each cut combination, generate moves for each pattern
-                patterns.iter().map(move |&pattern| {
-                    KOptMove::new(
-                        &cuts,
-                        pattern,
-                        list_len,
-                        sublist_remove,
-                        sublist_insert,
-                        variable_name,
-                        descriptor_index,
-                    )
+                cuts_iter.flat_map(move |cuts| {
+                    // For each cut combination, generate moves for each pattern
+                    patterns.iter().map(move |&pattern| {
+                        KOptMove::new(
+                            &cuts,
+                            pattern,
+                            list_len,
+                            sublist_remove,
+                            sublist_insert,
+                            variable_name,
+                            descriptor_index,
+                        )
+                    })
                 })
-            })
-        });
+            });
 
         Box::new(iter)
     }
@@ -457,11 +460,19 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyKOptMoveSele
     }
 
     /// Finds the m nearest positions to a given position.
-    fn nearby_positions(&self, solution: &S, entity_idx: usize, origin: usize, len: usize) -> Vec<usize> {
+    fn nearby_positions(
+        &self,
+        solution: &S,
+        entity_idx: usize,
+        origin: usize,
+        len: usize,
+    ) -> Vec<usize> {
         let mut positions: Vec<(usize, f64)> = (0..len)
             .filter(|&p| p != origin)
             .map(|p| {
-                let dist = self.distance_meter.distance(solution, entity_idx, origin, p);
+                let dist = self
+                    .distance_meter
+                    .distance(solution, entity_idx, origin, p);
                 (p, dist)
             })
             .collect();
@@ -491,39 +502,35 @@ where
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
-        let iter = self.entity_selector.iter(score_director).flat_map(move |entity_ref| {
-            let entity_idx = entity_ref.entity_index;
-            let solution = score_director.working_solution();
-            let len = list_len_fn(solution, entity_idx);
+        let iter = self
+            .entity_selector
+            .iter(score_director)
+            .flat_map(move |entity_ref| {
+                let entity_idx = entity_ref.entity_index;
+                let solution = score_director.working_solution();
+                let len = list_len_fn(solution, entity_idx);
 
-            // Generate nearby cut combinations
-            let cuts_iter = NearbyCutIterator::new(
-                self,
-                solution,
-                entity_idx,
-                k,
-                len,
-                min_seg,
-            );
+                // Generate nearby cut combinations
+                let cuts_iter = NearbyCutIterator::new(self, solution, entity_idx, k, len, min_seg);
 
-            cuts_iter.flat_map(move |cuts| {
-                patterns.iter().filter_map(move |&pattern| {
-                    // Validate cuts are sorted for intra-route
-                    let mut sorted_cuts = cuts.clone();
-                    sorted_cuts.sort_by_key(|c| c.position());
+                cuts_iter.flat_map(move |cuts| {
+                    patterns.iter().map(move |&pattern| {
+                        // Validate cuts are sorted for intra-route
+                        let mut sorted_cuts = cuts.clone();
+                        sorted_cuts.sort_by_key(|c| c.position());
 
-                    Some(KOptMove::new(
-                        &sorted_cuts,
-                        pattern,
-                        list_len_fn,
-                        sublist_remove,
-                        sublist_insert,
-                        variable_name,
-                        descriptor_index,
-                    ))
+                        KOptMove::new(
+                            &sorted_cuts,
+                            pattern,
+                            list_len_fn,
+                            sublist_remove,
+                            sublist_insert,
+                            variable_name,
+                            descriptor_index,
+                        )
+                    })
                 })
-            })
-        });
+            });
 
         Box::new(iter)
     }
@@ -612,12 +619,9 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyCutItera
             let (last_pos, _) = *self.stack.last().unwrap();
 
             // Get nearby positions for next cut
-            let nearby = self.selector.nearby_positions(
-                self.solution,
-                self.entity_idx,
-                last_pos,
-                self.len,
-            );
+            let nearby =
+                self.selector
+                    .nearby_positions(self.solution, self.entity_idx, last_pos, self.len);
 
             // Filter to valid positions (must leave room for remaining cuts)
             let remaining_cuts = self.k - self.stack.len();
@@ -709,7 +713,9 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyCutItera
     }
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> Iterator for NearbyCutIterator<'a, S, V, D> {
+impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> Iterator
+    for NearbyCutIterator<'a, S, V, D>
+{
     type Item = Vec<CutPoint>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -769,7 +775,12 @@ mod tests {
     fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
         s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
     }
-    fn sublist_remove(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
+    fn sublist_remove(
+        s: &mut TspSolution,
+        entity_idx: usize,
+        start: usize,
+        end: usize,
+    ) -> Vec<i32> {
         s.tours
             .get_mut(entity_idx)
             .map(|t| t.cities.drain(start..end).collect())
@@ -816,7 +827,7 @@ mod tests {
 
         // Count total combinations
         let count = 1 + iter.count(); // +1 for first we already took
-        // C(8 - 4 + 3, 3) = C(7, 3) = 35
+                                      // C(8 - 4 + 3, 3) = C(7, 3) = 35
         assert_eq!(count, 35);
     }
 

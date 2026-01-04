@@ -188,7 +188,6 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Task {
         id: usize,
-        priority: Option<i32>,
     }
 
     #[derive(Clone, Debug)]
@@ -240,7 +239,6 @@ mod tests {
         fn apply(&self, score_director: &mut dyn ScoreDirector<TaskSchedule>) {
             score_director.working_solution_mut().tasks.push(Task {
                 id: self.id,
-                priority: None,
             });
             score_director.trigger_variable_listeners();
         }
@@ -250,7 +248,6 @@ mod tests {
     fn struct_problem_change() {
         let mut director = create_director(vec![Task {
             id: 0,
-            priority: Some(1),
         }]);
 
         let change = AddTask { id: 1 };
@@ -264,7 +261,6 @@ mod tests {
     fn closure_problem_change() {
         let mut director = create_director(vec![Task {
             id: 0,
-            priority: Some(1),
         }]);
 
         let change = ClosureProblemChange::<TaskSchedule, _>::new("remove_all", |sd| {

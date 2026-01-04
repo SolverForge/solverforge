@@ -254,7 +254,7 @@ pub static THREE_OPT_RECONNECTIONS: &[KOptReconnection] = &[
 /// assert_eq!(patterns_4opt.len(), 47); // 3! * 2^3 - 1
 /// ```
 pub fn enumerate_reconnections(k: usize) -> Vec<KOptReconnection> {
-    assert!(k >= 2 && k <= 5, "k must be between 2 and 5");
+    assert!((2..=5).contains(&k), "k must be between 2 and 5");
 
     let num_segments = k + 1;
     let num_middle = k - 1;
@@ -279,11 +279,8 @@ pub fn enumerate_reconnections(k: usize) -> Vec<KOptReconnection> {
             // Shift mask left by 1 since segment 0 is never reversed
             let reverse_mask = mask << 1;
 
-            let reconnection = KOptReconnection::new(
-                segment_order,
-                reverse_mask,
-                num_segments as u8,
-            );
+            let reconnection =
+                KOptReconnection::new(segment_order, reverse_mask, num_segments as u8);
 
             if !reconnection.is_identity() {
                 result.push(reconnection);

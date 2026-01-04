@@ -299,7 +299,6 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        id: usize,
         visits: Vec<i32>,
     }
 
@@ -362,14 +361,21 @@ mod tests {
     #[test]
     fn intra_list_move_forward() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3, 4, 5],
         }];
         let mut director = create_director(vehicles);
 
         // Move element at position 1 (value=2) to position 3
         let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0, 1, 0, 3, list_len, list_remove, list_insert, "visits", 0,
+            0,
+            1,
+            0,
+            3,
+            list_len,
+            list_remove,
+            list_insert,
+            "visits",
+            0,
         );
 
         assert!(m.is_doable(&director));
@@ -393,14 +399,21 @@ mod tests {
     #[test]
     fn intra_list_move_backward() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3, 4, 5],
         }];
         let mut director = create_director(vehicles);
 
         // Move element at position 3 (value=4) to position 1
         let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0, 3, 0, 1, list_len, list_remove, list_insert, "visits", 0,
+            0,
+            3,
+            0,
+            1,
+            list_len,
+            list_remove,
+            list_insert,
+            "visits",
+            0,
         );
 
         assert!(m.is_doable(&director));
@@ -424,11 +437,9 @@ mod tests {
     fn inter_list_move() {
         let vehicles = vec![
             Vehicle {
-                id: 0,
-                visits: vec![1, 2, 3],
+                    visits: vec![1, 2, 3],
             },
             Vehicle {
-                id: 1,
                 visits: vec![10, 20],
             },
         ];
@@ -436,7 +447,15 @@ mod tests {
 
         // Move element from vehicle 0 position 1 (value=2) to vehicle 1 position 1
         let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0, 1, 1, 1, list_len, list_remove, list_insert, "visits", 0,
+            0,
+            1,
+            1,
+            1,
+            list_len,
+            list_remove,
+            list_insert,
+            "visits",
+            0,
         );
 
         assert!(m.is_doable(&director));
@@ -460,14 +479,21 @@ mod tests {
     #[test]
     fn same_position_not_doable() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3],
         }];
         let director = create_director(vehicles);
 
         // Move to same effective position
         let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0, 1, 0, 1, list_len, list_remove, list_insert, "visits", 0,
+            0,
+            1,
+            0,
+            1,
+            list_len,
+            list_remove,
+            list_insert,
+            "visits",
+            0,
         );
 
         assert!(!m.is_doable(&director));
@@ -476,13 +502,20 @@ mod tests {
     #[test]
     fn invalid_source_position_not_doable() {
         let vehicles = vec![Vehicle {
-            id: 0,
             visits: vec![1, 2, 3],
         }];
         let director = create_director(vehicles);
 
         let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0, 10, 0, 0, list_len, list_remove, list_insert, "visits", 0,
+            0,
+            10,
+            0,
+            0,
+            list_len,
+            list_remove,
+            list_insert,
+            "visits",
+            0,
         );
 
         assert!(!m.is_doable(&director));

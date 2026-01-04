@@ -386,14 +386,8 @@ impl VehicleRoutePlan {
             max_lon = max_lon.max(loc.longitude);
         }
 
-        // Add small padding
-        let lat_pad = (max_lat - min_lat) * 0.1;
-        let lon_pad = (max_lon - min_lon) * 0.1;
-
-        (
-            [min_lat - lat_pad, min_lon - lon_pad],
-            [max_lat + lat_pad, max_lon + lon_pad],
-        )
+        // No padding here - init_routing() adds expansion
+        ([min_lat, min_lon], [max_lat, max_lon])
     }
 
     /// Populates the travel time matrix using haversine distances.

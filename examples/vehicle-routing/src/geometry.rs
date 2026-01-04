@@ -239,6 +239,16 @@ fn get_route_coords(plan: &VehicleRoutePlan, vehicle: &Vehicle) -> Vec<(f64, f64
             // Skip first point of subsequent segments to avoid duplicates
             let skip = if coords.is_empty() { 0 } else { 1 };
             coords.extend(geometry.iter().skip(skip).copied());
+        } else {
+            // Fallback: use direct lat/lng when road geometry unavailable
+            if coords.is_empty() {
+                if let Some(from_loc) = plan.get_location(from_idx) {
+                    coords.push((from_loc.latitude, from_loc.longitude));
+                }
+            }
+            if let Some(to_loc) = plan.get_location(to_idx) {
+                coords.push((to_loc.latitude, to_loc.longitude));
+            }
         }
     }
 

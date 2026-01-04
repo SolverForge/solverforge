@@ -374,7 +374,6 @@ dependencies = [
  "serde",
  "serde_json",
  "solverforge",
- "solverforge-scoring",
  "tokio",
  "tower",
  "tower-http",
@@ -922,6 +921,7 @@ dependencies = [
 name = "nqueens"
 version = "0.4.0"
 dependencies = [
+ "rand 0.8.5",
  "solverforge",
 ]
 
@@ -2216,7 +2216,6 @@ dependencies = [
  "serde",
  "serde_json",
  "solverforge",
- "solverforge-scoring",
  "tokio",
  "tokio-stream",
  "tower",

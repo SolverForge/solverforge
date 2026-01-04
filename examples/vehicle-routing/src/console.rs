@@ -17,7 +17,7 @@ pub fn print_banner() {
     println!("{}", banner.cyan().bold());
     println!(
         "  {} {}\n",
-        "v0.1.0".bright_black(),
+        format!("v{}", env!("CARGO_PKG_VERSION")).bright_black(),
         "Vehicle Routing".bright_cyan()
     );
 }

@@ -1,0 +1,25 @@
+[package]
+name = "employee-scheduling"
+version = "0.1.0"
+edition = "2021"
+description = "Employee scheduling quickstart for SolverForge"
+publish = false
+
+[dependencies]
+solverforge = { path = "../../crates/solverforge", features = ["serde"] }
+solverforge-scoring = { path = "../../crates/solverforge-scoring" }
+rand = "0.8"
+
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+tower = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+owo-colors = "4.2"
+num-format = "0.4.4"

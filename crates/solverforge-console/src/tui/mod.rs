@@ -7,7 +7,7 @@
 mod app;
 mod events;
 pub mod layout;
-mod widgets;
+pub mod widgets;
 
 use std::io;
 use std::sync::mpsc;

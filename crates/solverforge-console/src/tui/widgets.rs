@@ -1,3 +1,337 @@
-//! Custom TUI widgets.
+//! Custom TUI widgets for SERIO Console.
+//!
+//! Provides specialized widgets for displaying solver state, metrics,
+//! thread activity, and multi-channel output.
 
-// TODO: Implement custom widgets (banner, overview, thread activity, channels)
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::Frame;
+
+use crate::backend::{ChannelMessage, ConsoleEvent};
+use crate::channel::LogLevel;
+
+/// Renders the header banner.
+///
+/// Displays the SERIO Console banner with version and active job information.
+///
+/// # Arguments
+///
+/// * `frame` - Ratatui frame to render to
+/// * `area` - Screen area for the header
+/// * `job_id` - Optional active job identifier
+pub fn render_header(frame: &mut Frame, area: Rect, job_id: Option<&str>) {
+    let job_text = job_id
+        .map(|id| format!(" [Job: {}]", id))
+        .unwrap_or_default();
+
+    let header_text = format!("SERIO Console v0.4.0{}", job_text);
+
+    let header = Paragraph::new(header_text)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+
+    frame.render_widget(header, area);
+}
+
+/// Renders the solver overview panel.
+///
+/// Displays global metrics: job ID, solver ID, best score, solving time.
+///
+/// # Arguments
+///
+/// * `frame` - Ratatui frame to render to
+/// * `area` - Screen area for the overview panel
+/// * `state` - Solver state information
+pub fn render_overview(frame: &mut Frame, area: Rect, state: &OverviewState) {
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("Job: ", Style::default().fg(Color::Gray)),
+            Span::raw(&state.job_id),
+            Span::raw(" | "),
+            Span::styled("Solver: ", Style::default().fg(Color::Gray)),
+            Span::raw(state.solver_id.to_string()),
+            Span::raw(" | "),
+            Span::styled("Status: ", Style::default().fg(Color::Gray)),
+            Span::styled(&state.status, Style::default().fg(Color::Green)),
+        ]),
+        Line::from(vec![
+            Span::styled("Best Score: ", Style::default().fg(Color::Gray)),
+            Span::styled(&state.best_score, Style::default().fg(Color::Yellow)),
+            Span::raw(" | "),
+            Span::styled("Time: ", Style::default().fg(Color::Gray)),
+            Span::raw(format_duration(state.elapsed)),
+        ]),
+    ];
+
+    let block = Block::default()
+        .title("Solver Overview")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Blue));
+
+    let paragraph = Paragraph::new(lines).block(block);
+    frame.render_widget(paragraph, area);
+}
+
+/// State for the overview panel.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_console::tui::widgets::OverviewState;
+/// use std::time::Duration;
+///
+/// let state = OverviewState {
+///     job_id: "vrp-001".to_string(),
+///     solver_id: 1,
+///     status: "Solving".to_string(),
+///     best_score: "0hard/-1234soft".to_string(),
+///     elapsed: Duration::from_secs(42),
+/// };
+///
+/// assert_eq!(state.job_id, "vrp-001");
+/// assert_eq!(state.solver_id, 1);
+/// ```
+#[derive(Debug, Clone)]
+pub struct OverviewState {
+    /// Job identifier.
+    pub job_id: String,
+    /// Solver instance ID.
+    pub solver_id: u64,
+    /// Current solver status (e.g., "Solving", "Completed").
+    pub status: String,
+    /// Best score found so far.
+    pub best_score: String,
+    /// Elapsed solving time.
+    pub elapsed: std::time::Duration,
+}
+
+/// Renders the thread activity panel.
+///
+/// Displays progress indicators for each active solver thread.
+///
+/// # Arguments
+///
+/// * `frame` - Ratatui frame to render to
+/// * `area` - Screen area for the thread activity panel
+/// * `threads` - Thread activity state
+pub fn render_thread_activity(frame: &mut Frame, area: Rect, threads: &[ThreadState]) {
+    let items: Vec<ListItem> = threads
+        .iter()
+        .map(|thread| {
+            let progress_bar = create_progress_bar(thread.progress, 20);
+            let line = Line::from(vec![
+                Span::raw(format!("Thread-{:?} ", thread.thread_id)),
+                Span::styled(progress_bar, Style::default().fg(Color::Green)),
+                Span::raw(format!(" {} ", thread.phase)),
+                Span::styled(
+                    format_duration(thread.phase_elapsed),
+                    Style::default().fg(Color::Gray),
+                ),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+
+    let block = Block::default()
+        .title("Thread Activity")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Magenta));
+
+    let list = List::new(items).block(block);
+    frame.render_widget(list, area);
+}
+
+/// State for a single thread.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_console::tui::widgets::ThreadState;
+/// use std::time::Duration;
+///
+/// let thread = ThreadState {
+///     thread_id: format!("{:?}", std::thread::current().id()),
+///     phase: "LocalSearch".to_string(),
+///     progress: 0.75,
+///     phase_elapsed: Duration::from_secs(10),
+/// };
+///
+/// assert_eq!(thread.progress, 0.75);
+/// assert!(thread.progress >= 0.0 && thread.progress <= 1.0);
+/// ```
+#[derive(Debug, Clone)]
+pub struct ThreadState {
+    /// Thread identifier (formatted).
+    pub thread_id: String,
+    /// Current phase name.
+    pub phase: String,
+    /// Progress ratio (0.0 to 1.0).
+    pub progress: f64,
+    /// Elapsed time in current phase.
+    pub phase_elapsed: std::time::Duration,
+}
+
+/// Renders a channel output panel.
+///
+/// Displays scrollable log messages for a specific channel.
+///
+/// # Arguments
+///
+/// * `frame` - Ratatui frame to render to
+/// * `area` - Screen area for the channel panel
+/// * `channel_name` - Name of the channel
+/// * `events` - Channel events to display
+/// * `scroll_offset` - Scroll position
+pub fn render_channel(
+    frame: &mut Frame,
+    area: Rect,
+    channel_name: &str,
+    events: &[ConsoleEvent],
+    scroll_offset: usize,
+) {
+    let items: Vec<ListItem> = events
+        .iter()
+        .skip(scroll_offset)
+        .take(area.height.saturating_sub(2) as usize)
+        .map(|event| format_event_line(event))
+        .collect();
+
+    let block = Block::default()
+        .title(format!("Channel: {}", channel_name))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let list = List::new(items).block(block);
+    frame.render_widget(list, area);
+}
+
+/// Formats a console event as a list item.
+fn format_event_line(event: &ConsoleEvent) -> ListItem<'static> {
+    match &event.message {
+        ChannelMessage::Log { thread_id, level, message } => {
+            let level_style = match level {
+                LogLevel::Debug => Style::default().fg(Color::Gray),
+                LogLevel::Info => Style::default().fg(Color::Cyan),
+                LogLevel::Warn => Style::default().fg(Color::Yellow),
+                LogLevel::Error => Style::default().fg(Color::Red),
+            };
+
+            let level_text = match level {
+                LogLevel::Debug => "DEBUG",
+                LogLevel::Info => "INFO ",
+                LogLevel::Warn => "WARN ",
+                LogLevel::Error => "ERROR",
+            };
+
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("[{:?}] ", thread_id),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(level_text, level_style),
+                Span::raw(" "),
+                Span::raw(message.clone()),
+            ]);
+
+            ListItem::new(line)
+        }
+        ChannelMessage::Metric { thread_id, key, value } => {
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("[{:?}] ", thread_id),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(key.clone(), Style::default().fg(Color::Green)),
+                Span::raw(": "),
+                Span::styled(value.clone(), Style::default().fg(Color::Yellow)),
+            ]);
+
+            ListItem::new(line)
+        }
+        ChannelMessage::Progress { thread_id, current, total, message } => {
+            let percentage = (*current as f64 / *total as f64 * 100.0) as u8;
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("[{:?}] ", thread_id),
+                    Style::default().fg(Color::DarkGray),
+                ),
+                Span::styled(
+                    format!("{}% ", percentage),
+                    Style::default().fg(Color::Magenta),
+                ),
+                Span::raw(message.clone()),
+            ]);
+
+            ListItem::new(line)
+        }
+    }
+}
+
+/// Creates a text-based progress bar.
+///
+/// # Arguments
+///
+/// * `progress` - Progress ratio (0.0 to 1.0)
+/// * `width` - Width of the progress bar in characters
+///
+/// # Returns
+///
+/// A string representing the progress bar with filled and empty segments.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_console::tui::widgets::create_progress_bar;
+///
+/// let bar = create_progress_bar(0.5, 10);
+/// assert_eq!(bar.chars().count(), 12); // 10 + 2 brackets
+/// assert!(bar.starts_with('['));
+/// assert!(bar.ends_with(']'));
+/// ```
+pub fn create_progress_bar(progress: f64, width: usize) -> String {
+    let filled = (progress * width as f64).round() as usize;
+    let empty = width.saturating_sub(filled);
+
+    format!(
+        "[{}{}]",
+        "█".repeat(filled),
+        "░".repeat(empty)
+    )
+}
+
+/// Formats a duration for display.
+///
+/// # Arguments
+///
+/// * `duration` - Duration to format
+///
+/// # Returns
+///
+/// A human-readable duration string (e.g., "1m 23s", "45.2s").
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_console::tui::widgets::format_duration;
+/// use std::time::Duration;
+///
+/// let short = format_duration(Duration::from_millis(1234));
+/// assert!(short.ends_with('s'));
+///
+/// let long = format_duration(Duration::from_secs(90));
+/// assert!(long.contains('m'));
+/// ```
+pub fn format_duration(duration: std::time::Duration) -> String {
+    let secs = duration.as_secs();
+
+    if secs >= 60 {
+        let mins = secs / 60;
+        let remaining_secs = secs % 60;
+        format!("{}m {}s", mins, remaining_secs)
+    } else if secs > 0 {
+        format!("{}.{}s", secs, duration.subsec_millis() / 100)
+    } else {
+        format!("{}ms", duration.as_millis())
+    }
+}

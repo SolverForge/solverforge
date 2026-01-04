@@ -1,0 +1,65 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+ "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
+ width="1160.000000pt" height="1160.000000pt" viewBox="0 0 1160.000000 1160.000000"
+ preserveAspectRatio="xMidYMid meet">
+<metadata>
+SolverForge Optimization Software
+</metadata>
+<defs>
+  <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+    <stop offset="50%" style="stop-color:#10b981;stop-opacity:1" />
+    <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+  </linearGradient>
+</defs>
+<g transform="translate(580.000000,580.000000) scale(4.000000,4.000000)">
+  <!-- Hexagonal outer body -->
+  <path d="M0 -70 L53 -35 L63 0 L53 53 L0 77 L-53 53 L-63 0 L-53 -35 Z" 
+    stroke="url(#grad1)" stroke-width="12" fill="none" stroke-linejoin="miter"/>
+  
+  <!-- Angular snake head -->
+  <g transform="translate(0, -70)">
+    <path d="M0 0 L-9 -12 L-5 -6 L0 -10 L5 -6 L9 -12 Z" 
+      fill="url(#grad1)" stroke="#000000" stroke-width="1"/>
+    <circle cx="-3" cy="-8" r="1.5" fill="#000000"/>
+    <circle cx="3" cy="-8" r="1.5" fill="#000000"/>
+  </g>
+  
+  <!-- Tail -->
+  <path d="M0 -70 L0 -47" stroke="url(#grad1)" stroke-width="9"/>
+  
+  <!-- Inner hexagon -->
+  <path d="M0 -35 L28 -18 L33 0 L28 28 L0 42 L-28 28 L-33 0 L-28 -18 Z" 
+    stroke="#10b981" stroke-width="2" fill="none" opacity="0.25"/>
+  
+  <!-- Geometric accent points -->
+  <circle cx="0" cy="-70" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="53" cy="-35" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="63" cy="0" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="53" cy="53" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="0" cy="77" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="-53" cy="53" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="-63" cy="0" r="5" fill="#10b981" opacity="0.2"/>
+  <circle cx="-53" cy="-35" r="5" fill="#10b981" opacity="0.2"/>
+  
+  <!-- Center optimization node -->
+  <path d="M-18 0 L-7 0 M18 0 L7 0 M0 -18 L0 -7 M0 18 L0 7" 
+    stroke="#000000" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="0" cy="0" r="6" fill="none" stroke="#000000" stroke-width="2.5"/>
+  <circle cx="0" cy="0" r="3" fill="#22c55e"/>
+  
+  <!-- Corner brackets -->
+  <path d="M-11 -11 L-14 -11 L-14 -14 M11 -11 L14 -11 L14 -14 M11 11 L14 11 L14 14 M-11 11 L-14 11 L-14 14" 
+    stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Small squares at midpoints -->
+  <rect x="36" y="-19" width="4" height="4" fill="#000000" opacity="0.6"/>
+  <rect x="56" y="-2" width="4" height="4" fill="#000000" opacity="0.6"/>
+  <rect x="36" y="38" width="4" height="4" fill="#000000" opacity="0.6"/>
+  <rect x="-40" y="38" width="4" height="4" fill="#000000" opacity="0.6"/>
+  <rect x="-60" y="-2" width="4" height="4" fill="#000000" opacity="0.6"/>
+  <rect x="-40" y="-19" width="4" height="4" fill="#000000" opacity="0.6"/>
+</g>
+</svg>

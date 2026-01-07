@@ -184,6 +184,9 @@ pub use solverforge_scoring::{
     RecordingScoreDirector,
     // Score directors
     ScoreDirector,
+    // Shadow variable support
+    ShadowAwareScoreDirector,
+    ShadowVariableSupport,
     // Analysis
     ScoreExplanation,
     SimpleScoreDirector,

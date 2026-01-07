@@ -151,6 +151,9 @@ pub use solverforge_solver::{
     KOptConfig,
     KOptMove,
     KOptMoveSelector,
+    // List moves and selectors
+    ListChangeMove,
+    ListChangeMoveSelector,
     ListPositionDistanceMeter,
     Move,
     MoveSelector,

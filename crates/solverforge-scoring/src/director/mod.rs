@@ -7,12 +7,14 @@
 //! - [`SimpleScoreDirector`] - Full recalculation (baseline)
 //! - [`TypedScoreDirector`] - Zero-erasure incremental scoring
 //! - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
+//! - [`ShadowAwareScoreDirector`] - Shadow variable integration wrapper
 
 use std::any::Any;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
 pub mod recording;
+pub mod shadow_aware;
 pub mod typed;
 
 #[cfg(test)]
@@ -21,6 +23,7 @@ mod recording_tests;
 mod typed_bench;
 
 pub use recording::RecordingScoreDirector;
+pub use shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport};
 
 /// The score director manages solution state and score calculation.
 ///

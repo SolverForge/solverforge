@@ -190,16 +190,8 @@ where
         }
 
         // For intra-list, moving to same position is a no-op
-        if self.is_intra_list() {
-            // Adjust for removal: if dest > source, effective position after removal
-            let effective_dest = if self.dest_position > self.source_position {
-                self.dest_position - 1
-            } else {
-                self.dest_position
-            };
-            if self.source_position == effective_dest {
-                return false;
-            }
+        if self.is_intra_list() && self.source_position == self.dest_position {
+            return false;
         }
 
         true

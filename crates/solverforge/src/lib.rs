@@ -112,6 +112,7 @@ pub use solverforge_solver::{
     DiversifiedLateAcceptanceAcceptor,
     EntityPlacer,
     EntityTabuAcceptor,
+    FirstAcceptedForager,
     FirstFitForager,
     ForagerType,
     GreatDelugeAcceptor,

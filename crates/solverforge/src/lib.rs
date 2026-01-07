@@ -53,8 +53,8 @@ pub use solverforge_core::{
     domain::FieldValueRangeProvider,
     // Descriptors
     domain::{
-        EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, TypedEntityExtractor,
-        VariableDescriptor,
+        EntityDescriptor, ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor,
+        TypedEntityExtractor, VariableDescriptor,
     },
     // Domain traits (as trait names, not macros)
     domain::{

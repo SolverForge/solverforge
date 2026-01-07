@@ -62,7 +62,16 @@ pub fn problem_fact(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(
     PlanningEntityImpl,
-    attributes(planning_id, planning_variable, planning_list_variable, planning_pin)
+    attributes(
+        planning_id,
+        planning_variable,
+        planning_list_variable,
+        planning_pin,
+        inverse_relation_shadow_variable,
+        previous_element_shadow_variable,
+        next_element_shadow_variable,
+        cascading_update_shadow_variable
+    )
 )]
 pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

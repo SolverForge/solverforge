@@ -121,6 +121,7 @@ where
 {
     score_calculator: C,
     phase_configs: Vec<PhaseConfig>,
+    phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
     time_limit: Option<Duration>,
     step_limit: Option<u64>,
     _phantom: std::marker::PhantomData<S>,
@@ -159,10 +160,56 @@ where
         Self {
             score_calculator,
             phase_configs: Vec::new(),
+            phase_factories: Vec::new(),
             time_limit: None,
             step_limit: None,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    /// Adds a typed phase factory.
+    ///
+    /// Phase factories create fresh phase instances for each solve, ensuring
+    /// clean state between solves. Use this with [`LocalSearchPhaseFactory`]
+    /// or [`ConstructionPhaseFactory`] for typed move selectors.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchPhaseFactory};
+    /// use solverforge_solver::heuristic::r#move::ChangeMove;
+    /// use solverforge_solver::heuristic::selector::ChangeMoveSelector;
+    /// use solverforge_core::domain::PlanningSolution;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone)]
+    /// struct S { values: Vec<Option<i32>>, score: Option<SimpleScore> }
+    /// impl PlanningSolution for S {
+    ///     type Score = SimpleScore;
+    ///     fn score(&self) -> Option<Self::Score> { self.score }
+    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+    /// }
+    ///
+    /// fn get_v(s: &S, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
+    /// fn set_v(s: &mut S, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
+    ///
+    /// type M = ChangeMove<S, i32>;
+    ///
+    /// let phase_factory = LocalSearchPhaseFactory::<S, M, _>::late_acceptance(400, || {
+    ///     Box::new(ChangeMoveSelector::<S, i32>::simple(get_v, set_v, 0, "v", vec![1, 2, 3]))
+    /// });
+    ///
+    /// let manager = SolverManagerBuilder::new(|_: &S| SimpleScore::of(0))
+    ///     .with_phase_factory(phase_factory)
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn with_phase_factory<F>(mut self, factory: F) -> Self
+    where
+        F: SolverPhaseFactory<S> + 'static,
+    {
+        self.phase_factories.push(Box::new(factory));
+        self
     }
 
     /// Adds a construction heuristic phase with default (FirstFit) configuration.
@@ -390,18 +437,13 @@ where
         // Build termination factory
         let termination_factory = self.build_termination_factory();
 
-        // For now, phase factories are empty - users need to add phases manually
-        // or use the typed phase constructors. Full auto-configuration requires
-        // macro enhancements to generate the necessary metadata.
-        let phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>> = Vec::new();
-
-        // Store phase configs for future use
-        // (will be used when PhaseFactory auto-configuration is implemented)
+        // Use the typed phase factories added via with_phase_factory()
+        // Phase configs are for future auto-configuration via macros
         let _ = self.phase_configs;
 
         Ok(SolverManager::new(
             self.score_calculator,
-            phase_factories,
+            self.phase_factories,
             termination_factory,
         ))
     }

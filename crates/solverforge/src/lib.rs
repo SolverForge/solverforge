@@ -138,7 +138,9 @@ pub use solverforge_solver::{
 
 // Re-export termination
 pub use solverforge_solver::{
-    OrCompositeTermination, StepCountTermination, Termination, TimeTermination,
+    AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
+    DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
+    TimeTermination, UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
 // Re-export scopes and moves

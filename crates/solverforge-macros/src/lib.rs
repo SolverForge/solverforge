@@ -86,7 +86,8 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         planning_entity_collection,
         problem_fact_collection,
         planning_score,
-        value_range_provider
+        value_range_provider,
+        shadow_variable_updates
     )
 )]
 pub fn derive_planning_solution(input: TokenStream) -> TokenStream {

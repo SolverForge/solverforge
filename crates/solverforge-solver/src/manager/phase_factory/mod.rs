@@ -50,4 +50,4 @@ mod construction;
 mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
-pub use local_search::LocalSearchPhaseFactory;
+pub use local_search::{KOptPhaseBuilder, LocalSearchPhaseFactory};

@@ -71,8 +71,8 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, LocalSearchType, SolverManager,
-    SolverManagerBuilder, SolverPhaseFactory,
+    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, KOptPhaseBuilder,
+    LocalSearchType, SolverManager, SolverManagerBuilder, SolverPhaseFactory,
 };
 pub use phase::{
     construction::{

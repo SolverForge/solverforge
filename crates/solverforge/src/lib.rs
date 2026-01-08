@@ -91,8 +91,8 @@ pub use solverforge_solver::{Solver, SolverFactory};
 // Re-export solver manager and phase factories
 pub use solverforge_solver::manager::{
     CloneablePhaseFactory, ClosurePhaseFactory, ConstructionPhaseFactory, ConstructionType,
-    LocalSearchPhaseFactory, LocalSearchType, SolverManager, SolverManagerBuilder,
-    SolverPhaseFactory,
+    KOptPhaseBuilder, LocalSearchPhaseFactory, LocalSearchType, SolverManager,
+    SolverManagerBuilder, SolverPhaseFactory,
 };
 
 // Re-export statistics

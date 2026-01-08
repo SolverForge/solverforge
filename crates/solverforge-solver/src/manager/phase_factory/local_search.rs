@@ -1,9 +1,13 @@
 //! Local search phase factory.
 
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 
+use crate::heuristic::r#move::KOptMove;
+use crate::heuristic::selector::entity::EntitySelector;
+use crate::heuristic::selector::k_opt::{KOptConfig, ListPositionDistanceMeter, NearbyKOptMoveSelector};
 use crate::heuristic::{Move, MoveSelector};
 use crate::phase::localsearch::{
     AcceptedCountForager, Acceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
@@ -460,6 +464,255 @@ where
         let move_selector = (self.move_selector_factory)();
         let acceptor = self.create_acceptor();
         let forager: Box<dyn LocalSearchForager<S, M>> = Box::new(AcceptedCountForager::new(1));
+
+        Box::new(LocalSearchPhase::new(
+            move_selector,
+            acceptor,
+            forager,
+            self.step_limit,
+        ))
+    }
+}
+
+/// Fluent builder for k-opt local search phases.
+///
+/// Configures nearby k-opt move selection with various acceptance strategies.
+/// Uses distance-based pruning to reduce search space from O(n^k) to O(n × m^(k-1)).
+///
+/// # Type Parameters
+///
+/// * `S` - Planning solution type
+/// * `V` - List element type (e.g., `usize` for visit indices)
+/// * `D` - Distance meter for nearby selection
+///
+/// # Example
+///
+/// ```
+/// use solverforge_solver::KOptPhaseBuilder;
+/// use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+/// use solverforge_solver::heuristic::selector::k_opt::ListPositionDistanceMeter;
+/// use solverforge_core::domain::PlanningSolution;
+/// use solverforge_core::score::SimpleScore;
+///
+/// #[derive(Clone, Debug)]
+/// struct Route {
+///     cities: Vec<usize>,
+///     score: Option<SimpleScore>,
+/// }
+///
+/// impl PlanningSolution for Route {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// #[derive(Debug, Clone, Copy)]
+/// struct RouteMeter;
+///
+/// impl ListPositionDistanceMeter<Route> for RouteMeter {
+///     fn distance(&self, route: &Route, _: usize, a: usize, b: usize) -> f64 {
+///         // Simple position distance for demo
+///         (a as f64 - b as f64).abs()
+///     }
+/// }
+///
+/// fn list_len(s: &Route, _: usize) -> usize { s.cities.len() }
+/// fn sublist_remove(s: &mut Route, _: usize, start: usize, end: usize) -> Vec<usize> {
+///     s.cities.drain(start..end).collect()
+/// }
+/// fn sublist_insert(s: &mut Route, _: usize, pos: usize, items: Vec<usize>) {
+///     for (i, item) in items.into_iter().enumerate() {
+///         s.cities.insert(pos + i, item);
+///     }
+/// }
+///
+/// let phase = KOptPhaseBuilder::<Route, usize, _>::new(
+///     RouteMeter,
+///     || Box::new(FromSolutionEntitySelector::new(0)),
+///     list_len,
+///     sublist_remove,
+///     sublist_insert,
+///     "cities",
+///     0,
+/// )
+/// .with_k(3)
+/// .with_nearby(10)
+/// .with_late_acceptance(400);
+/// ```
+pub struct KOptPhaseBuilder<S, V, D>
+where
+    S: PlanningSolution,
+    D: ListPositionDistanceMeter<S>,
+{
+    distance_meter: D,
+    entity_selector_factory: Box<dyn Fn() -> Box<dyn EntitySelector<S>> + Send + Sync>,
+    list_len: fn(&S, usize) -> usize,
+    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    variable_name: &'static str,
+    descriptor_index: usize,
+    k: usize,
+    max_nearby: usize,
+    min_segment_len: usize,
+    search_type: LocalSearchType,
+    step_limit: Option<u64>,
+    _phantom: PhantomData<(S, V)>,
+}
+
+impl<S, V, D> KOptPhaseBuilder<S, V, D>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S> + Clone + 'static,
+{
+    /// Creates a new k-opt phase builder with required parameters.
+    ///
+    /// Defaults: k=3, max_nearby=10, min_segment_len=1, late acceptance with size 400.
+    pub fn new<E>(
+        distance_meter: D,
+        entity_selector_factory: E,
+        list_len: fn(&S, usize) -> usize,
+        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self
+    where
+        E: Fn() -> Box<dyn EntitySelector<S>> + Send + Sync + 'static,
+    {
+        Self {
+            distance_meter,
+            entity_selector_factory: Box::new(entity_selector_factory),
+            list_len,
+            sublist_remove,
+            sublist_insert,
+            variable_name,
+            descriptor_index,
+            k: 3,
+            max_nearby: 10,
+            min_segment_len: 1,
+            search_type: LocalSearchType::LateAcceptance { size: 400 },
+            step_limit: None,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Sets the k value (number of cuts). Must be 2-5.
+    ///
+    /// Higher k allows more complex restructuring but increases search space.
+    /// - k=2: 2-opt (simple edge swap)
+    /// - k=3: 3-opt (most common for VRP)
+    /// - k=4, k=5: more complex moves, rarely needed
+    pub fn with_k(mut self, k: usize) -> Self {
+        assert!((2..=5).contains(&k), "k must be between 2 and 5");
+        self.k = k;
+        self
+    }
+
+    /// Sets the maximum nearby positions to consider for each cut.
+    ///
+    /// Lower values = faster but less thorough search.
+    /// Higher values = slower but explores more combinations.
+    /// Typical values: 5-20 for VRP.
+    pub fn with_nearby(mut self, max_nearby: usize) -> Self {
+        self.max_nearby = max_nearby;
+        self
+    }
+
+    /// Sets the minimum segment length between cuts.
+    ///
+    /// Default is 1. Higher values prevent very short segments.
+    pub fn with_min_segment_len(mut self, len: usize) -> Self {
+        self.min_segment_len = len;
+        self
+    }
+
+    /// Sets the step limit for this phase.
+    pub fn with_step_limit(mut self, limit: u64) -> Self {
+        self.step_limit = Some(limit);
+        self
+    }
+
+    /// Uses hill climbing acceptance (only accept improving moves).
+    pub fn with_hill_climbing(mut self) -> Self {
+        self.search_type = LocalSearchType::HillClimbing;
+        self
+    }
+
+    /// Uses tabu search acceptance.
+    pub fn with_tabu_search(mut self, tabu_size: usize) -> Self {
+        self.search_type = LocalSearchType::TabuSearch { tabu_size };
+        self
+    }
+
+    /// Uses simulated annealing acceptance.
+    pub fn with_simulated_annealing(mut self, starting_temp: f64, decay_rate: f64) -> Self {
+        self.search_type = LocalSearchType::SimulatedAnnealing {
+            starting_temp,
+            decay_rate,
+        };
+        self
+    }
+
+    /// Uses late acceptance (compare against score from N steps ago).
+    pub fn with_late_acceptance(mut self, size: usize) -> Self {
+        self.search_type = LocalSearchType::LateAcceptance { size };
+        self
+    }
+
+    fn create_acceptor(&self) -> Box<dyn Acceptor<S>> {
+        match self.search_type {
+            LocalSearchType::HillClimbing => Box::new(HillClimbingAcceptor::new()),
+            LocalSearchType::TabuSearch { tabu_size } => {
+                Box::new(TabuSearchAcceptor::new(tabu_size))
+            }
+            LocalSearchType::SimulatedAnnealing {
+                starting_temp,
+                decay_rate,
+            } => Box::new(SimulatedAnnealingAcceptor::new(starting_temp, decay_rate)),
+            LocalSearchType::LateAcceptance { size } => Box::new(LateAcceptanceAcceptor::new(size)),
+            LocalSearchType::ValueTabuSearch { value_tabu_size } => {
+                Box::new(ValueTabuAcceptor::new(value_tabu_size))
+            }
+            LocalSearchType::MoveTabuSearch {
+                move_tabu_size,
+                aspiration_enabled,
+            } => {
+                if aspiration_enabled {
+                    Box::new(MoveTabuAcceptor::new(move_tabu_size))
+                } else {
+                    Box::new(MoveTabuAcceptor::without_aspiration(move_tabu_size))
+                }
+            }
+        }
+    }
+}
+
+impl<S, V, D> SolverPhaseFactory<S> for KOptPhaseBuilder<S, V, D>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S> + Clone + 'static,
+{
+    fn create_phase(&self) -> Box<dyn Phase<S>> {
+        let config = KOptConfig::new(self.k).with_min_segment_len(self.min_segment_len);
+
+        let move_selector: Box<dyn MoveSelector<S, KOptMove<S, V>>> =
+            Box::new(NearbyKOptMoveSelector::new(
+                (self.entity_selector_factory)(),
+                self.distance_meter.clone(),
+                self.max_nearby,
+                config,
+                self.list_len,
+                self.sublist_remove,
+                self.sublist_insert,
+                self.variable_name,
+                self.descriptor_index,
+            ));
+
+        let acceptor = self.create_acceptor();
+        let forager: Box<dyn LocalSearchForager<S, KOptMove<S, V>>> =
+            Box::new(AcceptedCountForager::new(1));
 
         Box::new(LocalSearchPhase::new(
             move_selector,

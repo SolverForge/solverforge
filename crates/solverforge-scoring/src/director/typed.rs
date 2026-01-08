@@ -82,6 +82,12 @@ where
     initialized: bool,
     /// Solution descriptor for trait interface compatibility.
     solution_descriptor: SolutionDescriptor,
+    /// Typed entity counter function.
+    ///
+    /// Returns the number of entities for the given descriptor index.
+    /// This is a typed function pointer that preserves full type information
+    /// throughout the solver pipeline.
+    entity_counter: fn(&S, usize) -> usize,
     /// Phantom for score type.
     _phantom: PhantomData<S::Score>,
 }
@@ -104,6 +110,7 @@ where
             solution,
             constraints,
             SolutionDescriptor::new("", TypeId::of::<()>()),
+            |_, _| 0,
         )
     }
 
@@ -112,11 +119,17 @@ where
     /// This constructor enables the `ScoreDirector` trait implementation for
     /// integration with the full solver infrastructure (phases, move selectors, etc.).
     ///
-    /// The constraints should be a tuple of typed constraints (e.g., `(C1, C2, C3)`).
+    /// # Arguments
+    ///
+    /// * `solution` - The initial solution
+    /// * `constraints` - Tuple of typed constraints (e.g., `(C1, C2, C3)`)
+    /// * `solution_descriptor` - Metadata for solver infrastructure
+    /// * `entity_counter` - Typed function returning entity count for descriptor index
     pub fn with_descriptor(
         solution: S,
         constraints: C,
         solution_descriptor: SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
         Self {
             working_solution: solution,
@@ -124,6 +137,7 @@ where
             cached_score: S::Score::zero(),
             initialized: false,
             solution_descriptor,
+            entity_counter,
             _phantom: PhantomData,
         }
     }
@@ -337,23 +351,20 @@ where
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
-        self.solution_descriptor
-            .entity_descriptors
-            .get(descriptor_index)?
-            .entity_count(&self.working_solution as &dyn Any)
+        Some((self.entity_counter)(&self.working_solution, descriptor_index))
     }
 
     fn total_entity_count(&self) -> Option<usize> {
-        self.solution_descriptor
-            .total_entity_count(&self.working_solution as &dyn Any)
+        // Sum across all descriptor indices
+        let count: usize = (0..self.solution_descriptor.entity_descriptors.len())
+            .map(|i| (self.entity_counter)(&self.working_solution, i))
+            .sum();
+        Some(count)
     }
 
-    fn get_entity(&self, descriptor_index: usize, entity_index: usize) -> Option<&dyn Any> {
-        self.solution_descriptor.get_entity(
-            &self.working_solution as &dyn Any,
-            descriptor_index,
-            entity_index,
-        )
+    fn get_entity(&self, _descriptor_index: usize, _entity_index: usize) -> Option<&dyn Any> {
+        // Entity access through typed functions, not dyn Any
+        None
     }
 
     fn is_incremental(&self) -> bool {

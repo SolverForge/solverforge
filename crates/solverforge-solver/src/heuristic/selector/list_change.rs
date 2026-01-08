@@ -166,8 +166,10 @@ where
             for src_pos in 0..src_len {
                 // Intra-entity moves
                 for dst_pos in 0..src_len {
-                    // Skip no-op moves (remove and insert at same position)
-                    if src_pos == dst_pos {
+                    // Skip no-op moves:
+                    // - Same position is obviously a no-op
+                    // - Forward by 1 is a no-op due to index adjustment during do_move
+                    if src_pos == dst_pos || dst_pos == src_pos + 1 {
                         continue;
                     }
 
@@ -328,9 +330,13 @@ mod tests {
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
-        // 3 elements, each can move to 2 other effective positions
-        // (0->1, 0->2, 1->0, 1->2, 2->0, 2->1) = 6 moves
-        assert_eq!(moves.len(), 6);
+        // 3 elements. For each position, moves are generated to all other positions
+        // EXCEPT forward by 1 (which is a no-op due to index adjustment).
+        // From 0: skip 1 (forward by 1), to 2 → 1 move
+        // From 1: to 0, skip 2 (forward by 1) → 1 move
+        // From 2: to 0, to 1 → 2 moves
+        // Total: 4 moves
+        assert_eq!(moves.len(), 4);
 
         // All should be intra-list
         for m in &moves {

@@ -189,9 +189,18 @@ where
             return false;
         }
 
-        // For intra-list, moving to same position is a no-op
-        if self.is_intra_list() && self.source_position == self.dest_position {
-            return false;
+        // For intra-list moves, check for no-ops
+        // Moving to same position is obviously a no-op
+        // Moving forward by 1 position is also a no-op due to index adjustment:
+        //   remove at source, adjusted_dest = dest-1 = source, insert at source → same list
+        if self.is_intra_list() {
+            if self.source_position == self.dest_position {
+                return false;
+            }
+            // Forward move by exactly 1 is a no-op
+            if self.dest_position == self.source_position + 1 {
+                return false;
+            }
         }
 
         true

@@ -104,6 +104,6 @@ pub use solver::{Solver, SolverFactory};
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
     AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    OrCompositeTermination, StepCountTermination, Termination, TimeTermination,
-    UnimprovedStepCountTermination, UnimprovedTimeTermination,
+    DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
+    TimeTermination, UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };

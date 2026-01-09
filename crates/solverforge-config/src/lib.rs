@@ -60,6 +60,15 @@ impl SolverConfig {
     }
 
     /// Loads configuration from a TOML file.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if file doesn't exist or contains invalid TOML.
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
+        Self::from_toml_file(path)
+    }
+
+    /// Loads configuration from a TOML file.
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let contents = std::fs::read_to_string(path)?;
         Self::from_toml_str(&contents)

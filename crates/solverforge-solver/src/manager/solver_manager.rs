@@ -55,7 +55,7 @@ use super::SolverPhaseFactory;
 ///
 /// The manager creates fresh [`Solver`] instances for each solve:
 ///
-/// ```no_run
+/// ```
 /// use solverforge_solver::manager::SolverManager;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
@@ -67,7 +67,10 @@ use super::SolverPhaseFactory;
 /// #     fn score(&self) -> Option<Self::Score> { self.score }
 /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// # }
-/// # let manager = SolverManager::<Schedule>::builder(|_| SimpleScore::of(0)).build().unwrap();
+/// let manager = SolverManager::<Schedule>::builder(|_| SimpleScore::of(0))
+///     .build()
+///     .unwrap();
+///
 /// // Create a solver for this problem instance
 /// let solver = manager.create_solver();
 ///

@@ -77,27 +77,41 @@ use crate::phase::Phase;
 ///
 /// # Example
 ///
-/// ```no_run
-/// use solverforge_solver::manager::SolverPhaseFactory;
+/// ```
+/// use solverforge_solver::manager::{SolverPhaseFactory, ClosurePhaseFactory};
 /// use solverforge_solver::phase::Phase;
+/// use solverforge_solver::scope::SolverScope;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
-/// # #[derive(Clone)]
-/// # struct MySolution { score: Option<SimpleScore> }
-/// # impl PlanningSolution for MySolution {
-/// #     type Score = SimpleScore;
-/// #     fn score(&self) -> Option<Self::Score> { self.score }
-/// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// # }
-/// struct MyPhaseFactory;
+/// #[derive(Clone)]
+/// struct MySolution { score: Option<SimpleScore> }
 ///
-/// impl SolverPhaseFactory<MySolution> for MyPhaseFactory {
-///     fn create_phase(&self) -> Box<dyn Phase<MySolution>> {
-///         // Create and return a new phase instance
-///         todo!("Create phase here")
-///     }
+/// impl PlanningSolution for MySolution {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
+///
+/// // A simple phase that just updates best solution
+/// #[derive(Debug)]
+/// struct NoOpPhase;
+///
+/// impl Phase<MySolution> for NoOpPhase {
+///     fn solve(&mut self, scope: &mut SolverScope<MySolution>) {
+///         scope.update_best_solution();
+///     }
+///     fn phase_type_name(&self) -> &'static str { "NoOp" }
+/// }
+///
+/// // Create factory using closure
+/// let factory = ClosurePhaseFactory::<MySolution, _>::new(|| {
+///     Box::new(NoOpPhase) as Box<dyn Phase<MySolution>>
+/// });
+///
+/// // Factory creates fresh phases
+/// let phase = factory.create_phase();
+/// assert_eq!(phase.phase_type_name(), "NoOp");
 /// ```
 pub trait SolverPhaseFactory<S: PlanningSolution>: Send + Sync {
     /// Creates a new phase instance.

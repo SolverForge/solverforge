@@ -81,6 +81,53 @@ pub trait ShadowVariableSupport: PlanningSolution {
     fn update_entity_shadows(&mut self, entity_index: usize);
 }
 
+/// Trait for solutions that can be solved using the fluent builder API.
+///
+/// This trait combines all requirements for automatic solver wiring:
+/// - `PlanningSolution` for score management
+/// - `ShadowVariableSupport` for shadow variable updates
+/// - Solution descriptor for entity metadata
+/// - Entity count for move selector iteration
+///
+/// Implemented automatically by the `#[planning_solution]` macro when
+/// `#[shadow_variable_updates]` is configured.
+///
+/// # Example
+///
+/// ```ignore
+/// use solverforge::prelude::*;
+///
+/// #[planning_solution]
+/// #[shadow_variable_updates(
+///     list_owner = "vehicles",
+///     list_field = "visits",
+///     element_collection = "visits",
+///     element_type = "usize",
+/// )]
+/// struct VehicleRoutePlan {
+///     #[planning_entity_collection]
+///     visits: Vec<Visit>,
+///     #[planning_entity_collection]
+///     vehicles: Vec<Vehicle>,
+///     #[planning_score]
+///     score: Option<HardSoftScore>,
+/// }
+///
+/// // Macro generates SolvableSolution implementation automatically
+/// ```
+pub trait SolvableSolution: ShadowVariableSupport {
+    /// Returns the solution descriptor for this type.
+    ///
+    /// The descriptor provides entity metadata for the solver infrastructure.
+    fn descriptor() -> SolutionDescriptor;
+
+    /// Returns the entity count for a given descriptor index.
+    ///
+    /// This is an associated function (not a method) to match the
+    /// `fn(&S, usize) -> usize` signature required by `TypedScoreDirector`.
+    fn entity_count(solution: &Self, descriptor_index: usize) -> usize;
+}
+
 /// A score director that integrates shadow variable updates.
 ///
 /// Wraps an inner score director and calls [`ShadowVariableSupport::update_entity_shadows`]

@@ -19,6 +19,25 @@ struct ShadowConfig {
     element_type: Option<String>,
 }
 
+/// Configuration for basic (non-list) planning variables.
+///
+/// Used with `#[basic_variable_config(...)]` attribute to specify:
+/// - Which entity collection contains planning entities
+/// - Which field is the planning variable
+/// - The type of the variable
+/// - Where to get valid values from
+#[derive(Default)]
+struct BasicVariableConfig {
+    /// Entity collection field name (e.g., "shifts")
+    entity_collection: Option<String>,
+    /// Planning variable field name (e.g., "employee_idx")
+    variable_field: Option<String>,
+    /// Variable type (e.g., "usize")
+    variable_type: Option<String>,
+    /// Value range source - either a field name or "0..entity_count"
+    value_range: Option<String>,
+}
+
 /// Parse the constraints path from #[solverforge_constraints_path = "path"]
 fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
     for attr in attrs {
@@ -48,6 +67,19 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");
         config.post_update_listener = parse_attribute_string(attr, "post_update_listener");
         config.element_type = parse_attribute_string(attr, "element_type");
+    }
+
+    config
+}
+
+fn parse_basic_variable_config(attrs: &[syn::Attribute]) -> BasicVariableConfig {
+    let mut config = BasicVariableConfig::default();
+
+    if let Some(attr) = get_attribute(attrs, "basic_variable_config") {
+        config.entity_collection = parse_attribute_string(attr, "entity_collection");
+        config.variable_field = parse_attribute_string(attr, "variable_field");
+        config.variable_type = parse_attribute_string(attr, "variable_type");
+        config.value_range = parse_attribute_string(attr, "value_range");
     }
 
     config
@@ -139,6 +171,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let shadow_config = parse_shadow_config(&input.attrs);
     let shadow_support_impl = generate_shadow_support(&shadow_config, name);
     let constraints_path = parse_constraints_path(&input.attrs);
+    let basic_config = parse_basic_variable_config(&input.attrs);
 
     let entity_count_arms: Vec<_> = fields
         .iter()
@@ -151,6 +184,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .collect();
 
     let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path);
+    let basic_operations =
+        generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
     let solvable_solution_impl = generate_solvable_solution(&shadow_config, name);
 
     let expanded = quote! {
@@ -180,6 +215,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             }
 
             #list_operations
+            #basic_operations
         }
 
         #shadow_support_impl
@@ -409,6 +445,21 @@ fn generate_list_operations(
 
         #solve_impl
     }
+}
+
+fn generate_basic_variable_operations(
+    config: &BasicVariableConfig,
+    _fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    _constraints_path: &Option<String>,
+    _solution_name: &Ident,
+) -> TokenStream {
+    // Return empty if not configured
+    if config.entity_collection.is_none() {
+        return TokenStream::new();
+    }
+
+    // TODO: generate helper methods and solve() for basic variables
+    TokenStream::new()
 }
 
 fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {

@@ -218,10 +218,10 @@ pub struct TerminationConfig {
     pub best_score_limit: Option<String>,
 
     /// Maximum number of steps.
-    pub step_count_limit: Option<usize>,
+    pub step_count_limit: Option<u64>,
 
     /// Maximum unimproved steps before terminating.
-    pub unimproved_step_count_limit: Option<usize>,
+    pub unimproved_step_count_limit: Option<u64>,
 
     /// Maximum seconds without improvement.
     pub unimproved_seconds_spent_limit: Option<u64>,
@@ -237,6 +237,11 @@ impl TerminationConfig {
         } else {
             None
         }
+    }
+
+    /// Returns the unimproved time limit as a Duration, if any.
+    pub fn unimproved_time_limit(&self) -> Option<Duration> {
+        self.unimproved_seconds_spent_limit.map(Duration::from_secs)
     }
 }
 

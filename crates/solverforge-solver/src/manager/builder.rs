@@ -32,16 +32,14 @@
 //!     .unwrap();
 //! ```
 
-use std::time::Duration;
-
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::SolverForgeError;
 
 use crate::termination::{
-    OrCompositeTermination, StepCountTermination, Termination, TimeTermination,
+    DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
+    TimeTermination,
 };
 
-use super::config::{ConstructionType, LocalSearchType, PhaseConfig};
 use super::{SolverManager, SolverPhaseFactory};
 
 /// Builder for creating a [`SolverManager`] with fluent configuration.
@@ -120,11 +118,8 @@ where
     C: Fn(&S) -> S::Score + Send + Sync,
 {
     score_calculator: C,
-    phase_configs: Vec<PhaseConfig>,
     phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
-    time_limit: Option<Duration>,
-    step_limit: Option<u64>,
-    _phantom: std::marker::PhantomData<S>,
+    config: Option<solverforge_config::SolverConfig>,
 }
 
 impl<S, C> SolverManagerBuilder<S, C>
@@ -159,12 +154,15 @@ where
     pub fn new(score_calculator: C) -> Self {
         Self {
             score_calculator,
-            phase_configs: Vec::new(),
             phase_factories: Vec::new(),
-            time_limit: None,
-            step_limit: None,
-            _phantom: std::marker::PhantomData,
+            config: None,
         }
+    }
+
+    /// Sets config for termination and other settings.
+    pub fn with_config(mut self, config: solverforge_config::SolverConfig) -> Self {
+        self.config = Some(config);
+        self
     }
 
     /// Adds a typed phase factory.
@@ -212,190 +210,6 @@ where
         self
     }
 
-    /// Adds a construction heuristic phase with default (FirstFit) configuration.
-    ///
-    /// This phase will build an initial solution by assigning values to
-    /// uninitialized planning variables using the first valid value found.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManagerBuilder;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let builder = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .with_construction_heuristic();
-    /// ```
-    pub fn with_construction_heuristic(mut self) -> Self {
-        self.phase_configs.push(PhaseConfig::ConstructionHeuristic {
-            construction_type: ConstructionType::FirstFit,
-        });
-        self
-    }
-
-    /// Adds a construction heuristic phase with specific configuration.
-    ///
-    /// Use this to choose between [`ConstructionType::FirstFit`] (fast) and
-    /// [`ConstructionType::BestFit`] (better quality initial solution).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::{SolverManagerBuilder, ConstructionType};
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let builder = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .with_construction_heuristic_type(ConstructionType::BestFit);
-    /// ```
-    pub fn with_construction_heuristic_type(mut self, construction_type: ConstructionType) -> Self {
-        self.phase_configs
-            .push(PhaseConfig::ConstructionHeuristic { construction_type });
-        self
-    }
-
-    /// Adds a local search phase.
-    ///
-    /// Local search improves an existing solution by exploring neighboring
-    /// solutions. The search type determines the acceptance criteria.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchType};
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let builder = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .with_local_search(LocalSearchType::TabuSearch { tabu_size: 7 });
-    /// ```
-    pub fn with_local_search(mut self, search_type: LocalSearchType) -> Self {
-        self.phase_configs.push(PhaseConfig::LocalSearch {
-            search_type,
-            step_limit: None,
-        });
-        self
-    }
-
-    /// Adds a local search phase with a step limit.
-    ///
-    /// The phase will terminate after the specified number of steps,
-    /// allowing for multi-phase configurations where different search
-    /// strategies are used in sequence.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchType};
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let builder = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     // First, use simulated annealing for 500 steps
-    ///     .with_local_search_steps(
-    ///         LocalSearchType::SimulatedAnnealing {
-    ///             starting_temp: 1.0,
-    ///             decay_rate: 0.99,
-    ///         },
-    ///         500,
-    ///     )
-    ///     // Then switch to hill climbing
-    ///     .with_local_search(LocalSearchType::HillClimbing);
-    /// ```
-    pub fn with_local_search_steps(
-        mut self,
-        search_type: LocalSearchType,
-        step_limit: u64,
-    ) -> Self {
-        self.phase_configs.push(PhaseConfig::LocalSearch {
-            search_type,
-            step_limit: Some(step_limit),
-        });
-        self
-    }
-
-    /// Sets the global time limit for solving.
-    ///
-    /// The solver will terminate after this duration, regardless of
-    /// which phase is currently executing.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManagerBuilder;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    /// use std::time::Duration;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let builder = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .with_time_limit(Duration::from_secs(60));
-    /// ```
-    pub fn with_time_limit(mut self, duration: Duration) -> Self {
-        self.time_limit = Some(duration);
-        self
-    }
-
-    /// Sets the global step limit for solving.
-    ///
-    /// The solver will terminate after this many steps total across all phases.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManagerBuilder;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let builder = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .with_step_limit(10000);
-    /// ```
-    pub fn with_step_limit(mut self, steps: u64) -> Self {
-        self.step_limit = Some(steps);
-        self
-    }
 
     /// Builds the [`SolverManager`].
     ///
@@ -434,13 +248,7 @@ where
     /// let solver = manager.create_solver();
     /// ```
     pub fn build(self) -> Result<SolverManager<S, C>, SolverForgeError> {
-        // Build termination factory
         let termination_factory = self.build_termination_factory();
-
-        // Use the typed phase factories added via with_phase_factory()
-        // Phase configs are for future auto-configuration via macros
-        let _ = self.phase_configs;
-
         Ok(SolverManager::new(
             self.score_calculator,
             self.phase_factories,
@@ -452,10 +260,14 @@ where
     fn build_termination_factory(
         &self,
     ) -> Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>> {
-        let time_limit = self.time_limit;
-        let step_limit = self.step_limit;
+        let config = self.config.clone()?;
+        let termination = config.termination?;
 
-        if time_limit.is_none() && step_limit.is_none() {
+        let time_limit = termination.time_limit();
+        let step_limit = termination.step_count_limit;
+        let unimproved_time = termination.unimproved_time_limit();
+
+        if time_limit.is_none() && step_limit.is_none() && unimproved_time.is_none() {
             return None;
         }
 
@@ -468,6 +280,13 @@ where
 
             if let Some(steps) = step_limit {
                 terminations.push(Box::new(StepCountTermination::new(steps)));
+            }
+
+            if let Some(duration) = unimproved_time {
+                terminations.push(Box::new(DiminishedReturnsTermination::<S>::new(
+                    duration,
+                    0.001, // Minimum improvement rate
+                )));
             }
 
             match terminations.len() {

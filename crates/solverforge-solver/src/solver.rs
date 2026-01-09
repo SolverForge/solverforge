@@ -204,6 +204,13 @@ impl<S: PlanningSolution> Solver<S> {
     pub fn config(&self) -> Option<&SolverConfig> {
         self.config.as_ref()
     }
+
+    /// Sets an external termination flag.
+    ///
+    /// When this flag is set to true, the solver will terminate early.
+    pub fn set_terminate_flag(&mut self, flag: Arc<AtomicBool>) {
+        self.terminate_early_flag = flag;
+    }
 }
 
 /// Solver status enumeration.

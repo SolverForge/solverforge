@@ -1,6 +1,6 @@
 //! SolverForge - A Constraint Solver in Rust
 //!
-//! Zero-wiring API: Just annotate your domain and call `Solution::solve()`.
+//! Zero-wiring API: Just annotate your domain and call `solution.solve()`.
 
 pub use solverforge_macros::{
     planning_entity, planning_solution, problem_fact,
@@ -14,8 +14,17 @@ pub use solverforge_core::score::{
 pub use solverforge_scoring::stream;
 
 // Re-export traits needed by macro-generated code
-pub use solverforge_scoring::{ConstraintSet, ScoreDirector, ShadowVariableSupport, SolvableSolution};
-pub use solverforge_core::domain::PlanningSolution;
+pub use solverforge_scoring::{
+    ConstraintSet, ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport,
+    SolvableSolution, TypedScoreDirector,
+};
+pub use solverforge_core::domain::{
+    EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFactDescriptor,
+    ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor, VariableDescriptor,
+};
+
+// Re-export PlanningEntity as PlanningEntityTrait for macro compatibility
+pub use PlanningEntity as PlanningEntityTrait;
 
 // Re-export for k-opt phase distance meter
 pub use solverforge_solver::ListPositionDistanceMeter;

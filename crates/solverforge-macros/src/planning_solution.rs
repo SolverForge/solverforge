@@ -97,11 +97,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_entity(::solverforge_core::domain::EntityDescriptor::new(
+                .with_entity(::solverforge::EntityDescriptor::new(
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge_core::domain::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge::TypedEntityExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -119,11 +119,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_problem_fact(::solverforge_core::domain::ProblemFactDescriptor::new(
+                .with_problem_fact(::solverforge::ProblemFactDescriptor::new(
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge_core::domain::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge::TypedEntityExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -154,15 +154,15 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let solvable_solution_impl = generate_solvable_solution(&shadow_config, name);
 
     let expanded = quote! {
-        impl #impl_generics ::solverforge_core::domain::PlanningSolution for #name #ty_generics #where_clause {
+        impl #impl_generics ::solverforge::PlanningSolution for #name #ty_generics #where_clause {
             type Score = #score_type;
             fn score(&self) -> Option<Self::Score> { self.#score_field_name.clone() }
             fn set_score(&mut self, score: Option<Self::Score>) { self.#score_field_name = score; }
         }
 
         impl #impl_generics #name #ty_generics #where_clause {
-            pub fn descriptor() -> ::solverforge_core::domain::SolutionDescriptor {
-                ::solverforge_core::domain::SolutionDescriptor::new(
+            pub fn descriptor() -> ::solverforge::SolutionDescriptor {
+                ::solverforge::SolutionDescriptor::new(
                     #name_str,
                     ::std::any::TypeId::of::<Self>(),
                 )
@@ -239,19 +239,20 @@ fn generate_list_operations(
 
             /// Solve with external termination flag for async cancellation.
             pub fn solve_with_terminate(
-                mut solution: Self,
+                solution: Self,
                 terminate_flag: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
             ) -> Self {
                 use ::std::sync::atomic::Ordering;
-                use ::solverforge_scoring::{ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector};
-                use ::solverforge_core::domain::PlanningSolution;
+                use ::solverforge::{ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector, ShadowVariableSupport};
+                use ::solverforge::PlanningSolution;
 
                 // Constraints embedded at compile time via macro attribute
                 let constraints = #constraints_fn();
 
-                // Create score director
-                let mut score_director = ShadowAwareScoreDirector::new(
-                    TypedScoreDirector::new(
+                // Create score director with solution (director owns the solution)
+                let mut director = ShadowAwareScoreDirector::new(
+                    TypedScoreDirector::with_descriptor(
+                        solution,
                         constraints,
                         Self::descriptor(),
                         Self::entity_count,
@@ -259,42 +260,53 @@ fn generate_list_operations(
                 );
 
                 // Calculate initial score
-                let initial_score = score_director.calculate_score(&mut solution);
-                solution.set_score(Some(initial_score));
+                let initial_score = director.calculate_score();
+                director.working_solution_mut().set_score(Some(initial_score));
 
                 // Construction phase: assign all elements to entities
-                let total_elements = solution.#element_collection_ident.len();
-                let assigned: ::std::collections::HashSet<#element_type_ident> = solution.#list_owner_ident
-                    .iter()
-                    .flat_map(|e| e.#list_field_ident.iter().copied())
-                    .collect();
-                let unassigned: Vec<#element_type_ident> = (0..total_elements)
-                    .map(|i| i as #element_type_ident)
-                    .filter(|i| !assigned.contains(i))
-                    .collect();
+                let total_elements;
+                let unassigned: Vec<#element_type_ident>;
+                let n_entities;
+                {
+                    let sol = director.working_solution();
+                    total_elements = sol.#element_collection_ident.len();
+                    let assigned: ::std::collections::HashSet<#element_type_ident> = sol.#list_owner_ident
+                        .iter()
+                        .flat_map(|e| e.#list_field_ident.iter().copied())
+                        .collect();
+                    unassigned = (0..total_elements)
+                        .map(|i| i as #element_type_ident)
+                        .filter(|i| !assigned.contains(i))
+                        .collect();
+                    n_entities = sol.#list_owner_ident.len();
+                }
 
-                let n_entities = solution.#list_owner_ident.len();
                 if n_entities > 0 {
                     for (i, elem) in unassigned.into_iter().enumerate() {
                         let entity_idx = i % n_entities;
-                        solution.#list_owner_ident[entity_idx].#list_field_ident.push(elem);
-                        score_director.update_shadow_variables(&mut solution, entity_idx);
+                        {
+                            let sol = director.working_solution_mut();
+                            sol.#list_owner_ident[entity_idx].#list_field_ident.push(elem);
+                            sol.update_entity_shadows(entity_idx);
+                        }
                     }
-                    let score = score_director.calculate_score(&mut solution);
-                    solution.set_score(Some(score));
+                    let score = director.calculate_score();
+                    director.working_solution_mut().set_score(Some(score));
                 }
 
                 // Local search phase: k-opt moves with late acceptance
                 let terminate = terminate_flag.unwrap_or_else(|| ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)));
                 let late_acceptance_size = 400;
                 let mut score_history: Vec<<Self as PlanningSolution>::Score> = Vec::with_capacity(late_acceptance_size);
-                let current_score = solution.score().unwrap_or_default();
-                for _ in 0..late_acceptance_size {
-                    score_history.push(current_score.clone());
+                {
+                    let current_score = director.working_solution().score().unwrap_or_default();
+                    for _ in 0..late_acceptance_size {
+                        score_history.push(current_score.clone());
+                    }
                 }
                 let mut history_idx = 0usize;
-                let mut best_solution = solution.clone();
-                let mut best_score = current_score.clone();
+                let mut best_solution = director.clone_working_solution();
+                let mut best_score = best_solution.score().unwrap_or_default();
 
                 let mut step_count = 0u64;
                 while !terminate.load(Ordering::Relaxed) {
@@ -303,7 +315,7 @@ fn generate_list_operations(
                     // Try 2-opt moves on each entity
                     for entity_idx in 0..n_entities {
                         if terminate.load(Ordering::Relaxed) { break; }
-                        let list_len = solution.#list_owner_ident[entity_idx].#list_field_ident.len();
+                        let list_len = director.working_solution().#list_owner_ident[entity_idx].#list_field_ident.len();
                         if list_len < 4 { continue; }
 
                         for i in 0..list_len.saturating_sub(2) {
@@ -311,26 +323,30 @@ fn generate_list_operations(
                                 if terminate.load(Ordering::Relaxed) { break; }
 
                                 // Reverse segment [i+1..=j]
-                                solution.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
-                                score_director.update_shadow_variables(&mut solution, entity_idx);
-                                let new_score = score_director.calculate_score(&mut solution);
+                                {
+                                    let sol = director.working_solution_mut();
+                                    sol.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
+                                    sol.update_entity_shadows(entity_idx);
+                                }
+                                let new_score = director.calculate_score();
 
                                 let late_score = &score_history[history_idx % late_acceptance_size];
                                 let dominated = {
-                                    use ::solverforge_core::score::Score;
+                                    use ::solverforge::Score;
                                     new_score < *late_score && new_score < best_score
                                 };
                                 if dominated {
                                     // Undo
-                                    solution.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
-                                    score_director.update_shadow_variables(&mut solution, entity_idx);
+                                    let sol = director.working_solution_mut();
+                                    sol.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
+                                    sol.update_entity_shadows(entity_idx);
                                 } else {
-                                    solution.set_score(Some(new_score.clone()));
+                                    director.working_solution_mut().set_score(Some(new_score.clone()));
                                     score_history[history_idx % late_acceptance_size] = new_score.clone();
                                     history_idx += 1;
                                     if new_score > best_score {
                                         best_score = new_score;
-                                        best_solution = solution.clone();
+                                        best_solution = director.clone_working_solution();
                                         improved_this_step = true;
                                     }
                                 }
@@ -413,8 +429,8 @@ fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> T
     }
 
     quote! {
-        impl ::solverforge_scoring::SolvableSolution for #solution_name {
-            fn descriptor() -> ::solverforge_core::domain::SolutionDescriptor {
+        impl ::solverforge::SolvableSolution for #solution_name {
+            fn descriptor() -> ::solverforge::SolutionDescriptor {
                 #solution_name::descriptor()
             }
 
@@ -434,7 +450,7 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
         (Some(lo), Some(lf), Some(ec)) => (lo, lf, ec),
         _ => {
             return quote! {
-                impl ::solverforge_scoring::ShadowVariableSupport for #solution_name {
+                impl ::solverforge::ShadowVariableSupport for #solution_name {
                     #[inline]
                     fn update_entity_shadows(&mut self, _entity_idx: usize) {}
                 }
@@ -494,7 +510,7 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
     });
 
     quote! {
-        impl ::solverforge_scoring::ShadowVariableSupport for #solution_name {
+        impl ::solverforge::ShadowVariableSupport for #solution_name {
             #[inline]
             fn update_entity_shadows(&mut self, entity_idx: usize) {
                 let element_indices: Vec<usize> = self.#list_owner_ident[entity_idx]

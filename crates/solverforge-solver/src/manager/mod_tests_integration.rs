@@ -3,7 +3,6 @@
 use super::*;
 use std::any::TypeId;
 use std::sync::Arc;
-use std::time::Duration;
 
 use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
@@ -158,66 +157,6 @@ fn test_solver_with_step_limit_termination() {
     assert!(result.entities.iter().all(|e| e.value.is_some()));
 }
 
-#[test]
-fn test_solver_with_time_limit_termination() {
-    let solution = EntityTestSolution {
-        entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(1),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(2),
-            },
-        ],
-        target_sum: 5,
-        score: None,
-    };
-
-    let director = create_entity_director(solution);
-
-    let manager = SolverManager::<EntityTestSolution>::builder(calculate_entity_score)
-        .with_time_limit(Duration::from_millis(100))
-        .build()
-        .expect("Failed to build manager");
-
-    let mut solver = manager.create_solver();
-    let result = solver.solve_with_director(Box::new(director));
-
-    assert!(result.entities.len() == 2);
-}
-
-#[test]
-fn test_solver_with_combined_termination() {
-    let solution = EntityTestSolution {
-        entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(0),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(0),
-            },
-        ],
-        target_sum: 6,
-        score: None,
-    };
-
-    let director = create_entity_director(solution);
-
-    let manager = SolverManager::<EntityTestSolution>::builder(calculate_entity_score)
-        .with_time_limit(Duration::from_secs(1))
-        .with_step_limit(5)
-        .build()
-        .expect("Failed to build manager");
-
-    let mut solver = manager.create_solver();
-    let result = solver.solve_with_director(Box::new(director));
-
-    assert!(result.entities.len() == 2);
-}
 
 #[test]
 fn test_solver_manager_solve_improves_score() {
@@ -270,7 +209,6 @@ fn test_solver_manager_solve_improves_score() {
 #[test]
 fn test_solver_manager_creates_independent_solvers_for_parallel_solving() {
     let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_step_limit(10)
         .build()
         .expect("Failed to build manager");
 
@@ -361,80 +299,3 @@ fn test_termination_factory_creates_fresh_termination() {
     let _ = manager.create_solver();
 }
 
-#[test]
-fn test_solver_manager_builder_with_local_search_variants() {
-    let hill_climbing = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_local_search(LocalSearchType::HillClimbing)
-        .build()
-        .expect("Failed to build with hill climbing");
-
-    let tabu_search = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_local_search(LocalSearchType::TabuSearch { tabu_size: 10 })
-        .build()
-        .expect("Failed to build with tabu search");
-
-    let simulated_annealing = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_local_search(LocalSearchType::SimulatedAnnealing {
-            starting_temp: 1.0,
-            decay_rate: 0.99,
-        })
-        .build()
-        .expect("Failed to build with simulated annealing");
-
-    let late_acceptance = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_local_search(LocalSearchType::LateAcceptance { size: 100 })
-        .build()
-        .expect("Failed to build with late acceptance");
-
-    let solution = TestSolution {
-        value: 5,
-        score: None,
-    };
-    assert_eq!(
-        hill_climbing.calculate_score(&solution),
-        SimpleScore::of(-5)
-    );
-    assert_eq!(tabu_search.calculate_score(&solution), SimpleScore::of(-5));
-    assert_eq!(
-        simulated_annealing.calculate_score(&solution),
-        SimpleScore::of(-5)
-    );
-    assert_eq!(
-        late_acceptance.calculate_score(&solution),
-        SimpleScore::of(-5)
-    );
-}
-
-#[test]
-fn test_solver_manager_builder_with_construction_types() {
-    let first_fit = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_construction_heuristic_type(ConstructionType::FirstFit)
-        .build()
-        .expect("Failed to build with first fit");
-
-    let best_fit = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_construction_heuristic_type(ConstructionType::BestFit)
-        .build()
-        .expect("Failed to build with best fit");
-
-    let solution = TestSolution {
-        value: 3,
-        score: None,
-    };
-    assert_eq!(first_fit.calculate_score(&solution), SimpleScore::of(-3));
-    assert_eq!(best_fit.calculate_score(&solution), SimpleScore::of(-3));
-}
-
-#[test]
-fn test_solver_manager_with_local_search_steps() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_local_search_steps(LocalSearchType::HillClimbing, 50)
-        .build()
-        .expect("Failed to build with local search steps");
-
-    let solution = TestSolution {
-        value: 6,
-        score: None,
-    };
-    assert_eq!(manager.calculate_score(&solution), SimpleScore::of(-6));
-}

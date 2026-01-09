@@ -81,11 +81,6 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
             .entity_count(self.descriptor_index)
             .unwrap_or(0);
 
-        eprintln!(
-            "[DEBUG] EntitySelector: descriptor_index={}, entity_count={}",
-            self.descriptor_index, count
-        );
-
         let desc_idx = self.descriptor_index;
 
         Box::new((0..count).map(move |i| EntityReference::new(desc_idx, i)))

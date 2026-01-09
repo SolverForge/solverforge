@@ -484,13 +484,14 @@ where
 /// * `S` - Planning solution type
 /// * `V` - List element type (e.g., `usize` for visit indices)
 /// * `D` - Distance meter for nearby selection
+/// * `F` - Entity selector factory type
 ///
 /// # Example
 ///
 /// ```
 /// use solverforge_solver::KOptPhaseBuilder;
-/// use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
 /// use solverforge_solver::heuristic::selector::k_opt::ListPositionDistanceMeter;
+/// use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
@@ -526,7 +527,7 @@ where
 ///     }
 /// }
 ///
-/// let phase = KOptPhaseBuilder::<Route, usize, _>::new(
+/// let phase = KOptPhaseBuilder::<Route, usize, _, _>::new(
 ///     RouteMeter,
 ///     || Box::new(FromSolutionEntitySelector::new(0)),
 ///     list_len,
@@ -539,13 +540,14 @@ where
 /// .with_nearby(10)
 /// .with_late_acceptance(400);
 /// ```
-pub struct KOptPhaseBuilder<S, V, D>
+pub struct KOptPhaseBuilder<S, V, D, F>
 where
     S: PlanningSolution,
     D: ListPositionDistanceMeter<S>,
+    F: Fn() -> Box<dyn EntitySelector<S>> + Send + Sync,
 {
     distance_meter: D,
-    entity_selector_factory: Box<dyn Fn() -> Box<dyn EntitySelector<S>> + Send + Sync>,
+    entity_selector_factory: F,
     list_len: fn(&S, usize) -> usize,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
@@ -559,30 +561,38 @@ where
     _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V, D> KOptPhaseBuilder<S, V, D>
+impl<S, V, D, F> KOptPhaseBuilder<S, V, D, F>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
     D: ListPositionDistanceMeter<S> + Clone + 'static,
+    F: Fn() -> Box<dyn EntitySelector<S>> + Send + Sync,
 {
     /// Creates a new k-opt phase builder with required parameters.
     ///
     /// Defaults: k=3, max_nearby=10, min_segment_len=1, late acceptance with size 400.
-    pub fn new<E>(
+    ///
+    /// # Arguments
+    ///
+    /// * `distance_meter` - Distance metric for nearby selection
+    /// * `entity_selector_factory` - Factory returning entity selectors
+    /// * `list_len` - Function returning list length for an entity
+    /// * `sublist_remove` - Function to remove a sublist
+    /// * `sublist_insert` - Function to insert elements
+    /// * `variable_name` - Name of the list variable
+    /// * `descriptor_index` - Entity descriptor index
+    pub fn new(
         distance_meter: D,
-        entity_selector_factory: E,
+        entity_selector_factory: F,
         list_len: fn(&S, usize) -> usize,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
         descriptor_index: usize,
-    ) -> Self
-    where
-        E: Fn() -> Box<dyn EntitySelector<S>> + Send + Sync + 'static,
-    {
+    ) -> Self {
         Self {
             distance_meter,
-            entity_selector_factory: Box::new(entity_selector_factory),
+            entity_selector_factory,
             list_len,
             sublist_remove,
             sublist_insert,
@@ -688,11 +698,12 @@ where
     }
 }
 
-impl<S, V, D> SolverPhaseFactory<S> for KOptPhaseBuilder<S, V, D>
+impl<S, V, D, F> SolverPhaseFactory<S> for KOptPhaseBuilder<S, V, D, F>
 where
     S: PlanningSolution + 'static,
     V: Clone + Send + Sync + Debug + 'static,
     D: ListPositionDistanceMeter<S> + Clone + 'static,
+    F: Fn() -> Box<dyn EntitySelector<S>> + Send + Sync,
 {
     fn create_phase(&self) -> Box<dyn Phase<S>> {
         let config = KOptConfig::new(self.k).with_min_segment_len(self.min_segment_len);

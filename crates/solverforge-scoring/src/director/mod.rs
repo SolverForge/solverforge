@@ -23,7 +23,7 @@ mod recording_tests;
 mod typed_bench;
 
 pub use recording::RecordingScoreDirector;
-pub use shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport};
+pub use shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport, SolvableSolution};
 
 /// The score director manages solution state and score calculation.
 ///

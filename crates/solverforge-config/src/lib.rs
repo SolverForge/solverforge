@@ -110,6 +110,27 @@ impl SolverConfig {
         self.phases.push(phase);
         self
     }
+
+    /// Returns the termination time limit, if configured.
+    ///
+    /// Convenience method that delegates to `termination.time_limit()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_config::SolverConfig;
+    /// use std::time::Duration;
+    ///
+    /// let config = SolverConfig::from_toml_str(r#"
+    ///     [termination]
+    ///     seconds_spent_limit = 30
+    /// "#).unwrap();
+    ///
+    /// assert_eq!(config.time_limit(), Some(Duration::from_secs(30)));
+    /// ```
+    pub fn time_limit(&self) -> Option<Duration> {
+        self.termination.as_ref().and_then(|t| t.time_limit())
+    }
 }
 
 /// Environment mode affecting solver behavior.

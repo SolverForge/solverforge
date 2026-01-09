@@ -34,8 +34,6 @@ impl PlanningSolution for TestSolution {
 
 #[derive(Clone, Debug)]
 struct TestEntity {
-    #[allow(dead_code)]
-    id: i64,
     value: Option<i64>,
 }
 
@@ -109,18 +107,9 @@ type EntityMove = ChangeMove<EntityTestSolution, i64>;
 fn test_solver_with_step_limit_termination() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(0),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(0),
-            },
-            TestEntity {
-                id: 2,
-                value: Some(0),
-            },
+            TestEntity { value: Some(0) },
+            TestEntity { value: Some(0) },
+            TestEntity { value: Some(0) },
         ],
         target_sum: 10,
         score: None,
@@ -162,18 +151,9 @@ fn test_solver_with_step_limit_termination() {
 fn test_solver_manager_solve_improves_score() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(0),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(0),
-            },
-            TestEntity {
-                id: 2,
-                value: Some(0),
-            },
+            TestEntity { value: Some(0) },
+            TestEntity { value: Some(0) },
+            TestEntity { value: Some(0) },
         ],
         target_sum: 6,
         score: None,
@@ -262,14 +242,8 @@ fn test_phase_factory_creates_fresh_phases_each_time() {
 fn test_solver_manager_with_entity_solution() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(2),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(3),
-            },
+            TestEntity { value: Some(2) },
+            TestEntity { value: Some(3) },
         ],
         target_sum: 5,
         score: None,

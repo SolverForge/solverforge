@@ -233,7 +233,6 @@ mod tests {
     use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
-    #[allow(dead_code)]
     #[derive(Clone, Debug)]
     struct Location {
         id: i64,

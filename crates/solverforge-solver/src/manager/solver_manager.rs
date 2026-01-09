@@ -21,10 +21,9 @@ use super::SolverPhaseFactory;
 /// Use the builder pattern via [`SolverManager::builder()`]:
 ///
 /// ```
-/// use solverforge_solver::manager::{SolverManager, LocalSearchType};
+/// use solverforge_solver::manager::SolverManager;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
-/// use std::time::Duration;
 ///
 /// #[derive(Clone)]
 /// struct Schedule {
@@ -38,12 +37,11 @@ use super::SolverPhaseFactory;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// // Build a manager with hill climbing and 30-second time limit
+/// // Build a manager (termination configured via solver.toml)
 /// let manager = SolverManager::<Schedule>::builder(|s| {
 ///     // Simple scoring: sum of tasks
 ///     SimpleScore::of(s.tasks.iter().sum())
 /// })
-///     .with_time_limit(Duration::from_secs(30))
 ///     .build()
 ///     .expect("Failed to build manager");
 ///
@@ -163,7 +161,6 @@ where
     /// use solverforge_solver::manager::SolverManager;
     /// use solverforge_core::domain::PlanningSolution;
     /// use solverforge_core::score::SimpleScore;
-    /// use std::time::Duration;
     ///
     /// # #[derive(Clone)]
     /// # struct Problem { score: Option<SimpleScore> }
@@ -173,7 +170,6 @@ where
     /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
     /// # }
     /// let manager = SolverManager::<Problem>::builder(|_| SimpleScore::of(0))
-    ///     .with_step_limit(100)
     ///     .build()
     ///     .unwrap();
     ///

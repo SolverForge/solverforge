@@ -14,10 +14,9 @@
 //! # Example
 //!
 //! ```
-//! use solverforge_solver::manager::{SolverManager, LocalSearchType};
+//! use solverforge_solver::manager::SolverManager;
 //! use solverforge_core::domain::PlanningSolution;
 //! use solverforge_core::score::SimpleScore;
-//! use std::time::Duration;
 //!
 //! #[derive(Clone)]
 //! struct Schedule { score: Option<SimpleScore> }
@@ -28,11 +27,8 @@
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
 //!
-//! // Create a manager with score calculator and termination
+//! // Create a manager with score calculator (termination via solver.toml)
 //! let manager = SolverManager::<Schedule>::builder(|_| SimpleScore::of(0))
-//!     .with_construction_heuristic()
-//!     .with_local_search(LocalSearchType::HillClimbing)
-//!     .with_time_limit(Duration::from_secs(30))
 //!     .build()
 //!     .expect("Failed to build manager");
 //!

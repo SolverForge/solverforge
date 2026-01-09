@@ -1,19 +1,14 @@
 //! Builder for SolverManager configuration.
 //!
 //! This module provides the builder pattern for configuring a [`SolverManager`].
-//! The builder allows fluent configuration of:
-//!
-//! - Construction heuristic phases
-//! - Local search phases with various acceptors
-//! - Termination conditions (time limits, step limits)
+//! Configuration is done via `solver.toml` file and phase factories.
 //!
 //! # Example
 //!
 //! ```
-//! use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchType, ConstructionType};
+//! use solverforge_solver::manager::SolverManagerBuilder;
 //! use solverforge_core::domain::PlanningSolution;
 //! use solverforge_core::score::SimpleScore;
-//! use std::time::Duration;
 //!
 //! #[derive(Clone)]
 //! struct Schedule { score: Option<SimpleScore> }
@@ -25,9 +20,6 @@
 //! }
 //!
 //! let manager = SolverManagerBuilder::new(|_: &Schedule| SimpleScore::of(0))
-//!     .with_construction_heuristic()
-//!     .with_local_search(LocalSearchType::HillClimbing)
-//!     .with_time_limit(Duration::from_secs(60))
 //!     .build()
 //!     .unwrap();
 //! ```
@@ -42,18 +34,18 @@ use crate::termination::{
 
 use super::{SolverManager, SolverPhaseFactory};
 
-/// Builder for creating a [`SolverManager`] with fluent configuration.
+/// Builder for creating a [`SolverManager`] with configuration.
 ///
-/// The builder pattern allows configuring phases, termination conditions,
-/// and other solver settings before creating the manager.
+/// The builder pattern allows configuring phase factories and termination
+/// settings before creating the manager. Termination is configured via
+/// `solver.toml` file or the `with_config()` method.
 ///
 /// # Basic Usage
 ///
 /// ```
-/// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchType};
+/// use solverforge_solver::manager::SolverManagerBuilder;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
-/// use std::time::Duration;
 ///
 /// #[derive(Clone)]
 /// struct Problem { value: i64, score: Option<SimpleScore> }
@@ -65,47 +57,8 @@ use super::{SolverManager, SolverPhaseFactory};
 /// }
 ///
 /// let manager = SolverManagerBuilder::new(|p: &Problem| SimpleScore::of(-p.value))
-///     .with_construction_heuristic()
-///     .with_local_search(LocalSearchType::HillClimbing)
-///     .with_time_limit(Duration::from_secs(30))
 ///     .build()
 ///     .expect("Failed to build manager");
-/// ```
-///
-/// # Configuration Options
-///
-/// The builder supports:
-/// - Construction heuristic phases (first fit, best fit)
-/// - Local search phases (hill climbing, tabu search, simulated annealing, late acceptance)
-/// - Time limits
-/// - Step limits
-///
-/// # Multi-Phase Configuration
-///
-/// ```
-/// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchType, ConstructionType};
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-/// use std::time::Duration;
-///
-/// # #[derive(Clone)]
-/// # struct Problem { score: Option<SimpleScore> }
-/// # impl PlanningSolution for Problem {
-/// #     type Score = SimpleScore;
-/// #     fn score(&self) -> Option<Self::Score> { self.score }
-/// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// # }
-/// let manager = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-///     // First phase: construct initial solution
-///     .with_construction_heuristic_type(ConstructionType::BestFit)
-///     // Second phase: improve with tabu search
-///     .with_local_search_steps(LocalSearchType::TabuSearch { tabu_size: 7 }, 1000)
-///     // Third phase: fine-tune with hill climbing
-///     .with_local_search(LocalSearchType::HillClimbing)
-///     // Global termination
-///     .with_time_limit(Duration::from_secs(60))
-///     .build()
-///     .unwrap();
 /// ```
 ///
 /// # Zero-Erasure Design
@@ -213,9 +166,9 @@ where
 
     /// Builds the [`SolverManager`].
     ///
-    /// This creates a basic `SolverManager` with the configured termination
-    /// conditions. For full functionality with phases, use the typed phase
-    /// factories from [`super::phase_factory`].
+    /// This creates a `SolverManager` with the configured termination
+    /// from `solver.toml`. For full functionality with phases, use the typed
+    /// phase factories from [`super::phase_factory`].
     ///
     /// # Errors
     ///
@@ -225,10 +178,9 @@ where
     /// # Example
     ///
     /// ```
-    /// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchType};
+    /// use solverforge_solver::manager::SolverManagerBuilder;
     /// use solverforge_core::domain::PlanningSolution;
     /// use solverforge_core::score::SimpleScore;
-    /// use std::time::Duration;
     ///
     /// # #[derive(Clone)]
     /// # struct Problem { score: Option<SimpleScore> }
@@ -238,9 +190,6 @@ where
     /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
     /// # }
     /// let manager = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .with_construction_heuristic()
-    ///     .with_local_search(LocalSearchType::HillClimbing)
-    ///     .with_time_limit(Duration::from_secs(30))
     ///     .build()
     ///     .expect("Failed to build manager");
     ///

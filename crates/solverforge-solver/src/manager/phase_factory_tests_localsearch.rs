@@ -15,7 +15,6 @@ use std::any::TypeId;
 
 // ==================== Test Domain ====================
 
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 struct Task {
     id: usize,

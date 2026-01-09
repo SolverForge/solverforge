@@ -208,6 +208,32 @@ where
         self.cached_score = self.cached_score.clone() + delta;
     }
 
+    /// Called after changing an entity's variable, with shadow update.
+    ///
+    /// Updates shadow variables for the entity FIRST, then inserts into
+    /// constraints. This ensures constraints see the updated shadow state.
+    ///
+    /// # Arguments
+    ///
+    /// * `entity_index` - Index of the entity that was changed
+    #[inline]
+    pub fn after_variable_changed_with_shadows(&mut self, entity_index: usize)
+    where
+        S: crate::director::ShadowVariableSupport,
+    {
+        if !self.initialized {
+            return;
+        }
+
+        // Shadow updates first - O(1) per entity
+        self.working_solution.update_entity_shadows(entity_index);
+
+        let delta = self
+            .constraints
+            .on_insert_all(&self.working_solution, entity_index);
+        self.cached_score = self.cached_score.clone() + delta;
+    }
+
     /// Convenience method for a complete variable change cycle.
     ///
     /// Equivalent to:
@@ -222,6 +248,25 @@ where
         self.before_variable_changed(entity_index);
         change_fn(&mut self.working_solution);
         self.after_variable_changed(entity_index);
+        self.cached_score.clone()
+    }
+
+    /// Variable change cycle with automatic shadow updates.
+    ///
+    /// Equivalent to:
+    /// 1. `before_variable_changed(entity_index)`
+    /// 2. Apply the change via `change_fn`
+    /// 3. Update shadow variables for entity
+    /// 4. Insert into constraints
+    #[inline]
+    pub fn do_change_with_shadows<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
+    where
+        S: crate::director::ShadowVariableSupport,
+        F: FnOnce(&mut S),
+    {
+        self.before_variable_changed(entity_index);
+        change_fn(&mut self.working_solution);
+        self.after_variable_changed_with_shadows(entity_index);
         self.cached_score.clone()
     }
 

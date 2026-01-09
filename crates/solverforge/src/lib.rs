@@ -42,11 +42,18 @@ pub mod __internal {
         SolvableSolution, TypedScoreDirector,
     };
     pub use solverforge_core::domain::{
-        EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFactDescriptor,
-        ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor, VariableDescriptor,
+        EntityDescriptor, ListVariableSolution, PlanningEntity, PlanningId, PlanningSolution,
+        ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor,
+        VariableDescriptor,
     };
     pub use solverforge_config::SolverConfig;
-    pub use solverforge_solver::ListPositionDistanceMeter;
+    pub use solverforge_solver::{
+        SolverManager, SolverManagerBuilder, ListPositionDistanceMeter,
+        KOptPhaseBuilder, ListConstructionPhaseBuilder, SolverPhaseFactory,
+        DiminishedReturnsTermination,
+    };
+    pub use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+    pub use solverforge_solver::heuristic::selector::k_opt::DefaultDistanceMeter;
 }
 
 pub mod prelude {

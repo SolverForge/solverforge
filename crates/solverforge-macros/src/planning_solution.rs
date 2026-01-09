@@ -208,7 +208,6 @@ fn generate_list_operations(
     let list_owner_ident = Ident::new(list_owner, proc_macro2::Span::call_site());
     let list_field_ident = Ident::new(list_field, proc_macro2::Span::call_site());
     let element_type_ident = Ident::new(element_type, proc_macro2::Span::call_site());
-    let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
 
     let entity_fields: Vec<_> = fields
         .iter()
@@ -226,33 +225,88 @@ fn generate_list_operations(
     );
 
     // Generate solve() only if constraints path is provided
+    let list_field_str = list_field;
     let solve_impl = constraints_path.as_ref().map(|path| {
         let constraints_fn: syn::Path = syn::parse_str(path)
             .expect("constraints path must be a valid Rust path");
 
         quote! {
-            /// Solve with zero parameters - constraints embedded at compile time.
-            pub fn solve(mut self) -> Self {
-                Self::solve_with_terminate(self, None)
+            /// Solve with external termination flag.
+            pub fn solve_with_terminate(
+                self,
+                terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
+            ) -> Self {
+                Self::solve_internal(self, terminate)
             }
 
-            /// Solve with external termination flag for async cancellation.
-            pub fn solve_with_terminate(
+            /// Solve with zero parameters - constraints embedded at compile time.
+            pub fn solve(self) -> Self {
+                Self::solve_internal(self, None)
+            }
+
+            fn solve_internal(
                 solution: Self,
-                terminate_flag: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
+                _terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
             ) -> Self {
-                use ::std::sync::atomic::Ordering;
-                use ::solverforge::__internal::{ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector, ShadowVariableSupport, PlanningSolution};
+                use ::solverforge::__internal::{
+                    SolverManager, SolverPhaseFactory,
+                    KOptPhaseBuilder, ListConstructionPhaseBuilder,
+                    FromSolutionEntitySelector, DefaultDistanceMeter,
+                    ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector,
+                    SolverConfig,
+                };
 
-                // Load config from solver.toml (required)
-                let config = ::solverforge::__internal::SolverConfig::load("solver.toml")
-                    .expect("solver.toml required");
+                // Load config
+                let config = SolverConfig::load("solver.toml").unwrap_or_default();
 
-                // Constraints embedded at compile time via macro attribute
+                // Constraints embedded at compile time
                 let constraints = #constraints_fn();
 
-                // Create score director with solution (director owns the solution)
-                let mut director = ShadowAwareScoreDirector::new(
+                // Build SolverManager with constraint-based scoring
+                let descriptor_index = Self::list_variable_descriptor_index();
+
+                // Construction phase
+                let construction = ListConstructionPhaseBuilder::<Self, usize>::new(
+                    Self::element_count,
+                    Self::assigned_elements,
+                    Self::n_entities,
+                    Self::assign_element,
+                    |i| i,
+                    #list_field_str,
+                    descriptor_index,
+                );
+
+                // Local search phase
+                let local_search = KOptPhaseBuilder::<Self, usize, _, _>::new(
+                    DefaultDistanceMeter,
+                    move || Box::new(FromSolutionEntitySelector::new(descriptor_index)),
+                    Self::list_len,
+                    Self::sublist_remove,
+                    Self::sublist_insert,
+                    #list_field_str,
+                    descriptor_index,
+                );
+
+                let manager = SolverManager::<Self>::builder(move |solution: &Self| {
+                    let constraints_clone = #constraints_fn();
+                    let mut director = ShadowAwareScoreDirector::new(
+                        TypedScoreDirector::with_descriptor(
+                            solution.clone(),
+                            constraints_clone,
+                            Self::descriptor(),
+                            Self::entity_count,
+                        ),
+                    );
+                    director.calculate_score()
+                })
+                .with_phase_factory(construction)
+                .with_phase_factory(local_search)
+                .with_config(config)
+                .build()
+                .expect("Failed to build solver");
+
+                // Create director for solving
+                let director = ShadowAwareScoreDirector::new(
                     TypedScoreDirector::with_descriptor(
                         solution,
                         constraints,
@@ -261,111 +315,14 @@ fn generate_list_operations(
                     ),
                 );
 
-                // Calculate initial score
-                let initial_score = director.calculate_score();
-                director.working_solution_mut().set_score(Some(initial_score));
-
-                // Construction phase: assign all elements to entities
-                let total_elements;
-                let unassigned: Vec<#element_type_ident>;
-                let n_entities;
-                {
-                    let sol = director.working_solution();
-                    total_elements = sol.#element_collection_ident.len();
-                    let assigned: ::std::collections::HashSet<#element_type_ident> = sol.#list_owner_ident
-                        .iter()
-                        .flat_map(|e| e.#list_field_ident.iter().copied())
-                        .collect();
-                    unassigned = (0..total_elements)
-                        .map(|i| i as #element_type_ident)
-                        .filter(|i| !assigned.contains(i))
-                        .collect();
-                    n_entities = sol.#list_owner_ident.len();
-                }
-
-                if n_entities > 0 {
-                    for (i, elem) in unassigned.into_iter().enumerate() {
-                        let entity_idx = i % n_entities;
-                        {
-                            let sol = director.working_solution_mut();
-                            sol.#list_owner_ident[entity_idx].#list_field_ident.push(elem);
-                            sol.update_entity_shadows(entity_idx);
-                        }
-                    }
-                    let score = director.calculate_score();
-                    director.working_solution_mut().set_score(Some(score));
-                }
-
-                // Local search phase: k-opt moves with late acceptance
-                let terminate = terminate_flag.unwrap_or_else(|| ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)));
-                let late_acceptance_size = 400;
-                let mut score_history: Vec<<Self as PlanningSolution>::Score> = Vec::with_capacity(late_acceptance_size);
-                {
-                    let current_score = director.working_solution().score().unwrap_or_default();
-                    for _ in 0..late_acceptance_size {
-                        score_history.push(current_score.clone());
-                    }
-                }
-                let mut history_idx = 0usize;
-                let mut best_solution = director.clone_working_solution();
-                let mut best_score = best_solution.score().unwrap_or_default();
-
-                let mut step_count = 0u64;
-                while !terminate.load(Ordering::Relaxed) {
-                    let mut improved_this_step = false;
-
-                    // Try 2-opt moves on each entity
-                    for entity_idx in 0..n_entities {
-                        if terminate.load(Ordering::Relaxed) { break; }
-                        let list_len = director.working_solution().#list_owner_ident[entity_idx].#list_field_ident.len();
-                        if list_len < 4 { continue; }
-
-                        for i in 0..list_len.saturating_sub(2) {
-                            for j in (i + 2)..list_len {
-                                if terminate.load(Ordering::Relaxed) { break; }
-
-                                // Reverse segment [i+1..=j]
-                                {
-                                    let sol = director.working_solution_mut();
-                                    sol.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
-                                    sol.update_entity_shadows(entity_idx);
-                                }
-                                let new_score = director.calculate_score();
-
-                                let late_score = &score_history[history_idx % late_acceptance_size];
-                                let dominated = {
-                                    use ::solverforge::Score;
-                                    new_score < *late_score && new_score < best_score
-                                };
-                                if dominated {
-                                    // Undo
-                                    let sol = director.working_solution_mut();
-                                    sol.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
-                                    sol.update_entity_shadows(entity_idx);
-                                } else {
-                                    director.working_solution_mut().set_score(Some(new_score.clone()));
-                                    score_history[history_idx % late_acceptance_size] = new_score.clone();
-                                    history_idx += 1;
-                                    if new_score > best_score {
-                                        best_score = new_score;
-                                        best_solution = director.clone_working_solution();
-                                        improved_this_step = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    step_count += 1;
-                    if step_count > 10000 && !improved_this_step {
-                        break;
-                    }
-                }
-
-                best_solution
+                // Solve
+                let mut solver = manager.create_solver();
+                solver.solve_with_director(Box::new(director))
             }
         }
     });
+
+    let element_collection_ident2 = Ident::new(element_collection, proc_macro2::Span::call_site());
 
     quote! {
         #[inline]
@@ -419,6 +376,35 @@ fn generate_list_operations(
         #[inline]
         pub const fn list_variable_descriptor_index() -> usize {
             #descriptor_index_lit
+        }
+
+        /// Total number of elements to assign.
+        #[inline]
+        pub fn element_count(s: &Self) -> usize {
+            s.#element_collection_ident2.len()
+        }
+
+        /// Elements already assigned to entities.
+        #[inline]
+        pub fn assigned_elements(s: &Self) -> Vec<#element_type_ident> {
+            s.#list_owner_ident
+                .iter()
+                .flat_map(|e| e.#list_field_ident.iter().copied())
+                .collect()
+        }
+
+        /// Number of entities (for construction).
+        #[inline]
+        pub fn n_entities(s: &Self) -> usize {
+            s.#list_owner_ident.len()
+        }
+
+        /// Assign element to entity (appends to list).
+        #[inline]
+        pub fn assign_element(s: &mut Self, entity_idx: usize, elem: #element_type_ident) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+                e.#list_field_ident.push(elem);
+            }
         }
 
         #solve_impl

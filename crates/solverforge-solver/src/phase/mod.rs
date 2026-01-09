@@ -9,6 +9,7 @@
 
 pub mod construction;
 pub mod exhaustive;
+pub mod fluent;
 pub mod localsearch;
 pub mod partitioned;
 pub mod vnd;

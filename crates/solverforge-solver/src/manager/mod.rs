@@ -1,16 +1,5 @@
 //! High-level solver management with ergonomic API.
 //!
-//! The `SolverManager` provides a simplified interface for configuring and
-//! running solvers. It stores configuration and can create solvers on demand.
-//!
-//! # Overview
-//!
-//! The manager module provides:
-//! - [`SolverManager`]: High-level solver configuration and creation
-//! - [`SolverPhaseFactory`]: Trait for creating fresh phase instances per solve
-//! - [`CloneablePhaseFactory`]: Factory that clones a prototype phase
-//! - [`ClosurePhaseFactory`]: Factory using a closure
-//!
 //! # Example
 //!
 //! ```
@@ -27,12 +16,10 @@
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
 //!
-//! // Create a manager with score calculator (termination via solver.toml)
-//! let manager = SolverManager::<Schedule>::builder(|_| SimpleScore::of(0))
+//! let manager = SolverManager::<Schedule>::builder()
 //!     .build()
 //!     .expect("Failed to build manager");
 //!
-//! // Create a solver from the manager
 //! let solver = manager.create_solver();
 //! ```
 

@@ -1,28 +1,4 @@
 //! Builder for SolverManager configuration.
-//!
-//! This module provides the builder pattern for configuring a [`SolverManager`].
-//! Configuration is done via `solver.toml` file and phase factories.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::manager::SolverManagerBuilder;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//!
-//! #[derive(Clone)]
-//! struct Schedule { score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for Schedule {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! let manager = SolverManagerBuilder::new(|_: &Schedule| SimpleScore::of(0))
-//!     .build()
-//!     .unwrap();
-//! ```
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::SolverForgeError;
@@ -34,13 +10,9 @@ use crate::termination::{
 
 use super::{SolverManager, SolverPhaseFactory};
 
-/// Builder for creating a [`SolverManager`] with configuration.
+/// Builder for creating a [`SolverManager`].
 ///
-/// The builder pattern allows configuring phase factories and termination
-/// settings before creating the manager. Termination is configured via
-/// `solver.toml` file or the `with_config()` method.
-///
-/// # Basic Usage
+/// # Example
 ///
 /// ```
 /// use solverforge_solver::manager::SolverManagerBuilder;
@@ -48,65 +20,27 @@ use super::{SolverManager, SolverPhaseFactory};
 /// use solverforge_core::score::SimpleScore;
 ///
 /// #[derive(Clone)]
-/// struct Problem { value: i64, score: Option<SimpleScore> }
+/// struct Schedule { score: Option<SimpleScore> }
 ///
-/// impl PlanningSolution for Problem {
+/// impl PlanningSolution for Schedule {
 ///     type Score = SimpleScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// let manager = SolverManagerBuilder::new(|p: &Problem| SimpleScore::of(-p.value))
+/// let manager = SolverManagerBuilder::<Schedule>::new()
 ///     .build()
-///     .expect("Failed to build manager");
+///     .unwrap();
 /// ```
-///
-/// # Zero-Erasure Design
-///
-/// The score calculator is stored as a concrete generic type parameter `C`,
-/// not as `Arc<dyn Fn>`. This eliminates virtual dispatch overhead.
-pub struct SolverManagerBuilder<S, C>
-where
-    S: PlanningSolution,
-    C: Fn(&S) -> S::Score + Send + Sync,
-{
-    score_calculator: C,
+pub struct SolverManagerBuilder<S: PlanningSolution> {
     phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
     config: Option<solverforge_config::SolverConfig>,
 }
 
-impl<S, C> SolverManagerBuilder<S, C>
-where
-    S: PlanningSolution,
-    C: Fn(&S) -> S::Score + Send + Sync + 'static,
-{
-    /// Creates a new builder with the given score calculator (zero-erasure).
-    ///
-    /// The score calculator is a function that computes the score for a solution.
-    /// Higher scores are better (for minimization, use negative values).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManagerBuilder;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { cost: i64, score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// // For minimization, negate the cost
-    /// let builder = SolverManagerBuilder::new(|p: &Problem| {
-    ///     SimpleScore::of(-p.cost)
-    /// });
-    /// ```
-    pub fn new(score_calculator: C) -> Self {
+impl<S: PlanningSolution + 'static> SolverManagerBuilder<S> {
+    /// Creates a new builder.
+    pub fn new() -> Self {
         Self {
-            score_calculator,
             phase_factories: Vec::new(),
             config: None,
         }
@@ -118,94 +52,18 @@ where
         self
     }
 
-    /// Adds a typed phase factory.
-    ///
-    /// Phase factories create fresh phase instances for each solve, ensuring
-    /// clean state between solves. Use this with [`LocalSearchPhaseFactory`]
-    /// or [`ConstructionPhaseFactory`] for typed move selectors.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::{SolverManagerBuilder, LocalSearchPhaseFactory};
-    /// use solverforge_solver::heuristic::r#move::ChangeMove;
-    /// use solverforge_solver::heuristic::selector::ChangeMoveSelector;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// #[derive(Clone)]
-    /// struct S { values: Vec<Option<i32>>, score: Option<SimpleScore> }
-    /// impl PlanningSolution for S {
-    ///     type Score = SimpleScore;
-    ///     fn score(&self) -> Option<Self::Score> { self.score }
-    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// }
-    ///
-    /// fn get_v(s: &S, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
-    /// fn set_v(s: &mut S, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
-    ///
-    /// type M = ChangeMove<S, i32>;
-    ///
-    /// let phase_factory = LocalSearchPhaseFactory::<S, M, _>::late_acceptance(400, || {
-    ///     Box::new(ChangeMoveSelector::<S, i32>::simple(get_v, set_v, 0, "v", vec![1, 2, 3]))
-    /// });
-    ///
-    /// let manager = SolverManagerBuilder::new(|_: &S| SimpleScore::of(0))
-    ///     .with_phase_factory(phase_factory)
-    ///     .build()
-    ///     .unwrap();
-    /// ```
-    pub fn with_phase_factory<F>(mut self, factory: F) -> Self
-    where
-        F: SolverPhaseFactory<S> + 'static,
-    {
+    /// Adds a phase factory.
+    pub fn with_phase_factory<F: SolverPhaseFactory<S> + 'static>(mut self, factory: F) -> Self {
         self.phase_factories.push(Box::new(factory));
         self
     }
 
-
     /// Builds the [`SolverManager`].
-    ///
-    /// This creates a `SolverManager` with the configured termination
-    /// from `solver.toml`. For full functionality with phases, use the typed
-    /// phase factories from [`super::phase_factory`].
-    ///
-    /// # Errors
-    ///
-    /// Currently this method always succeeds, but returns a `Result` for
-    /// forward compatibility with validation.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManagerBuilder;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let manager = SolverManagerBuilder::new(|_: &Problem| SimpleScore::of(0))
-    ///     .build()
-    ///     .expect("Failed to build manager");
-    ///
-    /// // Manager is ready to create solvers
-    /// let solver = manager.create_solver();
-    /// ```
-    pub fn build(self) -> Result<SolverManager<S, C>, SolverForgeError> {
+    pub fn build(self) -> Result<SolverManager<S>, SolverForgeError> {
         let termination_factory = self.build_termination_factory();
-        Ok(SolverManager::new(
-            self.score_calculator,
-            self.phase_factories,
-            termination_factory,
-        ))
+        Ok(SolverManager::new(self.phase_factories, termination_factory))
     }
 
-    #[allow(clippy::type_complexity)]
     fn build_termination_factory(
         &self,
     ) -> Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>> {
@@ -234,7 +92,7 @@ where
             if let Some(duration) = unimproved_time {
                 terminations.push(Box::new(DiminishedReturnsTermination::<S>::new(
                     duration,
-                    0.001, // Minimum improvement rate
+                    0.001,
                 )));
             }
 
@@ -244,5 +102,11 @@ where
                 _ => Box::new(OrCompositeTermination::new(terminations)),
             }
         }))
+    }
+}
+
+impl<S: PlanningSolution + 'static> Default for SolverManagerBuilder<S> {
+    fn default() -> Self {
+        Self::new()
     }
 }

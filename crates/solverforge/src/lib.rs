@@ -1,39 +1,59 @@
 //! SolverForge - A Constraint Solver in Rust
 //!
 //! Zero-wiring API: Just annotate your domain and call `solution.solve()`.
+//!
+//! # Example
+//!
+//! ```rust
+//! use solverforge::prelude::*;
+//!
+//! // Score types are re-exported
+//! let score = HardSoftScore::of(0, -100);
+//! assert_eq!(score.hard(), 0);
+//! assert_eq!(score.soft(), -100);
+//! ```
 
-pub use solverforge_macros::{
-    planning_entity, planning_solution, problem_fact,
-    PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl,
-};
+// User-facing macros
+pub use solverforge_macros::{planning_entity, planning_solution, problem_fact};
 
+// Derive macros (used by attribute macros, not called directly by users)
+#[doc(hidden)]
+pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
+
+// Score types
 pub use solverforge_core::score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
 };
 
+// Constraint stream API
 pub use solverforge_scoring::stream;
 
-// Re-export traits needed by macro-generated code
-pub use solverforge_scoring::{
-    ConstraintSet, ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport,
-    SolvableSolution, TypedScoreDirector,
-};
-pub use solverforge_core::domain::{
-    EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFactDescriptor,
-    ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor, VariableDescriptor,
-};
+// User-facing traits for constraint definitions
+pub use solverforge_scoring::ConstraintSet;
 
-// Re-export PlanningEntity as PlanningEntityTrait for macro compatibility
-pub use PlanningEntity as PlanningEntityTrait;
-
-// Re-export for k-opt phase distance meter
+// Distance meter for k-opt optimization
 pub use solverforge_solver::ListPositionDistanceMeter;
 
+/// Internal types for macro-generated code. Do not use directly.
+#[doc(hidden)]
+pub mod __internal {
+    pub use solverforge_scoring::{
+        ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport,
+        SolvableSolution, TypedScoreDirector,
+    };
+    pub use solverforge_core::domain::{
+        EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFactDescriptor,
+        ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor, VariableDescriptor,
+    };
+    pub use solverforge_config::SolverConfig;
+    pub use solverforge_solver::ListPositionDistanceMeter;
+}
+
 pub mod prelude {
+    pub use super::{planning_entity, planning_solution, problem_fact};
     pub use super::{
-        planning_entity, planning_solution, problem_fact,
         BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
-        ConstraintSet,
     };
     pub use super::stream::{joiner, ConstraintFactory};
+    pub use super::ConstraintSet;
 }

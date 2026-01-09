@@ -208,6 +208,10 @@ where
         }
 
         phase_scope.update_best_solution();
+        tracing::info!(
+            best_score = ?phase_scope.solver_scope().best_score(),
+            "BasicConstruction complete"
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

@@ -31,8 +31,14 @@ pub use solverforge_scoring::stream;
 // User-facing traits for constraint definitions
 pub use solverforge_scoring::ConstraintSet;
 
+// Score director for constraint analysis
+pub use solverforge_scoring::TypedScoreDirector;
+
 // Distance meter for k-opt optimization
 pub use solverforge_solver::ListPositionDistanceMeter;
+
+mod solver;
+pub use solver::run_solver;
 
 /// Internal types for macro-generated code. Do not use directly.
 #[doc(hidden)]

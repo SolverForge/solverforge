@@ -186,7 +186,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path);
     let basic_operations =
         generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
-    let solvable_solution_impl = generate_solvable_solution(&shadow_config, name);
+    let solvable_solution_impl = generate_solvable_solution(&shadow_config, &basic_config, name);
 
     let expanded = quote! {
         impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
@@ -490,93 +490,41 @@ fn generate_basic_variable_operations(
     let descriptor_index_lit =
         syn::LitInt::new(&descriptor_index.to_string(), proc_macro2::Span::call_site());
 
+    // Generate finalize calls for all problem_fact_collection fields
+    let finalize_calls: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
+        .filter_map(|f| {
+            let field_name = f.ident.as_ref()?;
+            Some(quote! {
+                for item in &mut s.#field_name {
+                    item.finalize();
+                }
+            })
+        })
+        .collect();
+
     // Generate solve() only if constraints path is provided
     let solve_impl = constraints_path.as_ref().map(|path| {
         let constraints_fn: syn::Path =
             syn::parse_str(path).expect("constraints path must be a valid Rust path");
 
         quote! {
-            /// Solve with external termination flag.
-            pub fn solve_with_terminate(
-                self,
-                terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
-            ) -> Self {
-                Self::basic_solve_internal(self, terminate)
-            }
-
             /// Solve with zero parameters - constraints embedded at compile time.
             pub fn solve(self) -> Self {
-                Self::basic_solve_internal(self, None)
-            }
-
-            fn basic_solve_internal(
-                solution: Self,
-                _terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
-            ) -> Self {
-                use ::solverforge::__internal::{
-                    SolverManager, SolverPhaseFactory,
-                    BasicConstructionPhaseBuilder, BasicLocalSearchPhaseBuilder,
-                    TypedScoreDirector, ScoreDirector,
-                    SolverConfig, LocalSearchType,
-                };
-
-                // Load config
-                let config = SolverConfig::load("solver.toml").unwrap_or_default();
-
-                // Constraints embedded at compile time
-                let constraints = #constraints_fn();
-
-                // Build phase builders
-                let descriptor_index = Self::basic_variable_descriptor_index();
-
-                // Construction phase
-                let construction = BasicConstructionPhaseBuilder::<Self, usize>::new(
+                ::solverforge::run_solver(
+                    self,
+                    Self::finalize_all,
+                    #constraints_fn,
                     Self::basic_get_variable,
                     Self::basic_set_variable,
                     Self::basic_value_count,
                     Self::basic_entity_count,
-                    #variable_field_str,
-                    descriptor_index,
-                );
-
-                // Local search phase - use config or default to late acceptance
-                let local_search_type = config.local_search_type();
-                let local_search = BasicLocalSearchPhaseBuilder::<Self>::new(
-                    Self::basic_get_variable,
-                    Self::basic_set_variable,
-                    Self::basic_value_count,
-                    #variable_field_str,
-                    descriptor_index,
-                    local_search_type,
-                );
-
-                let manager = SolverManager::<Self>::builder(move |solution: &Self| {
-                    let constraints_clone = #constraints_fn();
-                    let mut director = TypedScoreDirector::with_descriptor(
-                        solution.clone(),
-                        constraints_clone,
-                        Self::descriptor(),
-                        Self::entity_count,
-                    );
-                    director.calculate_score()
-                })
-                .with_phase_factory(construction)
-                .with_phase_factory(local_search)
-                .with_config(config)
-                .build()
-                .expect("Failed to build solver");
-
-                // Create director for solving
-                let director = TypedScoreDirector::with_descriptor(
-                    solution,
-                    constraints,
-                    Self::descriptor(),
+                    Self::descriptor,
                     Self::entity_count,
-                );
-
-                // Solve
-                let mut solver = manager.create_solver();
-                solver.solve_with_director(Box::new(director))
+                    #variable_field_str,
+                    Self::basic_variable_descriptor_index(),
+                )
             }
         }
     });
@@ -622,12 +570,27 @@ fn generate_basic_variable_operations(
             #variable_field_str
         }
 
+        /// Finalize all problem facts before solving.
+        /// Called automatically by solve() to prepare derived fields.
+        #[inline]
+        pub fn finalize_all(s: &mut Self) {
+            #(#finalize_calls)*
+        }
+
         #solve_impl
     }
 }
 
-fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {
-    if config.list_owner.is_none() {
+fn generate_solvable_solution(
+    shadow_config: &ShadowConfig,
+    basic_config: &BasicVariableConfig,
+    solution_name: &Ident,
+) -> TokenStream {
+    // Generate SolvableSolution impl if either list or basic variable config is present
+    let has_list_config = shadow_config.list_owner.is_some();
+    let has_basic_config = basic_config.entity_collection.is_some();
+
+    if !has_list_config && !has_basic_config {
         return TokenStream::new();
     }
 

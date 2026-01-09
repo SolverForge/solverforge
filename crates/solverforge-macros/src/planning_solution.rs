@@ -97,11 +97,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_entity(::solverforge::EntityDescriptor::new(
+                .with_entity(::solverforge::__internal::EntityDescriptor::new(
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -119,11 +119,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_problem_fact(::solverforge::ProblemFactDescriptor::new(
+                .with_problem_fact(::solverforge::__internal::ProblemFactDescriptor::new(
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -150,19 +150,19 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    let list_operations = generate_list_operations(&shadow_config, fields, name, &constraints_path);
+    let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path);
     let solvable_solution_impl = generate_solvable_solution(&shadow_config, name);
 
     let expanded = quote! {
-        impl #impl_generics ::solverforge::PlanningSolution for #name #ty_generics #where_clause {
+        impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
             type Score = #score_type;
             fn score(&self) -> Option<Self::Score> { self.#score_field_name.clone() }
             fn set_score(&mut self, score: Option<Self::Score>) { self.#score_field_name = score; }
         }
 
         impl #impl_generics #name #ty_generics #where_clause {
-            pub fn descriptor() -> ::solverforge::SolutionDescriptor {
-                ::solverforge::SolutionDescriptor::new(
+            pub fn descriptor() -> ::solverforge::__internal::SolutionDescriptor {
+                ::solverforge::__internal::SolutionDescriptor::new(
                     #name_str,
                     ::std::any::TypeId::of::<Self>(),
                 )
@@ -193,7 +193,6 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 fn generate_list_operations(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    solution_name: &Ident,
     constraints_path: &Option<String>,
 ) -> TokenStream {
     let (list_owner, list_field, element_type, element_collection) = match (
@@ -243,8 +242,11 @@ fn generate_list_operations(
                 terminate_flag: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
             ) -> Self {
                 use ::std::sync::atomic::Ordering;
-                use ::solverforge::{ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector, ShadowVariableSupport};
-                use ::solverforge::PlanningSolution;
+                use ::solverforge::__internal::{ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector, ShadowVariableSupport, PlanningSolution};
+
+                // Load config from solver.toml (required)
+                let config = ::solverforge::__internal::SolverConfig::load("solver.toml")
+                    .expect("solver.toml required");
 
                 // Constraints embedded at compile time via macro attribute
                 let constraints = #constraints_fn();
@@ -429,8 +431,8 @@ fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> T
     }
 
     quote! {
-        impl ::solverforge::SolvableSolution for #solution_name {
-            fn descriptor() -> ::solverforge::SolutionDescriptor {
+        impl ::solverforge::__internal::SolvableSolution for #solution_name {
+            fn descriptor() -> ::solverforge::__internal::SolutionDescriptor {
                 #solution_name::descriptor()
             }
 
@@ -450,7 +452,7 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
         (Some(lo), Some(lf), Some(ec)) => (lo, lf, ec),
         _ => {
             return quote! {
-                impl ::solverforge::ShadowVariableSupport for #solution_name {
+                impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
                     #[inline]
                     fn update_entity_shadows(&mut self, _entity_idx: usize) {}
                 }
@@ -510,7 +512,7 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
     });
 
     quote! {
-        impl ::solverforge::ShadowVariableSupport for #solution_name {
+        impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
             #[inline]
             fn update_entity_shadows(&mut self, entity_idx: usize) {
                 let element_indices: Vec<usize> = self.#list_owner_ident[entity_idx]

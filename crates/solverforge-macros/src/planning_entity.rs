@@ -88,10 +88,10 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let value_range_provider = parse_attribute_string(attr, "value_range_provider");
 
             let base = if is_chained {
-                quote! { ::solverforge::VariableDescriptor::chained(#field_name_str) }
+                quote! { ::solverforge::__internal::VariableDescriptor::chained(#field_name_str) }
             } else {
                 quote! {
-                    ::solverforge::VariableDescriptor::genuine(#field_name_str)
+                    ::solverforge::__internal::VariableDescriptor::genuine(#field_name_str)
                         .with_allows_unassigned(#allows_unassigned)
                 }
             };
@@ -109,7 +109,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .map(|field| {
             let field_name = field.ident.as_ref().unwrap();
             let field_name_str = field_name.to_string();
-            quote! { ::solverforge::VariableDescriptor::list(#field_name_str) }
+            quote! { ::solverforge::__internal::VariableDescriptor::list(#field_name_str) }
         })
         .collect();
 
@@ -123,9 +123,9 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let source_var = parse_attribute_string(attr, "source_variable_name")
                 .unwrap_or_else(|| "visits".to_string());
             quote! {
-                ::solverforge::VariableDescriptor::shadow(
+                ::solverforge::__internal::VariableDescriptor::shadow(
                     #field_name_str,
-                    ::solverforge::ShadowVariableKind::InverseRelation
+                    ::solverforge::__internal::ShadowVariableKind::InverseRelation
                 ).with_source(#name_str, #source_var)
             }
         })
@@ -140,9 +140,9 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let source_var = parse_attribute_string(attr, "source_variable_name")
                 .unwrap_or_else(|| "visits".to_string());
             quote! {
-                ::solverforge::VariableDescriptor::shadow(
+                ::solverforge::__internal::VariableDescriptor::shadow(
                     #field_name_str,
-                    ::solverforge::ShadowVariableKind::PreviousElement
+                    ::solverforge::__internal::ShadowVariableKind::PreviousElement
                 ).with_source(#name_str, #source_var)
             }
         })
@@ -157,9 +157,9 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let source_var = parse_attribute_string(attr, "source_variable_name")
                 .unwrap_or_else(|| "visits".to_string());
             quote! {
-                ::solverforge::VariableDescriptor::shadow(
+                ::solverforge::__internal::VariableDescriptor::shadow(
                     #field_name_str,
-                    ::solverforge::ShadowVariableKind::NextElement
+                    ::solverforge::__internal::ShadowVariableKind::NextElement
                 ).with_source(#name_str, #source_var)
             }
         })
@@ -171,9 +171,9 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name = field.ident.as_ref().unwrap();
             let field_name_str = field_name.to_string();
             quote! {
-                ::solverforge::VariableDescriptor::shadow(
+                ::solverforge::__internal::VariableDescriptor::shadow(
                     #field_name_str,
-                    ::solverforge::ShadowVariableKind::Cascading
+                    ::solverforge::__internal::ShadowVariableKind::Cascading
                 )
             }
         })
@@ -183,7 +183,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         let field_name = field.ident.as_ref().unwrap();
         let field_type = &field.ty;
         quote! {
-            impl #impl_generics ::solverforge::PlanningId for #name #ty_generics #where_clause {
+            impl #impl_generics ::solverforge::__internal::PlanningId for #name #ty_generics #where_clause {
                 type Id = #field_type;
                 fn planning_id(&self) -> Self::Id { self.#field_name.clone() }
             }
@@ -193,7 +193,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     let expanded = quote! {
-        impl #impl_generics ::solverforge::PlanningEntityTrait for #name #ty_generics #where_clause {
+        impl #impl_generics ::solverforge::__internal::PlanningEntity for #name #ty_generics #where_clause {
             fn is_pinned(&self) -> bool { #is_pinned_impl }
             fn as_any(&self) -> &dyn ::std::any::Any { self }
             fn as_any_mut(&mut self) -> &mut dyn ::std::any::Any { self }
@@ -202,8 +202,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         #planning_id_impl
 
         impl #impl_generics #name #ty_generics #where_clause {
-            pub fn entity_descriptor(solution_field: &'static str) -> ::solverforge::EntityDescriptor {
-                let mut desc = ::solverforge::EntityDescriptor::new(
+            pub fn entity_descriptor(solution_field: &'static str) -> ::solverforge::__internal::EntityDescriptor {
+                let mut desc = ::solverforge::__internal::EntityDescriptor::new(
                     #name_str,
                     ::std::any::TypeId::of::<Self>(),
                     solution_field,

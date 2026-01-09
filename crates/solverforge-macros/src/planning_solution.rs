@@ -449,17 +449,88 @@ fn generate_list_operations(
 
 fn generate_basic_variable_operations(
     config: &BasicVariableConfig,
-    _fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     _constraints_path: &Option<String>,
     _solution_name: &Ident,
 ) -> TokenStream {
-    // Return empty if not configured
-    if config.entity_collection.is_none() {
-        return TokenStream::new();
-    }
+    // All four fields required for basic variable support
+    let (entity_collection, variable_field, variable_type, value_range) = match (
+        &config.entity_collection,
+        &config.variable_field,
+        &config.variable_type,
+        &config.value_range,
+    ) {
+        (Some(ec), Some(vf), Some(vt), Some(vr)) => (ec, vf, vt, vr),
+        _ => return TokenStream::new(),
+    };
 
-    // TODO: generate helper methods and solve() for basic variables
-    TokenStream::new()
+    let entity_collection_ident = Ident::new(entity_collection, proc_macro2::Span::call_site());
+    let variable_field_ident = Ident::new(variable_field, proc_macro2::Span::call_site());
+    let variable_type_ident = Ident::new(variable_type, proc_macro2::Span::call_site());
+    let value_range_ident = Ident::new(value_range, proc_macro2::Span::call_site());
+    let variable_field_str = variable_field.as_str();
+
+    // Find descriptor index for the entity collection
+    let entity_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .collect();
+
+    let descriptor_index = entity_fields
+        .iter()
+        .position(|f| {
+            f.ident
+                .as_ref()
+                .map(|i| i.to_string())
+                .as_ref()
+                == Some(entity_collection)
+        })
+        .expect("entity_collection must be a planning_entity_collection field");
+
+    let descriptor_index_lit =
+        syn::LitInt::new(&descriptor_index.to_string(), proc_macro2::Span::call_site());
+
+    quote! {
+        /// Get the planning variable value for an entity.
+        #[inline]
+        pub fn basic_get_variable(s: &Self, entity_idx: usize) -> Option<#variable_type_ident> {
+            s.#entity_collection_ident
+                .get(entity_idx)
+                .and_then(|e| e.#variable_field_ident)
+        }
+
+        /// Set the planning variable value for an entity.
+        #[inline]
+        pub fn basic_set_variable(s: &mut Self, entity_idx: usize, v: Option<#variable_type_ident>) {
+            if let Some(e) = s.#entity_collection_ident.get_mut(entity_idx) {
+                e.#variable_field_ident = v;
+            }
+        }
+
+        /// Get valid values for the planning variable.
+        #[inline]
+        pub fn basic_value_count(s: &Self) -> usize {
+            s.#value_range_ident.len()
+        }
+
+        /// Get the number of planning entities.
+        #[inline]
+        pub fn basic_entity_count(s: &Self) -> usize {
+            s.#entity_collection_ident.len()
+        }
+
+        /// Get the descriptor index for the basic variable entity.
+        #[inline]
+        pub const fn basic_variable_descriptor_index() -> usize {
+            #descriptor_index_lit
+        }
+
+        /// Get the variable field name.
+        #[inline]
+        pub const fn basic_variable_field_name() -> &'static str {
+            #variable_field_str
+        }
+    }
 }
 
 fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {

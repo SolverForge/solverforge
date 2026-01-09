@@ -47,7 +47,9 @@
 //! ```
 
 mod construction;
+mod list_construction;
 mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
+pub use list_construction::ListConstructionPhaseBuilder;
 pub use local_search::{KOptPhaseBuilder, LocalSearchPhaseFactory};

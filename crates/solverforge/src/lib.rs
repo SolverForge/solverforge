@@ -85,12 +85,13 @@ pub use solverforge_config::{
 // Solver (high-level API)
 // =============================================================================
 
-pub use solverforge_solver::{Solver, SolverFactory};
+pub use solverforge_solver::{Solver, SolverBuilder, SolverFactory};
 
 // Fluent solver builder API
 pub use solverforge_solver::manager::{
-    ConstructionPhaseFactory, ConstructionType, KOptPhaseBuilder, LocalSearchPhaseFactory,
-    LocalSearchType, SolverManager, SolverManagerBuilder, SolverPhaseFactory,
+    ConstructionPhaseFactory, ConstructionType, KOptPhaseBuilder, ListConstructionPhaseBuilder,
+    LocalSearchPhaseFactory, LocalSearchType, SolverManager, SolverManagerBuilder,
+    SolverPhaseFactory,
 };
 
 // Phase execution (for advanced usage)

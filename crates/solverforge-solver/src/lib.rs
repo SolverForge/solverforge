@@ -72,7 +72,8 @@ pub use heuristic::{
 };
 pub use manager::{
     CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, KOptPhaseBuilder,
-    LocalSearchType, SolverManager, SolverManagerBuilder, SolverPhaseFactory,
+    ListConstructionPhaseBuilder, LocalSearchType, SolverManager, SolverManagerBuilder,
+    SolverPhaseFactory,
 };
 pub use phase::{
     construction::{

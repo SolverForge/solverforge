@@ -58,7 +58,7 @@ mod phase_factory_tests_localsearch;
 
 pub use builder::SolverManagerBuilder;
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
-pub use phase_factory::{ConstructionPhaseFactory, KOptPhaseBuilder, LocalSearchPhaseFactory};
+pub use phase_factory::{ConstructionPhaseFactory, KOptPhaseBuilder, ListConstructionPhaseBuilder, LocalSearchPhaseFactory};
 pub use solver_manager::SolverManager;
 
 use solverforge_core::domain::PlanningSolution;

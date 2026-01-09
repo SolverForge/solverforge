@@ -165,3 +165,105 @@ pub trait PlanningId {
     /// This must never return a value that changes during solving.
     fn planning_id(&self) -> Self::Id;
 }
+
+/// Trait for solutions with list-based planning variables.
+///
+/// Used for problems like VRP where entities (vehicles) have ordered lists
+/// of elements (visits) that can be inserted, removed, or reordered.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_core::domain::ListVariableSolution;
+/// use solverforge_core::PlanningSolution;
+/// use solverforge_core::score::SimpleScore;
+///
+/// #[derive(Clone)]
+/// struct Vehicle {
+///     visits: Vec<usize>,
+/// }
+///
+/// #[derive(Clone)]
+/// struct VrpSolution {
+///     vehicles: Vec<Vehicle>,
+///     visit_count: usize,
+///     score: Option<SimpleScore>,
+/// }
+///
+/// impl PlanningSolution for VrpSolution {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// impl ListVariableSolution for VrpSolution {
+///     type Element = usize;
+///
+///     fn entity_count(&self) -> usize {
+///         self.vehicles.len()
+///     }
+///
+///     fn list_len(&self, entity_idx: usize) -> usize {
+///         self.vehicles[entity_idx].visits.len()
+///     }
+///
+///     fn list_get(&self, entity_idx: usize, position: usize) -> Self::Element {
+///         self.vehicles[entity_idx].visits[position]
+///     }
+///
+///     fn list_push(&mut self, entity_idx: usize, elem: Self::Element) {
+///         self.vehicles[entity_idx].visits.push(elem);
+///     }
+///
+///     fn list_insert(&mut self, entity_idx: usize, position: usize, elem: Self::Element) {
+///         self.vehicles[entity_idx].visits.insert(position, elem);
+///     }
+///
+///     fn list_remove(&mut self, entity_idx: usize, position: usize) -> Self::Element {
+///         self.vehicles[entity_idx].visits.remove(position)
+///     }
+///
+///     fn list_reverse(&mut self, entity_idx: usize, start: usize, end: usize) {
+///         self.vehicles[entity_idx].visits[start..end].reverse();
+///     }
+///
+///     fn unassigned_elements(&self) -> Vec<Self::Element> {
+///         use std::collections::HashSet;
+///         let assigned: HashSet<usize> = self.vehicles
+///             .iter()
+///             .flat_map(|v| v.visits.iter().copied())
+///             .collect();
+///         (0..self.visit_count)
+///             .filter(|i| !assigned.contains(i))
+///             .collect()
+///     }
+/// }
+/// ```
+pub trait ListVariableSolution: PlanningSolution {
+    /// The type of elements in the list (typically an index or ID).
+    type Element: Copy + Send + Sync;
+
+    /// Returns the number of entities (list owners).
+    fn entity_count(&self) -> usize;
+
+    /// Returns the length of the list for the given entity.
+    fn list_len(&self, entity_idx: usize) -> usize;
+
+    /// Returns the element at the given position in the entity's list.
+    fn list_get(&self, entity_idx: usize, position: usize) -> Self::Element;
+
+    /// Appends an element to the end of the entity's list.
+    fn list_push(&mut self, entity_idx: usize, elem: Self::Element);
+
+    /// Inserts an element at the given position in the entity's list.
+    fn list_insert(&mut self, entity_idx: usize, position: usize, elem: Self::Element);
+
+    /// Removes and returns the element at the given position.
+    fn list_remove(&mut self, entity_idx: usize, position: usize) -> Self::Element;
+
+    /// Reverses the elements in the range [start, end) for the entity's list.
+    fn list_reverse(&mut self, entity_idx: usize, start: usize, end: usize);
+
+    /// Returns all elements not currently assigned to any entity.
+    fn unassigned_elements(&self) -> Vec<Self::Element>;
+}

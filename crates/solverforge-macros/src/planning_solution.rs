@@ -450,7 +450,7 @@ fn generate_list_operations(
 fn generate_basic_variable_operations(
     config: &BasicVariableConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    _constraints_path: &Option<String>,
+    constraints_path: &Option<String>,
     _solution_name: &Ident,
 ) -> TokenStream {
     // All four fields required for basic variable support
@@ -489,6 +489,97 @@ fn generate_basic_variable_operations(
 
     let descriptor_index_lit =
         syn::LitInt::new(&descriptor_index.to_string(), proc_macro2::Span::call_site());
+
+    // Generate solve() only if constraints path is provided
+    let solve_impl = constraints_path.as_ref().map(|path| {
+        let constraints_fn: syn::Path =
+            syn::parse_str(path).expect("constraints path must be a valid Rust path");
+
+        quote! {
+            /// Solve with external termination flag.
+            pub fn solve_with_terminate(
+                self,
+                terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
+            ) -> Self {
+                Self::basic_solve_internal(self, terminate)
+            }
+
+            /// Solve with zero parameters - constraints embedded at compile time.
+            pub fn solve(self) -> Self {
+                Self::basic_solve_internal(self, None)
+            }
+
+            fn basic_solve_internal(
+                solution: Self,
+                _terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
+            ) -> Self {
+                use ::solverforge::__internal::{
+                    SolverManager, SolverPhaseFactory,
+                    BasicConstructionPhaseBuilder, BasicLocalSearchPhaseBuilder,
+                    TypedScoreDirector, ScoreDirector,
+                    SolverConfig, LocalSearchType,
+                };
+
+                // Load config
+                let config = SolverConfig::load("solver.toml").unwrap_or_default();
+
+                // Constraints embedded at compile time
+                let constraints = #constraints_fn();
+
+                // Build phase builders
+                let descriptor_index = Self::basic_variable_descriptor_index();
+
+                // Construction phase
+                let construction = BasicConstructionPhaseBuilder::<Self, usize>::new(
+                    Self::basic_get_variable,
+                    Self::basic_set_variable,
+                    Self::basic_value_count,
+                    Self::basic_entity_count,
+                    #variable_field_str,
+                    descriptor_index,
+                );
+
+                // Local search phase - use config or default to late acceptance
+                let local_search_type = config.local_search_type();
+                let local_search = BasicLocalSearchPhaseBuilder::<Self>::new(
+                    Self::basic_get_variable,
+                    Self::basic_set_variable,
+                    Self::basic_value_count,
+                    #variable_field_str,
+                    descriptor_index,
+                    local_search_type,
+                );
+
+                let manager = SolverManager::<Self>::builder(move |solution: &Self| {
+                    let constraints_clone = #constraints_fn();
+                    let mut director = TypedScoreDirector::with_descriptor(
+                        solution.clone(),
+                        constraints_clone,
+                        Self::descriptor(),
+                        Self::entity_count,
+                    );
+                    director.calculate_score()
+                })
+                .with_phase_factory(construction)
+                .with_phase_factory(local_search)
+                .with_config(config)
+                .build()
+                .expect("Failed to build solver");
+
+                // Create director for solving
+                let director = TypedScoreDirector::with_descriptor(
+                    solution,
+                    constraints,
+                    Self::descriptor(),
+                    Self::entity_count,
+                );
+
+                // Solve
+                let mut solver = manager.create_solver();
+                solver.solve_with_director(Box::new(director))
+            }
+        }
+    });
 
     quote! {
         /// Get the planning variable value for an entity.
@@ -530,6 +621,8 @@ fn generate_basic_variable_operations(
         pub const fn basic_variable_field_name() -> &'static str {
             #variable_field_str
         }
+
+        #solve_impl
     }
 }
 

@@ -65,10 +65,12 @@ use super::ScoreDirector;
 ///             .map(|&idx| self.visits[idx].demand)
 ///             .sum();
 ///         self.vehicles[entity_index].cached_total_demand = total;
+///     }
 ///
-///         // Update arrival times along the route
-///         // (cascading shadow variable)
-///         // ...
+///     fn update_all_shadows(&mut self) {
+///         for i in 0..self.vehicles.len() {
+///             self.update_entity_shadows(i);
+///         }
 ///     }
 /// }
 /// ```
@@ -79,6 +81,15 @@ pub trait ShadowVariableSupport: PlanningSolution {
     /// constraint evaluation. Should update all shadow variables and
     /// cached aggregates that depend on this entity's planning variables.
     fn update_entity_shadows(&mut self, entity_index: usize);
+
+    /// Updates shadow variables for all entities.
+    ///
+    /// Called during initialization or after bulk solution changes.
+    /// Default implementation is a no-op; override for solutions with
+    /// shadow variables.
+    fn update_all_shadows(&mut self) {
+        // Default: no-op - solutions without shadow variables need not implement
+    }
 }
 
 /// Trait for solutions that can be solved using the fluent builder API.

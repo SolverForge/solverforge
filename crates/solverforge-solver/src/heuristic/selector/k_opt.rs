@@ -648,7 +648,7 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyCutItera
     }
 
     fn backtrack(&mut self) -> bool {
-        while let Some((_, _idx)) = self.stack.pop() {
+        while let Some((popped_pos, _idx)) = self.stack.pop() {
             self.nearby_cache.pop();
 
             if let Some((_, last_idx)) = self.stack.last_mut() {
@@ -668,13 +668,10 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyCutItera
                     }
                 }
             } else {
-                // We're at the first level
-                let first_pos = self.stack.first().map(|(p, _)| *p).unwrap_or(0);
-                let next_first = first_pos + 1;
+                // Stack is empty - use the popped position to find next first position
+                let next_first = popped_pos + 1;
                 let max_first = self.len - self.min_seg * self.k;
                 if next_first <= max_first {
-                    self.stack.clear();
-                    self.nearby_cache.clear();
                     self.stack.push((next_first, 0));
                     self.nearby_cache.push(vec![]);
                     return true;

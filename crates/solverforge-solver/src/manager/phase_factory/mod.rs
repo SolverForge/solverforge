@@ -46,10 +46,12 @@
 //! let phase2 = factory.create_phase(); // Independent of phase1
 //! ```
 
+mod basic_construction;
 mod construction;
 mod list_construction;
 mod local_search;
 
+pub use basic_construction::BasicConstructionPhaseBuilder;
 pub use construction::ConstructionPhaseFactory;
 pub use list_construction::ListConstructionPhaseBuilder;
 pub use local_search::{KOptPhaseBuilder, LocalSearchPhaseFactory};

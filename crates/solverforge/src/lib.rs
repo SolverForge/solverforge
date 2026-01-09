@@ -38,210 +38,125 @@
 //!     pub score: Option<HardSoftScore>,
 //! }
 //! ```
-//!
-//! # Crate Organization
-//!
-//! - `solverforge-core`: Core types (Score, domain traits)
-//! - `solverforge-macros`: Attribute macros
-//! - `solverforge-scoring`: Zero-erasure typed constraint infrastructure
-//! - `solverforge-solver`: Solver implementation
-//! - `solverforge-config`: Configuration system
 
-// Re-export core types
+// =============================================================================
+// Core types (domain modeling)
+// =============================================================================
+
 pub use solverforge_core::{
-    // Value range providers
-    domain::FieldValueRangeProvider,
-    // Descriptors
-    domain::{
-        EntityDescriptor, ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor,
-        TypedEntityExtractor, VariableDescriptor,
-    },
-    // Domain traits (as trait names, not macros)
+    // Domain traits
     domain::{
         PlanningEntity as PlanningEntityTrait, PlanningId,
         PlanningSolution as PlanningSolutionTrait, ProblemFact as ProblemFactTrait,
+    },
+    // Descriptors (for macro-generated code)
+    domain::{
+        EntityDescriptor, FieldValueRangeProvider, ProblemFactDescriptor, ShadowVariableKind,
+        SolutionDescriptor, TypedEntityExtractor, VariableDescriptor,
     },
     // Score types
     score::{
         BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
     },
-    // Constraint reference
-    ConstraintRef,
-    ImpactType,
-    // Error
-    SolverForgeError,
+    // Other
+    ConstraintRef, ImpactType, SolverForgeError,
 };
 
-// Re-export macros
+// =============================================================================
+// Macros (domain modeling)
+// =============================================================================
+
 pub use solverforge_macros::{
     planning_entity, planning_solution, problem_fact, PlanningEntityImpl, PlanningSolutionImpl,
     ProblemFactImpl,
 };
 
-// Re-export configuration
+// =============================================================================
+// Configuration
+// =============================================================================
+
 pub use solverforge_config::{
     AcceptorConfig, ConstructionHeuristicConfig, ConstructionHeuristicType, EnvironmentMode,
     ForagerConfig, LateAcceptanceConfig, LocalSearchConfig, PhaseConfig, SolverConfig,
     TerminationConfig,
 };
 
-// Re-export solver
+// =============================================================================
+// Solver (high-level API)
+// =============================================================================
+
 pub use solverforge_solver::{Solver, SolverFactory};
 
-// Re-export solver manager and phase factories
+// Fluent solver builder API
 pub use solverforge_solver::manager::{
-    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionPhaseFactory, ConstructionType,
-    KOptPhaseBuilder, LocalSearchPhaseFactory, LocalSearchType, SolverManager,
-    SolverManagerBuilder, SolverPhaseFactory,
+    ConstructionPhaseFactory, ConstructionType, KOptPhaseBuilder, LocalSearchPhaseFactory,
+    LocalSearchType, SolverManager, SolverManagerBuilder, SolverPhaseFactory,
 };
 
-// Re-export statistics
+// Phase execution (for advanced usage)
+pub use solverforge_solver::{Phase, SolverScope};
+
+// Statistics
 pub use solverforge_solver::statistics::{
     PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector,
 };
 
-// Re-export phases
-pub use solverforge_solver::{
-    AcceptedCountForager,
-    Acceptor,
-    AcceptorType,
-    BestFitForager,
-    ConstructionForager,
-    ConstructionHeuristicPhase,
-    // All acceptors
-    DiversifiedLateAcceptanceAcceptor,
-    EntityPlacer,
-    EntityTabuAcceptor,
-    FirstAcceptedForager,
-    FirstFitForager,
-    ForagerType,
-    GreatDelugeAcceptor,
-    HillClimbingAcceptor,
-    LateAcceptanceAcceptor,
-    LocalSearchForager,
-    LocalSearchPhase,
-    MoveTabuAcceptor,
-    Phase,
-    QueuedEntityPlacer,
-    SimulatedAnnealingAcceptor,
-    StepCountingHillClimbingAcceptor,
-    TabuSearchAcceptor,
-    ValueTabuAcceptor,
-    // VND phase
-    VndPhase,
-};
+// =============================================================================
+// Constraint infrastructure (zero-erasure)
+// =============================================================================
 
-// Re-export selectors
-pub use solverforge_solver::{
-    FromSolutionEntitySelector, StaticTypedValueSelector, TypedValueSelector,
-};
-
-// Re-export termination
-pub use solverforge_solver::{
-    AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
-    TimeTermination, UnimprovedStepCountTermination, UnimprovedTimeTermination,
-};
-
-// Re-export scopes and moves
-pub use solverforge_solver::{
-    k_opt_reconnection,
-    ChangeMove,
-    ChangeMoveSelector,
-    // K-opt move and selectors
-    CutPoint,
-    EntitySelector,
-    KOptConfig,
-    KOptMove,
-    KOptMoveSelector,
-    // List moves and selectors
-    ListChangeMove,
-    ListChangeMoveSelector,
-    ListPositionDistanceMeter,
-    Move,
-    MoveSelector,
-    NearbyKOptMoveSelector,
-    PhaseScope,
-    SolverScope,
-    StepScope,
-    SwapMove,
-    SwapMoveSelector,
-};
-
-// Re-export heuristic module for advanced move/selector access
-pub use solverforge_solver::heuristic;
-
-// Re-export zero-erasure constraint infrastructure
 pub use solverforge_scoring::{
-    ConstraintAnalysis,
-    ConstraintJustification,
-    ConstraintResult,
-    // Constraint set (tuple-based)
-    ConstraintSet,
+    // Constraint types
+    ConstraintAnalysis, ConstraintJustification, ConstraintResult, ConstraintSet,
     GroupedUniConstraint,
-    IncrementalBiConstraint,
-    IncrementalConstraint,
-    IncrementalCrossBiConstraint,
-    IncrementalPentaConstraint,
-    IncrementalQuadConstraint,
-    IncrementalTriConstraint,
-    // Zero-erasure incremental constraints
+    // Incremental constraints
+    IncrementalBiConstraint, IncrementalConstraint, IncrementalCrossBiConstraint,
+    IncrementalPentaConstraint, IncrementalQuadConstraint, IncrementalTriConstraint,
     IncrementalUniConstraint,
-    RecordingScoreDirector,
     // Score directors
-    ScoreDirector,
-    // Shadow variable support
-    ShadowAwareScoreDirector,
-    ShadowVariableSupport,
+    ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
+    TypedScoreDirector,
     // Analysis
     ScoreExplanation,
-    SimpleScoreDirector,
-    TypedScoreDirector,
 };
 
-// Re-export fluent constraint stream API
+// Fluent constraint stream API
 pub use solverforge_scoring::stream;
+
+// =============================================================================
+// Phase builder support types
+// =============================================================================
+
+// Entity selector for phase builders
+pub use solverforge_solver::FromSolutionEntitySelector;
+
+// Distance meter trait for nearby k-opt
+pub use solverforge_solver::ListPositionDistanceMeter;
+
+// =============================================================================
+// Prelude
+// =============================================================================
 
 /// Prelude module for convenient imports.
 pub mod prelude {
     pub use super::{
         // Macros
-        planning_entity,
-        planning_solution,
-        problem_fact,
-        BendableScore,
-        // Constraints
-        ConstraintRef,
-        ConstraintSet,
-        EntityDescriptor,
-        HardMediumSoftScore,
-        HardSoftDecimalScore,
-        HardSoftScore,
-        ImpactType,
-        IncrementalBiConstraint,
-        IncrementalConstraint,
-        IncrementalCrossBiConstraint,
-        IncrementalPentaConstraint,
-        IncrementalQuadConstraint,
-        IncrementalTriConstraint,
-        IncrementalUniConstraint,
-        PlanningEntityTrait,
-        PlanningId,
+        planning_entity, planning_solution, problem_fact,
         // Domain traits
-        PlanningSolutionTrait,
-        ProblemFactTrait,
+        PlanningEntityTrait, PlanningId, PlanningSolutionTrait, ProblemFactTrait,
         // Scores
-        Score,
-        SimpleScore,
-        SimpleScoreDirector,
+        BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
         // Descriptors
-        SolutionDescriptor,
-        // Solver
-        Solver,
-        SolverConfig,
-        SolverFactory,
+        EntityDescriptor, SolutionDescriptor,
+        // Constraints
+        ConstraintRef, ConstraintSet, ImpactType,
+        IncrementalBiConstraint, IncrementalConstraint, IncrementalCrossBiConstraint,
+        IncrementalPentaConstraint, IncrementalQuadConstraint, IncrementalTriConstraint,
+        IncrementalUniConstraint,
         // Score directors
-        TypedScoreDirector,
+        SimpleScoreDirector, TypedScoreDirector,
+        // Solver
+        Solver, SolverConfig, SolverFactory,
     };
     // Fluent constraint API
     pub use super::stream::{joiner, ConstraintFactory};

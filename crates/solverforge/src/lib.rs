@@ -51,6 +51,8 @@ pub mod __internal {
         SolverManager, SolverManagerBuilder, ListPositionDistanceMeter,
         KOptPhaseBuilder, ListConstructionPhaseBuilder, SolverPhaseFactory,
         DiminishedReturnsTermination,
+        BasicConstructionPhaseBuilder, BasicLocalSearchPhaseBuilder,
+        LocalSearchType,
     };
     pub use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
     pub use solverforge_solver::heuristic::selector::k_opt::DefaultDistanceMeter;

@@ -88,6 +88,7 @@ pub trait ShadowVariableSupport: PlanningSolution {
 /// - `ShadowVariableSupport` for shadow variable updates
 /// - Solution descriptor for entity metadata
 /// - Entity count for move selector iteration
+/// - Default phases for zero-wiring solving
 ///
 /// Implemented automatically by the `#[planning_solution]` macro when
 /// `#[shadow_variable_updates]` is configured.
@@ -126,6 +127,7 @@ pub trait SolvableSolution: ShadowVariableSupport {
     /// This is an associated function (not a method) to match the
     /// `fn(&S, usize) -> usize` signature required by `TypedScoreDirector`.
     fn entity_count(solution: &Self, descriptor_index: usize) -> usize;
+
 }
 
 /// A score director that integrates shadow variable updates.

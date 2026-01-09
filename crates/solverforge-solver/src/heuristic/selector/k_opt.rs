@@ -374,6 +374,16 @@ pub trait ListPositionDistanceMeter<S>: Send + Sync + Debug {
     fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64;
 }
 
+/// Default distance meter using position difference.
+#[derive(Debug, Clone, Copy)]
+pub struct DefaultDistanceMeter;
+
+impl<S> ListPositionDistanceMeter<S> for DefaultDistanceMeter {
+    fn distance(&self, _solution: &S, _entity_idx: usize, pos_a: usize, pos_b: usize) -> f64 {
+        (pos_a as f64 - pos_b as f64).abs()
+    }
+}
+
 /// A k-opt move selector with nearby selection for improved performance.
 ///
 /// Instead of enumerating all O(n^k) cut combinations, uses distance-based

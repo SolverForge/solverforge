@@ -16,11 +16,11 @@ pub use r#move::{
 
 // Re-export selector types
 pub use selector::{
-    AllEntitiesSelector, ChangeMoveSelector, DefaultPillarSelector, EntityReference,
-    EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector, KOptConfig,
-    KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter, ListRuinMoveSelector,
-    MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector, MoveSelector,
-    NearbyDistanceMeter, NearbyEntitySelector, NearbyKOptMoveSelector, NearbySelectionConfig,
-    Pillar, PillarSelector, RuinMoveSelector, SelectionOrder, StaticTypedValueSelector,
-    SubPillarConfig, SwapMoveSelector, TypedValueSelector,
+    AllEntitiesSelector, ChangeMoveSelector, DefaultDistanceMeter, DefaultPillarSelector,
+    EntityReference, EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
+    KOptConfig, KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter,
+    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector,
+    MoveSelector, NearbyDistanceMeter, NearbyEntitySelector, NearbyKOptMoveSelector,
+    NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector, SelectionOrder,
+    StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector, TypedValueSelector,
 };

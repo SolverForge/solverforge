@@ -27,7 +27,7 @@ pub fn planning_entity(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn planning_solution(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn planning_solution(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
     let vis = &input.vis;
@@ -35,8 +35,33 @@ pub fn planning_solution(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let attrs: Vec<_> = input.attrs.iter().collect();
     let fields = &input.fields;
 
+    // Parse constraints = "path" from attribute
+    let constraints_attr = if !attr.is_empty() {
+        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
+        if let Ok(nested) = parser.parse(attr) {
+            let mut constraints_path = None;
+            for meta in nested {
+                if let Meta::NameValue(nv) = meta {
+                    if nv.path.is_ident("constraints") {
+                        if let Expr::Lit(expr_lit) = &nv.value {
+                            if let Lit::Str(lit_str) = &expr_lit.lit {
+                                constraints_path = Some(lit_str.value());
+                            }
+                        }
+                    }
+                }
+            }
+            constraints_path.map(|p| quote! { #[solverforge_constraints_path = #p] })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let expanded = quote! {
         #[derive(Clone, Debug, ::solverforge::PlanningSolutionImpl)]
+        #constraints_attr
         #(#attrs)*
         #vis struct #name #generics #fields
     };
@@ -87,7 +112,8 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         problem_fact_collection,
         planning_score,
         value_range_provider,
-        shadow_variable_updates
+        shadow_variable_updates,
+        solverforge_constraints_path
     )
 )]
 pub fn derive_planning_solution(input: TokenStream) -> TokenStream {

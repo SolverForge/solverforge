@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use solverforge_config::{AcceptorConfig, TerminationConfig};
-use solverforge_scoring::{ConstraintSet, ShadowAwareScoreDirector, SolvableSolution, TypedScoreDirector};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
@@ -278,76 +277,6 @@ impl<S: PlanningSolution> SolverBuilder<S> {
             solver = solver.with_termination(termination);
         }
         solver
-    }
-
-    /// Solves the problem with automatic wiring.
-    ///
-    /// This is the zero-manual-wiring API that auto-creates all infrastructure:
-    /// - TypedScoreDirector from the constraints function
-    /// - ShadowAwareScoreDirector wrapper for shadow variable updates
-    /// - SolverScope with termination flag
-    ///
-    /// # Type Requirements
-    ///
-    /// The solution type `S` must implement `SolvableSolution`, which provides:
-    /// - `descriptor()` - solution metadata for the solver
-    /// - `entity_count()` - entity count function for incremental scoring
-    ///
-    /// # Arguments
-    ///
-    /// * `solution` - The initial solution to optimize
-    /// * `constraints` - A function returning the constraint set
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let result = SolverBuilder::<VehicleRoutePlan>::new()
-    ///     .with_phase(construction_phase)
-    ///     .with_phase(local_search_phase)
-    ///     .with_terminate_flag(terminate_flag)
-    ///     .solve(solution, define_constraints);
-    /// ```
-    pub fn solve<C>(self, solution: S, constraints: fn() -> C) -> S
-    where
-        S: SolvableSolution + 'static,
-        C: ConstraintSet<S, S::Score> + 'static,
-    {
-        use crate::scope::SolverScope;
-
-        // Auto-wire: Create TypedScoreDirector from constraints
-        let descriptor = S::descriptor();
-        let constraint_set = constraints();
-        let inner_director = TypedScoreDirector::with_descriptor(
-            solution,
-            constraint_set,
-            descriptor,
-            S::entity_count,
-        );
-
-        // Auto-wire: Wrap with ShadowAwareScoreDirector
-        let director = ShadowAwareScoreDirector::new(inner_director);
-
-        // Create solver scope
-        let mut solver_scope = SolverScope::new(Box::new(director));
-
-        // Set termination flag if provided
-        if let Some(flag) = self.terminate_flag {
-            solver_scope.set_terminate_early_flag(flag);
-        }
-
-        // Start solving
-        solver_scope.start_solving();
-
-        // Execute all phases
-        for mut phase in self.phases {
-            if solver_scope.is_terminate_early() {
-                break;
-            }
-            phase.solve(&mut solver_scope);
-        }
-
-        // Return the best solution (or working solution if no best was set)
-        solver_scope.take_best_or_working_solution()
     }
 }
 

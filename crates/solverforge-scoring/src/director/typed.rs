@@ -267,6 +267,38 @@ where
     pub fn is_initialized(&self) -> bool {
         self.initialized
     }
+
+    /// Consumes the director and returns the working solution.
+    ///
+    /// Use this to extract the final solution after solving.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_scoring::director::typed::TypedScoreDirector;
+    /// use solverforge_core::domain::PlanningSolution;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution {
+    ///     values: Vec<i32>,
+    ///     score: Option<SimpleScore>,
+    /// }
+    ///
+    /// impl PlanningSolution for Solution {
+    ///     type Score = SimpleScore;
+    ///     fn score(&self) -> Option<Self::Score> { self.score }
+    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+    /// }
+    ///
+    /// let solution = Solution { values: vec![1, 2, 3], score: None };
+    /// let director = TypedScoreDirector::new(solution, ());
+    /// let result = director.take_solution();
+    /// assert_eq!(result.values, vec![1, 2, 3]);
+    /// ```
+    pub fn take_solution(self) -> S {
+        self.working_solution
+    }
 }
 
 impl<S, C> std::fmt::Debug for TypedScoreDirector<S, C>

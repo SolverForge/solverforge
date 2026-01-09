@@ -47,11 +47,13 @@
 //! ```
 
 mod basic_construction;
+mod basic_local_search;
 mod construction;
 mod list_construction;
 mod local_search;
 
 pub use basic_construction::BasicConstructionPhaseBuilder;
+pub use basic_local_search::BasicLocalSearchPhaseBuilder;
 pub use construction::ConstructionPhaseFactory;
 pub use list_construction::ListConstructionPhaseBuilder;
 pub use local_search::{KOptPhaseBuilder, LocalSearchPhaseFactory};

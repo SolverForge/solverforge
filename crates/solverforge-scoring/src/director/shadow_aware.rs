@@ -99,33 +99,42 @@ pub trait ShadowVariableSupport: PlanningSolution {
 /// - `ShadowVariableSupport` for shadow variable updates
 /// - Solution descriptor for entity metadata
 /// - Entity count for move selector iteration
-/// - Default phases for zero-wiring solving
 ///
-/// Implemented automatically by the `#[planning_solution]` macro when
-/// `#[shadow_variable_updates]` is configured.
+/// Typically implemented automatically by the `#[planning_solution]` macro.
 ///
 /// # Example
 ///
-/// ```ignore
-/// use solverforge::prelude::*;
+/// ```
+/// use solverforge_scoring::ShadowVariableSupport;
+/// use solverforge_scoring::director::SolvableSolution;
+/// use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+/// use solverforge_core::score::SimpleScore;
+/// use std::any::TypeId;
 ///
-/// #[planning_solution]
-/// #[shadow_variable_updates(
-///     list_owner = "vehicles",
-///     list_field = "visits",
-///     element_collection = "visits",
-///     element_type = "usize",
-/// )]
-/// struct VehicleRoutePlan {
-///     #[planning_entity_collection]
-///     visits: Vec<Visit>,
-///     #[planning_entity_collection]
-///     vehicles: Vec<Vehicle>,
-///     #[planning_score]
-///     score: Option<HardSoftScore>,
+/// #[derive(Clone)]
+/// struct MyPlan {
+///     entities: Vec<i64>,
+///     score: Option<SimpleScore>,
 /// }
 ///
-/// // Macro generates SolvableSolution implementation automatically
+/// impl PlanningSolution for MyPlan {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// impl ShadowVariableSupport for MyPlan {
+///     fn update_entity_shadows(&mut self, _idx: usize) {}
+/// }
+///
+/// impl SolvableSolution for MyPlan {
+///     fn descriptor() -> SolutionDescriptor {
+///         SolutionDescriptor::new("MyPlan", TypeId::of::<MyPlan>())
+///     }
+///     fn entity_count(solution: &Self, _desc_idx: usize) -> usize {
+///         solution.entities.len()
+///     }
+/// }
 /// ```
 pub trait SolvableSolution: ShadowVariableSupport {
     /// Returns the solution descriptor for this type.

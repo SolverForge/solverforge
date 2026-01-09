@@ -1,7 +1,6 @@
 //! Tests for SolverManager and related types.
 
 use super::*;
-use std::time::Duration;
 
 use solverforge_core::score::SimpleScore;
 
@@ -53,99 +52,6 @@ fn test_solver_manager_builder_builds_successfully() {
     assert_eq!(score, SimpleScore::of(-10));
 }
 
-#[test]
-fn test_solver_manager_builder_with_time_limit() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_time_limit(Duration::from_secs(30))
-        .build()
-        .expect("Failed to build SolverManager with time limit");
-
-    let solution = TestSolution {
-        value: 5,
-        score: None,
-    };
-    let score = manager.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-5));
-}
-
-#[test]
-fn test_solver_manager_builder_with_step_limit() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_step_limit(100)
-        .build()
-        .expect("Failed to build SolverManager with step limit");
-
-    let solution = TestSolution {
-        value: 7,
-        score: None,
-    };
-    let score = manager.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-7));
-}
-
-#[test]
-fn test_solver_manager_builder_with_combined_limits() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_time_limit(Duration::from_secs(60))
-        .with_step_limit(500)
-        .build()
-        .expect("Failed to build SolverManager with combined limits");
-
-    let solution = TestSolution {
-        value: 3,
-        score: None,
-    };
-    let score = manager.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-3));
-}
-
-#[test]
-fn test_solver_manager_builder_with_construction_heuristic() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_construction_heuristic()
-        .build()
-        .expect("Failed to build SolverManager with construction heuristic");
-
-    let solution = TestSolution {
-        value: 2,
-        score: None,
-    };
-    let score = manager.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-2));
-}
-
-#[test]
-fn test_solver_manager_builder_with_local_search() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_local_search(LocalSearchType::HillClimbing)
-        .build()
-        .expect("Failed to build SolverManager with local search");
-
-    let solution = TestSolution {
-        value: 4,
-        score: None,
-    };
-    let score = manager.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-4));
-}
-
-#[test]
-fn test_solver_manager_builder_chained_configuration() {
-    let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_construction_heuristic()
-        .with_local_search(LocalSearchType::HillClimbing)
-        .with_time_limit(Duration::from_secs(30))
-        .with_step_limit(1000)
-        .build()
-        .expect("Failed to build SolverManager with chained configuration");
-
-    let solution = TestSolution {
-        value: 8,
-        score: None,
-    };
-    let score = manager.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-8));
-}
 
 // ============================================================================
 // 2. Adding Phase Factories to SolverManager
@@ -247,7 +153,6 @@ fn test_create_solver_returns_valid_solver() {
 #[test]
 fn test_create_solver_multiple_times_creates_independent_solvers() {
     let manager = SolverManager::<TestSolution>::builder(|s| SimpleScore::of(-s.value))
-        .with_step_limit(10)
         .build()
         .expect("Failed to build SolverManager");
 

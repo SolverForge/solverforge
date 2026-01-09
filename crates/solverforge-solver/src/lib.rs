@@ -44,6 +44,7 @@ pub use heuristic::{
     KOptMoveSelector,
     ListChangeMove,
     ListChangeMoveSelector,
+    DefaultDistanceMeter,
     ListPositionDistanceMeter,
     ListRuinMove,
     ListRuinMoveSelector,

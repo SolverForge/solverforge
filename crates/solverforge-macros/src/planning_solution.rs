@@ -2,31 +2,37 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, Error, Fields, Ident};
+use syn::{Data, DeriveInput, Error, Fields, Ident, Lit, Meta};
 
 use crate::{get_attribute, has_attribute, parse_attribute_string};
 
-/// Configuration for shadow variable updates and list operations.
 #[derive(Default)]
 struct ShadowConfig {
-    /// Field containing entities with the list variable (e.g., "vehicles")
     list_owner: Option<String>,
-    /// Name of the list variable field on the owner entity (e.g., "visits")
     list_field: Option<String>,
-    /// Field containing the list elements (e.g., "visits")
     element_collection: Option<String>,
-    /// Field on elements for inverse relation shadow (e.g., "vehicle_idx")
     inverse_field: Option<String>,
-    /// Field on elements for previous element shadow (e.g., "previous_visit_idx")
     previous_field: Option<String>,
-    /// Field on elements for next element shadow (e.g., "next_visit_idx")
     next_field: Option<String>,
-    /// Method on solution for cascading update (e.g., "update_visit_arrival")
     cascading_listener: Option<String>,
-    /// Method on solution for post-update (e.g., "update_vehicle_caches")
     post_update_listener: Option<String>,
-    /// Element type for list variable (e.g., "usize")
     element_type: Option<String>,
+}
+
+/// Parse the constraints path from #[solverforge_constraints_path = "path"]
+fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
+    for attr in attrs {
+        if attr.path().is_ident("solverforge_constraints_path") {
+            if let Meta::NameValue(nv) = &attr.meta {
+                if let syn::Expr::Lit(expr_lit) = &nv.value {
+                    if let Lit::Str(lit_str) = &expr_lit.lit {
+                        return Some(lit_str.value());
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
@@ -91,11 +97,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_entity(::solverforge::EntityDescriptor::new(
+                .with_entity(::solverforge_core::domain::EntityDescriptor::new(
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge_core::domain::TypedEntityExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -113,11 +119,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_problem_fact(::solverforge::ProblemFactDescriptor::new(
+                .with_problem_fact(::solverforge_core::domain::ProblemFactDescriptor::new(
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge_core::domain::TypedEntityExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -130,11 +136,10 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let name_str = name.to_string();
     let score_field_str = score_field_name.to_string();
 
-    // Parse shadow variable configuration
     let shadow_config = parse_shadow_config(&input.attrs);
     let shadow_support_impl = generate_shadow_support(&shadow_config, name);
+    let constraints_path = parse_constraints_path(&input.attrs);
 
-    // Generate entity_count arms (for associated function, not method)
     let entity_count_arms: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -145,22 +150,19 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    // Generate list operations if configured
-    let list_operations = generate_list_operations(&shadow_config, fields, name);
-
-    // Generate SolvableSolution impl if shadow_variable_updates is configured
+    let list_operations = generate_list_operations(&shadow_config, fields, name, &constraints_path);
     let solvable_solution_impl = generate_solvable_solution(&shadow_config, name);
 
     let expanded = quote! {
-        impl #impl_generics ::solverforge::PlanningSolutionTrait for #name #ty_generics #where_clause {
+        impl #impl_generics ::solverforge_core::domain::PlanningSolution for #name #ty_generics #where_clause {
             type Score = #score_type;
             fn score(&self) -> Option<Self::Score> { self.#score_field_name.clone() }
             fn set_score(&mut self, score: Option<Self::Score>) { self.#score_field_name = score; }
         }
 
         impl #impl_generics #name #ty_generics #where_clause {
-            pub fn descriptor() -> ::solverforge::SolutionDescriptor {
-                ::solverforge::SolutionDescriptor::new(
+            pub fn descriptor() -> ::solverforge_core::domain::SolutionDescriptor {
+                ::solverforge_core::domain::SolutionDescriptor::new(
                     #name_str,
                     ::std::any::TypeId::of::<Self>(),
                 )
@@ -169,10 +171,6 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 #(#fact_descriptors)*
             }
 
-            /// Returns entity count for the given descriptor index.
-            ///
-            /// Associated function (not method) for use with `TypedScoreDirector`.
-            /// Generated by `#[planning_solution]` from `#[planning_entity_collection]` fields.
             #[inline]
             pub fn entity_count(this: &Self, descriptor_index: usize) -> usize {
                 match descriptor_index {
@@ -192,11 +190,11 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     Ok(expanded)
 }
 
-/// Generates list operation methods and phase builders from shadow_variable_updates configuration.
 fn generate_list_operations(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     solution_name: &Ident,
+    constraints_path: &Option<String>,
 ) -> TokenStream {
     let (list_owner, list_field, element_type, element_collection) = match (
         &config.list_owner,
@@ -213,7 +211,6 @@ fn generate_list_operations(
     let element_type_ident = Ident::new(element_type, proc_macro2::Span::call_site());
     let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
 
-    // Compute descriptor_index: find list_owner's position in planning_entity_collection fields
     let entity_fields: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -229,8 +226,130 @@ fn generate_list_operations(
         proc_macro2::Span::call_site(),
     );
 
+    // Generate solve() only if constraints path is provided
+    let solve_impl = constraints_path.as_ref().map(|path| {
+        let constraints_fn: syn::Path = syn::parse_str(path)
+            .expect("constraints path must be a valid Rust path");
+
+        quote! {
+            /// Solve with zero parameters - constraints embedded at compile time.
+            pub fn solve(mut self) -> Self {
+                Self::solve_with_terminate(self, None)
+            }
+
+            /// Solve with external termination flag for async cancellation.
+            pub fn solve_with_terminate(
+                mut solution: Self,
+                terminate_flag: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
+            ) -> Self {
+                use ::std::sync::atomic::Ordering;
+                use ::solverforge_scoring::{ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector};
+                use ::solverforge_core::domain::PlanningSolution;
+
+                // Constraints embedded at compile time via macro attribute
+                let constraints = #constraints_fn();
+
+                // Create score director
+                let mut score_director = ShadowAwareScoreDirector::new(
+                    TypedScoreDirector::new(
+                        constraints,
+                        Self::descriptor(),
+                        Self::entity_count,
+                    ),
+                );
+
+                // Calculate initial score
+                let initial_score = score_director.calculate_score(&mut solution);
+                solution.set_score(Some(initial_score));
+
+                // Construction phase: assign all elements to entities
+                let total_elements = solution.#element_collection_ident.len();
+                let assigned: ::std::collections::HashSet<#element_type_ident> = solution.#list_owner_ident
+                    .iter()
+                    .flat_map(|e| e.#list_field_ident.iter().copied())
+                    .collect();
+                let unassigned: Vec<#element_type_ident> = (0..total_elements)
+                    .map(|i| i as #element_type_ident)
+                    .filter(|i| !assigned.contains(i))
+                    .collect();
+
+                let n_entities = solution.#list_owner_ident.len();
+                if n_entities > 0 {
+                    for (i, elem) in unassigned.into_iter().enumerate() {
+                        let entity_idx = i % n_entities;
+                        solution.#list_owner_ident[entity_idx].#list_field_ident.push(elem);
+                        score_director.update_shadow_variables(&mut solution, entity_idx);
+                    }
+                    let score = score_director.calculate_score(&mut solution);
+                    solution.set_score(Some(score));
+                }
+
+                // Local search phase: k-opt moves with late acceptance
+                let terminate = terminate_flag.unwrap_or_else(|| ::std::sync::Arc::new(::std::sync::atomic::AtomicBool::new(false)));
+                let late_acceptance_size = 400;
+                let mut score_history: Vec<<Self as PlanningSolution>::Score> = Vec::with_capacity(late_acceptance_size);
+                let current_score = solution.score().unwrap_or_default();
+                for _ in 0..late_acceptance_size {
+                    score_history.push(current_score.clone());
+                }
+                let mut history_idx = 0usize;
+                let mut best_solution = solution.clone();
+                let mut best_score = current_score.clone();
+
+                let mut step_count = 0u64;
+                while !terminate.load(Ordering::Relaxed) {
+                    let mut improved_this_step = false;
+
+                    // Try 2-opt moves on each entity
+                    for entity_idx in 0..n_entities {
+                        if terminate.load(Ordering::Relaxed) { break; }
+                        let list_len = solution.#list_owner_ident[entity_idx].#list_field_ident.len();
+                        if list_len < 4 { continue; }
+
+                        for i in 0..list_len.saturating_sub(2) {
+                            for j in (i + 2)..list_len {
+                                if terminate.load(Ordering::Relaxed) { break; }
+
+                                // Reverse segment [i+1..=j]
+                                solution.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
+                                score_director.update_shadow_variables(&mut solution, entity_idx);
+                                let new_score = score_director.calculate_score(&mut solution);
+
+                                let late_score = &score_history[history_idx % late_acceptance_size];
+                                let dominated = {
+                                    use ::solverforge_core::score::Score;
+                                    new_score < *late_score && new_score < best_score
+                                };
+                                if dominated {
+                                    // Undo
+                                    solution.#list_owner_ident[entity_idx].#list_field_ident[i+1..=j].reverse();
+                                    score_director.update_shadow_variables(&mut solution, entity_idx);
+                                } else {
+                                    solution.set_score(Some(new_score.clone()));
+                                    score_history[history_idx % late_acceptance_size] = new_score.clone();
+                                    history_idx += 1;
+                                    if new_score > best_score {
+                                        best_score = new_score;
+                                        best_solution = solution.clone();
+                                        improved_this_step = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    step_count += 1;
+                    if step_count > 10000 && !improved_this_step {
+                        break;
+                    }
+                }
+
+                best_solution
+            }
+        }
+    });
+
     quote! {
-        /// Returns the length of the list variable for the given entity.
         #[inline]
         pub fn list_len(&self, entity_idx: usize) -> usize {
             self.#list_owner_ident
@@ -238,7 +357,6 @@ fn generate_list_operations(
                 .map_or(0, |e| e.#list_field_ident.len())
         }
 
-        /// Removes and returns an element from the list variable at the given position.
         #[inline]
         pub fn list_remove(&mut self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
             self.#list_owner_ident
@@ -246,7 +364,6 @@ fn generate_list_operations(
                 .map(|e| e.#list_field_ident.remove(pos))
         }
 
-        /// Inserts an element into the list variable at the given position.
         #[inline]
         pub fn list_insert(&mut self, entity_idx: usize, pos: usize, val: #element_type_ident) {
             if let Some(e) = self.#list_owner_ident.get_mut(entity_idx) {
@@ -254,7 +371,6 @@ fn generate_list_operations(
             }
         }
 
-        /// Removes and returns a contiguous sublist from the list variable.
         #[inline]
         pub fn sublist_remove(
             &mut self,
@@ -268,7 +384,6 @@ fn generate_list_operations(
                 .unwrap_or_default()
         }
 
-        /// Inserts a sublist into the list variable at the given position.
         #[inline]
         pub fn sublist_insert(
             &mut self,
@@ -283,68 +398,23 @@ fn generate_list_operations(
             }
         }
 
-        /// Returns the descriptor index for the list variable owner entity.
         #[inline]
         pub const fn list_variable_descriptor_index() -> usize {
             #descriptor_index_lit
         }
 
-        /// Creates a list construction phase with zero manual wiring.
-        ///
-        /// Generated by `#[planning_solution]` from `#[shadow_variable_updates]`.
-        pub fn list_construction_phase() -> Box<dyn ::solverforge::Phase<Self>> {
-            use ::solverforge::SolverPhaseFactory;
-            ::solverforge::ListConstructionPhaseBuilder::<Self, #element_type_ident>::new(
-                |plan| plan.#element_collection_ident.len(),
-                |plan| plan.#list_owner_ident.iter()
-                    .flat_map(|e| e.#list_field_ident.iter().copied())
-                    .collect(),
-                |plan| plan.#list_owner_ident.len(),
-                |plan, idx, elem| { plan.#list_owner_ident[idx].#list_field_ident.push(elem); },
-                |idx| idx,
-                stringify!(#list_field_ident),
-                #descriptor_index_lit,
-            ).create_phase()
-        }
-
-        /// Creates a k-opt local search phase with zero manual wiring.
-        ///
-        /// Generated by `#[planning_solution]` from `#[shadow_variable_updates]`.
-        pub fn k_opt_phase<D>(distance_meter: D) -> Box<dyn ::solverforge::Phase<Self>>
-        where
-            D: ::solverforge::ListPositionDistanceMeter<Self> + Clone + 'static,
-        {
-            use ::solverforge::SolverPhaseFactory;
-            ::solverforge::KOptPhaseBuilder::<Self, #element_type_ident, D, _>::new(
-                distance_meter,
-                || Box::new(::solverforge::FromSolutionEntitySelector::new(#descriptor_index_lit)),
-                #solution_name::list_len,
-                #solution_name::sublist_remove,
-                #solution_name::sublist_insert,
-                stringify!(#list_field_ident),
-                #descriptor_index_lit,
-            )
-            .with_k(3)
-            .with_nearby(10)
-            .with_late_acceptance(400)
-            .create_phase()
-        }
+        #solve_impl
     }
 }
 
-/// Generates SolvableSolution implementation if shadow_variable_updates is configured.
-///
-/// SolvableSolution requires ShadowVariableSupport, so it's only generated when
-/// shadow variables are configured.
 fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {
-    // Only generate if shadow config is present (SolvableSolution requires ShadowVariableSupport)
     if config.list_owner.is_none() {
         return TokenStream::new();
     }
 
     quote! {
-        impl ::solverforge::SolvableSolution for #solution_name {
-            fn descriptor() -> ::solverforge::SolutionDescriptor {
+        impl ::solverforge_scoring::SolvableSolution for #solution_name {
+            fn descriptor() -> ::solverforge_core::domain::SolutionDescriptor {
                 #solution_name::descriptor()
             }
 
@@ -355,9 +425,7 @@ fn generate_solvable_solution(config: &ShadowConfig, solution_name: &Ident) -> T
     }
 }
 
-/// Generates zero-erasure ShadowVariableSupport implementation.
 fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {
-    // If no shadow config, generate empty impl
     let (list_owner, list_field, element_collection) = match (
         &config.list_owner,
         &config.list_field,
@@ -365,13 +433,10 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
     ) {
         (Some(lo), Some(lf), Some(ec)) => (lo, lf, ec),
         _ => {
-            // No shadow config - generate stub impl
             return quote! {
-                impl ::solverforge::ShadowVariableSupport for #solution_name {
+                impl ::solverforge_scoring::ShadowVariableSupport for #solution_name {
                     #[inline]
-                    fn update_entity_shadows(&mut self, _entity_idx: usize) {
-                        // No shadow variables configured
-                    }
+                    fn update_entity_shadows(&mut self, _entity_idx: usize) {}
                 }
             };
         }
@@ -381,22 +446,18 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
     let list_field_ident = Ident::new(list_field, proc_macro2::Span::call_site());
     let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
 
-    // Generate inverse relation update (Phase 1)
     let inverse_update = config.inverse_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            // Phase 1: InverseRelation shadow - direct field assignment
             for &element_idx in &element_indices {
                 self.#element_collection_ident[element_idx].#field_ident = Some(entity_idx);
             }
         }
     });
 
-    // Generate previous element update (Phase 2a)
     let previous_update = config.previous_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            // Phase 2a: PreviousElement shadow - direct field assignment
             let mut prev_idx: Option<usize> = None;
             for &element_idx in &element_indices {
                 self.#element_collection_ident[element_idx].#field_ident = prev_idx;
@@ -405,11 +466,9 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
         }
     });
 
-    // Generate next element update (Phase 2b)
     let next_update = config.next_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            // Phase 2b: NextElement shadow - direct field assignment
             let len = element_indices.len();
             for (i, &element_idx) in element_indices.iter().enumerate() {
                 let next_idx = if i + 1 < len { Some(element_indices[i + 1]) } else { None };
@@ -418,34 +477,26 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
         }
     });
 
-    // Generate cascading update (Phase 3)
     let cascading_update = config.cascading_listener.as_ref().map(|method| {
         let method_ident = Ident::new(method, proc_macro2::Span::call_site());
         quote! {
-            // Phase 3: Cascading shadow - user method call
             for &element_idx in &element_indices {
                 self.#method_ident(element_idx);
             }
         }
     });
 
-    // Generate post-update for entity caches (Phase 4)
     let post_update = config.post_update_listener.as_ref().map(|method| {
         let method_ident = Ident::new(method, proc_macro2::Span::call_site());
         quote! {
-            // Phase 4: Post-update - entity-level cache update
             self.#method_ident(entity_idx);
         }
     });
 
     quote! {
-        impl ::solverforge::ShadowVariableSupport for #solution_name {
+        impl ::solverforge_scoring::ShadowVariableSupport for #solution_name {
             #[inline]
             fn update_entity_shadows(&mut self, entity_idx: usize) {
-                // Zero-erasure: direct field access, no trait objects, no runtime lookup
-                // All field paths resolved at compile time
-
-                // Get the list variable from the owner entity
                 let element_indices: Vec<usize> = self.#list_owner_ident[entity_idx]
                     .#list_field_ident
                     .clone();

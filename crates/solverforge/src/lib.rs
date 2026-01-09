@@ -115,7 +115,7 @@ pub use solverforge_scoring::{
     IncrementalUniConstraint,
     // Score directors
     ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
-    TypedScoreDirector,
+    SolvableSolution, TypedScoreDirector,
     // Analysis
     ScoreExplanation,
 };

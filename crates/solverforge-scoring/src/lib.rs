@@ -43,7 +43,7 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 pub use director::typed::TypedScoreDirector;
 pub use director::{
     RecordingScoreDirector, ScoreDirector, ScoreDirectorFactory, ShadowAwareScoreDirector,
-    ShadowVariableSupport, SimpleScoreDirector,
+    ShadowVariableSupport, SimpleScoreDirector, SolvableSolution,
 };
 
 // ============================================================================

@@ -126,6 +126,7 @@ where
             director.before_variable_changed(entity_idx);
             set_variable(director.working_solution_mut(), entity_idx, old_value);
             director.after_variable_changed(entity_idx);
+            director.calculate_score(); // Update cached_score after undo
         }
 
         step += 1;

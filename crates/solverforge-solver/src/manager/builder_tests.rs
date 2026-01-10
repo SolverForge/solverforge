@@ -32,11 +32,12 @@ fn test_builder_with_time_limit() {
     fn calculator(s: &TestSolution) -> SimpleScore {
         SimpleScore::of(-s.value)
     }
-    let builder = SolverManagerBuilder::<TestSolution, TestDirector, _>::new(calculator as fn(&TestSolution) -> SimpleScore)
-        .with_time_limit(Duration::from_secs(30));
+    let manager = SolverManagerBuilder::<TestSolution, TestDirector, _, _, _>::new(
+        calculator as fn(&TestSolution) -> SimpleScore,
+    )
+    .with_time_limit(Duration::from_secs(30))
+    .build();
 
-    let manager = builder.build().unwrap();
-    // Verify the manager works by calculating a score
     let solution = TestSolution {
         value: 5,
         score: None,
@@ -46,17 +47,16 @@ fn test_builder_with_time_limit() {
 }
 
 #[test]
-fn test_builder_with_phases() {
+fn test_builder_with_step_limit() {
     fn calculator(s: &TestSolution) -> SimpleScore {
         SimpleScore::of(-s.value)
     }
-    let builder = SolverManagerBuilder::<TestSolution, TestDirector, _>::new(calculator as fn(&TestSolution) -> SimpleScore)
-        .with_construction_heuristic()
-        .with_local_search(LocalSearchType::HillClimbing)
-        .with_step_limit(100);
+    let manager = SolverManagerBuilder::<TestSolution, TestDirector, _, _, _>::new(
+        calculator as fn(&TestSolution) -> SimpleScore,
+    )
+    .with_step_limit(100)
+    .build();
 
-    let manager = builder.build().unwrap();
-    // Verify the manager works by calculating a score
     let solution = TestSolution {
         value: 10,
         score: None,

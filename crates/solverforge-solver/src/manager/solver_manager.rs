@@ -7,7 +7,10 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
+use crate::solver::NoTermination;
 use crate::termination::Termination;
+
+use super::SolverManagerBuilder;
 
 /// Zero-erasure solver manager.
 ///
@@ -83,4 +86,17 @@ where
         solver_scope.start_solving();
         self.phases.solve(solver_scope);
     }
+}
+
+/// Creates a builder for SolverManager.
+///
+/// Use `SolverManagerBuilder::new()` directly for full type control.
+pub fn solver_manager_builder<S, D, C>(
+    score_calculator: C,
+) -> SolverManagerBuilder<S, D, C, (), NoTermination>
+where
+    S: PlanningSolution,
+    C: Fn(&S) -> S::Score + Send + Sync,
+{
+    SolverManagerBuilder::new(score_calculator)
 }

@@ -17,8 +17,9 @@ mod phase_factory_tests_localsearch;
 pub use builder::SolverBuilder;
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
-    BasicConstructionPhaseBuilder, BasicLocalSearchPhaseBuilder, ConstructionPhaseFactory,
-    KOptPhaseBuilder, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+    BasicConstructionPhase, BasicConstructionPhaseBuilder, BasicLocalSearchPhase,
+    BasicLocalSearchPhaseBuilder, ConstructionPhaseFactory, HillClimbingFactory,
+    ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
 };
 pub use solver_manager::SolverManager;
 
@@ -84,7 +85,7 @@ impl<S, D, P, F> SolverPhaseFactory<S, D, P> for ClosurePhaseFactory<P, F>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    P: Phase<S, D>,
+    P: Phase<S, D> + Send + Sync,
     F: Fn() -> P + Send + Sync,
 {
     fn create_phase(&self) -> P {

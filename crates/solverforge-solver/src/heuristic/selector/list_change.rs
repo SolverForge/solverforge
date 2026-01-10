@@ -34,8 +34,8 @@
 //!     if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
 //! }
 //!
-//! let selector = ListChangeMoveSelector::<Solution, i32>::new(
-//!     Box::new(FromSolutionEntitySelector::new(0)),
+//! let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+//!     FromSolutionEntitySelector::new(0),
 //!     list_len,
 //!     list_remove,
 //!     list_insert,
@@ -72,9 +72,9 @@ use super::typed_move_selector::MoveSelector;
 /// - Total: O(n² * m²) worst case
 ///
 /// Use with a forager that quits early for better performance.
-pub struct ListChangeMoveSelector<S, V> {
+pub struct ListChangeMoveSelector<S, V, ES> {
     /// Selects entities (vehicles) for moves.
-    entity_selector: Box<dyn EntitySelector<S>>,
+    entity_selector: ES,
     /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
     /// Remove element at position.
@@ -85,10 +85,10 @@ pub struct ListChangeMoveSelector<S, V> {
     variable_name: &'static str,
     /// Entity descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V: Debug> Debug for ListChangeMoveSelector<S, V> {
+impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListChangeMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -98,7 +98,7 @@ impl<S, V: Debug> Debug for ListChangeMoveSelector<S, V> {
     }
 }
 
-impl<S, V> ListChangeMoveSelector<S, V> {
+impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     /// Creates a new list change move selector.
     ///
     /// # Arguments
@@ -109,7 +109,7 @@ impl<S, V> ListChangeMoveSelector<S, V> {
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
+        entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
@@ -128,10 +128,11 @@ impl<S, V> ListChangeMoveSelector<S, V> {
     }
 }
 
-impl<S, V> MoveSelector<S, ListChangeMove<S, V>> for ListChangeMoveSelector<S, V>
+impl<S, V, ES> MoveSelector<S, ListChangeMove<S, V>> for ListChangeMoveSelector<S, V, ES>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    ES: EntitySelector<S>,
 {
     fn iter_moves<'a>(
         &'a self,
@@ -319,8 +320,8 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let selector = ListChangeMoveSelector::<Solution, i32>::new(
-            Box::new(FromSolutionEntitySelector::new(0)),
+        let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+            FromSolutionEntitySelector::new(0),
             list_len,
             list_remove,
             list_insert,
@@ -352,8 +353,8 @@ mod tests {
         ];
         let director = create_director(vehicles);
 
-        let selector = ListChangeMoveSelector::<Solution, i32>::new(
-            Box::new(FromSolutionEntitySelector::new(0)),
+        let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+            FromSolutionEntitySelector::new(0),
             list_len,
             list_remove,
             list_insert,
@@ -380,8 +381,8 @@ mod tests {
         ];
         let director = create_director(vehicles);
 
-        let selector = ListChangeMoveSelector::<Solution, i32>::new(
-            Box::new(FromSolutionEntitySelector::new(0)),
+        let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+            FromSolutionEntitySelector::new(0),
             list_len,
             list_remove,
             list_insert,

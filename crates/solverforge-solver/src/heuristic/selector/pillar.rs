@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -132,16 +133,17 @@ impl SubPillarConfig {
 ///
 /// # Zero-Erasure Design
 ///
-/// The extractor function `E` is stored as a concrete generic type parameter,
-/// eliminating virtual dispatch overhead when grouping entities by value.
-pub struct DefaultPillarSelector<S, V, E>
+/// Both the entity selector `ES` and the extractor function `E` are stored as
+/// concrete generic type parameters, eliminating all virtual dispatch overhead.
+pub struct DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
-    /// The underlying entity selector.
-    entity_selector: Box<dyn EntitySelector<S>>,
+    /// The underlying entity selector (zero-erasure).
+    entity_selector: ES,
     /// The descriptor index.
     descriptor_index: usize,
     /// The variable name for grouping.
@@ -150,12 +152,15 @@ where
     value_extractor: E,
     /// Sub-pillar configuration.
     sub_pillar_config: SubPillarConfig,
+    /// Marker for solution and value types.
+    _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V, E> Debug for DefaultPillarSelector<S, V, E>
+impl<S, V, ES, E> Debug for DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -168,10 +173,11 @@ where
     }
 }
 
-impl<S, V, E> DefaultPillarSelector<S, V, E>
+impl<S, V, ES, E> DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     /// Creates a new default pillar selector.
@@ -183,7 +189,7 @@ where
     /// * `variable_name` - The variable name for grouping
     /// * `value_extractor` - Function to extract the grouping value from an entity
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
+        entity_selector: ES,
         descriptor_index: usize,
         variable_name: &'static str,
         value_extractor: E,
@@ -194,6 +200,7 @@ where
             variable_name,
             value_extractor,
             sub_pillar_config: SubPillarConfig::default(),
+            _phantom: PhantomData,
         }
     }
 
@@ -232,10 +239,11 @@ where
     }
 }
 
-impl<S, V, E> PillarSelector<S> for DefaultPillarSelector<S, V, E>
+impl<S, V, ES, E> PillarSelector<S> for DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     fn iter<'a>(
@@ -373,8 +381,8 @@ mod tests {
             assert_eq!(emp.id, i);
         }
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _>::new(
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",
@@ -434,8 +442,8 @@ mod tests {
             assert_eq!(emp.id, i);
         }
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _>::new(
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",
@@ -476,8 +484,8 @@ mod tests {
             assert_eq!(emp.id, i);
         }
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _>::new(
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",
@@ -497,8 +505,8 @@ mod tests {
     fn test_pillar_selector_empty_solution() {
         let director = create_test_director(vec![]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _>::new(
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",

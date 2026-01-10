@@ -9,20 +9,23 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-use crate::heuristic::selector::typed_value::FromSolutionTypedValueSelector;
+use crate::heuristic::selector::typed_value::RangeValueSelector;
 use crate::heuristic::selector::ChangeMoveSelector;
 use crate::phase::localsearch::{
     AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase,
 };
-use crate::phase::Phase;
 
 use super::super::SolverPhaseFactory;
+
+/// Type alias for the move selector used by BasicLocalSearchPhase.
+type BasicMoveSelector<S> =
+    ChangeMoveSelector<S, usize, FromSolutionEntitySelector, RangeValueSelector<S>>;
 
 /// Type alias for the concrete local search phase with late acceptance.
 pub type BasicLocalSearchPhase<S> = LocalSearchPhase<
     S,
     ChangeMove<S, usize>,
-    ChangeMoveSelector<S, usize, FromSolutionEntitySelector, FromSolutionTypedValueSelector<S, usize>>,
+    BasicMoveSelector<S>,
     LateAcceptanceAcceptor<S>,
     AcceptedCountForager<S, ChangeMove<S, usize>>,
 >;
@@ -115,12 +118,8 @@ where
 
     /// Creates the local search phase.
     pub fn create_phase(&self) -> BasicLocalSearchPhase<S> {
-        let value_count = self.value_count;
-
         let entity_selector = FromSolutionEntitySelector::new(self.descriptor_index);
-        let value_selector = FromSolutionTypedValueSelector::new(
-            move |sd| (0..(value_count)(sd.working_solution())).collect(),
-        );
+        let value_selector = RangeValueSelector::new(self.value_count);
 
         let move_selector = ChangeMoveSelector::new(
             entity_selector,

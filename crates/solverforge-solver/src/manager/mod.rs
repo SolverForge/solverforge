@@ -18,7 +18,7 @@ mod mod_tests;
 #[cfg(test)]
 mod mod_tests_integration;
 
-pub use builder::SolverManagerBuilder;
+pub use builder::{SolverBuildError, SolverManagerBuilder};
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,

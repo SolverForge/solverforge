@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 use std::time::Duration;
 
+use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
@@ -10,7 +11,7 @@ use crate::phase::Phase;
 use crate::termination::{OrTermination, StepCountTermination, Termination, TimeTermination};
 use crate::solver::NoTermination;
 
-use super::SolverManager;
+use super::{PhaseFactory, SolverManager};
 
 /// Builder for SolverManager with zero type erasure.
 ///
@@ -52,6 +53,37 @@ where
             score_calculator: self.score_calculator,
             phases: (self.phases, phase),
             termination: self.termination,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Adds a phase from a factory, returning a new builder with updated phase tuple.
+    ///
+    /// The factory's `create()` method is called to produce the phase.
+    pub fn with_phase_factory<F>(self, factory: F) -> SolverManagerBuilder<S, D, C, (P, F::Phase), T>
+    where
+        D: ScoreDirector<S>,
+        F: PhaseFactory<S, D>,
+    {
+        let phase = factory.create();
+        SolverManagerBuilder {
+            score_calculator: self.score_calculator,
+            phases: (self.phases, phase),
+            termination: self.termination,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Applies configuration from a SolverConfig.
+    ///
+    /// Currently applies termination settings from the config.
+    pub fn with_config(self, config: SolverConfig) -> SolverManagerBuilder<S, D, C, P, TimeTermination> {
+        let term = config.termination.unwrap_or_default();
+        let duration = term.time_limit().unwrap_or(Duration::from_secs(30));
+        SolverManagerBuilder {
+            score_calculator: self.score_calculator,
+            phases: self.phases,
+            termination: TimeTermination::new(duration),
             _marker: PhantomData,
         }
     }
@@ -103,7 +135,27 @@ where
     T: Termination<S, D>,
 {
     /// Builds the SolverManager.
-    pub fn build(self) -> SolverManager<S, D, C, P, T> {
-        SolverManager::new(self.score_calculator, self.phases, self.termination)
+    ///
+    /// Returns `Ok(SolverManager)` on success, or `Err` if configuration is invalid.
+    /// Currently always succeeds as validation happens at compile time via type bounds.
+    pub fn build(self) -> Result<SolverManager<S, D, C, P, T>, SolverBuildError> {
+        Ok(SolverManager::new(self.score_calculator, self.phases, self.termination))
     }
 }
+
+/// Error type for SolverManager building.
+#[derive(Debug, Clone)]
+pub enum SolverBuildError {
+    /// Configuration is invalid.
+    InvalidConfig(String),
+}
+
+impl std::fmt::Display for SolverBuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SolverBuildError::InvalidConfig(msg) => write!(f, "Invalid solver configuration: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for SolverBuildError {}

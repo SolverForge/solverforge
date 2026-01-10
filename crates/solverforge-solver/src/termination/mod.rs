@@ -26,6 +26,10 @@ pub use time::TimeTermination;
 pub use unimproved::{UnimprovedStepCountTermination, UnimprovedTimeTermination};
 
 /// Trait for determining when to stop solving.
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
 pub trait Termination<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// Returns true if solving should terminate.
     fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool;

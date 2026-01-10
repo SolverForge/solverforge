@@ -14,6 +14,9 @@ use crate::scope::SolverScope;
 
 /// Terminates if no improvement occurs for a specified number of steps.
 ///
+/// This is useful to avoid spending too much time when the solver has
+/// plateaued and is unlikely to find better solutions.
+///
 /// # Example
 ///
 /// ```
@@ -29,6 +32,7 @@ use crate::scope::SolverScope;
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
 ///
+/// // Terminate after 100 steps without improvement
 /// let term = UnimprovedStepCountTermination::<MySolution>::new(100);
 /// ```
 pub struct UnimprovedStepCountTermination<S: PlanningSolution> {
@@ -65,6 +69,7 @@ impl<Sc: Score> Default for UnimprovedState<Sc> {
 }
 
 impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
+    /// Creates a termination that stops after `limit` steps without improvement.
     pub fn new(limit: u64) -> Self {
         Self {
             limit,
@@ -74,15 +79,16 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
     }
 }
 
+// Safety: The RefCell is only accessed from within is_terminated,
+// which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedStepCountTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
-    for UnimprovedStepCountTermination<S>
-{
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for UnimprovedStepCountTermination<S> {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         let mut state = self.state.borrow_mut();
         let current_step = solver_scope.total_step_count();
 
+        // Avoid rechecking on the same step
         if state.last_checked_step == Some(current_step) {
             return state.steps_since_improvement >= self.limit;
         }
@@ -92,21 +98,27 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
+                // First score recorded
                 state.last_best_score = Some(score.clone());
                 state.steps_since_improvement = 0;
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
+                    // Improvement found
                     state.last_best_score = Some(current.clone());
                     state.steps_since_improvement = 0;
                 } else {
+                    // No improvement
                     state.steps_since_improvement += 1;
                 }
             }
             (Some(_), None) => {
+                // Score became unavailable (shouldn't happen normally)
                 state.steps_since_improvement += 1;
             }
-            (None, None) => {}
+            (None, None) => {
+                // No score yet
+            }
         }
 
         state.steps_since_improvement >= self.limit
@@ -114,6 +126,9 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 }
 
 /// Terminates if no improvement occurs for a specified duration.
+///
+/// This is useful for time-boxed optimization where you want to ensure
+/// progress is being made, but also allow more time if improvements are found.
 ///
 /// # Example
 ///
@@ -131,6 +146,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
 ///
+/// // Terminate after 5 seconds without improvement
 /// let term = UnimprovedTimeTermination::<MySolution>::seconds(5);
 /// ```
 pub struct UnimprovedTimeTermination<S: PlanningSolution> {
@@ -162,6 +178,7 @@ impl<Sc: Score> Default for UnimprovedTimeState<Sc> {
 }
 
 impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
+    /// Creates a termination that stops after `limit` time without improvement.
     pub fn new(limit: Duration) -> Self {
         Self {
             limit,
@@ -170,20 +187,22 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
         }
     }
 
+    /// Creates a termination with limit in milliseconds.
     pub fn millis(ms: u64) -> Self {
         Self::new(Duration::from_millis(ms))
     }
 
+    /// Creates a termination with limit in seconds.
     pub fn seconds(secs: u64) -> Self {
         Self::new(Duration::from_secs(secs))
     }
 }
 
+// Safety: The RefCell is only accessed from within is_terminated,
+// which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedTimeTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
-    for UnimprovedTimeTermination<S>
-{
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for UnimprovedTimeTermination<S> {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         let mut state = self.state.borrow_mut();
         let current_best = solver_scope.best_score();
@@ -191,27 +210,36 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
+                // First score recorded
                 state.last_best_score = Some(score.clone());
                 state.last_improvement_time = Some(now);
                 false
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
+                    // Improvement found
                     state.last_best_score = Some(current.clone());
                     state.last_improvement_time = Some(now);
                     false
                 } else {
+                    // No improvement - check time
                     state
                         .last_improvement_time
                         .map(|t| now.duration_since(t) >= self.limit)
                         .unwrap_or(false)
                 }
             }
-            (Some(_), None) => state
-                .last_improvement_time
-                .map(|t| now.duration_since(t) >= self.limit)
-                .unwrap_or(false),
-            (None, None) => false,
+            (Some(_), None) => {
+                // Score became unavailable
+                state
+                    .last_improvement_time
+                    .map(|t| now.duration_since(t) >= self.limit)
+                    .unwrap_or(false)
+            }
+            (None, None) => {
+                // No score yet, don't terminate
+                false
+            }
         }
     }
 }

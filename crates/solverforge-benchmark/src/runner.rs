@@ -5,11 +5,18 @@ use std::sync::Arc;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
-use solverforge_solver::solver::Solver;
 use solverforge_solver::statistics::StatisticsCollector;
 
 use crate::config::BenchmarkConfig;
 use crate::result::{BenchmarkResult, BenchmarkRun};
+
+/// Trait for types that can solve a problem with a score director.
+///
+/// This enables benchmarking any solver implementation.
+pub trait Solvable<S: PlanningSolution, Dir: ScoreDirector<S>> {
+    /// Solves the problem using the provided score director.
+    fn solve(&mut self, score_director: Dir) -> S;
+}
 
 /// Zero-erasure benchmark runner.
 ///
@@ -21,16 +28,18 @@ use crate::result::{BenchmarkResult, BenchmarkRun};
 ///
 /// * `S` - The planning solution type
 /// * `Dir` - The score director type
+/// * `Slv` - The solver type
 /// * `P` - Problem factory: `Fn() -> S`
 /// * `D` - Score director factory: `Fn(S) -> Dir`
-/// * `F` - Solver factory: `Fn() -> Solver<S, Dir>`
-pub struct Benchmark<S, Dir, P, D, F>
+/// * `F` - Solver factory: `Fn() -> Slv`
+pub struct Benchmark<S, Dir, Slv, P, D, F>
 where
     S: PlanningSolution,
     Dir: ScoreDirector<S>,
+    Slv: Solvable<S, Dir>,
     P: Fn() -> S,
     D: Fn(S) -> Dir,
-    F: Fn() -> Solver<S, Dir>,
+    F: Fn() -> Slv,
 {
     config: BenchmarkConfig,
     solver_name: String,
@@ -38,16 +47,17 @@ where
     problem_factory: P,
     director_factory: D,
     solver_factory: F,
-    _phantom: PhantomData<(S, Dir)>,
+    _phantom: PhantomData<(S, Dir, Slv)>,
 }
 
-impl<S, Dir, P, D, F> Benchmark<S, Dir, P, D, F>
+impl<S, Dir, Slv, P, D, F> Benchmark<S, Dir, Slv, P, D, F>
 where
     S: PlanningSolution,
     Dir: ScoreDirector<S>,
+    Slv: Solvable<S, Dir>,
     P: Fn() -> S,
     D: Fn(S) -> Dir,
-    F: Fn() -> Solver<S, Dir>,
+    F: Fn() -> Slv,
 {
     /// Creates a new benchmark.
     ///
@@ -97,9 +107,9 @@ where
             let (solution, stats) = self.run_once(Some(collector));
             let final_score = solution.score().unwrap_or_else(|| {
                 // Calculate score if not set
-                let working = solution;
-                let mut temp_director = (self.director_factory)(working);
-                temp_director.calculate_score()
+                let problem = solution;
+                let mut director = (self.director_factory)(problem);
+                director.calculate_score()
             });
 
             let run = BenchmarkRun::from_statistics(run_index, stats, final_score);
@@ -119,7 +129,7 @@ where
     ) {
         let problem = (self.problem_factory)();
         let director = (self.director_factory)(problem);
-        let solver = (self.solver_factory)();
+        let mut solver = (self.solver_factory)();
 
         // Run solver
         let result = solver.solve(director);
@@ -140,14 +150,22 @@ where
 }
 
 /// Builder for creating benchmarks with fluent API.
-pub struct BenchmarkBuilder<S: PlanningSolution> {
+pub struct BenchmarkBuilder<S, Dir>
+where
+    S: PlanningSolution,
+    Dir: ScoreDirector<S>,
+{
     config: BenchmarkConfig,
     solver_name: String,
     problem_name: String,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<(S, Dir)>,
 }
 
-impl<S: PlanningSolution> BenchmarkBuilder<S> {
+impl<S, Dir> BenchmarkBuilder<S, Dir>
+where
+    S: PlanningSolution,
+    Dir: ScoreDirector<S>,
+{
     /// Creates a new benchmark builder.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -183,17 +201,17 @@ impl<S: PlanningSolution> BenchmarkBuilder<S> {
     }
 
     /// Builds the benchmark with the given factories.
-    pub fn build<Dir, P, D, F>(
+    pub fn build<Slv, P, D, F>(
         self,
         problem_factory: P,
         director_factory: D,
         solver_factory: F,
-    ) -> Benchmark<S, Dir, P, D, F>
+    ) -> Benchmark<S, Dir, Slv, P, D, F>
     where
-        Dir: ScoreDirector<S>,
+        Slv: Solvable<S, Dir>,
         P: Fn() -> S,
         D: Fn(S) -> Dir,
-        F: Fn() -> Solver<S, Dir>,
+        F: Fn() -> Slv,
     {
         Benchmark::new(
             self.config,

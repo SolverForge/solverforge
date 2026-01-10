@@ -243,7 +243,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
@@ -350,8 +349,6 @@ mod tests {
 
         SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
     }
-
-    type NQueensMove = ChangeMove<NQueensSolution, i32>;
 
     fn create_move_selector(
         values: Vec<i32>,

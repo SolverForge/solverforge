@@ -62,15 +62,37 @@ impl<S: PlanningSolution> SolverFactory<S> {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use solverforge_solver::{Solver, TimeTermination};
+/// ```
+/// use solverforge_solver::solver::{Solver, NoTermination};
+/// use solverforge_solver::termination::TimeTermination;
+/// use solverforge_solver::phase::Phase;
+/// use solverforge_solver::scope::SolverScope;
+/// use solverforge_core::domain::PlanningSolution;
+/// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
 ///
-/// let solver: Solver<_, Option<TimeTermination>, _, _> = Solver::new((
-///     construction_phase,
-///     local_search_phase,
-/// )).with_termination(TimeTermination::seconds(30));
+/// #[derive(Clone, Debug)]
+/// struct MySolution { score: Option<SimpleScore> }
 ///
-/// let result = solver.solve(director);
+/// impl PlanningSolution for MySolution {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// #[derive(Debug)]
+/// struct NoOpPhase;
+///
+/// impl<S: PlanningSolution, D: ScoreDirector<S>> Phase<S, D> for NoOpPhase {
+///     fn solve(&mut self, _: &mut SolverScope<S, D>) {}
+///     fn phase_type_name(&self) -> &'static str { "NoOp" }
+/// }
+///
+/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
+///
+/// // Create solver with phases and termination
+/// let solver: Solver<(NoOpPhase,), Option<TimeTermination>, MySolution, MyDirector> =
+///     Solver::new((NoOpPhase,)).with_termination(TimeTermination::seconds(30));
 /// ```
 pub struct Solver<P, T, S, D> {
     phases: P,
@@ -177,6 +199,12 @@ impl<S: PlanningSolution, D: ScoreDirector<S>, T: Termination<S, D>> MaybeTermin
 
 impl<S: PlanningSolution, D: ScoreDirector<S>> MaybeTermination<S, D> for NoTermination {
     fn should_terminate(&self, _solver_scope: &SolverScope<S, D>) -> bool {
+        false
+    }
+}
+
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for NoTermination {
+    fn is_terminated(&self, _solver_scope: &SolverScope<S, D>) -> bool {
         false
     }
 }

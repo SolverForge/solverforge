@@ -77,6 +77,7 @@ where
     }
 
     /// Combines current termination with time limit.
+    #[allow(clippy::type_complexity)]
     pub fn with_time_limit_or(
         self,
         duration: Duration,

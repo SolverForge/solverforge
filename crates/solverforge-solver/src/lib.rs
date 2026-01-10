@@ -104,7 +104,7 @@ pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::Solver;
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
-    AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
+    AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
+    DiminishedReturnsTermination, OrTermination, StepCountTermination, Termination,
     TimeTermination, UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };

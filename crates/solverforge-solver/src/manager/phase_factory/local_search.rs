@@ -8,8 +8,7 @@ use solverforge_scoring::ScoreDirector;
 use crate::heuristic::Move;
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::localsearch::{
-    AcceptedCountForager, Acceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
-    LocalSearchForager, LocalSearchPhase, SimulatedAnnealingAcceptor, TabuSearchAcceptor,
+    AcceptedCountForager, Acceptor, HillClimbingAcceptor, LocalSearchForager, LocalSearchPhase,
 };
 
 use super::super::SolverPhaseFactory;

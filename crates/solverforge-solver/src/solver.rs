@@ -115,7 +115,6 @@ impl<P: Debug, T: Debug, S, D> Debug for Solver<P, T, S, D> {
 impl<P, S, D> Solver<P, NoTermination, S, D>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
 {
     /// Creates a new solver with the given phases tuple and no termination.
     pub fn new(phases: P) -> Self {
@@ -145,7 +144,6 @@ where
 impl<P, T, S, D> Solver<P, T, S, D>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
 {
     /// Sets configuration.
     pub fn with_config(mut self, config: SolverConfig) -> Self {
@@ -258,6 +256,47 @@ macro_rules! impl_solver {
         }
     };
 }
+
+macro_rules! impl_solver_with_director {
+    ($($idx:tt: $P:ident),+) => {
+        impl<S, T, $($P),+> Solver<($($P,)+), T, S, ()>
+        where
+            S: PlanningSolution,
+            T: Send,
+        {
+            /// Solves using a boxed score director.
+            ///
+            /// This method accepts a boxed director for API ergonomics when
+            /// the concrete director type isn't known at compile time.
+            pub fn solve_with_director<D>(self, director: Box<D>) -> S
+            where
+                D: ScoreDirector<S>,
+                T: MaybeTermination<S, D>,
+                $($P: Phase<S, D>,)+
+            {
+                // Convert to concrete-typed solver and solve
+                let mut solver: Solver<($($P,)+), T, S, D> = Solver {
+                    phases: self.phases,
+                    termination: self.termination,
+                    terminate_early_flag: self.terminate_early_flag,
+                    solving: self.solving,
+                    config: self.config,
+                    _phantom: PhantomData,
+                };
+                solver.solve(*director)
+            }
+        }
+    };
+}
+
+impl_solver_with_director!(0: P0);
+impl_solver_with_director!(0: P0, 1: P1);
+impl_solver_with_director!(0: P0, 1: P1, 2: P2);
+impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3);
+impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
+impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
+impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
+impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
 
 impl_solver!(0: P0);
 impl_solver!(0: P0, 1: P1);

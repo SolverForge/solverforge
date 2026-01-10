@@ -79,6 +79,14 @@ where
         solver_scope.start_solving();
         self.phases.solve(solver_scope);
     }
+
+    /// Creates a Solver from this manager's configuration.
+    ///
+    /// The returned Solver can be used with `solve_with_director()` for
+    /// macro-generated code or `solve()` for direct use.
+    pub fn create_solver(self) -> crate::solver::Solver<P, Option<T>, S, ()> {
+        crate::solver::Solver::new(self.phases).with_termination(self.termination)
+    }
 }
 
 /// Creates a builder for SolverManager.

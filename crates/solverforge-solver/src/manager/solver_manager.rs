@@ -1,6 +1,4 @@
-//! SolverManager implementation.
-
-#![allow(clippy::type_complexity)]
+//! SolverManager with zero-erasure design.
 
 use std::marker::PhantomData;
 
@@ -8,104 +6,81 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
+use crate::scope::SolverScope;
 use crate::termination::Termination;
 
-use super::SolverPhaseFactory;
-
-/// High-level solver manager for runtime configuration.
+/// Zero-erasure solver manager.
 ///
-/// `SolverManager` stores solver configuration and can create phases on demand.
-/// Uses `Box<dyn Phase<S, D>>` for runtime configuration from TOML/YAML files.
+/// Stores phases as a concrete tuple type `P`, score calculator as `C`,
+/// and termination as `T`. No dynamic dispatch anywhere.
 ///
 /// # Type Parameters
 ///
 /// * `S` - The solution type
 /// * `D` - The score director type
-/// * `C` - The score calculator type (defaults to function pointer)
-///
-/// # Zero-Erasure Design
-///
-/// The score calculator is stored as a concrete generic type parameter `C`,
-/// not as `Arc<dyn Fn>`. This eliminates virtual dispatch overhead for the
-/// hot path (score calculation is called millions of times per solve).
-///
-/// The default `C = fn(&S) -> S::Score` allows writing `SolverManager::<S, D>::builder(...)`
-/// without specifying the calculator type (it's inferred from the builder).
-pub struct SolverManager<S, D, C = fn(&S) -> <S as PlanningSolution>::Score>
+/// * `C` - The score calculator type
+/// * `P` - The phases tuple type
+/// * `T` - The termination type
+pub struct SolverManager<S, D, C, P, T>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
     C: Fn(&S) -> S::Score + Send + Sync,
+    P: Phase<S, D>,
+    T: Termination<S, D>,
 {
-    /// Score calculator function (zero-erasure: concrete generic type).
     score_calculator: C,
-
-    /// Configured phases (as factories that create fresh phases per solve).
-    phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>>,
-
-    /// Global termination condition factory.
-    termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>>,
-
-    /// Phantom data for D.
-    _marker: PhantomData<D>,
+    phases: P,
+    termination: T,
+    _marker: PhantomData<fn(S, D)>,
 }
 
-impl<S, D> SolverManager<S, D, fn(&S) -> S::Score>
-where
-    S: PlanningSolution,
-    D: ScoreDirector<S> + 'static,
-{
-    /// Creates a new [`SolverManagerBuilder`](super::SolverManagerBuilder) with the given score calculator.
-    ///
-    /// The score calculator is a function that computes the score for a solution.
-    /// This is the entry point for building a `SolverManager`.
-    pub fn builder<F>(score_calculator: F) -> super::SolverManagerBuilder<S, D, F>
-    where
-        F: Fn(&S) -> S::Score + Send + Sync + 'static,
-    {
-        super::SolverManagerBuilder::new(score_calculator)
-    }
-}
-
-impl<S, D, C> SolverManager<S, D, C>
+impl<S, D, C, P, T> SolverManager<S, D, C, P, T>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
     C: Fn(&S) -> S::Score + Send + Sync,
+    P: Phase<S, D>,
+    T: Termination<S, D>,
 {
-    /// Creates a SolverManager with explicit configuration (zero-erasure).
-    pub(crate) fn new(
-        score_calculator: C,
-        phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>>,
-        termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>>,
-    ) -> Self {
+    /// Creates a new SolverManager with concrete types.
+    pub fn new(score_calculator: C, phases: P, termination: T) -> Self {
         Self {
             score_calculator,
-            phase_factories,
-            termination_factory,
+            phases,
+            termination,
             _marker: PhantomData,
         }
     }
 
-    /// Creates fresh phases from the configured factories.
-    ///
-    /// Each call returns new phases with clean state, suitable for a new solve.
-    pub fn create_phases(&self) -> Vec<Box<dyn Phase<S, D>>> {
-        self.phase_factories.iter().map(|f| f.create_phase()).collect()
-    }
-
-    /// Creates a fresh termination condition if configured.
-    pub fn create_termination(&self) -> Option<Box<dyn Termination<S, D>>> {
-        self.termination_factory.as_ref().map(|f| f())
-    }
-
-    /// Returns a reference to the score calculator function.
+    /// Returns a reference to the score calculator.
     pub fn score_calculator(&self) -> &C {
         &self.score_calculator
     }
 
-    /// Calculates the score for a solution using the configured calculator.
+    /// Calculates score for a solution.
     pub fn calculate_score(&self, solution: &S) -> S::Score {
         (self.score_calculator)(solution)
+    }
+
+    /// Returns a reference to the phases.
+    pub fn phases(&self) -> &P {
+        &self.phases
+    }
+
+    /// Returns a mutable reference to the phases.
+    pub fn phases_mut(&mut self) -> &mut P {
+        &mut self.phases
+    }
+
+    /// Returns a reference to the termination.
+    pub fn termination(&self) -> &T {
+        &self.termination
+    }
+
+    /// Solves using the configured phases and termination.
+    pub fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+        solver_scope.start_solving();
+        self.phases.solve(solver_scope);
     }
 }

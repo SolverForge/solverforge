@@ -69,8 +69,8 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, LocalSearchType, SolverManager,
-    SolverManagerBuilder, SolverPhaseFactory,
+    ConstructionPhaseFactory, ConstructionType, LocalSearchPhaseFactory, LocalSearchType,
+    PhaseFactory, SolverManager, SolverManagerBuilder,
 };
 pub use phase::{
     construction::{
@@ -91,8 +91,8 @@ pub use phase::{
         TabuSearchAcceptor, ValueTabuAcceptor,
     },
     partitioned::{
-        FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase, PhaseFactory,
-        ScoreDirectorFactory, SolutionPartitioner, ThreadCount,
+        ChildPhases, FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,
+        SolutionPartitioner, ThreadCount,
     },
     vnd::VndPhase,
     Phase,

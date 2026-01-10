@@ -1,4 +1,4 @@
-//! Construction phase factory.
+//! Construction phase factory with zero type erasure.
 
 use std::marker::PhantomData;
 
@@ -7,123 +7,90 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::Move;
 use crate::phase::construction::{
-    ConstructionForager, ConstructionHeuristicPhase, EntityPlacer, FirstFitForager,
+    BestFitForager, ConstructionForager, ConstructionHeuristicPhase, EntityPlacer, FirstFitForager,
 };
 
-use super::super::SolverPhaseFactory;
+use super::super::PhaseFactory;
 
-/// Factory for creating construction heuristic phases.
+/// Zero-erasure factory for construction heuristic phases.
 ///
-/// Construction heuristic phases build an initial solution by assigning
-/// values to uninitialized planning variables. The factory provides
-/// fresh phase instances for each solve.
+/// All types flow through generics - Placer `P` and Forager `Fo` are concrete.
 ///
 /// # Type Parameters
 ///
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `M` - The move type
-/// * `P` - The placer type
-/// * `Fo` - The forager type
-/// * `PF` - The placer factory closure type
-/// * `FF` - The forager factory closure type
-pub struct ConstructionPhaseFactory<S, M, P, Fo, PF, FF>
+/// * `P` - The entity placer type (concrete)
+/// * `Fo` - The forager type (concrete)
+pub struct ConstructionPhaseFactory<S, D, M, P, Fo>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     M: Move<S>,
+    P: EntityPlacer<S, M>,
+    Fo: ConstructionForager<S, M>,
 {
-    placer_factory: PF,
-    forager_factory: FF,
-    _marker: PhantomData<(S, M, P, Fo)>,
+    placer: P,
+    forager: Fo,
+    _marker: PhantomData<fn(S, D, M)>,
 }
 
-impl<S, M, P, Fo, PF, FF> ConstructionPhaseFactory<S, M, P, Fo, PF, FF>
+impl<S, D, M, P, Fo> ConstructionPhaseFactory<S, D, M, P, Fo>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     M: Move<S>,
-    PF: Fn() -> P + Send + Sync,
-    FF: Fn() -> Fo + Send + Sync,
+    P: EntityPlacer<S, M>,
+    Fo: ConstructionForager<S, M>,
 {
-    /// Creates a new construction phase factory with custom placer and forager factories.
-    pub fn new(placer_factory: PF, forager_factory: FF) -> Self {
+    /// Creates a new factory with concrete placer and forager.
+    pub fn new(placer: P, forager: Fo) -> Self {
         Self {
-            placer_factory,
-            forager_factory,
+            placer,
+            forager,
             _marker: PhantomData,
         }
     }
 }
 
-impl<S, M, P, PF> ConstructionPhaseFactory<S, M, P, FirstFitForager<S, M>, PF, fn() -> FirstFitForager<S, M>>
+impl<S, D, M, P> ConstructionPhaseFactory<S, D, M, P, FirstFitForager<S, M>>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     M: Move<S>,
-    PF: Fn() -> P + Send + Sync,
+    P: EntityPlacer<S, M>,
 {
     /// Creates a factory with FirstFit forager.
-    ///
-    /// FirstFit accepts the first valid assignment for each entity,
-    /// making it fast but potentially producing lower quality initial solutions.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::ConstructionPhaseFactory;
-    /// use solverforge_solver::phase::construction::QueuedEntityPlacer;
-    /// use solverforge_solver::heuristic::r#move::ChangeMove;
-    /// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// #[derive(Clone)]
-    /// struct Sol { values: Vec<Option<i32>>, score: Option<SimpleScore> }
-    ///
-    /// impl PlanningSolution for Sol {
-    ///     type Score = SimpleScore;
-    ///     fn score(&self) -> Option<Self::Score> { self.score }
-    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// }
-    ///
-    /// fn get_v(s: &Sol, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
-    /// fn set_v(s: &mut Sol, idx: usize, v: Option<i32>) {
-    ///     if let Some(x) = s.values.get_mut(idx) { *x = v; }
-    /// }
-    ///
-    /// type ES = FromSolutionEntitySelector;
-    /// type VS = StaticTypedValueSelector<Sol, i32>;
-    /// type Placer = QueuedEntityPlacer<Sol, i32, ES, VS>;
-    /// type Move = ChangeMove<Sol, i32>;
-    ///
-    /// let factory = ConstructionPhaseFactory::<Sol, Move, Placer, _, _, _>::first_fit(|| {
-    ///     QueuedEntityPlacer::new(
-    ///         FromSolutionEntitySelector::new(0),
-    ///         StaticTypedValueSelector::new(vec![1, 2, 3]),
-    ///         get_v, set_v, 0, "v",
-    ///     )
-    /// });
-    /// ```
-    pub fn first_fit(placer_factory: PF) -> Self {
-        Self {
-            placer_factory,
-            forager_factory: FirstFitForager::new,
-            _marker: PhantomData,
-        }
+    pub fn first_fit(placer: P) -> Self {
+        Self::new(placer, FirstFitForager::new())
     }
 }
 
-impl<S, M, D, P, Fo, PF, FF> SolverPhaseFactory<S, D, ConstructionHeuristicPhase<S, M, P, Fo>>
-    for ConstructionPhaseFactory<S, M, P, Fo, PF, FF>
+impl<S, D, M, P> ConstructionPhaseFactory<S, D, M, P, BestFitForager<S, M>>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
-    P: EntityPlacer<S, M, D> + Send + Sync,
-    Fo: ConstructionForager<S, M, D> + Send + Sync,
-    PF: Fn() -> P + Send + Sync,
-    FF: Fn() -> Fo + Send + Sync,
+    M: Move<S>,
+    P: EntityPlacer<S, M>,
 {
-    fn create_phase(&self) -> ConstructionHeuristicPhase<S, M, P, Fo> {
-        let placer = (self.placer_factory)();
-        let forager = (self.forager_factory)();
-        ConstructionHeuristicPhase::new(placer, forager)
+    /// Creates a factory with BestFit forager.
+    pub fn best_fit(placer: P) -> Self {
+        Self::new(placer, BestFitForager::new())
+    }
+}
+
+impl<S, D, M, P, Fo> PhaseFactory<S, D> for ConstructionPhaseFactory<S, D, M, P, Fo>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    M: Move<S> + Clone + Send + Sync + 'static,
+    P: EntityPlacer<S, M> + Clone + Send + Sync + 'static,
+    Fo: ConstructionForager<S, M> + Clone + Send + Sync + 'static,
+{
+    type Phase = ConstructionHeuristicPhase<S, M, P, Fo>;
+
+    fn create(&self) -> Self::Phase {
+        ConstructionHeuristicPhase::new(self.placer.clone(), self.forager.clone())
     }
 }

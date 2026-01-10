@@ -22,7 +22,6 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -61,14 +60,14 @@ use super::Move;
 /// }
 ///
 /// // Swap [1..3) from vehicle 0 with [0..2) from vehicle 1
-/// let m = SubListSwapMove::<Solution, _, i32>::new(
+/// let m = SubListSwapMove::<Solution, i32>::new(
 ///     0, 1, 3,  // first: entity 0, range [1, 3)
 ///     1, 0, 2,  // second: entity 1, range [0, 2)
 ///     list_len, sublist_remove, sublist_insert,
 ///     "visits", 0,
 /// );
 /// ```
-pub struct SubListSwapMove<S, D, V> {
+pub struct SubListSwapMove<S, V> {
     /// First entity index
     first_entity_index: usize,
     /// Start of first range (inclusive)
@@ -91,33 +90,18 @@ pub struct SubListSwapMove<S, D, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<(fn() -> D, V)>,
+    _phantom: PhantomData<V>,
 }
 
-// Manual Clone impl to avoid D: Clone bound from derive
-impl<S, D, V> Clone for SubListSwapMove<S, D, V> {
+impl<S, V> Clone for SubListSwapMove<S, V> {
     fn clone(&self) -> Self {
-        Self {
-            first_entity_index: self.first_entity_index,
-            first_start: self.first_start,
-            first_end: self.first_end,
-            second_entity_index: self.second_entity_index,
-            second_start: self.second_start,
-            second_end: self.second_end,
-            list_len: self.list_len,
-            sublist_remove: self.sublist_remove,
-            sublist_insert: self.sublist_insert,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            indices: self.indices,
-            _phantom: PhantomData,
-        }
+        *self
     }
 }
 
-impl<S, D, V> Copy for SubListSwapMove<S, D, V> {}
+impl<S, V> Copy for SubListSwapMove<S, V> {}
 
-impl<S, D, V: Debug> Debug for SubListSwapMove<S, D, V> {
+impl<S, V: Debug> Debug for SubListSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SubListSwapMove")
             .field("first_entity", &self.first_entity_index)
@@ -129,7 +113,7 @@ impl<S, D, V: Debug> Debug for SubListSwapMove<S, D, V> {
     }
 }
 
-impl<S, D, V> SubListSwapMove<S, D, V> {
+impl<S, V> SubListSwapMove<S, V> {
     /// Creates a new sublist swap move with typed function pointers.
     ///
     /// # Arguments
@@ -221,13 +205,12 @@ impl<S, D, V> SubListSwapMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for SubListSwapMove<S, D, V>
+impl<S, V> Move<S> for SubListSwapMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Both ranges must be valid (start < end)
@@ -259,7 +242,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before changes
         score_director.before_variable_changed(
             self.descriptor_index,
@@ -530,7 +513,7 @@ mod tests {
 
         // Swap [1..3) from vehicle 0 with [0..2) from vehicle 1
         // [1, 2, 3, 4] swapping [2, 3] with [10, 20] from [10, 20, 30]
-        let m = SubListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             1,
             3,
@@ -571,7 +554,7 @@ mod tests {
 
         // Swap [1..3) with [5..7) in same list
         // [1, 2, 3, 4, 5, 6, 7, 8] -> swap [2, 3] with [6, 7]
-        let m = SubListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             1,
             3,
@@ -610,7 +593,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // Ranges [1..4) and [2..5) overlap
-        let m = SubListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             1,
             4,
@@ -634,7 +617,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = SubListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             1,
             1,
@@ -658,7 +641,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = SubListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             0,
             2,

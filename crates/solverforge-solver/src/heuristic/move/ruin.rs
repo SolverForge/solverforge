@@ -9,7 +9,6 @@
 //! Uses typed function pointers for variable access. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
@@ -25,7 +24,6 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The variable value type
 ///
 /// # Example
@@ -54,13 +52,13 @@ use super::Move;
 /// }
 ///
 /// // Ruin entities 0, 2, and 4
-/// let m = RuinMove::<Schedule, _, i32>::new(
+/// let m = RuinMove::<Schedule, i32>::new(
 ///     &[0, 2, 4],
 ///     get_task, set_task,
 ///     "assigned_to", 0,
 /// );
 /// ```
-pub struct RuinMove<S, D, V> {
+pub struct RuinMove<S, V> {
     /// Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
     /// Get current value for an entity
@@ -69,11 +67,9 @@ pub struct RuinMove<S, D, V> {
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<(fn() -> D, V)>,
 }
 
-// Manual Clone impl to avoid D: Clone bound from derive
-impl<S, D, V> Clone for RuinMove<S, D, V> {
+impl<S, V> Clone for RuinMove<S, V> {
     fn clone(&self) -> Self {
         Self {
             entity_indices: self.entity_indices.clone(),
@@ -81,12 +77,11 @@ impl<S, D, V> Clone for RuinMove<S, D, V> {
             setter: self.setter,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<S, D, V: Debug> Debug for RuinMove<S, D, V> {
+impl<S, V: Debug> Debug for RuinMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMove")
             .field("entities", &self.entity_indices.as_slice())
@@ -95,7 +90,7 @@ impl<S, D, V: Debug> Debug for RuinMove<S, D, V> {
     }
 }
 
-impl<S, D, V> RuinMove<S, D, V> {
+impl<S, V> RuinMove<S, V> {
     /// Creates a new ruin move with typed function pointers.
     ///
     /// # Arguments
@@ -117,7 +112,6 @@ impl<S, D, V> RuinMove<S, D, V> {
             setter,
             variable_name,
             descriptor_index,
-            _phantom: PhantomData,
         }
     }
 
@@ -132,13 +126,12 @@ impl<S, D, V> RuinMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for RuinMove<S, D, V>
+impl<S, V> Move<S> for RuinMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
         self.entity_indices
@@ -146,7 +139,7 @@ where
             .any(|&idx| (self.getter)(solution, idx).is_some())
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;

@@ -8,7 +8,6 @@
 //! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -22,7 +21,6 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -57,13 +55,13 @@ use super::Move;
 /// }
 ///
 /// // Swap elements at positions 1 and 3 in vehicle 0
-/// let m = ListSwapMove::<Solution, _, i32>::new(
+/// let m = ListSwapMove::<Solution, i32>::new(
 ///     0, 1, 0, 3,
 ///     list_len, list_get, list_set,
 ///     "visits", 0,
 /// );
 /// ```
-pub struct ListSwapMove<S, D, V> {
+pub struct ListSwapMove<S, V> {
     /// First entity index
     first_entity_index: usize,
     /// Position in first entity's list
@@ -82,19 +80,17 @@ pub struct ListSwapMove<S, D, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<(fn() -> D, V)>,
 }
 
-// Manual Clone impl to avoid D: Clone bound from derive
-impl<S, D, V> Clone for ListSwapMove<S, D, V> {
+impl<S, V> Clone for ListSwapMove<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<S, D, V> Copy for ListSwapMove<S, D, V> {}
+impl<S, V> Copy for ListSwapMove<S, V> {}
 
-impl<S, D, V: Debug> Debug for ListSwapMove<S, D, V> {
+impl<S, V: Debug> Debug for ListSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListSwapMove")
             .field("first_entity", &self.first_entity_index)
@@ -106,7 +102,7 @@ impl<S, D, V: Debug> Debug for ListSwapMove<S, D, V> {
     }
 }
 
-impl<S, D, V> ListSwapMove<S, D, V> {
+impl<S, V> ListSwapMove<S, V> {
     /// Creates a new list swap move with typed function pointers.
     ///
     /// # Arguments
@@ -142,7 +138,6 @@ impl<S, D, V> ListSwapMove<S, D, V> {
             variable_name,
             descriptor_index,
             indices: [first_entity_index, second_entity_index],
-            _phantom: PhantomData,
         }
     }
 
@@ -172,13 +167,12 @@ impl<S, D, V> ListSwapMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for ListSwapMove<S, D, V>
+impl<S, V> Move<S> for ListSwapMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check first position is valid
@@ -205,7 +199,7 @@ where
         first_val != second_val
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Get both values
         let first_val = (self.list_get)(
             score_director.working_solution(),
@@ -375,7 +369,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap positions 1 and 3 (values 2 and 4)
-        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, i32>::new(
             0, 1, 0, 3, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -408,7 +402,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap vehicle 0 position 1 (value=2) with vehicle 1 position 2 (value=30)
-        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, i32>::new(
             0, 1, 1, 2, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -437,7 +431,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, i32>::new(
             0, 1, 0, 1, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -451,7 +445,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, i32>::new(
             0, 0, 0, 2, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -465,7 +459,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, i32>::new(
             0, 1, 0, 10, list_len, list_get, list_set, "visits", 0,
         );
 

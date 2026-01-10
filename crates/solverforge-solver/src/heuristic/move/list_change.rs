@@ -8,7 +8,6 @@
 //! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -22,7 +21,6 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -55,13 +53,13 @@ use super::Move;
 /// }
 ///
 /// // Move element from vehicle 0 position 2 to vehicle 1 position 0
-/// let m = ListChangeMove::<Solution, _, i32>::new(
+/// let m = ListChangeMove::<Solution, i32>::new(
 ///     0, 2, 1, 0,
 ///     list_len, list_remove, list_insert,
 ///     "visits", 0,
 /// );
 /// ```
-pub struct ListChangeMove<S, D, V> {
+pub struct ListChangeMove<S, V> {
     /// Source entity index (which entity's list to remove from)
     source_entity_index: usize,
     /// Position in source list to remove from
@@ -80,19 +78,17 @@ pub struct ListChangeMove<S, D, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<(fn() -> D, V)>,
 }
 
-// Manual Clone impl to avoid D: Clone bound from derive
-impl<S, D, V> Clone for ListChangeMove<S, D, V> {
+impl<S, V> Clone for ListChangeMove<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<S, D, V> Copy for ListChangeMove<S, D, V> {}
+impl<S, V> Copy for ListChangeMove<S, V> {}
 
-impl<S, D, V: Debug> Debug for ListChangeMove<S, D, V> {
+impl<S, V: Debug> Debug for ListChangeMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListChangeMove")
             .field("source_entity", &self.source_entity_index)
@@ -104,7 +100,7 @@ impl<S, D, V: Debug> Debug for ListChangeMove<S, D, V> {
     }
 }
 
-impl<S, D, V> ListChangeMove<S, D, V> {
+impl<S, V> ListChangeMove<S, V> {
     /// Creates a new list change move with typed function pointers.
     ///
     /// # Arguments
@@ -140,7 +136,6 @@ impl<S, D, V> ListChangeMove<S, D, V> {
             variable_name,
             descriptor_index,
             indices: [source_entity_index, dest_entity_index],
-            _phantom: PhantomData,
         }
     }
 
@@ -170,13 +165,12 @@ impl<S, D, V> ListChangeMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for ListChangeMove<S, D, V>
+impl<S, V> Move<S> for ListChangeMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check source position is valid
@@ -216,7 +210,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before changes
         score_director.before_variable_changed(
             self.descriptor_index,
@@ -377,7 +371,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 1 (value=2) to position 3
-        let m = ListChangeMove::<RoutingSolution, _, i32>::new(
+        let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             0,
@@ -415,7 +409,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 3 (value=4) to position 1
-        let m = ListChangeMove::<RoutingSolution, _, i32>::new(
+        let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             3,
             0,
@@ -457,7 +451,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element from vehicle 0 position 1 (value=2) to vehicle 1 position 1
-        let m = ListChangeMove::<RoutingSolution, _, i32>::new(
+        let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             1,
@@ -495,7 +489,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // Move to same effective position
-        let m = ListChangeMove::<RoutingSolution, _, i32>::new(
+        let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             0,
@@ -517,7 +511,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListChangeMove::<RoutingSolution, _, i32>::new(
+        let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             10,
             0,

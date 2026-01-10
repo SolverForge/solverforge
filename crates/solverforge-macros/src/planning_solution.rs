@@ -504,7 +504,7 @@ fn generate_basic_variable_operations(
         })
         .collect();
 
-    // Generate solve() only if constraints path is provided
+    // Generate solve() and solve_with_listener() only if constraints path is provided
     let solve_impl = constraints_path.as_ref().map(|path| {
         let constraints_fn: syn::Path =
             syn::parse_str(path).expect("constraints path must be a valid Rust path");
@@ -524,6 +524,27 @@ fn generate_basic_variable_operations(
                     Self::entity_count,
                     #variable_field_str,
                     Self::basic_variable_descriptor_index(),
+                )
+            }
+
+            /// Solve with event callbacks for phases, steps, and best solutions.
+            ///
+            /// Provides real-time events for console output and monitoring.
+            pub fn solve_with_events<E, F>(self, on_event: E, on_best_solution: F) -> Self
+            where
+                E: FnMut(::solverforge::SolverEvent<<Self as ::solverforge::__internal::PlanningSolution>::Score>),
+                F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score),
+            {
+                ::solverforge::run_solver_with_events(
+                    self,
+                    Self::finalize_all,
+                    #constraints_fn,
+                    Self::basic_get_variable,
+                    Self::basic_set_variable,
+                    Self::basic_value_count,
+                    Self::basic_entity_count,
+                    on_event,
+                    on_best_solution,
                 )
             }
         }

@@ -64,7 +64,7 @@ pub enum AcceptorType {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `M` - The move type
+/// * `M` - The move type (must implement `Move<S> + Clone`)
 /// * `MS` - The move selector type
 /// * `A` - The acceptor type
 /// * `Fo` - The forager type
@@ -77,19 +77,30 @@ pub struct LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
+    MS: MoveSelector<S, M>,
+    A: Acceptor<S>,
+    Fo: LocalSearchForager<S, M>,
 {
+    /// The move selector.
     move_selector: MS,
+    /// The acceptor.
     acceptor: A,
+    /// The forager.
     forager: Fo,
+    /// Arena for moves - reused each step for O(1) cleanup.
     arena: MoveArena<M>,
+    /// Maximum number of steps.
     step_limit: Option<u64>,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<fn(S, M)>,
 }
 
 impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    M: Move<S>,
+    M: Move<S> + 'static,
+    MS: MoveSelector<S, M>,
+    A: Acceptor<S>,
+    Fo: LocalSearchForager<S, M>,
 {
     /// Creates a new local search phase.
     pub fn new(move_selector: MS, acceptor: A, forager: Fo, step_limit: Option<u64>) -> Self {
@@ -108,9 +119,9 @@ impl<S, M, MS, A, Fo> Debug for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
-    MS: Debug,
-    A: Debug,
-    Fo: Debug,
+    MS: MoveSelector<S, M> + Debug,
+    A: Acceptor<S> + Debug,
+    Fo: LocalSearchForager<S, M> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LocalSearchPhase")
@@ -123,14 +134,14 @@ where
     }
 }
 
-impl<S, M, D, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, M, MS, A, Fo>
+impl<S, D, M, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
-    MS: MoveSelector<S, M> + Send,
-    A: Acceptor<S> + Send,
-    Fo: LocalSearchForager<S, M> + Send,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
+    A: Acceptor<S>,
+    Fo: LocalSearchForager<S, M>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -233,8 +244,7 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
-    use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
-    use crate::manager::SolverPhaseFactory;
+    use crate::heuristic::selector::ChangeMoveSelector;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -345,35 +355,31 @@ mod tests {
 
     fn create_move_selector(
         values: Vec<i32>,
-    ) -> Box<dyn MoveSelector<NQueensSolution, NQueensMove>> {
-        Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
+    ) -> ChangeMoveSelector<NQueensSolution, i32> {
+        ChangeMoveSelector::simple(
             get_queen_row,
             set_queen_row,
             0,
             "row",
             values,
-        ))
+        )
     }
 
     #[test]
     fn test_local_search_hill_climbing() {
-        use crate::manager::LocalSearchPhaseFactory;
-
         // Start with a suboptimal solution: queens all in row 0
         let director = create_test_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         // Initial score should be negative (conflicts)
         let initial_score = solver_scope.calculate_score();
         assert!(initial_score < SimpleScore::of(0));
 
         let values: Vec<i32> = (0..4).collect();
-        let factory =
-            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
-                create_move_selector(values.clone())
-            })
-            .with_step_limit(100);
-        let mut phase = factory.create_phase();
+        let move_selector = create_move_selector(values);
+        let acceptor = HillClimbingAcceptor::new();
+        let forager = AcceptedCountForager::new(1);
+        let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(100));
 
         phase.solve(&mut solver_scope);
 
@@ -384,21 +390,17 @@ mod tests {
 
     #[test]
     fn test_local_search_reaches_optimal() {
-        use crate::manager::LocalSearchPhaseFactory;
-
         // Start with a solution that has one conflict
         let director = create_test_director(&[0, 2, 1, 3]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let initial_score = solver_scope.calculate_score();
 
         let values: Vec<i32> = (0..4).collect();
-        let factory =
-            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
-                create_move_selector(values.clone())
-            })
-            .with_step_limit(50);
-        let mut phase = factory.create_phase();
+        let move_selector = create_move_selector(values);
+        let acceptor = HillClimbingAcceptor::new();
+        let forager = AcceptedCountForager::new(1);
+        let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(50));
 
         phase.solve(&mut solver_scope);
 
@@ -409,18 +411,14 @@ mod tests {
 
     #[test]
     fn test_local_search_step_limit() {
-        use crate::manager::LocalSearchPhaseFactory;
-
         let director = create_test_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let values: Vec<i32> = (0..4).collect();
-        let factory =
-            LocalSearchPhaseFactory::<NQueensSolution, NQueensMove, _>::hill_climbing(move || {
-                create_move_selector(values.clone())
-            })
-            .with_step_limit(3);
-        let mut phase = factory.create_phase();
+        let move_selector = create_move_selector(values);
+        let acceptor = HillClimbingAcceptor::new();
+        let forager = AcceptedCountForager::new(1);
+        let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(3));
 
         phase.solve(&mut solver_scope);
 

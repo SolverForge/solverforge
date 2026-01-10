@@ -23,6 +23,7 @@
 mod partitioner;
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -63,18 +64,23 @@ impl Default for PartitionedSearchConfig {
 /// Each partition runs independently with its own solver scope.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `D` - The score director type
-/// * `Part` - The partitioner type
-/// * `SDF` - The score director factory type
-/// * `PF` - The phase factory type
-pub struct PartitionedSearchPhase<S, D, Part, SDF, PF>
+///
+/// * `S` - The solution type
+/// * `D` - The main solver's score director type
+/// * `PD` - The score director type for partition solvers
+/// * `Part` - The partitioner type (implements `SolutionPartitioner<S>`)
+/// * `SDF` - The score director factory function type
+/// * `PF` - The phase factory function type
+/// * `CP` - The child phases type (tuple of phases)
+pub struct PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    PD: ScoreDirector<S>,
     Part: SolutionPartitioner<S>,
-    SDF: Fn(S) -> D + Send + Sync,
-    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync,
+    SDF: Fn(S) -> PD + Send + Sync,
+    PF: Fn() -> CP + Send + Sync,
+    CP: ChildPhases<S, PD>,
 {
     /// The partitioner that splits and merges solutions.
     partitioner: Part,
@@ -88,16 +94,18 @@ where
     /// Configuration for this phase.
     config: PartitionedSearchConfig,
 
-    _phantom: std::marker::PhantomData<(S, D)>,
+    _marker: PhantomData<fn(S, D, PD, CP)>,
 }
 
-impl<S, D, Part, SDF, PF> PartitionedSearchPhase<S, D, Part, SDF, PF>
+impl<S, D, PD, Part, SDF, PF, CP> PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    PD: ScoreDirector<S>,
     Part: SolutionPartitioner<S>,
-    SDF: Fn(S) -> D + Send + Sync,
-    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync,
+    SDF: Fn(S) -> PD + Send + Sync,
+    PF: Fn() -> CP + Send + Sync,
+    CP: ChildPhases<S, PD>,
 {
     /// Creates a new partitioned search phase.
     pub fn new(partitioner: Part, score_director_factory: SDF, phase_factory: PF) -> Self {
@@ -106,7 +114,7 @@ where
             score_director_factory,
             phase_factory,
             config: PartitionedSearchConfig::default(),
-            _phantom: std::marker::PhantomData,
+            _marker: PhantomData,
         }
     }
 
@@ -122,18 +130,20 @@ where
             score_director_factory,
             phase_factory,
             config,
-            _phantom: std::marker::PhantomData,
+            _marker: PhantomData,
         }
     }
 }
 
-impl<S, D, Part, SDF, PF> Debug for PartitionedSearchPhase<S, D, Part, SDF, PF>
+impl<S, D, PD, Part, SDF, PF, CP> Debug for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    Part: SolutionPartitioner<S>,
-    SDF: Fn(S) -> D + Send + Sync,
-    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync,
+    PD: ScoreDirector<S>,
+    Part: SolutionPartitioner<S> + Debug,
+    SDF: Fn(S) -> PD + Send + Sync,
+    PF: Fn() -> CP + Send + Sync,
+    CP: ChildPhases<S, PD>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PartitionedSearchPhase")
@@ -143,13 +153,15 @@ where
     }
 }
 
-impl<S, D, Part, SDF, PF> Phase<S, D> for PartitionedSearchPhase<S, D, Part, SDF, PF>
+impl<S, D, PD, Part, SDF, PF, CP> Phase<S, D> for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution + 'static,
-    D: ScoreDirector<S> + 'static,
-    Part: SolutionPartitioner<S> + Send,
-    SDF: Fn(S) -> D + Send + Sync + Clone,
-    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync + Clone,
+    D: ScoreDirector<S>,
+    PD: ScoreDirector<S> + 'static,
+    Part: SolutionPartitioner<S>,
+    SDF: Fn(S) -> PD + Send + Sync,
+    PF: Fn() -> CP + Send + Sync,
+    CP: ChildPhases<S, PD> + Send,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         // Get the current solution
@@ -178,38 +190,26 @@ where
             // Sequential execution
             partitions
                 .into_iter()
-                .map(|partition| {
-                    let director = (self.score_director_factory)(partition);
-                    let mut solver_scope = SolverScope::new(director);
-                    let mut phases = (self.phase_factory)();
-                    for phase in phases.iter_mut() {
-                        phase.solve(&mut solver_scope);
-                    }
-                    solver_scope.take_best_or_working_solution()
-                })
+                .map(|p| self.solve_partition(p))
                 .collect()
         } else {
             // Parallel execution
             let results: Arc<Mutex<Vec<Option<S>>>> =
                 Arc::new(Mutex::new(vec![None; partition_count]));
 
-            let sdf = self.score_director_factory.clone();
-            let pf = self.phase_factory.clone();
-
             thread::scope(|s| {
                 for (i, partition) in partitions.into_iter().enumerate() {
                     let results = Arc::clone(&results);
-                    let sdf = sdf.clone();
-                    let pf = pf.clone();
+                    let sdf = &self.score_director_factory;
+                    let pf = &self.phase_factory;
 
                     s.spawn(move || {
                         let director = sdf(partition);
                         let mut solver_scope = SolverScope::new(director);
                         let mut phases = pf();
-                        for phase in phases.iter_mut() {
-                            phase.solve(&mut solver_scope);
-                        }
+                        phases.solve_all(&mut solver_scope);
                         let solved = solver_scope.take_best_or_working_solution();
+
                         let mut r = results.lock().unwrap();
                         r[i] = Some(solved);
                     });
@@ -230,6 +230,8 @@ where
 
         // Update the working solution with the merged result
         let director = solver_scope.score_director_mut();
+
+        // Replace working solution with merged result
         let working = director.working_solution_mut();
         *working = merged;
 
@@ -254,9 +256,94 @@ where
     }
 }
 
+impl<S, D, PD, Part, SDF, PF, CP> PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    PD: ScoreDirector<S>,
+    Part: SolutionPartitioner<S>,
+    SDF: Fn(S) -> PD + Send + Sync,
+    PF: Fn() -> CP + Send + Sync,
+    CP: ChildPhases<S, PD>,
+{
+    /// Solves a single partition and returns the solved solution.
+    fn solve_partition(&self, partition: S) -> S {
+        // Create score director for this partition
+        let director = (self.score_director_factory)(partition);
+
+        // Create solver scope
+        let mut solver_scope = SolverScope::new(director);
+
+        // Create and run child phases
+        let mut phases = (self.phase_factory)();
+        phases.solve_all(&mut solver_scope);
+
+        // Return the best solution (or working solution if no best)
+        solver_scope.take_best_or_working_solution()
+    }
+}
+
+/// Trait for child phases that can solve a partition.
+///
+/// Implemented for tuples of phases via macro.
+pub trait ChildPhases<S, D>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    /// Runs all child phases on the solver scope.
+    fn solve_all(&mut self, solver_scope: &mut SolverScope<S, D>);
+}
+
+// Implement ChildPhases for tuples using macro
+macro_rules! impl_child_phases_tuple {
+    ($($idx:tt: $P:ident),+) => {
+        impl<S, D, $($P),+> ChildPhases<S, D> for ($($P,)+)
+        where
+            S: PlanningSolution,
+            D: ScoreDirector<S>,
+            $($P: Phase<S, D>,)+
+        {
+            fn solve_all(&mut self, solver_scope: &mut SolverScope<S, D>) {
+                $(
+                    self.$idx.solve(solver_scope);
+                )+
+            }
+        }
+    };
+}
+
+impl_child_phases_tuple!(0: P0);
+impl_child_phases_tuple!(0: P0, 1: P1);
+impl_child_phases_tuple!(0: P0, 1: P1, 2: P2);
+impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3);
+impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
+impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
+impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
+impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use solverforge_core::score::SimpleScore;
+
+    #[derive(Clone, Debug)]
+    struct TestSolution {
+        values: Vec<i32>,
+        score: Option<SimpleScore>,
+    }
+
+    impl PlanningSolution for TestSolution {
+        type Score = SimpleScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
 
     #[test]
     fn test_config_default() {

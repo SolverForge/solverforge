@@ -28,6 +28,9 @@ use crate::heuristic::selector::MoveSelector;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
+// Re-export for convenience
+pub use solverforge_scoring::ScoreDirector as ScoreDirectorTrait;
+
 /// Variable Neighborhood Descent phase.
 ///
 /// Wraps a tuple of move selectors (neighborhoods) and explores them in sequence,
@@ -67,13 +70,14 @@ impl<T, M> VndPhase<T, M> {
 macro_rules! impl_vnd_phase {
     // Single neighborhood
     ($idx:tt: $MS:ident) => {
-        impl<S, M, $MS> Phase<S> for VndPhase<($MS,), M>
+        impl<S, D, M, $MS> Phase<S, D> for VndPhase<($MS,), M>
         where
             S: PlanningSolution,
+            D: ScoreDirector<S>,
             M: Move<S>,
             $MS: MoveSelector<S, M>,
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
                 let mut current_score = phase_scope.calculate_score();
@@ -106,13 +110,14 @@ macro_rules! impl_vnd_phase {
 
     // Multiple neighborhoods
     ($($idx:tt: $MS:ident),+) => {
-        impl<S, M, $($MS),+> Phase<S> for VndPhase<($($MS,)+), M>
+        impl<S, D, M, $($MS),+> Phase<S, D> for VndPhase<($($MS,)+), M>
         where
             S: PlanningSolution,
+            D: ScoreDirector<S>,
             M: Move<S>,
             $($MS: MoveSelector<S, M>,)+
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -158,13 +163,14 @@ macro_rules! impl_vnd_phase {
 }
 
 /// Finds the best improving move in the arena.
-fn find_best_improving_move<S, M>(
+fn find_best_improving_move<S, D, M>(
     arena: &MoveArena<M>,
-    step_scope: &mut StepScope<'_, '_, S>,
+    step_scope: &mut StepScope<'_, '_, S, D>,
     current_score: &S::Score,
 ) -> Option<(M, S::Score)>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     M: Move<S>,
 {
     let mut best_move: Option<(M, S::Score)> = None;
@@ -323,7 +329,7 @@ mod tests {
     #[test]
     fn test_vnd_improves_solution() {
         let director = create_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let initial_score = solver_scope.calculate_score();
         assert!(initial_score < SimpleScore::of(0));
@@ -343,7 +349,7 @@ mod tests {
     #[test]
     fn test_vnd_single_neighborhood() {
         let director = create_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let initial_score = solver_scope.calculate_score();
 

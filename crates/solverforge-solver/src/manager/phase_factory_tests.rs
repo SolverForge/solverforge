@@ -67,10 +67,10 @@ fn calculate_score(solution: &TestSolution) -> SimpleScore {
     SimpleScore::of(score)
 }
 
+type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+
 /// Creates a score director with the given tasks.
-fn create_test_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore> {
+fn create_test_director(tasks: Vec<Task>) -> TestDirector {
     let solution = TestSolution { tasks, score: None };
 
     let extractor = Box::new(TypedEntityExtractor::new(
@@ -85,34 +85,36 @@ fn create_test_director(
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score)
+    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score as fn(&TestSolution) -> SimpleScore)
 }
 
 /// Creates a solver scope with unassigned tasks.
-fn create_unassigned_solver_scope(count: usize) -> SolverScope<TestSolution> {
+fn create_unassigned_solver_scope(count: usize) -> SolverScope<TestSolution, TestDirector> {
     let tasks: Vec<Task> = (0..count).map(|id| Task { id, priority: None }).collect();
     let director = create_test_director(tasks);
-    SolverScope::new(Box::new(director))
+    SolverScope::new(director)
 }
 
 type TestMove = ChangeMove<TestSolution, i64>;
+type TestPlacer = QueuedEntityPlacer<TestSolution, i64>;
 
 // ==================== Helper Factories ====================
 
 /// Creates a simple placer factory for construction phases.
-fn create_placer_factory(
-) -> impl Fn() -> Box<dyn EntityPlacer<TestSolution, TestMove>> + Send + Sync {
+fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     || {
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
-        Box::new(QueuedEntityPlacer::new(
+        let entity_selector: Box<dyn crate::heuristic::selector::EntitySelector<TestSolution>> =
+            Box::new(FromSolutionEntitySelector::new(0));
+        let value_selector: Box<dyn crate::heuristic::selector::TypedValueSelector<TestSolution, i64>> =
+            Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
+        QueuedEntityPlacer::new(
             entity_selector,
             value_selector,
-            get_task_priority,
-            set_task_priority,
+            get_task_priority as fn(&TestSolution, usize) -> Option<i64>,
+            set_task_priority as fn(&mut TestSolution, usize, Option<i64>),
             0,
             "priority",
-        ))
+        )
     }
 }
 
@@ -259,7 +261,7 @@ fn test_construction_phase_factory_implements_solver_phase_factory() {
         ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(create_placer_factory());
 
     // Verify we can use it as a trait object
-    let factory_ref: &dyn SolverPhaseFactory<TestSolution> = &factory;
+    let factory_ref: &dyn SolverPhaseFactory<TestSolution, TestDirector> = &factory;
     let phase = factory_ref.create_phase();
     assert_eq!(phase.phase_type_name(), "ConstructionHeuristic");
 }

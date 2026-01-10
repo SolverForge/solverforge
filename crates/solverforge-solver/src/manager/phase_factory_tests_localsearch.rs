@@ -3,10 +3,11 @@
 use super::*;
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::{
-    ChangeMoveSelector, FromSolutionEntitySelector, StaticTypedValueSelector,
+    ChangeMoveSelector, EntitySelector, FromSolutionEntitySelector, StaticTypedValueSelector,
+    TypedValueSelector,
 };
 use crate::heuristic::MoveSelector;
-use crate::phase::construction::{EntityPlacer, QueuedEntityPlacer};
+use crate::phase::construction::QueuedEntityPlacer;
 use crate::scope::SolverScope;
 use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
@@ -68,9 +69,9 @@ fn calculate_score(solution: &TestSolution) -> SimpleScore {
     SimpleScore::of(score)
 }
 
-fn create_test_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore> {
+type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+
+fn create_test_director(tasks: Vec<Task>) -> TestDirector {
     let solution = TestSolution { tasks, score: None };
 
     let extractor = Box::new(TypedEntityExtractor::new(
@@ -85,16 +86,20 @@ fn create_test_director(
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score)
+    SimpleScoreDirector::with_calculator(
+        solution,
+        descriptor,
+        calculate_score as fn(&TestSolution) -> SimpleScore,
+    )
 }
 
-fn create_unassigned_solver_scope(count: usize) -> SolverScope<TestSolution> {
+fn create_unassigned_solver_scope(count: usize) -> SolverScope<TestSolution, TestDirector> {
     let tasks: Vec<Task> = (0..count).map(|id| Task { id, priority: None }).collect();
     let director = create_test_director(tasks);
-    SolverScope::new(Box::new(director))
+    SolverScope::new(director)
 }
 
-fn create_assigned_solver_scope(priorities: &[i64]) -> SolverScope<TestSolution> {
+fn create_assigned_solver_scope(priorities: &[i64]) -> SolverScope<TestSolution, TestDirector> {
     let tasks: Vec<Task> = priorities
         .iter()
         .enumerate()
@@ -104,38 +109,40 @@ fn create_assigned_solver_scope(priorities: &[i64]) -> SolverScope<TestSolution>
         })
         .collect();
     let director = create_test_director(tasks);
-    SolverScope::new(Box::new(director))
+    SolverScope::new(director)
 }
 
 type TestMove = ChangeMove<TestSolution, i64>;
+type TestPlacer = QueuedEntityPlacer<TestSolution, i64>;
 
-fn create_placer_factory(
-) -> impl Fn() -> Box<dyn EntityPlacer<TestSolution, TestMove>> + Send + Sync {
+fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     || {
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
-        Box::new(QueuedEntityPlacer::new(
+        let entity_selector: Box<dyn EntitySelector<TestSolution>> =
+            Box::new(FromSolutionEntitySelector::new(0));
+        let value_selector: Box<dyn TypedValueSelector<TestSolution, i64>> =
+            Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
+        QueuedEntityPlacer::new(
             entity_selector,
             value_selector,
-            get_task_priority,
-            set_task_priority,
+            get_task_priority as fn(&TestSolution, usize) -> Option<i64>,
+            set_task_priority as fn(&mut TestSolution, usize, Option<i64>),
             0,
             "priority",
-        ))
+        )
     }
 }
 
-fn create_move_selector_factory(
-) -> impl Fn() -> Box<dyn MoveSelector<TestSolution, TestMove>> + Send + Sync {
+type TestMoveSelector = ChangeMoveSelector<TestSolution, i64>;
+
+fn create_move_selector_factory() -> impl Fn() -> TestMoveSelector + Send + Sync {
     || {
-        let selector = ChangeMoveSelector::<TestSolution, i64>::simple(
-            get_task_priority,
-            set_task_priority,
+        ChangeMoveSelector::<TestSolution, i64>::simple(
+            get_task_priority as fn(&TestSolution, usize) -> Option<i64>,
+            set_task_priority as fn(&mut TestSolution, usize, Option<i64>),
             0,
             "priority",
             vec![1i64, 2, 3, 4, 5],
-        );
-        Box::new(selector)
+        )
     }
 }
 
@@ -296,7 +303,7 @@ fn test_local_search_phase_factory_implements_solver_phase_factory() {
         create_move_selector_factory(),
     );
 
-    let factory_ref: &dyn SolverPhaseFactory<TestSolution> = &factory;
+    let factory_ref: &dyn SolverPhaseFactory<TestSolution, TestDirector> = &factory;
     let phase = factory_ref.create_phase();
     assert_eq!(phase.phase_type_name(), "LocalSearch");
 }
@@ -414,7 +421,7 @@ fn test_construction_then_local_search() {
 
 #[test]
 fn test_multiple_local_search_phases_different_acceptors() {
-    let factories: Vec<Box<dyn SolverPhaseFactory<TestSolution>>> = vec![
+    let factories: Vec<Box<dyn SolverPhaseFactory<TestSolution, TestDirector>>> = vec![
         Box::new(
             LocalSearchPhaseFactory::<TestSolution, TestMove, _>::hill_climbing(
                 create_move_selector_factory(),
@@ -450,7 +457,7 @@ fn test_multiple_local_search_phases_different_acceptors() {
 
 #[test]
 fn test_factory_can_be_boxed_as_trait_object() {
-    let factories: Vec<Box<dyn SolverPhaseFactory<TestSolution>>> = vec![
+    let factories: Vec<Box<dyn SolverPhaseFactory<TestSolution, TestDirector>>> = vec![
         Box::new(
             ConstructionPhaseFactory::<TestSolution, TestMove, _>::first_fit(
                 create_placer_factory(),

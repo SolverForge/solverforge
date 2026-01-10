@@ -40,7 +40,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 /// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
 /// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
-/// let inner = ChangeMoveSelector::<Solution, i32>::simple(
+/// let inner = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![1, 2, 3, 4, 5],
 /// );
 /// // Only consider first 3 moves per step
@@ -89,14 +89,14 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
         Box::new(self.inner.iter_moves(score_director).take(self.limit))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director).min(self.limit)
     }
 
@@ -172,7 +172,7 @@ mod tests {
     fn limits_move_count() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -191,7 +191,7 @@ mod tests {
     fn returns_all_when_under_limit() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -210,7 +210,7 @@ mod tests {
     fn zero_limit_yields_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,

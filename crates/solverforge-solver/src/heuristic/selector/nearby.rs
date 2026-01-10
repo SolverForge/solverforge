@@ -133,21 +133,28 @@ pub trait DynDistanceMeter: Send + Sync + Debug {
 ///
 /// The origin entity is obtained from a mimic recorder, allowing this selector
 /// to be synchronized with another selector that picks the "current" entity.
-pub struct NearbyEntitySelector<S: PlanningSolution, M: DynDistanceMeter> {
-    /// The child selector providing all candidate entities.
-    child: Box<dyn EntitySelector<S>>,
+///
+/// # Zero-Erasure Design
+///
+/// The child entity selector `ES` is stored as a concrete generic type parameter,
+/// eliminating virtual dispatch overhead when iterating over candidate entities.
+pub struct NearbyEntitySelector<S, M, ES> {
+    /// The child selector providing all candidate entities (zero-erasure).
+    child: ES,
     /// The recorder providing the origin entity.
     origin_recorder: MimicRecorder,
     /// The distance meter for measuring nearness.
     distance_meter: M,
     /// Configuration for nearby selection.
     config: NearbySelectionConfig,
+    /// Marker for solution type.
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter> NearbyEntitySelector<S, M> {
+impl<S, M, ES> NearbyEntitySelector<S, M, ES> {
     /// Creates a new nearby entity selector.
     pub fn new(
-        child: Box<dyn EntitySelector<S>>,
+        child: ES,
         origin_recorder: MimicRecorder,
         distance_meter: M,
         config: NearbySelectionConfig,
@@ -157,11 +164,12 @@ impl<S: PlanningSolution, M: DynDistanceMeter> NearbyEntitySelector<S, M> {
             origin_recorder,
             distance_meter,
             config,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter> Debug for NearbyEntitySelector<S, M> {
+impl<S: PlanningSolution, M: DynDistanceMeter, ES: Debug> Debug for NearbyEntitySelector<S, M, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyEntitySelector")
             .field("child", &self.child)
@@ -172,12 +180,15 @@ impl<S: PlanningSolution, M: DynDistanceMeter> Debug for NearbyEntitySelector<S,
     }
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter + 'static> EntitySelector<S>
-    for NearbyEntitySelector<S, M>
+impl<S, M, ES> EntitySelector<S> for NearbyEntitySelector<S, M, ES>
+where
+    S: PlanningSolution,
+    M: DynDistanceMeter + 'static,
+    ES: EntitySelector<S>,
 {
-    fn iter<'a>(
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
         // Get the origin entity from the recorder
         let origin = match self.origin_recorder.get_recorded_entity() {
@@ -213,7 +224,7 @@ impl<S: PlanningSolution, M: DynDistanceMeter + 'static> EntitySelector<S>
         Box::new(candidates.into_iter().map(|(entity, _)| entity))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         // This is an estimate; the actual size depends on the origin
         let child_size = self.child.size(score_director);
         match self.config.max_nearby_size {
@@ -233,13 +244,11 @@ mod tests {
     use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
-    #[allow(dead_code)]
     #[derive(Clone, Debug)]
     struct Location {
         id: i64,
         x: f64,
         y: f64,
-        assigned_to: Option<i64>,
     }
 
     #[derive(Clone, Debug)]
@@ -302,42 +311,12 @@ mod tests {
     ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
         // Create a grid of locations: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
         let locations = vec![
-            Location {
-                id: 0,
-                x: 0.0,
-                y: 0.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 1,
-                x: 1.0,
-                y: 0.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 2,
-                x: 2.0,
-                y: 0.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 3,
-                x: 0.0,
-                y: 1.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 4,
-                x: 1.0,
-                y: 1.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 5,
-                x: 2.0,
-                y: 1.0,
-                assigned_to: None,
-            },
+            Location { id: 0, x: 0.0, y: 0.0 },
+            Location { id: 1, x: 1.0, y: 0.0 },
+            Location { id: 2, x: 2.0, y: 0.0 },
+            Location { id: 3, x: 0.0, y: 1.0 },
+            Location { id: 4, x: 1.0, y: 1.0 },
+            Location { id: 5, x: 2.0, y: 1.0 },
         ];
 
         let solution = RoutingSolution {
@@ -373,11 +352,11 @@ mod tests {
 
         // Create mimic recorder and recording selector for origin
         let recorder = MimicRecorder::new("origin");
-        let origin_child = Box::new(FromSolutionEntitySelector::new(0));
+        let origin_child = FromSolutionEntitySelector::new(0);
         let origin_selector = MimicRecordingEntitySelector::new(origin_child, recorder.clone());
 
         // Create nearby selector for destinations
-        let dest_child = Box::new(FromSolutionEntitySelector::new(0));
+        let dest_child = FromSolutionEntitySelector::new(0);
         let distance_meter = EuclideanDistanceMeter::new(&director.working_solution().locations);
         let nearby_config = NearbySelectionConfig::default();
         let nearby_selector =
@@ -407,10 +386,10 @@ mod tests {
         let director = create_test_director();
 
         let recorder = MimicRecorder::new("origin");
-        let origin_child = Box::new(FromSolutionEntitySelector::new(0));
+        let origin_child = FromSolutionEntitySelector::new(0);
         let origin_selector = MimicRecordingEntitySelector::new(origin_child, recorder.clone());
 
-        let dest_child = Box::new(FromSolutionEntitySelector::new(0));
+        let dest_child = FromSolutionEntitySelector::new(0);
         let distance_meter = EuclideanDistanceMeter::new(&director.working_solution().locations);
         let nearby_config = NearbySelectionConfig::default().with_max_nearby_size(2);
         let nearby_selector =
@@ -430,10 +409,10 @@ mod tests {
         let director = create_test_director();
 
         let recorder = MimicRecorder::new("origin");
-        let origin_child = Box::new(FromSolutionEntitySelector::new(0));
+        let origin_child = FromSolutionEntitySelector::new(0);
         let origin_selector = MimicRecordingEntitySelector::new(origin_child, recorder.clone());
 
-        let dest_child = Box::new(FromSolutionEntitySelector::new(0));
+        let dest_child = FromSolutionEntitySelector::new(0);
         let distance_meter = EuclideanDistanceMeter::new(&director.working_solution().locations);
         let nearby_config = NearbySelectionConfig::default();
         let nearby_selector =

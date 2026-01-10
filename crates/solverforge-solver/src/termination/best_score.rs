@@ -4,6 +4,7 @@ use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
+use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -34,12 +35,13 @@ impl<Sc: Score> BestScoreTermination<Sc> {
     }
 }
 
-impl<S, Sc> Termination<S> for BestScoreTermination<Sc>
+impl<S, D, Sc> Termination<S, D> for BestScoreTermination<Sc>
 where
     S: PlanningSolution<Score = Sc>,
+    D: ScoreDirector<S>,
     Sc: Score,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         solver_scope
             .best_score()
             .map(|score| *score >= self.target_score)
@@ -99,12 +101,13 @@ impl<S: PlanningSolution> BestScoreFeasibleTermination<S, fn(&S::Score) -> bool>
     }
 }
 
-impl<S, F> Termination<S> for BestScoreFeasibleTermination<S, F>
+impl<S, D, F> Termination<S, D> for BestScoreFeasibleTermination<S, F>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         solver_scope
             .best_score()
             .map(|score| (self.feasibility_check)(score))

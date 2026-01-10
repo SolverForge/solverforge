@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::Move;
 use crate::phase::Phase;
@@ -53,28 +54,31 @@ pub enum ForagerType {
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub struct ConstructionHeuristicPhase<S, M>
+/// * `P` - The entity placer type
+/// * `Fo` - The forager type
+pub struct ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
+    P: EntityPlacer<S, M>,
+    Fo: ConstructionForager<S, M>,
 {
     /// The entity placer.
-    placer: Box<dyn EntityPlacer<S, M>>,
+    placer: P,
     /// The forager for selecting moves.
-    forager: Box<dyn ConstructionForager<S, M>>,
-    _phantom: PhantomData<M>,
+    forager: Fo,
+    _phantom: PhantomData<fn() -> (S, M)>,
 }
 
-impl<S, M> ConstructionHeuristicPhase<S, M>
+impl<S, M, P, Fo> ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
+    P: EntityPlacer<S, M>,
+    Fo: ConstructionForager<S, M>,
 {
     /// Creates a new construction heuristic phase.
-    pub fn new(
-        placer: Box<dyn EntityPlacer<S, M>>,
-        forager: Box<dyn ConstructionForager<S, M>>,
-    ) -> Self {
+    pub fn new(placer: P, forager: Fo) -> Self {
         Self {
             placer,
             forager,
@@ -83,10 +87,12 @@ where
     }
 }
 
-impl<S, M> Debug for ConstructionHeuristicPhase<S, M>
+impl<S, M, P, Fo> Debug for ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
+    P: EntityPlacer<S, M> + Debug,
+    Fo: ConstructionForager<S, M> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConstructionHeuristicPhase")
@@ -96,12 +102,15 @@ where
     }
 }
 
-impl<S, M> Phase<S> for ConstructionHeuristicPhase<S, M>
+impl<S, D, M, P, Fo> Phase<S, D> for ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     M: Move<S>,
+    P: EntityPlacer<S, M>,
+    Fo: ConstructionForager<S, M>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         // Get all placements (entities that need values assigned)
@@ -144,9 +153,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
-    use crate::manager::{ConstructionPhaseFactory, SolverPhaseFactory};
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -254,32 +261,28 @@ mod tests {
         SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
     }
 
-    type NQueensMove = ChangeMove<NQueensSolution, i32>;
-
-    fn create_placer(values: Vec<i32>) -> Box<dyn EntityPlacer<NQueensSolution, NQueensMove>> {
-        let es = Box::new(FromSolutionEntitySelector::new(0));
-        let vs = Box::new(StaticTypedValueSelector::new(values));
-        Box::new(QueuedEntityPlacer::new(
-            es,
-            vs,
-            get_queen_row,
-            set_queen_row,
-            0,
-            "row",
-        ))
+    fn create_placer(
+        values: Vec<i32>,
+    ) -> QueuedEntityPlacer<
+        NQueensSolution,
+        i32,
+        FromSolutionEntitySelector,
+        StaticTypedValueSelector<NQueensSolution, i32>,
+    > {
+        let es = FromSolutionEntitySelector::new(0);
+        let vs = StaticTypedValueSelector::new(values);
+        QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, "row")
     }
 
     #[test]
     fn test_construction_first_fit() {
         let director = create_test_director(4);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let values: Vec<i32> = (0..4).collect();
-        let factory =
-            ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(move || {
-                create_placer(values.clone())
-            });
-        let mut phase = factory.create_phase();
+        let placer = create_placer(values);
+        let forager = FirstFitForager::new();
+        let mut phase = ConstructionHeuristicPhase::new(placer, forager);
 
         phase.solve(&mut solver_scope);
 
@@ -297,14 +300,12 @@ mod tests {
     #[test]
     fn test_construction_best_fit() {
         let director = create_test_director(4);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let values: Vec<i32> = (0..4).collect();
-        let factory =
-            ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::best_fit(move || {
-                create_placer(values.clone())
-            });
-        let mut phase = factory.create_phase();
+        let placer = create_placer(values);
+        let forager = BestFitForager::new();
+        let mut phase = ConstructionHeuristicPhase::new(placer, forager);
 
         phase.solve(&mut solver_scope);
 
@@ -322,14 +323,12 @@ mod tests {
     #[test]
     fn test_construction_empty_solution() {
         let director = create_test_director(0);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let values: Vec<i32> = vec![];
-        let factory =
-            ConstructionPhaseFactory::<NQueensSolution, NQueensMove, _>::first_fit(move || {
-                create_placer(values.clone())
-            });
-        let mut phase = factory.create_phase();
+        let placer = create_placer(values);
+        let forager = FirstFitForager::new();
+        let mut phase = ConstructionHeuristicPhase::new(placer, forager);
 
         // Should not panic
         phase.solve(&mut solver_scope);

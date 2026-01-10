@@ -6,6 +6,7 @@
 pub mod decorator;
 pub mod entity;
 pub mod k_opt;
+pub mod list_change;
 pub mod list_ruin;
 pub mod mimic;
 pub mod nearby;
@@ -18,7 +19,8 @@ pub mod typed_value;
 pub use entity::{
     AllEntitiesSelector, EntityReference, EntitySelector, FromSolutionEntitySelector,
 };
-pub use k_opt::{KOptConfig, KOptMoveSelector, ListPositionDistanceMeter, NearbyKOptMoveSelector};
+pub use k_opt::{DefaultDistanceMeter, KOptConfig, KOptMoveSelector, ListPositionDistanceMeter, NearbyKOptMoveSelector};
+pub use list_change::ListChangeMoveSelector;
 pub use list_ruin::ListRuinMoveSelector;
 pub use mimic::{MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector};
 pub use nearby::{NearbyDistanceMeter, NearbyEntitySelector, NearbySelectionConfig};

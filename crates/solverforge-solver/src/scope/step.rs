@@ -6,18 +6,22 @@ use solverforge_scoring::ScoreDirector;
 use super::PhaseScope;
 
 /// Scope for a single step within a phase.
-pub struct StepScope<'a, 'b, S: PlanningSolution> {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+pub struct StepScope<'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> {
     /// Reference to the parent phase scope.
-    phase_scope: &'a mut PhaseScope<'b, S>,
+    phase_scope: &'a mut PhaseScope<'b, S, D>,
     /// Index of this step within the phase (0-based).
     step_index: u64,
     /// Score after this step.
     step_score: Option<S::Score>,
 }
 
-impl<'a, 'b, S: PlanningSolution> StepScope<'a, 'b, S> {
+impl<'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'a, 'b, S, D> {
     /// Creates a new step scope.
-    pub fn new(phase_scope: &'a mut PhaseScope<'b, S>) -> Self {
+    pub fn new(phase_scope: &'a mut PhaseScope<'b, S, D>) -> Self {
         let step_index = phase_scope.step_count();
         Self {
             phase_scope,
@@ -47,26 +51,26 @@ impl<'a, 'b, S: PlanningSolution> StepScope<'a, 'b, S> {
     }
 
     /// Returns a reference to the phase scope.
-    pub fn phase_scope(&self) -> &PhaseScope<'b, S> {
+    pub fn phase_scope(&self) -> &PhaseScope<'b, S, D> {
         self.phase_scope
     }
 
     /// Returns a mutable reference to the phase scope.
-    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'b, S> {
+    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'b, S, D> {
         self.phase_scope
     }
 
-    /// Convenience: returns the score director.
-    pub fn score_director(&self) -> &dyn ScoreDirector<S> {
+    /// Returns a reference to the score director.
+    pub fn score_director(&self) -> &D {
         self.phase_scope.score_director()
     }
 
-    /// Convenience: returns a mutable score director.
-    pub fn score_director_mut(&mut self) -> &mut dyn ScoreDirector<S> {
+    /// Returns a mutable reference to the score director.
+    pub fn score_director_mut(&mut self) -> &mut D {
         self.phase_scope.score_director_mut()
     }
 
-    /// Convenience: calculates the current score.
+    /// Calculates the current score.
     pub fn calculate_score(&mut self) -> S::Score {
         self.phase_scope.calculate_score()
     }

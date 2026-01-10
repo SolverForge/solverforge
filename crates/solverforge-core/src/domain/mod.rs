@@ -27,7 +27,7 @@ pub use supply::{
     ListVariableStateDemand, ListVariableStateSupply, SingletonInverseVariableSupply, Supply,
     SupplyDemand, SupplyManager,
 };
-pub use traits::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
+pub use traits::{ListVariableSolution, PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use value_range::{
     ComputedValueRangeProvider, FieldValueRangeProvider, IntegerRange, StaticValueRange,
     ValueRangeProvider,

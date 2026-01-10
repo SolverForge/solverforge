@@ -8,9 +8,13 @@ use solverforge_scoring::ScoreDirector;
 use super::SolverScope;
 
 /// Scope for a single phase of solving.
-pub struct PhaseScope<'a, S: PlanningSolution> {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+pub struct PhaseScope<'a, S: PlanningSolution, D: ScoreDirector<S>> {
     /// Reference to the parent solver scope.
-    solver_scope: &'a mut SolverScope<S>,
+    solver_scope: &'a mut SolverScope<S, D>,
     /// Index of this phase (0-based).
     phase_index: usize,
     /// Score at the start of this phase.
@@ -21,9 +25,9 @@ pub struct PhaseScope<'a, S: PlanningSolution> {
     start_time: Instant,
 }
 
-impl<'a, S: PlanningSolution> PhaseScope<'a, S> {
+impl<'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'a, S, D> {
     /// Creates a new phase scope.
-    pub fn new(solver_scope: &'a mut SolverScope<S>, phase_index: usize) -> Self {
+    pub fn new(solver_scope: &'a mut SolverScope<S, D>, phase_index: usize) -> Self {
         let starting_score = solver_scope.best_score().cloned();
         Self {
             solver_scope,
@@ -62,31 +66,31 @@ impl<'a, S: PlanningSolution> PhaseScope<'a, S> {
     }
 
     /// Returns a reference to the solver scope.
-    pub fn solver_scope(&self) -> &SolverScope<S> {
+    pub fn solver_scope(&self) -> &SolverScope<S, D> {
         self.solver_scope
     }
 
     /// Returns a mutable reference to the solver scope.
-    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<S> {
+    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<S, D> {
         self.solver_scope
     }
 
-    /// Convenience: returns the score director.
-    pub fn score_director(&self) -> &dyn ScoreDirector<S> {
+    /// Returns a reference to the score director.
+    pub fn score_director(&self) -> &D {
         self.solver_scope.score_director()
     }
 
-    /// Convenience: returns a mutable score director.
-    pub fn score_director_mut(&mut self) -> &mut dyn ScoreDirector<S> {
+    /// Returns a mutable reference to the score director.
+    pub fn score_director_mut(&mut self) -> &mut D {
         self.solver_scope.score_director_mut()
     }
 
-    /// Convenience: calculates the current score.
+    /// Calculates the current score.
     pub fn calculate_score(&mut self) -> S::Score {
         self.solver_scope.calculate_score()
     }
 
-    /// Convenience: updates best solution.
+    /// Updates best solution.
     pub fn update_best_solution(&mut self) {
         self.solver_scope.update_best_solution()
     }

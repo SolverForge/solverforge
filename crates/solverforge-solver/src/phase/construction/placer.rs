@@ -27,7 +27,7 @@ where
     pub entity_ref: EntityReference,
     /// Candidate moves for this placement.
     pub moves: Vec<M>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, M> Placement<S, M>
@@ -77,7 +77,7 @@ where
     M: Move<S>,
 {
     /// Returns all placements (entities + their candidate moves).
-    fn get_placements(&self, score_director: &dyn ScoreDirector<S>) -> Vec<Placement<S, M>>;
+    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
 }
 
 /// A queued entity placer that processes entities in order.
@@ -88,14 +88,18 @@ where
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The value type
-pub struct QueuedEntityPlacer<S, V>
+/// * `ES` - The entity selector type
+/// * `VS` - The value selector type
+pub struct QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
     /// The entity selector.
-    entity_selector: Box<dyn EntitySelector<S>>,
+    entity_selector: ES,
     /// The value selector.
-    value_selector: Box<dyn TypedValueSelector<S, V>>,
+    value_selector: VS,
     /// Typed getter function pointer.
     getter: fn(&S, usize) -> Option<V>,
     /// Typed setter function pointer.
@@ -104,16 +108,19 @@ where
     variable_name: &'static str,
     /// The descriptor index.
     descriptor_index: usize,
+    _phantom: PhantomData<V>,
 }
 
-impl<S, V> QueuedEntityPlacer<S, V>
+impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
     /// Creates a new queued entity placer with typed function pointers.
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
-        value_selector: Box<dyn TypedValueSelector<S, V>>,
+        entity_selector: ES,
+        value_selector: VS,
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
         descriptor_index: usize,
@@ -126,13 +133,16 @@ where
             setter,
             variable_name,
             descriptor_index,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<S, V> Debug for QueuedEntityPlacer<S, V>
+impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S> + Debug,
+    VS: TypedValueSelector<S, V> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueuedEntityPlacer")
@@ -143,15 +153,14 @@ where
     }
 }
 
-impl<S, V> EntityPlacer<S, ChangeMove<S, V>> for QueuedEntityPlacer<S, V>
+impl<S, V, ES, VS> EntityPlacer<S, ChangeMove<S, V>> for QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
-    fn get_placements(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
+    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, ChangeMove<S, V>>> {
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;
@@ -212,6 +221,7 @@ where
 /// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::SimpleScoreDirector;
 /// use std::cmp::Ordering;
 ///
 /// #[derive(Clone, Debug)]
@@ -249,7 +259,7 @@ where
     inner: Inner,
     /// Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
     comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<fn() -> (S, M)>,
 }
 
 impl<S, M, Inner> SortedEntityPlacer<S, M, Inner>
@@ -291,7 +301,7 @@ where
     M: Move<S>,
     Inner: EntityPlacer<S, M>,
 {
-    fn get_placements(&self, score_director: &dyn ScoreDirector<S>) -> Vec<Placement<S, M>> {
+    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>> {
         let mut placements = self.inner.get_placements(score_director);
         let solution = score_director.working_solution();
         let cmp = self.comparator;
@@ -396,8 +406,8 @@ mod tests {
     fn test_queued_placer_all_uninitialized() {
         let director = create_test_director(&[false, false, false]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
         let placer = QueuedEntityPlacer::new(
             entity_selector,
@@ -424,8 +434,8 @@ mod tests {
         // First and third are initialized, middle is not
         let director = create_test_director(&[true, false, true]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
         let placer = QueuedEntityPlacer::new(
             entity_selector,
@@ -447,8 +457,8 @@ mod tests {
     fn test_queued_placer_all_initialized() {
         let director = create_test_director(&[true, true, true]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
         let placer = QueuedEntityPlacer::new(
             entity_selector,
@@ -470,8 +480,8 @@ mod tests {
         // Create 3 uninitialized queens
         let director = create_test_director(&[false, false, false]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
         let inner = QueuedEntityPlacer::new(
             entity_selector,

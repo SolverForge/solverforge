@@ -23,9 +23,10 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The variable value type
 #[derive(Clone)]
-pub struct PillarSwapMove<S, V> {
+pub struct PillarSwapMove<S, D, V> {
     left_indices: Vec<usize>,
     right_indices: Vec<usize>,
     descriptor_index: usize,
@@ -34,10 +35,10 @@ pub struct PillarSwapMove<S, V> {
     getter: fn(&S, usize) -> Option<V>,
     /// Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<(S, D)>,
 }
 
-impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
+impl<S, D, V: Debug> Debug for PillarSwapMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PillarSwapMove")
             .field("left_indices", &self.left_indices)
@@ -48,7 +49,7 @@ impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
     }
 }
 
-impl<S, V> PillarSwapMove<S, V> {
+impl<S, D, V> PillarSwapMove<S, D, V> {
     /// Creates a new pillar swap move with typed function pointers.
     ///
     /// # Arguments
@@ -88,12 +89,13 @@ impl<S, V> PillarSwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for PillarSwapMove<S, V>
+impl<S, D, V> Move<S, D> for PillarSwapMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         if self.left_indices.is_empty() || self.right_indices.is_empty() {
             return false;
         }
@@ -121,7 +123,7 @@ where
         left_val != right_val
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         // Capture all old values using typed getter - zero erasure
         let left_old: Vec<(usize, Option<V>)> = self
             .left_indices
@@ -274,7 +276,7 @@ mod tests {
             },
         ]);
 
-        let m = PillarSwapMove::<Solution, i32>::new(
+        let m = PillarSwapMove::<Solution, _, i32>::new(
             vec![0, 1],
             vec![2, 3],
             get_shift,
@@ -322,7 +324,7 @@ mod tests {
                 shift: Some(1),
             },
         ]);
-        let m = PillarSwapMove::<Solution, i32>::new(
+        let m = PillarSwapMove::<Solution, _, i32>::new(
             vec![0],
             vec![1],
             get_shift,
@@ -340,7 +342,7 @@ mod tests {
             shift: Some(1),
         }]);
         let m =
-            PillarSwapMove::<Solution, i32>::new(vec![], vec![0], get_shift, set_shift, "shift", 0);
+            PillarSwapMove::<Solution, _, i32>::new(vec![], vec![0], get_shift, set_shift, "shift", 0);
         assert!(!m.is_doable(&director));
     }
 }

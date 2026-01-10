@@ -22,6 +22,7 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -56,14 +57,14 @@ use super::Move;
 /// }
 ///
 /// // Swap elements at positions 1 and 3 in vehicle 0
-/// let m = ListSwapMove::<Solution, i32>::new(
+/// let m = ListSwapMove::<Solution, _, i32>::new(
 ///     0, 1, 0, 3,
 ///     list_len, list_get, list_set,
 ///     "visits", 0,
 /// );
 /// ```
 #[derive(Clone, Copy)]
-pub struct ListSwapMove<S, V> {
+pub struct ListSwapMove<S, D, V> {
     /// First entity index
     first_entity_index: usize,
     /// Position in first entity's list
@@ -82,10 +83,10 @@ pub struct ListSwapMove<S, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(D, V)>,
 }
 
-impl<S, V: Debug> Debug for ListSwapMove<S, V> {
+impl<S, D, V: Debug> Debug for ListSwapMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListSwapMove")
             .field("first_entity", &self.first_entity_index)
@@ -97,7 +98,7 @@ impl<S, V: Debug> Debug for ListSwapMove<S, V> {
     }
 }
 
-impl<S, V> ListSwapMove<S, V> {
+impl<S, D, V> ListSwapMove<S, D, V> {
     /// Creates a new list swap move with typed function pointers.
     ///
     /// # Arguments
@@ -163,12 +164,13 @@ impl<S, V> ListSwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for ListSwapMove<S, V>
+impl<S, D, V> Move<S, D> for ListSwapMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check first position is valid
@@ -195,7 +197,7 @@ where
         first_val != second_val
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         // Get both values
         let first_val = (self.list_get)(
             score_director.working_solution(),
@@ -365,7 +367,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap positions 1 and 3 (values 2 and 4)
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
             0, 1, 0, 3, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -398,7 +400,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap vehicle 0 position 1 (value=2) with vehicle 1 position 2 (value=30)
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
             0, 1, 1, 2, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -427,7 +429,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
             0, 1, 0, 1, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -441,7 +443,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
             0, 0, 0, 2, list_len, list_get, list_set, "visits", 0,
         );
 
@@ -455,7 +457,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
+        let m = ListSwapMove::<RoutingSolution, _, i32>::new(
             0, 1, 0, 10, list_len, list_get, list_set, "visits", 0,
         );
 

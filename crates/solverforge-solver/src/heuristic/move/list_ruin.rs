@@ -23,6 +23,7 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -46,7 +47,7 @@ use super::Move;
 /// fn list_insert(s: &mut Route, _: usize, idx: usize, v: i32) { s.stops.insert(idx, v); }
 ///
 /// // Remove elements at indices 1 and 3 from the route
-/// let m = ListRuinMove::<Route, i32>::new(
+/// let m = ListRuinMove::<Route, _, i32>::new(
 ///     0,
 ///     &[1, 3],
 ///     list_len, list_remove, list_insert,
@@ -54,7 +55,7 @@ use super::Move;
 /// );
 /// ```
 #[derive(Clone)]
-pub struct ListRuinMove<S, V> {
+pub struct ListRuinMove<S, D, V> {
     /// Entity index
     entity_index: usize,
     /// Indices of elements to remove (in ascending order for correct removal)
@@ -67,10 +68,10 @@ pub struct ListRuinMove<S, V> {
     list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(D, V)>,
 }
 
-impl<S, V: Debug> Debug for ListRuinMove<S, V> {
+impl<S, D, V: Debug> Debug for ListRuinMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListRuinMove")
             .field("entity", &self.entity_index)
@@ -80,7 +81,7 @@ impl<S, V: Debug> Debug for ListRuinMove<S, V> {
     }
 }
 
-impl<S, V> ListRuinMove<S, V> {
+impl<S, D, V> ListRuinMove<S, D, V> {
     /// Creates a new list ruin move with typed function pointers.
     ///
     /// # Arguments
@@ -134,12 +135,13 @@ impl<S, V> ListRuinMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for ListRuinMove<S, V>
+impl<S, D, V> Move<S, D> for ListRuinMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         if self.element_indices.is_empty() {
             return false;
         }
@@ -151,7 +153,7 @@ where
         self.element_indices.iter().all(|&idx| idx < len)
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let entity = self.entity_index;
@@ -268,7 +270,7 @@ mod tests {
     fn ruin_single_element() {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
-        let m = ListRuinMove::<VrpSolution, i32>::new(
+        let m = ListRuinMove::<VrpSolution, _, i32>::new(
             0,
             &[2],
             list_len,
@@ -300,7 +302,7 @@ mod tests {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
         // Remove indices 1, 3 (values 2, 4)
-        let m = ListRuinMove::<VrpSolution, i32>::new(
+        let m = ListRuinMove::<VrpSolution, _, i32>::new(
             0,
             &[1, 3],
             list_len,
@@ -332,7 +334,7 @@ mod tests {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
         // Indices provided in reverse order - should still work
-        let m = ListRuinMove::<VrpSolution, i32>::new(
+        let m = ListRuinMove::<VrpSolution, _, i32>::new(
             0,
             &[3, 1],
             list_len,
@@ -360,7 +362,7 @@ mod tests {
     fn empty_indices_not_doable() {
         let director = create_director(vec![1, 2, 3]);
 
-        let m = ListRuinMove::<VrpSolution, i32>::new(
+        let m = ListRuinMove::<VrpSolution, _, i32>::new(
             0,
             &[],
             list_len,
@@ -377,7 +379,7 @@ mod tests {
     fn out_of_bounds_not_doable() {
         let director = create_director(vec![1, 2, 3]);
 
-        let m = ListRuinMove::<VrpSolution, i32>::new(
+        let m = ListRuinMove::<VrpSolution, _, i32>::new(
             0,
             &[0, 10],
             list_len,

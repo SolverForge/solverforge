@@ -23,6 +23,7 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The variable value type
 ///
 /// # Example
@@ -45,10 +46,10 @@ use super::Move;
 /// fn set_v(s: &mut Sol, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
 ///
 /// // Swap values between entities 0 and 1
-/// let swap = SwapMove::<Sol, i32>::new(0, 1, get_v, set_v, "value", 0);
+/// let swap = SwapMove::<Sol, _, i32>::new(0, 1, get_v, set_v, "value", 0);
 /// ```
 #[derive(Clone, Copy)]
-pub struct SwapMove<S, V> {
+pub struct SwapMove<S, D, V> {
     left_entity_index: usize,
     right_entity_index: usize,
     /// Typed getter function pointer - zero erasure.
@@ -59,10 +60,10 @@ pub struct SwapMove<S, V> {
     descriptor_index: usize,
     /// Store indices inline for entity_indices() to return a slice.
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(D, V)>,
 }
 
-impl<S, V: Debug> Debug for SwapMove<S, V> {
+impl<S, D, V: Debug> Debug for SwapMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SwapMove")
             .field("left_entity_index", &self.left_entity_index)
@@ -73,7 +74,7 @@ impl<S, V: Debug> Debug for SwapMove<S, V> {
     }
 }
 
-impl<S, V> SwapMove<S, V> {
+impl<S, D, V> SwapMove<S, D, V> {
     /// Creates a new swap move with typed function pointers.
     ///
     /// # Arguments
@@ -114,12 +115,13 @@ impl<S, V> SwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for SwapMove<S, V>
+impl<S, D, V> Move<S, D> for SwapMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         // Can't swap with self
         if self.left_entity_index == self.right_entity_index {
             return false;
@@ -133,7 +135,7 @@ where
         left_val != right_val
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         // Get both values using typed getter - zero erasure
         let left_value = (self.getter)(score_director.working_solution(), self.left_entity_index);
         let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);
@@ -282,7 +284,7 @@ mod tests {
         ];
         let mut director = create_director(tasks);
 
-        let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution, _, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
         assert!(m.is_doable(&director));
 
         {
@@ -321,7 +323,7 @@ mod tests {
         ];
         let director = create_director(tasks);
 
-        let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution, _, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
         assert!(
             !m.is_doable(&director),
             "swapping same values should not be doable"
@@ -336,13 +338,13 @@ mod tests {
         }];
         let director = create_director(tasks);
 
-        let m = SwapMove::<TaskSolution, i32>::new(0, 0, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution, _, i32>::new(0, 0, get_priority, set_priority, "priority", 0);
         assert!(!m.is_doable(&director), "self-swap should not be doable");
     }
 
     #[test]
     fn test_swap_entity_indices() {
-        let m = SwapMove::<TaskSolution, i32>::new(2, 5, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution, _, i32>::new(2, 5, get_priority, set_priority, "priority", 0);
         assert_eq!(m.entity_indices(), &[2, 5]);
     }
 }

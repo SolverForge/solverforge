@@ -155,6 +155,11 @@ where
         &mut self.working_solution
     }
 
+    /// Consumes the director and returns the working solution.
+    pub fn into_working_solution(self) -> S {
+        self.working_solution
+    }
+
     /// Calculates and returns the current score.
     ///
     /// On first call, initializes all constraints (O(n) for uni, O(n²) for bi).

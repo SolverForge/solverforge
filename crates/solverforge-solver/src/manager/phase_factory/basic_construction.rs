@@ -25,7 +25,7 @@ use super::super::SolverPhaseFactory;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::{BasicConstructionPhaseBuilder, SolverPhaseFactory};
+/// use solverforge_solver::manager::BasicConstructionPhaseBuilder;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
@@ -54,7 +54,7 @@ use super::super::SolverPhaseFactory;
 /// fn value_count(s: &Schedule) -> usize { s.employees.len() }
 /// fn entity_count(s: &Schedule) -> usize { s.shifts.len() }
 ///
-/// let factory = BasicConstructionPhaseBuilder::<Schedule, usize>::new(
+/// let builder = BasicConstructionPhaseBuilder::<Schedule, usize>::new(
 ///     get_employee,
 ///     set_employee,
 ///     value_count,
@@ -62,23 +62,20 @@ use super::super::SolverPhaseFactory;
 ///     "employee_idx",
 ///     0,
 /// );
+///
+/// // Create a concrete phase:
+/// let phase: BasicConstructionPhase<Schedule> = builder.create_phase();
 /// ```
 pub struct BasicConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + 'static,
+    V: Copy + PartialEq + Send + Sync + 'static,
 {
-    /// Typed getter for the planning variable
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter for the planning variable
     setter: fn(&mut S, usize, Option<V>),
-    /// Returns the number of valid values (0..value_count)
     value_count: fn(&S) -> usize,
-    /// Returns the number of entities
     entity_count: fn(&S) -> usize,
-    /// Variable name for change notification
     variable_name: &'static str,
-    /// Descriptor index for entity collection
     descriptor_index: usize,
     _marker: PhantomData<(S, V)>,
 }
@@ -86,18 +83,9 @@ where
 impl<S, V> BasicConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + 'static,
+    V: Copy + PartialEq + Send + Sync + 'static,
 {
     /// Creates a new basic construction phase builder.
-    ///
-    /// # Arguments
-    ///
-    /// * `getter` - Function to get the variable value for an entity
-    /// * `setter` - Function to set the variable value for an entity
-    /// * `value_count` - Function returning the number of valid values
-    /// * `entity_count` - Function returning the number of entities
-    /// * `variable_name` - Name of the variable for change notification
-    /// * `descriptor_index` - Entity descriptor index
     pub fn new(
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
@@ -116,15 +104,10 @@ where
             _marker: PhantomData,
         }
     }
-}
 
-impl<S, D> SolverPhaseFactory<S, D> for BasicConstructionPhaseBuilder<S, usize>
-where
-    S: PlanningSolution + 'static,
-    D: ScoreDirector<S> + 'static,
-{
-    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
-        Box::new(BasicConstructionPhase {
+    /// Creates a basic construction phase.
+    pub fn create_phase(&self) -> BasicConstructionPhase<S> {
+        BasicConstructionPhase {
             getter: self.getter,
             setter: self.setter,
             value_count: self.value_count,
@@ -132,12 +115,23 @@ where
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _marker: PhantomData,
-        })
+        }
+    }
+}
+
+impl<S, D> SolverPhaseFactory<S, D, BasicConstructionPhase<S>>
+    for BasicConstructionPhaseBuilder<S, usize>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    fn create_phase(&self) -> BasicConstructionPhase<S> {
+        BasicConstructionPhaseBuilder::create_phase(self)
     }
 }
 
 /// Basic construction phase that assigns values to uninitialized entities.
-struct BasicConstructionPhase<S>
+pub struct BasicConstructionPhase<S>
 where
     S: PlanningSolution,
 {
@@ -179,14 +173,12 @@ where
             return;
         }
 
-        // Round-robin assignment: for each uninitialized entity, assign first available value
         let mut value_idx = 0usize;
         for entity_idx in 0..n_entities {
             if phase_scope.solver_scope().is_terminate_early() {
                 break;
             }
 
-            // Skip if already assigned
             let current =
                 (self.getter)(phase_scope.score_director().working_solution(), entity_idx);
             if current.is_some() {
@@ -195,7 +187,6 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            // Assign value and notify score director
             {
                 let sd = step_scope.score_director_mut();
                 sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);

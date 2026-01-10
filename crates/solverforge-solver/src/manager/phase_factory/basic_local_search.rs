@@ -11,14 +11,21 @@ use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use crate::heuristic::selector::typed_value::FromSolutionTypedValueSelector;
 use crate::heuristic::selector::ChangeMoveSelector;
-use crate::heuristic::MoveSelector;
 use crate::phase::localsearch::{
-    AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchForager, LocalSearchPhase,
+    AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase,
 };
 use crate::phase::Phase;
 
-use super::super::config::LocalSearchType;
 use super::super::SolverPhaseFactory;
+
+/// Type alias for the concrete local search phase with late acceptance.
+pub type BasicLocalSearchPhase<S> = LocalSearchPhase<
+    S,
+    ChangeMove<S, usize>,
+    ChangeMoveSelector<S, usize, FromSolutionEntitySelector, FromSolutionTypedValueSelector<S, usize>>,
+    LateAcceptanceAcceptor<S>,
+    AcceptedCountForager<S, ChangeMove<S, usize>>,
+>;
 
 /// Builder for creating basic variable local search phases.
 ///
@@ -32,7 +39,7 @@ use super::super::SolverPhaseFactory;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::{BasicLocalSearchPhaseBuilder, SolverPhaseFactory, LocalSearchType};
+/// use solverforge_solver::manager::BasicLocalSearchPhaseBuilder;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
@@ -60,31 +67,25 @@ use super::super::SolverPhaseFactory;
 ///
 /// fn value_count(s: &Schedule) -> usize { s.employees.len() }
 ///
-/// let factory = BasicLocalSearchPhaseBuilder::<Schedule>::new(
+/// let builder = BasicLocalSearchPhaseBuilder::<Schedule>::new(
 ///     get_employee,
 ///     set_employee,
 ///     value_count,
 ///     "employee_idx",
 ///     0,
-///     LocalSearchType::LateAcceptance { size: 400 },
+///     400, // late acceptance size
 /// );
 /// ```
 pub struct BasicLocalSearchPhaseBuilder<S>
 where
     S: PlanningSolution,
 {
-    /// Typed getter for the planning variable
     getter: fn(&S, usize) -> Option<usize>,
-    /// Typed setter for the planning variable
     setter: fn(&mut S, usize, Option<usize>),
-    /// Returns the number of valid values (0..value_count)
     value_count: fn(&S) -> usize,
-    /// Variable name for change notification
     variable_name: &'static str,
-    /// Descriptor index for entity collection
     descriptor_index: usize,
-    /// Local search algorithm type
-    search_type: LocalSearchType,
+    late_acceptance_size: usize,
     _marker: PhantomData<S>,
 }
 
@@ -93,22 +94,13 @@ where
     S: PlanningSolution,
 {
     /// Creates a new basic local search phase builder.
-    ///
-    /// # Arguments
-    ///
-    /// * `getter` - Function to get the variable value for an entity
-    /// * `setter` - Function to set the variable value for an entity
-    /// * `value_count` - Function returning the number of valid values
-    /// * `variable_name` - Name of the variable for change notification
-    /// * `descriptor_index` - Entity descriptor index
-    /// * `search_type` - Local search algorithm configuration
     pub fn new(
         getter: fn(&S, usize) -> Option<usize>,
         setter: fn(&mut S, usize, Option<usize>),
         value_count: fn(&S) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
-        search_type: LocalSearchType,
+        late_acceptance_size: usize,
     ) -> Self {
         Self {
             getter,
@@ -116,81 +108,42 @@ where
             value_count,
             variable_name,
             descriptor_index,
-            search_type,
+            late_acceptance_size,
             _marker: PhantomData,
         }
     }
-}
 
-impl<S, D> SolverPhaseFactory<S, D> for BasicLocalSearchPhaseBuilder<S>
-where
-    S: PlanningSolution + 'static,
-    D: ScoreDirector<S> + 'static,
-{
-    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
-        let getter = self.getter;
-        let setter = self.setter;
+    /// Creates the local search phase.
+    pub fn create_phase(&self) -> BasicLocalSearchPhase<S> {
         let value_count = self.value_count;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
 
-        // Create move selector with dynamic values from solution
-        let entity_selector = FromSolutionEntitySelector::new(descriptor_index);
-        let value_selector =
-            FromSolutionTypedValueSelector::new(move |sd| (0..(value_count)(sd.working_solution())).collect());
-
-        let move_selector = ChangeMoveSelector::<S, usize>::new(
-            Box::new(entity_selector),
-            Box::new(value_selector),
-            getter,
-            setter,
-            descriptor_index,
-            variable_name,
+        let entity_selector = FromSolutionEntitySelector::new(self.descriptor_index);
+        let value_selector = FromSolutionTypedValueSelector::new(
+            move |sd| (0..(value_count)(sd.working_solution())).collect(),
         );
 
-        // Create acceptor based on search type
-        let (acceptor, forager): (
-            Box<dyn crate::phase::localsearch::Acceptor<S>>,
-            Box<dyn LocalSearchForager<S, ChangeMove<S, usize>>>,
-        ) = match self.search_type {
-            LocalSearchType::LateAcceptance { size } => (
-                Box::new(LateAcceptanceAcceptor::new(size)),
-                Box::new(AcceptedCountForager::new(1)),
-            ),
-            LocalSearchType::HillClimbing => (
-                Box::new(crate::phase::localsearch::HillClimbingAcceptor::new()),
-                Box::new(AcceptedCountForager::new(1)),
-            ),
-            LocalSearchType::TabuSearch { tabu_size } => (
-                Box::new(crate::phase::localsearch::TabuSearchAcceptor::new(
-                    tabu_size,
-                )),
-                Box::new(AcceptedCountForager::new(1)),
-            ),
-            LocalSearchType::SimulatedAnnealing {
-                starting_temp,
-                decay_rate,
-            } => (
-                Box::new(crate::phase::localsearch::SimulatedAnnealingAcceptor::new(
-                    starting_temp,
-                    decay_rate,
-                )),
-                Box::new(AcceptedCountForager::new(1)),
-            ),
-            _ => {
-                // Other types (KOpt, ValueTabu, MoveTabu) - fall back to late acceptance
-                (
-                    Box::new(LateAcceptanceAcceptor::new(400)),
-                    Box::new(AcceptedCountForager::new(1)),
-                )
-            }
-        };
+        let move_selector = ChangeMoveSelector::new(
+            entity_selector,
+            value_selector,
+            self.getter,
+            self.setter,
+            self.descriptor_index,
+            self.variable_name,
+        );
 
-        Box::new(LocalSearchPhase::new(
-            Box::new(move_selector) as Box<dyn MoveSelector<S, ChangeMove<S, usize>>>,
-            acceptor,
-            forager,
-            None, // No step limit - termination via solver config
-        ))
+        let acceptor = LateAcceptanceAcceptor::new(self.late_acceptance_size);
+        let forager = AcceptedCountForager::new(1);
+
+        LocalSearchPhase::new(move_selector, acceptor, forager, None)
+    }
+}
+
+impl<S, D> SolverPhaseFactory<S, D, BasicLocalSearchPhase<S>> for BasicLocalSearchPhaseBuilder<S>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    fn create_phase(&self) -> BasicLocalSearchPhase<S> {
+        BasicLocalSearchPhaseBuilder::create_phase(self)
     }
 }

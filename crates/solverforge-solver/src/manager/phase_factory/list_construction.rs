@@ -26,7 +26,7 @@ use super::super::SolverPhaseFactory;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::{ListConstructionPhaseBuilder, SolverPhaseFactory};
+/// use solverforge_solver::manager::ListConstructionPhaseBuilder;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
@@ -42,7 +42,7 @@ use super::super::SolverPhaseFactory;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// let factory = ListConstructionPhaseBuilder::<Plan, usize>::new(
+/// let builder = ListConstructionPhaseBuilder::<Plan, usize>::new(
 ///     |plan| plan.visits.len(),
 ///     |plan| plan.vehicles.iter().flat_map(|v| v.visits.iter().copied()).collect(),
 ///     |plan| plan.vehicles.len(),
@@ -51,25 +51,21 @@ use super::super::SolverPhaseFactory;
 ///     "visits",
 ///     1,
 /// );
+///
+/// // Create a concrete phase:
+/// let phase: ListConstructionPhase<Plan, usize> = builder.create_phase();
 /// ```
 pub struct ListConstructionPhaseBuilder<S, E>
 where
     S: PlanningSolution,
-    E: Clone + Send + Sync + 'static,
+    E: Copy + Send + Sync + 'static,
 {
-    /// Returns total number of elements to assign
     element_count: fn(&S) -> usize,
-    /// Returns currently assigned elements
     get_assigned: fn(&S) -> Vec<E>,
-    /// Returns number of entities to assign to
     entity_count: fn(&S) -> usize,
-    /// Assigns an element to an entity
     assign_element: fn(&mut S, usize, E),
-    /// Converts element index to element type
     index_to_element: fn(usize) -> E,
-    /// Variable name for change notification
     variable_name: &'static str,
-    /// Descriptor index for entity collection
     descriptor_index: usize,
     _marker: PhantomData<(S, E)>,
 }
@@ -77,19 +73,9 @@ where
 impl<S, E> ListConstructionPhaseBuilder<S, E>
 where
     S: PlanningSolution,
-    E: Clone + Send + Sync + 'static,
+    E: Copy + Send + Sync + 'static,
 {
     /// Creates a new list construction phase builder.
-    ///
-    /// # Arguments
-    ///
-    /// * `element_count` - Function returning total elements to assign
-    /// * `get_assigned` - Function returning already-assigned elements
-    /// * `entity_count` - Function returning number of entities
-    /// * `assign_element` - Function to assign an element to an entity
-    /// * `index_to_element` - Function to convert index to element type
-    /// * `variable_name` - Name of the list variable for change notification
-    /// * `descriptor_index` - Entity descriptor index for the list owner
     pub fn new(
         element_count: fn(&S) -> usize,
         get_assigned: fn(&S) -> Vec<E>,
@@ -110,16 +96,10 @@ where
             _marker: PhantomData,
         }
     }
-}
 
-impl<S, E, D> SolverPhaseFactory<S, D> for ListConstructionPhaseBuilder<S, E>
-where
-    S: PlanningSolution + 'static,
-    E: Clone + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S> + 'static,
-{
-    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
-        Box::new(ListConstructionPhase {
+    /// Creates the list construction phase.
+    pub fn create_phase(&self) -> ListConstructionPhase<S, E> {
+        ListConstructionPhase {
             element_count: self.element_count,
             get_assigned: self.get_assigned,
             entity_count: self.entity_count,
@@ -128,15 +108,27 @@ where
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _marker: PhantomData,
-        })
+        }
+    }
+}
+
+impl<S, E, D> SolverPhaseFactory<S, D, ListConstructionPhase<S, E>>
+    for ListConstructionPhaseBuilder<S, E>
+where
+    S: PlanningSolution,
+    E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    D: ScoreDirector<S>,
+{
+    fn create_phase(&self) -> ListConstructionPhase<S, E> {
+        ListConstructionPhaseBuilder::create_phase(self)
     }
 }
 
 /// List construction phase that assigns elements round-robin to entities.
-struct ListConstructionPhase<S, E>
+pub struct ListConstructionPhase<S, E>
 where
     S: PlanningSolution,
-    E: Clone + Send + Sync + 'static,
+    E: Copy + Send + Sync + 'static,
 {
     element_count: fn(&S) -> usize,
     get_assigned: fn(&S) -> Vec<E>,
@@ -151,7 +143,7 @@ where
 impl<S, E> std::fmt::Debug for ListConstructionPhase<S, E>
 where
     S: PlanningSolution,
-    E: Clone + Send + Sync + 'static,
+    E: Copy + Send + Sync + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListConstructionPhase").finish()
@@ -161,7 +153,7 @@ where
 impl<S, E, D> Phase<S, D> for ListConstructionPhase<S, E>
 where
     S: PlanningSolution,
-    E: Clone + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: ScoreDirector<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
@@ -172,16 +164,14 @@ where
         let n_entities = (self.entity_count)(solution);
 
         if n_entities == 0 || n_elements == 0 {
-            // Nothing to assign - just calculate initial score and update best
             let _score = phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
             return;
         }
 
-        // Get already-assigned elements
-        let assigned: Vec<E> = (self.get_assigned)(phase_scope.score_director().working_solution());
+        let assigned: Vec<E> =
+            (self.get_assigned)(phase_scope.score_director().working_solution());
 
-        // If all elements already assigned, skip construction
         if assigned.len() >= n_elements {
             tracing::info!("All elements already assigned, skipping construction");
             let _score = phase_scope.score_director_mut().calculate_score();
@@ -189,13 +179,10 @@ where
             return;
         }
 
-        // Build set of assigned elements for O(1) lookup
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
 
-        // Round-robin assignment
         let mut entity_idx = 0;
         for elem_idx in 0..n_elements {
-            // Check early termination
             if phase_scope.solver_scope().is_terminate_early() {
                 break;
             }
@@ -207,7 +194,6 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            // Assign element to entity and notify score director
             {
                 let sd = step_scope.score_director_mut();
                 sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
@@ -215,7 +201,6 @@ where
                 sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
             }
 
-            // Calculate score after assignment
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();
@@ -223,7 +208,6 @@ where
             entity_idx = (entity_idx + 1) % n_entities;
         }
 
-        // Update best solution at end of construction
         phase_scope.update_best_solution();
     }
 

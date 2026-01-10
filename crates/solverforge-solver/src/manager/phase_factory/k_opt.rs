@@ -27,7 +27,7 @@ use super::super::PhaseFactory;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::phase_factory::KOptPhaseBuilder;
+/// use solverforge_solver::KOptPhaseBuilder;
 /// use solverforge_solver::heuristic::selector::{DefaultDistanceMeter, FromSolutionEntitySelector};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;

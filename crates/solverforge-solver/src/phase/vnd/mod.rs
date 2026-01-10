@@ -18,6 +18,7 @@
 //! is a concrete `MoveSelector` type, enabling full monomorphization.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
@@ -27,73 +28,127 @@ use crate::heuristic::selector::MoveSelector;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
-/// Trait for a tuple of neighborhoods that can be indexed at runtime.
+/// Variable Neighborhood Descent phase.
 ///
-/// This enables VND's dynamic neighborhood switching while preserving
-/// zero-erasure through macro-generated match arms.
-pub trait NeighborhoodTuple<S: PlanningSolution, M: Move<S>>: Send + Debug {
-    /// Returns the number of neighborhoods.
-    fn count(&self) -> usize;
+/// Wraps a tuple of move selectors (neighborhoods) and explores them in sequence,
+/// restarting from the first whenever an improvement is found.
+///
+/// Uses macro-generated tuple implementations for zero type erasure.
+///
+/// # Type Parameters
+/// * `T` - Tuple of move selectors
+/// * `M` - The move type produced by all selectors
+///
+/// # Examples
+///
+/// ```ignore
+/// // Two neighborhoods
+/// let vnd: VndPhase<_, ChangeMove<Sol, i32>> = VndPhase::new((change_selector, swap_selector));
+///
+/// // Three neighborhoods
+/// let vnd: VndPhase<_, MyMove> = VndPhase::new((sel1, sel2, sel3));
+/// ```
+pub struct VndPhase<T, M>(pub T, PhantomData<M>);
 
-    /// Populates the arena with moves from neighborhood at index `k`.
-    fn populate_arena(
-        &self,
-        k: usize,
-        arena: &mut MoveArena<M>,
-        score_director: &dyn ScoreDirector<S>,
-    );
+impl<T: Debug, M> Debug for VndPhase<T, M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("VndPhase").field(&self.0).finish()
+    }
 }
 
-/// Generates `NeighborhoodTuple` implementations for tuples of move selectors.
-macro_rules! impl_neighborhood_tuple {
+impl<T, M> VndPhase<T, M> {
+    /// Creates a new VND phase from a tuple of move selectors.
+    pub fn new(neighborhoods: T) -> Self {
+        Self(neighborhoods, PhantomData)
+    }
+}
+
+/// Generates `Phase` implementations for VndPhase with tuple neighborhoods.
+macro_rules! impl_vnd_phase {
     // Single neighborhood
     ($idx:tt: $MS:ident) => {
-        impl<S, M, $MS> NeighborhoodTuple<S, M> for ($MS,)
+        impl<S, M, D, $MS> Phase<S, D> for VndPhase<($MS,), M>
         where
             S: PlanningSolution,
             M: Move<S>,
+            D: ScoreDirector<S>,
             $MS: MoveSelector<S, M>,
         {
-            fn count(&self) -> usize {
-                1
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+                let mut arena = MoveArena::<M>::new();
+                let mut phase_scope = PhaseScope::new(solver_scope, 0);
+                let mut current_score = phase_scope.calculate_score();
+
+                loop {
+                    let mut step_scope = StepScope::new(&mut phase_scope);
+                    arena.reset();
+                    arena.extend((self.0).$idx.iter_moves(step_scope.score_director()));
+
+                    let best_move = find_best_improving_move(&arena, &mut step_scope, &current_score);
+
+                    if let Some((selected_move, selected_score)) = best_move {
+                        selected_move.do_move(step_scope.score_director_mut());
+                        step_scope.set_step_score(selected_score.clone());
+                        current_score = selected_score;
+                        step_scope.phase_scope_mut().update_best_solution();
+                        step_scope.complete();
+                    } else {
+                        step_scope.complete();
+                        break;
+                    }
+                }
             }
 
-            fn populate_arena(
-                &self,
-                k: usize,
-                arena: &mut MoveArena<M>,
-                score_director: &dyn ScoreDirector<S>,
-            ) {
-                match k {
-                    $idx => arena.extend(self.$idx.iter_moves(score_director)),
-                    _ => {}
-                }
+            fn phase_type_name(&self) -> &'static str {
+                "VariableNeighborhoodDescent"
             }
         }
     };
 
     // Multiple neighborhoods
     ($($idx:tt: $MS:ident),+) => {
-        impl<S, M, $($MS),+> NeighborhoodTuple<S, M> for ($($MS,)+)
+        impl<S, M, D, $($MS),+> Phase<S, D> for VndPhase<($($MS,)+), M>
         where
             S: PlanningSolution,
             M: Move<S>,
+            D: ScoreDirector<S>,
             $($MS: MoveSelector<S, M>,)+
         {
-            fn count(&self) -> usize {
-                impl_neighborhood_tuple!(@count $($idx),+)
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+                const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
+                let mut arena = MoveArena::<M>::new();
+                let mut phase_scope = PhaseScope::new(solver_scope, 0);
+                let mut current_score = phase_scope.calculate_score();
+                let mut k = 0usize;
+
+                while k < COUNT {
+                    let mut step_scope = StepScope::new(&mut phase_scope);
+                    arena.reset();
+
+                    // Populate arena from neighborhood k
+                    match k {
+                        $($idx => arena.extend((self.0).$idx.iter_moves(step_scope.score_director())),)+
+                        _ => {}
+                    }
+
+                    let best_move = find_best_improving_move(&arena, &mut step_scope, &current_score);
+
+                    if let Some((selected_move, selected_score)) = best_move {
+                        selected_move.do_move(step_scope.score_director_mut());
+                        step_scope.set_step_score(selected_score.clone());
+                        current_score = selected_score;
+                        step_scope.phase_scope_mut().update_best_solution();
+                        step_scope.complete();
+                        k = 0; // Restart from first neighborhood
+                    } else {
+                        step_scope.complete();
+                        k += 1; // Try next neighborhood
+                    }
+                }
             }
 
-            fn populate_arena(
-                &self,
-                k: usize,
-                arena: &mut MoveArena<M>,
-                score_director: &dyn ScoreDirector<S>,
-            ) {
-                match k {
-                    $($idx => arena.extend(self.$idx.iter_moves(score_director)),)+
-                    _ => {}
-                }
+            fn phase_type_name(&self) -> &'static str {
+                "VariableNeighborhoodDescent"
             }
         }
     };
@@ -104,180 +159,55 @@ macro_rules! impl_neighborhood_tuple {
     };
 }
 
-impl_neighborhood_tuple!(0: MS0);
-impl_neighborhood_tuple!(0: MS0, 1: MS1);
-impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2);
-impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3);
-impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4);
-impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5);
-impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5, 6: MS6);
-impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5, 6: MS6, 7: MS7);
-
-/// Variable Neighborhood Descent phase.
-///
-/// Explores multiple neighborhoods in sequence, restarting from the first
-/// whenever an improvement is found.
-///
-/// # Type Parameters
-/// * `S` - The planning solution type
-/// * `M` - The move type (all neighborhoods must produce this type)
-/// * `N` - The neighborhoods tuple type
-pub struct VndPhase<S, M, N>
+/// Finds the best improving move in the arena.
+fn find_best_improving_move<S, M, D>(
+    arena: &MoveArena<M>,
+    step_scope: &mut StepScope<'_, '_, S, D>,
+    current_score: &S::Score,
+) -> Option<(M, S::Score)>
 where
     S: PlanningSolution,
     M: Move<S>,
-    N: NeighborhoodTuple<S, M>,
-{
-    /// Tuple of move selectors (neighborhoods) - zero erasure
-    neighborhoods: N,
-    /// Arena for moves - reused each step
-    arena: MoveArena<M>,
-    /// Maximum steps per neighborhood before giving up
-    step_limit_per_neighborhood: Option<u64>,
-    _phantom: std::marker::PhantomData<(S, M)>,
-}
-
-impl<S, M, N> Debug for VndPhase<S, M, N>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    N: NeighborhoodTuple<S, M>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VndPhase")
-            .field("neighborhoods", &self.neighborhoods)
-            .field("step_limit_per_neighborhood", &self.step_limit_per_neighborhood)
-            .finish()
-    }
-}
-
-impl<S, M, N> VndPhase<S, M, N>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-    N: NeighborhoodTuple<S, M>,
-{
-    /// Creates a new VND phase with the given neighborhoods tuple.
-    ///
-    /// Neighborhoods are explored in order. When an improvement is found,
-    /// exploration restarts from the first neighborhood.
-    pub fn new(neighborhoods: N) -> Self {
-        Self {
-            neighborhoods,
-            arena: MoveArena::new(),
-            step_limit_per_neighborhood: None,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    /// Sets the maximum steps to try per neighborhood before moving on.
-    pub fn with_step_limit(mut self, limit: u64) -> Self {
-        self.step_limit_per_neighborhood = Some(limit);
-        self
-    }
-
-    /// Returns the number of neighborhoods.
-    pub fn neighborhood_count(&self) -> usize {
-        self.neighborhoods.count()
-    }
-}
-
-impl<S, M, N, D> Phase<S, D> for VndPhase<S, M, N>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    N: NeighborhoodTuple<S, M>,
     D: ScoreDirector<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
-        let neighborhood_count = self.neighborhoods.count();
-        if neighborhood_count == 0 {
-            return;
+    let mut best_move: Option<(M, S::Score)> = None;
+
+    for i in 0..arena.len() {
+        let m = arena.get(i).unwrap();
+
+        if !m.is_doable(step_scope.score_director()) {
+            continue;
         }
 
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
-        let mut current_score = phase_scope.calculate_score();
+        let mut recording = RecordingScoreDirector::new(step_scope.score_director_mut());
+        m.do_move(&mut recording);
+        let move_score = recording.calculate_score();
+        recording.undo_changes();
 
-        let mut neighborhood_idx = 0;
-        let mut steps_in_neighborhood = 0u64;
-
-        while neighborhood_idx < neighborhood_count {
-            // Check step limit for current neighborhood
-            if let Some(limit) = self.step_limit_per_neighborhood {
-                if steps_in_neighborhood >= limit {
-                    // Move to next neighborhood
-                    neighborhood_idx += 1;
-                    steps_in_neighborhood = 0;
-                    continue;
+        if move_score > *current_score {
+            match &best_move {
+                Some((_, best_score)) if move_score > *best_score => {
+                    best_move = Some((m.clone(), move_score));
                 }
-            }
-
-            let mut step_scope = StepScope::new(&mut phase_scope);
-
-            // Reset arena and populate with moves from current neighborhood
-            self.arena.reset();
-            self.neighborhoods.populate_arena(
-                neighborhood_idx,
-                &mut self.arena,
-                step_scope.score_director(),
-            );
-
-            // Find best improving move
-            let mut best_move: Option<(M, S::Score)> = None;
-
-            for i in 0..self.arena.len() {
-                let m = self.arena.get(i).unwrap();
-
-                if !m.is_doable(step_scope.score_director()) {
-                    continue;
+                None => {
+                    best_move = Some((m.clone(), move_score));
                 }
-
-                let mut recording = RecordingScoreDirector::new(step_scope.score_director_mut());
-                m.do_move(&mut recording);
-                let move_score = recording.calculate_score();
-                recording.undo_changes();
-
-                // Only consider improving moves
-                if move_score > current_score {
-                    match &best_move {
-                        Some((_, best_score)) if move_score > *best_score => {
-                            best_move = Some((m.clone(), move_score));
-                        }
-                        None => {
-                            best_move = Some((m.clone(), move_score));
-                        }
-                        _ => {}
-                    }
-                }
+                _ => {}
             }
-
-            if let Some((selected_move, selected_score)) = best_move {
-                // Apply the improving move
-                selected_move.do_move(step_scope.score_director_mut());
-                step_scope.set_step_score(selected_score.clone());
-                current_score = selected_score;
-
-                // Update best solution
-                step_scope.phase_scope_mut().update_best_solution();
-
-                // Restart from first neighborhood
-                neighborhood_idx = 0;
-                steps_in_neighborhood = 0;
-            } else {
-                // No improvement in this neighborhood, try next
-                neighborhood_idx += 1;
-                steps_in_neighborhood = 0;
-            }
-
-            steps_in_neighborhood += 1;
-            step_scope.complete();
         }
     }
 
-    fn phase_type_name(&self) -> &'static str {
-        "VariableNeighborhoodDescent"
-    }
+    best_move
 }
+
+impl_vnd_phase!(0: MS0);
+impl_vnd_phase!(0: MS0, 1: MS1);
+impl_vnd_phase!(0: MS0, 1: MS1, 2: MS2);
+impl_vnd_phase!(0: MS0, 1: MS1, 2: MS2, 3: MS3);
+impl_vnd_phase!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4);
+impl_vnd_phase!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5);
+impl_vnd_phase!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5, 6: MS6);
+impl_vnd_phase!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5, 6: MS6, 7: MS7);
 
 #[cfg(test)]
 mod tests {
@@ -409,12 +339,10 @@ mod tests {
         assert!(initial_score < SimpleScore::of(0));
 
         let values: Vec<i32> = (0..4).collect();
-        // Two neighborhoods as a tuple
-        let neighborhoods = (
+        let mut phase: VndPhase<_, NQueensMove> = VndPhase::new((
             create_move_selector(values.clone()),
-            create_move_selector(values.clone()),
-        );
-        let mut phase = VndPhase::new(neighborhoods);
+            create_move_selector(values),
+        ));
 
         phase.solve(&mut solver_scope);
 
@@ -430,32 +358,11 @@ mod tests {
         let initial_score = solver_scope.calculate_score();
 
         let values: Vec<i32> = (0..4).collect();
-        // Single neighborhood as a 1-tuple
-        let neighborhoods = (create_move_selector(values),);
-        let mut phase = VndPhase::new(neighborhoods);
+        let mut phase: VndPhase<_, NQueensMove> = VndPhase::new((create_move_selector(values),));
 
         phase.solve(&mut solver_scope);
 
         let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
-    }
-
-    #[test]
-    fn test_neighborhood_tuple_count() {
-        let values: Vec<i32> = (0..4).collect();
-        let n1 = (create_move_selector(values.clone()),);
-        let n2 = (
-            create_move_selector(values.clone()),
-            create_move_selector(values.clone()),
-        );
-        let n3 = (
-            create_move_selector(values.clone()),
-            create_move_selector(values.clone()),
-            create_move_selector(values),
-        );
-
-        assert_eq!(n1.count(), 1);
-        assert_eq!(n2.count(), 2);
-        assert_eq!(n3.count(), 3);
     }
 }

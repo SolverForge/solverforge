@@ -192,6 +192,16 @@ where
     }
 }
 
+// Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
+impl<S: PlanningSolution> ScoreBounder<S> for () {
+    fn calculate_optimistic_bound(
+        &self,
+        _score_director: &dyn ScoreDirector<S>,
+    ) -> Option<S::Score> {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

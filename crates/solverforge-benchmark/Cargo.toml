@@ -1,0 +1,15 @@
+[package]
+name = "solverforge-benchmark"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Benchmarking framework for SolverForge constraint solver"
+
+[dependencies]
+solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
+solverforge-solver = { version = "0.4.0", path = "../solverforge-solver" }
+solverforge-scoring = { version = "0.4.0", path = "../solverforge-scoring" }
+
+[dev-dependencies]

@@ -1,0 +1,18 @@
+[package]
+name = "solverforge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SolverForge - A constraint solver in Rust"
+
+[features]
+default = []
+decimal = ["solverforge-core/decimal"]
+serde = ["solverforge-core/serde"]
+
+[dependencies]
+solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
+solverforge-macros = { version = "0.4.0", path = "../solverforge-macros" }
+solverforge-scoring = { version = "0.4.0", path = "../solverforge-scoring" }
+solverforge-solver = { version = "0.4.0", path = "../solverforge-solver" }
+solverforge-config = { version = "0.4.0", path = "../solverforge-config" }

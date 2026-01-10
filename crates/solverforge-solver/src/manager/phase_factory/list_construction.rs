@@ -26,7 +26,7 @@ use super::super::PhaseFactory;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::ListConstructionPhaseBuilder;
+/// use solverforge_solver::{ListConstructionPhase, ListConstructionPhaseBuilder};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///

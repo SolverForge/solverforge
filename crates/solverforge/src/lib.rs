@@ -40,6 +40,9 @@
 
 pub use solverforge_macros::{planning_entity, planning_solution, problem_fact};
 
+// Derive macros (used by attribute macros, must be at root level)
+pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
+
 // ============================================================================
 // Score Types
 // ============================================================================
@@ -107,8 +110,9 @@ pub mod __internal {
     pub use solverforge_solver::heuristic::selector::{
         DefaultDistanceMeter, FromSolutionEntitySelector,
     };
-    pub use solverforge_solver::manager::{PhaseFactory, SolverManager};
-    pub use solverforge_solver::phase::{KOptPhaseBuilder, ListConstructionPhaseBuilder};
+    pub use solverforge_solver::manager::{
+        KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverManager,
+    };
 
     // Config
     pub use solverforge_config::SolverConfig;

@@ -20,36 +20,49 @@ use super::Placement;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `M` - The move type
 /// * `D` - The score director type
-pub trait ConstructionForager<S, M, D>: Send + Debug
+/// * `M` - The move type
+pub trait ConstructionForager<S, D, M>: Send + Debug
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
     /// Picks a move from the placement's candidates.
     ///
     /// Returns None if no suitable move is found.
-    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M>;
+    fn pick_move(&self, placement: &Placement<S, D, M>, score_director: &mut D) -> Option<M>;
 }
 
 /// First Fit forager - picks the first feasible move.
 ///
 /// This is the fastest forager but may not produce optimal results.
 /// It simply takes the first move that can be executed.
-#[derive(Clone, Default)]
-pub struct FirstFitForager<S, M> {
-    _phantom: PhantomData<(S, M)>,
+pub struct FirstFitForager<S, D, M> {
+    _phantom: PhantomData<fn() -> (S, D, M)>,
 }
 
-impl<S, M> Debug for FirstFitForager<S, M> {
+impl<S, D, M> Clone for FirstFitForager<S, D, M> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, M> Copy for FirstFitForager<S, D, M> {}
+
+impl<S, D, M> Default for FirstFitForager<S, D, M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, D, M> Debug for FirstFitForager<S, D, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FirstFitForager").finish()
     }
 }
 
-impl<S, M> FirstFitForager<S, M> {
+impl<S, D, M> FirstFitForager<S, D, M> {
     /// Creates a new First Fit forager.
     pub fn new() -> Self {
         Self {
@@ -58,13 +71,13 @@ impl<S, M> FirstFitForager<S, M> {
     }
 }
 
-impl<S, M, D> ConstructionForager<S, M, D> for FirstFitForager<S, M>
+impl<S, D, M> ConstructionForager<S, D, M> for FirstFitForager<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
-    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, D, M>, score_director: &mut D) -> Option<M> {
         // Return the first doable move
         for m in &placement.moves {
             if m.is_doable(score_director) {
@@ -80,18 +93,31 @@ where
 /// This forager evaluates each candidate move by executing it,
 /// calculating the score, and undoing it. The move with the best
 /// score is selected.
-#[derive(Clone, Default)]
-pub struct BestFitForager<S, M> {
-    _phantom: PhantomData<(S, M)>,
+pub struct BestFitForager<S, D, M> {
+    _phantom: PhantomData<fn() -> (S, D, M)>,
 }
 
-impl<S, M> Debug for BestFitForager<S, M> {
+impl<S, D, M> Clone for BestFitForager<S, D, M> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, M> Copy for BestFitForager<S, D, M> {}
+
+impl<S, D, M> Default for BestFitForager<S, D, M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, D, M> Debug for BestFitForager<S, D, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BestFitForager").finish()
     }
 }
 
-impl<S, M> BestFitForager<S, M> {
+impl<S, D, M> BestFitForager<S, D, M> {
     /// Creates a new Best Fit forager.
     pub fn new() -> Self {
         Self {
@@ -100,13 +126,13 @@ impl<S, M> BestFitForager<S, M> {
     }
 }
 
-impl<S, M, D> ConstructionForager<S, M, D> for BestFitForager<S, M>
+impl<S, D, M> ConstructionForager<S, D, M> for BestFitForager<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
-    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, D, M>, score_director: &mut D) -> Option<M> {
         let mut best_move: Option<M> = None;
         let mut best_score: Option<S::Score> = None;
 
@@ -151,18 +177,31 @@ where
 ///
 /// This forager evaluates moves until it finds one that produces a feasible
 /// (non-negative hard score) solution.
-#[derive(Clone, Default)]
-pub struct FirstFeasibleForager<S, M> {
-    _phantom: PhantomData<(S, M)>,
+pub struct FirstFeasibleForager<S, D, M> {
+    _phantom: PhantomData<fn() -> (S, D, M)>,
 }
 
-impl<S, M> Debug for FirstFeasibleForager<S, M> {
+impl<S, D, M> Clone for FirstFeasibleForager<S, D, M> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, M> Copy for FirstFeasibleForager<S, D, M> {}
+
+impl<S, D, M> Default for FirstFeasibleForager<S, D, M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, D, M> Debug for FirstFeasibleForager<S, D, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FirstFeasibleForager").finish()
     }
 }
 
-impl<S, M> FirstFeasibleForager<S, M> {
+impl<S, D, M> FirstFeasibleForager<S, D, M> {
     /// Creates a new First Feasible forager.
     pub fn new() -> Self {
         Self {
@@ -171,13 +210,13 @@ impl<S, M> FirstFeasibleForager<S, M> {
     }
 }
 
-impl<S, M, D> ConstructionForager<S, M, D> for FirstFeasibleForager<S, M>
+impl<S, D, M> ConstructionForager<S, D, M> for FirstFeasibleForager<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
-    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, D, M>, score_director: &mut D) -> Option<M> {
         let mut fallback_move: Option<M> = None;
         let mut fallback_score: Option<S::Score> = None;
 
@@ -234,10 +273,11 @@ where
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::phase::construction::{WeakestFitForager, ConstructionForager};
+/// use solverforge_solver::phase::construction::WeakestFitForager;
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::SimpleScoreDirector;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { priority: Option<i32> }
@@ -251,38 +291,37 @@ where
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
+/// type Director = SimpleScoreDirector<Solution, fn(&Solution) -> SimpleScore>;
+/// type Move = ChangeMove<Solution, Director, i32>;
+///
 /// // Strength function: priority value (lower = weaker)
-/// fn priority_strength(m: &ChangeMove<Solution, i32>) -> i64 {
+/// fn priority_strength(m: &Move) -> i64 {
 ///     m.to_value().map(|&v| v as i64).unwrap_or(0)
 /// }
 ///
-/// let forager = WeakestFitForager::<Solution, ChangeMove<Solution, i32>>::new(priority_strength);
+/// let forager = WeakestFitForager::<Solution, Director, Move>::new(priority_strength);
 /// ```
-pub struct WeakestFitForager<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+pub struct WeakestFitForager<S, D, M> {
     /// Function to evaluate strength of a move.
     strength_fn: fn(&M) -> i64,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> (S, D)>,
 }
 
-impl<S, M> Debug for WeakestFitForager<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+impl<S, D, M> Clone for WeakestFitForager<S, D, M> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, M> Copy for WeakestFitForager<S, D, M> {}
+
+impl<S, D, M> Debug for WeakestFitForager<S, D, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WeakestFitForager").finish()
     }
 }
 
-impl<S, M> WeakestFitForager<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+impl<S, D, M> WeakestFitForager<S, D, M> {
     /// Creates a new Weakest Fit forager with the given strength function.
     ///
     /// The strength function evaluates how "strong" a move is. The forager
@@ -295,13 +334,13 @@ where
     }
 }
 
-impl<S, M, D> ConstructionForager<S, M, D> for WeakestFitForager<S, M>
+impl<S, D, M> ConstructionForager<S, D, M> for WeakestFitForager<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
-    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, D, M>, score_director: &mut D) -> Option<M> {
         let mut best_move: Option<M> = None;
         let mut min_strength: Option<i64> = None;
 
@@ -336,10 +375,11 @@ where
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::phase::construction::{StrongestFitForager, ConstructionForager};
+/// use solverforge_solver::phase::construction::StrongestFitForager;
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::SimpleScoreDirector;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { priority: Option<i32> }
@@ -353,38 +393,37 @@ where
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
+/// type Director = SimpleScoreDirector<Solution, fn(&Solution) -> SimpleScore>;
+/// type Move = ChangeMove<Solution, Director, i32>;
+///
 /// // Strength function: priority value (higher = stronger)
-/// fn priority_strength(m: &ChangeMove<Solution, i32>) -> i64 {
+/// fn priority_strength(m: &Move) -> i64 {
 ///     m.to_value().map(|&v| v as i64).unwrap_or(0)
 /// }
 ///
-/// let forager = StrongestFitForager::<Solution, ChangeMove<Solution, i32>>::new(priority_strength);
+/// let forager = StrongestFitForager::<Solution, Director, Move>::new(priority_strength);
 /// ```
-pub struct StrongestFitForager<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+pub struct StrongestFitForager<S, D, M> {
     /// Function to evaluate strength of a move.
     strength_fn: fn(&M) -> i64,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> (S, D)>,
 }
 
-impl<S, M> Debug for StrongestFitForager<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+impl<S, D, M> Clone for StrongestFitForager<S, D, M> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, M> Copy for StrongestFitForager<S, D, M> {}
+
+impl<S, D, M> Debug for StrongestFitForager<S, D, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StrongestFitForager").finish()
     }
 }
 
-impl<S, M> StrongestFitForager<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+impl<S, D, M> StrongestFitForager<S, D, M> {
     /// Creates a new Strongest Fit forager with the given strength function.
     ///
     /// The strength function evaluates how "strong" a move is. The forager
@@ -397,13 +436,13 @@ where
     }
 }
 
-impl<S, M, D> ConstructionForager<S, M, D> for StrongestFitForager<S, M>
+impl<S, D, M> ConstructionForager<S, D, M> for StrongestFitForager<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
     D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
-    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, D, M>, score_director: &mut D) -> Option<M> {
         let mut best_move: Option<M> = None;
         let mut max_strength: Option<i64> = None;
 
@@ -509,9 +548,10 @@ mod tests {
         })
     }
 
-    type TestMove = ChangeMove<NQueensSolution, i64>;
+    type TestDirector = SimpleScoreDirector<NQueensSolution, fn(&NQueensSolution) -> SimpleScore>;
+    type TestMove = ChangeMove<NQueensSolution, TestDirector, i64>;
 
-    fn create_placement() -> Placement<NQueensSolution, TestMove> {
+    fn create_placement() -> Placement<NQueensSolution, TestDirector, TestMove> {
         let entity_ref = EntityReference::new(0, 0);
         let moves: Vec<TestMove> = vec![
             ChangeMove::new(0, Some(1i64), get_queen_row, set_queen_row, "row", 0),
@@ -526,7 +566,7 @@ mod tests {
         let mut director = create_test_director();
         let placement = create_placement();
 
-        let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
+        let forager = FirstFitForager::<NQueensSolution, _, TestMove>::new();
         let selected = forager.pick_move(&placement, &mut director);
 
         // First Fit should pick the first move (value 1)
@@ -538,7 +578,7 @@ mod tests {
         let mut director = create_test_director();
         let placement = create_placement();
 
-        let forager = BestFitForager::<NQueensSolution, TestMove>::new();
+        let forager = BestFitForager::<NQueensSolution, _, TestMove>::new();
         let selected = forager.pick_move(&placement, &mut director);
 
         // Best Fit should pick the move with highest score (value 5)
@@ -557,7 +597,7 @@ mod tests {
         let mut director = create_test_director();
         let placement = Placement::new(EntityReference::new(0, 0), vec![]);
 
-        let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
+        let forager = FirstFitForager::<NQueensSolution, _, TestMove>::new();
         let selected = forager.pick_move(&placement, &mut director);
 
         assert!(selected.is_none());
@@ -572,7 +612,7 @@ mod tests {
         let mut director = create_test_director();
         let placement = create_placement(); // values: 1, 5, 3
 
-        let forager = WeakestFitForager::<NQueensSolution, TestMove>::new(value_strength);
+        let forager = WeakestFitForager::<NQueensSolution, _, TestMove>::new(value_strength);
         let selected = forager.pick_move(&placement, &mut director);
 
         // Weakest Fit should pick the move with lowest strength (value 1)
@@ -589,7 +629,7 @@ mod tests {
         let mut director = create_test_director();
         let placement = create_placement(); // values: 1, 5, 3
 
-        let forager = StrongestFitForager::<NQueensSolution, TestMove>::new(value_strength);
+        let forager = StrongestFitForager::<NQueensSolution, _, TestMove>::new(value_strength);
         let selected = forager.pick_move(&placement, &mut director);
 
         // Strongest Fit should pick the move with highest strength (value 5)

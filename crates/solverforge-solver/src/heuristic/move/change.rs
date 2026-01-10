@@ -9,7 +9,6 @@
 //! the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -23,20 +22,32 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The variable value type
-#[derive(Clone, Copy)]
-pub struct ChangeMove<S, D, V> {
+pub struct ChangeMove<S, V> {
     entity_index: usize,
     to_value: Option<V>,
     getter: fn(&S, usize) -> Option<V>,
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<D>,
 }
 
-impl<S, D, V: Debug> Debug for ChangeMove<S, D, V> {
+impl<S, V: Clone> Clone for ChangeMove<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_index: self.entity_index,
+            to_value: self.to_value.clone(),
+            getter: self.getter,
+            setter: self.setter,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+}
+
+impl<S, V: Copy> Copy for ChangeMove<S, V> {}
+
+impl<S, V: Debug> Debug for ChangeMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ChangeMove")
             .field("entity_index", &self.entity_index)
@@ -47,7 +58,7 @@ impl<S, D, V: Debug> Debug for ChangeMove<S, D, V> {
     }
 }
 
-impl<S, D, V> ChangeMove<S, D, V> {
+impl<S, V> ChangeMove<S, V> {
     /// Creates a new change move with typed function pointers.
     ///
     /// # Arguments
@@ -72,7 +83,6 @@ impl<S, D, V> ChangeMove<S, D, V> {
             setter,
             variable_name,
             descriptor_index,
-            _phantom: PhantomData,
         }
     }
 
@@ -97,13 +107,12 @@ impl<S, D, V> ChangeMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for ChangeMove<S, D, V>
+impl<S, V> Move<S> for ChangeMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // Get current value using typed getter - no boxing, no downcast
         let current = (self.getter)(score_director.working_solution(), self.entity_index);
 
@@ -115,7 +124,7 @@ where
         }
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Capture old value using typed getter - zero erasure
         let old_value = (self.getter)(score_director.working_solution(), self.entity_index);
 

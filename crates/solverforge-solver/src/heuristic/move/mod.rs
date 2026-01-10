@@ -70,26 +70,26 @@ pub use swap::SwapMove;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 ///
 /// # Implementation Notes
 /// - Moves should be lightweight and cloneable
 /// - Use `RecordingScoreDirector` to wrap the score director for automatic undo
 /// - Implement `Clone` for arena allocation support
-pub trait Move<S: PlanningSolution, D: ScoreDirector<S>>: Send + Sync + Debug + Clone {
+/// - Methods are generic over D to allow use with both concrete directors and RecordingScoreDirector
+pub trait Move<S: PlanningSolution>: Send + Sync + Debug + Clone {
     /// Returns true if this move can be executed in the current state.
     ///
     /// A move is not doable if:
     /// - The source value equals the destination value (no change)
     /// - Required entities are pinned
     /// - The move would violate hard constraints that can be detected early
-    fn is_doable(&self, score_director: &D) -> bool;
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool;
 
     /// Executes this move, modifying the working solution.
     ///
     /// This method modifies the planning variables through the score director.
     /// Use `RecordingScoreDirector` to enable automatic undo via `undo_changes()`.
-    fn do_move(&self, score_director: &mut D);
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D);
 
     /// Returns the descriptor index of the entity type this move affects.
     fn descriptor_index(&self) -> usize;

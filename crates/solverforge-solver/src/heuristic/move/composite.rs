@@ -87,19 +87,24 @@ use super::Move;
 ///
 /// Both moves are stored inline as concrete types. No `Box<dyn Move>`,
 /// no trait objects in the hot path.
-#[derive(Clone)]
-pub struct CompositeMove<S, D, M1, M2>
-where
-    S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M1: Move<S, D>,
-    M2: Move<S, D>,
-{
+pub struct CompositeMove<S, D, M1, M2> {
     first: M1,
     second: M2,
     /// Combined entity indices from both moves
     combined_indices: SmallVec<[usize; 8]>,
-    _phantom: std::marker::PhantomData<(S, D)>,
+    _phantom: std::marker::PhantomData<(fn() -> S, fn() -> D)>,
+}
+
+// Manual Clone impl to avoid S: Clone, D: Clone bounds from derive
+impl<S, D, M1: Clone, M2: Clone> Clone for CompositeMove<S, D, M1, M2> {
+    fn clone(&self) -> Self {
+        Self {
+            first: self.first.clone(),
+            second: self.second.clone(),
+            combined_indices: self.combined_indices.clone(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<S, D, M1, M2> Debug for CompositeMove<S, D, M1, M2>

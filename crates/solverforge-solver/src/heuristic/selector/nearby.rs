@@ -138,7 +138,7 @@ pub trait DynDistanceMeter: Send + Sync + Debug {
 ///
 /// The child entity selector `ES` is stored as a concrete generic type parameter,
 /// eliminating virtual dispatch overhead when iterating over candidate entities.
-pub struct NearbyEntitySelector<S: PlanningSolution, M: DynDistanceMeter, ES: EntitySelector<S>> {
+pub struct NearbyEntitySelector<S, M, ES> {
     /// The child selector providing all candidate entities (zero-erasure).
     child: ES,
     /// The recorder providing the origin entity.
@@ -148,10 +148,10 @@ pub struct NearbyEntitySelector<S: PlanningSolution, M: DynDistanceMeter, ES: En
     /// Configuration for nearby selection.
     config: NearbySelectionConfig,
     /// Marker for solution type.
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter, ES: EntitySelector<S>> NearbyEntitySelector<S, M, ES> {
+impl<S, M, ES> NearbyEntitySelector<S, M, ES> {
     /// Creates a new nearby entity selector.
     pub fn new(
         child: ES,
@@ -169,7 +169,7 @@ impl<S: PlanningSolution, M: DynDistanceMeter, ES: EntitySelector<S>> NearbyEnti
     }
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter, ES: EntitySelector<S>> Debug for NearbyEntitySelector<S, M, ES> {
+impl<S: PlanningSolution, M: DynDistanceMeter, ES: Debug> Debug for NearbyEntitySelector<S, M, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyEntitySelector")
             .field("child", &self.child)
@@ -180,12 +180,16 @@ impl<S: PlanningSolution, M: DynDistanceMeter, ES: EntitySelector<S>> Debug for 
     }
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter + 'static, ES: EntitySelector<S>> EntitySelector<S>
-    for NearbyEntitySelector<S, M, ES>
+impl<S, D, M, ES> EntitySelector<S, D> for NearbyEntitySelector<S, M, ES>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    M: DynDistanceMeter + 'static,
+    ES: EntitySelector<S, D>,
 {
     fn iter<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
         // Get the origin entity from the recorder
         let origin = match self.origin_recorder.get_recorded_entity() {
@@ -221,7 +225,7 @@ impl<S: PlanningSolution, M: DynDistanceMeter + 'static, ES: EntitySelector<S>> 
         Box::new(candidates.into_iter().map(|(entity, _)| entity))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, score_director: &D) -> usize {
         // This is an estimate; the actual size depends on the origin
         let child_size = self.child.size(score_director);
         match self.config.max_nearby_size {

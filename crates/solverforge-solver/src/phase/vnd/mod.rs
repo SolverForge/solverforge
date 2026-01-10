@@ -102,8 +102,8 @@ macro_rules! impl_vnd_phase {
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            M: Move<S>,
-            $MS: MoveSelector<S, M>,
+            M: Move<S, D>,
+            $MS: MoveSelector<S, D, M>,
         {
             fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 let mut arena = MoveArena::<M>::new();
@@ -142,8 +142,8 @@ macro_rules! impl_vnd_phase {
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            M: Move<S>,
-            $($MS: MoveSelector<S, M>,)+
+            M: Move<S, D>,
+            $($MS: MoveSelector<S, D, M>,)+
         {
             fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
@@ -199,7 +199,7 @@ fn find_best_improving_move<S, D, M>(
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    M: Move<S>,
+    M: Move<S, D>,
 {
     let mut best_move: Option<(M, S::Score)> = None;
 
@@ -347,8 +347,9 @@ mod tests {
         SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
     }
 
-    type NQueensMove = ChangeMove<NQueensSolution, i32>;
-    type NQueensMoveSelector = ChangeMoveSelector<NQueensSolution, i32>;
+    type TestDirector = SimpleScoreDirector<NQueensSolution, fn(&NQueensSolution) -> SimpleScore>;
+    type NQueensMove = ChangeMove<NQueensSolution, TestDirector, i32>;
+    type NQueensMoveSelector = ChangeMoveSelector<NQueensSolution, TestDirector, i32>;
 
     fn create_move_selector(values: Vec<i32>) -> NQueensMoveSelector {
         ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)

@@ -80,16 +80,17 @@ impl<S, M, A: Debug, B: Debug> Debug for UnionMoveSelector<S, M, A, B> {
     }
 }
 
-impl<S, M, A, B> MoveSelector<S, M> for UnionMoveSelector<S, M, A, B>
+impl<S, D, M, A, B> MoveSelector<S, D, M> for UnionMoveSelector<S, M, A, B>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    A: MoveSelector<S, M>,
-    B: MoveSelector<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    A: MoveSelector<S, D, M>,
+    B: MoveSelector<S, D, M>,
 {
     fn iter_moves<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
         Box::new(
             self.first
@@ -98,7 +99,7 @@ where
         )
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, score_director: &D) -> usize {
         self.first.size(score_director) + self.second.size(score_director)
     }
 

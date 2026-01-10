@@ -54,7 +54,6 @@ use super::Move;
 ///     "stops", 0,
 /// );
 /// ```
-#[derive(Clone)]
 pub struct ListRuinMove<S, D, V> {
     /// Entity index
     entity_index: usize,
@@ -68,7 +67,23 @@ pub struct ListRuinMove<S, D, V> {
     list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
+}
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for ListRuinMove<S, D, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_index: self.entity_index,
+            element_indices: self.element_indices.clone(),
+            list_len: self.list_len,
+            list_remove: self.list_remove,
+            list_insert: self.list_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, D, V: Debug> Debug for ListRuinMove<S, D, V> {

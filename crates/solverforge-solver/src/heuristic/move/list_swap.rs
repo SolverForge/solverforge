@@ -63,7 +63,6 @@ use super::Move;
 ///     "visits", 0,
 /// );
 /// ```
-#[derive(Clone, Copy)]
 pub struct ListSwapMove<S, D, V> {
     /// First entity index
     first_entity_index: usize,
@@ -83,8 +82,17 @@ pub struct ListSwapMove<S, D, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
 }
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for ListSwapMove<S, D, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, V> Copy for ListSwapMove<S, D, V> {}
 
 impl<S, D, V: Debug> Debug for ListSwapMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

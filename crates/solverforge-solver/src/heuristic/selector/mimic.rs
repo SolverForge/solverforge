@@ -107,16 +107,16 @@ impl MimicRecorder {
 ///
 /// The child entity selector `ES` is stored as a concrete generic type parameter,
 /// eliminating virtual dispatch overhead when iterating over entities.
-pub struct MimicRecordingEntitySelector<S: PlanningSolution, ES: EntitySelector<S>> {
+pub struct MimicRecordingEntitySelector<S, ES> {
     /// The child selector that actually selects entities (zero-erasure).
     child: ES,
     /// The recorder that broadcasts selections.
     recorder: MimicRecorder,
     /// Marker for solution type.
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
-impl<S: PlanningSolution, ES: EntitySelector<S>> MimicRecordingEntitySelector<S, ES> {
+impl<S, ES> MimicRecordingEntitySelector<S, ES> {
     /// Creates a new recording selector wrapping the given child selector.
     pub fn new(child: ES, recorder: MimicRecorder) -> Self {
         Self {
@@ -132,7 +132,7 @@ impl<S: PlanningSolution, ES: EntitySelector<S>> MimicRecordingEntitySelector<S,
     }
 }
 
-impl<S: PlanningSolution, ES: EntitySelector<S>> Debug for MimicRecordingEntitySelector<S, ES> {
+impl<S: PlanningSolution, ES: Debug> Debug for MimicRecordingEntitySelector<S, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MimicRecordingEntitySelector")
             .field("child", &self.child)
@@ -141,10 +141,15 @@ impl<S: PlanningSolution, ES: EntitySelector<S>> Debug for MimicRecordingEntityS
     }
 }
 
-impl<S: PlanningSolution, ES: EntitySelector<S>> EntitySelector<S> for MimicRecordingEntitySelector<S, ES> {
+impl<S, D, ES> EntitySelector<S, D> for MimicRecordingEntitySelector<S, ES>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    ES: EntitySelector<S, D>,
+{
     fn iter<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
         // Reset for new iteration
         self.recorder.reset();
@@ -156,7 +161,7 @@ impl<S: PlanningSolution, ES: EntitySelector<S>> EntitySelector<S> for MimicReco
         })
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, score_director: &D) -> usize {
         self.child.size(score_director)
     }
 
@@ -213,10 +218,14 @@ impl Debug for MimicReplayingEntitySelector {
     }
 }
 
-impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
+impl<S, D> EntitySelector<S, D> for MimicReplayingEntitySelector
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
     fn iter<'a>(
         &'a self,
-        _score_director: &'a dyn ScoreDirector<S>,
+        _score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
         Box::new(ReplayingIterator {
             recorder: &self.recorder,
@@ -224,7 +233,7 @@ impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
         })
     }
 
-    fn size(&self, _score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, _score_director: &D) -> usize {
         // At most one entity is returned
         if self.recorder.get_recorded_entity().is_some() {
             1

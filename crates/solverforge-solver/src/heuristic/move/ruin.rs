@@ -60,7 +60,6 @@ use super::Move;
 ///     "assigned_to", 0,
 /// );
 /// ```
-#[derive(Clone)]
 pub struct RuinMove<S, D, V> {
     /// Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
@@ -70,7 +69,21 @@ pub struct RuinMove<S, D, V> {
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
+}
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for RuinMove<S, D, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_indices: self.entity_indices.clone(),
+            getter: self.getter,
+            setter: self.setter,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, D, V: Debug> Debug for RuinMove<S, D, V> {

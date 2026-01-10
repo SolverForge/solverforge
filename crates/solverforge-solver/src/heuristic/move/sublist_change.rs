@@ -22,6 +22,7 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -60,7 +61,7 @@ use super::Move;
 /// }
 ///
 /// // Move elements [1..3) from vehicle 0 to vehicle 1 at position 0
-/// let m = SubListChangeMove::<Solution, i32>::new(
+/// let m = SubListChangeMove::<Solution, _, i32>::new(
 ///     0, 1, 3,  // source: entity 0, range [1, 3)
 ///     1, 0,     // dest: entity 1, position 0
 ///     list_len, sublist_remove, sublist_insert,
@@ -68,7 +69,7 @@ use super::Move;
 /// );
 /// ```
 #[derive(Clone)]
-pub struct SubListChangeMove<S, V> {
+pub struct SubListChangeMove<S, D, V> {
     /// Source entity index
     source_entity_index: usize,
     /// Start of range in source list (inclusive)
@@ -89,10 +90,10 @@ pub struct SubListChangeMove<S, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(D, V)>,
 }
 
-impl<S, V: Debug> Debug for SubListChangeMove<S, V> {
+impl<S, D, V: Debug> Debug for SubListChangeMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SubListChangeMove")
             .field("source_entity", &self.source_entity_index)
@@ -104,7 +105,7 @@ impl<S, V: Debug> Debug for SubListChangeMove<S, V> {
     }
 }
 
-impl<S, V> SubListChangeMove<S, V> {
+impl<S, D, V> SubListChangeMove<S, D, V> {
     /// Creates a new sublist change move with typed function pointers.
     ///
     /// # Arguments
@@ -183,12 +184,13 @@ impl<S, V> SubListChangeMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for SubListChangeMove<S, V>
+impl<S, D, V> Move<S, D> for SubListChangeMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check range is valid (start < end)
@@ -228,7 +230,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         // Notify before changes
         score_director.before_variable_changed(
             self.descriptor_index,
@@ -397,7 +399,7 @@ mod tests {
 
         // Move elements [1..3) (values 2, 3) to end of list
         // After removing [1..3), list is [1, 4, 5, 6], insert at position 4
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
+        let m = SubListChangeMove::<RoutingSolution, _, i32>::new(
             0,
             1,
             3,
@@ -435,7 +437,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move elements [3..5) (values 4, 5) to position 1
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
+        let m = SubListChangeMove::<RoutingSolution, _, i32>::new(
             0,
             3,
             5,
@@ -478,7 +480,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move elements [1..3) (values 2, 3) from vehicle 0 to vehicle 1 at position 1
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
+        let m = SubListChangeMove::<RoutingSolution, _, i32>::new(
             0,
             1,
             3,
@@ -517,7 +519,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // start >= end is not doable
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
+        let m = SubListChangeMove::<RoutingSolution, _, i32>::new(
             0,
             2,
             2,
@@ -540,7 +542,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
+        let m = SubListChangeMove::<RoutingSolution, _, i32>::new(
             0,
             1,
             10,
@@ -564,7 +566,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // Moving [1..4) to position 2 (within the range) is a no-op
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
+        let m = SubListChangeMove::<RoutingSolution, _, i32>::new(
             0,
             1,
             4,

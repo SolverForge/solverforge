@@ -145,7 +145,8 @@ fn test_solver_with_time_limit_termination() {
         calculate_entity_score,
     )
     .with_time_limit(Duration::from_millis(100))
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     // Verify the manager can calculate scores
     let score = manager.calculate_score(&solution);
@@ -175,7 +176,8 @@ fn test_solver_with_step_limit_termination() {
         calculate_entity_score,
     )
     .with_step_limit(5)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     // Verify the manager can calculate scores
     let score = manager.calculate_score(&solution);
@@ -202,7 +204,8 @@ fn test_solver_manager_with_entity_solution() {
     let manager = solver_manager_builder::<EntityTestSolution, EntityTestDirector, _>(
         calculate_entity_score,
     )
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let score = manager.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(0));
@@ -215,7 +218,8 @@ fn test_solver_manager_with_phases() {
     })
     .with_phase(NoOpPhase)
     .with_step_limit(10)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 5,
@@ -233,7 +237,8 @@ fn test_solver_manager_with_multiple_phases() {
     .with_phase(NoOpPhase)
     .with_phase(NoOpPhase)
     .with_time_limit(Duration::from_secs(1))
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 7,

@@ -36,7 +36,8 @@ fn test_builder_with_time_limit() {
         calculator as fn(&TestSolution) -> SimpleScore,
     )
     .with_time_limit(Duration::from_secs(30))
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 5,
@@ -55,7 +56,8 @@ fn test_builder_with_step_limit() {
         calculator as fn(&TestSolution) -> SimpleScore,
     )
     .with_step_limit(100)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 10,

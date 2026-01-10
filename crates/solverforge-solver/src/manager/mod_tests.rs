@@ -50,7 +50,8 @@ fn test_solver_manager_builder_builds_successfully() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 10,
@@ -66,7 +67,8 @@ fn test_solver_manager_builder_with_time_limit() {
         SimpleScore::of(-s.value)
     })
     .with_time_limit(Duration::from_secs(30))
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 5,
@@ -82,7 +84,8 @@ fn test_solver_manager_builder_with_step_limit() {
         SimpleScore::of(-s.value)
     })
     .with_step_limit(100)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 7,
@@ -118,7 +121,8 @@ fn test_solver_manager_with_phase() {
         SimpleScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 5,
@@ -135,7 +139,8 @@ fn test_solver_manager_with_multiple_phases() {
     })
     .with_phase(NoOpPhase)
     .with_phase(NoOpPhase)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 3,
@@ -152,7 +157,8 @@ fn test_solver_manager_with_phase_and_step_limit() {
     })
     .with_phase(NoOpPhase)
     .with_step_limit(50)
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 8,
@@ -171,7 +177,8 @@ fn test_score_calculator_returns_reference() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let calculator = manager.score_calculator();
 
@@ -188,7 +195,8 @@ fn test_calculate_score_basic() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 10,
@@ -203,7 +211,8 @@ fn test_calculate_score_zero() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 0,
@@ -218,7 +227,8 @@ fn test_calculate_score_negative_value() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: -5,
@@ -233,7 +243,8 @@ fn test_calculate_score_multiple_solutions() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solutions = [
         TestSolution {
@@ -261,7 +272,8 @@ fn test_calculate_score_complex_calculator() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-(s.value * s.value))
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 4,
@@ -276,7 +288,8 @@ fn test_score_calculator_and_calculate_score_consistent() {
     let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value * 2)
     })
-    .build();
+    .build()
+    .expect("Failed to build manager");
 
     let solution = TestSolution {
         value: 7,

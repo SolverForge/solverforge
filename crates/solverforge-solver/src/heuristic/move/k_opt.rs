@@ -46,7 +46,7 @@
 //! ];
 //! let reconnection = &THREE_OPT_RECONNECTIONS[3]; // Swap middle segments
 //!
-//! let m = KOptMove::<Tour, i32>::new(
+//! let m = KOptMove::<Tour, _, i32>::new(
 //!     &cuts,
 //!     reconnection,
 //!     list_len,
@@ -126,9 +126,10 @@ impl CutPoint {
 /// # Type Parameters
 ///
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The list element value type
 #[derive(Clone)]
-pub struct KOptMove<S, V> {
+pub struct KOptMove<S, D, V> {
     /// Cut points (up to 5 for 5-opt).
     cuts: [CutPoint; 5],
     /// Number of actual cuts (k value).
@@ -147,10 +148,10 @@ pub struct KOptMove<S, V> {
     descriptor_index: usize,
     /// Entity index (for intra-route moves).
     entity_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(D, V)>,
 }
 
-impl<S, V: Debug> Debug for KOptMove<S, V> {
+impl<S, D, V: Debug> Debug for KOptMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cuts: Vec<_> = self.cuts[..self.cut_count as usize]
             .iter()
@@ -166,7 +167,7 @@ impl<S, V: Debug> Debug for KOptMove<S, V> {
     }
 }
 
-impl<S, V> KOptMove<S, V> {
+impl<S, D, V> KOptMove<S, D, V> {
     /// Creates a new k-opt move.
     ///
     /// # Arguments
@@ -237,12 +238,13 @@ impl<S, V> KOptMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for KOptMove<S, V>
+impl<S, D, V> Move<S, D> for KOptMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         let k = self.cut_count as usize;
 
@@ -280,7 +282,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         let k = self.cut_count as usize;
         let entity = self.entity_index;
 
@@ -469,7 +471,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[3]; // [0,2,1,3] no reversal
 
-        let m = KOptMove::<TspSolution, i32>::new(
+        let m = KOptMove::<TspSolution, _, i32>::new(
             &cuts,
             reconnection,
             list_len,
@@ -520,7 +522,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[0]; // Reverse B only
 
-        let m = KOptMove::<TspSolution, i32>::new(
+        let m = KOptMove::<TspSolution, _, i32>::new(
             &cuts,
             reconnection,
             list_len,
@@ -561,7 +563,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[0];
 
-        let m = KOptMove::<TspSolution, i32>::new(
+        let m = KOptMove::<TspSolution, _, i32>::new(
             &cuts,
             reconnection,
             list_len,
@@ -589,7 +591,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[0];
 
-        let m = KOptMove::<TspSolution, i32>::new(
+        let m = KOptMove::<TspSolution, _, i32>::new(
             &cuts,
             reconnection,
             list_len,

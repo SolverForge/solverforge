@@ -8,11 +8,8 @@ use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
 
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
-struct Queen {
-    row: Option<i32>,
-}
+struct Queen;
 
 #[derive(Clone, Debug)]
 struct NQueensSolution {
@@ -43,7 +40,7 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
 fn create_test_director(
 ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
     let solution = NQueensSolution {
-        queens: vec![Queen { row: None }, Queen { row: None }],
+        queens: vec![Queen, Queen],
         score: None,
     };
 
@@ -65,7 +62,7 @@ fn create_test_director(
 #[test]
 fn test_solver_scope_creation() {
     let director = create_test_director();
-    let scope = SolverScope::new(Box::new(director));
+    let scope = SolverScope::new(director);
 
     assert!(scope.best_solution().is_none());
     assert!(scope.best_score().is_none());
@@ -75,7 +72,7 @@ fn test_solver_scope_creation() {
 #[test]
 fn test_solver_scope_update_best() {
     let director = create_test_director();
-    let mut scope = SolverScope::new(Box::new(director));
+    let mut scope = SolverScope::new(director);
 
     scope.update_best_solution();
 
@@ -86,7 +83,7 @@ fn test_solver_scope_update_best() {
 #[test]
 fn test_solver_scope_step_count() {
     let director = create_test_director();
-    let mut scope = SolverScope::new(Box::new(director));
+    let mut scope = SolverScope::new(director);
 
     assert_eq!(scope.increment_step_count(), 1);
     assert_eq!(scope.increment_step_count(), 2);
@@ -96,7 +93,7 @@ fn test_solver_scope_step_count() {
 #[test]
 fn test_phase_scope() {
     let director = create_test_director();
-    let mut solver_scope = SolverScope::new(Box::new(director));
+    let mut solver_scope = SolverScope::new(director);
 
     {
         let mut phase_scope = PhaseScope::new(&mut solver_scope, 0);
@@ -113,7 +110,7 @@ fn test_phase_scope() {
 #[test]
 fn test_step_scope() {
     let director = create_test_director();
-    let mut solver_scope = SolverScope::new(Box::new(director));
+    let mut solver_scope = SolverScope::new(director);
 
     {
         let mut phase_scope = PhaseScope::new(&mut solver_scope, 0);

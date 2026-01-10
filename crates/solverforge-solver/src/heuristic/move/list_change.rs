@@ -8,7 +8,6 @@
 //! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -60,7 +59,6 @@ use super::Move;
 ///     "visits", 0,
 /// );
 /// ```
-#[derive(Clone, Copy)]
 pub struct ListChangeMove<S, V> {
     /// Source entity index (which entity's list to remove from)
     source_entity_index: usize,
@@ -80,8 +78,15 @@ pub struct ListChangeMove<S, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
 }
+
+impl<S, V> Clone for ListChangeMove<S, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, V> Copy for ListChangeMove<S, V> {}
 
 impl<S, V: Debug> Debug for ListChangeMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -131,7 +136,6 @@ impl<S, V> ListChangeMove<S, V> {
             variable_name,
             descriptor_index,
             indices: [source_entity_index, dest_entity_index],
-            _phantom: PhantomData,
         }
     }
 
@@ -166,7 +170,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check source position is valid
@@ -189,15 +193,16 @@ where
             return false;
         }
 
-        // For intra-list, moving to same position is a no-op
+        // For intra-list moves, check for no-ops
+        // Moving to same position is obviously a no-op
+        // Moving forward by 1 position is also a no-op due to index adjustment:
+        //   remove at source, adjusted_dest = dest-1 = source, insert at source → same list
         if self.is_intra_list() {
-            // Adjust for removal: if dest > source, effective position after removal
-            let effective_dest = if self.dest_position > self.source_position {
-                self.dest_position - 1
-            } else {
-                self.dest_position
-            };
-            if self.source_position == effective_dest {
+            if self.source_position == self.dest_position {
+                return false;
+            }
+            // Forward move by exactly 1 is a no-op
+            if self.dest_position == self.source_position + 1 {
                 return false;
             }
         }
@@ -205,7 +210,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before changes
         score_director.before_variable_changed(
             self.descriptor_index,

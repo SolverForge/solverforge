@@ -127,7 +127,6 @@ impl CutPoint {
 ///
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-#[derive(Clone)]
 pub struct KOptMove<S, V> {
     /// Cut points (up to 5 for 5-opt).
     cuts: [CutPoint; 5],
@@ -148,6 +147,23 @@ pub struct KOptMove<S, V> {
     /// Entity index (for intra-route moves).
     entity_index: usize,
     _phantom: PhantomData<V>,
+}
+
+impl<S, V> Clone for KOptMove<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            cuts: self.cuts,
+            cut_count: self.cut_count,
+            reconnection: self.reconnection,
+            list_len: self.list_len,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            entity_index: self.entity_index,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, V: Debug> Debug for KOptMove<S, V> {
@@ -242,7 +258,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         let k = self.cut_count as usize;
 
@@ -280,7 +296,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         let k = self.cut_count as usize;
         let entity = self.entity_index;
 

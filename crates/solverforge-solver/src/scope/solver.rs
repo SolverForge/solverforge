@@ -15,9 +15,13 @@ use crate::statistics::StatisticsCollector;
 /// Top-level scope for the entire solving process.
 ///
 /// Holds the working solution, score director, and tracks the best solution found.
-pub struct SolverScope<S: PlanningSolution> {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+pub struct SolverScope<S: PlanningSolution, D: ScoreDirector<S>> {
     /// The score director managing the working solution.
-    score_director: Box<dyn ScoreDirector<S>>,
+    score_director: D,
     /// The best solution found so far.
     best_solution: Option<S>,
     /// The score of the best solution.
@@ -34,9 +38,9 @@ pub struct SolverScope<S: PlanningSolution> {
     terminate_early_flag: Option<Arc<AtomicBool>>,
 }
 
-impl<S: PlanningSolution> SolverScope<S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> SolverScope<S, D> {
     /// Creates a new solver scope with the given score director.
-    pub fn new(score_director: Box<dyn ScoreDirector<S>>) -> Self {
+    pub fn new(score_director: D) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -50,7 +54,7 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Creates a solver scope with a specific random seed.
-    pub fn with_seed(score_director: Box<dyn ScoreDirector<S>>, seed: u64) -> Self {
+    pub fn with_seed(score_director: D, seed: u64) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -64,8 +68,6 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Attaches a statistics collector to this scope.
-    ///
-    /// The collector will be updated during solving to track metrics.
     pub fn with_statistics(mut self, collector: Arc<StatisticsCollector<S::Score>>) -> Self {
         self.statistics = Some(collector);
         self
@@ -77,8 +79,6 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Records a move evaluation in statistics.
-    ///
-    /// Does nothing if no statistics collector is attached.
     pub fn record_move(&self, accepted: bool) {
         if let Some(stats) = &self.statistics {
             stats.record_move(accepted);
@@ -86,8 +86,6 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Records a score calculation in statistics.
-    ///
-    /// Does nothing if no statistics collector is attached.
     pub fn record_score_calculation(&self) {
         if let Some(stats) = &self.statistics {
             stats.record_score_calculation();
@@ -106,13 +104,13 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Returns a reference to the score director.
-    pub fn score_director(&self) -> &dyn ScoreDirector<S> {
-        self.score_director.as_ref()
+    pub fn score_director(&self) -> &D {
+        &self.score_director
     }
 
     /// Returns a mutable reference to the score director.
-    pub fn score_director_mut(&mut self) -> &mut dyn ScoreDirector<S> {
-        self.score_director.as_mut()
+    pub fn score_director_mut(&mut self) -> &mut D {
+        &mut self.score_director
     }
 
     /// Returns a reference to the working solution.
@@ -152,7 +150,6 @@ impl<S: PlanningSolution> SolverScope<S> {
             self.best_solution = Some(self.score_director.clone_working_solution());
             self.best_score = Some(current_score.clone());
 
-            // Record improvement in statistics
             if let Some(stats) = &self.statistics {
                 stats.record_improvement(current_score);
             }
@@ -187,24 +184,17 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Returns the best solution or the current working solution if no best was set.
-    ///
-    /// This is useful after construction heuristic where the working solution
-    /// may be the only valid solution even if it wasn't marked as "best".
     pub fn take_best_or_working_solution(self) -> S {
         self.best_solution
             .unwrap_or_else(|| self.score_director.clone_working_solution())
     }
 
     /// Sets the terminate-early flag shared with the Solver.
-    ///
-    /// This allows phases to check if early termination was requested.
     pub fn set_terminate_early_flag(&mut self, flag: Arc<AtomicBool>) {
         self.terminate_early_flag = Some(flag);
     }
 
     /// Checks if early termination was requested.
-    ///
-    /// Returns `true` if the terminate-early flag is set, otherwise `false`.
     pub fn is_terminate_early(&self) -> bool {
         self.terminate_early_flag
             .as_ref()

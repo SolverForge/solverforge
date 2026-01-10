@@ -44,11 +44,11 @@
 //! }
 //!
 //! // Selector for x values: 1, 2
-//! let x_selector = ChangeMoveSelector::<Sol, i32>::simple(
+//! let x_selector = ChangeMoveSelector::simple(
 //!     get_x, set_x, 0, "x", vec![1, 2],
 //! );
 //! // Selector for y values: 10, 20, 30
-//! let y_selector = ChangeMoveSelector::<Sol, i32>::simple(
+//! let y_selector = ChangeMoveSelector::simple(
 //!     get_y, set_y, 0, "y", vec![10, 20, 30],
 //! );
 //!
@@ -146,9 +146,9 @@ where
     A: MoveSelector<S, M1>,
     B: MoveSelector<S, M2>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = CompositeMove<S, M1, M2>> + 'a> {
         // Materialize first selector's moves (required for cartesian product)
         let first_moves: Vec<M1> = self.first.iter_moves(score_director).collect();
@@ -160,7 +160,7 @@ where
         }))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         self.first.size(score_director) * self.second.size(score_director)
     }
 
@@ -246,8 +246,8 @@ mod tests {
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
+        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
+        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
 
@@ -265,8 +265,8 @@ mod tests {
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![5]);
-        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![50]);
+        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![5]);
+        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![50]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
         let moves: Vec<_> = product.iter_moves(&director).collect();
@@ -287,8 +287,8 @@ mod tests {
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![]);
-        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![10, 20]);
+        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![]);
+        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
         let moves: Vec<_> = product.iter_moves(&director).collect();
@@ -304,8 +304,8 @@ mod tests {
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![]);
+        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
+        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
         let moves: Vec<_> = product.iter_moves(&director).collect();
@@ -321,8 +321,8 @@ mod tests {
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![1]);
-        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![10]);
+        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1]);
+        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
         let moves: Vec<_> = product.iter_moves(&director).collect();
@@ -338,8 +338,8 @@ mod tests {
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::<Sol, i32>::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel = ChangeMoveSelector::<Sol, i32>::simple(get_y, set_y, 0, "y", vec![10, 20]);
+        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
+        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20]);
 
         let product = CartesianProductMoveSelector::new(x_sel, y_sel);
         let moves: Vec<_> = product.iter_moves(&director).collect();

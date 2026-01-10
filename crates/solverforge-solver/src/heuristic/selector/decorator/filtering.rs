@@ -45,7 +45,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 ///     m.to_value().map_or(false, |v| *v > 50)
 /// }
 ///
-/// let inner = ChangeMoveSelector::<Solution, i32>::simple(
+/// let inner = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![10, 60, 80],
 /// );
 /// let filtered: FilteringMoveSelector<Solution, _, _> =
@@ -87,15 +87,15 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
         let predicate = self.predicate;
         Box::new(self.inner.iter_moves(score_director).filter(predicate))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         // Size is approximate - we don't know how many will pass the filter
         self.inner.size(score_director)
     }
@@ -176,7 +176,7 @@ mod tests {
     fn filters_moves_by_predicate() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -197,7 +197,7 @@ mod tests {
     fn empty_when_no_moves_pass() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,

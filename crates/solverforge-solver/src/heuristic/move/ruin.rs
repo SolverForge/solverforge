@@ -9,7 +9,6 @@
 //! Uses typed function pointers for variable access. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
@@ -59,7 +58,6 @@ use super::Move;
 ///     "assigned_to", 0,
 /// );
 /// ```
-#[derive(Clone)]
 pub struct RuinMove<S, V> {
     /// Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
@@ -69,7 +67,18 @@ pub struct RuinMove<S, V> {
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+}
+
+impl<S, V> Clone for RuinMove<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_indices: self.entity_indices.clone(),
+            getter: self.getter,
+            setter: self.setter,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
 }
 
 impl<S, V: Debug> Debug for RuinMove<S, V> {
@@ -103,7 +112,6 @@ impl<S, V> RuinMove<S, V> {
             setter,
             variable_name,
             descriptor_index,
-            _phantom: PhantomData,
         }
     }
 
@@ -123,7 +131,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
         self.entity_indices
@@ -131,7 +139,7 @@ where
             .any(|&idx| (self.getter)(solution, idx).is_some())
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;

@@ -8,6 +8,7 @@
 //! - Event system for monitoring
 //! - Configuration wiring (builder module)
 
+pub mod basic;
 pub mod builder;
 pub mod event;
 pub mod heuristic;
@@ -19,7 +20,7 @@ pub mod solver;
 pub mod statistics;
 pub mod termination;
 
-pub use builder::{AcceptorBuilder, SolverBuilder, TerminationBuilder};
+pub use builder::AcceptorBuilder;
 pub use event::{
     CountingEventListener, LoggingEventListener, PhaseLifecycleListener, SolverEventListener,
     SolverEventSupport, StepLifecycleListener,
@@ -34,6 +35,7 @@ pub use heuristic::{
     ChangeMoveSelector,
     CompositeMove,
     CutPoint,
+    DefaultDistanceMeter,
     DefaultPillarSelector,
     EntityReference,
     EntitySelector,
@@ -69,8 +71,9 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, LocalSearchType, SolverManager,
-    SolverManagerBuilder, SolverPhaseFactory,
+    ConstructionPhaseFactory, ConstructionType, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
+    ListConstructionPhaseBuilder, LocalSearchPhaseFactory, LocalSearchType, PhaseFactory,
+    SolverManager, SolverManagerBuilder,
 };
 pub use phase::{
     construction::{
@@ -91,17 +94,20 @@ pub use phase::{
         TabuSearchAcceptor, ValueTabuAcceptor,
     },
     partitioned::{
-        FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase, PhaseFactory,
-        ScoreDirectorFactory, SolutionPartitioner, ThreadCount,
+        ChildPhases, FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,
+        SolutionPartitioner, ThreadCount,
     },
     vnd::VndPhase,
     Phase,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
-pub use solver::{Solver, SolverFactory};
+pub use solver::{MaybeTermination, NoTermination, Solver, SolverFactory};
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
-    AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    OrCompositeTermination, StepCountTermination, Termination, TimeTermination,
+    AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
+    DiminishedReturnsTermination, MoveCountTermination, OrTermination,
+    ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
+
+pub use basic::{run_solver, run_solver_with_events, SolverEvent};

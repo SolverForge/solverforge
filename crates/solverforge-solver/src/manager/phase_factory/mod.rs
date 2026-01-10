@@ -18,9 +18,11 @@
 //! flow through generics. See the individual factory types for usage details.
 
 mod construction;
+mod k_opt;
 mod list_construction;
 mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
+pub use k_opt::{KOptPhase, KOptPhaseBuilder};
 pub use list_construction::{ListConstructionPhase, ListConstructionPhaseBuilder};
 pub use local_search::LocalSearchPhaseFactory;

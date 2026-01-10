@@ -21,8 +21,8 @@ mod mod_tests_integration;
 pub use builder::SolverManagerBuilder;
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
-    ConstructionPhaseFactory, ListConstructionPhase, ListConstructionPhaseBuilder,
-    LocalSearchPhaseFactory,
+    ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
+    ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
 };
 pub use solver_manager::{solver_manager_builder, SolverManager};
 

@@ -67,14 +67,13 @@ impl<T, M> VndPhase<T, M> {
 macro_rules! impl_vnd_phase {
     // Single neighborhood
     ($idx:tt: $MS:ident) => {
-        impl<S, M, D, $MS> Phase<S, D> for VndPhase<($MS,), M>
+        impl<S, M, $MS> Phase<S> for VndPhase<($MS,), M>
         where
             S: PlanningSolution,
             M: Move<S>,
-            D: ScoreDirector<S>,
             $MS: MoveSelector<S, M>,
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
                 let mut current_score = phase_scope.calculate_score();
@@ -107,14 +106,13 @@ macro_rules! impl_vnd_phase {
 
     // Multiple neighborhoods
     ($($idx:tt: $MS:ident),+) => {
-        impl<S, M, D, $($MS),+> Phase<S, D> for VndPhase<($($MS,)+), M>
+        impl<S, M, $($MS),+> Phase<S> for VndPhase<($($MS,)+), M>
         where
             S: PlanningSolution,
             M: Move<S>,
-            D: ScoreDirector<S>,
             $($MS: MoveSelector<S, M>,)+
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -160,15 +158,14 @@ macro_rules! impl_vnd_phase {
 }
 
 /// Finds the best improving move in the arena.
-fn find_best_improving_move<S, M, D>(
+fn find_best_improving_move<S, M>(
     arena: &MoveArena<M>,
-    step_scope: &mut StepScope<'_, '_, S, D>,
+    step_scope: &mut StepScope<'_, '_, S>,
     current_score: &S::Score,
 ) -> Option<(M, S::Score)>
 where
     S: PlanningSolution,
     M: Move<S>,
-    D: ScoreDirector<S>,
 {
     let mut best_move: Option<(M, S::Score)> = None;
 
@@ -214,8 +211,6 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
-    use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use crate::heuristic::selector::typed_value::StaticTypedValueSelector;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -319,12 +314,7 @@ mod tests {
     }
 
     type NQueensMove = ChangeMove<NQueensSolution, i32>;
-    type NQueensMoveSelector = ChangeMoveSelector<
-        NQueensSolution,
-        i32,
-        FromSolutionEntitySelector,
-        StaticTypedValueSelector<NQueensSolution, i32>,
-    >;
+    type NQueensMoveSelector = ChangeMoveSelector<NQueensSolution, i32>;
 
     fn create_move_selector(values: Vec<i32>) -> NQueensMoveSelector {
         ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
@@ -333,7 +323,7 @@ mod tests {
     #[test]
     fn test_vnd_improves_solution() {
         let director = create_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(director);
+        let mut solver_scope = SolverScope::new(Box::new(director));
 
         let initial_score = solver_scope.calculate_score();
         assert!(initial_score < SimpleScore::of(0));
@@ -353,7 +343,7 @@ mod tests {
     #[test]
     fn test_vnd_single_neighborhood() {
         let director = create_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(director);
+        let mut solver_scope = SolverScope::new(Box::new(director));
 
         let initial_score = solver_scope.calculate_score();
 

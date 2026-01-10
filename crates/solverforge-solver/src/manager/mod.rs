@@ -14,7 +14,7 @@ mod phase_factory_tests;
 #[cfg(test)]
 mod phase_factory_tests_localsearch;
 
-pub use builder::SolverManagerBuilder;
+pub use builder::SolverBuilder;
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
     BasicConstructionPhaseBuilder, BasicLocalSearchPhaseBuilder, ConstructionPhaseFactory,

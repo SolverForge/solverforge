@@ -1,92 +1,87 @@
 //! Builder for SolverManager configuration.
+//!
+//! Note: For zero-erasure architecture, use `SolverManager::new()` directly
+//! with concrete phase and termination types.
+
+use std::marker::PhantomData;
+use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::SolverForgeError;
 use solverforge_scoring::ScoreDirector;
 
-use crate::termination::{
-    DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
-    TimeTermination,
-};
+use crate::phase::Phase;
+use crate::solver::Solver;
+use crate::termination::{StepCountTermination, Termination, TimeTermination};
 
-use super::{SolverManager, SolverPhaseFactory};
-
-/// Builder for creating a [`SolverManager`].
-pub struct SolverManagerBuilder<S: PlanningSolution, D: ScoreDirector<S>> {
-    phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>>,
-    config: Option<solverforge_config::SolverConfig>,
-}
-
-impl<S: PlanningSolution + 'static, D: ScoreDirector<S> + 'static> SolverManagerBuilder<S, D> {
-    pub fn new() -> Self {
-        Self {
-            phase_factories: Vec::new(),
-            config: None,
-        }
-    }
-
-    pub fn with_config(mut self, config: solverforge_config::SolverConfig) -> Self {
-        self.config = Some(config);
-        self
-    }
-
-    pub fn with_phase_factory<F: SolverPhaseFactory<S, D> + 'static>(
-        mut self,
-        factory: F,
-    ) -> Self {
-        self.phase_factories.push(Box::new(factory));
-        self
-    }
-
-    pub fn build(self) -> Result<SolverManager<S, D>, SolverForgeError> {
-        let termination_factory = self.build_termination_factory();
-        Ok(SolverManager::new(self.phase_factories, termination_factory))
-    }
-
-    fn build_termination_factory(
-        &self,
-    ) -> Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>> {
-        let config = self.config.clone()?;
-        let termination = config.termination?;
-
-        let time_limit = termination.time_limit();
-        let step_limit = termination.step_count_limit;
-        let unimproved_time = termination.unimproved_time_limit();
-
-        if time_limit.is_none() && step_limit.is_none() && unimproved_time.is_none() {
-            return None;
-        }
-
-        Some(Box::new(move || {
-            let mut terminations: Vec<Box<dyn Termination<S, D>>> = Vec::new();
-
-            if let Some(duration) = time_limit {
-                terminations.push(Box::new(TimeTermination::new(duration)));
-            }
-
-            if let Some(steps) = step_limit {
-                terminations.push(Box::new(StepCountTermination::new(steps)));
-            }
-
-            if let Some(duration) = unimproved_time {
-                terminations.push(Box::new(DiminishedReturnsTermination::<S>::new(
-                    duration, 0.001,
-                )));
-            }
-
-            match terminations.len() {
-                0 => unreachable!(),
-                1 => terminations.remove(0),
-                _ => Box::new(OrCompositeTermination::new(terminations)),
-            }
-        }))
-    }
-}
-
-impl<S: PlanningSolution + 'static, D: ScoreDirector<S> + 'static> Default
-    for SolverManagerBuilder<S, D>
+/// Builder for creating solvers with configuration.
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+/// * `P` - The phase type
+pub struct SolverBuilder<S, D, P>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
 {
-    fn default() -> Self {
-        Self::new()
+    phase: P,
+    time_limit: Option<Duration>,
+    step_limit: Option<u64>,
+    _marker: PhantomData<(S, D)>,
+}
+
+impl<S, D, P> SolverBuilder<S, D, P>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    P: Phase<S, D>,
+{
+    /// Creates a new solver builder with the given phase.
+    pub fn new(phase: P) -> Self {
+        Self {
+            phase,
+            time_limit: None,
+            step_limit: None,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Sets a time limit for the solver.
+    pub fn with_time_limit(mut self, duration: Duration) -> Self {
+        self.time_limit = Some(duration);
+        self
+    }
+
+    /// Sets a step count limit for the solver.
+    pub fn with_step_limit(mut self, steps: u64) -> Self {
+        self.step_limit = Some(steps);
+        self
+    }
+
+    /// Builds a solver with time termination.
+    pub fn build_with_time(self) -> Solver<S, D, P, TimeTermination>
+    where
+        TimeTermination: Termination<S, D>,
+    {
+        let termination = self
+            .time_limit
+            .map(TimeTermination::new);
+        Solver::new(self.phase, termination)
+    }
+
+    /// Builds a solver with step count termination.
+    pub fn build_with_steps(self) -> Solver<S, D, P, StepCountTermination>
+    where
+        StepCountTermination: Termination<S, D>,
+    {
+        let termination = self
+            .step_limit
+            .map(StepCountTermination::new);
+        Solver::new(self.phase, termination)
+    }
+
+    /// Builds a solver without termination.
+    pub fn build(self) -> Solver<S, D, P, ()> {
+        Solver::with_phase(self.phase)
     }
 }

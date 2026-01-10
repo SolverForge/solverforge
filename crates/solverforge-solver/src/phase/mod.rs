@@ -38,3 +38,90 @@ pub trait Phase<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// Returns the name of this phase type.
     fn phase_type_name(&self) -> &'static str;
 }
+
+/// Unit type implements Phase as a no-op (empty phase list).
+impl<S: PlanningSolution, D: ScoreDirector<S>> Phase<S, D> for () {
+    fn solve(&mut self, _solver_scope: &mut SolverScope<S, D>) {
+        // No-op: empty phase list does nothing
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "NoOp"
+    }
+}
+
+// ((), P1)
+impl<S, D, P1> Phase<S, D> for ((), P1)
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    P1: Phase<S, D>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+        self.1.solve(solver_scope);
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        self.1.phase_type_name()
+    }
+}
+
+// (((), P1), P2)
+impl<S, D, P1, P2> Phase<S, D> for (((), P1), P2)
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    P1: Phase<S, D>,
+    P2: Phase<S, D>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+        (self.0).1.solve(solver_scope);
+        self.1.solve(solver_scope);
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "PhaseTuple"
+    }
+}
+
+// ((((), P1), P2), P3)
+impl<S, D, P1, P2, P3> Phase<S, D> for ((((), P1), P2), P3)
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    P1: Phase<S, D>,
+    P2: Phase<S, D>,
+    P3: Phase<S, D>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+        ((self.0).0).1.solve(solver_scope);
+        (self.0).1.solve(solver_scope);
+        self.1.solve(solver_scope);
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "PhaseTuple"
+    }
+}
+
+// (((((), P1), P2), P3), P4)
+impl<S, D, P1, P2, P3, P4> Phase<S, D> for (((((), P1), P2), P3), P4)
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    P1: Phase<S, D>,
+    P2: Phase<S, D>,
+    P3: Phase<S, D>,
+    P4: Phase<S, D>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+        (((self.0).0).0).1.solve(solver_scope);
+        ((self.0).0).1.solve(solver_scope);
+        (self.0).1.solve(solver_scope);
+        self.1.solve(solver_scope);
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "PhaseTuple"
+    }
+}

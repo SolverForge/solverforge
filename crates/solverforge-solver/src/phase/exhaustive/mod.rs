@@ -156,11 +156,31 @@ impl<S: PlanningSolution> PartialOrd for PriorityNode<S> {
 /// # Type Parameters
 /// * `Dec` - The decider type that generates child nodes
 ///
-/// # Examples
+/// # Example
 ///
-/// ```ignore
-/// let decider = SimpleDecider::new(0, "row", vec![0, 1, 2, 3], set_row);
-/// let phase = ExhaustiveSearchPhase::new(decider, ExhaustiveSearchConfig::default());
+/// ```
+/// use solverforge_solver::phase::exhaustive::{ExhaustiveSearchPhase, SimpleDecider, ExhaustiveSearchConfig};
+/// use solverforge_core::domain::PlanningSolution;
+/// use solverforge_core::score::SimpleScore;
+///
+/// #[derive(Clone, Debug)]
+/// struct MySolution {
+///     values: Vec<Option<i32>>,
+///     score: Option<SimpleScore>,
+/// }
+///
+/// impl PlanningSolution for MySolution {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// fn set_value(s: &mut MySolution, idx: usize, v: Option<i32>) {
+///     if let Some(slot) = s.values.get_mut(idx) { *slot = v; }
+/// }
+///
+/// let decider = SimpleDecider::<MySolution, i32>::new(0, "value", vec![1, 2, 3], set_value);
+/// let phase = ExhaustiveSearchPhase::depth_first(decider);
 /// ```
 pub struct ExhaustiveSearchPhase<Dec> {
     /// The decider that generates child nodes.
@@ -215,6 +235,11 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
                 ..Default::default()
             },
         )
+    }
+
+    /// Returns the phase type name.
+    pub fn phase_type_name(&self) -> &'static str {
+        "ExhaustiveSearch"
     }
 }
 

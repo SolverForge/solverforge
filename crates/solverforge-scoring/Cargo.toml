@@ -1,0 +1,10 @@
+[package]
+name = "solverforge-scoring"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Incremental constraint scoring for SolverForge"
+
+[dependencies]
+solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
+thiserror.workspace = true

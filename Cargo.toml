@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/solverforge-core",
+    "crates/solverforge-macros",
+    "crates/solverforge-scoring",
+    "crates/solverforge-solver",
+    "crates/solverforge-config",
+    "crates/solverforge-benchmark",
+    "crates/solverforge",
+    "examples/nqueens",
+]
+
+[workspace.package]
+version = "0.4.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/solverforge/solverforge-rs"
+rust-version = "1.80"  # Updated for rayon 1.11
+
+[workspace.dependencies]
+# Internal crates (path-only; versions specified per-crate for publishing)
+solverforge-core = { path = "crates/solverforge-core" }
+solverforge-macros = { path = "crates/solverforge-macros" }
+solverforge-scoring = { path = "crates/solverforge-scoring" }
+solverforge-solver = { path = "crates/solverforge-solver" }
+solverforge-config = { path = "crates/solverforge-config" }
+solverforge-benchmark = { path = "crates/solverforge-benchmark" }
+solverforge = { path = "crates/solverforge" }
+
+# External dependencies
+thiserror = "2.0"  # Updated from 1.0
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+serde_yaml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1.48", features = ["full"] }  # Updated from 1.0
+crossbeam = "0.8"
+num-traits = "0.2"
+rust_decimal = "1.33"
+rand = "0.9"  # Updated from 0.8
+rand_chacha = "0.9"  # Updated from 0.3
+rayon = "1.11"  # New - for parallel move evaluation
+smallvec = "1.15"  # Updated from 1.11
+
+# Proc-macro dependencies
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0"

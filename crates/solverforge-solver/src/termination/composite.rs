@@ -3,18 +3,17 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
 use crate::scope::SolverScope;
 
 /// Combines multiple terminations with OR logic.
-///
-/// Terminates when ANY of the child terminations triggers.
-pub struct OrCompositeTermination<S: PlanningSolution> {
-    terminations: Vec<Box<dyn Termination<S>>>,
+pub struct OrCompositeTermination<S: PlanningSolution, D: ScoreDirector<S>> {
+    terminations: Vec<Box<dyn Termination<S, D>>>,
 }
 
-impl<S: PlanningSolution> Debug for OrCompositeTermination<S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Debug for OrCompositeTermination<S, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OrCompositeTermination")
             .field("count", &self.terminations.len())
@@ -22,14 +21,14 @@ impl<S: PlanningSolution> Debug for OrCompositeTermination<S> {
     }
 }
 
-impl<S: PlanningSolution> OrCompositeTermination<S> {
-    pub fn new(terminations: Vec<Box<dyn Termination<S>>>) -> Self {
+impl<S: PlanningSolution, D: ScoreDirector<S>> OrCompositeTermination<S, D> {
+    pub fn new(terminations: Vec<Box<dyn Termination<S, D>>>) -> Self {
         Self { terminations }
     }
 }
 
-impl<S: PlanningSolution> Termination<S> for OrCompositeTermination<S> {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for OrCompositeTermination<S, D> {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         self.terminations
             .iter()
             .any(|t| t.is_terminated(solver_scope))
@@ -37,13 +36,11 @@ impl<S: PlanningSolution> Termination<S> for OrCompositeTermination<S> {
 }
 
 /// Combines multiple terminations with AND logic.
-///
-/// All terminations must agree before solving terminates.
-pub struct AndCompositeTermination<S: PlanningSolution> {
-    terminations: Vec<Box<dyn Termination<S>>>,
+pub struct AndCompositeTermination<S: PlanningSolution, D: ScoreDirector<S>> {
+    terminations: Vec<Box<dyn Termination<S, D>>>,
 }
 
-impl<S: PlanningSolution> Debug for AndCompositeTermination<S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Debug for AndCompositeTermination<S, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AndCompositeTermination")
             .field("count", &self.terminations.len())
@@ -51,14 +48,14 @@ impl<S: PlanningSolution> Debug for AndCompositeTermination<S> {
     }
 }
 
-impl<S: PlanningSolution> AndCompositeTermination<S> {
-    pub fn new(terminations: Vec<Box<dyn Termination<S>>>) -> Self {
+impl<S: PlanningSolution, D: ScoreDirector<S>> AndCompositeTermination<S, D> {
+    pub fn new(terminations: Vec<Box<dyn Termination<S, D>>>) -> Self {
         Self { terminations }
     }
 }
 
-impl<S: PlanningSolution> Termination<S> for AndCompositeTermination<S> {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for AndCompositeTermination<S, D> {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         !self.terminations.is_empty()
             && self
                 .terminations

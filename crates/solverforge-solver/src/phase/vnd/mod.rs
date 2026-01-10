@@ -122,12 +122,13 @@ where
     }
 }
 
-impl<S, M> Phase<S> for VndPhase<S, M>
+impl<S, M, D> Phase<S, D> for VndPhase<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         if self.neighborhoods.is_empty() {
             return;
         }

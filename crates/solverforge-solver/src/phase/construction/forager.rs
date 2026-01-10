@@ -21,19 +21,17 @@ use super::Placement;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub trait ConstructionForager<S, M>: Send + Debug
+/// * `D` - The score director type
+pub trait ConstructionForager<S, M, D>: Send + Debug
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
     /// Picks a move from the placement's candidates.
     ///
     /// Returns None if no suitable move is found.
-    fn pick_move(
-        &self,
-        placement: &Placement<S, M>,
-        score_director: &mut dyn ScoreDirector<S>,
-    ) -> Option<M>;
+    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M>;
 }
 
 /// First Fit forager - picks the first feasible move.
@@ -60,16 +58,13 @@ impl<S, M> FirstFitForager<S, M> {
     }
 }
 
-impl<S, M> ConstructionForager<S, M> for FirstFitForager<S, M>
+impl<S, M, D> ConstructionForager<S, M, D> for FirstFitForager<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn pick_move(
-        &self,
-        placement: &Placement<S, M>,
-        score_director: &mut dyn ScoreDirector<S>,
-    ) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
         // Return the first doable move
         for m in &placement.moves {
             if m.is_doable(score_director) {
@@ -105,16 +100,13 @@ impl<S, M> BestFitForager<S, M> {
     }
 }
 
-impl<S, M> ConstructionForager<S, M> for BestFitForager<S, M>
+impl<S, M, D> ConstructionForager<S, M, D> for BestFitForager<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn pick_move(
-        &self,
-        placement: &Placement<S, M>,
-        score_director: &mut dyn ScoreDirector<S>,
-    ) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
         let mut best_move: Option<M> = None;
         let mut best_score: Option<S::Score> = None;
 
@@ -179,16 +171,13 @@ impl<S, M> FirstFeasibleForager<S, M> {
     }
 }
 
-impl<S, M> ConstructionForager<S, M> for FirstFeasibleForager<S, M>
+impl<S, M, D> ConstructionForager<S, M, D> for FirstFeasibleForager<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn pick_move(
-        &self,
-        placement: &Placement<S, M>,
-        score_director: &mut dyn ScoreDirector<S>,
-    ) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
         let mut fallback_move: Option<M> = None;
         let mut fallback_score: Option<S::Score> = None;
 
@@ -306,16 +295,13 @@ where
     }
 }
 
-impl<S, M> ConstructionForager<S, M> for WeakestFitForager<S, M>
+impl<S, M, D> ConstructionForager<S, M, D> for WeakestFitForager<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn pick_move(
-        &self,
-        placement: &Placement<S, M>,
-        score_director: &mut dyn ScoreDirector<S>,
-    ) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
         let mut best_move: Option<M> = None;
         let mut min_strength: Option<i64> = None;
 
@@ -411,16 +397,13 @@ where
     }
 }
 
-impl<S, M> ConstructionForager<S, M> for StrongestFitForager<S, M>
+impl<S, M, D> ConstructionForager<S, M, D> for StrongestFitForager<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn pick_move(
-        &self,
-        placement: &Placement<S, M>,
-        score_director: &mut dyn ScoreDirector<S>,
-    ) -> Option<M> {
+    fn pick_move(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<M> {
         let mut best_move: Option<M> = None;
         let mut max_strength: Option<i64> = None;
 

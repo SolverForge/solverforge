@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::KOptMove;
 use crate::heuristic::selector::entity::EntitySelector;
@@ -454,13 +455,14 @@ where
     }
 }
 
-impl<S, M, F> SolverPhaseFactory<S> for LocalSearchPhaseFactory<S, M, F>
+impl<S, M, D, F> SolverPhaseFactory<S, D> for LocalSearchPhaseFactory<S, M, F>
 where
     S: PlanningSolution + 'static,
     M: Move<S> + Clone + Send + Sync + 'static,
+    D: ScoreDirector<S> + 'static,
     F: Fn() -> Box<dyn MoveSelector<S, M>> + Send + Sync,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S>> {
+    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
         let move_selector = (self.move_selector_factory)();
         let acceptor = self.create_acceptor();
         let forager: Box<dyn LocalSearchForager<S, M>> = Box::new(AcceptedCountForager::new(1));
@@ -698,14 +700,15 @@ where
     }
 }
 
-impl<S, V, D, F> SolverPhaseFactory<S> for KOptPhaseBuilder<S, V, D, F>
+impl<S, V, DM, SD, F> SolverPhaseFactory<S, SD> for KOptPhaseBuilder<S, V, DM, F>
 where
     S: PlanningSolution + 'static,
     V: Clone + Send + Sync + Debug + 'static,
-    D: ListPositionDistanceMeter<S> + Clone + 'static,
+    DM: ListPositionDistanceMeter<S> + Clone + 'static,
+    SD: ScoreDirector<S> + 'static,
     F: Fn() -> Box<dyn EntitySelector<S>> + Send + Sync,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S>> {
+    fn create_phase(&self) -> Box<dyn Phase<S, SD>> {
         let config = KOptConfig::new(self.k).with_min_segment_len(self.min_segment_len);
 
         let move_selector: Box<dyn MoveSelector<S, KOptMove<S, V>>> =

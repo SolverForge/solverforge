@@ -127,12 +127,13 @@ where
     }
 }
 
-impl<S, M> Phase<S> for LocalSearchPhase<S, M>
+impl<S, M, D> Phase<S, D> for LocalSearchPhase<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         // Calculate initial score

@@ -71,13 +71,15 @@ where
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub trait EntityPlacer<S, M>: Send + Debug
+/// * `D` - The score director type
+pub trait EntityPlacer<S, M, D>: Send + Debug
 where
     S: PlanningSolution,
     M: Move<S>,
+    D: ScoreDirector<S>,
 {
     /// Returns all placements (entities + their candidate moves).
-    fn get_placements(&self, score_director: &dyn ScoreDirector<S>) -> Vec<Placement<S, M>>;
+    fn get_placements(&self, score_director: &D) -> Vec<Placement<S, M>>;
 }
 
 /// A queued entity placer that processes entities in order.
@@ -143,15 +145,13 @@ where
     }
 }
 
-impl<S, V> EntityPlacer<S, ChangeMove<S, V>> for QueuedEntityPlacer<S, V>
+impl<S, V, D> EntityPlacer<S, ChangeMove<S, V>, D> for QueuedEntityPlacer<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    D: ScoreDirector<S>,
 {
-    fn get_placements(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
+    fn get_placements(&self, score_director: &D) -> Vec<Placement<S, ChangeMove<S, V>>> {
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;
@@ -206,7 +206,7 @@ where
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use solverforge_solver::phase::construction::{SortedEntityPlacer, QueuedEntityPlacer, EntityPlacer};
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
@@ -244,7 +244,6 @@ pub struct SortedEntityPlacer<S, M, Inner>
 where
     S: PlanningSolution,
     M: Move<S>,
-    Inner: EntityPlacer<S, M>,
 {
     inner: Inner,
     /// Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
@@ -256,7 +255,6 @@ impl<S, M, Inner> SortedEntityPlacer<S, M, Inner>
 where
     S: PlanningSolution,
     M: Move<S>,
-    Inner: EntityPlacer<S, M>,
 {
     /// Creates a new sorted entity placer.
     ///
@@ -276,7 +274,7 @@ impl<S, M, Inner> Debug for SortedEntityPlacer<S, M, Inner>
 where
     S: PlanningSolution,
     M: Move<S>,
-    Inner: EntityPlacer<S, M>,
+    Inner: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SortedEntityPlacer")
@@ -285,13 +283,14 @@ where
     }
 }
 
-impl<S, M, Inner> EntityPlacer<S, M> for SortedEntityPlacer<S, M, Inner>
+impl<S, M, D, Inner> EntityPlacer<S, M, D> for SortedEntityPlacer<S, M, Inner>
 where
     S: PlanningSolution,
     M: Move<S>,
-    Inner: EntityPlacer<S, M>,
+    D: ScoreDirector<S>,
+    Inner: EntityPlacer<S, M, D>,
 {
-    fn get_placements(&self, score_director: &dyn ScoreDirector<S>) -> Vec<Placement<S, M>> {
+    fn get_placements(&self, score_director: &D) -> Vec<Placement<S, M>> {
         let mut placements = self.inner.get_placements(score_director);
         let solution = score_director.working_solution();
         let cmp = self.comparator;

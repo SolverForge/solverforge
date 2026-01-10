@@ -8,7 +8,6 @@
 //! - Event system for monitoring
 //! - Configuration wiring (builder module)
 
-pub mod builder;
 pub mod event;
 pub mod heuristic;
 pub mod manager;
@@ -19,7 +18,6 @@ pub mod solver;
 pub mod statistics;
 pub mod termination;
 
-pub use builder::{AcceptorBuilder, SolverBuilder, TerminationBuilder};
 pub use event::{
     CountingEventListener, LoggingEventListener, PhaseLifecycleListener, SolverEventListener,
     SolverEventSupport, StepLifecycleListener,
@@ -96,14 +94,14 @@ pub use phase::{
         TabuSearchAcceptor, ValueTabuAcceptor,
     },
     partitioned::{
-        FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase, PhaseFactory,
-        ScoreDirectorFactory, SolutionPartitioner, ThreadCount,
+        FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,
+        SolutionPartitioner, ThreadCount,
     },
     vnd::VndPhase,
     Phase,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
-pub use solver::{Solver, SolverFactory};
+pub use solver::Solver;
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
     AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,

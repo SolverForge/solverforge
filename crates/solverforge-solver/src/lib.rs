@@ -8,6 +8,7 @@
 //! - Event system for monitoring
 //! - Configuration wiring (builder module)
 
+pub mod basic;
 pub mod builder;
 pub mod event;
 pub mod heuristic;
@@ -108,3 +109,5 @@ pub use termination::{
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
+
+pub use basic::run_solver;

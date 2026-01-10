@@ -37,10 +37,9 @@
 //! }
 //!
 //! let config = KOptConfig::new(3); // 3-opt
-//! let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
 //!
-//! let selector = KOptMoveSelector::<Tour, i32>::new(
-//!     entity_selector,
+//! let selector = KOptMoveSelector::<Tour, i32, _>::new(
+//!     FromSolutionEntitySelector::new(0),
 //!     config,
 //!     list_len,
 //!     sublist_remove,
@@ -107,9 +106,9 @@ impl KOptConfig {
 ///
 /// Enumerates all valid cut point combinations for each selected entity
 /// and generates moves for each reconnection pattern.
-pub struct KOptMoveSelector<S, V> {
+pub struct KOptMoveSelector<S, V, ES> {
     /// Selects entities (routes) to apply k-opt to.
-    entity_selector: Box<dyn EntitySelector<S>>,
+    entity_selector: ES,
     /// K-opt configuration.
     config: KOptConfig,
     /// Reconnection patterns to use.
@@ -124,10 +123,10 @@ pub struct KOptMoveSelector<S, V> {
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V: Debug> Debug for KOptMoveSelector<S, V> {
+impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KOptMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -138,11 +137,11 @@ impl<S, V: Debug> Debug for KOptMoveSelector<S, V> {
     }
 }
 
-impl<S: PlanningSolution, V> KOptMoveSelector<S, V> {
+impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
     /// Creates a new k-opt move selector.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
+        entity_selector: ES,
         config: KOptConfig,
         list_len: fn(&S, usize) -> usize,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -175,9 +174,10 @@ impl<S: PlanningSolution, V> KOptMoveSelector<S, V> {
     }
 }
 
-impl<S, V> MoveSelector<S, KOptMove<S, V>> for KOptMoveSelector<S, V>
+impl<S, V, ES> MoveSelector<S, KOptMove<S, V>> for KOptMoveSelector<S, V, ES>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
     fn iter_moves<'a>(
@@ -397,9 +397,9 @@ impl<S> ListPositionDistanceMeter<S> for DefaultDistanceMeter {
 /// 4. etc.
 ///
 /// This dramatically reduces the search space for large routes.
-pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>> {
+pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>, ES> {
     /// Selects entities (routes) to apply k-opt to.
-    entity_selector: Box<dyn EntitySelector<S>>,
+    entity_selector: ES,
     /// Distance meter for nearby selection.
     distance_meter: D,
     /// Maximum nearby positions to consider.
@@ -418,10 +418,12 @@ pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>> {
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V: Debug, D: ListPositionDistanceMeter<S>> Debug for NearbyKOptMoveSelector<S, V, D> {
+impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug
+    for NearbyKOptMoveSelector<S, V, D, ES>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyKOptMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -432,11 +434,11 @@ impl<S, V: Debug, D: ListPositionDistanceMeter<S>> Debug for NearbyKOptMoveSelec
     }
 }
 
-impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyKOptMoveSelector<S, V, D> {
+impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> NearbyKOptMoveSelector<S, V, D, ES> {
     /// Creates a new nearby k-opt move selector.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
+        entity_selector: ES,
         distance_meter: D,
         max_nearby: usize,
         config: KOptConfig,
@@ -493,11 +495,12 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyKOptMoveSele
     }
 }
 
-impl<S, V, D> MoveSelector<S, KOptMove<S, V>> for NearbyKOptMoveSelector<S, V, D>
+impl<S, V, D, ES> MoveSelector<S, KOptMove<S, V>> for NearbyKOptMoveSelector<S, V, D, ES>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
     D: ListPositionDistanceMeter<S> + 'static,
+    ES: EntitySelector<S>,
 {
     fn iter_moves<'a>(
         &'a self,
@@ -568,8 +571,8 @@ where
 }
 
 /// Iterator for nearby k-cut combinations.
-struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>> {
-    selector: &'a NearbyKOptMoveSelector<S, V, D>,
+struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
+    selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
     solution: &'a S,
     entity_idx: usize,
     k: usize,
@@ -582,9 +585,9 @@ struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>> {
     done: bool,
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyCutIterator<'a, S, V, D> {
+impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> NearbyCutIterator<'a, S, V, D, ES> {
     fn new(
-        selector: &'a NearbyKOptMoveSelector<S, V, D>,
+        selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
         solution: &'a S,
         entity_idx: usize,
         k: usize,
@@ -720,8 +723,8 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> NearbyCutItera
     }
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>> Iterator
-    for NearbyCutIterator<'a, S, V, D>
+impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> Iterator
+    for NearbyCutIterator<'a, S, V, D, ES>
 {
     type Item = Vec<CutPoint>;
 
@@ -861,10 +864,9 @@ mod tests {
         let director = create_director(tours);
 
         let config = KOptConfig::new(3);
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
 
-        let selector = KOptMoveSelector::<TspSolution, i32>::new(
-            entity_selector,
+        let selector = KOptMoveSelector::<TspSolution, i32, _>::new(
+            FromSolutionEntitySelector::new(0),
             config,
             list_len,
             sublist_remove,
@@ -892,10 +894,9 @@ mod tests {
         let director = create_director(tours);
 
         let config = KOptConfig::new(3);
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
 
-        let selector = KOptMoveSelector::<TspSolution, i32>::new(
-            entity_selector,
+        let selector = KOptMoveSelector::<TspSolution, i32, _>::new(
+            FromSolutionEntitySelector::new(0),
             config,
             list_len,
             sublist_remove,

@@ -64,7 +64,7 @@ use super::super::SolverPhaseFactory;
 /// );
 ///
 /// // Create a concrete phase:
-/// let phase: BasicConstructionPhase<Schedule> = builder.create_phase();
+/// let phase: BasicConstructionPhase<Schedule, usize> = builder.create_phase();
 /// ```
 pub struct BasicConstructionPhaseBuilder<S, V>
 where
@@ -106,7 +106,7 @@ where
     }
 
     /// Creates a basic construction phase.
-    pub fn create_phase(&self) -> BasicConstructionPhase<S> {
+    pub fn create_phase(&self) -> BasicConstructionPhase<S, V> {
         BasicConstructionPhase {
             getter: self.getter,
             setter: self.setter,
@@ -119,34 +119,37 @@ where
     }
 }
 
-impl<S, D> SolverPhaseFactory<S, D, BasicConstructionPhase<S>>
-    for BasicConstructionPhaseBuilder<S, usize>
+impl<S, V, D> SolverPhaseFactory<S, D, BasicConstructionPhase<S, V>>
+    for BasicConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
+    V: Copy + PartialEq + Send + Sync + From<usize> + 'static,
     D: ScoreDirector<S>,
 {
-    fn create_phase(&self) -> BasicConstructionPhase<S> {
+    fn create_phase(&self) -> BasicConstructionPhase<S, V> {
         BasicConstructionPhaseBuilder::create_phase(self)
     }
 }
 
 /// Basic construction phase that assigns values to uninitialized entities.
-pub struct BasicConstructionPhase<S>
+pub struct BasicConstructionPhase<S, V>
 where
     S: PlanningSolution,
+    V: Copy + PartialEq + Send + Sync + 'static,
 {
-    getter: fn(&S, usize) -> Option<usize>,
-    setter: fn(&mut S, usize, Option<usize>),
+    getter: fn(&S, usize) -> Option<V>,
+    setter: fn(&mut S, usize, Option<V>),
     value_count: fn(&S) -> usize,
     entity_count: fn(&S) -> usize,
     variable_name: &'static str,
     descriptor_index: usize,
-    _marker: PhantomData<S>,
+    _marker: PhantomData<(S, V)>,
 }
 
-impl<S> std::fmt::Debug for BasicConstructionPhase<S>
+impl<S, V> std::fmt::Debug for BasicConstructionPhase<S, V>
 where
     S: PlanningSolution,
+    V: Copy + PartialEq + Send + Sync + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BasicConstructionPhase")
@@ -155,9 +158,10 @@ where
     }
 }
 
-impl<S, D> Phase<S, D> for BasicConstructionPhase<S>
+impl<S, V, D> Phase<S, D> for BasicConstructionPhase<S, V>
 where
     S: PlanningSolution,
+    V: Copy + PartialEq + Send + Sync + From<usize> + 'static,
     D: ScoreDirector<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
@@ -190,7 +194,7 @@ where
             {
                 let sd = step_scope.score_director_mut();
                 sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
-                (self.setter)(sd.working_solution_mut(), entity_idx, Some(value_idx));
+                (self.setter)(sd.working_solution_mut(), entity_idx, Some(V::from(value_idx)));
                 sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
             }
 

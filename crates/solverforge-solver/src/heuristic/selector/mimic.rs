@@ -102,17 +102,28 @@ impl MimicRecorder {
 /// This is used to synchronize selection across multiple selectors. The recording
 /// selector wraps a child selector and broadcasts each selected entity to all
 /// replaying selectors that share the same recorder.
-pub struct MimicRecordingEntitySelector<S: PlanningSolution> {
-    /// The child selector that actually selects entities.
-    child: Box<dyn EntitySelector<S>>,
+///
+/// # Zero-Erasure Design
+///
+/// The child entity selector `ES` is stored as a concrete generic type parameter,
+/// eliminating virtual dispatch overhead when iterating over entities.
+pub struct MimicRecordingEntitySelector<S: PlanningSolution, ES: EntitySelector<S>> {
+    /// The child selector that actually selects entities (zero-erasure).
+    child: ES,
     /// The recorder that broadcasts selections.
     recorder: MimicRecorder,
+    /// Marker for solution type.
+    _phantom: std::marker::PhantomData<S>,
 }
 
-impl<S: PlanningSolution> MimicRecordingEntitySelector<S> {
+impl<S: PlanningSolution, ES: EntitySelector<S>> MimicRecordingEntitySelector<S, ES> {
     /// Creates a new recording selector wrapping the given child selector.
-    pub fn new(child: Box<dyn EntitySelector<S>>, recorder: MimicRecorder) -> Self {
-        Self { child, recorder }
+    pub fn new(child: ES, recorder: MimicRecorder) -> Self {
+        Self {
+            child,
+            recorder,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
     /// Returns the recorder for creating replaying selectors.
@@ -121,7 +132,7 @@ impl<S: PlanningSolution> MimicRecordingEntitySelector<S> {
     }
 }
 
-impl<S: PlanningSolution> Debug for MimicRecordingEntitySelector<S> {
+impl<S: PlanningSolution, ES: EntitySelector<S>> Debug for MimicRecordingEntitySelector<S, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MimicRecordingEntitySelector")
             .field("child", &self.child)
@@ -130,7 +141,7 @@ impl<S: PlanningSolution> Debug for MimicRecordingEntitySelector<S> {
     }
 }
 
-impl<S: PlanningSolution> EntitySelector<S> for MimicRecordingEntitySelector<S> {
+impl<S: PlanningSolution, ES: EntitySelector<S>> EntitySelector<S> for MimicRecordingEntitySelector<S, ES> {
     fn iter<'a>(
         &'a self,
         score_director: &'a dyn ScoreDirector<S>,
@@ -349,7 +360,7 @@ mod tests {
         }
 
         let recorder = MimicRecorder::new("test");
-        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let child = FromSolutionEntitySelector::new(0);
         let recording = MimicRecordingEntitySelector::new(child, recorder);
 
         let entities: Vec<_> = recording.iter(&director).collect();
@@ -364,7 +375,7 @@ mod tests {
         let director = create_test_director(3);
 
         let recorder = MimicRecorder::new("test");
-        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let child = FromSolutionEntitySelector::new(0);
         let recording = MimicRecordingEntitySelector::new(child, recorder.clone());
         let replaying = MimicReplayingEntitySelector::new(recorder);
 
@@ -395,7 +406,7 @@ mod tests {
         let director = create_test_director(3);
 
         let recorder = MimicRecorder::new("test");
-        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let child = FromSolutionEntitySelector::new(0);
         let recording = MimicRecordingEntitySelector::new(child, recorder.clone());
         let replaying = MimicReplayingEntitySelector::new(recorder);
 
@@ -413,7 +424,7 @@ mod tests {
         let director = create_test_director(0);
 
         let recorder = MimicRecorder::new("test");
-        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let child = FromSolutionEntitySelector::new(0);
         let recording = MimicRecordingEntitySelector::new(child, recorder.clone());
         let replaying = MimicReplayingEntitySelector::new(recorder);
 

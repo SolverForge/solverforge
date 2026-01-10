@@ -70,10 +70,10 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    BasicConstructionPhaseBuilder, BasicLocalSearchPhaseBuilder,
-    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, KOptPhaseBuilder,
-    ListConstructionPhaseBuilder, LocalSearchType, SolverManager, SolverManagerBuilder,
-    SolverPhaseFactory,
+    BasicConstructionPhase, BasicConstructionPhaseBuilder, BasicLocalSearchPhase,
+    BasicLocalSearchPhaseBuilder, CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType,
+    HillClimbingFactory, ListConstructionPhase, ListConstructionPhaseBuilder,
+    LocalSearchPhaseFactory, LocalSearchType, SolverBuilder, SolverManager, SolverPhaseFactory,
 };
 pub use phase::{
     construction::{
@@ -98,7 +98,7 @@ pub use phase::{
         SolutionPartitioner, ThreadCount,
     },
     vnd::VndPhase,
-    Phase,
+    Phase, PhaseSequence,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::Solver;

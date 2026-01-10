@@ -9,7 +9,6 @@ use crate::heuristic::Move;
 use crate::phase::construction::{
     ConstructionForager, ConstructionHeuristicPhase, EntityPlacer, FirstFitForager,
 };
-use crate::phase::Phase;
 
 use super::super::SolverPhaseFactory;
 
@@ -117,8 +116,8 @@ where
     S: PlanningSolution,
     M: Move<S>,
     D: ScoreDirector<S>,
-    P: EntityPlacer<S, M, D> + Send,
-    Fo: ConstructionForager<S, M, D> + Send,
+    P: EntityPlacer<S, M, D> + Send + Sync,
+    Fo: ConstructionForager<S, M, D> + Send + Sync,
     PF: Fn() -> P + Send + Sync,
     FF: Fn() -> Fo + Send + Sync,
 {

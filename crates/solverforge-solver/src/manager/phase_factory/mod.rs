@@ -26,4 +26,4 @@ pub use basic_construction::{BasicConstructionPhase, BasicConstructionPhaseBuild
 pub use basic_local_search::{BasicLocalSearchPhase, BasicLocalSearchPhaseBuilder};
 pub use construction::ConstructionPhaseFactory;
 pub use list_construction::{ListConstructionPhase, ListConstructionPhaseBuilder};
-pub use local_search::{HillClimbingFactory, KOptPhaseBuilder, LocalSearchPhaseFactory};
+pub use local_search::{HillClimbingFactory, LocalSearchPhaseFactory};

@@ -1,6 +1,5 @@
 //! Local search phase factory.
 
-use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
@@ -12,7 +11,6 @@ use crate::phase::localsearch::{
     AcceptedCountForager, Acceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
     LocalSearchForager, LocalSearchPhase, SimulatedAnnealingAcceptor, TabuSearchAcceptor,
 };
-use crate::phase::Phase;
 
 use super::super::SolverPhaseFactory;
 
@@ -94,6 +92,8 @@ where
     /// use solverforge_solver::manager::LocalSearchPhaseFactory;
     /// use solverforge_solver::heuristic::r#move::ChangeMove;
     /// use solverforge_solver::heuristic::selector::ChangeMoveSelector;
+    /// use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+    /// use solverforge_solver::heuristic::selector::typed_value::StaticTypedValueSelector;
     /// use solverforge_core::domain::PlanningSolution;
     /// use solverforge_core::score::SimpleScore;
     ///
@@ -111,7 +111,7 @@ where
     ///     if let Some(x) = s.values.get_mut(idx) { *x = v; }
     /// }
     ///
-    /// type MS = ChangeMoveSelector<Sol, i32>;
+    /// type MS = ChangeMoveSelector<Sol, i32, FromSolutionEntitySelector, StaticTypedValueSelector<i32>>;
     /// type Move = ChangeMove<Sol, i32>;
     ///
     /// let factory = LocalSearchPhaseFactory::<Sol, Move, MS, _>::hill_climbing(|| {
@@ -129,42 +129,6 @@ where
     }
 }
 
-/// Type alias for tabu search factory with default forager.
-pub type TabuSearchFactory<S, M, MS, MSF> = LocalSearchPhaseFactory<
-    S,
-    M,
-    MS,
-    TabuSearchAcceptor,
-    AcceptedCountForager<S, M>,
-    MSF,
-    fn(usize) -> TabuSearchAcceptor,
-    fn() -> AcceptedCountForager<S, M>,
->;
-
-/// Type alias for late acceptance factory with default forager.
-pub type LateAcceptanceFactory<S, M, MS, MSF> = LocalSearchPhaseFactory<
-    S,
-    M,
-    MS,
-    LateAcceptanceAcceptor<S>,
-    AcceptedCountForager<S, M>,
-    MSF,
-    fn() -> LateAcceptanceAcceptor<S>,
-    fn() -> AcceptedCountForager<S, M>,
->;
-
-/// Type alias for simulated annealing factory with default forager.
-pub type SimulatedAnnealingFactory<S, M, MS, MSF> = LocalSearchPhaseFactory<
-    S,
-    M,
-    MS,
-    SimulatedAnnealingAcceptor,
-    AcceptedCountForager<S, M>,
-    MSF,
-    fn() -> SimulatedAnnealingAcceptor,
-    fn() -> AcceptedCountForager<S, M>,
->;
-
 impl<S, M, D, MS, A, Fo, MSF, AF, FoF>
     SolverPhaseFactory<S, D, LocalSearchPhase<S, M, MS, A, Fo>>
     for LocalSearchPhaseFactory<S, M, MS, A, Fo, MSF, AF, FoF>
@@ -172,9 +136,9 @@ where
     S: PlanningSolution,
     M: Move<S>,
     D: ScoreDirector<S>,
-    MS: MoveSelector<S, M> + Send,
-    A: Acceptor<S> + Send,
-    Fo: LocalSearchForager<S, M> + Send,
+    MS: MoveSelector<S, M> + Send + Sync,
+    A: Acceptor<S> + Send + Sync,
+    Fo: LocalSearchForager<S, M> + Send + Sync,
     MSF: Fn() -> MS + Send + Sync,
     AF: Fn() -> A + Send + Sync,
     FoF: Fn() -> Fo + Send + Sync,

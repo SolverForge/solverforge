@@ -90,30 +90,21 @@ where
     }
 }
 
-/// A typed value selector that extracts values from the solution.
-pub struct FromSolutionTypedValueSelector<S, V, F>
-where
-    F: Fn(&dyn ScoreDirector<S>) -> Vec<V> + Send + Sync,
-{
-    extractor: F,
+/// A typed value selector that extracts values from the solution using a function pointer.
+pub struct FromSolutionTypedValueSelector<S, V> {
+    extractor: fn(&S) -> Vec<V>,
     _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V, F> Debug for FromSolutionTypedValueSelector<S, V, F>
-where
-    F: Fn(&dyn ScoreDirector<S>) -> Vec<V> + Send + Sync,
-{
+impl<S, V> Debug for FromSolutionTypedValueSelector<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FromSolutionTypedValueSelector").finish()
     }
 }
 
-impl<S, V, F> FromSolutionTypedValueSelector<S, V, F>
-where
-    F: Fn(&dyn ScoreDirector<S>) -> Vec<V> + Send + Sync,
-{
-    /// Creates a new selector with the given extractor function.
-    pub fn new(extractor: F) -> Self {
+impl<S, V> FromSolutionTypedValueSelector<S, V> {
+    /// Creates a new selector with the given extractor function pointer.
+    pub fn new(extractor: fn(&S) -> Vec<V>) -> Self {
         Self {
             extractor,
             _phantom: PhantomData,
@@ -121,11 +112,10 @@ where
     }
 }
 
-impl<S, V, F> TypedValueSelector<S, V> for FromSolutionTypedValueSelector<S, V, F>
+impl<S, V> TypedValueSelector<S, V> for FromSolutionTypedValueSelector<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
-    F: Fn(&dyn ScoreDirector<S>) -> Vec<V> + Send + Sync,
 {
     fn iter_typed<'a>(
         &'a self,
@@ -133,7 +123,7 @@ where
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> Box<dyn Iterator<Item = V> + 'a> {
-        let values = (self.extractor)(score_director);
+        let values = (self.extractor)(score_director.working_solution());
         Box::new(values.into_iter())
     }
 
@@ -143,7 +133,55 @@ where
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> usize {
-        (self.extractor)(score_director).len()
+        (self.extractor)(score_director.working_solution()).len()
+    }
+}
+
+/// A typed value selector that generates a range of usize values 0..count.
+///
+/// Uses a function pointer to get the count from the solution.
+pub struct RangeValueSelector<S> {
+    count_fn: fn(&S) -> usize,
+    _phantom: PhantomData<S>,
+}
+
+impl<S> Debug for RangeValueSelector<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RangeValueSelector").finish()
+    }
+}
+
+impl<S> RangeValueSelector<S> {
+    /// Creates a new range value selector with the given count function.
+    pub fn new(count_fn: fn(&S) -> usize) -> Self {
+        Self {
+            count_fn,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S> TypedValueSelector<S, usize> for RangeValueSelector<S>
+where
+    S: PlanningSolution,
+{
+    fn iter_typed<'a>(
+        &'a self,
+        score_director: &'a dyn ScoreDirector<S>,
+        _descriptor_index: usize,
+        _entity_index: usize,
+    ) -> Box<dyn Iterator<Item = usize> + 'a> {
+        let count = (self.count_fn)(score_director.working_solution());
+        Box::new(0..count)
+    }
+
+    fn size(
+        &self,
+        score_director: &dyn ScoreDirector<S>,
+        _descriptor_index: usize,
+        _entity_index: usize,
+    ) -> usize {
+        (self.count_fn)(score_director.working_solution())
     }
 }
 
@@ -226,14 +264,11 @@ mod tests {
         assert_eq!(solution.tasks[1].id, 1);
 
         // Extract priorities directly from solution - zero erasure
-        let selector =
-            FromSolutionTypedValueSelector::new(|sd: &dyn ScoreDirector<TaskSolution>| {
-                sd.working_solution()
-                    .tasks
-                    .iter()
-                    .filter_map(|t| t.priority)
-                    .collect()
-            });
+        fn extract_priorities(s: &TaskSolution) -> Vec<i32> {
+            s.tasks.iter().filter_map(|t| t.priority).collect()
+        }
+
+        let selector = FromSolutionTypedValueSelector::new(extract_priorities);
 
         let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
         assert_eq!(values, vec![10, 20]);

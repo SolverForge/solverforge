@@ -221,7 +221,9 @@ where
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Collect moves first to avoid borrow conflicts
-            let moves: Vec<_> = move_selector.iter_moves(step_scope.score_director()).collect();
+            let moves: Vec<_> = move_selector
+                .iter_moves(step_scope.score_director())
+                .collect();
 
             let mut best_move_idx = None;
             let mut best_score = None;
@@ -234,16 +236,17 @@ where
 
                 // Use RecordingScoreDirector for automatic undo
                 {
-                    let mut recording = RecordingScoreDirector::new(step_scope.score_director_mut());
+                    let mut recording =
+                        RecordingScoreDirector::new(step_scope.score_director_mut());
                     mv.do_move(&mut recording);
                     let move_score = recording.calculate_score();
 
                     // Accept if improving over last step
-                    if move_score > last_step_score {
-                        if best_score.as_ref().map_or(true, |b| move_score > *b) {
-                            best_score = Some(move_score);
-                            best_move_idx = Some(idx);
-                        }
+                    if move_score > last_step_score
+                        && best_score.as_ref().is_none_or(|b| move_score > *b)
+                    {
+                        best_score = Some(move_score);
+                        best_move_idx = Some(idx);
                     }
 
                     // Undo the move

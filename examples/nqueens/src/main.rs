@@ -2,10 +2,10 @@
 //!
 //! Place N queens on an N×N board so no two threaten each other.
 
+use rand::Rng;
+use solverforge::__internal::TypedScoreDirector;
 use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
-use solverforge::__internal::TypedScoreDirector;
-use rand::Rng;
 
 #[planning_entity]
 pub struct Queen {
@@ -29,7 +29,13 @@ impl NQueensSolution {
     pub fn new(n: i32) -> Self {
         Self {
             n,
-            queens: (0..n).map(|i| Queen { id: i, column: i, row: None }).collect(),
+            queens: (0..n)
+                .map(|i| Queen {
+                    id: i,
+                    column: i,
+                    row: None,
+                })
+                .collect(),
             score: None,
         }
     }
@@ -39,7 +45,10 @@ impl NQueensSolution {
         for row in 0..self.n {
             print!("|");
             for col in 0..self.n {
-                let has_queen = self.queens.iter().any(|q| q.column == col && q.row == Some(row));
+                let has_queen = self
+                    .queens
+                    .iter()
+                    .any(|q| q.column == col && q.row == Some(row));
                 print!("{}", if has_queen { "Q|" } else { " |" });
             }
             println!();
@@ -97,7 +106,9 @@ fn solve(solution: NQueensSolution) -> NQueensSolution {
     // Local search: hill climbing
     let mut score = director.get_score();
     for _ in 0..1000 {
-        if score.is_feasible() { break; }
+        if score.is_feasible() {
+            break;
+        }
 
         let idx = rng.gen_range(0..director.working_solution().queens.len());
         let old = director.working_solution().queens[idx].row;
@@ -129,6 +140,13 @@ fn main() {
         println!("Solving {}-Queens...", n);
         let result = solve(NQueensSolution::new(n));
         result.print_board();
-        println!("{}\n", if result.score.map_or(false, |s| s.is_feasible()) { "OPTIMAL!" } else { "Local optimum." });
+        println!(
+            "{}\n",
+            if result.score.is_some_and(|s| s.is_feasible()) {
+                "OPTIMAL!"
+            } else {
+                "Local optimum."
+            }
+        );
     }
 }

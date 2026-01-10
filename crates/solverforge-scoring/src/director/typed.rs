@@ -155,8 +155,9 @@ where
         &mut self.working_solution
     }
 
-    /// Consumes the director and returns the working solution.
-    pub fn into_working_solution(self) -> S {
+    /// Consumes the director and returns the working solution with final score set.
+    pub fn into_working_solution(mut self) -> S {
+        self.working_solution.set_score(Some(self.cached_score));
         self.working_solution
     }
 

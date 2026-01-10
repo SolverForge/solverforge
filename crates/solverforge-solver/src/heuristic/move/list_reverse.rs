@@ -22,7 +22,6 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The list element value type
 ///
 /// # Example
@@ -47,13 +46,13 @@ use super::Move;
 /// }
 ///
 /// // Reverse segment [1..4) in tour: [A, B, C, D, E] -> [A, D, C, B, E]
-/// let m = ListReverseMove::<Tour, _, i32>::new(
+/// let m = ListReverseMove::<Tour, i32>::new(
 ///     0, 1, 4,
 ///     list_len, list_reverse,
 ///     "cities", 0,
 /// );
 /// ```
-pub struct ListReverseMove<S, D, V> {
+pub struct ListReverseMove<S, V> {
     /// Entity index
     entity_index: usize,
     /// Start of range to reverse (inclusive)
@@ -66,19 +65,18 @@ pub struct ListReverseMove<S, D, V> {
     list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<(fn() -> D, V)>,
+    _phantom: PhantomData<V>,
 }
 
-// Manual Clone impl to avoid D: Clone bound from derive
-impl<S, D, V> Clone for ListReverseMove<S, D, V> {
+impl<S, V> Clone for ListReverseMove<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<S, D, V> Copy for ListReverseMove<S, D, V> {}
+impl<S, V> Copy for ListReverseMove<S, V> {}
 
-impl<S, D, V: Debug> Debug for ListReverseMove<S, D, V> {
+impl<S, V: Debug> Debug for ListReverseMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListReverseMove")
             .field("entity", &self.entity_index)
@@ -88,7 +86,7 @@ impl<S, D, V: Debug> Debug for ListReverseMove<S, D, V> {
     }
 }
 
-impl<S, D, V> ListReverseMove<S, D, V> {
+impl<S, V> ListReverseMove<S, V> {
     /// Creates a new list reverse move with typed function pointers.
     ///
     /// # Arguments
@@ -142,13 +140,12 @@ impl<S, D, V> ListReverseMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for ListReverseMove<S, D, V>
+impl<S, V> Move<S> for ListReverseMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Range must have at least 2 elements to be meaningful
@@ -165,7 +162,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before change
         score_director.before_variable_changed(
             self.descriptor_index,
@@ -283,7 +280,7 @@ mod tests {
 
         // Reverse [1..4): [1, 2, 3, 4, 5] -> [1, 4, 3, 2, 5]
         let m =
-            ListReverseMove::<TspSolution, _, i32>::new(0, 1, 4, list_len, list_reverse, "cities", 0);
+            ListReverseMove::<TspSolution, i32>::new(0, 1, 4, list_len, list_reverse, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -309,7 +306,7 @@ mod tests {
         let mut director = create_director(tours);
 
         let m =
-            ListReverseMove::<TspSolution, _, i32>::new(0, 0, 4, list_len, list_reverse, "cities", 0);
+            ListReverseMove::<TspSolution, i32>::new(0, 0, 4, list_len, list_reverse, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -336,7 +333,7 @@ mod tests {
 
         // Reversing a single element is a no-op
         let m =
-            ListReverseMove::<TspSolution, _, i32>::new(0, 1, 2, list_len, list_reverse, "cities", 0);
+            ListReverseMove::<TspSolution, i32>::new(0, 1, 2, list_len, list_reverse, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -349,7 +346,7 @@ mod tests {
         let director = create_director(tours);
 
         let m =
-            ListReverseMove::<TspSolution, _, i32>::new(0, 1, 10, list_len, list_reverse, "cities", 0);
+            ListReverseMove::<TspSolution, i32>::new(0, 1, 10, list_len, list_reverse, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }

@@ -9,7 +9,6 @@
 //! compile-time type safety. No runtime type checks or downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -23,9 +22,8 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `V` - The variable value type
-pub struct PillarChangeMove<S, D, V> {
+pub struct PillarChangeMove<S, V> {
     entity_indices: Vec<usize>,
     descriptor_index: usize,
     variable_name: &'static str,
@@ -34,10 +32,9 @@ pub struct PillarChangeMove<S, D, V> {
     getter: fn(&S, usize) -> Option<V>,
     /// Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
-    _phantom: PhantomData<(fn() -> S, fn() -> D)>,
 }
 
-impl<S, D, V: Clone> Clone for PillarChangeMove<S, D, V> {
+impl<S, V: Clone> Clone for PillarChangeMove<S, V> {
     fn clone(&self) -> Self {
         Self {
             entity_indices: self.entity_indices.clone(),
@@ -46,12 +43,11 @@ impl<S, D, V: Clone> Clone for PillarChangeMove<S, D, V> {
             to_value: self.to_value.clone(),
             getter: self.getter,
             setter: self.setter,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<S, D, V: Debug> Debug for PillarChangeMove<S, D, V> {
+impl<S, V: Debug> Debug for PillarChangeMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PillarChangeMove")
             .field("entity_indices", &self.entity_indices)
@@ -62,7 +58,7 @@ impl<S, D, V: Debug> Debug for PillarChangeMove<S, D, V> {
     }
 }
 
-impl<S, D, V> PillarChangeMove<S, D, V> {
+impl<S, V> PillarChangeMove<S, V> {
     /// Creates a new pillar change move with typed function pointers.
     ///
     /// # Arguments
@@ -87,7 +83,6 @@ impl<S, D, V> PillarChangeMove<S, D, V> {
             to_value,
             getter,
             setter,
-            _phantom: PhantomData,
         }
     }
 
@@ -102,13 +97,12 @@ impl<S, D, V> PillarChangeMove<S, D, V> {
     }
 }
 
-impl<S, D, V> Move<S, D> for PillarChangeMove<S, D, V>
+impl<S, V> Move<S> for PillarChangeMove<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         if self.entity_indices.is_empty() {
             return false;
         }
@@ -133,7 +127,7 @@ where
         }
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Capture old values using typed getter - zero erasure
         let old_values: Vec<(usize, Option<V>)> = self
             .entity_indices
@@ -266,7 +260,7 @@ mod tests {
         ]);
 
         // Change pillar [0, 1] from shift 1 to shift 5
-        let m = PillarChangeMove::<ScheduleSolution, _, i32>::new(
+        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
             vec![0, 1],
             Some(5),
             get_shift,
@@ -315,7 +309,7 @@ mod tests {
             },
         ]);
 
-        let m = PillarChangeMove::<ScheduleSolution, _, i32>::new(
+        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
             vec![0, 1],
             Some(5),
             get_shift,
@@ -334,7 +328,7 @@ mod tests {
             shift: Some(1),
         }]);
 
-        let m = PillarChangeMove::<ScheduleSolution, _, i32>::new(
+        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
             vec![],
             Some(5),
             get_shift,
@@ -348,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_pillar_change_entity_indices() {
-        let m = PillarChangeMove::<ScheduleSolution, _, i32>::new(
+        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
             vec![1, 3, 5],
             Some(5),
             get_shift,

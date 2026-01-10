@@ -40,8 +40,8 @@
 //! }
 //!
 //! // Create two change moves for different variables
-//! let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
-//! let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
+//! let move_x = ChangeMove::<Sol, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+//! let move_y = ChangeMove::<Sol, i32>::new(0, Some(10), get_y, set_y, "y", 0);
 //!
 //! // Combine into a composite move
 //! let composite = CompositeMove::new(move_x, move_y);
@@ -79,7 +79,6 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `M1` - The first move type
 /// * `M2` - The second move type
 ///
@@ -87,16 +86,15 @@ use super::Move;
 ///
 /// Both moves are stored inline as concrete types. No `Box<dyn Move>`,
 /// no trait objects in the hot path.
-pub struct CompositeMove<S, D, M1, M2> {
+pub struct CompositeMove<S, M1, M2> {
     first: M1,
     second: M2,
     /// Combined entity indices from both moves
     combined_indices: SmallVec<[usize; 8]>,
-    _phantom: std::marker::PhantomData<(fn() -> S, fn() -> D)>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
-// Manual Clone impl to avoid S: Clone, D: Clone bounds from derive
-impl<S, D, M1: Clone, M2: Clone> Clone for CompositeMove<S, D, M1, M2> {
+impl<S, M1: Clone, M2: Clone> Clone for CompositeMove<S, M1, M2> {
     fn clone(&self) -> Self {
         Self {
             first: self.first.clone(),
@@ -107,12 +105,11 @@ impl<S, D, M1: Clone, M2: Clone> Clone for CompositeMove<S, D, M1, M2> {
     }
 }
 
-impl<S, D, M1, M2> Debug for CompositeMove<S, D, M1, M2>
+impl<S, M1, M2> Debug for CompositeMove<S, M1, M2>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M1: Move<S, D>,
-    M2: Move<S, D>,
+    M1: Move<S>,
+    M2: Move<S>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompositeMove")
@@ -123,12 +120,11 @@ where
     }
 }
 
-impl<S, D, M1, M2> CompositeMove<S, D, M1, M2>
+impl<S, M1, M2> CompositeMove<S, M1, M2>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M1: Move<S, D>,
-    M2: Move<S, D>,
+    M1: Move<S>,
+    M2: Move<S>,
 {
     /// Creates a new composite move combining two moves.
     ///
@@ -166,19 +162,18 @@ where
     }
 }
 
-impl<S, D, M1, M2> Move<S, D> for CompositeMove<S, D, M1, M2>
+impl<S, M1, M2> Move<S> for CompositeMove<S, M1, M2>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M1: Move<S, D>,
-    M2: Move<S, D>,
+    M1: Move<S>,
+    M2: Move<S>,
 {
-    fn is_doable(&self, score_director: &D) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // Both moves must be doable
         self.first.is_doable(score_director) && self.second.is_doable(score_director)
     }
 
-    fn do_move(&self, score_director: &mut D) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Execute in sequence: first, then second
         self.first.do_move(score_director);
         self.second.do_move(score_director);

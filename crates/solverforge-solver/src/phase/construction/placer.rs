@@ -98,11 +98,17 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
+    /// The entity selector.
     entity_selector: ES,
+    /// The value selector.
     value_selector: VS,
+    /// Typed getter function pointer.
     getter: fn(&S, usize) -> Option<V>,
+    /// Typed setter function pointer.
     setter: fn(&mut S, usize, Option<V>),
+    /// The variable name.
     variable_name: &'static str,
+    /// The descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<V>,
 }
@@ -353,21 +359,23 @@ mod tests {
         &mut s.queens
     }
 
-    // Typed getter - zero erasure
     fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i32> {
         s.queens.get(idx).and_then(|q| q.row)
     }
 
-    // Typed setter - zero erasure
     fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i32>) {
         if let Some(queen) = s.queens.get_mut(idx) {
             queen.row = v;
         }
     }
 
-    fn create_test_director(
-        initialized: &[bool],
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    type TestDirector = SimpleScoreDirector<NQueensSolution, fn(&NQueensSolution) -> SimpleScore>;
+
+    fn calc_score(_: &NQueensSolution) -> SimpleScore {
+        SimpleScore::of(0)
+    }
+
+    fn create_test_director(initialized: &[bool]) -> TestDirector {
         let queens: Vec<_> = initialized
             .iter()
             .enumerate()
@@ -394,17 +402,21 @@ mod tests {
             SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
                 .with_entity(entity_desc);
 
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        SimpleScoreDirector::with_calculator(solution, descriptor, calc_score)
     }
+
+    type TestEntitySelector = FromSolutionEntitySelector;
+    type TestValueSelector = StaticTypedValueSelector<NQueensSolution, i32>;
+    type TestPlacer = QueuedEntityPlacer<NQueensSolution, i32, TestEntitySelector, TestValueSelector>;
 
     #[test]
     fn test_queued_placer_all_uninitialized() {
         let director = create_test_director(&[false, false, false]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
-        let placer = QueuedEntityPlacer::new(
+        let placer: TestPlacer = QueuedEntityPlacer::new(
             entity_selector,
             value_selector,
             get_queen_row,
@@ -415,10 +427,7 @@ mod tests {
 
         let placements = placer.get_placements(&director);
 
-        // All 3 entities should have placements
         assert_eq!(placements.len(), 3);
-
-        // Each should have 3 moves (one per value)
         for p in &placements {
             assert_eq!(p.moves.len(), 3);
         }
@@ -426,13 +435,12 @@ mod tests {
 
     #[test]
     fn test_queued_placer_some_initialized() {
-        // First and third are initialized, middle is not
         let director = create_test_director(&[true, false, true]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
-        let placer = QueuedEntityPlacer::new(
+        let placer: TestPlacer = QueuedEntityPlacer::new(
             entity_selector,
             value_selector,
             get_queen_row,
@@ -443,7 +451,6 @@ mod tests {
 
         let placements = placer.get_placements(&director);
 
-        // Only 1 entity (index 1) should have a placement
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].entity_ref.entity_index, 1);
     }
@@ -452,10 +459,10 @@ mod tests {
     fn test_queued_placer_all_initialized() {
         let director = create_test_director(&[true, true, true]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
-        let placer = QueuedEntityPlacer::new(
+        let placer: TestPlacer = QueuedEntityPlacer::new(
             entity_selector,
             value_selector,
             get_queen_row,
@@ -466,19 +473,17 @@ mod tests {
 
         let placements = placer.get_placements(&director);
 
-        // No placements - all already initialized
         assert_eq!(placements.len(), 0);
     }
 
     #[test]
     fn test_sorted_entity_placer_descending() {
-        // Create 3 uninitialized queens
         let director = create_test_director(&[false, false, false]);
 
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![0i32, 1, 2]));
+        let entity_selector = FromSolutionEntitySelector::new(0);
+        let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
 
-        let inner = QueuedEntityPlacer::new(
+        let inner: TestPlacer = QueuedEntityPlacer::new(
             entity_selector,
             value_selector,
             get_queen_row,
@@ -487,7 +492,6 @@ mod tests {
             "row",
         );
 
-        // Sort by entity index descending (2, 1, 0)
         fn descending_index(_s: &NQueensSolution, a: usize, b: usize) -> std::cmp::Ordering {
             b.cmp(&a)
         }

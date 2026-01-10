@@ -27,9 +27,20 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 
-/// Factory trait for creating phases.
-pub trait SolverPhaseFactory<S: PlanningSolution, D: ScoreDirector<S>>: Send + Sync {
-    fn create_phase(&self) -> Box<dyn Phase<S, D>>;
+/// Factory trait for creating phases - generic over phase type for zero-erasure.
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+/// * `P` - The concrete phase type produced by this factory
+pub trait SolverPhaseFactory<S, D, P>: Send + Sync
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    P: Phase<S, D>,
+{
+    /// Creates a new phase instance.
+    fn create_phase(&self) -> P;
 }
 
 /// A simple phase factory that clones a prototype phase.
@@ -43,30 +54,24 @@ impl<P: Clone> CloneablePhaseFactory<P> {
     }
 }
 
-impl<S, D, P> SolverPhaseFactory<S, D> for CloneablePhaseFactory<P>
+impl<S, D, P> SolverPhaseFactory<S, D, P> for CloneablePhaseFactory<P>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    P: Phase<S, D> + Clone + Send + Sync + 'static,
+    P: Phase<S, D> + Clone + Send + Sync,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
-        Box::new(self.prototype.clone())
+    fn create_phase(&self) -> P {
+        self.prototype.clone()
     }
 }
 
 /// A phase factory using a closure.
-pub struct ClosurePhaseFactory<S, F>
-where
-    S: PlanningSolution,
-{
+pub struct ClosurePhaseFactory<P, F> {
     factory: F,
-    _marker: std::marker::PhantomData<S>,
+    _marker: std::marker::PhantomData<P>,
 }
 
-impl<S, F> ClosurePhaseFactory<S, F>
-where
-    S: PlanningSolution,
-{
+impl<P, F> ClosurePhaseFactory<P, F> {
     pub fn new(factory: F) -> Self {
         Self {
             factory,
@@ -75,13 +80,14 @@ where
     }
 }
 
-impl<S, D, F> SolverPhaseFactory<S, D> for ClosurePhaseFactory<S, F>
+impl<S, D, P, F> SolverPhaseFactory<S, D, P> for ClosurePhaseFactory<P, F>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S> + 'static,
-    F: Fn() -> Box<dyn Phase<S, D>> + Send + Sync,
+    D: ScoreDirector<S>,
+    P: Phase<S, D>,
+    F: Fn() -> P + Send + Sync,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
+    fn create_phase(&self) -> P {
         (self.factory)()
     }
 }

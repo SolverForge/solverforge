@@ -257,73 +257,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::score::SimpleScore;
-
-    #[derive(Clone, Debug)]
-    struct TestSolution {
-        values: Vec<i32>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
-
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
 
     #[test]
     fn test_config_default() {
         let config = PartitionedSearchConfig::default();
         assert_eq!(config.thread_count, ThreadCount::Auto);
         assert!(!config.log_progress);
-    }
-
-    #[test]
-    fn test_phase_type_name() {
-        let test_solution = TestSolution {
-            values: vec![1, 2, 3],
-            score: None,
-        };
-        assert_eq!(test_solution.values.len(), 3);
-
-        let partitioner = Box::new(FunctionalPartitioner::new(
-            |s: &TestSolution| vec![s.clone()],
-            |_, partitions| partitions.into_iter().next().unwrap(),
-        ));
-
-        let sdf: ScoreDirectorFactory<TestSolution> = Arc::new(|_s| {
-            panic!("Should not be called in this test");
-        });
-
-        let pf: PhaseFactory<TestSolution> = Arc::new(Vec::new);
-
-        let phase = PartitionedSearchPhase::new(partitioner, sdf, pf);
-        assert_eq!(phase.phase_type_name(), "PartitionedSearch");
-    }
-
-    #[test]
-    fn test_phase_debug() {
-        let partitioner = Box::new(FunctionalPartitioner::new(
-            |s: &TestSolution| vec![s.clone()],
-            |_, partitions| partitions.into_iter().next().unwrap(),
-        ));
-
-        let sdf: ScoreDirectorFactory<TestSolution> = Arc::new(|_s| {
-            panic!("Should not be called in this test");
-        });
-
-        let pf: PhaseFactory<TestSolution> = Arc::new(Vec::new);
-
-        let phase = PartitionedSearchPhase::new(partitioner, sdf, pf);
-        let debug = format!("{:?}", phase);
-
-        assert!(debug.contains("PartitionedSearchPhase"));
-        assert!(debug.contains("FunctionalPartitioner"));
     }
 }

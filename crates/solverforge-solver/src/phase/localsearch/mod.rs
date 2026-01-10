@@ -64,42 +64,35 @@ pub enum AcceptorType {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `M` - The move type (must implement `Move<S> + Clone`)
+/// * `M` - The move type
+/// * `MS` - The move selector type
+/// * `A` - The acceptor type
+/// * `Fo` - The forager type
 ///
 /// # Performance
 ///
 /// Uses `MoveArena<M>` for O(1) per-step cleanup instead of allocating
 /// a new Vec each step.
-pub struct LocalSearchPhase<S, M>
+pub struct LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// The move selector.
-    move_selector: Box<dyn MoveSelector<S, M>>,
-    /// The acceptor.
-    acceptor: Box<dyn Acceptor<S>>,
-    /// The forager.
-    forager: Box<dyn LocalSearchForager<S, M>>,
-    /// Arena for moves - reused each step for O(1) cleanup.
+    move_selector: MS,
+    acceptor: A,
+    forager: Fo,
     arena: MoveArena<M>,
-    /// Maximum number of steps.
     step_limit: Option<u64>,
-    _phantom: PhantomData<M>,
+    _phantom: PhantomData<(S, M)>,
 }
 
-impl<S, M> LocalSearchPhase<S, M>
+impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    M: Move<S> + 'static,
+    M: Move<S>,
 {
     /// Creates a new local search phase.
-    pub fn new(
-        move_selector: Box<dyn MoveSelector<S, M>>,
-        acceptor: Box<dyn Acceptor<S>>,
-        forager: Box<dyn LocalSearchForager<S, M>>,
-        step_limit: Option<u64>,
-    ) -> Self {
+    pub fn new(move_selector: MS, acceptor: A, forager: Fo, step_limit: Option<u64>) -> Self {
         Self {
             move_selector,
             acceptor,
@@ -111,10 +104,13 @@ where
     }
 }
 
-impl<S, M> Debug for LocalSearchPhase<S, M>
+impl<S, M, MS, A, Fo> Debug for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
+    MS: Debug,
+    A: Debug,
+    Fo: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LocalSearchPhase")
@@ -127,11 +123,14 @@ where
     }
 }
 
-impl<S, M, D> Phase<S, D> for LocalSearchPhase<S, M>
+impl<S, M, D, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
     D: ScoreDirector<S>,
+    MS: MoveSelector<S, M> + Send,
+    A: Acceptor<S> + Send,
+    Fo: LocalSearchForager<S, M> + Send,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);

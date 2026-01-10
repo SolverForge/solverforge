@@ -13,22 +13,22 @@ use solverforge_scoring::ScoreDirector;
 ///
 /// Unlike `ValueSelector` which returns `Arc<dyn Any>`, this trait
 /// returns `V` inline, eliminating heap allocation per value.
-pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+/// * `V` - The value type
+pub trait TypedValueSelector<S: PlanningSolution, D: ScoreDirector<S>, V>: Send + Debug {
     /// Returns an iterator over typed values for the given entity.
     fn iter_typed<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
         descriptor_index: usize,
         entity_index: usize,
     ) -> Box<dyn Iterator<Item = V> + 'a>;
 
     /// Returns the number of values.
-    fn size(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> usize;
+    fn size(&self, score_director: &D, descriptor_index: usize, entity_index: usize) -> usize;
 
     /// Returns true if this selector may return the same value multiple times.
     fn is_never_ending(&self) -> bool {
@@ -66,26 +66,22 @@ impl<S, V: Clone> StaticTypedValueSelector<S, V> {
     }
 }
 
-impl<S, V> TypedValueSelector<S, V> for StaticTypedValueSelector<S, V>
+impl<S, D, V> TypedValueSelector<S, D, V> for StaticTypedValueSelector<S, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + Send + Debug + 'static,
 {
     fn iter_typed<'a>(
         &'a self,
-        _score_director: &'a dyn ScoreDirector<S>,
+        _score_director: &'a D,
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> Box<dyn Iterator<Item = V> + 'a> {
         Box::new(self.values.iter().cloned())
     }
 
-    fn size(
-        &self,
-        _score_director: &dyn ScoreDirector<S>,
-        _descriptor_index: usize,
-        _entity_index: usize,
-    ) -> usize {
+    fn size(&self, _score_director: &D, _descriptor_index: usize, _entity_index: usize) -> usize {
         self.values.len()
     }
 }
@@ -112,14 +108,15 @@ impl<S, V> FromSolutionTypedValueSelector<S, V> {
     }
 }
 
-impl<S, V> TypedValueSelector<S, V> for FromSolutionTypedValueSelector<S, V>
+impl<S, D, V> TypedValueSelector<S, D, V> for FromSolutionTypedValueSelector<S, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + Send + Debug + 'static,
 {
     fn iter_typed<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> Box<dyn Iterator<Item = V> + 'a> {
@@ -127,12 +124,7 @@ where
         Box::new(values.into_iter())
     }
 
-    fn size(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-        _descriptor_index: usize,
-        _entity_index: usize,
-    ) -> usize {
+    fn size(&self, score_director: &D, _descriptor_index: usize, _entity_index: usize) -> usize {
         (self.extractor)(score_director.working_solution()).len()
     }
 }
@@ -161,13 +153,14 @@ impl<S> RangeValueSelector<S> {
     }
 }
 
-impl<S> TypedValueSelector<S, usize> for RangeValueSelector<S>
+impl<S, D> TypedValueSelector<S, D, usize> for RangeValueSelector<S>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
 {
     fn iter_typed<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> Box<dyn Iterator<Item = usize> + 'a> {
@@ -175,12 +168,7 @@ where
         Box::new(0..count)
     }
 
-    fn size(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-        _descriptor_index: usize,
-        _entity_index: usize,
-    ) -> usize {
+    fn size(&self, score_director: &D, _descriptor_index: usize, _entity_index: usize) -> usize {
         (self.count_fn)(score_director.working_solution())
     }
 }

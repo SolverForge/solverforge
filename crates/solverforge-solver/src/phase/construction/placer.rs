@@ -17,23 +17,26 @@ use crate::heuristic::selector::{EntityReference, EntitySelector, TypedValueSele
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `M` - The move type
-pub struct Placement<S, M>
+pub struct Placement<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
     /// The entity reference.
     pub entity_ref: EntityReference,
     /// Candidate moves for this placement.
     pub moves: Vec<M>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> (S, D)>,
 }
 
-impl<S, M> Placement<S, M>
+impl<S, D, M> Placement<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
     /// Creates a new placement.
     pub fn new(entity_ref: EntityReference, moves: Vec<M>) -> Self {
@@ -50,10 +53,11 @@ where
     }
 }
 
-impl<S, M> Debug for Placement<S, M>
+impl<S, D, M> Debug for Placement<S, D, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Placement")
@@ -70,14 +74,16 @@ where
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `M` - The move type
-pub trait EntityPlacer<S, M>: Send + Debug
+pub trait EntityPlacer<S, D, M>: Send + Debug
 where
     S: PlanningSolution,
-    M: Move<S>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
 {
     /// Returns all placements (entities + their candidate moves).
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
+    fn get_placements(&self, score_director: &D) -> Vec<Placement<S, D, M>>;
 }
 
 /// A queued entity placer that processes entities in order.
@@ -87,14 +93,16 @@ where
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The value type
 /// * `ES` - The entity selector type
 /// * `VS` - The value selector type
-pub struct QueuedEntityPlacer<S, V, ES, VS>
+pub struct QueuedEntityPlacer<S, D, V, ES, VS>
 where
     S: PlanningSolution,
-    ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    D: ScoreDirector<S>,
+    ES: EntitySelector<S, D>,
+    VS: TypedValueSelector<S, D, V>,
 {
     /// The entity selector.
     entity_selector: ES,
@@ -108,14 +116,15 @@ where
     variable_name: &'static str,
     /// The descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(fn() -> D, V)>,
 }
 
-impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
+impl<S, D, V, ES, VS> QueuedEntityPlacer<S, D, V, ES, VS>
 where
     S: PlanningSolution,
-    ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    D: ScoreDirector<S>,
+    ES: EntitySelector<S, D>,
+    VS: TypedValueSelector<S, D, V>,
 {
     /// Creates a new queued entity placer with typed function pointers.
     pub fn new(
@@ -138,11 +147,12 @@ where
     }
 }
 
-impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>
+impl<S, D, V, ES, VS> Debug for QueuedEntityPlacer<S, D, V, ES, VS>
 where
     S: PlanningSolution,
-    ES: EntitySelector<S> + Debug,
-    VS: TypedValueSelector<S, V> + Debug,
+    D: ScoreDirector<S>,
+    ES: EntitySelector<S, D> + Debug,
+    VS: TypedValueSelector<S, D, V> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueuedEntityPlacer")
@@ -153,17 +163,15 @@ where
     }
 }
 
-impl<S, V, ES, VS> EntityPlacer<S, ChangeMove<S, V>> for QueuedEntityPlacer<S, V, ES, VS>
+impl<S, D, V, ES, VS> EntityPlacer<S, D, ChangeMove<S, D, V>> for QueuedEntityPlacer<S, D, V, ES, VS>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    ES: EntitySelector<S, D>,
+    VS: TypedValueSelector<S, D, V>,
 {
-    fn get_placements<D: ScoreDirector<S>>(
-        &self,
-        score_director: &D,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
+    fn get_placements(&self, score_director: &D) -> Vec<Placement<S, D, ChangeMove<S, D, V>>> {
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;
@@ -182,7 +190,7 @@ where
                 }
 
                 // Generate moves for all possible values
-                let moves: Vec<ChangeMove<S, V>> = self
+                let moves: Vec<ChangeMove<S, D, V>> = self
                     .value_selector
                     .iter_typed(
                         score_director,
@@ -224,6 +232,7 @@ where
 /// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::SimpleScoreDirector;
 /// use std::cmp::Ordering;
 ///
 /// #[derive(Clone, Debug)]
@@ -237,6 +246,8 @@ where
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
+///
+/// type Director = SimpleScoreDirector<Solution, fn(&Solution) -> SimpleScore>;
 ///
 /// fn get_assigned(s: &Solution, i: usize) -> Option<i32> {
 ///     s.tasks.get(i).and_then(|t| t.assigned)
@@ -252,23 +263,25 @@ where
 ///     db.cmp(&da)  // Descending order
 /// }
 /// ```
-pub struct SortedEntityPlacer<S, M, Inner>
+pub struct SortedEntityPlacer<S, D, M, Inner>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    Inner: EntityPlacer<S, D, M>,
 {
     inner: Inner,
     /// Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
     comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<fn() -> (S, D, M)>,
 }
 
-impl<S, M, Inner> SortedEntityPlacer<S, M, Inner>
+impl<S, D, M, Inner> SortedEntityPlacer<S, D, M, Inner>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    Inner: EntityPlacer<S, D, M>,
 {
     /// Creates a new sorted entity placer.
     ///
@@ -284,11 +297,12 @@ where
     }
 }
 
-impl<S, M, Inner> Debug for SortedEntityPlacer<S, M, Inner>
+impl<S, D, M, Inner> Debug for SortedEntityPlacer<S, D, M, Inner>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    Inner: EntityPlacer<S, D, M>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SortedEntityPlacer")
@@ -297,13 +311,14 @@ where
     }
 }
 
-impl<S, M, Inner> EntityPlacer<S, M> for SortedEntityPlacer<S, M, Inner>
+impl<S, D, M, Inner> EntityPlacer<S, D, M> for SortedEntityPlacer<S, D, M, Inner>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    Inner: EntityPlacer<S, D, M>,
 {
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>> {
+    fn get_placements(&self, score_director: &D) -> Vec<Placement<S, D, M>> {
         let mut placements = self.inner.get_placements(score_director);
         let solution = score_director.working_solution();
         let cmp = self.comparator;

@@ -25,7 +25,6 @@ use super::Move;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `V` - The variable value type
-#[derive(Clone)]
 pub struct PillarChangeMove<S, D, V> {
     entity_indices: Vec<usize>,
     descriptor_index: usize,
@@ -35,7 +34,21 @@ pub struct PillarChangeMove<S, D, V> {
     getter: fn(&S, usize) -> Option<V>,
     /// Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
-    _phantom: PhantomData<(S, D)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> D)>,
+}
+
+impl<S, D, V: Clone> Clone for PillarChangeMove<S, D, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_indices: self.entity_indices.clone(),
+            descriptor_index: self.descriptor_index,
+            variable_name: self.variable_name,
+            to_value: self.to_value.clone(),
+            getter: self.getter,
+            setter: self.setter,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, D, V: Debug> Debug for PillarChangeMove<S, D, V> {

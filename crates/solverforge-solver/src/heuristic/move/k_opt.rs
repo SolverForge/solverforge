@@ -128,7 +128,6 @@ impl CutPoint {
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `V` - The list element value type
-#[derive(Clone)]
 pub struct KOptMove<S, D, V> {
     /// Cut points (up to 5 for 5-opt).
     cuts: [CutPoint; 5],
@@ -148,7 +147,25 @@ pub struct KOptMove<S, D, V> {
     descriptor_index: usize,
     /// Entity index (for intra-route moves).
     entity_index: usize,
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
+}
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for KOptMove<S, D, V> {
+    fn clone(&self) -> Self {
+        Self {
+            cuts: self.cuts,
+            cut_count: self.cut_count,
+            reconnection: self.reconnection,
+            list_len: self.list_len,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            entity_index: self.entity_index,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, D, V: Debug> Debug for KOptMove<S, D, V> {

@@ -83,20 +83,21 @@ impl<S, M, Inner: Debug> Debug for SelectedCountLimitMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, M, Inner> MoveSelector<S, M> for SelectedCountLimitMoveSelector<S, M, Inner>
+impl<S, D, M, Inner> MoveSelector<S, D, M> for SelectedCountLimitMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    Inner: MoveSelector<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    Inner: MoveSelector<S, D, M>,
 {
     fn iter_moves<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
         Box::new(self.inner.iter_moves(score_director).take(self.limit))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, score_director: &D) -> usize {
         self.inner.size(score_director).min(self.limit)
     }
 

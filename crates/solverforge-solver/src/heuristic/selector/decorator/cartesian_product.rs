@@ -137,19 +137,20 @@ impl<S, M1, M2, A: Debug, B: Debug> Debug for CartesianProductMoveSelector<S, M1
     }
 }
 
-impl<S, M1, M2, A, B> MoveSelector<S, CompositeMove<S, M1, M2>>
+impl<S, D, M1, M2, A, B> MoveSelector<S, D, CompositeMove<S, D, M1, M2>>
     for CartesianProductMoveSelector<S, M1, M2, A, B>
 where
     S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-    A: MoveSelector<S, M1>,
-    B: MoveSelector<S, M2>,
+    D: ScoreDirector<S>,
+    M1: Move<S, D>,
+    M2: Move<S, D>,
+    A: MoveSelector<S, D, M1>,
+    B: MoveSelector<S, D, M2>,
 {
     fn iter_moves<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
-    ) -> Box<dyn Iterator<Item = CompositeMove<S, M1, M2>> + 'a> {
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = CompositeMove<S, D, M1, M2>> + 'a> {
         // Materialize first selector's moves (required for cartesian product)
         let first_moves: Vec<M1> = self.first.iter_moves(score_director).collect();
 
@@ -160,7 +161,7 @@ where
         }))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, score_director: &D) -> usize {
         self.first.size(score_director) * self.second.size(score_director)
     }
 

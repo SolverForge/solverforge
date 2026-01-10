@@ -105,15 +105,16 @@ impl<S, M, Inner: Debug> Debug for ProbabilityMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, M, Inner> MoveSelector<S, M> for ProbabilityMoveSelector<S, M, Inner>
+impl<S, D, M, Inner> MoveSelector<S, D, M> for ProbabilityMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    Inner: MoveSelector<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    Inner: MoveSelector<S, D, M>,
 {
     fn iter_moves<'a>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
         let weight_fn = self.weight_fn;
 
@@ -148,7 +149,7 @@ where
         Box::new(selected.into_iter())
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size(&self, score_director: &D) -> usize {
         // Size is approximate - we don't know how many will be selected
         self.inner.size(score_director)
     }

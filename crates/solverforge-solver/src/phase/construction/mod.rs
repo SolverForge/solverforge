@@ -53,29 +53,32 @@ pub enum ForagerType {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `M` - The move type
 /// * `P` - The entity placer type
 /// * `Fo` - The forager type
-pub struct ConstructionHeuristicPhase<S, M, P, Fo>
+pub struct ConstructionHeuristicPhase<S, D, M, P, Fo>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    P: EntityPlacer<S, M>,
-    Fo: ConstructionForager<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    P: EntityPlacer<S, D, M>,
+    Fo: ConstructionForager<S, D, M>,
 {
     /// The entity placer.
     placer: P,
     /// The forager for selecting moves.
     forager: Fo,
-    _phantom: PhantomData<fn(S, M)>,
+    _phantom: PhantomData<fn() -> (S, D, M)>,
 }
 
-impl<S, M, P, Fo> ConstructionHeuristicPhase<S, M, P, Fo>
+impl<S, D, M, P, Fo> ConstructionHeuristicPhase<S, D, M, P, Fo>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    P: EntityPlacer<S, M>,
-    Fo: ConstructionForager<S, M>,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    P: EntityPlacer<S, D, M>,
+    Fo: ConstructionForager<S, D, M>,
 {
     /// Creates a new construction heuristic phase.
     pub fn new(placer: P, forager: Fo) -> Self {
@@ -87,12 +90,13 @@ where
     }
 }
 
-impl<S, M, P, Fo> Debug for ConstructionHeuristicPhase<S, M, P, Fo>
+impl<S, D, M, P, Fo> Debug for ConstructionHeuristicPhase<S, D, M, P, Fo>
 where
     S: PlanningSolution,
-    M: Move<S>,
-    P: EntityPlacer<S, M> + Debug,
-    Fo: ConstructionForager<S, M> + Debug,
+    D: ScoreDirector<S>,
+    M: Move<S, D>,
+    P: EntityPlacer<S, D, M> + Debug,
+    Fo: ConstructionForager<S, D, M> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConstructionHeuristicPhase")
@@ -102,13 +106,13 @@ where
     }
 }
 
-impl<S, D, M, P, Fo> Phase<S, D> for ConstructionHeuristicPhase<S, M, P, Fo>
+impl<S, D, M, P, Fo> Phase<S, D> for ConstructionHeuristicPhase<S, D, M, P, Fo>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    M: Move<S>,
-    P: EntityPlacer<S, M>,
-    Fo: ConstructionForager<S, M>,
+    M: Move<S, D>,
+    P: EntityPlacer<S, D, M>,
+    Fo: ConstructionForager<S, D, M>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);

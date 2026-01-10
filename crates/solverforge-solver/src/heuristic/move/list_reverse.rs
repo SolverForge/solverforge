@@ -53,7 +53,6 @@ use super::Move;
 ///     "cities", 0,
 /// );
 /// ```
-#[derive(Clone, Copy)]
 pub struct ListReverseMove<S, D, V> {
     /// Entity index
     entity_index: usize,
@@ -67,8 +66,17 @@ pub struct ListReverseMove<S, D, V> {
     list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
 }
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for ListReverseMove<S, D, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, V> Copy for ListReverseMove<S, D, V> {}
 
 impl<S, D, V: Debug> Debug for ListReverseMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

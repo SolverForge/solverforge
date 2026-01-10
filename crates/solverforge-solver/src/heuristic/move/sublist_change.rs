@@ -68,7 +68,6 @@ use super::Move;
 ///     "visits", 0,
 /// );
 /// ```
-#[derive(Clone)]
 pub struct SubListChangeMove<S, D, V> {
     /// Source entity index
     source_entity_index: usize,
@@ -90,8 +89,30 @@ pub struct SubListChangeMove<S, D, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
 }
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for SubListChangeMove<S, D, V> {
+    fn clone(&self) -> Self {
+        Self {
+            source_entity_index: self.source_entity_index,
+            source_start: self.source_start,
+            source_end: self.source_end,
+            dest_entity_index: self.dest_entity_index,
+            dest_position: self.dest_position,
+            list_len: self.list_len,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            indices: self.indices,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, D, V> Copy for SubListChangeMove<S, D, V> {}
 
 impl<S, D, V: Debug> Debug for SubListChangeMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

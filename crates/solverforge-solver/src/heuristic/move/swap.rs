@@ -48,7 +48,6 @@ use super::Move;
 /// // Swap values between entities 0 and 1
 /// let swap = SwapMove::<Sol, _, i32>::new(0, 1, get_v, set_v, "value", 0);
 /// ```
-#[derive(Clone, Copy)]
 pub struct SwapMove<S, D, V> {
     left_entity_index: usize,
     right_entity_index: usize,
@@ -60,8 +59,17 @@ pub struct SwapMove<S, D, V> {
     descriptor_index: usize,
     /// Store indices inline for entity_indices() to return a slice.
     indices: [usize; 2],
-    _phantom: PhantomData<(D, V)>,
+    _phantom: PhantomData<(fn() -> D, V)>,
 }
+
+// Manual Clone impl to avoid D: Clone bound from derive
+impl<S, D, V> Clone for SwapMove<S, D, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, D, V> Copy for SwapMove<S, D, V> {}
 
 impl<S, D, V: Debug> Debug for SwapMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

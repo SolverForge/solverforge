@@ -90,32 +90,33 @@ where
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The value type
-pub struct QueuedEntityPlacer<S, V>
+/// * `ES` - The entity selector type
+/// * `VS` - The value selector type
+pub struct QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
-    /// The entity selector.
-    entity_selector: Box<dyn EntitySelector<S>>,
-    /// The value selector.
-    value_selector: Box<dyn TypedValueSelector<S, V>>,
-    /// Typed getter function pointer.
+    entity_selector: ES,
+    value_selector: VS,
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer.
     setter: fn(&mut S, usize, Option<V>),
-    /// The variable name.
     variable_name: &'static str,
-    /// The descriptor index.
     descriptor_index: usize,
+    _phantom: PhantomData<V>,
 }
 
-impl<S, V> QueuedEntityPlacer<S, V>
+impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
     /// Creates a new queued entity placer with typed function pointers.
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
-        value_selector: Box<dyn TypedValueSelector<S, V>>,
+        entity_selector: ES,
+        value_selector: VS,
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
         descriptor_index: usize,
@@ -128,13 +129,16 @@ where
             setter,
             variable_name,
             descriptor_index,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<S, V> Debug for QueuedEntityPlacer<S, V>
+impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
+    ES: EntitySelector<S> + Debug,
+    VS: TypedValueSelector<S, V> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueuedEntityPlacer")
@@ -145,11 +149,13 @@ where
     }
 }
 
-impl<S, V, D> EntityPlacer<S, ChangeMove<S, V>, D> for QueuedEntityPlacer<S, V>
+impl<S, V, D, ES, VS> EntityPlacer<S, ChangeMove<S, V>, D> for QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     D: ScoreDirector<S>,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
     fn get_placements(&self, score_director: &D) -> Vec<Placement<S, ChangeMove<S, V>>> {
         let variable_name = self.variable_name;

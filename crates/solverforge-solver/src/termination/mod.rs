@@ -17,7 +17,7 @@ use solverforge_scoring::ScoreDirector;
 use crate::scope::SolverScope;
 
 pub use best_score::{BestScoreFeasibleTermination, BestScoreTermination};
-pub use composite::{AndCompositeTermination, OrCompositeTermination};
+pub use composite::{AndTermination, OrTermination};
 pub use diminished_returns::DiminishedReturnsTermination;
 pub use move_count::MoveCountTermination;
 pub use score_calculation_count::ScoreCalculationCountTermination;

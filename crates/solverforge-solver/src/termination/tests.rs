@@ -21,27 +21,29 @@ impl PlanningSolution for TestSolution {
     }
 }
 
+fn calc(_: &TestSolution) -> SimpleScore {
+    SimpleScore::of(0)
+}
+
 type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
 type TestScope = SolverScope<TestSolution, TestDirector>;
 
 fn create_scope() -> TestScope {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    fn calc(_: &TestSolution) -> SimpleScore {
-        SimpleScore::of(0)
-    }
-    let director = SimpleScoreDirector::with_calculator(TestSolution { score: None }, desc, calc);
+    let director = SimpleScoreDirector::with_calculator(
+        TestSolution { score: None },
+        desc,
+        calc as fn(&TestSolution) -> SimpleScore,
+    );
     SolverScope::new(director)
 }
 
 fn create_scope_with_score(score: SimpleScore) -> TestScope {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    fn calc(_: &TestSolution) -> SimpleScore {
-        SimpleScore::of(0)
-    }
     let director = SimpleScoreDirector::with_calculator(
         TestSolution { score: Some(score) },
         desc,
-        calc,
+        calc as fn(&TestSolution) -> SimpleScore,
     );
     let mut scope = SolverScope::new(director);
     scope.update_best_solution();
@@ -51,7 +53,7 @@ fn create_scope_with_score(score: SimpleScore) -> TestScope {
 #[test]
 fn test_step_count_termination() {
     let mut scope = create_scope();
-    let term = StepCountTermination::<TestSolution, TestDirector>::new(3);
+    let term = StepCountTermination::new(3);
 
     assert!(!term.is_terminated(&scope));
     scope.increment_step_count();
@@ -144,20 +146,17 @@ fn test_unimproved_step_count_termination() {
 #[test]
 fn test_unimproved_step_count_termination_with_improvement() {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    fn calc(_: &TestSolution) -> SimpleScore {
-        SimpleScore::of(-10)
-    }
     let director = SimpleScoreDirector::with_calculator(
         TestSolution {
             score: Some(SimpleScore::of(-10)),
         },
         desc,
-        calc,
+        calc as fn(&TestSolution) -> SimpleScore,
     );
     let mut scope: TestScope = SolverScope::new(director);
     scope.update_best_solution();
 
-    let term = UnimprovedStepCountTermination::<TestSolution, TestDirector>::new(3);
+    let term = UnimprovedStepCountTermination::<TestSolution>::new(3);
 
     // Initial check
     assert!(!term.is_terminated(&scope));
@@ -188,14 +187,14 @@ fn test_unimproved_step_count_termination_with_improvement() {
 }
 
 #[test]
-fn test_and_composite_termination() {
+fn test_and_termination() {
     let mut scope = create_scope_with_score(SimpleScore::of(-10));
 
     // Both must be true: best score >= 0 AND step count >= 3
-    let term = AndCompositeTermination::<TestSolution, TestDirector>::new(vec![
-        Box::new(BestScoreTermination::new(SimpleScore::of(0))),
-        Box::new(StepCountTermination::<TestSolution, TestDirector>::new(3)),
-    ]);
+    let term = AndTermination((
+        BestScoreTermination::new(SimpleScore::of(0)),
+        StepCountTermination::new(3),
+    ));
 
     // Neither condition met
     assert!(!term.is_terminated(&scope));
@@ -217,23 +216,14 @@ fn test_and_composite_termination() {
 }
 
 #[test]
-fn test_and_composite_termination_empty() {
-    let scope = create_scope();
-    let term = AndCompositeTermination::<TestSolution, TestDirector>::new(vec![]);
-
-    // Empty AND should not terminate (no conditions to satisfy)
-    assert!(!term.is_terminated(&scope));
-}
-
-#[test]
-fn test_or_composite_termination() {
+fn test_or_termination() {
     let mut scope = create_scope_with_score(SimpleScore::of(-10));
 
     // Either: best score >= 0 OR step count >= 3
-    let term = OrCompositeTermination::<TestSolution, TestDirector>::new(vec![
-        Box::new(BestScoreTermination::new(SimpleScore::of(0))),
-        Box::new(StepCountTermination::<TestSolution, TestDirector>::new(3)),
-    ]);
+    let term = OrTermination((
+        BestScoreTermination::new(SimpleScore::of(0)),
+        StepCountTermination::new(3),
+    ));
 
     // Neither condition met
     assert!(!term.is_terminated(&scope));
@@ -248,7 +238,7 @@ fn test_or_composite_termination() {
 #[test]
 fn test_unimproved_time_termination_no_score() {
     let scope = create_scope();
-    let term = UnimprovedTimeTermination::<TestSolution, TestDirector>::millis(10);
+    let term = UnimprovedTimeTermination::<TestSolution>::millis(10);
 
     // No score yet, should not terminate
     assert!(!term.is_terminated(&scope));
@@ -257,7 +247,7 @@ fn test_unimproved_time_termination_no_score() {
 #[test]
 fn test_unimproved_time_termination_initial_score() {
     let scope = create_scope_with_score(SimpleScore::of(-10));
-    let term = UnimprovedTimeTermination::<TestSolution, TestDirector>::millis(100);
+    let term = UnimprovedTimeTermination::<TestSolution>::millis(100);
 
     // First check records the score, should not terminate
     assert!(!term.is_terminated(&scope));

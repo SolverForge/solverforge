@@ -14,11 +14,10 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses an enum-based approach where all neighborhoods generate the same move type.
-//! This allows fully monomorphized execution without trait objects in hot paths.
+//! Uses macro-generated tuple implementations for neighborhoods. Each neighborhood
+//! is a concrete `MoveSelector` type, enabling full monomorphization.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
@@ -28,6 +27,92 @@ use crate::heuristic::selector::MoveSelector;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
+/// Trait for a tuple of neighborhoods that can be indexed at runtime.
+///
+/// This enables VND's dynamic neighborhood switching while preserving
+/// zero-erasure through macro-generated match arms.
+pub trait NeighborhoodTuple<S: PlanningSolution, M: Move<S>>: Send + Debug {
+    /// Returns the number of neighborhoods.
+    fn count(&self) -> usize;
+
+    /// Populates the arena with moves from neighborhood at index `k`.
+    fn populate_arena(
+        &self,
+        k: usize,
+        arena: &mut MoveArena<M>,
+        score_director: &dyn ScoreDirector<S>,
+    );
+}
+
+/// Generates `NeighborhoodTuple` implementations for tuples of move selectors.
+macro_rules! impl_neighborhood_tuple {
+    // Single neighborhood
+    ($idx:tt: $MS:ident) => {
+        impl<S, M, $MS> NeighborhoodTuple<S, M> for ($MS,)
+        where
+            S: PlanningSolution,
+            M: Move<S>,
+            $MS: MoveSelector<S, M>,
+        {
+            fn count(&self) -> usize {
+                1
+            }
+
+            fn populate_arena(
+                &self,
+                k: usize,
+                arena: &mut MoveArena<M>,
+                score_director: &dyn ScoreDirector<S>,
+            ) {
+                match k {
+                    $idx => arena.extend(self.$idx.iter_moves(score_director)),
+                    _ => {}
+                }
+            }
+        }
+    };
+
+    // Multiple neighborhoods
+    ($($idx:tt: $MS:ident),+) => {
+        impl<S, M, $($MS),+> NeighborhoodTuple<S, M> for ($($MS,)+)
+        where
+            S: PlanningSolution,
+            M: Move<S>,
+            $($MS: MoveSelector<S, M>,)+
+        {
+            fn count(&self) -> usize {
+                impl_neighborhood_tuple!(@count $($idx),+)
+            }
+
+            fn populate_arena(
+                &self,
+                k: usize,
+                arena: &mut MoveArena<M>,
+                score_director: &dyn ScoreDirector<S>,
+            ) {
+                match k {
+                    $($idx => arena.extend(self.$idx.iter_moves(score_director)),)+
+                    _ => {}
+                }
+            }
+        }
+    };
+
+    // Helper: count tuple elements
+    (@count $($idx:tt),+) => {
+        0 $(+ { let _ = $idx; 1 })+
+    };
+}
+
+impl_neighborhood_tuple!(0: MS0);
+impl_neighborhood_tuple!(0: MS0, 1: MS1);
+impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2);
+impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3);
+impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4);
+impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5);
+impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5, 6: MS6);
+impl_neighborhood_tuple!(0: MS0, 1: MS1, 2: MS2, 3: MS3, 4: MS4, 5: MS5, 6: MS6, 7: MS7);
+
 /// Variable Neighborhood Descent phase.
 ///
 /// Explores multiple neighborhoods in sequence, restarting from the first
@@ -36,77 +121,52 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type (all neighborhoods must produce this type)
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::vnd::VndPhase;
-/// use solverforge_solver::heuristic::selector::MoveSelector;
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Solution { values: Vec<Option<i32>>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// // VND with empty neighborhoods (for demonstration)
-/// let vnd: VndPhase<Solution, ChangeMove<Solution, i32>> = VndPhase::new(vec![]);
-/// assert_eq!(vnd.neighborhood_count(), 0);
-///
-/// // Use with_step_limit for configuration
-/// let vnd = vnd.with_step_limit(1000);
-/// ```
-pub struct VndPhase<S, M>
+/// * `N` - The neighborhoods tuple type
+pub struct VndPhase<S, M, N>
 where
     S: PlanningSolution,
     M: Move<S>,
+    N: NeighborhoodTuple<S, M>,
 {
-    /// Ordered list of move selectors (neighborhoods)
-    neighborhoods: Vec<Box<dyn MoveSelector<S, M>>>,
+    /// Tuple of move selectors (neighborhoods) - zero erasure
+    neighborhoods: N,
     /// Arena for moves - reused each step
     arena: MoveArena<M>,
     /// Maximum steps per neighborhood before giving up
     step_limit_per_neighborhood: Option<u64>,
-    _phantom: PhantomData<M>,
+    _phantom: std::marker::PhantomData<(S, M)>,
 }
 
-impl<S, M> Debug for VndPhase<S, M>
+impl<S, M, N> Debug for VndPhase<S, M, N>
 where
     S: PlanningSolution,
     M: Move<S>,
+    N: NeighborhoodTuple<S, M>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VndPhase")
-            .field("neighborhood_count", &self.neighborhoods.len())
-            .field(
-                "step_limit_per_neighborhood",
-                &self.step_limit_per_neighborhood,
-            )
+            .field("neighborhoods", &self.neighborhoods)
+            .field("step_limit_per_neighborhood", &self.step_limit_per_neighborhood)
             .finish()
     }
 }
 
-impl<S, M> VndPhase<S, M>
+impl<S, M, N> VndPhase<S, M, N>
 where
     S: PlanningSolution,
     M: Move<S> + 'static,
+    N: NeighborhoodTuple<S, M>,
 {
-    /// Creates a new VND phase with the given neighborhoods.
+    /// Creates a new VND phase with the given neighborhoods tuple.
     ///
     /// Neighborhoods are explored in order. When an improvement is found,
     /// exploration restarts from the first neighborhood.
-    pub fn new(neighborhoods: Vec<Box<dyn MoveSelector<S, M>>>) -> Self {
+    pub fn new(neighborhoods: N) -> Self {
         Self {
             neighborhoods,
             arena: MoveArena::new(),
             step_limit_per_neighborhood: None,
-            _phantom: PhantomData,
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -118,18 +178,20 @@ where
 
     /// Returns the number of neighborhoods.
     pub fn neighborhood_count(&self) -> usize {
-        self.neighborhoods.len()
+        self.neighborhoods.count()
     }
 }
 
-impl<S, M, D> Phase<S, D> for VndPhase<S, M>
+impl<S, M, N, D> Phase<S, D> for VndPhase<S, M, N>
 where
     S: PlanningSolution,
     M: Move<S>,
+    N: NeighborhoodTuple<S, M>,
     D: ScoreDirector<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
-        if self.neighborhoods.is_empty() {
+        let neighborhood_count = self.neighborhoods.count();
+        if neighborhood_count == 0 {
             return;
         }
 
@@ -139,7 +201,7 @@ where
         let mut neighborhood_idx = 0;
         let mut steps_in_neighborhood = 0u64;
 
-        while neighborhood_idx < self.neighborhoods.len() {
+        while neighborhood_idx < neighborhood_count {
             // Check step limit for current neighborhood
             if let Some(limit) = self.step_limit_per_neighborhood {
                 if steps_in_neighborhood >= limit {
@@ -154,8 +216,10 @@ where
 
             // Reset arena and populate with moves from current neighborhood
             self.arena.reset();
-            self.arena.extend(
-                self.neighborhoods[neighborhood_idx].iter_moves(step_scope.score_director()),
+            self.neighborhoods.populate_arena(
+                neighborhood_idx,
+                &mut self.arena,
+                step_scope.score_director(),
             );
 
             // Find best improving move
@@ -220,6 +284,8 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
+    use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+    use crate::heuristic::selector::typed_value::StaticTypedValueSelector;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -323,64 +389,73 @@ mod tests {
     }
 
     type NQueensMove = ChangeMove<NQueensSolution, i32>;
+    type NQueensMoveSelector = ChangeMoveSelector<
+        NQueensSolution,
+        i32,
+        FromSolutionEntitySelector,
+        StaticTypedValueSelector<NQueensSolution, i32>,
+    >;
 
-    fn create_move_selector(
-        values: Vec<i32>,
-    ) -> Box<dyn MoveSelector<NQueensSolution, NQueensMove>> {
-        Box::new(ChangeMoveSelector::<NQueensSolution, i32>::simple(
-            get_queen_row,
-            set_queen_row,
-            0,
-            "row",
-            values,
-        ))
+    fn create_move_selector(values: Vec<i32>) -> NQueensMoveSelector {
+        ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
     }
 
     #[test]
     fn test_vnd_improves_solution() {
         let director = create_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let initial_score = solver_scope.calculate_score();
         assert!(initial_score < SimpleScore::of(0));
 
         let values: Vec<i32> = (0..4).collect();
-        let mut phase = VndPhase::<NQueensSolution, NQueensMove>::new(vec![
+        // Two neighborhoods as a tuple
+        let neighborhoods = (
             create_move_selector(values.clone()),
             create_move_selector(values.clone()),
-        ]);
+        );
+        let mut phase = VndPhase::new(neighborhoods);
 
         phase.solve(&mut solver_scope);
 
         let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
-    }
-
-    #[test]
-    fn test_vnd_empty_neighborhoods() {
-        let director = create_director(&[0, 1, 2, 3]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
-
-        let mut phase = VndPhase::<NQueensSolution, NQueensMove>::new(vec![]);
-        phase.solve(&mut solver_scope);
-
-        // Should complete without panic
     }
 
     #[test]
     fn test_vnd_single_neighborhood() {
         let director = create_director(&[0, 0, 0, 0]);
-        let mut solver_scope = SolverScope::new(Box::new(director));
+        let mut solver_scope = SolverScope::new(director);
 
         let initial_score = solver_scope.calculate_score();
 
         let values: Vec<i32> = (0..4).collect();
-        let mut phase =
-            VndPhase::<NQueensSolution, NQueensMove>::new(vec![create_move_selector(values)]);
+        // Single neighborhood as a 1-tuple
+        let neighborhoods = (create_move_selector(values),);
+        let mut phase = VndPhase::new(neighborhoods);
 
         phase.solve(&mut solver_scope);
 
         let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
+    }
+
+    #[test]
+    fn test_neighborhood_tuple_count() {
+        let values: Vec<i32> = (0..4).collect();
+        let n1 = (create_move_selector(values.clone()),);
+        let n2 = (
+            create_move_selector(values.clone()),
+            create_move_selector(values.clone()),
+        );
+        let n3 = (
+            create_move_selector(values.clone()),
+            create_move_selector(values.clone()),
+            create_move_selector(values),
+        );
+
+        assert_eq!(n1.count(), 1);
+        assert_eq!(n2.count(), 2);
+        assert_eq!(n3.count(), 3);
     }
 }

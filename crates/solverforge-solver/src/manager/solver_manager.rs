@@ -10,7 +10,7 @@ use crate::scope::SolverScope;
 use crate::solver::NoTermination;
 use crate::termination::Termination;
 
-use super::SolverManagerBuilder;
+use super::builder::SolverManagerBuilder;
 
 /// Zero-erasure solver manager.
 ///
@@ -24,18 +24,11 @@ use super::SolverManagerBuilder;
 /// * `C` - The score calculator type
 /// * `P` - The phases tuple type
 /// * `T` - The termination type
-pub struct SolverManager<S, D, C, P, T>
-where
-    S: PlanningSolution,
-    D: ScoreDirector<S>,
-    C: Fn(&S) -> S::Score + Send + Sync,
-    P: Phase<S, D>,
-    T: Termination<S, D>,
-{
+pub struct SolverManager<S, D, C, P, T> {
     score_calculator: C,
     phases: P,
     termination: T,
-    _marker: PhantomData<fn(S, D)>,
+    _marker: PhantomData<fn(S, D, P, T)>,
 }
 
 impl<S, D, C, P, T> SolverManager<S, D, C, P, T>
@@ -99,4 +92,27 @@ where
     C: Fn(&S) -> S::Score + Send + Sync,
 {
     SolverManagerBuilder::new(score_calculator)
+}
+
+impl<S: PlanningSolution> SolverManager<S, (), (), (), ()> {
+    /// Creates a new builder for SolverManager.
+    ///
+    /// This allows calling `SolverManager::<MySolution>::builder(score_fn)`
+    /// to start building a solver manager.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let manager = SolverManager::<MySolution>::builder(|s| calculate_score(s))
+    ///     .with_phase(construction_phase)
+    ///     .with_phase(local_search_phase)
+    ///     .with_step_limit(1000)
+    ///     .build();
+    /// ```
+    pub fn builder<D, C>(score_calculator: C) -> SolverManagerBuilder<S, D, C, (), NoTermination>
+    where
+        C: Fn(&S) -> S::Score + Send + Sync,
+    {
+        SolverManagerBuilder::new(score_calculator)
+    }
 }

@@ -21,14 +21,16 @@ use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `M` - The move type
-pub trait MoveSelector<S: PlanningSolution, D: ScoreDirector<S>, M: Move<S, D>>: Send + Debug {
+pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     /// Returns an iterator over typed moves.
-    fn iter_moves<'a>(&'a self, score_director: &'a D) -> Box<dyn Iterator<Item = M> + 'a>;
+    fn iter_moves<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = M> + 'a>;
 
     /// Returns the approximate number of moves.
-    fn size(&self, score_director: &D) -> usize;
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {
@@ -113,18 +115,17 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     }
 }
 
-impl<S, D, V, ES, VS> MoveSelector<S, D, ChangeMove<S, D, V>> for ChangeMoveSelector<S, V, ES, VS>
+impl<S, V, ES, VS> MoveSelector<S, ChangeMove<S, V>> for ChangeMoveSelector<S, V, ES, VS>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    ES: EntitySelector<S, D>,
-    VS: TypedValueSelector<S, D, V>,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ChangeMove<S, D, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = ChangeMove<S, V>> + 'a> {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -157,7 +158,7 @@ where
         Box::new(iter)
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let entity_count = self.entity_selector.size(score_director);
         if entity_count == 0 {
             return 0;
@@ -252,18 +253,17 @@ impl<S: PlanningSolution, V>
     }
 }
 
-impl<S, D, V, LES, RES> MoveSelector<S, D, SwapMove<S, D, V>> for SwapMoveSelector<S, V, LES, RES>
+impl<S, V, LES, RES> MoveSelector<S, SwapMove<S, V>> for SwapMoveSelector<S, V, LES, RES>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    LES: EntitySelector<S, D>,
-    RES: EntitySelector<S, D>,
+    LES: EntitySelector<S>,
+    RES: EntitySelector<S>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = SwapMove<S, D, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = SwapMove<S, V>> + 'a> {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -304,7 +304,7 @@ where
         Box::new(iter)
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let left_count = self.left_entity_selector.size(score_director);
         let right_count = self.right_entity_selector.size(score_director);
 
@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(solution.tasks[1].id, 1);
         assert_eq!(solution.tasks[2].id, 2);
 
-        let selector = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let selector = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -450,7 +450,7 @@ mod tests {
             },
         ]);
 
-        let selector = SwapMoveSelector::<TaskSolution, i32>::simple(
+        let selector = SwapMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -476,7 +476,7 @@ mod tests {
             priority: Some(1),
         }]);
 
-        let selector = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let selector = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -520,7 +520,7 @@ mod tests {
             },
         ]);
 
-        let selector = SwapMoveSelector::<TaskSolution, i32>::simple(
+        let selector = SwapMoveSelector::simple(
             get_priority,
             set_priority,
             0,

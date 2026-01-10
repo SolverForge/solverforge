@@ -128,17 +128,16 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     }
 }
 
-impl<S, D, V, ES> MoveSelector<S, D, ListChangeMove<S, D, V>> for ListChangeMoveSelector<S, V, ES>
+impl<S, V, ES> MoveSelector<S, ListChangeMove<S, V>> for ListChangeMoveSelector<S, V, ES>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ListChangeMove<S, D, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = ListChangeMove<S, V>> + 'a> {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_remove = self.list_remove;
@@ -216,7 +215,7 @@ where
         Box::new(moves.into_iter())
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
 

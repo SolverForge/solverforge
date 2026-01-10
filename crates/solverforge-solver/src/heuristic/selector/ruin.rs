@@ -193,16 +193,15 @@ impl<S, V> RuinMoveSelector<S, V> {
     }
 }
 
-impl<S, D, V> MoveSelector<S, D, RuinMove<S, D, V>> for RuinMoveSelector<S, V>
+impl<S, V> MoveSelector<S, RuinMove<S, V>> for RuinMoveSelector<S, V>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = RuinMove<S, D, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = RuinMove<S, V>> + 'a> {
         let total_entities = (self.entity_count)(score_director.working_solution());
         let getter = self.getter;
         let setter = self.setter;
@@ -240,7 +239,7 @@ where
         }))
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let total = (self.entity_count)(score_director.working_solution());
         if total == 0 {
             return 0;

@@ -235,11 +235,11 @@ mod tests {
         let director = create_director(tasks);
 
         // Different value - doable
-        let m = ChangeMove::<_, _, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
         assert!(m.is_doable(&director));
 
         // Same value - not doable
-        let m = ChangeMove::<_, _, i32>::new(0, Some(1), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, Some(1), get_priority, set_priority, "priority", 0);
         assert!(!m.is_doable(&director));
     }
 
@@ -251,7 +251,7 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let m = ChangeMove::<_, _, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
         m.do_move(&mut director);
 
         // Verify change using typed getter directly
@@ -267,7 +267,7 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let m = ChangeMove::<_, _, i32>::new(0, None, get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, None, get_priority, set_priority, "priority", 0);
         assert!(m.is_doable(&director));
 
         m.do_move(&mut director);
@@ -278,13 +278,13 @@ mod tests {
 
     #[test]
     fn test_change_move_entity_indices() {
-        let m = ChangeMove::<TaskSolution, _, i32>::new(3, Some(5), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<TaskSolution, i32>::new(3, Some(5), get_priority, set_priority, "priority", 0);
         assert_eq!(m.entity_indices(), &[3]);
     }
 
     #[test]
     fn test_change_move_clone() {
-        let m1 = ChangeMove::<TaskSolution, _, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
+        let m1 = ChangeMove::<TaskSolution, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
         let m2 = m1.clone();
         assert_eq!(m1.entity_index, m2.entity_index);
         assert_eq!(m1.to_value, m2.to_value);

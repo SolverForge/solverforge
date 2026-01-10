@@ -7,7 +7,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::Move;
 
@@ -20,13 +19,11 @@ use crate::heuristic::r#move::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `M` - The move type
-pub trait LocalSearchForager<S, D, M>: Send + Debug
+pub trait LocalSearchForager<S, M>: Send + Debug
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
+    M: Move<S>,
 {
     /// Called at the start of each step to reset state.
     fn step_started(&mut self);
@@ -48,7 +45,7 @@ where
 ///
 /// Once the limit is reached, it quits early. It picks the best
 /// move among those collected.
-pub struct AcceptedCountForager<S, D, M>
+pub struct AcceptedCountForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -56,10 +53,10 @@ where
     accepted_count_limit: usize,
     /// Collected moves with their scores.
     accepted_moves: Vec<(M, S::Score)>,
-    _phantom: PhantomData<fn() -> (S, D)>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, D, M> AcceptedCountForager<S, D, M>
+impl<S, M> AcceptedCountForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -76,7 +73,7 @@ where
     }
 }
 
-impl<S, D, M> Clone for AcceptedCountForager<S, D, M>
+impl<S, M> Clone for AcceptedCountForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -89,7 +86,7 @@ where
     }
 }
 
-impl<S, D, M> Debug for AcceptedCountForager<S, D, M>
+impl<S, M> Debug for AcceptedCountForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -101,11 +98,10 @@ where
     }
 }
 
-impl<S, D, M> LocalSearchForager<S, D, M> for AcceptedCountForager<S, D, M>
+impl<S, M> LocalSearchForager<S, M> for AcceptedCountForager<S, M>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
+    M: Move<S>,
 {
     fn step_started(&mut self) {
         self.accepted_moves.clear();
@@ -143,16 +139,16 @@ where
 /// A forager that picks the first accepted move.
 ///
 /// This is the simplest forager - it quits after the first accepted move.
-pub struct FirstAcceptedForager<S, D, M>
+pub struct FirstAcceptedForager<S, M>
 where
     S: PlanningSolution,
 {
     /// The first accepted move.
     accepted_move: Option<(M, S::Score)>,
-    _phantom: PhantomData<fn() -> (S, D)>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, D, M> Debug for FirstAcceptedForager<S, D, M>
+impl<S, M> Debug for FirstAcceptedForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -163,7 +159,7 @@ where
     }
 }
 
-impl<S, D, M> FirstAcceptedForager<S, D, M>
+impl<S, M> FirstAcceptedForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -176,7 +172,7 @@ where
     }
 }
 
-impl<S, D, M> Clone for FirstAcceptedForager<S, D, M>
+impl<S, M> Clone for FirstAcceptedForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -188,7 +184,7 @@ where
     }
 }
 
-impl<S, D, M> Default for FirstAcceptedForager<S, D, M>
+impl<S, M> Default for FirstAcceptedForager<S, M>
 where
     S: PlanningSolution,
 {
@@ -197,11 +193,10 @@ where
     }
 }
 
-impl<S, D, M> LocalSearchForager<S, D, M> for FirstAcceptedForager<S, D, M>
+impl<S, M> LocalSearchForager<S, M> for FirstAcceptedForager<S, M>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
+    M: Move<S>,
 {
     fn step_started(&mut self) {
         self.accepted_move = None;
@@ -227,7 +222,6 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
 
     #[derive(Clone, Debug)]
     struct DummySolution {
@@ -259,8 +253,7 @@ mod tests {
         }
     }
 
-    type TestDirector = SimpleScoreDirector<DummySolution, fn(&DummySolution) -> SimpleScore>;
-    type TestMove = ChangeMove<DummySolution, TestDirector, i32>;
+    type TestMove = ChangeMove<DummySolution, i32>;
 
     fn create_move(value: i32) -> TestMove {
         ChangeMove::new(0, Some(value), get_value, set_value, "test", 0)
@@ -268,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_accepted_count_forager_collects_moves() {
-        let mut forager = AcceptedCountForager::<DummySolution, TestDirector, TestMove>::new(3);
+        let mut forager = AcceptedCountForager::<DummySolution, TestMove>::new(3);
         forager.step_started();
 
         forager.add_move(create_move(1), SimpleScore::of(-10));
@@ -283,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_accepted_count_forager_picks_best() {
-        let mut forager = AcceptedCountForager::<DummySolution, TestDirector, TestMove>::new(10);
+        let mut forager = AcceptedCountForager::<DummySolution, TestMove>::new(10);
         forager.step_started();
 
         forager.add_move(create_move(1), SimpleScore::of(-10));
@@ -296,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_accepted_count_forager_empty() {
-        let mut forager = AcceptedCountForager::<DummySolution, TestDirector, TestMove>::new(3);
+        let mut forager = AcceptedCountForager::<DummySolution, TestMove>::new(3);
         forager.step_started();
 
         assert!(forager.pick_move().is_none());
@@ -304,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_first_accepted_forager() {
-        let mut forager = FirstAcceptedForager::<DummySolution, TestDirector, TestMove>::new();
+        let mut forager = FirstAcceptedForager::<DummySolution, TestMove>::new();
         forager.step_started();
 
         assert!(!forager.is_quit_early());
@@ -322,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_forager_resets_on_step() {
-        let mut forager = AcceptedCountForager::<DummySolution, TestDirector, TestMove>::new(3);
+        let mut forager = AcceptedCountForager::<DummySolution, TestMove>::new(3);
 
         forager.step_started();
         forager.add_move(create_move(1), SimpleScore::of(-10));

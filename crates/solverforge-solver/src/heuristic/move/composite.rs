@@ -256,8 +256,8 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert!(composite.is_doable(&director));
@@ -275,8 +275,8 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         {
@@ -303,8 +303,8 @@ mod tests {
         let director = create_director(tasks);
 
         // First move: x is already 5, so not doable
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert!(!composite.is_doable(&director));
@@ -318,9 +318,9 @@ mod tests {
         }];
         let director = create_director(tasks);
 
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 0);
         // Second move: y is already 10, so not doable
-        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_y = ChangeMove::<_, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert!(!composite.is_doable(&director));
@@ -329,8 +329,8 @@ mod tests {
     #[test]
     fn composite_combines_entity_indices() {
         // Different entities
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::<_, _, i32>::new(1, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, i32>::new(1, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert_eq!(composite.entity_indices(), &[0, 1]);
@@ -339,8 +339,8 @@ mod tests {
     #[test]
     fn composite_deduplicates_entity_indices() {
         // Same entity
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         // Should only have entity 0 once
@@ -349,8 +349,8 @@ mod tests {
 
     #[test]
     fn composite_uses_first_move_descriptor() {
-        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 1);
-        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 2);
+        let move_x = ChangeMove::<_, i32>::new(0, Some(5), get_x, set_x, "x", 1);
+        let move_y = ChangeMove::<_, i32>::new(0, Some(10), get_y, set_y, "y", 2);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert_eq!(composite.descriptor_index(), 1);

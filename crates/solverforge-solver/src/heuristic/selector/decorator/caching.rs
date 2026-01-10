@@ -44,12 +44,11 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 /// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
 /// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
-/// let inner = ChangeMoveSelector::<Solution, i32>::simple(
+/// let inner = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![1, 2, 3],
 /// );
 /// type SolChange = ChangeMove<Solution, i32>;
-/// type SolSelector = ChangeMoveSelector<Solution, i32>;
-/// let caching: CachingMoveSelector<Solution, SolChange, SolSelector> =
+/// let caching: CachingMoveSelector<Solution, SolChange, _> =
 ///     CachingMoveSelector::new(inner);
 ///
 /// // First call populates cache, subsequent calls use cache
@@ -97,14 +96,13 @@ impl<S, M, Inner: Debug> Debug for CachingMoveSelector<S, M, Inner> {
 // MoveSelector requires Send but iter_moves is called from one thread.
 unsafe impl<S: Send, M: Send, Inner: Send> Send for CachingMoveSelector<S, M, Inner> {}
 
-impl<S, D, M, Inner> MoveSelector<S, D, M> for CachingMoveSelector<S, M, Inner>
+impl<S, M, Inner> MoveSelector<S, M> for CachingMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    Inner: MoveSelector<S, D, M>,
+    M: Move<S>,
+    Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
@@ -123,7 +121,7 @@ where
         Box::new(moves.into_iter())
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let cache = self.cache.borrow();
         if let Some(ref moves) = *cache {
             moves.len()
@@ -203,7 +201,7 @@ mod tests {
     fn caches_moves_on_first_call() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -228,7 +226,7 @@ mod tests {
     fn reset_clears_cache() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -252,7 +250,7 @@ mod tests {
     fn size_uses_cache_when_available() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -273,7 +271,7 @@ mod tests {
 
     #[test]
     fn is_never_ending_returns_false() {
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,

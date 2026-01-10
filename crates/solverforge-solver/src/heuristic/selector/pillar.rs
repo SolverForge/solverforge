@@ -58,16 +58,18 @@ impl Pillar {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-pub trait PillarSelector<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+pub trait PillarSelector<S: PlanningSolution>: Send + Debug {
     /// Returns an iterator over pillars.
     ///
     /// Each pillar contains entity references for entities that share
     /// the same variable value.
-    fn iter<'a>(&'a self, score_director: &'a D) -> Box<dyn Iterator<Item = Pillar> + 'a>;
+    fn iter<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = Pillar> + 'a>;
 
     /// Returns the approximate number of pillars.
-    fn size(&self, score_director: &D) -> usize;
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same pillar multiple times.
     fn is_never_ending(&self) -> bool {
@@ -139,12 +141,11 @@ impl SubPillarConfig {
 ///
 /// **Note**: The value extractor closure uses `&dyn ScoreDirector<S>` intentionally.
 /// This is a scorer-agnostic boundary - the closure doesn't need the concrete `D` type.
-pub struct DefaultPillarSelector<S, D, V, ES, E>
+pub struct DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Eq + Hash + Send + Sync + 'static,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     /// The underlying entity selector (zero-erasure).
@@ -157,16 +158,15 @@ where
     value_extractor: E,
     /// Sub-pillar configuration.
     sub_pillar_config: SubPillarConfig,
-    /// Marker for solution, director, and value types.
-    _phantom: PhantomData<(fn() -> (S, D), V)>,
+    /// Marker for solution and value types.
+    _phantom: PhantomData<(fn() -> S, V)>,
 }
 
-impl<S, D, V, ES, E> Debug for DefaultPillarSelector<S, D, V, ES, E>
+impl<S, V, ES, E> Debug for DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Eq + Hash + Send + Sync + 'static,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S> + Debug,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -179,12 +179,11 @@ where
     }
 }
 
-impl<S, D, V, ES, E> DefaultPillarSelector<S, D, V, ES, E>
+impl<S, V, ES, E> DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Eq + Hash + Send + Sync + 'static,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     /// Creates a new default pillar selector.
@@ -223,7 +222,7 @@ where
     }
 
     /// Builds the pillar list from the current solution state.
-    fn build_pillars(&self, score_director: &D) -> Vec<Pillar> {
+    fn build_pillars<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Pillar> {
         // Group entities by their value
         let mut value_to_entities: HashMap<Option<V>, Vec<EntityReference>> = HashMap::new();
 
@@ -247,20 +246,22 @@ where
     }
 }
 
-impl<S, D, V, ES, E> PillarSelector<S, D> for DefaultPillarSelector<S, D, V, ES, E>
+impl<S, V, ES, E> PillarSelector<S> for DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     V: Clone + Eq + Hash + Send + Sync + 'static,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
     E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
 {
-    fn iter<'a>(&'a self, score_director: &'a D) -> Box<dyn Iterator<Item = Pillar> + 'a> {
+    fn iter<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = Pillar> + 'a> {
         let pillars = self.build_pillars(score_director);
         Box::new(pillars.into_iter())
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         self.build_pillars(score_director).len()
     }
 
@@ -388,7 +389,7 @@ mod tests {
         }
 
         let entity_selector = FromSolutionEntitySelector::new(0);
-        let selector = DefaultPillarSelector::<ScheduleSolution, _, i32, _, _>::new(
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",
@@ -449,7 +450,7 @@ mod tests {
         }
 
         let entity_selector = FromSolutionEntitySelector::new(0);
-        let selector = DefaultPillarSelector::<ScheduleSolution, _, i32, _, _>::new(
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",
@@ -491,7 +492,7 @@ mod tests {
         }
 
         let entity_selector = FromSolutionEntitySelector::new(0);
-        let selector = DefaultPillarSelector::<ScheduleSolution, _, i32, _, _>::new(
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",
@@ -512,7 +513,7 @@ mod tests {
         let director = create_test_director(vec![]);
 
         let entity_selector = FromSolutionEntitySelector::new(0);
-        let selector = DefaultPillarSelector::<ScheduleSolution, _, i32, _, _>::new(
+        let selector = DefaultPillarSelector::<ScheduleSolution, i32, _, _>::new(
             entity_selector,
             0,
             "shift",

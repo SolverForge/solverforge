@@ -40,8 +40,8 @@
 //! }
 //!
 //! // Create two change moves for different variables
-//! let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
-//! let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 0);
+//! let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+//! let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
 //!
 //! // Combine into a composite move
 //! let composite = CompositeMove::new(move_x, move_y);
@@ -79,6 +79,7 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `M1` - The first move type
 /// * `M2` - The second move type
 ///
@@ -87,24 +88,26 @@ use super::Move;
 /// Both moves are stored inline as concrete types. No `Box<dyn Move>`,
 /// no trait objects in the hot path.
 #[derive(Clone)]
-pub struct CompositeMove<S, M1, M2>
+pub struct CompositeMove<S, D, M1, M2>
 where
     S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
+    D: ScoreDirector<S>,
+    M1: Move<S, D>,
+    M2: Move<S, D>,
 {
     first: M1,
     second: M2,
     /// Combined entity indices from both moves
     combined_indices: SmallVec<[usize; 8]>,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<(S, D)>,
 }
 
-impl<S, M1, M2> Debug for CompositeMove<S, M1, M2>
+impl<S, D, M1, M2> Debug for CompositeMove<S, D, M1, M2>
 where
     S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
+    D: ScoreDirector<S>,
+    M1: Move<S, D>,
+    M2: Move<S, D>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompositeMove")
@@ -115,11 +118,12 @@ where
     }
 }
 
-impl<S, M1, M2> CompositeMove<S, M1, M2>
+impl<S, D, M1, M2> CompositeMove<S, D, M1, M2>
 where
     S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
+    D: ScoreDirector<S>,
+    M1: Move<S, D>,
+    M2: Move<S, D>,
 {
     /// Creates a new composite move combining two moves.
     ///
@@ -157,18 +161,19 @@ where
     }
 }
 
-impl<S, M1, M2> Move<S> for CompositeMove<S, M1, M2>
+impl<S, D, M1, M2> Move<S, D> for CompositeMove<S, D, M1, M2>
 where
     S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
+    D: ScoreDirector<S>,
+    M1: Move<S, D>,
+    M2: Move<S, D>,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         // Both moves must be doable
         self.first.is_doable(score_director) && self.second.is_doable(score_director)
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         // Execute in sequence: first, then second
         self.first.do_move(score_director);
         self.second.do_move(score_director);
@@ -251,8 +256,8 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert!(composite.is_doable(&director));
@@ -270,8 +275,8 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         {
@@ -298,8 +303,8 @@ mod tests {
         let director = create_director(tasks);
 
         // First move: x is already 5, so not doable
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert!(!composite.is_doable(&director));
@@ -313,9 +318,9 @@ mod tests {
         }];
         let director = create_director(tasks);
 
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
         // Second move: y is already 10, so not doable
-        let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert!(!composite.is_doable(&director));
@@ -324,8 +329,8 @@ mod tests {
     #[test]
     fn composite_combines_entity_indices() {
         // Different entities
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::new(1, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, _, i32>::new(1, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert_eq!(composite.entity_indices(), &[0, 1]);
@@ -334,8 +339,8 @@ mod tests {
     #[test]
     fn composite_deduplicates_entity_indices() {
         // Same entity
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 0);
-        let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 0);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 0);
+        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 0);
         let composite = CompositeMove::new(move_x, move_y);
 
         // Should only have entity 0 once
@@ -344,8 +349,8 @@ mod tests {
 
     #[test]
     fn composite_uses_first_move_descriptor() {
-        let move_x = ChangeMove::new(0, Some(5), get_x, set_x, "x", 1);
-        let move_y = ChangeMove::new(0, Some(10), get_y, set_y, "y", 2);
+        let move_x = ChangeMove::<_, _, i32>::new(0, Some(5), get_x, set_x, "x", 1);
+        let move_y = ChangeMove::<_, _, i32>::new(0, Some(10), get_y, set_y, "y", 2);
         let composite = CompositeMove::new(move_x, move_y);
 
         assert_eq!(composite.descriptor_index(), 1);

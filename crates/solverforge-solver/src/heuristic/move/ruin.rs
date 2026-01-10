@@ -25,6 +25,7 @@ use super::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
+/// * `D` - The score director type
 /// * `V` - The variable value type
 ///
 /// # Example
@@ -53,14 +54,14 @@ use super::Move;
 /// }
 ///
 /// // Ruin entities 0, 2, and 4
-/// let m = RuinMove::<Schedule, i32>::new(
+/// let m = RuinMove::<Schedule, _, i32>::new(
 ///     &[0, 2, 4],
 ///     get_task, set_task,
 ///     "assigned_to", 0,
 /// );
 /// ```
 #[derive(Clone)]
-pub struct RuinMove<S, V> {
+pub struct RuinMove<S, D, V> {
     /// Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
     /// Get current value for an entity
@@ -69,10 +70,10 @@ pub struct RuinMove<S, V> {
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(D, V)>,
 }
 
-impl<S, V: Debug> Debug for RuinMove<S, V> {
+impl<S, D, V: Debug> Debug for RuinMove<S, D, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMove")
             .field("entities", &self.entity_indices.as_slice())
@@ -81,7 +82,7 @@ impl<S, V: Debug> Debug for RuinMove<S, V> {
     }
 }
 
-impl<S, V> RuinMove<S, V> {
+impl<S, D, V> RuinMove<S, D, V> {
     /// Creates a new ruin move with typed function pointers.
     ///
     /// # Arguments
@@ -118,12 +119,13 @@ impl<S, V> RuinMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for RuinMove<S, V>
+impl<S, D, V> Move<S, D> for RuinMove<S, D, V>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable(&self, score_director: &D) -> bool {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
         self.entity_indices
@@ -131,7 +133,7 @@ where
             .any(|&idx| (self.getter)(solution, idx).is_some())
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move(&self, score_director: &mut D) {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;
@@ -245,7 +247,7 @@ mod tests {
     fn ruin_single_entity() {
         let mut director = create_director(&[Some(1), Some(2), Some(3)]);
 
-        let m = RuinMove::<Schedule, i32>::new(&[1], get_assigned, set_assigned, "assigned_to", 0);
+        let m = RuinMove::<Schedule, _, i32>::new(&[1], get_assigned, set_assigned, "assigned_to", 0);
 
         assert!(m.is_doable(&director));
 
@@ -268,7 +270,7 @@ mod tests {
     fn ruin_multiple_entities() {
         let mut director = create_director(&[Some(1), Some(2), Some(3), Some(4)]);
 
-        let m = RuinMove::<Schedule, i32>::new(
+        let m = RuinMove::<Schedule, _, i32>::new(
             &[0, 2, 3],
             get_assigned,
             set_assigned,
@@ -304,7 +306,7 @@ mod tests {
 
         // Ruin both - still doable because entity 0 is assigned
         let m =
-            RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+            RuinMove::<Schedule, _, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
 
         assert!(m.is_doable(&director));
     }
@@ -314,7 +316,7 @@ mod tests {
         let director = create_director(&[None, None]);
 
         let m =
-            RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+            RuinMove::<Schedule, _, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
 
         assert!(!m.is_doable(&director));
     }

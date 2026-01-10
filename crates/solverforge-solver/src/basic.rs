@@ -107,8 +107,10 @@ where
             continue;
         }
 
-        // Apply move
+        // Apply move using incremental protocol
+        director.before_variable_changed(entity_idx);
         set_variable(director.working_solution_mut(), entity_idx, new_value);
+        director.after_variable_changed(entity_idx);
         let new_score = director.calculate_score();
 
         // Late acceptance criterion
@@ -120,8 +122,10 @@ where
             late_scores[late_idx] = new_score;
             current_score = new_score;
         } else {
-            // Reject - undo
+            // Reject - undo using incremental protocol
+            director.before_variable_changed(entity_idx);
             set_variable(director.working_solution_mut(), entity_idx, old_value);
+            director.after_variable_changed(entity_idx);
         }
 
         step += 1;

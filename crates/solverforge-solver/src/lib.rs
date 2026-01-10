@@ -70,8 +70,9 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    ConstructionPhaseFactory, ConstructionType, ListConstructionPhase, ListConstructionPhaseBuilder,
-    LocalSearchPhaseFactory, LocalSearchType, PhaseFactory, SolverManager, SolverManagerBuilder,
+    ConstructionPhaseFactory, ConstructionType, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
+    ListConstructionPhaseBuilder, LocalSearchPhaseFactory, LocalSearchType, PhaseFactory,
+    SolverManager, SolverManagerBuilder,
 };
 pub use phase::{
     construction::{

@@ -165,11 +165,14 @@ where
     ///
     /// On first call, initializes all constraints (O(n) for uni, O(n²) for bi).
     /// Subsequent calls return the cached score (O(1)).
+    ///
+    /// Also sets the score on the working solution to keep it in sync.
     pub fn calculate_score(&mut self) -> S::Score {
         if !self.initialized {
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
+        self.working_solution.set_score(Some(self.cached_score.clone()));
         self.cached_score.clone()
     }
 

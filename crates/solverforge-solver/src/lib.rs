@@ -110,4 +110,4 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use basic::run_solver;
+pub use basic::{run_solver, run_solver_with_events, SolverEvent};

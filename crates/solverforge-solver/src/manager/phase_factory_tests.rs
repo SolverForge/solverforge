@@ -7,7 +7,7 @@ use crate::phase::construction::{EntityPlacer, ForagerType, QueuedEntityPlacer};
 use crate::scope::SolverScope;
 use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
 use std::any::TypeId;
 
 // ==================== Test Domain ====================
@@ -89,10 +89,12 @@ fn create_test_director(
 }
 
 /// Creates a solver scope with unassigned tasks.
-fn create_unassigned_solver_scope(count: usize) -> SolverScope<TestSolution> {
+fn create_unassigned_solver_scope(
+    count: usize,
+) -> SolverScope<TestSolution, impl ScoreDirector<TestSolution>> {
     let tasks: Vec<Task> = (0..count).map(|id| Task { id, priority: None }).collect();
     let director = create_test_director(tasks);
-    SolverScope::new(Box::new(director))
+    SolverScope::new(director)
 }
 
 type TestMove = ChangeMove<TestSolution, i64>;

@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -58,8 +59,8 @@ impl<S: PlanningSolution> MoveCountTermination<S> {
     }
 }
 
-impl<S: PlanningSolution> Termination<S> for MoveCountTermination<S> {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for MoveCountTermination<S> {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         if let Some(stats) = solver_scope.statistics() {
             stats.current_moves_evaluated() >= self.move_count_limit
         } else {
@@ -104,7 +105,13 @@ mod tests {
         &mut s.entities
     }
 
-    fn create_scope_with_stats() -> SolverScope<TestSolution> {
+    type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+
+    fn calc(_: &TestSolution) -> SimpleScore {
+        SimpleScore::of(0)
+    }
+
+    fn create_scope_with_stats() -> SolverScope<TestSolution, TestDirector> {
         let solution = TestSolution {
             entities: vec![],
             score: None,
@@ -119,10 +126,13 @@ mod tests {
             .with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
             .with_entity(entity_desc);
-        let director =
-            SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0));
+        let director = SimpleScoreDirector::with_calculator(
+            solution,
+            descriptor,
+            calc as fn(&TestSolution) -> SimpleScore,
+        );
         let collector = Arc::new(StatisticsCollector::<SimpleScore>::new());
-        SolverScope::new(Box::new(director)).with_statistics(collector)
+        SolverScope::new(director).with_statistics(collector)
     }
 
     #[test]
@@ -165,9 +175,12 @@ mod tests {
             .with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
             .with_entity(entity_desc);
-        let director =
-            SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0));
-        let scope = SolverScope::new(Box::new(director));
+        let director = SimpleScoreDirector::with_calculator(
+            solution,
+            descriptor,
+            calc as fn(&TestSolution) -> SimpleScore,
+        );
+        let scope = SolverScope::new(director);
 
         let termination = MoveCountTermination::<TestSolution>::new(1);
         // Without statistics collector, never terminates

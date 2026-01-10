@@ -9,7 +9,6 @@
 //! compile-time type safety. No runtime type checks or downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -47,7 +46,6 @@ use super::Move;
 /// // Swap values between entities 0 and 1
 /// let swap = SwapMove::<Sol, i32>::new(0, 1, get_v, set_v, "value", 0);
 /// ```
-#[derive(Clone, Copy)]
 pub struct SwapMove<S, V> {
     left_entity_index: usize,
     right_entity_index: usize,
@@ -59,8 +57,15 @@ pub struct SwapMove<S, V> {
     descriptor_index: usize,
     /// Store indices inline for entity_indices() to return a slice.
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
 }
+
+impl<S, V> Clone for SwapMove<S, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, V> Copy for SwapMove<S, V> {}
 
 impl<S, V: Debug> Debug for SwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -99,7 +104,6 @@ impl<S, V> SwapMove<S, V> {
             variable_name,
             descriptor_index,
             indices: [left_entity_index, right_entity_index],
-            _phantom: PhantomData,
         }
     }
 
@@ -119,7 +123,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // Can't swap with self
         if self.left_entity_index == self.right_entity_index {
             return false;
@@ -133,7 +137,7 @@ where
         left_val != right_val
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Get both values using typed getter - zero erasure
         let left_value = (self.getter)(score_director.working_solution(), self.left_entity_index);
         let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);

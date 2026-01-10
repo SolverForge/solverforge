@@ -53,7 +53,6 @@ use super::Move;
 ///     "stops", 0,
 /// );
 /// ```
-#[derive(Clone)]
 pub struct ListRuinMove<S, V> {
     /// Entity index
     entity_index: usize,
@@ -68,6 +67,21 @@ pub struct ListRuinMove<S, V> {
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<V>,
+}
+
+impl<S, V> Clone for ListRuinMove<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_index: self.entity_index,
+            element_indices: self.element_indices.clone(),
+            list_len: self.list_len,
+            list_remove: self.list_remove,
+            list_insert: self.list_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, V: Debug> Debug for ListRuinMove<S, V> {
@@ -139,7 +153,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         if self.element_indices.is_empty() {
             return false;
         }
@@ -151,7 +165,7 @@ where
         self.element_indices.iter().all(|&idx| idx < len)
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let entity = self.entity_index;

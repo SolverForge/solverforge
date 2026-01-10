@@ -67,7 +67,6 @@ use super::Move;
 ///     "visits", 0,
 /// );
 /// ```
-#[derive(Clone)]
 pub struct SubListSwapMove<S, V> {
     /// First entity index
     first_entity_index: usize,
@@ -93,6 +92,14 @@ pub struct SubListSwapMove<S, V> {
     indices: [usize; 2],
     _phantom: PhantomData<V>,
 }
+
+impl<S, V> Clone for SubListSwapMove<S, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, V> Copy for SubListSwapMove<S, V> {}
 
 impl<S, V: Debug> Debug for SubListSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -203,7 +210,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Both ranges must be valid (start < end)
@@ -235,7 +242,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before changes
         score_director.before_variable_changed(
             self.descriptor_index,

@@ -52,7 +52,6 @@ use super::Move;
 ///     "cities", 0,
 /// );
 /// ```
-#[derive(Clone, Copy)]
 pub struct ListReverseMove<S, V> {
     /// Entity index
     entity_index: usize,
@@ -68,6 +67,14 @@ pub struct ListReverseMove<S, V> {
     descriptor_index: usize,
     _phantom: PhantomData<V>,
 }
+
+impl<S, V> Clone for ListReverseMove<S, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, V> Copy for ListReverseMove<S, V> {}
 
 impl<S, V: Debug> Debug for ListReverseMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -138,7 +145,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Range must have at least 2 elements to be meaningful
@@ -155,7 +162,7 @@ where
         true
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before change
         score_director.before_variable_changed(
             self.descriptor_index,

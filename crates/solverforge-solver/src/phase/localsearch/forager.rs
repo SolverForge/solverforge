@@ -20,7 +20,11 @@ use crate::heuristic::r#move::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub trait LocalSearchForager<S: PlanningSolution, M: Move<S>>: Send + Debug {
+pub trait LocalSearchForager<S, M>: Send + Debug
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     /// Called at the start of each step to reset state.
     fn step_started(&mut self);
 
@@ -41,15 +45,21 @@ pub trait LocalSearchForager<S: PlanningSolution, M: Move<S>>: Send + Debug {
 ///
 /// Once the limit is reached, it quits early. It picks the best
 /// move among those collected.
-pub struct AcceptedCountForager<S: PlanningSolution, M> {
+pub struct AcceptedCountForager<S, M>
+where
+    S: PlanningSolution,
+{
     /// Maximum number of accepted moves to collect.
     accepted_count_limit: usize,
     /// Collected moves with their scores.
     accepted_moves: Vec<(M, S::Score)>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S: PlanningSolution, M> AcceptedCountForager<S, M> {
+impl<S, M> AcceptedCountForager<S, M>
+where
+    S: PlanningSolution,
+{
     /// Creates a new forager with the given limit.
     ///
     /// # Arguments
@@ -63,7 +73,23 @@ impl<S: PlanningSolution, M> AcceptedCountForager<S, M> {
     }
 }
 
-impl<S: PlanningSolution, M> Debug for AcceptedCountForager<S, M> {
+impl<S, M> Clone for AcceptedCountForager<S, M>
+where
+    S: PlanningSolution,
+{
+    fn clone(&self) -> Self {
+        Self {
+            accepted_count_limit: self.accepted_count_limit,
+            accepted_moves: Vec::new(), // Fresh vec for clone
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M> Debug for AcceptedCountForager<S, M>
+where
+    S: PlanningSolution,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AcceptedCountForager")
             .field("accepted_count_limit", &self.accepted_count_limit)
@@ -72,7 +98,11 @@ impl<S: PlanningSolution, M> Debug for AcceptedCountForager<S, M> {
     }
 }
 
-impl<S: PlanningSolution, M: Move<S>> LocalSearchForager<S, M> for AcceptedCountForager<S, M> {
+impl<S, M> LocalSearchForager<S, M> for AcceptedCountForager<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     fn step_started(&mut self) {
         self.accepted_moves.clear();
     }
@@ -109,13 +139,19 @@ impl<S: PlanningSolution, M: Move<S>> LocalSearchForager<S, M> for AcceptedCount
 /// A forager that picks the first accepted move.
 ///
 /// This is the simplest forager - it quits after the first accepted move.
-pub struct FirstAcceptedForager<S: PlanningSolution, M> {
+pub struct FirstAcceptedForager<S, M>
+where
+    S: PlanningSolution,
+{
     /// The first accepted move.
     accepted_move: Option<(M, S::Score)>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S: PlanningSolution, M> Debug for FirstAcceptedForager<S, M> {
+impl<S, M> Debug for FirstAcceptedForager<S, M>
+where
+    S: PlanningSolution,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FirstAcceptedForager")
             .field("has_move", &self.accepted_move.is_some())
@@ -123,7 +159,10 @@ impl<S: PlanningSolution, M> Debug for FirstAcceptedForager<S, M> {
     }
 }
 
-impl<S: PlanningSolution, M> FirstAcceptedForager<S, M> {
+impl<S, M> FirstAcceptedForager<S, M>
+where
+    S: PlanningSolution,
+{
     /// Creates a new first-accepted forager.
     pub fn new() -> Self {
         Self {
@@ -133,13 +172,32 @@ impl<S: PlanningSolution, M> FirstAcceptedForager<S, M> {
     }
 }
 
-impl<S: PlanningSolution, M> Default for FirstAcceptedForager<S, M> {
+impl<S, M> Clone for FirstAcceptedForager<S, M>
+where
+    S: PlanningSolution,
+{
+    fn clone(&self) -> Self {
+        Self {
+            accepted_move: None, // Fresh state for clone
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M> Default for FirstAcceptedForager<S, M>
+where
+    S: PlanningSolution,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S: PlanningSolution, M: Move<S>> LocalSearchForager<S, M> for FirstAcceptedForager<S, M> {
+impl<S, M> LocalSearchForager<S, M> for FirstAcceptedForager<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     fn step_started(&mut self) {
         self.accepted_move = None;
     }

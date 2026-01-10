@@ -66,6 +66,9 @@ pub struct RecordingScoreDirector<'a, S: PlanningSolution> {
     inner: &'a mut dyn ScoreDirector<S>,
     /// Typed undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
+    /// Entities modified during this step that need shadow refresh after undo.
+    /// Stores (descriptor_index, entity_index) pairs.
+    modified_entities: Vec<(usize, usize)>,
 }
 
 impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
@@ -74,17 +77,32 @@ impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
         Self {
             inner,
             undo_stack: Vec::with_capacity(16),
+            modified_entities: Vec::with_capacity(8),
         }
     }
 
     /// Undoes all recorded changes in reverse order.
     ///
-    /// Calls each undo closure in reverse order, restoring the solution
-    /// to its state before any moves were applied.
+    /// For incremental scoring correctness:
+    /// 1. Retract current (post-move) contributions from each modified entity
+    /// 2. Run undo closures to restore planning variable values
+    /// 3. Update shadows and insert restored contributions
     pub fn undo_changes(&mut self) {
-        // Process in reverse order
+        // Step 1: Retract current contributions before restoring values
+        for &(descriptor_idx, entity_idx) in &self.modified_entities {
+            self.inner
+                .before_variable_changed(descriptor_idx, entity_idx, "");
+        }
+
+        // Step 2: Process undo closures in reverse order
         while let Some(undo) = self.undo_stack.pop() {
             undo(self.inner.working_solution_mut());
+        }
+
+        // Step 3: Update shadows and insert restored contributions
+        for (descriptor_idx, entity_idx) in self.modified_entities.drain(..) {
+            self.inner
+                .after_variable_changed(descriptor_idx, entity_idx, "");
         }
     }
 
@@ -93,6 +111,7 @@ impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
     /// Call this at the start of each step to reuse the Vec allocations.
     pub fn reset(&mut self) {
         self.undo_stack.clear();
+        self.modified_entities.clear();
     }
 
     /// Returns the number of recorded undo closures.
@@ -144,9 +163,15 @@ impl<S: PlanningSolution> ScoreDirector<S> for RecordingScoreDirector<'_, S> {
         entity_index: usize,
         variable_name: &str,
     ) {
-        // Forward to inner for incremental scoring
+        // Forward to inner for shadow updates and incremental scoring
         self.inner
             .after_variable_changed(descriptor_index, entity_index, variable_name);
+
+        // Track entity for post-undo shadow refresh (avoid duplicates)
+        let key = (descriptor_index, entity_index);
+        if !self.modified_entities.contains(&key) {
+            self.modified_entities.push(key);
+        }
     }
 
     fn trigger_variable_listeners(&mut self) {
@@ -172,8 +197,9 @@ impl<S: PlanningSolution> ScoreDirector<S> for RecordingScoreDirector<'_, S> {
     fn reset(&mut self) {
         // Forward to inner
         self.inner.reset();
-        // Also clear our undo stack
+        // Also clear our recording state
         self.undo_stack.clear();
+        self.modified_entities.clear();
     }
 
     fn register_undo(&mut self, undo: Box<dyn FnOnce(&mut S) + Send>) {

@@ -18,15 +18,19 @@ use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
 ///
 /// Unlike erased selectors, this returns concrete moves inline,
 /// eliminating heap allocation per move.
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `M` - The move type
 pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     /// Returns an iterator over typed moves.
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a>;
 
     /// Returns the approximate number of moves.
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize;
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {
@@ -37,17 +41,17 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
 /// A change move selector that generates `ChangeMove` instances.
 ///
 /// Stores typed function pointers for zero-erasure move generation.
-pub struct ChangeMoveSelector<S, V> {
-    entity_selector: Box<dyn EntitySelector<S>>,
-    value_selector: Box<dyn TypedValueSelector<S, V>>,
+pub struct ChangeMoveSelector<S, V, ES, VS> {
+    entity_selector: ES,
+    value_selector: VS,
     getter: fn(&S, usize) -> Option<V>,
     setter: fn(&mut S, usize, Option<V>),
     descriptor_index: usize,
     variable_name: &'static str,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V: Debug> Debug for ChangeMoveSelector<S, V> {
+impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, VS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ChangeMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -58,7 +62,7 @@ impl<S, V: Debug> Debug for ChangeMoveSelector<S, V> {
     }
 }
 
-impl<S: PlanningSolution, V: Clone> ChangeMoveSelector<S, V> {
+impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
     /// Creates a new change move selector with typed function pointers.
     ///
     /// # Arguments
@@ -69,8 +73,8 @@ impl<S: PlanningSolution, V: Clone> ChangeMoveSelector<S, V> {
     /// * `descriptor_index` - Index of the entity descriptor
     /// * `variable_name` - Name of the variable
     pub fn new(
-        entity_selector: Box<dyn EntitySelector<S>>,
-        value_selector: Box<dyn TypedValueSelector<S, V>>,
+        entity_selector: ES,
+        value_selector: VS,
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
         descriptor_index: usize,
@@ -86,7 +90,11 @@ impl<S: PlanningSolution, V: Clone> ChangeMoveSelector<S, V> {
             _phantom: PhantomData,
         }
     }
+}
 
+impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
+    ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
+{
     /// Creates a simple selector with static values.
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
@@ -94,13 +102,10 @@ impl<S: PlanningSolution, V: Clone> ChangeMoveSelector<S, V> {
         descriptor_index: usize,
         variable_name: &'static str,
         values: Vec<V>,
-    ) -> Self
-    where
-        V: Send + Sync + Debug + 'static,
-    {
+    ) -> Self {
         Self {
-            entity_selector: Box::new(FromSolutionEntitySelector::new(descriptor_index)),
-            value_selector: Box::new(StaticTypedValueSelector::new(values)),
+            entity_selector: FromSolutionEntitySelector::new(descriptor_index),
+            value_selector: StaticTypedValueSelector::new(values),
             getter,
             setter,
             descriptor_index,
@@ -110,14 +115,16 @@ impl<S: PlanningSolution, V: Clone> ChangeMoveSelector<S, V> {
     }
 }
 
-impl<S, V> MoveSelector<S, ChangeMove<S, V>> for ChangeMoveSelector<S, V>
+impl<S, V, ES, VS> MoveSelector<S, ChangeMove<S, V>> for ChangeMoveSelector<S, V, ES, VS>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = ChangeMove<S, V>> + 'a> {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
@@ -151,7 +158,7 @@ where
         Box::new(iter)
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let entity_count = self.entity_selector.size(score_director);
         if entity_count == 0 {
             return 0;
@@ -173,19 +180,19 @@ where
 /// A swap move selector that generates `SwapMove` instances.
 ///
 /// Uses typed function pointers for zero-erasure access to variable values.
-pub struct SwapMoveSelector<S, V> {
-    left_entity_selector: Box<dyn EntitySelector<S>>,
-    right_entity_selector: Box<dyn EntitySelector<S>>,
+pub struct SwapMoveSelector<S, V, LES, RES> {
+    left_entity_selector: LES,
+    right_entity_selector: RES,
     /// Typed getter function pointer - zero erasure.
     getter: fn(&S, usize) -> Option<V>,
     /// Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
     descriptor_index: usize,
     variable_name: &'static str,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<(S, V)>,
 }
 
-impl<S, V> Debug for SwapMoveSelector<S, V> {
+impl<S, V, LES: Debug, RES: Debug> Debug for SwapMoveSelector<S, V, LES, RES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SwapMoveSelector")
             .field("left_entity_selector", &self.left_entity_selector)
@@ -196,11 +203,11 @@ impl<S, V> Debug for SwapMoveSelector<S, V> {
     }
 }
 
-impl<S: PlanningSolution, V> SwapMoveSelector<S, V> {
+impl<S: PlanningSolution, V, LES, RES> SwapMoveSelector<S, V, LES, RES> {
     /// Creates a new swap move selector with typed function pointers.
     pub fn new(
-        left_entity_selector: Box<dyn EntitySelector<S>>,
-        right_entity_selector: Box<dyn EntitySelector<S>>,
+        left_entity_selector: LES,
+        right_entity_selector: RES,
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
         descriptor_index: usize,
@@ -216,7 +223,11 @@ impl<S: PlanningSolution, V> SwapMoveSelector<S, V> {
             _phantom: PhantomData,
         }
     }
+}
 
+impl<S: PlanningSolution, V>
+    SwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
+{
     /// Creates a simple selector for swapping within a single entity type.
     ///
     /// # Arguments
@@ -231,8 +242,8 @@ impl<S: PlanningSolution, V> SwapMoveSelector<S, V> {
         variable_name: &'static str,
     ) -> Self {
         Self {
-            left_entity_selector: Box::new(FromSolutionEntitySelector::new(descriptor_index)),
-            right_entity_selector: Box::new(FromSolutionEntitySelector::new(descriptor_index)),
+            left_entity_selector: FromSolutionEntitySelector::new(descriptor_index),
+            right_entity_selector: FromSolutionEntitySelector::new(descriptor_index),
             getter,
             setter,
             descriptor_index,
@@ -242,14 +253,16 @@ impl<S: PlanningSolution, V> SwapMoveSelector<S, V> {
     }
 }
 
-impl<S, V> MoveSelector<S, SwapMove<S, V>> for SwapMoveSelector<S, V>
+impl<S, V, LES, RES> MoveSelector<S, SwapMove<S, V>> for SwapMoveSelector<S, V, LES, RES>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    LES: EntitySelector<S>,
+    RES: EntitySelector<S>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = SwapMove<S, V>> + 'a> {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
@@ -291,7 +304,7 @@ where
         Box::new(iter)
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let left_count = self.left_entity_selector.size(score_director);
         let right_count = self.right_entity_selector.size(score_director);
 
@@ -396,7 +409,7 @@ mod tests {
         assert_eq!(solution.tasks[1].id, 1);
         assert_eq!(solution.tasks[2].id, 2);
 
-        let selector = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let selector = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -437,7 +450,7 @@ mod tests {
             },
         ]);
 
-        let selector = SwapMoveSelector::<TaskSolution, i32>::simple(
+        let selector = SwapMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -463,7 +476,7 @@ mod tests {
             priority: Some(1),
         }]);
 
-        let selector = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let selector = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -507,7 +520,7 @@ mod tests {
             },
         ]);
 
-        let selector = SwapMoveSelector::<TaskSolution, i32>::simple(
+        let selector = SwapMoveSelector::simple(
             get_priority,
             set_priority,
             0,

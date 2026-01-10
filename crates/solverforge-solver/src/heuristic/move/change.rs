@@ -23,7 +23,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
-#[derive(Clone, Copy)]
 pub struct ChangeMove<S, V> {
     entity_index: usize,
     to_value: Option<V>,
@@ -32,6 +31,21 @@ pub struct ChangeMove<S, V> {
     variable_name: &'static str,
     descriptor_index: usize,
 }
+
+impl<S, V: Clone> Clone for ChangeMove<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            entity_index: self.entity_index,
+            to_value: self.to_value.clone(),
+            getter: self.getter,
+            setter: self.setter,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+}
+
+impl<S, V: Copy> Copy for ChangeMove<S, V> {}
 
 impl<S, V: Debug> Debug for ChangeMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -98,7 +112,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // Get current value using typed getter - no boxing, no downcast
         let current = (self.getter)(score_director.working_solution(), self.entity_index);
 
@@ -110,7 +124,7 @@ where
         }
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Capture old value using typed getter - zero erasure
         let old_value = (self.getter)(score_director.working_solution(), self.entity_index);
 
@@ -221,11 +235,11 @@ mod tests {
         let director = create_director(tasks);
 
         // Different value - doable
-        let m = ChangeMove::new(0, Some(5), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
         assert!(m.is_doable(&director));
 
         // Same value - not doable
-        let m = ChangeMove::new(0, Some(1), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, Some(1), get_priority, set_priority, "priority", 0);
         assert!(!m.is_doable(&director));
     }
 
@@ -237,7 +251,7 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let m = ChangeMove::new(0, Some(5), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
         m.do_move(&mut director);
 
         // Verify change using typed getter directly
@@ -253,7 +267,7 @@ mod tests {
         }];
         let mut director = create_director(tasks);
 
-        let m = ChangeMove::new(0, None, get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<_, i32>::new(0, None, get_priority, set_priority, "priority", 0);
         assert!(m.is_doable(&director));
 
         m.do_move(&mut director);
@@ -264,13 +278,13 @@ mod tests {
 
     #[test]
     fn test_change_move_entity_indices() {
-        let m = ChangeMove::new(3, Some(5), get_priority, set_priority, "priority", 0);
+        let m = ChangeMove::<TaskSolution, i32>::new(3, Some(5), get_priority, set_priority, "priority", 0);
         assert_eq!(m.entity_indices(), &[3]);
     }
 
     #[test]
     fn test_change_move_clone() {
-        let m1 = ChangeMove::new(0, Some(5), get_priority, set_priority, "priority", 0);
+        let m1 = ChangeMove::<TaskSolution, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
         let m2 = m1.clone();
         assert_eq!(m1.entity_index, m2.entity_index);
         assert_eq!(m1.to_value, m2.to_value);

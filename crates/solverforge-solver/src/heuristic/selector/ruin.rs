@@ -198,9 +198,9 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = RuinMove<S, V>> + 'a> {
         let total_entities = (self.entity_count)(score_director.working_solution());
         let getter = self.getter;
@@ -239,7 +239,7 @@ where
         }))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let total = (self.entity_count)(score_director.working_solution());
         if total == 0 {
             return 0;

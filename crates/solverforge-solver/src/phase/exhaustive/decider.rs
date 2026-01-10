@@ -35,21 +35,26 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution>: Send + Debug {
 /// A simple value-based decider that works with any value type.
 ///
 /// Uses typed setter for zero-erasure variable assignment.
-pub struct SimpleDecider<S: PlanningSolution, V: Clone + Send + Sync + 'static> {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `V` - The value type to assign
+/// * `B` - The bounder type (use `Option<B>` for optional bounding)
+pub struct SimpleDecider<S: PlanningSolution, V: Clone + Send + Sync + 'static, B = ()> {
     /// Descriptor index of the entity collection.
     descriptor_index: usize,
     /// Variable name to assign.
     variable_name: String,
     /// Possible values to try.
     values: Vec<V>,
-    /// Score bounder for optimistic bounds.
-    bounder: Option<Box<dyn ScoreBounder<S>>>,
+    /// Score bounder for optimistic bounds (None = no bounding).
+    bounder: Option<B>,
     /// Typed setter for zero-erasure variable assignment.
     setter: fn(&mut S, usize, Option<V>),
 }
 
-impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V> {
-    /// Creates a new simple decider with typed setter.
+impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V, ()> {
+    /// Creates a new simple decider with typed setter and no bounder.
     ///
     /// # Arguments
     /// * `descriptor_index` - Index of the entity descriptor
@@ -70,15 +75,24 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V> 
             setter,
         }
     }
+}
 
+impl<S: PlanningSolution, V: Clone + Send + Sync + 'static, B> SimpleDecider<S, V, B> {
     /// Sets the bounder for optimistic bound calculation.
-    pub fn with_bounder(mut self, bounder: Box<dyn ScoreBounder<S>>) -> Self {
-        self.bounder = Some(bounder);
-        self
+    pub fn with_bounder<B2>(self, bounder: B2) -> SimpleDecider<S, V, B2> {
+        SimpleDecider {
+            descriptor_index: self.descriptor_index,
+            variable_name: self.variable_name,
+            values: self.values,
+            bounder: Some(bounder),
+            setter: self.setter,
+        }
     }
 }
 
-impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> Debug for SimpleDecider<S, V> {
+impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static, B: Debug> Debug
+    for SimpleDecider<S, V, B>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SimpleDecider")
             .field("descriptor_index", &self.descriptor_index)
@@ -88,8 +102,11 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> Debug for Si
     }
 }
 
-impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> ExhaustiveSearchDecider<S>
-    for SimpleDecider<S, V>
+impl<S, V, B> ExhaustiveSearchDecider<S> for SimpleDecider<S, V, B>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+    B: ScoreBounder<S>,
 {
     fn expand(
         &self,
@@ -172,6 +189,16 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> ExhaustiveSe
         score_director
             .entity_count(self.descriptor_index)
             .unwrap_or(0)
+    }
+}
+
+// Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
+impl<S: PlanningSolution> ScoreBounder<S> for () {
+    fn calculate_optimistic_bound(
+        &self,
+        _score_director: &dyn ScoreDirector<S>,
+    ) -> Option<S::Score> {
+        None
     }
 }
 

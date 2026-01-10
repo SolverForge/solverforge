@@ -1,8 +1,7 @@
 //! Step count termination.
 
-use std::fmt::Debug;
-
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -14,7 +13,6 @@ use crate::scope::SolverScope;
 /// ```
 /// use solverforge_solver::termination::StepCountTermination;
 ///
-/// // Terminate after 1000 steps
 /// let term = StepCountTermination::new(1000);
 /// ```
 #[derive(Debug, Clone)]
@@ -28,8 +26,8 @@ impl StepCountTermination {
     }
 }
 
-impl<S: PlanningSolution> Termination<S> for StepCountTermination {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for StepCountTermination {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         solver_scope.total_step_count() >= self.limit
     }
 }

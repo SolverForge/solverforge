@@ -152,24 +152,40 @@ impl<S: PlanningSolution> PartialOrd for PriorityNode<S> {
 /// branch-and-bound algorithm. It maintains a tree of partial solutions
 /// and uses pruning to avoid exploring branches that cannot improve
 /// on the best solution found.
-pub struct ExhaustiveSearchPhase<S: PlanningSolution> {
+///
+/// # Type Parameters
+/// * `Dec` - The decider type that generates child nodes
+///
+/// # Examples
+///
+/// ```ignore
+/// let decider = SimpleDecider::new(0, "row", vec![0, 1, 2, 3], set_row);
+/// let phase = ExhaustiveSearchPhase::new(decider, ExhaustiveSearchConfig::default());
+/// ```
+pub struct ExhaustiveSearchPhase<Dec> {
     /// The decider that generates child nodes.
-    decider: Box<dyn ExhaustiveSearchDecider<S>>,
+    decider: Dec,
     /// Configuration for this phase.
     config: ExhaustiveSearchConfig,
 }
 
-impl<S: PlanningSolution> ExhaustiveSearchPhase<S> {
+impl<Dec: Debug> Debug for ExhaustiveSearchPhase<Dec> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExhaustiveSearchPhase")
+            .field("decider", &self.decider)
+            .field("config", &self.config)
+            .finish()
+    }
+}
+
+impl<Dec> ExhaustiveSearchPhase<Dec> {
     /// Creates a new exhaustive search phase.
-    pub fn new(
-        decider: Box<dyn ExhaustiveSearchDecider<S>>,
-        config: ExhaustiveSearchConfig,
-    ) -> Self {
+    pub fn new(decider: Dec, config: ExhaustiveSearchConfig) -> Self {
         Self { decider, config }
     }
 
     /// Creates a depth-first exhaustive search phase.
-    pub fn depth_first(decider: Box<dyn ExhaustiveSearchDecider<S>>) -> Self {
+    pub fn depth_first(decider: Dec) -> Self {
         Self::new(
             decider,
             ExhaustiveSearchConfig {
@@ -180,7 +196,7 @@ impl<S: PlanningSolution> ExhaustiveSearchPhase<S> {
     }
 
     /// Creates a breadth-first exhaustive search phase.
-    pub fn breadth_first(decider: Box<dyn ExhaustiveSearchDecider<S>>) -> Self {
+    pub fn breadth_first(decider: Dec) -> Self {
         Self::new(
             decider,
             ExhaustiveSearchConfig {
@@ -191,7 +207,7 @@ impl<S: PlanningSolution> ExhaustiveSearchPhase<S> {
     }
 
     /// Creates a score-first exhaustive search phase.
-    pub fn score_first(decider: Box<dyn ExhaustiveSearchDecider<S>>) -> Self {
+    pub fn score_first(decider: Dec) -> Self {
         Self::new(
             decider,
             ExhaustiveSearchConfig {
@@ -202,16 +218,12 @@ impl<S: PlanningSolution> ExhaustiveSearchPhase<S> {
     }
 }
 
-impl<S: PlanningSolution> Debug for ExhaustiveSearchPhase<S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExhaustiveSearchPhase")
-            .field("decider", &self.decider)
-            .field("config", &self.config)
-            .finish()
-    }
-}
-
-impl<S: PlanningSolution, D: ScoreDirector<S>> Phase<S, D> for ExhaustiveSearchPhase<S> {
+impl<S, D, Dec> Phase<S, D> for ExhaustiveSearchPhase<Dec>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    Dec: ExhaustiveSearchDecider<S>,
+{
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
@@ -371,7 +383,7 @@ mod tests {
     fn test_phase_type_name() {
         let decider: SimpleDecider<TestSolution, i32> =
             SimpleDecider::new(0, "row", vec![0, 1, 2, 3], set_row);
-        let phase = ExhaustiveSearchPhase::depth_first(Box::new(decider));
+        let phase = ExhaustiveSearchPhase::depth_first(decider);
 
         assert_eq!(phase.phase_type_name(), "ExhaustiveSearch");
     }
@@ -380,7 +392,7 @@ mod tests {
     fn test_phase_debug() {
         let decider: SimpleDecider<TestSolution, i32> =
             SimpleDecider::new(0, "row", vec![0, 1, 2, 3], set_row);
-        let phase = ExhaustiveSearchPhase::depth_first(Box::new(decider));
+        let phase = ExhaustiveSearchPhase::depth_first(decider);
 
         let debug = format!("{:?}", phase);
         assert!(debug.contains("ExhaustiveSearchPhase"));

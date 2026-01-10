@@ -34,6 +34,7 @@ pub use heuristic::{
     ChangeMoveSelector,
     CompositeMove,
     CutPoint,
+    DefaultDistanceMeter,
     DefaultPillarSelector,
     EntityReference,
     EntitySelector,
@@ -69,8 +70,8 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    ConstructionPhaseFactory, ConstructionType, LocalSearchPhaseFactory, LocalSearchType,
-    PhaseFactory, SolverManager, SolverManagerBuilder,
+    ConstructionPhaseFactory, ConstructionType, ListConstructionPhase, ListConstructionPhaseBuilder,
+    LocalSearchPhaseFactory, LocalSearchType, PhaseFactory, SolverManager, SolverManagerBuilder,
 };
 pub use phase::{
     construction::{

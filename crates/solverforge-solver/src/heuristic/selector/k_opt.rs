@@ -174,17 +174,16 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
     }
 }
 
-impl<S, D, V, ES> MoveSelector<S, D, KOptMove<S, D, V>> for KOptMoveSelector<S, V, ES>
+impl<S, V, ES> MoveSelector<S, KOptMove<S, V>> for KOptMoveSelector<S, V, ES>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, D, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
@@ -224,7 +223,7 @@ where
         Box::new(iter)
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let pattern_count = self.patterns.len();
@@ -496,18 +495,17 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> NearbyKOptMove
     }
 }
 
-impl<S, SD, V, DM, ES> MoveSelector<S, SD, KOptMove<S, SD, V>> for NearbyKOptMoveSelector<S, V, DM, ES>
+impl<S, V, DM, ES> MoveSelector<S, KOptMove<S, V>> for NearbyKOptMoveSelector<S, V, DM, ES>
 where
     S: PlanningSolution,
-    SD: ScoreDirector<S>,
     V: Clone + Send + Sync + Debug + 'static,
     DM: ListPositionDistanceMeter<S> + 'static,
-    ES: EntitySelector<S, SD>,
+    ES: EntitySelector<S>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, SD: ScoreDirector<S>>(
         &'a self,
         score_director: &'a SD,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, SD, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
@@ -550,7 +548,7 @@ where
         Box::new(iter)
     }
 
-    fn size(&self, score_director: &SD) -> usize {
+    fn size<SD: ScoreDirector<S>>(&self, score_director: &SD) -> usize {
         // Approximate size: n * m^(k-1) * patterns
         let k = self.config.k;
         let m = self.max_nearby;

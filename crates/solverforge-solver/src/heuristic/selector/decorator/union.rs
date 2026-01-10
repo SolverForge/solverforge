@@ -39,10 +39,10 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 /// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
 /// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
-/// let low_values = ChangeMoveSelector::<Solution, i32>::simple(
+/// let low_values = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![1, 2, 3],
 /// );
-/// let high_values = ChangeMoveSelector::<Solution, i32>::simple(
+/// let high_values = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![100, 200],
 /// );
 /// // Union yields moves with values: 1, 2, 3, 100, 200
@@ -80,15 +80,14 @@ impl<S, M, A: Debug, B: Debug> Debug for UnionMoveSelector<S, M, A, B> {
     }
 }
 
-impl<S, D, M, A, B> MoveSelector<S, D, M> for UnionMoveSelector<S, M, A, B>
+impl<S, M, A, B> MoveSelector<S, M> for UnionMoveSelector<S, M, A, B>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    A: MoveSelector<S, D, M>,
-    B: MoveSelector<S, D, M>,
+    M: Move<S>,
+    A: MoveSelector<S, M>,
+    B: MoveSelector<S, M>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
@@ -99,7 +98,7 @@ where
         )
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         self.first.size(score_director) + self.second.size(score_director)
     }
 
@@ -174,14 +173,14 @@ mod tests {
     fn combines_both_selectors() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let first = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
             "priority",
             vec![10, 20],
         );
-        let second = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let second = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -203,14 +202,14 @@ mod tests {
     fn handles_empty_first() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let first = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
             "priority",
             vec![],
         );
-        let second = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let second = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -231,14 +230,14 @@ mod tests {
     fn handles_empty_second() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let first = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
             "priority",
             vec![10, 20],
         );
-        let second = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let second = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -259,14 +258,14 @@ mod tests {
     fn both_empty_yields_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let first = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
             "priority",
             vec![],
         );
-        let second = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let second = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,

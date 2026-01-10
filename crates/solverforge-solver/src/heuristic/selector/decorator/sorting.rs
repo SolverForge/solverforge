@@ -47,7 +47,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 ///     b.to_value().cmp(&a.to_value())
 /// }
 ///
-/// let inner = ChangeMoveSelector::<Solution, i32>::simple(
+/// let inner = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![30, 10, 50, 20],
 /// );
 /// let sorted: SortingMoveSelector<Solution, _, _> =
@@ -83,14 +83,13 @@ impl<S, M, Inner: Debug> Debug for SortingMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, D, M, Inner> MoveSelector<S, D, M> for SortingMoveSelector<S, M, Inner>
+impl<S, M, Inner> MoveSelector<S, M> for SortingMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    Inner: MoveSelector<S, D, M>,
+    M: Move<S>,
+    Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
@@ -100,7 +99,7 @@ where
         Box::new(moves.into_iter())
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 
@@ -191,7 +190,7 @@ mod tests {
     fn sorts_ascending() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -212,7 +211,7 @@ mod tests {
     fn sorts_descending() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -233,7 +232,7 @@ mod tests {
     fn preserves_size() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,

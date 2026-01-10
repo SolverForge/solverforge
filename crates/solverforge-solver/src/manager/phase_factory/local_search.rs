@@ -21,35 +21,32 @@ use super::super::PhaseFactory;
 /// # Type Parameters
 ///
 /// * `S` - The planning solution type
-/// * `D` - The score director type
 /// * `M` - The move type
 /// * `MS` - The move selector type (concrete)
 /// * `A` - The acceptor type (concrete)
 /// * `Fo` - The forager type (concrete)
-pub struct LocalSearchPhaseFactory<S, D, M, MS, A, Fo>
+pub struct LocalSearchPhaseFactory<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, D, M>,
+    Fo: LocalSearchForager<S, M>,
 {
     move_selector: MS,
     acceptor: A,
     forager: Fo,
     step_limit: Option<u64>,
-    _marker: PhantomData<fn() -> (S, D, M)>,
+    _marker: PhantomData<fn() -> (S, M)>,
 }
 
-impl<S, D, M, MS, A, Fo> LocalSearchPhaseFactory<S, D, M, MS, A, Fo>
+impl<S, M, MS, A, Fo> LocalSearchPhaseFactory<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, D, M>,
+    Fo: LocalSearchForager<S, M>,
 {
     /// Creates a new factory with concrete components.
     pub fn new(move_selector: MS, acceptor: A, forager: Fo) -> Self {
@@ -71,12 +68,11 @@ where
 
 // Convenience constructors with specific acceptors
 
-impl<S, D, M, MS> LocalSearchPhaseFactory<S, D, M, MS, HillClimbingAcceptor, AcceptedCountForager<S, D, M>>
+impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, HillClimbingAcceptor, AcceptedCountForager<S, M>>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
 {
     /// Creates a hill climbing local search.
     pub fn hill_climbing(move_selector: MS) -> Self {
@@ -88,12 +84,11 @@ where
     }
 }
 
-impl<S, D, M, MS> LocalSearchPhaseFactory<S, D, M, MS, TabuSearchAcceptor<S>, AcceptedCountForager<S, D, M>>
+impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, TabuSearchAcceptor<S>, AcceptedCountForager<S, M>>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
 {
     /// Creates a tabu search local search.
     pub fn tabu_search(move_selector: MS, tabu_size: usize) -> Self {
@@ -105,12 +100,12 @@ where
     }
 }
 
-impl<S, D, M, MS> LocalSearchPhaseFactory<S, D, M, MS, SimulatedAnnealingAcceptor, AcceptedCountForager<S, D, M>>
+impl<S, M, MS>
+    LocalSearchPhaseFactory<S, M, MS, SimulatedAnnealingAcceptor, AcceptedCountForager<S, M>>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
 {
     /// Creates a simulated annealing local search.
     pub fn simulated_annealing(
@@ -126,12 +121,12 @@ where
     }
 }
 
-impl<S, D, M, MS> LocalSearchPhaseFactory<S, D, M, MS, LateAcceptanceAcceptor<S>, AcceptedCountForager<S, D, M>>
+impl<S, M, MS>
+    LocalSearchPhaseFactory<S, M, MS, LateAcceptanceAcceptor<S>, AcceptedCountForager<S, M>>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
 {
     /// Creates a late acceptance local search.
     pub fn late_acceptance(move_selector: MS, size: usize) -> Self {
@@ -143,16 +138,16 @@ where
     }
 }
 
-impl<S, D, M, MS, A, Fo> PhaseFactory<S, D> for LocalSearchPhaseFactory<S, D, M, MS, A, Fo>
+impl<S, D, M, MS, A, Fo> PhaseFactory<S, D> for LocalSearchPhaseFactory<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    M: Move<S, D> + Clone + Send + Sync + 'static,
-    MS: MoveSelector<S, D, M> + Clone + Send + Sync + 'static,
+    M: Move<S> + Clone + Send + Sync + 'static,
+    MS: MoveSelector<S, M> + Clone + Send + Sync + 'static,
     A: Acceptor<S> + Clone + Send + Sync + 'static,
-    Fo: LocalSearchForager<S, D, M> + Clone + Send + Sync + 'static,
+    Fo: LocalSearchForager<S, M> + Clone + Send + Sync + 'static,
 {
-    type Phase = LocalSearchPhase<S, D, M, MS, A, Fo>;
+    type Phase = LocalSearchPhase<S, M, MS, A, Fo>;
 
     fn create(&self) -> Self::Phase {
         LocalSearchPhase::new(

@@ -49,7 +49,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 ///     m.to_value().map_or(0.0, |&v| v as f64)
 /// }
 ///
-/// let inner = ChangeMoveSelector::<Solution, i32>::simple(
+/// let inner = ChangeMoveSelector::simple(
 ///     get_priority, set_priority, 0, "priority", vec![10, 50, 100],
 /// );
 /// // Moves are selected proportionally to their weights
@@ -105,14 +105,13 @@ impl<S, M, Inner: Debug> Debug for ProbabilityMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, D, M, Inner> MoveSelector<S, D, M> for ProbabilityMoveSelector<S, M, Inner>
+impl<S, M, Inner> MoveSelector<S, M> for ProbabilityMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    Inner: MoveSelector<S, D, M>,
+    M: Move<S>,
+    Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a>(
+    fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = M> + 'a> {
@@ -149,7 +148,7 @@ where
         Box::new(selected.into_iter())
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         // Size is approximate - we don't know how many will be selected
         self.inner.size(score_director)
     }
@@ -237,7 +236,7 @@ mod tests {
         // Run multiple times to ensure some moves are selected
         let mut total_selected = 0;
         for seed in 0..10 {
-            let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+            let inner = ChangeMoveSelector::simple(
                 get_priority,
                 set_priority,
                 0,
@@ -257,7 +256,7 @@ mod tests {
     fn zero_weight_selects_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -274,7 +273,7 @@ mod tests {
     fn same_seed_produces_same_selection() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner1 = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner1 = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,
@@ -283,7 +282,7 @@ mod tests {
         );
         let prob1 = ProbabilityMoveSelector::with_seed(inner1, uniform_weight, 42);
 
-        let inner2 = ChangeMoveSelector::<TaskSolution, i32>::simple(
+        let inner2 = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
             0,

@@ -64,8 +64,7 @@ pub enum AcceptorType {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-/// * `M` - The move type (must implement `Move<S, D> + Clone`)
+/// * `M` - The move type (must implement `Move<S> + Clone`)
 /// * `MS` - The move selector type
 /// * `A` - The acceptor type
 /// * `Fo` - The forager type
@@ -74,14 +73,13 @@ pub enum AcceptorType {
 ///
 /// Uses `MoveArena<M>` for O(1) per-step cleanup instead of allocating
 /// a new Vec each step.
-pub struct LocalSearchPhase<S, D, M, MS, A, Fo>
+pub struct LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, D, M>,
+    Fo: LocalSearchForager<S, M>,
 {
     /// The move selector.
     move_selector: MS,
@@ -93,17 +91,16 @@ where
     arena: MoveArena<M>,
     /// Maximum number of steps.
     step_limit: Option<u64>,
-    _phantom: PhantomData<fn() -> (S, D, M)>,
+    _phantom: PhantomData<fn() -> (S, M)>,
 }
 
-impl<S, D, M, MS, A, Fo> LocalSearchPhase<S, D, M, MS, A, Fo>
+impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D> + 'static,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S> + 'static,
+    MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, D, M>,
+    Fo: LocalSearchForager<S, M>,
 {
     /// Creates a new local search phase.
     pub fn new(move_selector: MS, acceptor: A, forager: Fo, step_limit: Option<u64>) -> Self {
@@ -118,14 +115,13 @@ where
     }
 }
 
-impl<S, D, M, MS, A, Fo> Debug for LocalSearchPhase<S, D, M, MS, A, Fo>
+impl<S, M, MS, A, Fo> Debug for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M> + Debug,
+    M: Move<S>,
+    MS: MoveSelector<S, M> + Debug,
     A: Acceptor<S> + Debug,
-    Fo: LocalSearchForager<S, D, M> + Debug,
+    Fo: LocalSearchForager<S, M> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LocalSearchPhase")
@@ -138,14 +134,14 @@ where
     }
 }
 
-impl<S, D, M, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, D, M, MS, A, Fo>
+impl<S, D, M, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    M: Move<S, D>,
-    MS: MoveSelector<S, D, M>,
+    M: Move<S>,
+    MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, D, M>,
+    Fo: LocalSearchForager<S, M>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -354,11 +350,16 @@ mod tests {
         SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
     }
 
-    type TestDirector = SimpleScoreDirector<NQueensSolution, fn(&NQueensSolution) -> SimpleScore>;
-    type NQueensMove = crate::heuristic::r#move::ChangeMove<NQueensSolution, TestDirector, i32>;
-    type NQueensMoveSelector = ChangeMoveSelector<NQueensSolution, TestDirector, i32>;
+    type NQueensMove = crate::heuristic::r#move::ChangeMove<NQueensSolution, i32>;
 
-    fn create_move_selector(values: Vec<i32>) -> NQueensMoveSelector {
+    fn create_move_selector(
+        values: Vec<i32>,
+    ) -> ChangeMoveSelector<
+        NQueensSolution,
+        i32,
+        crate::heuristic::selector::FromSolutionEntitySelector,
+        crate::heuristic::selector::StaticTypedValueSelector<NQueensSolution, i32>,
+    > {
         ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
     }
 
@@ -375,8 +376,7 @@ mod tests {
         let values: Vec<i32> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
-        let forager: AcceptedCountForager<_, TestDirector, NQueensMove> =
-            AcceptedCountForager::new(1);
+        let forager: AcceptedCountForager<_, NQueensMove> = AcceptedCountForager::new(1);
         let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(100));
 
         phase.solve(&mut solver_scope);
@@ -397,8 +397,7 @@ mod tests {
         let values: Vec<i32> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
-        let forager: AcceptedCountForager<_, TestDirector, NQueensMove> =
-            AcceptedCountForager::new(1);
+        let forager: AcceptedCountForager<_, NQueensMove> = AcceptedCountForager::new(1);
         let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(50));
 
         phase.solve(&mut solver_scope);
@@ -416,8 +415,7 @@ mod tests {
         let values: Vec<i32> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
-        let forager: AcceptedCountForager<_, TestDirector, NQueensMove> =
-            AcceptedCountForager::new(1);
+        let forager: AcceptedCountForager<_, NQueensMove> = AcceptedCountForager::new(1);
         let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(3));
 
         phase.solve(&mut solver_scope);

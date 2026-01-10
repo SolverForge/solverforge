@@ -253,7 +253,7 @@ mod tests {
     fn ruin_single_entity() {
         let mut director = create_director(&[Some(1), Some(2), Some(3)]);
 
-        let m = RuinMove::<Schedule, _, i32>::new(&[1], get_assigned, set_assigned, "assigned_to", 0);
+        let m = RuinMove::<Schedule, i32>::new(&[1], get_assigned, set_assigned, "assigned_to", 0);
 
         assert!(m.is_doable(&director));
 
@@ -276,7 +276,7 @@ mod tests {
     fn ruin_multiple_entities() {
         let mut director = create_director(&[Some(1), Some(2), Some(3), Some(4)]);
 
-        let m = RuinMove::<Schedule, _, i32>::new(
+        let m = RuinMove::<Schedule, i32>::new(
             &[0, 2, 3],
             get_assigned,
             set_assigned,
@@ -312,7 +312,7 @@ mod tests {
 
         // Ruin both - still doable because entity 0 is assigned
         let m =
-            RuinMove::<Schedule, _, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+            RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
 
         assert!(m.is_doable(&director));
     }
@@ -322,7 +322,7 @@ mod tests {
         let director = create_director(&[None, None]);
 
         let m =
-            RuinMove::<Schedule, _, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+            RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
 
         assert!(!m.is_doable(&director));
     }

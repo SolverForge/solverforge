@@ -180,14 +180,13 @@ impl<S: PlanningSolution, M: DynDistanceMeter, ES: Debug> Debug for NearbyEntity
     }
 }
 
-impl<S, D, M, ES> EntitySelector<S, D> for NearbyEntitySelector<S, M, ES>
+impl<S, M, ES> EntitySelector<S> for NearbyEntitySelector<S, M, ES>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     M: DynDistanceMeter + 'static,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
 {
-    fn iter<'a>(
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
@@ -225,7 +224,7 @@ where
         Box::new(candidates.into_iter().map(|(entity, _)| entity))
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         // This is an estimate; the actual size depends on the origin
         let child_size = self.child.size(score_director);
         match self.config.max_nearby_size {
@@ -250,7 +249,6 @@ mod tests {
         id: i64,
         x: f64,
         y: f64,
-        assigned_to: Option<i64>,
     }
 
     #[derive(Clone, Debug)]
@@ -313,42 +311,12 @@ mod tests {
     ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
         // Create a grid of locations: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
         let locations = vec![
-            Location {
-                id: 0,
-                x: 0.0,
-                y: 0.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 1,
-                x: 1.0,
-                y: 0.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 2,
-                x: 2.0,
-                y: 0.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 3,
-                x: 0.0,
-                y: 1.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 4,
-                x: 1.0,
-                y: 1.0,
-                assigned_to: None,
-            },
-            Location {
-                id: 5,
-                x: 2.0,
-                y: 1.0,
-                assigned_to: None,
-            },
+            Location { id: 0, x: 0.0, y: 0.0 },
+            Location { id: 1, x: 1.0, y: 0.0 },
+            Location { id: 2, x: 2.0, y: 0.0 },
+            Location { id: 3, x: 0.0, y: 1.0 },
+            Location { id: 4, x: 1.0, y: 1.0 },
+            Location { id: 5, x: 2.0, y: 1.0 },
         ];
 
         let solution = RoutingSolution {

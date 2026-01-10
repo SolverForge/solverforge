@@ -72,7 +72,7 @@ pub use solverforge_scoring::ScoreDirector as ScoreDirectorTrait;
 ///
 /// type MyMove = ChangeMove<MySolution, i32>;
 ///
-/// let selector = ChangeMoveSelector::<MySolution, i32>::simple(
+/// let selector = ChangeMoveSelector::simple(
 ///     get_value, set_value, 0, "value", vec![1, 2, 3]
 /// );
 ///
@@ -102,8 +102,8 @@ macro_rules! impl_vnd_phase {
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            M: Move<S, D>,
-            $MS: MoveSelector<S, D, M>,
+            M: Move<S>,
+            $MS: MoveSelector<S, M>,
         {
             fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 let mut arena = MoveArena::<M>::new();
@@ -142,8 +142,8 @@ macro_rules! impl_vnd_phase {
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            M: Move<S, D>,
-            $($MS: MoveSelector<S, D, M>,)+
+            M: Move<S>,
+            $($MS: MoveSelector<S, M>,)+
         {
             fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
@@ -199,7 +199,7 @@ fn find_best_improving_move<S, D, M>(
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    M: Move<S, D>,
+    M: Move<S>,
 {
     let mut best_move: Option<(M, S::Score)> = None;
 
@@ -347,11 +347,16 @@ mod tests {
         SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
     }
 
-    type TestDirector = SimpleScoreDirector<NQueensSolution, fn(&NQueensSolution) -> SimpleScore>;
-    type NQueensMove = ChangeMove<NQueensSolution, TestDirector, i32>;
-    type NQueensMoveSelector = ChangeMoveSelector<NQueensSolution, TestDirector, i32>;
+    type NQueensMove = ChangeMove<NQueensSolution, i32>;
 
-    fn create_move_selector(values: Vec<i32>) -> NQueensMoveSelector {
+    fn create_move_selector(
+        values: Vec<i32>,
+    ) -> ChangeMoveSelector<
+        NQueensSolution,
+        i32,
+        crate::heuristic::selector::FromSolutionEntitySelector,
+        crate::heuristic::selector::StaticTypedValueSelector<NQueensSolution, i32>,
+    > {
         ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
     }
 

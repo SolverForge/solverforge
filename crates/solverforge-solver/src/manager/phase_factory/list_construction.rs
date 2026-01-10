@@ -10,7 +10,7 @@ use solverforge_scoring::ScoreDirector;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
-use super::super::SolverPhaseFactory;
+use super::super::PhaseFactory;
 
 /// Builder for creating list construction phases.
 ///
@@ -112,14 +112,15 @@ where
     }
 }
 
-impl<S, E, D> SolverPhaseFactory<S, D, ListConstructionPhase<S, E>>
-    for ListConstructionPhaseBuilder<S, E>
+impl<S, E, D> PhaseFactory<S, D> for ListConstructionPhaseBuilder<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: ScoreDirector<S>,
 {
-    fn create_phase(&self) -> ListConstructionPhase<S, E> {
+    type Phase = ListConstructionPhase<S, E>;
+
+    fn create(&self) -> Self::Phase {
         ListConstructionPhaseBuilder::create_phase(self)
     }
 }

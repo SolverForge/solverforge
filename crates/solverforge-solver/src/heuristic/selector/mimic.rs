@@ -141,13 +141,12 @@ impl<S: PlanningSolution, ES: Debug> Debug for MimicRecordingEntitySelector<S, E
     }
 }
 
-impl<S, D, ES> EntitySelector<S, D> for MimicRecordingEntitySelector<S, ES>
+impl<S, ES> EntitySelector<S> for MimicRecordingEntitySelector<S, ES>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    ES: EntitySelector<S, D>,
+    ES: EntitySelector<S>,
 {
-    fn iter<'a>(
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
@@ -161,7 +160,7 @@ where
         })
     }
 
-    fn size(&self, score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         self.child.size(score_director)
     }
 
@@ -218,12 +217,8 @@ impl Debug for MimicReplayingEntitySelector {
     }
 }
 
-impl<S, D> EntitySelector<S, D> for MimicReplayingEntitySelector
-where
-    S: PlanningSolution,
-    D: ScoreDirector<S>,
-{
-    fn iter<'a>(
+impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         _score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
@@ -233,7 +228,7 @@ where
         })
     }
 
-    fn size(&self, _score_director: &D) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, _score_director: &D) -> usize {
         // At most one entity is returned
         if self.recorder.get_recorded_entity().is_some() {
             1
@@ -298,7 +293,6 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Queen {
         id: i64,
-        row: Option<i32>,
     }
 
     #[derive(Clone, Debug)]
@@ -330,12 +324,7 @@ mod tests {
     fn create_test_director(
         n: usize,
     ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-        let queens: Vec<_> = (0..n)
-            .map(|i| Queen {
-                id: i as i64,
-                row: Some(i as i32),
-            })
-            .collect();
+        let queens: Vec<_> = (0..n).map(|i| Queen { id: i as i64 }).collect();
 
         let solution = NQueensSolution {
             queens,

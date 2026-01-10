@@ -9,9 +9,7 @@ use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
-struct Queen {
-    row: Option<i32>,
-}
+struct Queen;
 
 #[derive(Clone, Debug)]
 struct NQueensSolution {
@@ -42,7 +40,7 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
 fn create_test_director(
 ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
     let solution = NQueensSolution {
-        queens: vec![Queen { row: None }, Queen { row: None }],
+        queens: vec![Queen, Queen],
         score: None,
     };
 

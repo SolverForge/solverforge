@@ -7,44 +7,14 @@
 //!
 //! # Overview
 //!
-//! This module provides two main factories:
+//! This module provides factories for creating phases with full type preservation
+//! (zero type erasure):
 //!
 //! - [`ConstructionPhaseFactory`]: Creates construction heuristic phases
 //! - [`LocalSearchPhaseFactory`]: Creates local search phases
-//!
-//! # Usage Pattern
-//!
-//! ```
-//! use solverforge_solver::manager::{LocalSearchPhaseFactory, SolverPhaseFactory, LocalSearchType};
-//! use solverforge_solver::heuristic::{Move, MoveSelector};
-//! use solverforge_solver::heuristic::selector::ChangeMoveSelector;
-//! use solverforge_solver::heuristic::r#move::ChangeMove;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//!
-//! #[derive(Clone)]
-//! struct Sol { values: Vec<Option<i32>>, score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for Sol {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn get_v(s: &Sol, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
-//! fn set_v(s: &mut Sol, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
-//!
-//! type TestMove = ChangeMove<Sol, i32>;
-//!
-//! // Create a local search phase factory with tabu search
-//! let factory = LocalSearchPhaseFactory::<Sol, TestMove, _>::tabu_search(7, || {
-//!     Box::new(ChangeMoveSelector::<Sol, i32>::simple(get_v, set_v, 0, "value", vec![1, 2, 3]))
-//! });
-//!
-//! // Each call to create_phase() returns a fresh phase with clean state
-//! let phase1 = factory.create_phase();
-//! let phase2 = factory.create_phase(); // Independent of phase1
-//! ```
+//! - [`BasicConstructionPhaseBuilder`]: Simple round-robin construction
+//! - [`BasicLocalSearchPhaseBuilder`]: Simple late-acceptance local search
+//! - [`ListConstructionPhaseBuilder`]: List variable construction
 
 mod basic_construction;
 mod basic_local_search;
@@ -52,8 +22,8 @@ mod construction;
 mod list_construction;
 mod local_search;
 
-pub use basic_construction::BasicConstructionPhaseBuilder;
-pub use basic_local_search::BasicLocalSearchPhaseBuilder;
+pub use basic_construction::{BasicConstructionPhase, BasicConstructionPhaseBuilder};
+pub use basic_local_search::{BasicLocalSearchPhase, BasicLocalSearchPhaseBuilder};
 pub use construction::ConstructionPhaseFactory;
-pub use list_construction::ListConstructionPhaseBuilder;
-pub use local_search::{KOptPhaseBuilder, LocalSearchPhaseFactory};
+pub use list_construction::{ListConstructionPhase, ListConstructionPhaseBuilder};
+pub use local_search::{HillClimbingFactory, KOptPhaseBuilder, LocalSearchPhaseFactory};

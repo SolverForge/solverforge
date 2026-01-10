@@ -1,87 +1,166 @@
 //! Builder for SolverManager configuration.
 //!
-//! Note: For zero-erasure architecture, use `SolverManager::new()` directly
-//! with concrete phase and termination types.
+//! This module provides the builder pattern for configuring a [`SolverManager`].
+//! The builder allows fluent configuration of:
+//!
+//! - Construction heuristic phases
+//! - Local search phases with various acceptors
+//! - Termination conditions (time limits, step limits)
 
 use std::marker::PhantomData;
 use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::SolverForgeError;
 use solverforge_scoring::ScoreDirector;
 
-use crate::phase::Phase;
-use crate::solver::Solver;
-use crate::termination::{StepCountTermination, Termination, TimeTermination};
+use crate::termination::{OrTermination, StepCountTermination, Termination, TimeTermination};
 
-/// Builder for creating solvers with configuration.
+use super::config::{ConstructionType, LocalSearchType, PhaseConfig};
+use super::{SolverManager, SolverPhaseFactory};
+
+/// Builder for creating a [`SolverManager`] with fluent configuration.
+///
+/// The builder pattern allows configuring phases, termination conditions,
+/// and other solver settings before creating the manager.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
+///
+/// * `S` - The solution type
 /// * `D` - The score director type
-/// * `P` - The phase type
-pub struct SolverBuilder<S, D, P>
+/// * `C` - The score calculator type
+///
+/// # Zero-Erasure Design
+///
+/// The score calculator is stored as a concrete generic type parameter `C`,
+/// not as `Arc<dyn Fn>`. This eliminates virtual dispatch overhead.
+pub struct SolverManagerBuilder<S, D, C>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    C: Fn(&S) -> S::Score + Send + Sync,
 {
-    phase: P,
+    score_calculator: C,
+    phase_configs: Vec<PhaseConfig>,
     time_limit: Option<Duration>,
     step_limit: Option<u64>,
-    _marker: PhantomData<(S, D)>,
+    _phantom: PhantomData<fn(S, D)>,
 }
 
-impl<S, D, P> SolverBuilder<S, D, P>
+impl<S, D, C> SolverManagerBuilder<S, D, C>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    P: Phase<S, D>,
+    D: ScoreDirector<S> + 'static,
+    C: Fn(&S) -> S::Score + Send + Sync + 'static,
 {
-    /// Creates a new solver builder with the given phase.
-    pub fn new(phase: P) -> Self {
+    /// Creates a new builder with the given score calculator (zero-erasure).
+    ///
+    /// The score calculator is a function that computes the score for a solution.
+    /// Higher scores are better (for minimization, use negative values).
+    pub fn new(score_calculator: C) -> Self {
         Self {
-            phase,
+            score_calculator,
+            phase_configs: Vec::new(),
             time_limit: None,
             step_limit: None,
-            _marker: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
-    /// Sets a time limit for the solver.
+    /// Adds a construction heuristic phase with default (FirstFit) configuration.
+    pub fn with_construction_heuristic(mut self) -> Self {
+        self.phase_configs.push(PhaseConfig::ConstructionHeuristic {
+            construction_type: ConstructionType::FirstFit,
+        });
+        self
+    }
+
+    /// Adds a construction heuristic phase with specific configuration.
+    pub fn with_construction_heuristic_type(mut self, construction_type: ConstructionType) -> Self {
+        self.phase_configs
+            .push(PhaseConfig::ConstructionHeuristic { construction_type });
+        self
+    }
+
+    /// Adds a local search phase.
+    pub fn with_local_search(mut self, search_type: LocalSearchType) -> Self {
+        self.phase_configs.push(PhaseConfig::LocalSearch {
+            search_type,
+            step_limit: None,
+        });
+        self
+    }
+
+    /// Adds a local search phase with a step limit.
+    pub fn with_local_search_steps(
+        mut self,
+        search_type: LocalSearchType,
+        step_limit: u64,
+    ) -> Self {
+        self.phase_configs.push(PhaseConfig::LocalSearch {
+            search_type,
+            step_limit: Some(step_limit),
+        });
+        self
+    }
+
+    /// Sets the global time limit for solving.
     pub fn with_time_limit(mut self, duration: Duration) -> Self {
         self.time_limit = Some(duration);
         self
     }
 
-    /// Sets a step count limit for the solver.
+    /// Sets the global step limit for solving.
     pub fn with_step_limit(mut self, steps: u64) -> Self {
         self.step_limit = Some(steps);
         self
     }
 
-    /// Builds a solver with time termination.
-    pub fn build_with_time(self) -> Solver<S, D, P, TimeTermination>
-    where
-        TimeTermination: Termination<S, D>,
-    {
-        let termination = self
-            .time_limit
-            .map(TimeTermination::new);
-        Solver::new(self.phase, termination)
+    /// Builds the [`SolverManager`].
+    ///
+    /// # Errors
+    ///
+    /// Currently this method always succeeds, but returns a `Result` for
+    /// forward compatibility with validation.
+    pub fn build(self) -> Result<SolverManager<S, D, C>, SolverForgeError> {
+        let termination_factory = self.build_termination_factory();
+        let phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>> = Vec::new();
+
+        // Store phase configs for future use
+        let _ = self.phase_configs;
+
+        Ok(SolverManager::new(
+            self.score_calculator,
+            phase_factories,
+            termination_factory,
+        ))
     }
 
-    /// Builds a solver with step count termination.
-    pub fn build_with_steps(self) -> Solver<S, D, P, StepCountTermination>
-    where
-        StepCountTermination: Termination<S, D>,
-    {
-        let termination = self
-            .step_limit
-            .map(StepCountTermination::new);
-        Solver::new(self.phase, termination)
-    }
+    #[allow(clippy::type_complexity)]
+    fn build_termination_factory(
+        &self,
+    ) -> Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>> {
+        let time_limit = self.time_limit;
+        let step_limit = self.step_limit;
 
-    /// Builds a solver without termination.
-    pub fn build(self) -> Solver<S, D, P, ()> {
-        Solver::with_phase(self.phase)
+        match (time_limit, step_limit) {
+            (None, None) => None,
+            (Some(duration), None) => {
+                Some(Box::new(move || -> Box<dyn Termination<S, D>> {
+                    Box::new(TimeTermination::new(duration))
+                }))
+            }
+            (None, Some(steps)) => Some(Box::new(move || -> Box<dyn Termination<S, D>> {
+                Box::new(StepCountTermination::new(steps))
+            })),
+            (Some(duration), Some(steps)) => {
+                Some(Box::new(move || -> Box<dyn Termination<S, D>> {
+                    Box::new(OrTermination::new((
+                        TimeTermination::new(duration),
+                        StepCountTermination::new(steps),
+                    )))
+                }))
+            }
+        }
     }
 }

@@ -21,14 +21,13 @@ impl PlanningSolution for TestSolution {
     }
 }
 
+type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+
 fn calc(_: &TestSolution) -> SimpleScore {
     SimpleScore::of(0)
 }
 
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
-type TestScope = SolverScope<TestSolution, TestDirector>;
-
-fn create_scope() -> TestScope {
+fn create_scope() -> SolverScope<TestSolution, TestDirector> {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
     let director = SimpleScoreDirector::with_calculator(
         TestSolution { score: None },
@@ -38,12 +37,16 @@ fn create_scope() -> TestScope {
     SolverScope::new(director)
 }
 
-fn create_scope_with_score(score: SimpleScore) -> TestScope {
+fn create_scope_with_score(
+    score: SimpleScore,
+) -> SolverScope<TestSolution, SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>>
+{
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
+    let score_clone = score;
     let director = SimpleScoreDirector::with_calculator(
         TestSolution { score: Some(score) },
         desc,
-        calc as fn(&TestSolution) -> SimpleScore,
+        move |_| score_clone,
     );
     let mut scope = SolverScope::new(director);
     scope.update_best_solution();
@@ -146,14 +149,17 @@ fn test_unimproved_step_count_termination() {
 #[test]
 fn test_unimproved_step_count_termination_with_improvement() {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
+    fn calc(_: &TestSolution) -> SimpleScore {
+        SimpleScore::of(-10)
+    }
     let director = SimpleScoreDirector::with_calculator(
         TestSolution {
             score: Some(SimpleScore::of(-10)),
         },
         desc,
-        calc as fn(&TestSolution) -> SimpleScore,
+        calc,
     );
-    let mut scope: TestScope = SolverScope::new(director);
+    let mut scope = SolverScope::new(director);
     scope.update_best_solution();
 
     let term = UnimprovedStepCountTermination::<TestSolution>::new(3);
@@ -191,7 +197,7 @@ fn test_and_termination() {
     let mut scope = create_scope_with_score(SimpleScore::of(-10));
 
     // Both must be true: best score >= 0 AND step count >= 3
-    let term = AndTermination((
+    let term = AndTermination::new((
         BestScoreTermination::new(SimpleScore::of(0)),
         StepCountTermination::new(3),
     ));
@@ -220,7 +226,7 @@ fn test_or_termination() {
     let mut scope = create_scope_with_score(SimpleScore::of(-10));
 
     // Either: best score >= 0 OR step count >= 3
-    let term = OrTermination((
+    let term = OrTermination::new((
         BestScoreTermination::new(SimpleScore::of(0)),
         StepCountTermination::new(3),
     ));

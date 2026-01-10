@@ -1,0 +1,17 @@
+[package]
+name = "solverforge-macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Derive macros for SolverForge constraint solver"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
+
+[dev-dependencies]
+solverforge = { path = "../solverforge" }

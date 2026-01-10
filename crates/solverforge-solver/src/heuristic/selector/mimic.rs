@@ -1,0 +1,429 @@
+//! Mimic selectors for synchronized selection across multiple selectors.
+//!
+//! Mimic selectors enable multiple selectors to select the same element in lockstep.
+//! This is essential for:
+//! - Nearby selection: Get the "origin" entity that was already selected
+//! - Coordinated moves: Ensure multiple parts of a move reference the same entity
+//!
+//! # Architecture
+//!
+//! - [`MimicRecordingEntitySelector`]: Wraps a child selector and records each selected entity
+//! - [`MimicReplayingEntitySelector`]: Replays the entity recorded by a recording selector
+
+use std::fmt::Debug;
+use std::sync::{Arc, RwLock};
+
+use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
+
+use super::entity::{EntityReference, EntitySelector};
+
+/// Shared state between recording and replaying selectors.
+#[derive(Debug, Default)]
+struct MimicState {
+    /// Whether hasNext has been called on the recorder.
+    has_next_recorded: bool,
+    /// The result of the last hasNext call.
+    has_next: bool,
+    /// Whether next has been called on the recorder.
+    next_recorded: bool,
+    /// The last recorded entity reference.
+    recorded_entity: Option<EntityReference>,
+}
+
+/// Handle for sharing mimic state between recording and replaying selectors.
+#[derive(Debug, Clone)]
+pub struct MimicRecorder {
+    state: Arc<RwLock<MimicState>>,
+    /// Identifier for debugging.
+    id: String,
+}
+
+impl MimicRecorder {
+    /// Creates a new mimic recorder with the given identifier.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            state: Arc::new(RwLock::new(MimicState::default())),
+            id: id.into(),
+        }
+    }
+
+    /// Records a has_next result.
+    fn record_has_next(&self, has_next: bool) {
+        let mut state = self.state.write().unwrap();
+        state.has_next_recorded = true;
+        state.has_next = has_next;
+        state.next_recorded = false;
+        state.recorded_entity = None;
+    }
+
+    /// Records a next result.
+    fn record_next(&self, entity: EntityReference) {
+        let mut state = self.state.write().unwrap();
+        state.has_next_recorded = true;
+        state.has_next = true;
+        state.next_recorded = true;
+        state.recorded_entity = Some(entity);
+    }
+
+    /// Gets the recorded has_next state.
+    pub fn get_has_next(&self) -> Option<bool> {
+        let state = self.state.read().unwrap();
+        if state.has_next_recorded {
+            Some(state.has_next)
+        } else {
+            None
+        }
+    }
+
+    /// Gets the recorded entity.
+    pub fn get_recorded_entity(&self) -> Option<EntityReference> {
+        let state = self.state.read().unwrap();
+        if state.next_recorded {
+            state.recorded_entity
+        } else {
+            None
+        }
+    }
+
+    /// Returns the ID of this recorder.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Resets the state for a new iteration.
+    pub fn reset(&self) {
+        *self.state.write().unwrap() = MimicState::default();
+    }
+}
+
+/// An entity selector that records each selected entity for replay by other selectors.
+///
+/// This is used to synchronize selection across multiple selectors. The recording
+/// selector wraps a child selector and broadcasts each selected entity to all
+/// replaying selectors that share the same recorder.
+pub struct MimicRecordingEntitySelector<S: PlanningSolution> {
+    /// The child selector that actually selects entities.
+    child: Box<dyn EntitySelector<S>>,
+    /// The recorder that broadcasts selections.
+    recorder: MimicRecorder,
+}
+
+impl<S: PlanningSolution> MimicRecordingEntitySelector<S> {
+    /// Creates a new recording selector wrapping the given child selector.
+    pub fn new(child: Box<dyn EntitySelector<S>>, recorder: MimicRecorder) -> Self {
+        Self { child, recorder }
+    }
+
+    /// Returns the recorder for creating replaying selectors.
+    pub fn recorder(&self) -> MimicRecorder {
+        self.recorder.clone()
+    }
+}
+
+impl<S: PlanningSolution> Debug for MimicRecordingEntitySelector<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MimicRecordingEntitySelector")
+            .field("child", &self.child)
+            .field("recorder_id", &self.recorder.id)
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution> EntitySelector<S> for MimicRecordingEntitySelector<S> {
+    fn iter<'a>(
+        &'a self,
+        score_director: &'a dyn ScoreDirector<S>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+        // Reset for new iteration
+        self.recorder.reset();
+
+        let child_iter = self.child.iter(score_director);
+        Box::new(RecordingIterator {
+            inner: child_iter,
+            recorder: &self.recorder,
+        })
+    }
+
+    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+        self.child.size(score_director)
+    }
+
+    fn is_never_ending(&self) -> bool {
+        self.child.is_never_ending()
+    }
+}
+
+/// Iterator that records each entity as it's yielded.
+struct RecordingIterator<'a> {
+    inner: Box<dyn Iterator<Item = EntityReference> + 'a>,
+    recorder: &'a MimicRecorder,
+}
+
+impl<'a> Iterator for RecordingIterator<'a> {
+    type Item = EntityReference;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.inner.next();
+        match next {
+            Some(entity) => {
+                self.recorder.record_next(entity);
+                Some(entity)
+            }
+            None => {
+                self.recorder.record_has_next(false);
+                None
+            }
+        }
+    }
+}
+
+/// An entity selector that replays the last entity recorded by a recording selector.
+///
+/// This selector always yields exactly one entity (the last one recorded) or no entities
+/// if the recording selector hasn't recorded anything yet.
+pub struct MimicReplayingEntitySelector {
+    /// The recorder to replay from.
+    recorder: MimicRecorder,
+}
+
+impl MimicReplayingEntitySelector {
+    /// Creates a new replaying selector that replays from the given recorder.
+    pub fn new(recorder: MimicRecorder) -> Self {
+        Self { recorder }
+    }
+}
+
+impl Debug for MimicReplayingEntitySelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MimicReplayingEntitySelector")
+            .field("recorder_id", &self.recorder.id)
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
+    fn iter<'a>(
+        &'a self,
+        _score_director: &'a dyn ScoreDirector<S>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+        Box::new(ReplayingIterator {
+            recorder: &self.recorder,
+            returned: false,
+        })
+    }
+
+    fn size(&self, _score_director: &dyn ScoreDirector<S>) -> usize {
+        // At most one entity is returned
+        if self.recorder.get_recorded_entity().is_some() {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn is_never_ending(&self) -> bool {
+        false
+    }
+}
+
+/// Iterator that replays a single recorded entity.
+struct ReplayingIterator<'a> {
+    recorder: &'a MimicRecorder,
+    returned: bool,
+}
+
+impl<'a> Iterator for ReplayingIterator<'a> {
+    type Item = EntityReference;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.returned {
+            return None;
+        }
+
+        // Check if something was recorded
+        match self.recorder.get_recorded_entity() {
+            Some(entity) => {
+                self.returned = true;
+                Some(entity)
+            }
+            None => {
+                // Check has_next to provide better error handling
+                match self.recorder.get_has_next() {
+                    Some(false) => None, // Recording selector exhausted
+                    Some(true) => panic!(
+                        "MimicReplayingEntitySelector: Recording selector's hasNext() was true \
+                         but next() was never called. Ensure the recording selector's iterator \
+                         is advanced before using the replaying selector."
+                    ),
+                    None => panic!(
+                        "MimicReplayingEntitySelector: No recording found. \
+                         The recording selector must be iterated before the replaying selector."
+                    ),
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+    use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
+    use std::any::TypeId;
+
+    #[allow(dead_code)]
+    #[derive(Clone, Debug)]
+    struct Queen {
+        id: i64,
+        row: Option<i32>,
+    }
+
+    #[derive(Clone, Debug)]
+    struct NQueensSolution {
+        queens: Vec<Queen>,
+        score: Option<SimpleScore>,
+    }
+
+    impl PlanningSolution for NQueensSolution {
+        type Score = SimpleScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
+        &s.queens
+    }
+
+    fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
+        &mut s.queens
+    }
+
+    fn create_test_director(
+        n: usize,
+    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+        let queens: Vec<_> = (0..n)
+            .map(|i| Queen {
+                id: i as i64,
+                row: Some(i as i32),
+            })
+            .collect();
+
+        let solution = NQueensSolution {
+            queens,
+            score: None,
+        };
+
+        let extractor = Box::new(TypedEntityExtractor::new(
+            "Queen",
+            "queens",
+            get_queens,
+            get_queens_mut,
+        ));
+        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
+            .with_extractor(extractor);
+
+        let descriptor =
+            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
+                .with_entity(entity_desc);
+
+        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    }
+
+    #[test]
+    fn test_mimic_recording_selector() {
+        let director = create_test_director(3);
+
+        // Verify entity IDs
+        let solution = director.working_solution();
+        for (i, queen) in solution.queens.iter().enumerate() {
+            assert_eq!(queen.id, i as i64);
+        }
+
+        let recorder = MimicRecorder::new("test");
+        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let recording = MimicRecordingEntitySelector::new(child, recorder);
+
+        let entities: Vec<_> = recording.iter(&director).collect();
+        assert_eq!(entities.len(), 3);
+        assert_eq!(entities[0], EntityReference::new(0, 0));
+        assert_eq!(entities[1], EntityReference::new(0, 1));
+        assert_eq!(entities[2], EntityReference::new(0, 2));
+    }
+
+    #[test]
+    fn test_mimic_replaying_selector() {
+        let director = create_test_director(3);
+
+        let recorder = MimicRecorder::new("test");
+        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let recording = MimicRecordingEntitySelector::new(child, recorder.clone());
+        let replaying = MimicReplayingEntitySelector::new(recorder);
+
+        // Iterate through recording selector
+        let mut recording_iter = recording.iter(&director);
+
+        // First entity recorded
+        let first = recording_iter.next().unwrap();
+        assert_eq!(first, EntityReference::new(0, 0));
+
+        // Replaying should yield the same entity
+        let replayed: Vec<_> = replaying.iter(&director).collect();
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0], EntityReference::new(0, 0));
+
+        // Move to second entity
+        let second = recording_iter.next().unwrap();
+        assert_eq!(second, EntityReference::new(0, 1));
+
+        // Replaying should now yield the second entity
+        let replayed: Vec<_> = replaying.iter(&director).collect();
+        assert_eq!(replayed.len(), 1);
+        assert_eq!(replayed[0], EntityReference::new(0, 1));
+    }
+
+    #[test]
+    fn test_mimic_synchronized_iteration() {
+        let director = create_test_director(3);
+
+        let recorder = MimicRecorder::new("test");
+        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let recording = MimicRecordingEntitySelector::new(child, recorder.clone());
+        let replaying = MimicReplayingEntitySelector::new(recorder);
+
+        // Simulate how this would be used in a move selector:
+        // For each recorded entity, get the replayed entity
+        for recorded in recording.iter(&director) {
+            let replayed: Vec<_> = replaying.iter(&director).collect();
+            assert_eq!(replayed.len(), 1);
+            assert_eq!(replayed[0], recorded);
+        }
+    }
+
+    #[test]
+    fn test_mimic_empty_selector() {
+        let director = create_test_director(0);
+
+        let recorder = MimicRecorder::new("test");
+        let child = Box::new(FromSolutionEntitySelector::new(0));
+        let recording = MimicRecordingEntitySelector::new(child, recorder.clone());
+        let replaying = MimicReplayingEntitySelector::new(recorder);
+
+        // Recording selector is empty
+        let entities: Vec<_> = recording.iter(&director).collect();
+        assert_eq!(entities.len(), 0);
+
+        // Replaying should also be empty
+        let replayed: Vec<_> = replaying.iter(&director).collect();
+        assert_eq!(replayed.len(), 0);
+    }
+}

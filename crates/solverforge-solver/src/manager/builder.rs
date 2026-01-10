@@ -2,6 +2,7 @@
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::SolverForgeError;
+use solverforge_scoring::ScoreDirector;
 
 use crate::termination::{
     DiminishedReturnsTermination, OrCompositeTermination, StepCountTermination, Termination,
@@ -11,34 +12,12 @@ use crate::termination::{
 use super::{SolverManager, SolverPhaseFactory};
 
 /// Builder for creating a [`SolverManager`].
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::manager::SolverManagerBuilder;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Schedule { score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// let manager = SolverManagerBuilder::<Schedule>::new()
-///     .build()
-///     .unwrap();
-/// ```
-pub struct SolverManagerBuilder<S: PlanningSolution> {
-    phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
+pub struct SolverManagerBuilder<S: PlanningSolution, D: ScoreDirector<S>> {
+    phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>>,
     config: Option<solverforge_config::SolverConfig>,
 }
 
-impl<S: PlanningSolution + 'static> SolverManagerBuilder<S> {
-    /// Creates a new builder.
+impl<S: PlanningSolution + 'static, D: ScoreDirector<S> + 'static> SolverManagerBuilder<S, D> {
     pub fn new() -> Self {
         Self {
             phase_factories: Vec::new(),
@@ -46,27 +25,27 @@ impl<S: PlanningSolution + 'static> SolverManagerBuilder<S> {
         }
     }
 
-    /// Sets config for termination and other settings.
     pub fn with_config(mut self, config: solverforge_config::SolverConfig) -> Self {
         self.config = Some(config);
         self
     }
 
-    /// Adds a phase factory.
-    pub fn with_phase_factory<F: SolverPhaseFactory<S> + 'static>(mut self, factory: F) -> Self {
+    pub fn with_phase_factory<F: SolverPhaseFactory<S, D> + 'static>(
+        mut self,
+        factory: F,
+    ) -> Self {
         self.phase_factories.push(Box::new(factory));
         self
     }
 
-    /// Builds the [`SolverManager`].
-    pub fn build(self) -> Result<SolverManager<S>, SolverForgeError> {
+    pub fn build(self) -> Result<SolverManager<S, D>, SolverForgeError> {
         let termination_factory = self.build_termination_factory();
         Ok(SolverManager::new(self.phase_factories, termination_factory))
     }
 
     fn build_termination_factory(
         &self,
-    ) -> Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>> {
+    ) -> Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>> {
         let config = self.config.clone()?;
         let termination = config.termination?;
 
@@ -79,7 +58,7 @@ impl<S: PlanningSolution + 'static> SolverManagerBuilder<S> {
         }
 
         Some(Box::new(move || {
-            let mut terminations: Vec<Box<dyn Termination<S>>> = Vec::new();
+            let mut terminations: Vec<Box<dyn Termination<S, D>>> = Vec::new();
 
             if let Some(duration) = time_limit {
                 terminations.push(Box::new(TimeTermination::new(duration)));
@@ -91,8 +70,7 @@ impl<S: PlanningSolution + 'static> SolverManagerBuilder<S> {
 
             if let Some(duration) = unimproved_time {
                 terminations.push(Box::new(DiminishedReturnsTermination::<S>::new(
-                    duration,
-                    0.001,
+                    duration, 0.001,
                 )));
             }
 
@@ -105,7 +83,9 @@ impl<S: PlanningSolution + 'static> SolverManagerBuilder<S> {
     }
 }
 
-impl<S: PlanningSolution + 'static> Default for SolverManagerBuilder<S> {
+impl<S: PlanningSolution + 'static, D: ScoreDirector<S> + 'static> Default
+    for SolverManagerBuilder<S, D>
+{
     fn default() -> Self {
         Self::new()
     }

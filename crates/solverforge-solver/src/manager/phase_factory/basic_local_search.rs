@@ -5,6 +5,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
@@ -121,11 +122,12 @@ where
     }
 }
 
-impl<S> SolverPhaseFactory<S> for BasicLocalSearchPhaseBuilder<S>
+impl<S, D> SolverPhaseFactory<S, D> for BasicLocalSearchPhaseBuilder<S>
 where
     S: PlanningSolution + 'static,
+    D: ScoreDirector<S> + 'static,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S>> {
+    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
         let getter = self.getter;
         let setter = self.setter;
         let value_count = self.value_count;

@@ -32,6 +32,12 @@ where
 
     let config = SolverConfig::load("solver.toml").unwrap_or_default();
 
+    // Create constraints once to determine the type
+    let constraints = constraints_fn();
+
+    // Define the concrete score director type
+    type Director<S, C> = TypedScoreDirector<S, C>;
+
     let construction = BasicConstructionPhaseBuilder::<S, usize>::new(
         getter,
         setter,
@@ -50,14 +56,13 @@ where
         LocalSearchType::LateAcceptance { size: 400 },
     );
 
-    let manager = SolverManager::<S>::builder()
+    let manager = SolverManager::<S, Director<S, C>>::builder()
         .with_phase_factory(construction)
         .with_phase_factory(local_search)
         .with_config(config)
         .build()
         .expect("Failed to build solver");
 
-    let constraints = constraints_fn();
     let director = TypedScoreDirector::with_descriptor(
         solution,
         constraints,
@@ -65,6 +70,6 @@ where
         entity_count_by_idx,
     );
 
-    let mut solver = manager.create_solver();
-    solver.solve_with_director(Box::new(director))
+    let solver = manager.create_solver();
+    solver.solve(director)
 }

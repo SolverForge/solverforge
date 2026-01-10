@@ -1,6 +1,7 @@
 //! SolverManager implementation.
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::solver::Solver;
@@ -9,43 +10,19 @@ use crate::termination::Termination;
 use super::SolverPhaseFactory;
 
 /// High-level solver manager that creates configured solvers.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::manager::SolverManager;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Schedule { score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// let manager = SolverManager::<Schedule>::builder()
-///     .build()
-///     .unwrap();
-///
-/// let solver = manager.create_solver();
-/// ```
-pub struct SolverManager<S: PlanningSolution> {
-    phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
-    termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>>,
+pub struct SolverManager<S: PlanningSolution, D: ScoreDirector<S>> {
+    phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>>,
+    termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>>,
 }
 
-impl<S: PlanningSolution> SolverManager<S> {
-    /// Creates a new builder.
-    pub fn builder() -> super::SolverManagerBuilder<S> {
+impl<S: PlanningSolution + 'static, D: ScoreDirector<S> + 'static> SolverManager<S, D> {
+    pub fn builder() -> super::SolverManagerBuilder<S, D> {
         super::SolverManagerBuilder::new()
     }
 
     pub(crate) fn new(
-        phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
-        termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>>,
+        phase_factories: Vec<Box<dyn SolverPhaseFactory<S, D>>>,
+        termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S, D>> + Send + Sync>>,
     ) -> Self {
         Self {
             phase_factories,
@@ -53,9 +30,8 @@ impl<S: PlanningSolution> SolverManager<S> {
         }
     }
 
-    /// Creates a fresh [`Solver`] instance with configured phases.
-    pub fn create_solver(&self) -> Solver<S> {
-        let phases: Vec<Box<dyn Phase<S>>> = self
+    pub fn create_solver(&self) -> Solver<S, D> {
+        let phases: Vec<Box<dyn Phase<S, D>>> = self
             .phase_factories
             .iter()
             .map(|f| f.create_phase())

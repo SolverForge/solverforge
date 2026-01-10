@@ -5,6 +5,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -117,11 +118,12 @@ where
     }
 }
 
-impl<S> SolverPhaseFactory<S> for BasicConstructionPhaseBuilder<S, usize>
+impl<S, D> SolverPhaseFactory<S, D> for BasicConstructionPhaseBuilder<S, usize>
 where
     S: PlanningSolution + 'static,
+    D: ScoreDirector<S> + 'static,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S>> {
+    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
         Box::new(BasicConstructionPhase {
             getter: self.getter,
             setter: self.setter,
@@ -159,11 +161,12 @@ where
     }
 }
 
-impl<S> Phase<S> for BasicConstructionPhase<S>
+impl<S, D> Phase<S, D> for BasicConstructionPhase<S>
 where
     S: PlanningSolution,
+    D: ScoreDirector<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         let solution = phase_scope.score_director().working_solution();

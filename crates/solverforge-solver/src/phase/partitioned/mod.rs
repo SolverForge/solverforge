@@ -52,12 +52,6 @@ impl Default for PartitionedSearchConfig {
     }
 }
 
-/// A factory function for creating score directors.
-pub type ScoreDirectorFactory<S> = Arc<dyn Fn(S) -> Box<dyn ScoreDirector<S>> + Send + Sync>;
-
-/// A factory function for creating phases.
-pub type PhaseFactory<S> = Arc<dyn Fn() -> Vec<Box<dyn Phase<S>>> + Send + Sync>;
-
 /// Partitioned search phase that solves partitions in parallel.
 ///
 /// This phase:
@@ -67,40 +61,60 @@ pub type PhaseFactory<S> = Arc<dyn Fn() -> Vec<Box<dyn Phase<S>>> + Send + Sync>
 /// 4. Merges the solved partitions back together
 ///
 /// Each partition runs independently with its own solver scope.
-pub struct PartitionedSearchPhase<S: PlanningSolution> {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+/// * `Part` - The partitioner type
+/// * `SDF` - The score director factory type
+/// * `PF` - The phase factory type
+pub struct PartitionedSearchPhase<S, D, Part, SDF, PF>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    Part: SolutionPartitioner<S>,
+    SDF: Fn(S) -> D + Send + Sync,
+    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync,
+{
     /// The partitioner that splits and merges solutions.
-    partitioner: Box<dyn SolutionPartitioner<S>>,
+    partitioner: Part,
 
     /// Factory for creating score directors for each partition.
-    score_director_factory: ScoreDirectorFactory<S>,
+    score_director_factory: SDF,
 
     /// Factory for creating child phases for each partition.
-    phase_factory: PhaseFactory<S>,
+    phase_factory: PF,
 
     /// Configuration for this phase.
     config: PartitionedSearchConfig,
+
+    _phantom: std::marker::PhantomData<(S, D)>,
 }
 
-impl<S: PlanningSolution> PartitionedSearchPhase<S> {
+impl<S, D, Part, SDF, PF> PartitionedSearchPhase<S, D, Part, SDF, PF>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    Part: SolutionPartitioner<S>,
+    SDF: Fn(S) -> D + Send + Sync,
+    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync,
+{
     /// Creates a new partitioned search phase.
-    pub fn new(
-        partitioner: Box<dyn SolutionPartitioner<S>>,
-        score_director_factory: ScoreDirectorFactory<S>,
-        phase_factory: PhaseFactory<S>,
-    ) -> Self {
+    pub fn new(partitioner: Part, score_director_factory: SDF, phase_factory: PF) -> Self {
         Self {
             partitioner,
             score_director_factory,
             phase_factory,
             config: PartitionedSearchConfig::default(),
+            _phantom: std::marker::PhantomData,
         }
     }
 
     /// Creates a partitioned search phase with custom configuration.
     pub fn with_config(
-        partitioner: Box<dyn SolutionPartitioner<S>>,
-        score_director_factory: ScoreDirectorFactory<S>,
-        phase_factory: PhaseFactory<S>,
+        partitioner: Part,
+        score_director_factory: SDF,
+        phase_factory: PF,
         config: PartitionedSearchConfig,
     ) -> Self {
         Self {
@@ -108,33 +122,19 @@ impl<S: PlanningSolution> PartitionedSearchPhase<S> {
             score_director_factory,
             phase_factory,
             config,
+            _phantom: std::marker::PhantomData,
         }
-    }
-
-    /// Solves a single partition and returns the solved solution.
-    fn solve_partition(
-        partition: S,
-        score_director_factory: &ScoreDirectorFactory<S>,
-        phase_factory: &PhaseFactory<S>,
-    ) -> S {
-        // Create score director for this partition
-        let director = (score_director_factory)(partition);
-
-        // Create solver scope
-        let mut solver_scope = SolverScope::new(director);
-
-        // Create and run child phases
-        let mut phases = (phase_factory)();
-        for phase in phases.iter_mut() {
-            phase.solve(&mut solver_scope);
-        }
-
-        // Return the best solution (or working solution if no best)
-        solver_scope.take_best_or_working_solution()
     }
 }
 
-impl<S: PlanningSolution> Debug for PartitionedSearchPhase<S> {
+impl<S, D, Part, SDF, PF> Debug for PartitionedSearchPhase<S, D, Part, SDF, PF>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    Part: SolutionPartitioner<S>,
+    SDF: Fn(S) -> D + Send + Sync,
+    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PartitionedSearchPhase")
             .field("partitioner", &self.partitioner)
@@ -143,8 +143,15 @@ impl<S: PlanningSolution> Debug for PartitionedSearchPhase<S> {
     }
 }
 
-impl<S: PlanningSolution + 'static> Phase<S> for PartitionedSearchPhase<S> {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S>) {
+impl<S, D, Part, SDF, PF> Phase<S, D> for PartitionedSearchPhase<S, D, Part, SDF, PF>
+where
+    S: PlanningSolution + 'static,
+    D: ScoreDirector<S> + 'static,
+    Part: SolutionPartitioner<S> + Send,
+    SDF: Fn(S) -> D + Send + Sync + Clone,
+    PF: Fn() -> Vec<Box<dyn Phase<S, D>>> + Send + Sync + Clone,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         // Get the current solution
         let solution = solver_scope.score_director().working_solution().clone();
 
@@ -166,30 +173,43 @@ impl<S: PlanningSolution + 'static> Phase<S> for PartitionedSearchPhase<S> {
             );
         }
 
-        // Clone factories for threads
-        let score_director_factory = Arc::clone(&self.score_director_factory);
-        let phase_factory = Arc::clone(&self.phase_factory);
-
         // Solve partitions
         let solved_partitions: Vec<S> = if thread_count == 1 || partition_count == 1 {
             // Sequential execution
             partitions
                 .into_iter()
-                .map(|p| Self::solve_partition(p, &score_director_factory, &phase_factory))
+                .map(|partition| {
+                    let director = (self.score_director_factory)(partition);
+                    let mut solver_scope = SolverScope::new(director);
+                    let mut phases = (self.phase_factory)();
+                    for phase in phases.iter_mut() {
+                        phase.solve(&mut solver_scope);
+                    }
+                    solver_scope.take_best_or_working_solution()
+                })
                 .collect()
         } else {
             // Parallel execution
             let results: Arc<Mutex<Vec<Option<S>>>> =
                 Arc::new(Mutex::new(vec![None; partition_count]));
 
+            let sdf = self.score_director_factory.clone();
+            let pf = self.phase_factory.clone();
+
             thread::scope(|s| {
                 for (i, partition) in partitions.into_iter().enumerate() {
                     let results = Arc::clone(&results);
-                    let sdf = Arc::clone(&score_director_factory);
-                    let pf = Arc::clone(&phase_factory);
+                    let sdf = sdf.clone();
+                    let pf = pf.clone();
 
                     s.spawn(move || {
-                        let solved = Self::solve_partition(partition, &sdf, &pf);
+                        let director = sdf(partition);
+                        let mut solver_scope = SolverScope::new(director);
+                        let mut phases = pf();
+                        for phase in phases.iter_mut() {
+                            phase.solve(&mut solver_scope);
+                        }
+                        let solved = solver_scope.take_best_or_working_solution();
                         let mut r = results.lock().unwrap();
                         r[i] = Some(solved);
                     });
@@ -209,10 +229,7 @@ impl<S: PlanningSolution + 'static> Phase<S> for PartitionedSearchPhase<S> {
         let merged = self.partitioner.merge(&solution, solved_partitions);
 
         // Update the working solution with the merged result
-        // We need to calculate the score and update best solution
         let director = solver_scope.score_director_mut();
-
-        // Replace working solution with merged result
         let working = director.working_solution_mut();
         *working = merged;
 

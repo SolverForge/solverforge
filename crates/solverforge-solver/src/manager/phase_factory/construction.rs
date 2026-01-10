@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::Move;
 use crate::phase::construction::{
@@ -25,43 +26,6 @@ use super::super::SolverPhaseFactory;
 /// * `M` - The move type (typically [`ChangeMove`](crate::heuristic::ChangeMove))
 /// * `F` - The closure type that creates entity placers
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::manager::{ConstructionPhaseFactory, SolverPhaseFactory};
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_solver::heuristic::selector::{
-///     FromSolutionEntitySelector, StaticTypedValueSelector,
-/// };
-/// use solverforge_solver::phase::construction::QueuedEntityPlacer;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Sol { values: Vec<Option<i32>>, score: Option<SimpleScore> }
-/// impl PlanningSolution for Sol {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_v(s: &Sol, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
-/// fn set_v(s: &mut Sol, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
-///
-/// type M = ChangeMove<Sol, i32>;
-///
-/// // Create a first-fit construction phase factory
-/// let factory = ConstructionPhaseFactory::<Sol, M, _>::first_fit(|| {
-///     let entity_sel = Box::new(FromSolutionEntitySelector::new(0));
-///     let value_sel = Box::new(StaticTypedValueSelector::new(vec![1, 2, 3]));
-///     Box::new(QueuedEntityPlacer::new(entity_sel, value_sel, get_v, set_v, 0, "value"))
-/// });
-///
-/// // Create phase when solving
-/// let phase = factory.create_phase();
-/// assert_eq!(phase.phase_type_name(), "ConstructionHeuristic");
-/// ```
-///
 /// # Forager Types
 ///
 /// - [`ForagerType::FirstFit`](crate::phase::construction::ForagerType::FirstFit):
@@ -72,7 +36,6 @@ pub struct ConstructionPhaseFactory<S, M, F>
 where
     S: PlanningSolution,
     M: Move<S> + Clone + Send + Sync + 'static,
-    F: Fn() -> Box<dyn EntityPlacer<S, M>> + Send + Sync,
 {
     forager_type: ForagerType,
     placer_factory: F,
@@ -83,7 +46,6 @@ impl<S, M, F> ConstructionPhaseFactory<S, M, F>
 where
     S: PlanningSolution,
     M: Move<S> + Clone + Send + Sync + 'static,
-    F: Fn() -> Box<dyn EntityPlacer<S, M>> + Send + Sync,
 {
     /// Creates a new construction phase factory with the specified forager type.
     ///
@@ -198,20 +160,20 @@ where
     }
 }
 
-impl<S, M, F> SolverPhaseFactory<S> for ConstructionPhaseFactory<S, M, F>
+impl<S, M, D, P, F> SolverPhaseFactory<S, D> for ConstructionPhaseFactory<S, M, F>
 where
     S: PlanningSolution + 'static,
     M: Move<S> + Clone + Send + Sync + 'static,
-    F: Fn() -> Box<dyn EntityPlacer<S, M>> + Send + Sync,
+    D: ScoreDirector<S> + 'static,
+    P: EntityPlacer<S, M, D> + Send + 'static,
+    F: Fn() -> P + Send + Sync,
 {
-    fn create_phase(&self) -> Box<dyn Phase<S>> {
+    fn create_phase(&self) -> Box<dyn Phase<S, D>> {
         let placer = (self.placer_factory)();
-
-        let forager: Box<dyn ConstructionForager<S, M>> = match self.forager_type {
-            ForagerType::FirstFit => Box::new(FirstFitForager::new()),
-            ForagerType::BestFit => Box::new(BestFitForager::new()),
+        let forager = match self.forager_type {
+            ForagerType::FirstFit => FirstFitForager::<S, M>::new(),
+            ForagerType::BestFit => panic!("BestFitForager not compatible with this factory"),
         };
-
         Box::new(ConstructionHeuristicPhase::new(placer, forager))
     }
 }

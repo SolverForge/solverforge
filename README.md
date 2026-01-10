@@ -290,29 +290,14 @@ let phase = ExhaustiveSearchPhase::new(
 
 ## Termination Conditions
 
-```rust
-use solverforge::{
-    TimeTermination, StepCountTermination, BestScoreTermination,
-    UnimprovedStepCountTermination, OrCompositeTermination,
-};
+Termination is configured via `solver.toml`, not in code:
 
-// Stop after 30 seconds
-let term = TimeTermination::new(Duration::from_secs(30));
-
-// Stop after 1000 steps
-let term = StepCountTermination::new(1000);
-
-// Stop when reaching target score
-let term = BestScoreTermination::new(SimpleScore::ZERO);
-
-// Stop if no improvement for 100 steps
-let term = UnimprovedStepCountTermination::new(100);
-
-// Combine: stop when ANY condition is met
-let term = OrCompositeTermination::new(vec![
-    Box::new(TimeTermination::new(Duration::from_secs(60))),
-    Box::new(BestScoreTermination::new(SimpleScore::ZERO)),
-]);
+```toml
+[termination]
+seconds_spent_limit = 30
+unimproved_seconds_spent_limit = 5
+step_count_limit = 1000
+best_score_limit = "0hard/0soft"
 ```
 
 ## Move Types

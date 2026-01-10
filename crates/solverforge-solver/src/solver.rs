@@ -264,11 +264,11 @@ macro_rules! impl_solver_with_director {
             S: PlanningSolution,
             T: Send,
         {
-            /// Solves using a boxed score director.
+            /// Solves using a provided score director.
             ///
-            /// This method accepts a boxed director for API ergonomics when
-            /// the concrete director type isn't known at compile time.
-            pub fn solve_with_director<D>(self, director: Box<D>) -> S
+            /// This method accepts a director directly, enabling ergonomic usage
+            /// when the concrete director type is known.
+            pub fn solve_with_director<D>(self, director: D) -> S
             where
                 D: ScoreDirector<S>,
                 T: MaybeTermination<S, D>,
@@ -283,7 +283,7 @@ macro_rules! impl_solver_with_director {
                     config: self.config,
                     _phantom: PhantomData,
                 };
-                solver.solve(*director)
+                solver.solve(director)
             }
         }
     };

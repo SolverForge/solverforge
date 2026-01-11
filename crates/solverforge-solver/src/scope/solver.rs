@@ -9,6 +9,8 @@ use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::stats::SolverStats;
+
 /// Top-level scope for the entire solving process.
 ///
 /// Holds the working solution, score director, and tracks the best solution found.
@@ -32,6 +34,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     total_step_count: u64,
     /// Flag for early termination requests.
     terminate: Option<&'t AtomicBool>,
+    /// Solver statistics.
+    stats: SolverStats,
 }
 
 impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
@@ -45,6 +49,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             start_time: None,
             total_step_count: 0,
             terminate: None,
+            stats: SolverStats::default(),
         }
     }
 
@@ -58,6 +63,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             start_time: None,
             total_step_count: 0,
             terminate,
+            stats: SolverStats::default(),
         }
     }
 
@@ -71,6 +77,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             start_time: None,
             total_step_count: 0,
             terminate: None,
+            stats: SolverStats::default(),
         }
     }
 
@@ -78,6 +85,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     pub fn start_solving(&mut self) {
         self.start_time = Some(Instant::now());
         self.total_step_count = 0;
+        self.stats.start();
     }
 
     /// Returns the elapsed time since solving started.
@@ -171,5 +179,15 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     pub fn is_terminate_early(&self) -> bool {
         self.terminate
             .is_some_and(|flag| flag.load(Ordering::SeqCst))
+    }
+
+    /// Returns a reference to the solver statistics.
+    pub fn stats(&self) -> &SolverStats {
+        &self.stats
+    }
+
+    /// Returns a mutable reference to the solver statistics.
+    pub fn stats_mut(&mut self) -> &mut SolverStats {
+        &mut self.stats
     }
 }

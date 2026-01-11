@@ -9,6 +9,7 @@ use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 /// Late acceptance history size.
@@ -105,6 +106,7 @@ where
         set_variable,
         value_count,
         entity_count_fn,
+        None,
         |_| {},
         |_, _| {},
     )
@@ -113,6 +115,7 @@ where
 /// Solves a basic variable problem with full event callbacks.
 ///
 /// Provides events for phases, steps, and best solutions for console/UI feedback.
+/// Optionally accepts a termination flag to stop solving early.
 pub fn run_solver_with_events<S, C, E, F>(
     mut solution: S,
     finalize_fn: fn(&mut S),
@@ -121,6 +124,7 @@ pub fn run_solver_with_events<S, C, E, F>(
     set_variable: fn(&mut S, usize, Option<usize>),
     value_count: fn(&S) -> usize,
     entity_count_fn: fn(&S) -> usize,
+    terminate: Option<&AtomicBool>,
     mut on_event: E,
     mut on_best_solution: F,
 ) -> S
@@ -225,7 +229,9 @@ where
     let mut moves_evaluated: u64 = 0;
     let mut steps_accepted: u64 = 0;
 
-    while phase2_start.elapsed() < time_limit_duration {
+    while phase2_start.elapsed() < time_limit_duration
+        && !terminate.map_or(false, |t| t.load(Ordering::Relaxed))
+    {
         // Pick random entity and new value
         let entity_idx = rng.random_range(0..n_entities);
         let old_value = get_variable(director.working_solution(), entity_idx);

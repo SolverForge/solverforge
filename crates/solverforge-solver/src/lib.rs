@@ -16,6 +16,7 @@ pub mod phase;
 pub mod realtime;
 pub mod scope;
 pub mod solver;
+pub mod stats;
 pub mod termination;
 
 pub use builder::AcceptorBuilder;
@@ -97,6 +98,7 @@ pub use phase::{
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, Solver};
+pub use stats::{PhaseStats, SolverStats};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
     DiminishedReturnsTermination, OrTermination, StepCountTermination, Termination,

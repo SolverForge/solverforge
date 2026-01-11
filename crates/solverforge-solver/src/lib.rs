@@ -101,8 +101,9 @@ pub use solver::{MaybeTermination, NoTermination, Solver};
 pub use stats::{PhaseStats, SolverStats};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    DiminishedReturnsTermination, OrTermination, StepCountTermination, Termination,
-    TimeTermination, UnimprovedStepCountTermination, UnimprovedTimeTermination,
+    DiminishedReturnsTermination, MoveCountTermination, OrTermination,
+    ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
+    UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 

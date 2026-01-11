@@ -6,6 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use super::SolverScope;
+use crate::stats::PhaseStats;
 
 /// Scope for a single phase of solving.
 ///
@@ -25,6 +26,8 @@ pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> {
     step_count: u64,
     /// When this phase started.
     start_time: Instant,
+    /// Phase statistics.
+    stats: PhaseStats,
 }
 
 impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> {
@@ -37,6 +40,24 @@ impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> 
             starting_score,
             step_count: 0,
             start_time: Instant::now(),
+            stats: PhaseStats::new(phase_index, "Unknown"),
+        }
+    }
+
+    /// Creates a new phase scope with a specific phase type name.
+    pub fn with_phase_type(
+        solver_scope: &'a mut SolverScope<'t, S, D>,
+        phase_index: usize,
+        phase_type: &'static str,
+    ) -> Self {
+        let starting_score = solver_scope.best_score().cloned();
+        Self {
+            solver_scope,
+            phase_index,
+            starting_score,
+            step_count: 0,
+            start_time: Instant::now(),
+            stats: PhaseStats::new(phase_index, phase_type),
         }
     }
 
@@ -95,5 +116,15 @@ impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> 
     /// Updates best solution.
     pub fn update_best_solution(&mut self) {
         self.solver_scope.update_best_solution()
+    }
+
+    /// Returns a reference to the phase statistics.
+    pub fn stats(&self) -> &PhaseStats {
+        &self.stats
+    }
+
+    /// Returns a mutable reference to the phase statistics.
+    pub fn stats_mut(&mut self) -> &mut PhaseStats {
+        &mut self.stats
     }
 }

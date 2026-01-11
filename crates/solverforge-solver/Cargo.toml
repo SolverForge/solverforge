@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Solver engine for SolverForge"
 
+[features]
+default = []
+
 [dependencies]
 solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
 solverforge-scoring = { version = "0.4.0", path = "../solverforge-scoring" }

@@ -513,6 +513,9 @@ fn generate_basic_variable_operations(
         quote! {
             /// Solve with zero parameters - constraints embedded at compile time.
             pub fn solve(self) -> Self {
+                #[cfg(feature = "console")]
+                ::solverforge::console::init();
+
                 ::solverforge::run_solver(
                     self,
                     Self::finalize_all,
@@ -542,6 +545,9 @@ fn generate_basic_variable_operations(
                 terminate: Option<&std::sync::atomic::AtomicBool>,
                 sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
             ) -> Self {
+                #[cfg(feature = "console")]
+                ::solverforge::console::init();
+
                 ::solverforge::run_solver_with_channel(
                     self,
                     Self::finalize_all,

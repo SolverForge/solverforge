@@ -116,7 +116,7 @@ where
         }
 
         for entity_idx in 0..n_entities {
-            if phase_scope.solver_scope().is_terminate_early() {
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 
@@ -287,8 +287,8 @@ where
         }
 
         loop {
-            // Check termination via solver scope
-            if phase_scope.solver_scope().is_terminate_early() {
+            // Check termination via solver scope (external flag + time limit)
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 

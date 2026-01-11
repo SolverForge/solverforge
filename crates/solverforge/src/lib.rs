@@ -74,7 +74,10 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // Solver
 // ============================================================================
 
-pub use solverforge_solver::{run_solver, run_solver_with_events, SolverEvent};
+pub use solverforge_solver::{
+    run_solver, run_solver_with_events, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
+    SolutionManager, SolverEvent, SolverStatus,
+};
 
 // ============================================================================
 // Prelude

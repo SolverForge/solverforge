@@ -1,184 +1,131 @@
 //! Inverse variable supply for O(1) "who points to this value?" lookups.
 //!
-//! In chained variables, we often need to know what entity points TO a given value.
-//! Without an inverse supply, this requires scanning all entities (O(n)).
-//! The inverse supply maintains a mapping for O(1) lookups.
+//! # Zero-Erasure Design
+//!
+//! - **Index-based**: Stores `value -> entity_index` mappings, not cloned entities
+//! - **Owned**: No `Arc`, `RwLock`, or interior mutability - uses `&mut self`
+//! - **Generic**: Full type information preserved, no `dyn Any`
 
-use std::any::TypeId;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::RwLock;
 
-use super::{DemandKey, Supply, SupplyDemand};
-
-/// Supply that provides O(1) lookup of the entity pointing to a value.
+/// Index-based inverse variable supply.
 ///
 /// For a chained variable where `entity.previous = value`, this supply answers:
-/// "Given `value`, which `entity` has `entity.previous == value`?"
+/// "Given `value`, which entity index has `entities[idx].previous == value`?"
 ///
-/// This is essential for efficient chain manipulation in moves.
-pub trait SingletonInverseVariableSupply<V, E>: Supply
+/// Returns entity indices - caller accesses actual entity via `solution.entities[idx]`.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::domain::supply::InverseSupply;
+///
+/// let mut supply: InverseSupply<i32> = InverseSupply::new();
+///
+/// // Entity at index 0 points to value 42
+/// supply.insert(42, 0);
+///
+/// // Entity at index 1 points to value 99
+/// supply.insert(99, 1);
+///
+/// assert_eq!(supply.get(&42), Some(0));
+/// assert_eq!(supply.get(&99), Some(1));
+/// assert_eq!(supply.get(&100), None);
+/// ```
+#[derive(Debug)]
+pub struct InverseSupply<V>
 where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
+    V: Eq + Hash,
 {
-    /// Gets the entity that points to the given value, if any.
+    /// Mapping from value to the entity index pointing to it.
+    inverse_map: HashMap<V, usize>,
+}
+
+impl<V> Default for InverseSupply<V>
+where
+    V: Eq + Hash,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<V> InverseSupply<V>
+where
+    V: Eq + Hash,
+{
+    /// Creates a new empty inverse supply.
+    pub fn new() -> Self {
+        Self {
+            inverse_map: HashMap::new(),
+        }
+    }
+
+    /// Creates a new inverse supply with pre-allocated capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inverse_map: HashMap::with_capacity(capacity),
+        }
+    }
+
+    /// Gets the entity index that points to the given value.
     ///
     /// Returns `None` if no entity currently points to this value.
-    fn get_inverse_singleton(&self, value: &V) -> Option<E>;
+    #[inline]
+    pub fn get(&self, value: &V) -> Option<usize> {
+        self.inverse_map.get(value).copied()
+    }
 
-    /// Registers that an entity now points to a value.
+    /// Registers that an entity index now points to a value.
     ///
-    /// Called when a variable change causes `entity.var = value`.
-    fn insert(&self, value: V, entity: E);
+    /// Returns the previous entity index if this value was already mapped.
+    #[inline]
+    pub fn insert(&mut self, value: V, entity_idx: usize) -> Option<usize> {
+        self.inverse_map.insert(value, entity_idx)
+    }
 
     /// Removes the mapping for a value.
     ///
-    /// Called when the entity that pointed to this value changes.
-    fn remove(&self, value: &V) -> Option<E>;
+    /// Returns the entity index that was mapped, if any.
+    #[inline]
+    pub fn remove(&mut self, value: &V) -> Option<usize> {
+        self.inverse_map.remove(value)
+    }
 
-    /// Updates the mapping: removes old value mapping, adds new.
-    fn update(&self, old_value: Option<&V>, new_value: V, entity: E) {
+    /// Updates the mapping: removes old value, inserts new.
+    ///
+    /// Use this when an entity changes which value it points to.
+    #[inline]
+    pub fn update(&mut self, old_value: Option<&V>, new_value: V, entity_idx: usize) {
         if let Some(old) = old_value {
             self.remove(old);
         }
-        self.insert(new_value, entity);
+        self.insert(new_value, entity_idx);
     }
 
     /// Clears all mappings.
-    fn clear(&self);
+    #[inline]
+    pub fn clear(&mut self) {
+        self.inverse_map.clear();
+    }
 
     /// Returns the number of tracked mappings.
-    fn len(&self) -> usize;
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.inverse_map.len()
+    }
 
     /// Returns true if no mappings exist.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-/// Hash-based implementation of inverse variable supply.
-///
-/// Uses a `HashMap` internally for O(1) average-case lookups.
-/// Thread-safe via `RwLock`.
-pub struct ExternalizedSingletonInverseVariableSupply<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    /// The variable name this supply tracks.
-    variable_name: String,
-    /// Mapping from value to the entity pointing to it.
-    inverse_map: RwLock<HashMap<V, E>>,
-}
-
-impl<V, E> ExternalizedSingletonInverseVariableSupply<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    /// Creates a new externalized inverse variable supply.
-    pub fn new(variable_name: impl Into<String>) -> Self {
-        Self {
-            variable_name: variable_name.into(),
-            inverse_map: RwLock::new(HashMap::new()),
-        }
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.inverse_map.is_empty()
     }
 
-    /// Returns the variable name this supply tracks.
-    pub fn variable_name(&self) -> &str {
-        &self.variable_name
-    }
-}
-
-impl<V, E> Supply for ExternalizedSingletonInverseVariableSupply<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    fn supply_type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-}
-
-impl<V, E> SingletonInverseVariableSupply<V, E> for ExternalizedSingletonInverseVariableSupply<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    fn get_inverse_singleton(&self, value: &V) -> Option<E> {
-        self.inverse_map.read().unwrap().get(value).cloned()
-    }
-
-    fn insert(&self, value: V, entity: E) {
-        self.inverse_map.write().unwrap().insert(value, entity);
-    }
-
-    fn remove(&self, value: &V) -> Option<E> {
-        self.inverse_map.write().unwrap().remove(value)
-    }
-
-    fn clear(&self) {
-        self.inverse_map.write().unwrap().clear();
-    }
-
-    fn len(&self) -> usize {
-        self.inverse_map.read().unwrap().len()
-    }
-}
-
-impl<V, E> std::fmt::Debug for ExternalizedSingletonInverseVariableSupply<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExternalizedSingletonInverseVariableSupply")
-            .field("variable_name", &self.variable_name)
-            .field("size", &self.len())
-            .finish()
-    }
-}
-
-/// Demand for a singleton inverse variable supply.
-pub struct SingletonInverseVariableDemand<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    /// The variable name to track.
-    pub variable_name: String,
-    /// Phantom data for type parameters.
-    _phantom: std::marker::PhantomData<(V, E)>,
-}
-
-impl<V, E> SingletonInverseVariableDemand<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    /// Creates a new demand for an inverse variable supply.
-    pub fn new(variable_name: impl Into<String>) -> Self {
-        Self {
-            variable_name: variable_name.into(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<V, E> SupplyDemand for SingletonInverseVariableDemand<V, E>
-where
-    V: Eq + Hash + Clone + Send + Sync + 'static,
-    E: Clone + Send + Sync + 'static,
-{
-    type Output = ExternalizedSingletonInverseVariableSupply<V, E>;
-
-    fn demand_key(&self) -> DemandKey {
-        DemandKey::new::<Self::Output>(&self.variable_name)
-    }
-
-    fn create_supply(&self) -> Self::Output {
-        ExternalizedSingletonInverseVariableSupply::new(&self.variable_name)
+    /// Returns an iterator over all (value, entity_index) pairs.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = (&V, &usize)> {
+        self.inverse_map.iter()
     }
 }
 
@@ -187,61 +134,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_inverse_supply_insert_and_get() {
-        let supply: ExternalizedSingletonInverseVariableSupply<i32, String> =
-            ExternalizedSingletonInverseVariableSupply::new("previous");
+    fn test_insert_and_get() {
+        let mut supply: InverseSupply<i32> = InverseSupply::new();
 
-        supply.insert(1, "entity_a".to_string());
-        supply.insert(2, "entity_b".to_string());
+        supply.insert(1, 0);
+        supply.insert(2, 1);
 
-        assert_eq!(
-            supply.get_inverse_singleton(&1),
-            Some("entity_a".to_string())
-        );
-        assert_eq!(
-            supply.get_inverse_singleton(&2),
-            Some("entity_b".to_string())
-        );
-        assert_eq!(supply.get_inverse_singleton(&3), None);
+        assert_eq!(supply.get(&1), Some(0));
+        assert_eq!(supply.get(&2), Some(1));
+        assert_eq!(supply.get(&3), None);
     }
 
     #[test]
-    fn test_inverse_supply_remove() {
-        let supply: ExternalizedSingletonInverseVariableSupply<i32, String> =
-            ExternalizedSingletonInverseVariableSupply::new("previous");
+    fn test_remove() {
+        let mut supply: InverseSupply<i32> = InverseSupply::new();
 
-        supply.insert(1, "entity_a".to_string());
+        supply.insert(1, 0);
         assert_eq!(supply.len(), 1);
 
         let removed = supply.remove(&1);
-        assert_eq!(removed, Some("entity_a".to_string()));
+        assert_eq!(removed, Some(0));
         assert_eq!(supply.len(), 0);
-        assert_eq!(supply.get_inverse_singleton(&1), None);
+        assert_eq!(supply.get(&1), None);
     }
 
     #[test]
-    fn test_inverse_supply_update() {
-        let supply: ExternalizedSingletonInverseVariableSupply<i32, String> =
-            ExternalizedSingletonInverseVariableSupply::new("previous");
+    fn test_update() {
+        let mut supply: InverseSupply<i32> = InverseSupply::new();
 
-        supply.insert(1, "entity_a".to_string());
-        supply.update(Some(&1), 2, "entity_a".to_string());
+        supply.insert(1, 0);
+        supply.update(Some(&1), 2, 0);
 
-        assert_eq!(supply.get_inverse_singleton(&1), None);
-        assert_eq!(
-            supply.get_inverse_singleton(&2),
-            Some("entity_a".to_string())
-        );
+        assert_eq!(supply.get(&1), None);
+        assert_eq!(supply.get(&2), Some(0));
     }
 
     #[test]
-    fn test_inverse_supply_clear() {
-        let supply: ExternalizedSingletonInverseVariableSupply<i32, String> =
-            ExternalizedSingletonInverseVariableSupply::new("previous");
+    fn test_clear() {
+        let mut supply: InverseSupply<i32> = InverseSupply::new();
 
-        supply.insert(1, "a".to_string());
-        supply.insert(2, "b".to_string());
-        supply.insert(3, "c".to_string());
+        supply.insert(1, 0);
+        supply.insert(2, 1);
+        supply.insert(3, 2);
 
         assert_eq!(supply.len(), 3);
 
@@ -251,35 +185,28 @@ mod tests {
     }
 
     #[test]
-    fn test_inverse_supply_demand() {
-        let mut manager = super::super::SupplyManager::new();
-        let demand: SingletonInverseVariableDemand<i32, String> =
-            SingletonInverseVariableDemand::new("previous");
+    fn test_overwrite() {
+        let mut supply: InverseSupply<i32> = InverseSupply::new();
 
-        let supply = manager.demand(&demand);
-        supply.insert(42, "test_entity".to_string());
+        supply.insert(1, 0);
+        let old = supply.insert(1, 5);
 
-        // Get the same supply again
-        let supply2 = manager.demand(&demand);
-        assert_eq!(
-            supply2.get_inverse_singleton(&42),
-            Some("test_entity".to_string())
-        );
+        assert_eq!(old, Some(0));
+        assert_eq!(supply.get(&1), Some(5));
+        assert_eq!(supply.len(), 1);
     }
 
     #[test]
-    fn test_inverse_supply_thread_safety() {
-        let supply = ExternalizedSingletonInverseVariableSupply::<usize, usize>::new("var");
+    fn test_iter() {
+        let mut supply: InverseSupply<i32> = InverseSupply::new();
 
-        rayon::scope(|s| {
-            s.spawn(|_| {
-                for i in 0..100 {
-                    supply.insert(i, i * 10);
-                }
-            });
-        });
+        supply.insert(10, 0);
+        supply.insert(20, 1);
+        supply.insert(30, 2);
 
-        assert_eq!(supply.len(), 100);
-        assert_eq!(supply.get_inverse_singleton(&50), Some(500));
+        let mut pairs: Vec<_> = supply.iter().map(|(&v, &i)| (v, i)).collect();
+        pairs.sort();
+
+        assert_eq!(pairs, vec![(10, 0), (20, 1), (30, 2)]);
     }
 }

@@ -1,199 +1,125 @@
 //! Anchor variable supply for O(1) "what's the chain root?" lookups.
 //!
-//! In chained variables, each entity belongs to a chain with a root anchor.
-//! The anchor supply provides O(1) lookup of an entity's anchor, which is
-//! essential for operations like determining if two entities are in the same chain.
+//! # Zero-Erasure Design
+//!
+//! - **Index-based**: Stores `entity_idx -> anchor_idx` mappings
+//! - **Owned**: No `Arc`, `RwLock`, or interior mutability - uses `&mut self`
+//! - **Generic**: Full type information preserved, no `dyn Any`
 
-use std::any::TypeId;
 use std::collections::HashMap;
-use std::hash::Hash;
-use std::sync::RwLock;
 
-use super::{DemandKey, Supply, SupplyDemand};
-
-/// Supply that provides O(1) lookup of an entity's chain anchor.
+/// Index-based anchor variable supply.
 ///
-/// For chained variables, entities form chains rooted at anchors (problem facts).
-/// This supply answers: "Given an entity, what anchor is at the root of its chain?"
+/// For chained variables, entities form chains rooted at anchors.
+/// This supply answers: "Given an entity index, what anchor index is at the chain root?"
 ///
-/// # Example Chain
+/// Both entities and anchors are referenced by index into their respective collections.
 ///
-/// ```text
-/// Anchor ← Entity1 ← Entity2 ← Entity3
+/// # Example
+///
 /// ```
+/// use solverforge_core::domain::supply::AnchorSupply;
 ///
-/// For all three entities, `get_anchor()` returns the same Anchor.
-pub trait AnchorVariableSupply<E, A>: Supply
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    /// Gets the anchor for an entity.
-    ///
-    /// Returns `None` if the entity is not in any chain (uninitialized).
-    fn get_anchor(&self, entity: &E) -> Option<A>;
+/// let mut supply = AnchorSupply::new();
+///
+/// // Entities 0, 1, 2 all belong to anchor 0
+/// supply.set(0, 0);
+/// supply.set(1, 0);
+/// supply.set(2, 0);
+///
+/// // Entity 3 belongs to anchor 1
+/// supply.set(3, 1);
+///
+/// assert_eq!(supply.get(0), Some(0));
+/// assert_eq!(supply.get(1), Some(0));
+/// assert_eq!(supply.get(3), Some(1));
+/// ```
+#[derive(Debug, Default)]
+pub struct AnchorSupply {
+    /// Mapping from entity index to anchor index.
+    anchor_map: HashMap<usize, usize>,
+}
 
-    /// Sets the anchor for an entity.
+impl AnchorSupply {
+    /// Creates a new empty anchor supply.
+    pub fn new() -> Self {
+        Self {
+            anchor_map: HashMap::new(),
+        }
+    }
+
+    /// Creates a new anchor supply with pre-allocated capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            anchor_map: HashMap::with_capacity(capacity),
+        }
+    }
+
+    /// Gets the anchor index for an entity index.
     ///
-    /// Called when an entity's chain membership changes.
-    fn set_anchor(&self, entity: E, anchor: A);
+    /// Returns `None` if the entity is not in any chain.
+    #[inline]
+    pub fn get(&self, entity_idx: usize) -> Option<usize> {
+        self.anchor_map.get(&entity_idx).copied()
+    }
+
+    /// Sets the anchor index for an entity index.
+    ///
+    /// Returns the previous anchor index if one existed.
+    #[inline]
+    pub fn set(&mut self, entity_idx: usize, anchor_idx: usize) -> Option<usize> {
+        self.anchor_map.insert(entity_idx, anchor_idx)
+    }
 
     /// Removes the anchor mapping for an entity.
-    fn remove(&self, entity: &E) -> Option<A>;
+    ///
+    /// Returns the anchor index that was mapped, if any.
+    #[inline]
+    pub fn remove(&mut self, entity_idx: usize) -> Option<usize> {
+        self.anchor_map.remove(&entity_idx)
+    }
+
+    /// Updates anchors for multiple entities at once.
+    ///
+    /// Use when re-rooting a chain segment to a new anchor.
+    #[inline]
+    pub fn cascade(&mut self, entity_indices: impl IntoIterator<Item = usize>, anchor_idx: usize) {
+        for entity_idx in entity_indices {
+            self.anchor_map.insert(entity_idx, anchor_idx);
+        }
+    }
 
     /// Clears all mappings.
-    fn clear(&self);
+    #[inline]
+    pub fn clear(&mut self) {
+        self.anchor_map.clear();
+    }
 
     /// Returns the number of tracked entities.
-    fn len(&self) -> usize;
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.anchor_map.len()
+    }
 
     /// Returns true if no entities are tracked.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-/// Hash-based implementation of anchor variable supply.
-///
-/// Uses a `HashMap` internally for O(1) average-case lookups.
-/// Thread-safe via `RwLock`.
-pub struct ExternalizedAnchorVariableSupply<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    /// The variable name this supply tracks.
-    variable_name: String,
-    /// Mapping from entity to its anchor.
-    anchor_map: RwLock<HashMap<E, A>>,
-}
-
-impl<E, A> ExternalizedAnchorVariableSupply<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    /// Creates a new externalized anchor variable supply.
-    pub fn new(variable_name: impl Into<String>) -> Self {
-        Self {
-            variable_name: variable_name.into(),
-            anchor_map: RwLock::new(HashMap::new()),
-        }
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.anchor_map.is_empty()
     }
 
-    /// Returns the variable name this supply tracks.
-    pub fn variable_name(&self) -> &str {
-        &self.variable_name
+    /// Returns an iterator over all (entity_idx, anchor_idx) pairs.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = (&usize, &usize)> {
+        self.anchor_map.iter()
     }
 
-    /// Updates anchors for all entities in a chain segment.
-    ///
-    /// When an entity changes its chain position, all downstream entities
-    /// in the chain need their anchor updated. This method cascades the update.
-    ///
-    /// # Arguments
-    ///
-    /// * `entities` - Iterator of entities to update (in chain order)
-    /// * `new_anchor` - The new anchor for all entities
-    pub fn cascade_anchor<I>(&self, entities: I, new_anchor: A)
-    where
-        I: IntoIterator<Item = E>,
-    {
-        let mut map = self.anchor_map.write().unwrap();
-        for entity in entities {
-            map.insert(entity, new_anchor.clone());
-        }
-    }
-}
-
-impl<E, A> Supply for ExternalizedAnchorVariableSupply<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    fn supply_type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-}
-
-impl<E, A> AnchorVariableSupply<E, A> for ExternalizedAnchorVariableSupply<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    fn get_anchor(&self, entity: &E) -> Option<A> {
-        self.anchor_map.read().unwrap().get(entity).cloned()
-    }
-
-    fn set_anchor(&self, entity: E, anchor: A) {
-        self.anchor_map.write().unwrap().insert(entity, anchor);
-    }
-
-    fn remove(&self, entity: &E) -> Option<A> {
-        self.anchor_map.write().unwrap().remove(entity)
-    }
-
-    fn clear(&self) {
-        self.anchor_map.write().unwrap().clear();
-    }
-
-    fn len(&self) -> usize {
-        self.anchor_map.read().unwrap().len()
-    }
-}
-
-impl<E, A> std::fmt::Debug for ExternalizedAnchorVariableSupply<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExternalizedAnchorVariableSupply")
-            .field("variable_name", &self.variable_name)
-            .field("size", &self.len())
-            .finish()
-    }
-}
-
-/// Demand for an anchor variable supply.
-pub struct AnchorVariableDemand<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    /// The variable name to track.
-    pub variable_name: String,
-    /// Phantom data for type parameters.
-    _phantom: std::marker::PhantomData<(E, A)>,
-}
-
-impl<E, A> AnchorVariableDemand<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    /// Creates a new demand for an anchor variable supply.
-    pub fn new(variable_name: impl Into<String>) -> Self {
-        Self {
-            variable_name: variable_name.into(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<E, A> SupplyDemand for AnchorVariableDemand<E, A>
-where
-    E: Eq + Hash + Clone + Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-{
-    type Output = ExternalizedAnchorVariableSupply<E, A>;
-
-    fn demand_key(&self) -> DemandKey {
-        DemandKey::new::<Self::Output>(&self.variable_name)
-    }
-
-    fn create_supply(&self) -> Self::Output {
-        ExternalizedAnchorVariableSupply::new(&self.variable_name)
+    /// Returns all entity indices that share the given anchor.
+    pub fn entities_for_anchor(&self, anchor_idx: usize) -> Vec<usize> {
+        self.anchor_map
+            .iter()
+            .filter(|(_, &a)| a == anchor_idx)
+            .map(|(&e, _)| e)
+            .collect()
     }
 }
 
@@ -201,129 +127,77 @@ where
 mod tests {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-    struct Entity {
-        id: i32,
-    }
+    #[test]
+    fn test_set_and_get() {
+        let mut supply = AnchorSupply::new();
 
-    #[derive(Debug, Clone, PartialEq)]
-    struct Anchor {
-        name: String,
+        supply.set(0, 10);
+        supply.set(1, 10);
+        supply.set(2, 20);
+
+        assert_eq!(supply.get(0), Some(10));
+        assert_eq!(supply.get(1), Some(10));
+        assert_eq!(supply.get(2), Some(20));
+        assert_eq!(supply.get(99), None);
     }
 
     #[test]
-    fn test_anchor_supply_set_and_get() {
-        let supply: ExternalizedAnchorVariableSupply<Entity, Anchor> =
-            ExternalizedAnchorVariableSupply::new("previous");
+    fn test_remove() {
+        let mut supply = AnchorSupply::new();
 
-        let entity1 = Entity { id: 1 };
-        let entity2 = Entity { id: 2 };
-        let anchor = Anchor {
-            name: "vehicle_1".to_string(),
-        };
-
-        supply.set_anchor(entity1.clone(), anchor.clone());
-        supply.set_anchor(entity2.clone(), anchor.clone());
-
-        assert_eq!(supply.get_anchor(&entity1), Some(anchor.clone()));
-        assert_eq!(supply.get_anchor(&entity2), Some(anchor));
-    }
-
-    #[test]
-    fn test_anchor_supply_remove() {
-        let supply: ExternalizedAnchorVariableSupply<Entity, Anchor> =
-            ExternalizedAnchorVariableSupply::new("previous");
-
-        let entity = Entity { id: 1 };
-        let anchor = Anchor {
-            name: "anchor".to_string(),
-        };
-
-        supply.set_anchor(entity.clone(), anchor.clone());
+        supply.set(0, 10);
         assert_eq!(supply.len(), 1);
 
-        let removed = supply.remove(&entity);
-        assert_eq!(removed, Some(anchor));
+        let removed = supply.remove(0);
+        assert_eq!(removed, Some(10));
         assert!(supply.is_empty());
     }
 
     #[test]
-    fn test_anchor_supply_cascade() {
-        let supply: ExternalizedAnchorVariableSupply<Entity, Anchor> =
-            ExternalizedAnchorVariableSupply::new("previous");
+    fn test_cascade() {
+        let mut supply = AnchorSupply::new();
 
-        let entities = vec![Entity { id: 1 }, Entity { id: 2 }, Entity { id: 3 }];
-        let anchor = Anchor {
-            name: "root".to_string(),
-        };
+        supply.cascade([0, 1, 2, 3], 5);
 
-        supply.cascade_anchor(entities.clone(), anchor.clone());
-
-        for entity in &entities {
-            assert_eq!(supply.get_anchor(entity), Some(anchor.clone()));
-        }
+        assert_eq!(supply.get(0), Some(5));
+        assert_eq!(supply.get(1), Some(5));
+        assert_eq!(supply.get(2), Some(5));
+        assert_eq!(supply.get(3), Some(5));
+        assert_eq!(supply.len(), 4);
     }
 
     #[test]
-    fn test_anchor_supply_update_anchor() {
-        let supply: ExternalizedAnchorVariableSupply<Entity, Anchor> =
-            ExternalizedAnchorVariableSupply::new("previous");
+    fn test_update_anchor() {
+        let mut supply = AnchorSupply::new();
 
-        let entity = Entity { id: 1 };
-        let anchor1 = Anchor {
-            name: "anchor1".to_string(),
-        };
-        let anchor2 = Anchor {
-            name: "anchor2".to_string(),
-        };
+        supply.set(0, 10);
+        assert_eq!(supply.get(0), Some(10));
 
-        supply.set_anchor(entity.clone(), anchor1);
-        assert_eq!(
-            supply.get_anchor(&entity).unwrap().name,
-            "anchor1".to_string()
-        );
-
-        supply.set_anchor(entity.clone(), anchor2);
-        assert_eq!(
-            supply.get_anchor(&entity).unwrap().name,
-            "anchor2".to_string()
-        );
-
-        // Only one mapping exists
+        supply.set(0, 20);
+        assert_eq!(supply.get(0), Some(20));
         assert_eq!(supply.len(), 1);
     }
 
     #[test]
-    fn test_anchor_supply_demand() {
-        let mut manager = super::super::SupplyManager::new();
-        let demand: AnchorVariableDemand<Entity, Anchor> = AnchorVariableDemand::new("previous");
+    fn test_entities_for_anchor() {
+        let mut supply = AnchorSupply::new();
 
-        let supply = manager.demand(&demand);
-        let entity = Entity { id: 42 };
-        let anchor = Anchor {
-            name: "test".to_string(),
-        };
+        supply.set(0, 10);
+        supply.set(1, 10);
+        supply.set(2, 20);
+        supply.set(3, 10);
 
-        supply.set_anchor(entity.clone(), anchor.clone());
+        let mut entities = supply.entities_for_anchor(10);
+        entities.sort();
 
-        // Get the same supply again
-        let supply2 = manager.demand(&demand);
-        assert_eq!(supply2.get_anchor(&entity), Some(anchor));
+        assert_eq!(entities, vec![0, 1, 3]);
     }
 
     #[test]
-    fn test_anchor_supply_clear() {
-        let supply: ExternalizedAnchorVariableSupply<Entity, Anchor> =
-            ExternalizedAnchorVariableSupply::new("previous");
+    fn test_clear() {
+        let mut supply = AnchorSupply::new();
 
-        let anchor = Anchor {
-            name: "anchor".to_string(),
-        };
-
-        for i in 0..10 {
-            supply.set_anchor(Entity { id: i }, anchor.clone());
-        }
-
+        supply.cascade(0..10, 0);
         assert_eq!(supply.len(), 10);
 
         supply.clear();

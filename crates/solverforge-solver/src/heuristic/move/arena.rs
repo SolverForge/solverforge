@@ -51,6 +51,8 @@ pub struct MoveArena<M> {
     storage: Vec<MaybeUninit<M>>,
     /// Number of valid moves currently in the arena.
     len: usize,
+    /// Index of the taken move (if any). Only one move can be taken per step.
+    taken: Option<usize>,
 }
 
 impl<M> MoveArena<M> {
@@ -60,6 +62,7 @@ impl<M> MoveArena<M> {
         Self {
             storage: Vec::new(),
             len: 0,
+            taken: None,
         }
     }
 
@@ -69,24 +72,25 @@ impl<M> MoveArena<M> {
         Self {
             storage: Vec::with_capacity(capacity),
             len: 0,
+            taken: None,
         }
     }
 
     /// Resets the arena, making it empty.
     ///
-    /// This is O(1) - it just sets len to 0.
-    /// Existing data is left in place and will be overwritten.
+    /// Drops all moves except the one that was taken (if any).
     #[inline]
     pub fn reset(&mut self) {
-        // Drop existing moves if M has drop semantics
-        // For most moves (ChangeMove, SwapMove), this is a no-op
-        // since they contain only primitives
+        // Drop existing moves except the taken one (already moved out)
         for i in 0..self.len {
-            unsafe {
-                ptr::drop_in_place(self.storage[i].as_mut_ptr());
+            if self.taken != Some(i) {
+                unsafe {
+                    ptr::drop_in_place(self.storage[i].as_mut_ptr());
+                }
             }
         }
         self.len = 0;
+        self.taken = None;
     }
 
     /// Adds a move to the arena.
@@ -140,6 +144,38 @@ impl<M> MoveArena<M> {
         }
     }
 
+    /// Takes ownership of a move by index.
+    ///
+    /// Only one move can be taken per step. Call `reset()` before taking another.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index >= len` or if a move was already taken.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_solver::heuristic::r#move::MoveArena;
+    ///
+    /// let mut arena: MoveArena<String> = MoveArena::new();
+    /// arena.push("first".to_string());
+    /// arena.push("second".to_string());
+    ///
+    /// // Take ownership of the move at index 1
+    /// let taken = arena.take(1);
+    /// assert_eq!(taken, "second");
+    ///
+    /// // Reset before next step
+    /// arena.reset();
+    /// ```
+    #[inline]
+    pub fn take(&mut self, index: usize) -> M {
+        assert!(index < self.len, "index out of bounds");
+        assert!(self.taken.is_none(), "move already taken this step");
+        self.taken = Some(index);
+        unsafe { self.storage[index].assume_init_read() }
+    }
+
     /// Extends the arena from an iterator.
     #[inline]
     pub fn extend<I: IntoIterator<Item = M>>(&mut self, iter: I) {
@@ -172,10 +208,12 @@ impl<M: Debug> Debug for MoveArena<M> {
 
 impl<M> Drop for MoveArena<M> {
     fn drop(&mut self) {
-        // Drop all initialized moves
+        // Drop all initialized moves except taken one
         for i in 0..self.len {
-            unsafe {
-                ptr::drop_in_place(self.storage[i].as_mut_ptr());
+            if self.taken != Some(i) {
+                unsafe {
+                    ptr::drop_in_place(self.storage[i].as_mut_ptr());
+                }
             }
         }
     }
@@ -265,5 +303,35 @@ mod tests {
         let arena: MoveArena<i32> = MoveArena::with_capacity(100);
         assert!(arena.is_empty());
         assert!(arena.capacity() >= 100);
+    }
+
+    #[test]
+    fn test_arena_take() {
+        let mut arena: MoveArena<String> = MoveArena::new();
+        arena.push("a".to_string());
+        arena.push("b".to_string());
+        arena.push("c".to_string());
+
+        let taken = arena.take(1);
+        assert_eq!(taken, "b");
+
+        // Reset clears everything including taken tracking
+        arena.reset();
+        assert!(arena.is_empty());
+
+        // Can take again after reset
+        arena.push("x".to_string());
+        let taken = arena.take(0);
+        assert_eq!(taken, "x");
+    }
+
+    #[test]
+    #[should_panic(expected = "move already taken")]
+    fn test_arena_double_take_panics() {
+        let mut arena: MoveArena<i32> = MoveArena::new();
+        arena.push(1);
+        arena.push(2);
+        arena.take(0);
+        arena.take(1); // Should panic
     }
 }

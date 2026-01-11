@@ -186,7 +186,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path);
     let basic_operations =
         generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
-    let solvable_solution_impl = generate_solvable_solution(&shadow_config, &basic_config, name);
+    let solvable_solution_impl =
+        generate_solvable_solution(&shadow_config, &basic_config, name, &constraints_path);
 
     let expanded = quote! {
         impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
@@ -285,7 +286,7 @@ fn generate_list_operations(
                 _terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
             ) -> Self {
                 use ::solverforge::__internal::{
-                    SolverManager, SolverPhaseFactory,
+                    SolverFactory, PhaseFactory,
                     KOptPhaseBuilder, ListConstructionPhaseBuilder,
                     FromSolutionEntitySelector, DefaultDistanceMeter,
                     ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector,
@@ -298,7 +299,7 @@ fn generate_list_operations(
                 // Constraints embedded at compile time
                 let constraints = #constraints_fn();
 
-                // Build SolverManager with constraint-based scoring
+                // Build SolverFactory with constraint-based scoring
                 let descriptor_index = Self::list_variable_descriptor_index();
 
                 // Construction phase
@@ -323,7 +324,7 @@ fn generate_list_operations(
                     descriptor_index,
                 );
 
-                let manager = SolverManager::<Self>::builder(move |solution: &Self| {
+                let factory = SolverFactory::<Self>::builder(move |solution: &Self| {
                     let constraints_clone = #constraints_fn();
                     let mut director = ShadowAwareScoreDirector::new(
                         TypedScoreDirector::with_descriptor(
@@ -352,7 +353,7 @@ fn generate_list_operations(
                 );
 
                 // Solve
-                let mut solver = manager.create_solver();
+                let mut solver = factory.create_solver();
                 solver.solve_with_director(Box::new(director))
             }
         }
@@ -527,15 +528,21 @@ fn generate_basic_variable_operations(
                 )
             }
 
-            /// Solve with event callbacks for phases, steps, and best solutions.
+            /// Solve with channel-based solution streaming.
             ///
-            /// Provides real-time events for console output and monitoring.
-            pub fn solve_with_events<E, F>(self, on_event: E, on_best_solution: F) -> Self
-            where
-                E: FnMut(::solverforge::SolverEvent<<Self as ::solverforge::__internal::PlanningSolution>::Score>),
-                F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score),
-            {
-                ::solverforge::run_solver_with_events(
+            /// Solver progress is logged via `tracing` at INFO/DEBUG levels.
+            /// Each new best solution is sent through the channel.
+            ///
+            /// # Arguments
+            ///
+            /// * `terminate` - Optional flag to request early termination
+            /// * `sender` - Channel to send each new best solution
+            pub fn solve_with_channel(
+                self,
+                terminate: Option<&std::sync::atomic::AtomicBool>,
+                sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+            ) -> Self {
+                ::solverforge::run_solver_with_channel(
                     self,
                     Self::finalize_all,
                     #constraints_fn,
@@ -543,8 +550,8 @@ fn generate_basic_variable_operations(
                     Self::basic_set_variable,
                     Self::basic_value_count,
                     Self::basic_entity_count,
-                    on_event,
-                    on_best_solution,
+                    terminate,
+                    sender,
                 )
             }
         }
@@ -606,6 +613,7 @@ fn generate_solvable_solution(
     shadow_config: &ShadowConfig,
     basic_config: &BasicVariableConfig,
     solution_name: &Ident,
+    constraints_path: &Option<String>,
 ) -> TokenStream {
     // Generate SolvableSolution impl if either list or basic variable config is present
     let has_list_config = shadow_config.list_owner.is_some();
@@ -615,7 +623,7 @@ fn generate_solvable_solution(
         return TokenStream::new();
     }
 
-    quote! {
+    let solvable_solution_impl = quote! {
         impl ::solverforge::__internal::SolvableSolution for #solution_name {
             fn descriptor() -> ::solverforge::__internal::SolutionDescriptor {
                 #solution_name::descriptor()
@@ -625,6 +633,64 @@ fn generate_solvable_solution(
                 #solution_name::entity_count(solution, descriptor_index)
             }
         }
+    };
+
+    // Generate Solvable and Analyzable trait impls only if constraints are specified
+    let solvable_impl = constraints_path.as_ref().map(|path| {
+        let constraints_fn: syn::Path =
+            syn::parse_str(path).expect("constraints path must be a valid Rust path");
+
+        quote! {
+            impl ::solverforge::Solvable for #solution_name {
+                fn solve_with_listener(
+                    self,
+                    terminate: Option<&std::sync::atomic::AtomicBool>,
+                    sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+                ) {
+                    let _ = #solution_name::solve_with_channel(self, terminate, sender);
+                }
+            }
+
+            impl ::solverforge::Analyzable for #solution_name {
+                fn analyze(&self) -> ::solverforge::ScoreAnalysis<<Self as ::solverforge::__internal::PlanningSolution>::Score> {
+                    use ::solverforge::__internal::{
+                        TypedScoreDirector, ScoreDirector, ShadowAwareScoreDirector,
+                    };
+
+                    let constraints = #constraints_fn();
+                    let mut director = ShadowAwareScoreDirector::new(
+                        TypedScoreDirector::with_descriptor(
+                            self.clone(),
+                            constraints,
+                            Self::descriptor(),
+                            Self::entity_count,
+                        ),
+                    );
+
+                    let score = director.calculate_score();
+                    let constraint_scores = director.constraint_match_totals();
+
+                    let constraints = constraint_scores
+                        .into_iter()
+                        .map(|(name, weight, contribution, match_count)| {
+                            ::solverforge::ConstraintAnalysis {
+                                name,
+                                weight,
+                                score: contribution,
+                                match_count,
+                            }
+                        })
+                        .collect();
+
+                    ::solverforge::ScoreAnalysis { score, constraints }
+                }
+            }
+        }
+    });
+
+    quote! {
+        #solvable_solution_impl
+        #solvable_impl
     }
 }
 

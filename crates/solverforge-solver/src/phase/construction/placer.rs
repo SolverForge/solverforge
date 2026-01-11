@@ -48,6 +48,13 @@ where
     pub fn is_empty(&self) -> bool {
         self.moves.is_empty()
     }
+
+    /// Takes ownership of a move at the given index.
+    ///
+    /// Uses swap_remove for O(1) removal.
+    pub fn take_move(&mut self, index: usize) -> M {
+        self.moves.swap_remove(index)
+    }
 }
 
 impl<S, M> Debug for Placement<S, M>

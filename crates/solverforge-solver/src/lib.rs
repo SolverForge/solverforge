@@ -5,12 +5,11 @@
 //! - Phases (construction heuristic, local search, exhaustive search)
 //! - Move system
 //! - Termination conditions
-//! - Event system for monitoring
+//! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
 pub mod basic;
 pub mod builder;
-pub mod event;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;
@@ -21,10 +20,6 @@ pub mod statistics;
 pub mod termination;
 
 pub use builder::AcceptorBuilder;
-pub use event::{
-    CountingEventListener, LoggingEventListener, PhaseLifecycleListener, SolverEventListener,
-    SolverEventSupport, StepLifecycleListener,
-};
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -71,9 +66,10 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    ConstructionPhaseFactory, ConstructionType, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
-    ListConstructionPhaseBuilder, LocalSearchPhaseFactory, LocalSearchType, PhaseFactory,
-    SolverManager, SolverManagerBuilder,
+    Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
+    KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolutionManager, SolverFactory,
+    SolverFactoryBuilder, SolverManager, SolverStatus,
 };
 pub use phase::{
     construction::{
@@ -101,13 +97,14 @@ pub use phase::{
     Phase,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
-pub use solver::{MaybeTermination, NoTermination, Solver, SolverFactory};
+pub use solver::{MaybeTermination, NoTermination, Solver};
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    DiminishedReturnsTermination, MoveCountTermination, OrTermination,
+    DiminishedReturnsTermination, ExternalTermination, MoveCountTermination, OrTermination,
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
+pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 
-pub use basic::{run_solver, run_solver_with_events, SolverEvent};
+pub use basic::{run_solver, run_solver_with_channel};

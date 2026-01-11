@@ -6,7 +6,9 @@
 //! - ExhaustiveSearchPhase: Explores entire solution space
 //! - PartitionedSearchPhase: Parallel solving via partitioning
 //! - VndPhase: Variable Neighborhood Descent
+//! - BasicConstructionPhase/BasicLocalSearchPhase: For basic variable problems
 
+pub mod basic;
 pub mod construction;
 pub mod exhaustive;
 pub mod localsearch;

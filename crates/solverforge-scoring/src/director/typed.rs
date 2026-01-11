@@ -322,6 +322,25 @@ where
         self.initialized
     }
 
+    /// Returns constraint match totals for score analysis.
+    ///
+    /// Returns a vector of (name, weight, score, match_count) tuples.
+    pub fn constraint_match_totals(&self) -> Vec<(String, S::Score, S::Score, usize)> {
+        self.constraints
+            .evaluate_each(&self.working_solution)
+            .into_iter()
+            .map(|r| {
+                // Weight is approximated from score / match_count
+                let weight = if r.match_count > 0 {
+                    r.score.clone()
+                } else {
+                    S::Score::zero()
+                };
+                (r.name, weight, r.score, r.match_count)
+            })
+            .collect()
+    }
+
     /// Consumes the director and returns the working solution.
     ///
     /// Use this to extract the final solution after solving.

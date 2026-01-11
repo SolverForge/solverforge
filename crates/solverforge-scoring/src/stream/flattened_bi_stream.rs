@@ -202,7 +202,7 @@ where
         Sc,
     >
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         let is_hard = weight
             .to_level_numbers()
@@ -219,7 +219,7 @@ where
             a_lookup_fn: self.a_lookup_fn,
             filter: self.filter,
             impact_type: ImpactType::Penalty,
-            weight: move |_: &A, _: &C| weight.clone(),
+            weight: move |_: &A, _: &C| weight,
             is_hard,
             _phantom: PhantomData,
         }
@@ -330,7 +330,7 @@ where
         Sc,
     >
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         let is_hard = weight
             .to_level_numbers()
@@ -347,7 +347,7 @@ where
             a_lookup_fn: self.a_lookup_fn,
             filter: self.filter,
             impact_type: ImpactType::Reward,
-            weight: move |_: &A, _: &C| weight.clone(),
+            weight: move |_: &A, _: &C| weight,
             is_hard,
             _phantom: PhantomData,
         }

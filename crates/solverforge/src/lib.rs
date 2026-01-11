@@ -74,7 +74,17 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // Solver
 // ============================================================================
 
-pub use solverforge_solver::{run_solver, run_solver_with_events, SolverEvent};
+pub use solverforge_solver::{
+    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
+    SolutionManager, SolverManager, SolverStatus,
+};
+
+// ============================================================================
+// Console Output (feature-gated)
+// ============================================================================
+
+#[cfg(feature = "console")]
+pub mod console;
 
 // ============================================================================
 // Prelude
@@ -117,7 +127,7 @@ pub mod __internal {
         DefaultDistanceMeter, FromSolutionEntitySelector,
     };
     pub use solverforge_solver::manager::{
-        KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverManager,
+        KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
 
     // Config

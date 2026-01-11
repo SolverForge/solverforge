@@ -375,7 +375,7 @@ where
         weight: Sc,
     ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         // Detect if this is a hard constraint by checking if hard level is non-zero
         let is_hard = weight
@@ -387,7 +387,7 @@ where
             extractor: self.extractor,
             filter: self.filter,
             impact_type: ImpactType::Penalty,
-            weight: move |_: &A| weight.clone(),
+            weight: move |_: &A| weight,
             is_hard,
             _phantom: PhantomData,
         }
@@ -432,7 +432,7 @@ where
         weight: Sc,
     ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         // Detect if this is a hard constraint by checking if hard level is non-zero
         let is_hard = weight
@@ -444,7 +444,7 @@ where
             extractor: self.extractor,
             filter: self.filter,
             impact_type: ImpactType::Reward,
-            weight: move |_: &A| weight.clone(),
+            weight: move |_: &A| weight,
             is_hard,
             _phantom: PhantomData,
         }

@@ -24,9 +24,8 @@ mod partitioner;
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
-use std::thread;
 
+use rayon::prelude::*;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
@@ -185,44 +184,23 @@ where
             );
         }
 
-        // Solve partitions
+        // Solve partitions - parallel when multiple, sequential when single
         let solved_partitions: Vec<S> = if thread_count == 1 || partition_count == 1 {
-            // Sequential execution
             partitions
                 .into_iter()
                 .map(|p| self.solve_partition(p))
                 .collect()
         } else {
-            // Parallel execution
-            let results: Arc<Mutex<Vec<Option<S>>>> =
-                Arc::new(Mutex::new(vec![None; partition_count]));
-
-            thread::scope(|s| {
-                for (i, partition) in partitions.into_iter().enumerate() {
-                    let results = Arc::clone(&results);
-                    let sdf = &self.score_director_factory;
-                    let pf = &self.phase_factory;
-
-                    s.spawn(move || {
-                        let director = sdf(partition);
-                        let mut solver_scope = SolverScope::new(director);
-                        let mut phases = pf();
-                        phases.solve_all(&mut solver_scope);
-                        let solved = solver_scope.take_best_or_working_solution();
-
-                        let mut r = results.lock().unwrap();
-                        r[i] = Some(solved);
-                    });
-                }
-            });
-
-            // Extract results
-            let results = Arc::try_unwrap(results)
-                .unwrap_or_else(|_| panic!("All threads should be done"))
-                .into_inner()
-                .unwrap();
-
-            results.into_iter().map(|opt| opt.unwrap()).collect()
+            partitions
+                .into_par_iter()
+                .map(|partition| {
+                    let director = (self.score_director_factory)(partition);
+                    let mut solver_scope = SolverScope::new(director);
+                    let mut phases = (self.phase_factory)();
+                    phases.solve_all(&mut solver_scope);
+                    solver_scope.take_best_or_working_solution()
+                })
+                .collect()
         };
 
         // Merge the solved partitions

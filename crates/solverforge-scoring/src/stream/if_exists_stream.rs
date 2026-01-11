@@ -129,7 +129,7 @@ where
         weight: Sc,
     ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         let is_hard = weight
             .to_level_numbers()
@@ -144,7 +144,7 @@ where
             key_b: self.key_b,
             filter_a: self.filter_a,
             impact_type: ImpactType::Penalty,
-            weight: move |_: &A| weight.clone(),
+            weight: move |_: &A| weight,
             is_hard,
             _phantom: PhantomData,
         }
@@ -200,7 +200,7 @@ where
         weight: Sc,
     ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         let is_hard = weight
             .to_level_numbers()
@@ -215,7 +215,7 @@ where
             key_b: self.key_b,
             filter_a: self.filter_a,
             impact_type: ImpactType::Reward,
-            weight: move |_: &A| weight.clone(),
+            weight: move |_: &A| weight,
             is_hard,
             _phantom: PhantomData,
         }

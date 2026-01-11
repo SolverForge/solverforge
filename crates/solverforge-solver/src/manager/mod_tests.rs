@@ -1,4 +1,4 @@
-//! Tests for SolverManager and related types.
+//! Tests for SolverFactory and related types.
 
 use std::time::Duration;
 
@@ -35,63 +35,63 @@ impl PlanningSolution for TestSolution {
 type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
 
 // ============================================================================
-// 1. SolverManager Creation with Builder Pattern
+// 1. SolverFactory Creation with Builder Pattern
 // ============================================================================
 
 #[test]
-fn test_solver_manager_builder_creation() {
-    let _builder = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_builder_creation() {
+    let _builder = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     });
 }
 
 #[test]
-fn test_solver_manager_builder_builds_successfully() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_builder_builds_successfully() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 10,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-10));
 }
 
 #[test]
-fn test_solver_manager_builder_with_time_limit() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_builder_with_time_limit() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_time_limit(Duration::from_secs(30))
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 5,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-5));
 }
 
 #[test]
-fn test_solver_manager_builder_with_step_limit() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_builder_with_step_limit() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_step_limit(100)
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 7,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-7));
 }
 
@@ -116,55 +116,55 @@ impl<S: PlanningSolution, D: solverforge_scoring::ScoreDirector<S>> crate::phase
 }
 
 #[test]
-fn test_solver_manager_with_phase() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_with_phase() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 5,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-5));
 }
 
 #[test]
-fn test_solver_manager_with_multiple_phases() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_with_multiple_phases() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_phase(NoOpPhase)
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 3,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-3));
 }
 
 #[test]
-fn test_solver_manager_with_phase_and_step_limit() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_with_phase_and_step_limit() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_step_limit(50)
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 8,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-8));
 }
 
@@ -174,13 +174,13 @@ fn test_solver_manager_with_phase_and_step_limit() {
 
 #[test]
 fn test_score_calculator_returns_reference() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
-    let calculator = manager.score_calculator();
+    let calculator = factory.score_calculator();
 
     let solution = TestSolution {
         value: 15,
@@ -192,59 +192,59 @@ fn test_score_calculator_returns_reference() {
 
 #[test]
 fn test_calculate_score_basic() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 10,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-10));
 }
 
 #[test]
 fn test_calculate_score_zero() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 0,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(0));
 }
 
 #[test]
 fn test_calculate_score_negative_value() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: -5,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(5)); // -(-5) = 5
 }
 
 #[test]
 fn test_calculate_score_multiple_solutions() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solutions = [
         TestSolution {
@@ -262,43 +262,43 @@ fn test_calculate_score_multiple_solutions() {
     ];
 
     for (i, solution) in solutions.iter().enumerate() {
-        let score = manager.calculate_score(solution);
+        let score = factory.calculate_score(solution);
         assert_eq!(score, SimpleScore::of(-((i + 1) as i64)));
     }
 }
 
 #[test]
 fn test_calculate_score_complex_calculator() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-(s.value * s.value))
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 4,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-16)); // -(4^2) = -16
 }
 
 #[test]
 fn test_score_calculator_and_calculate_score_consistent() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value * 2)
     })
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 7,
         score: None,
     };
 
-    let calculator = manager.score_calculator();
+    let calculator = factory.score_calculator();
     let score_via_calculator = calculator(&solution);
-    let score_via_method = manager.calculate_score(&solution);
+    let score_via_method = factory.calculate_score(&solution);
 
     assert_eq!(score_via_calculator, score_via_method);
     assert_eq!(score_via_method, SimpleScore::of(-14));

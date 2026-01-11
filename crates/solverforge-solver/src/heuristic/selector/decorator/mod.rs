@@ -3,8 +3,7 @@
 //! Decorators wrap an inner [`MoveSelector`] to modify its behavior without
 //! changing the move type. All decorators preserve the zero-erasure architecture.
 //!
-//! - [`CartesianProductMoveSelector`] - combines two selectors into composite moves
-//! - [`CachingMoveSelector`] - caches moves to avoid recomputation
+//! - [`CartesianProductArena`] - stores moves from two selectors for pair iteration
 //! - [`FilteringMoveSelector`] - filters moves by predicate
 //! - [`ProbabilityMoveSelector`] - randomly selects moves with probability
 //! - [`SelectedCountLimitMoveSelector`] - limits selected move count
@@ -12,7 +11,6 @@
 //! - [`SortingMoveSelector`] - orders moves by key function
 //! - [`UnionMoveSelector`] - chains two selectors sequentially
 
-mod caching;
 mod cartesian_product;
 mod count_limit;
 mod filtering;
@@ -21,8 +19,7 @@ mod shuffling;
 mod sorting;
 mod union;
 
-pub use caching::CachingMoveSelector;
-pub use cartesian_product::CartesianProductMoveSelector;
+pub use cartesian_product::CartesianProductArena;
 pub use count_limit::SelectedCountLimitMoveSelector;
 pub use filtering::FilteringMoveSelector;
 pub use probability::ProbabilityMoveSelector;

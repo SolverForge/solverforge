@@ -329,7 +329,6 @@ impl<Sc: Score> Default for StatisticsCollector<Sc> {
 mod tests {
     use super::*;
     use solverforge_core::score::SimpleScore;
-    use std::thread;
 
     #[test]
     fn test_phase_statistics_new() {
@@ -457,25 +456,18 @@ mod tests {
 
     #[test]
     fn test_collector_thread_safety() {
-        use std::sync::Arc;
+        let collector: StatisticsCollector<SimpleScore> = StatisticsCollector::new();
 
-        let collector: Arc<StatisticsCollector<SimpleScore>> = Arc::new(StatisticsCollector::new());
-
-        let handles: Vec<_> = (0..4)
-            .map(|_| {
-                let c = collector.clone();
-                thread::spawn(move || {
+        rayon::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|_| {
                     for _ in 0..1000 {
-                        c.record_move_evaluated();
-                        c.record_step();
+                        collector.record_move_evaluated();
+                        collector.record_step();
                     }
-                })
-            })
-            .collect();
-
-        for h in handles {
-            h.join().unwrap();
-        }
+                });
+            }
+        });
 
         assert_eq!(collector.current_moves_evaluated(), 4000);
         assert_eq!(collector.current_step_count(), 4000);

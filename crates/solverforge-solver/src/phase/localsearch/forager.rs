@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_accepted_count_forager_collects_indices() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
-        forager.step_started();
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
 
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
         assert!(!<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn test_accepted_count_forager_picks_best_index() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(10);
-        forager.step_started();
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
 
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 1, SimpleScore::of(-5)); // Best
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn test_accepted_count_forager_empty() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
-        forager.step_started();
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
 
         assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::pick_move_index(&mut forager).is_none());
     }
@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn test_first_accepted_forager() {
         let mut forager = FirstAcceptedForager::<DummySolution>::new();
-        forager.step_started();
+        <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
 
         assert!(!<FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
 
@@ -315,10 +315,10 @@ mod tests {
     fn test_forager_resets_on_step() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
 
-        forager.step_started();
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
 
-        forager.step_started();
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
         // After reset, should be empty
         assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::pick_move_index(&mut forager).is_none());
     }

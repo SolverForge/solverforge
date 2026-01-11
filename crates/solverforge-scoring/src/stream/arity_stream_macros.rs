@@ -69,13 +69,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn penalize(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Penalty,
-                    weight: move |_: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -104,13 +104,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn reward(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Reward,
-                    weight: move |_: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -245,13 +245,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn penalize(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Penalty,
-                    weight: move |_: &A, _: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -280,13 +280,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn reward(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Reward,
-                    weight: move |_: &A, _: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -421,13 +421,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn penalize(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Penalty,
-                    weight: move |_: &A, _: &A, _: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A, _: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -456,13 +456,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn reward(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Reward,
-                    weight: move |_: &A, _: &A, _: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A, _: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -597,13 +597,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn penalize(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Penalty,
-                    weight: move |_: &A, _: &A, _: &A, _: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A, _: &A, _: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }
@@ -632,13 +632,13 @@ macro_rules! impl_arity_stream {
             }
 
             pub fn reward(self, weight: Sc) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc>
-            where Sc: Clone,
+            where Sc: Copy,
             {
                 let is_hard = weight.to_level_numbers().first().map(|&h| h != 0).unwrap_or(false);
                 $builder {
                     extractor: self.extractor, key_extractor: self.key_extractor, filter: self.filter,
                     impact_type: solverforge_core::ImpactType::Reward,
-                    weight: move |_: &A, _: &A, _: &A, _: &A, _: &A| weight.clone(),
+                    weight: move |_: &A, _: &A, _: &A, _: &A, _: &A| weight,
                     is_hard,
                     _phantom: std::marker::PhantomData,
                 }

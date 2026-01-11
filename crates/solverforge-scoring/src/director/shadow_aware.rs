@@ -252,6 +252,24 @@ where
     }
 }
 
+use crate::api::constraint_set::ConstraintSet;
+use crate::director::typed::TypedScoreDirector;
+use solverforge_core::score::Score;
+
+impl<S, C> ShadowAwareScoreDirector<S, TypedScoreDirector<S, C>>
+where
+    S: ShadowVariableSupport,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score> + Send,
+{
+    /// Returns constraint match totals for score analysis.
+    ///
+    /// Returns a vector of (name, weight, score, match_count) tuples.
+    pub fn constraint_match_totals(&self) -> Vec<(String, S::Score, S::Score, usize)> {
+        self.inner.constraint_match_totals()
+    }
+}
+
 impl<S, D> ScoreDirector<S> for ShadowAwareScoreDirector<S, D>
 where
     S: ShadowVariableSupport,

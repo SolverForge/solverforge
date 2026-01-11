@@ -15,3 +15,4 @@ rand.workspace = true
 rand_chacha.workspace = true
 rayon.workspace = true
 smallvec.workspace = true
+serde.workspace = true

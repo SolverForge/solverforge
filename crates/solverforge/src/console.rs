@@ -19,8 +19,11 @@ static INIT: OnceLock<()> = OnceLock::new();
 /// Initializes the solver console output.
 ///
 /// Safe to call multiple times - only the first call has effect.
+/// Prints the SolverForge banner and sets up tracing.
 pub fn init() {
     INIT.get_or_init(|| {
+        print_banner();
+
         let filter = EnvFilter::from_default_env()
             .add_directive("solverforge_solver=info".parse().unwrap());
 
@@ -29,6 +32,30 @@ pub fn init() {
             .with(SolverConsoleLayer)
             .init();
     });
+}
+
+fn print_banner() {
+    use owo_colors::OwoColorize;
+
+    let banner = r#"
+ ____        _                 _____
+/ ___|  ___ | |_   _____ _ __ |  ___|__  _ __ __ _  ___
+\___ \ / _ \| \ \ / / _ \ '__|| |_ / _ \| '__/ _` |/ _ \
+ ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
+|____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
+                                             |___/
+"#;
+
+    println!("{}", banner.bright_cyan());
+    println!(
+        "{}",
+        format!(
+            "                   v{} - Zero-Erasure Constraint Solver\n",
+            env!("CARGO_PKG_VERSION")
+        )
+        .bright_white()
+        .bold()
+    );
 }
 
 /// A tracing layer that formats solver events with colors.

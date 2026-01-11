@@ -16,3 +16,4 @@ rand_chacha.workspace = true
 rayon.workspace = true
 smallvec.workspace = true
 serde.workspace = true
+tokio = { version = "1.49", features = ["sync"] }

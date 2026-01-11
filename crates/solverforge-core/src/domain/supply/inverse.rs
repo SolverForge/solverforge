@@ -269,20 +269,15 @@ mod tests {
 
     #[test]
     fn test_inverse_supply_thread_safety() {
-        use std::sync::Arc;
-        use std::thread;
+        let supply = ExternalizedSingletonInverseVariableSupply::<usize, usize>::new("var");
 
-        let supply: Arc<ExternalizedSingletonInverseVariableSupply<i32, i32>> =
-            Arc::new(ExternalizedSingletonInverseVariableSupply::new("var"));
-
-        let supply_clone = supply.clone();
-        let handle = thread::spawn(move || {
-            for i in 0..100 {
-                supply_clone.insert(i, i * 10);
-            }
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                for i in 0..100 {
+                    supply.insert(i, i * 10);
+                }
+            });
         });
-
-        handle.join().unwrap();
 
         assert_eq!(supply.len(), 100);
         assert_eq!(supply.get_inverse_singleton(&50), Some(500));

@@ -528,26 +528,23 @@ fn generate_basic_variable_operations(
                 )
             }
 
-            /// Solve with event callbacks for phases, steps, and best solutions.
+            /// Solve with best solution listener.
             ///
-            /// Provides real-time events for console output and monitoring.
+            /// Solver progress is logged via `tracing` at INFO/DEBUG levels.
             ///
             /// # Arguments
             ///
             /// * `terminate` - Optional flag to request early termination
-            /// * `on_event` - Callback for solver events
             /// * `on_best_solution` - Callback when a new best solution is found
-            pub fn solve_with_events<E, F>(
+            pub fn solve_with_listener<F>(
                 self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
-                on_event: E,
                 on_best_solution: F,
             ) -> Self
             where
-                E: FnMut(::solverforge::SolverEvent<<Self as ::solverforge::__internal::PlanningSolution>::Score>),
-                F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score),
+                F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score) + Send,
             {
-                ::solverforge::run_solver_with_events(
+                ::solverforge::run_solver_with_listener(
                     self,
                     Self::finalize_all,
                     #constraints_fn,
@@ -556,7 +553,6 @@ fn generate_basic_variable_operations(
                     Self::basic_value_count,
                     Self::basic_entity_count,
                     terminate,
-                    on_event,
                     on_best_solution,
                 )
             }
@@ -648,17 +644,15 @@ fn generate_solvable_solution(
 
         quote! {
             impl ::solverforge::Solvable for #solution_name {
-                fn solve_with_events<E, F>(
+                fn solve_with_listener<F>(
                     self,
                     terminate: Option<&std::sync::atomic::AtomicBool>,
-                    on_event: E,
                     on_best_solution: F,
                 ) -> Self
                 where
-                    E: FnMut(::solverforge::SolverEvent<<Self as ::solverforge::__internal::PlanningSolution>::Score>),
-                    F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score),
+                    F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score) + Send,
                 {
-                    #solution_name::solve_with_events(self, terminate, on_event, on_best_solution)
+                    #solution_name::solve_with_listener(self, terminate, on_best_solution)
                 }
             }
 

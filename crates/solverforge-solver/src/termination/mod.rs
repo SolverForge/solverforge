@@ -3,6 +3,7 @@
 mod best_score;
 mod composite;
 mod diminished_returns;
+mod external;
 mod move_count;
 mod score_calculation_count;
 mod step_count;
@@ -19,6 +20,7 @@ use crate::scope::SolverScope;
 pub use best_score::{BestScoreFeasibleTermination, BestScoreTermination};
 pub use composite::{AndTermination, OrTermination};
 pub use diminished_returns::DiminishedReturnsTermination;
+pub use external::ExternalTermination;
 pub use move_count::MoveCountTermination;
 pub use score_calculation_count::ScoreCalculationCountTermination;
 pub use step_count::StepCountTermination;

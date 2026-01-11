@@ -1,7 +1,7 @@
 //! Core Score trait definition
 
 use std::cmp::Ordering;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::ops::{Add, Neg, Sub};
 
 /// Core trait for all score types in SolverForge.
@@ -24,8 +24,9 @@ use std::ops::{Add, Neg, Sub};
 ///
 /// When comparing scores, higher-priority levels are compared first.
 pub trait Score:
-    Clone
+    Copy
     + Debug
+    + Display
     + Default
     + Send
     + Sync

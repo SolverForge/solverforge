@@ -12,7 +12,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::ScoreDirector;
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 use super::Phase;
 use crate::scope::{PhaseScope, SolverScope};
@@ -319,6 +319,15 @@ where
                 current_score = new_score;
                 phase_scope.increment_step_count();
 
+                // Log every accepted step at TRACE level
+                trace!(
+                    step = step,
+                    entity = entity_idx,
+                    score = %new_score,
+                    accepted = true,
+                    "Step accepted"
+                );
+
                 if new_score > best_score {
                     best_score = new_score;
                     phase_scope.update_best_solution();
@@ -332,6 +341,14 @@ where
                     let _ = self.sender.send((solution, best_score));
                 }
             } else {
+                // Log rejected step at TRACE level
+                trace!(
+                    step = step,
+                    entity = entity_idx,
+                    score = %new_score,
+                    accepted = false,
+                    "Step rejected"
+                );
                 // Undo move
                 let director = phase_scope.score_director_mut();
                 director.before_entity_changed(entity_idx);

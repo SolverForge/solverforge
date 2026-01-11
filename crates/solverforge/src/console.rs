@@ -96,6 +96,8 @@ struct EventVisitor {
     value_count: Option<u64>,
     step: Option<u64>,
     score: Option<String>,
+    entity: Option<u64>,
+    accepted: Option<bool>,
 }
 
 impl Visit for EventVisitor {
@@ -122,12 +124,20 @@ impl Visit for EventVisitor {
             "variable_count" => self.variable_count = Some(value),
             "value_count" => self.value_count = Some(value),
             "step" => self.step = Some(value),
+            "entity" => self.entity = Some(value),
             _ => {}
         }
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
         self.record_u64(field, value as u64);
+    }
+
+    fn record_bool(&mut self, field: &Field, value: bool) {
+        match field.name() {
+            "accepted" => self.accepted = Some(value),
+            _ => {}
+        }
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
@@ -151,6 +161,7 @@ fn format_solver_event(v: &EventVisitor) -> String {
         "Phase ended" => format_phase_end(v),
         "Solving ended" => format_solving_ended(v),
         "New best solution" => format_new_best(v),
+        "Step accepted" | "Step rejected" => format_step(v),
         _ => String::new(),
     }
 }
@@ -277,6 +288,27 @@ fn format_new_best(v: &EventVisitor) -> String {
         "->".bright_blue(),
         step.to_formatted_string(&Locale::en).white(),
         format_score(score)
+    )
+}
+
+fn format_step(v: &EventVisitor) -> String {
+    let step = v.step.unwrap_or(0);
+    let entity = v.entity.unwrap_or(0);
+    let score = v.score.as_deref().unwrap_or("N/A");
+    let accepted = v.accepted.unwrap_or(false);
+
+    let status = if accepted {
+        "✓".bright_green().to_string()
+    } else {
+        "✗".bright_red().to_string()
+    };
+
+    format!(
+        "       {} Step {:>7} | Entity {:>5} | {}",
+        status,
+        step.to_formatted_string(&Locale::en).bright_black(),
+        entity.to_formatted_string(&Locale::en).bright_black(),
+        format_score(score).bright_black()
     )
 }
 

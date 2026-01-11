@@ -87,7 +87,7 @@ where
     ///
     /// The returned Solver can be used with `solve_with_director()` for
     /// macro-generated code or `solve()` for direct use.
-    pub fn create_solver(self) -> crate::solver::Solver<P, Option<T>, S, ()> {
+    pub fn create_solver(self) -> crate::solver::Solver<'static, P, Option<T>, S, ()> {
         crate::solver::Solver::new(self.phases).with_termination(self.termination)
     }
 }

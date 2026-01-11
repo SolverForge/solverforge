@@ -200,7 +200,7 @@ mod tests {
         SimpleScore::of(0)
     }
 
-    fn create_scope() -> SolverScope<TestSolution, TestDirector> {
+    fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
         let director = SimpleScoreDirector::with_calculator(
             TestSolution { score: None },
@@ -212,7 +212,7 @@ mod tests {
 
     fn create_scope_with_score(
         score: SimpleScore,
-    ) -> SolverScope<TestSolution, SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>>
+    ) -> SolverScope<'static, TestSolution, SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>>
     {
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
         let score_clone = score;

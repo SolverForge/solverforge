@@ -113,12 +113,23 @@ impl<S: PlanningSolution> SolverFactory<S, (), (), (), ()> {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let factory = SolverFactory::<MySolution>::builder(|s| calculate_score(s))
-    ///     .with_phase(construction_phase)
-    ///     .with_phase(local_search_phase)
-    ///     .with_step_limit(1000)
-    ///     .build();
+    /// ```
+    /// use solverforge_core::domain::PlanningSolution;
+    /// use solverforge_core::score::SimpleScore;
+    /// use solverforge_solver::manager::solver_factory_builder;
+    ///
+    /// #[derive(Clone)]
+    /// struct MySolution {
+    ///     score: Option<SimpleScore>,
+    /// }
+    ///
+    /// impl PlanningSolution for MySolution {
+    ///     type Score = SimpleScore;
+    ///     fn score(&self) -> Option<Self::Score> { self.score }
+    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+    /// }
+    ///
+    /// let builder = solver_factory_builder::<MySolution, (), _>(|_s| SimpleScore::of(0));
     /// ```
     pub fn builder<D, C>(score_calculator: C) -> SolverFactoryBuilder<S, D, C, (), NoTermination>
     where

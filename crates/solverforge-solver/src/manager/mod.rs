@@ -9,6 +9,7 @@
 mod builder;
 mod config;
 mod phase_factory;
+mod solution_manager;
 mod solver_manager;
 
 #[cfg(test)]
@@ -23,6 +24,9 @@ pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
     ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+};
+pub use solution_manager::{
+    Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolutionManager, SolverStatus,
 };
 pub use solver_manager::{solver_manager_builder, SolverManager};
 

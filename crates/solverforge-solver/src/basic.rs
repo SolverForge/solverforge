@@ -23,8 +23,8 @@ use crate::phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 use crate::scope::SolverScope;
 use crate::solver::Solver;
 use crate::termination::{
-    ExternalTermination, OrTermination, StepCountTermination, TimeTermination,
-    UnimprovedStepCountTermination, UnimprovedTimeTermination,
+    OrTermination, StepCountTermination, TimeTermination, UnimprovedStepCountTermination,
+    UnimprovedTimeTermination,
 };
 
 /// Default time limit in seconds.
@@ -154,39 +154,26 @@ where
         sender,
     );
 
-    // Execute with appropriate termination based on config and external flag
-    let result = match (terminate, config.termination.as_ref()) {
-        (Some(flag), Some(term_config)) => {
-            solve_with_external_and_config(
-                director,
-                construction,
-                local_search,
-                flag,
-                term_config,
-            )
-        }
-        (Some(flag), None) => {
-            solve_with_external_only(director, construction, local_search, flag)
-        }
-        (None, Some(term_config)) => {
-            solve_with_config_only(director, construction, local_search, term_config)
-        }
-        (None, None) => {
-            solve_with_default_termination(director, construction, local_search)
-        }
-    };
+    // Build solver with termination configuration
+    let result = solve_with_termination(
+        director,
+        construction,
+        local_search,
+        terminate,
+        config.termination.as_ref(),
+    );
 
     let score = result.score().unwrap_or_default();
     info!(final_score = %score, "Solving ended");
     result
 }
 
-fn solve_with_external_and_config<S, D, G, T, E, V>(
+fn solve_with_termination<S, D, G, T, E, V>(
     director: D,
     construction: BasicConstructionPhase<S, G, T, E, V>,
     local_search: BasicLocalSearchPhase<S, G, T, E, V>,
-    flag: &AtomicBool,
-    term_config: &solverforge_config::TerminationConfig,
+    terminate: Option<&AtomicBool>,
+    term_config: Option<&solverforge_config::TerminationConfig>,
 ) -> S
 where
     S: PlanningSolution,
@@ -197,114 +184,38 @@ where
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
 {
-    let external = ExternalTermination::new(flag);
-    let time = TimeTermination::new(
-        term_config
-            .time_limit()
-            .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS)),
-    );
+    let time_limit = term_config
+        .and_then(|c| c.time_limit())
+        .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS));
+    let time = TimeTermination::new(time_limit);
 
-    if let Some(step_limit) = term_config.step_count_limit {
-        let step = StepCountTermination::new(step_limit);
-        let termination: OrTermination<_, S, D> = OrTermination::new((external, time, step));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
-    } else if let Some(unimproved_step_limit) = term_config.unimproved_step_count_limit {
-        let unimproved = UnimprovedStepCountTermination::<S>::new(unimproved_step_limit);
-        let termination: OrTermination<_, S, D> = OrTermination::new((external, time, unimproved));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
-    } else if let Some(unimproved_time) = term_config.unimproved_time_limit() {
-        let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
-        let termination: OrTermination<_, S, D> = OrTermination::new((external, time, unimproved));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
-    } else {
-        let termination: OrTermination<_, S, D> = OrTermination::new((external, time));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
-    }
-}
-
-fn solve_with_external_only<S, D, G, T, E, V>(
-    director: D,
-    construction: BasicConstructionPhase<S, G, T, E, V>,
-    local_search: BasicLocalSearchPhase<S, G, T, E, V>,
-    flag: &AtomicBool,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score,
-    D: solverforge_scoring::ScoreDirector<S>,
-    G: Fn(&S, usize) -> Option<usize> + Send,
-    T: Fn(&mut S, usize, Option<usize>) + Send,
-    E: Fn(&S) -> usize + Send,
-    V: Fn(&S) -> usize + Send,
-{
-    let external = ExternalTermination::new(flag);
-    let time = TimeTermination::seconds(DEFAULT_TIME_LIMIT_SECS);
-    let termination: OrTermination<_, S, D> = OrTermination::new((external, time));
-
-    Solver::new((construction, local_search))
-        .with_termination(termination)
-        .solve(director)
-}
-
-fn solve_with_config_only<S, D, G, T, E, V>(
-    director: D,
-    construction: BasicConstructionPhase<S, G, T, E, V>,
-    local_search: BasicLocalSearchPhase<S, G, T, E, V>,
-    term_config: &solverforge_config::TerminationConfig,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score,
-    D: solverforge_scoring::ScoreDirector<S>,
-    G: Fn(&S, usize) -> Option<usize> + Send,
-    T: Fn(&mut S, usize, Option<usize>) + Send,
-    E: Fn(&S) -> usize + Send,
-    V: Fn(&S) -> usize + Send,
-{
-    let time = TimeTermination::new(
-        term_config
-            .time_limit()
-            .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS)),
-    );
-
-    if let Some(step_limit) = term_config.step_count_limit {
+    // Build termination based on config
+    if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
         let step = StepCountTermination::new(step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, step));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
-    } else if let Some(unimproved_step_limit) = term_config.unimproved_step_count_limit {
+        build_and_solve(construction, local_search, termination, terminate, director)
+    } else if let Some(unimproved_step_limit) =
+        term_config.and_then(|c| c.unimproved_step_count_limit)
+    {
         let unimproved = UnimprovedStepCountTermination::<S>::new(unimproved_step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
-    } else if let Some(unimproved_time) = term_config.unimproved_time_limit() {
+        build_and_solve(construction, local_search, termination, terminate, director)
+    } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
         let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
+        build_and_solve(construction, local_search, termination, terminate, director)
     } else {
         let termination: OrTermination<_, S, D> = OrTermination::new((time,));
-        Solver::new((construction, local_search))
-            .with_termination(termination)
-            .solve(director)
+        build_and_solve(construction, local_search, termination, terminate, director)
     }
 }
 
-fn solve_with_default_termination<S, D, G, T, E, V>(
-    director: D,
+fn build_and_solve<S, D, G, T, E, V, Term>(
     construction: BasicConstructionPhase<S, G, T, E, V>,
     local_search: BasicLocalSearchPhase<S, G, T, E, V>,
+    termination: Term,
+    terminate: Option<&AtomicBool>,
+    director: D,
 ) -> S
 where
     S: PlanningSolution,
@@ -314,11 +225,15 @@ where
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    Term: crate::termination::Termination<S, D>,
 {
-    let time = TimeTermination::seconds(DEFAULT_TIME_LIMIT_SECS);
-    let termination: OrTermination<_, S, D> = OrTermination::new((time,));
-
-    Solver::new((construction, local_search))
-        .with_termination(termination)
-        .solve(director)
+    match terminate {
+        Some(flag) => Solver::new((construction, local_search))
+            .with_termination(termination)
+            .with_terminate(flag)
+            .solve(director),
+        None => Solver::new((construction, local_search))
+            .with_termination(termination)
+            .solve(director),
+    }
 }

@@ -1,7 +1,6 @@
 //! Solver-level scope.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::time::Instant;
 
 use rand::rngs::StdRng;
@@ -10,16 +9,15 @@ use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::statistics::StatisticsCollector;
-
 /// Top-level scope for the entire solving process.
 ///
 /// Holds the working solution, score director, and tracks the best solution found.
 ///
 /// # Type Parameters
+/// * `'t` - Lifetime of the termination flag reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-pub struct SolverScope<S: PlanningSolution, D: ScoreDirector<S>> {
+pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     /// The score director managing the working solution.
     score_director: D,
     /// The best solution found so far.
@@ -32,13 +30,11 @@ pub struct SolverScope<S: PlanningSolution, D: ScoreDirector<S>> {
     start_time: Option<Instant>,
     /// Total number of steps across all phases.
     total_step_count: u64,
-    /// Optional statistics collector for tracking solver metrics.
-    statistics: Option<Arc<StatisticsCollector<S::Score>>>,
-    /// Flag for early termination requests, shared with Solver.
-    terminate_early_flag: Option<Arc<AtomicBool>>,
+    /// Flag for early termination requests.
+    terminate: Option<&'t AtomicBool>,
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> SolverScope<S, D> {
+impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     /// Creates a new solver scope with the given score director.
     pub fn new(score_director: D) -> Self {
         Self {
@@ -48,8 +44,20 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> SolverScope<S, D> {
             rng: StdRng::from_os_rng(),
             start_time: None,
             total_step_count: 0,
-            statistics: None,
-            terminate_early_flag: None,
+            terminate: None,
+        }
+    }
+
+    /// Creates a solver scope with a termination flag.
+    pub fn with_terminate(score_director: D, terminate: Option<&'t AtomicBool>) -> Self {
+        Self {
+            score_director,
+            best_solution: None,
+            best_score: None,
+            rng: StdRng::from_os_rng(),
+            start_time: None,
+            total_step_count: 0,
+            terminate,
         }
     }
 
@@ -62,33 +70,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> SolverScope<S, D> {
             rng: StdRng::seed_from_u64(seed),
             start_time: None,
             total_step_count: 0,
-            statistics: None,
-            terminate_early_flag: None,
-        }
-    }
-
-    /// Attaches a statistics collector to this scope.
-    pub fn with_statistics(mut self, collector: Arc<StatisticsCollector<S::Score>>) -> Self {
-        self.statistics = Some(collector);
-        self
-    }
-
-    /// Returns the statistics collector, if one is attached.
-    pub fn statistics(&self) -> Option<&Arc<StatisticsCollector<S::Score>>> {
-        self.statistics.as_ref()
-    }
-
-    /// Records a move evaluation in statistics.
-    pub fn record_move(&self, accepted: bool) {
-        if let Some(stats) = &self.statistics {
-            stats.record_move(accepted);
-        }
-    }
-
-    /// Records a score calculation in statistics.
-    pub fn record_score_calculation(&self) {
-        if let Some(stats) = &self.statistics {
-            stats.record_score_calculation();
+            terminate: None,
         }
     }
 
@@ -148,11 +130,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> SolverScope<S, D> {
 
         if is_better {
             self.best_solution = Some(self.score_director.clone_working_solution());
-            self.best_score = Some(current_score.clone());
-
-            if let Some(stats) = &self.statistics {
-                stats.record_improvement(current_score);
-            }
+            self.best_score = Some(current_score);
         }
     }
 
@@ -189,15 +167,9 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> SolverScope<S, D> {
             .unwrap_or_else(|| self.score_director.clone_working_solution())
     }
 
-    /// Sets the terminate-early flag shared with the Solver.
-    pub fn set_terminate_early_flag(&mut self, flag: Arc<AtomicBool>) {
-        self.terminate_early_flag = Some(flag);
-    }
-
     /// Checks if early termination was requested.
     pub fn is_terminate_early(&self) -> bool {
-        self.terminate_early_flag
-            .as_ref()
+        self.terminate
             .is_some_and(|flag| flag.load(Ordering::SeqCst))
     }
 }

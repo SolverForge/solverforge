@@ -8,20 +8,23 @@ use super::PhaseScope;
 /// Scope for a single step within a phase.
 ///
 /// # Type Parameters
+/// * `'t` - Lifetime of the termination flag
+/// * `'a` - Lifetime of the phase scope reference
+/// * `'b` - Lifetime of the solver scope reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-pub struct StepScope<'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> {
+pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> {
     /// Reference to the parent phase scope.
-    phase_scope: &'a mut PhaseScope<'b, S, D>,
+    phase_scope: &'a mut PhaseScope<'t, 'b, S, D>,
     /// Index of this step within the phase (0-based).
     step_index: u64,
     /// Score after this step.
     step_score: Option<S::Score>,
 }
 
-impl<'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'a, 'b, S, D> {
+impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'t, 'a, 'b, S, D> {
     /// Creates a new step scope.
-    pub fn new(phase_scope: &'a mut PhaseScope<'b, S, D>) -> Self {
+    pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D>) -> Self {
         let step_index = phase_scope.step_count();
         Self {
             phase_scope,
@@ -51,12 +54,12 @@ impl<'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'a, 'b, S, D> {
     }
 
     /// Returns a reference to the phase scope.
-    pub fn phase_scope(&self) -> &PhaseScope<'b, S, D> {
+    pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D> {
         self.phase_scope
     }
 
     /// Returns a mutable reference to the phase scope.
-    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'b, S, D> {
+    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D> {
         self.phase_scope
     }
 

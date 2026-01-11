@@ -35,7 +35,7 @@ pub trait Phase<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     ///
     /// The phase should modify the working solution in the solver scope
     /// and update the best solution when improvements are found.
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>);
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>);
 
     /// Returns the name of this phase type.
     fn phase_type_name(&self) -> &'static str;
@@ -43,7 +43,7 @@ pub trait Phase<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
 
 /// Unit type implements Phase as a no-op (empty phase list).
 impl<S: PlanningSolution, D: ScoreDirector<S>> Phase<S, D> for () {
-    fn solve(&mut self, _solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, _solver_scope: &mut SolverScope<'_, S, D>) {
         // No-op: empty phase list does nothing
     }
 
@@ -59,7 +59,7 @@ where
     D: ScoreDirector<S>,
     P1: Phase<S, D>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
         self.1.solve(solver_scope);
     }
 
@@ -76,7 +76,7 @@ where
     P1: Phase<S, D>,
     P2: Phase<S, D>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
         (self.0).1.solve(solver_scope);
         self.1.solve(solver_scope);
     }
@@ -95,7 +95,7 @@ where
     P2: Phase<S, D>,
     P3: Phase<S, D>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
         ((self.0).0).1.solve(solver_scope);
         (self.0).1.solve(solver_scope);
         self.1.solve(solver_scope);
@@ -116,7 +116,7 @@ where
     P3: Phase<S, D>,
     P4: Phase<S, D>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
         (((self.0).0).0).1.solve(solver_scope);
         ((self.0).0).1.solve(solver_scope);
         (self.0).1.solve(solver_scope);

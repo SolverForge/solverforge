@@ -10,11 +10,13 @@ use super::SolverScope;
 /// Scope for a single phase of solving.
 ///
 /// # Type Parameters
+/// * `'t` - Lifetime of the termination flag
+/// * `'a` - Lifetime of the solver scope reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-pub struct PhaseScope<'a, S: PlanningSolution, D: ScoreDirector<S>> {
+pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> {
     /// Reference to the parent solver scope.
-    solver_scope: &'a mut SolverScope<S, D>,
+    solver_scope: &'a mut SolverScope<'t, S, D>,
     /// Index of this phase (0-based).
     phase_index: usize,
     /// Score at the start of this phase.
@@ -25,9 +27,9 @@ pub struct PhaseScope<'a, S: PlanningSolution, D: ScoreDirector<S>> {
     start_time: Instant,
 }
 
-impl<'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'a, S, D> {
+impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> {
     /// Creates a new phase scope.
-    pub fn new(solver_scope: &'a mut SolverScope<S, D>, phase_index: usize) -> Self {
+    pub fn new(solver_scope: &'a mut SolverScope<'t, S, D>, phase_index: usize) -> Self {
         let starting_score = solver_scope.best_score().cloned();
         Self {
             solver_scope,
@@ -66,12 +68,12 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'a, S, D> {
     }
 
     /// Returns a reference to the solver scope.
-    pub fn solver_scope(&self) -> &SolverScope<S, D> {
+    pub fn solver_scope(&self) -> &SolverScope<'t, S, D> {
         self.solver_scope
     }
 
     /// Returns a mutable reference to the solver scope.
-    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<S, D> {
+    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<'t, S, D> {
         self.solver_scope
     }
 

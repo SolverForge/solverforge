@@ -528,23 +528,21 @@ fn generate_basic_variable_operations(
                 )
             }
 
-            /// Solve with best solution listener.
+            /// Solve with channel-based solution streaming.
             ///
             /// Solver progress is logged via `tracing` at INFO/DEBUG levels.
+            /// Each new best solution is sent through the channel.
             ///
             /// # Arguments
             ///
             /// * `terminate` - Optional flag to request early termination
-            /// * `on_best_solution` - Callback when a new best solution is found
-            pub fn solve_with_listener<F>(
+            /// * `sender` - Channel to send each new best solution
+            pub fn solve_with_channel(
                 self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
-                on_best_solution: F,
-            ) -> Self
-            where
-                F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score) + Send,
-            {
-                ::solverforge::run_solver_with_listener(
+                sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+            ) -> Self {
+                ::solverforge::run_solver_with_channel(
                     self,
                     Self::finalize_all,
                     #constraints_fn,
@@ -553,7 +551,7 @@ fn generate_basic_variable_operations(
                     Self::basic_value_count,
                     Self::basic_entity_count,
                     terminate,
-                    on_best_solution,
+                    sender,
                 )
             }
         }
@@ -644,15 +642,12 @@ fn generate_solvable_solution(
 
         quote! {
             impl ::solverforge::Solvable for #solution_name {
-                fn solve_with_listener<F>(
+                fn solve_with_listener(
                     self,
                     terminate: Option<&std::sync::atomic::AtomicBool>,
-                    on_best_solution: F,
-                ) -> Self
-                where
-                    F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score) + Send,
-                {
-                    #solution_name::solve_with_listener(self, terminate, on_best_solution)
+                    sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+                ) {
+                    let _ = #solution_name::solve_with_channel(self, terminate, sender);
                 }
             }
 

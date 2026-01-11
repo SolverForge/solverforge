@@ -1,4 +1,4 @@
-//! Solver and SolverFactory implementations
+//! Solver implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -7,47 +7,11 @@ use std::sync::Arc;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::SolverForgeError;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 use crate::termination::Termination;
-
-/// Factory for creating Solver instances.
-pub struct SolverFactory<S: PlanningSolution> {
-    config: SolverConfig,
-    _phantom: PhantomData<S>,
-}
-
-impl<S: PlanningSolution> SolverFactory<S> {
-    /// Creates a new SolverFactory from configuration.
-    pub fn create(config: SolverConfig) -> Result<Self, SolverForgeError> {
-        Ok(SolverFactory {
-            config,
-            _phantom: PhantomData,
-        })
-    }
-
-    /// Creates a SolverFactory from a TOML configuration file.
-    pub fn from_toml_file(path: impl AsRef<std::path::Path>) -> Result<Self, SolverForgeError> {
-        let config = SolverConfig::from_toml_file(path)
-            .map_err(|e| SolverForgeError::Config(e.to_string()))?;
-        Self::create(config)
-    }
-
-    /// Creates a SolverFactory from a YAML configuration file.
-    pub fn from_yaml_file(path: impl AsRef<std::path::Path>) -> Result<Self, SolverForgeError> {
-        let config = SolverConfig::from_yaml_file(path)
-            .map_err(|e| SolverForgeError::Config(e.to_string()))?;
-        Self::create(config)
-    }
-
-    /// Returns a reference to the configuration.
-    pub fn config(&self) -> &SolverConfig {
-        &self.config
-    }
-}
 
 /// The main solver that optimizes planning solutions.
 ///
@@ -307,13 +271,3 @@ impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
 
-/// Solver status enumeration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SolverStatus {
-    /// Solver is not currently solving.
-    NotSolving,
-    /// Solver is initializing.
-    SolvingScheduled,
-    /// Solver is actively solving.
-    SolvingActive,
-}

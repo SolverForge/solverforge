@@ -10,7 +10,6 @@
 
 pub mod basic;
 pub mod builder;
-pub mod event;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;
@@ -21,10 +20,6 @@ pub mod statistics;
 pub mod termination;
 
 pub use builder::AcceptorBuilder;
-pub use event::{
-    CountingEventListener, LoggingEventListener, PhaseLifecycleListener, SolverEventListener,
-    SolverEventSupport, StepLifecycleListener,
-};
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -73,8 +68,8 @@ pub use heuristic::{
 pub use manager::{
     Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolutionManager, SolverManager,
-    SolverManagerBuilder, SolverStatus,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolutionManager, SolverFactory,
+    SolverFactoryBuilder, SolverManager, SolverStatus,
 };
 pub use phase::{
     construction::{
@@ -102,7 +97,7 @@ pub use phase::{
     Phase,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
-pub use solver::{MaybeTermination, NoTermination, Solver, SolverFactory};
+pub use solver::{MaybeTermination, NoTermination, Solver};
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,

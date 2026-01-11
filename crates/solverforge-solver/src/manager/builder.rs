@@ -1,4 +1,4 @@
-//! Zero-erasure builder for SolverManager.
+//! Zero-erasure builder for SolverFactory.
 
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -11,13 +11,13 @@ use crate::phase::Phase;
 use crate::termination::{OrTermination, StepCountTermination, Termination, TimeTermination};
 use crate::solver::NoTermination;
 
-use super::{PhaseFactory, SolverManager};
+use super::{PhaseFactory, SolverFactory};
 
-/// Builder for SolverManager with zero type erasure.
+/// Builder for SolverFactory with zero type erasure.
 ///
-/// Accumulates configuration and produces a fully typed SolverManager.
+/// Accumulates configuration and produces a fully typed SolverFactory.
 /// Type bounds are only checked at `build()` time.
-pub struct SolverManagerBuilder<S, D, C, P, T>
+pub struct SolverFactoryBuilder<S, D, C, P, T>
 where
     S: PlanningSolution,
 {
@@ -27,7 +27,7 @@ where
     _marker: PhantomData<fn(S, D)>,
 }
 
-impl<S, D, C> SolverManagerBuilder<S, D, C, (), NoTermination>
+impl<S, D, C> SolverFactoryBuilder<S, D, C, (), NoTermination>
 where
     S: PlanningSolution,
     C: Fn(&S) -> S::Score + Send + Sync,
@@ -43,13 +43,13 @@ where
     }
 }
 
-impl<S, D, C, P, T> SolverManagerBuilder<S, D, C, P, T>
+impl<S, D, C, P, T> SolverFactoryBuilder<S, D, C, P, T>
 where
     S: PlanningSolution,
 {
     /// Adds a phase, returning a new builder with updated phase tuple.
-    pub fn with_phase<P2>(self, phase: P2) -> SolverManagerBuilder<S, D, C, (P, P2), T> {
-        SolverManagerBuilder {
+    pub fn with_phase<P2>(self, phase: P2) -> SolverFactoryBuilder<S, D, C, (P, P2), T> {
+        SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: (self.phases, phase),
             termination: self.termination,
@@ -60,13 +60,13 @@ where
     /// Adds a phase from a factory, returning a new builder with updated phase tuple.
     ///
     /// The factory's `create()` method is called to produce the phase.
-    pub fn with_phase_factory<F>(self, factory: F) -> SolverManagerBuilder<S, D, C, (P, F::Phase), T>
+    pub fn with_phase_factory<F>(self, factory: F) -> SolverFactoryBuilder<S, D, C, (P, F::Phase), T>
     where
         D: ScoreDirector<S>,
         F: PhaseFactory<S, D>,
     {
         let phase = factory.create();
-        SolverManagerBuilder {
+        SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: (self.phases, phase),
             termination: self.termination,
@@ -77,10 +77,10 @@ where
     /// Applies configuration from a SolverConfig.
     ///
     /// Currently applies termination settings from the config.
-    pub fn with_config(self, config: SolverConfig) -> SolverManagerBuilder<S, D, C, P, TimeTermination> {
+    pub fn with_config(self, config: SolverConfig) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
         let term = config.termination.unwrap_or_default();
         let duration = term.time_limit().unwrap_or(Duration::from_secs(30));
-        SolverManagerBuilder {
+        SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
             termination: TimeTermination::new(duration),
@@ -89,8 +89,8 @@ where
     }
 
     /// Sets time limit termination.
-    pub fn with_time_limit(self, duration: Duration) -> SolverManagerBuilder<S, D, C, P, TimeTermination> {
-        SolverManagerBuilder {
+    pub fn with_time_limit(self, duration: Duration) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
+        SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
             termination: TimeTermination::new(duration),
@@ -99,8 +99,8 @@ where
     }
 
     /// Sets step limit termination.
-    pub fn with_step_limit(self, steps: u64) -> SolverManagerBuilder<S, D, C, P, StepCountTermination> {
-        SolverManagerBuilder {
+    pub fn with_step_limit(self, steps: u64) -> SolverFactoryBuilder<S, D, C, P, StepCountTermination> {
+        SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
             termination: StepCountTermination::new(steps),
@@ -113,11 +113,11 @@ where
     pub fn with_time_limit_or(
         self,
         duration: Duration,
-    ) -> SolverManagerBuilder<S, D, C, P, OrTermination<(T, TimeTermination), S, D>>
+    ) -> SolverFactoryBuilder<S, D, C, P, OrTermination<(T, TimeTermination), S, D>>
     where
         D: ScoreDirector<S>,
     {
-        SolverManagerBuilder {
+        SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
             termination: OrTermination::new((self.termination, TimeTermination::new(duration))),
@@ -126,7 +126,7 @@ where
     }
 }
 
-impl<S, D, C, P, T> SolverManagerBuilder<S, D, C, P, T>
+impl<S, D, C, P, T> SolverFactoryBuilder<S, D, C, P, T>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
@@ -134,16 +134,16 @@ where
     P: Phase<S, D>,
     T: Termination<S, D>,
 {
-    /// Builds the SolverManager.
+    /// Builds the SolverFactory.
     ///
-    /// Returns `Ok(SolverManager)` on success, or `Err` if configuration is invalid.
+    /// Returns `Ok(SolverFactory)` on success, or `Err` if configuration is invalid.
     /// Currently always succeeds as validation happens at compile time via type bounds.
-    pub fn build(self) -> Result<SolverManager<S, D, C, P, T>, SolverBuildError> {
-        Ok(SolverManager::new(self.score_calculator, self.phases, self.termination))
+    pub fn build(self) -> Result<SolverFactory<S, D, C, P, T>, SolverBuildError> {
+        Ok(SolverFactory::new(self.score_calculator, self.phases, self.termination))
     }
 }
 
-/// Error type for SolverManager building.
+/// Error type for SolverFactory building.
 #[derive(Debug, Clone)]
 pub enum SolverBuildError {
     /// Configuration is invalid.

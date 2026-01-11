@@ -286,7 +286,7 @@ fn generate_list_operations(
                 _terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
             ) -> Self {
                 use ::solverforge::__internal::{
-                    SolverManager, PhaseFactory,
+                    SolverFactory, PhaseFactory,
                     KOptPhaseBuilder, ListConstructionPhaseBuilder,
                     FromSolutionEntitySelector, DefaultDistanceMeter,
                     ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector,
@@ -299,7 +299,7 @@ fn generate_list_operations(
                 // Constraints embedded at compile time
                 let constraints = #constraints_fn();
 
-                // Build SolverManager with constraint-based scoring
+                // Build SolverFactory with constraint-based scoring
                 let descriptor_index = Self::list_variable_descriptor_index();
 
                 // Construction phase
@@ -324,7 +324,7 @@ fn generate_list_operations(
                     descriptor_index,
                 );
 
-                let manager = SolverManager::<Self>::builder(move |solution: &Self| {
+                let factory = SolverFactory::<Self>::builder(move |solution: &Self| {
                     let constraints_clone = #constraints_fn();
                     let mut director = ShadowAwareScoreDirector::new(
                         TypedScoreDirector::with_descriptor(
@@ -353,7 +353,7 @@ fn generate_list_operations(
                 );
 
                 // Solve
-                let mut solver = manager.create_solver();
+                let mut solver = factory.create_solver();
                 solver.solve_with_director(Box::new(director))
             }
         }
@@ -531,7 +531,18 @@ fn generate_basic_variable_operations(
             /// Solve with event callbacks for phases, steps, and best solutions.
             ///
             /// Provides real-time events for console output and monitoring.
-            pub fn solve_with_events<E, F>(self, on_event: E, on_best_solution: F) -> Self
+            ///
+            /// # Arguments
+            ///
+            /// * `terminate` - Optional flag to request early termination
+            /// * `on_event` - Callback for solver events
+            /// * `on_best_solution` - Callback when a new best solution is found
+            pub fn solve_with_events<E, F>(
+                self,
+                terminate: Option<&std::sync::atomic::AtomicBool>,
+                on_event: E,
+                on_best_solution: F,
+            ) -> Self
             where
                 E: FnMut(::solverforge::SolverEvent<<Self as ::solverforge::__internal::PlanningSolution>::Score>),
                 F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score),
@@ -544,6 +555,7 @@ fn generate_basic_variable_operations(
                     Self::basic_set_variable,
                     Self::basic_value_count,
                     Self::basic_entity_count,
+                    terminate,
                     on_event,
                     on_best_solution,
                 )
@@ -636,12 +648,17 @@ fn generate_solvable_solution(
 
         quote! {
             impl ::solverforge::Solvable for #solution_name {
-                fn solve_with_events<E, F>(self, on_event: E, on_best_solution: F) -> Self
+                fn solve_with_events<E, F>(
+                    self,
+                    terminate: Option<&std::sync::atomic::AtomicBool>,
+                    on_event: E,
+                    on_best_solution: F,
+                ) -> Self
                 where
                     E: FnMut(::solverforge::SolverEvent<<Self as ::solverforge::__internal::PlanningSolution>::Score>),
                     F: FnMut(&Self, <Self as ::solverforge::__internal::PlanningSolution>::Score),
                 {
-                    #solution_name::solve_with_events(self, on_event, on_best_solution)
+                    #solution_name::solve_with_events(self, terminate, on_event, on_best_solution)
                 }
             }
 

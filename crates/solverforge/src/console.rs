@@ -35,7 +35,7 @@ pub fn init() {
 }
 
 fn print_banner() {
-    use owo_colors::OwoColorize;
+    use std::io::Write;
 
     let banner = r#"
  ____        _                 _____
@@ -46,16 +46,15 @@ fn print_banner() {
                                              |___/
 "#;
 
-    println!("{}", banner.bright_cyan());
-    println!(
-        "{}",
-        format!(
-            "                   v{} - Zero-Erasure Constraint Solver\n",
-            env!("CARGO_PKG_VERSION")
-        )
-        .bright_white()
-        .bold()
+    let version_line = format!(
+        "                   v{} - Zero-Erasure Constraint Solver\n",
+        env!("CARGO_PKG_VERSION")
     );
+
+    let mut stdout = io::stdout().lock();
+    let _ = writeln!(stdout, "{}", banner.bright_cyan());
+    let _ = writeln!(stdout, "{}", version_line.bright_white().bold());
+    let _ = stdout.flush();
 }
 
 /// A tracing layer that formats solver events with colors.

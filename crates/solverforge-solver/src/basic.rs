@@ -113,32 +113,22 @@ where
     let n_values = value_count(&solution);
 
     info!(
+        event = "solve_start",
         entity_count = n_entities,
-        variable_count = n_entities,
         value_count = n_values,
-        "Solving started"
     );
 
     // Create score director
     let constraints = constraints_fn();
     let director = TypedScoreDirector::new(solution, constraints);
 
-    // Handle empty case
+    // Handle empty case - nothing to solve, return immediately
     if n_entities == 0 || n_values == 0 {
         let mut solver_scope = SolverScope::new(director);
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
-        info!(
-            duration_ms = 0,
-            total_moves = 0,
-            phase_count = 0,
-            final_score = %score,
-            "Solving ended"
-        );
-        let mut solution = solver_scope.take_best_or_working_solution();
-        solution.set_score(Some(score));
-        let _ = sender.send((solution.clone(), score));
-        return solution;
+        info!(event = "solve_end", score = %score);
+        return solver_scope.take_best_or_working_solution();
     }
 
     // Build phases
@@ -167,7 +157,7 @@ where
     );
 
     let score = result.score().unwrap_or_default();
-    info!(final_score = %score, "Solving ended");
+    info!(event = "solve_end", score = %score);
     result
 }
 

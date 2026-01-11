@@ -416,8 +416,7 @@ fn generate_basic_variable_operations(
                 terminate: Option<&std::sync::atomic::AtomicBool>,
                 sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
             ) -> Self {
-                #[cfg(feature = "console")]
-                ::solverforge::console::init();
+                ::solverforge::__internal::init_console();
 
                 ::solverforge::run_solver_with_channel(
                     self,

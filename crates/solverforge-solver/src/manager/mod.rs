@@ -10,6 +10,7 @@ mod builder;
 mod config;
 mod phase_factory;
 mod solution_manager;
+mod solver_factory;
 mod solver_manager;
 
 #[cfg(test)]
@@ -19,16 +20,15 @@ mod mod_tests;
 #[cfg(test)]
 mod mod_tests_integration;
 
-pub use builder::{SolverBuildError, SolverManagerBuilder};
+pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
     ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
 };
-pub use solution_manager::{
-    Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolutionManager, SolverStatus,
-};
-pub use solver_manager::{solver_manager_builder, SolverManager};
+pub use solution_manager::{Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager};
+pub use solver_factory::{solver_factory_builder, SolverFactory};
+pub use solver_manager::{Solvable, SolverManager, SolverStatus};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;

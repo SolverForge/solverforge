@@ -1,4 +1,4 @@
-//! Integration tests for SolverManager with termination and solving.
+//! Integration tests for SolverFactory with termination and solving.
 
 use super::*;
 use std::any::TypeId;
@@ -141,15 +141,15 @@ fn test_solver_with_time_limit_termination() {
 
     let _director = create_entity_director(solution.clone());
 
-    let manager = solver_manager_builder::<EntityTestSolution, EntityTestDirector, _>(
+    let factory = solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(
         calculate_entity_score,
     )
     .with_time_limit(Duration::from_millis(100))
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
-    // Verify the manager can calculate scores
-    let score = manager.calculate_score(&solution);
+    // Verify the factory can calculate scores
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(0)); // 1 + 2 + 2 = 5, target is 5, diff = 0
 }
 
@@ -172,20 +172,20 @@ fn test_solver_with_step_limit_termination() {
 
     let _director = create_entity_director(solution.clone());
 
-    let manager = solver_manager_builder::<EntityTestSolution, EntityTestDirector, _>(
+    let factory = solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(
         calculate_entity_score,
     )
     .with_step_limit(5)
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
-    // Verify the manager can calculate scores
-    let score = manager.calculate_score(&solution);
+    // Verify the factory can calculate scores
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-6)); // sum = 0, target = 6, diff = 6
 }
 
 #[test]
-fn test_solver_manager_with_entity_solution() {
+fn test_solver_factory_with_entity_solution() {
     let solution = EntityTestSolution {
         entities: vec![
             TestEntity {
@@ -201,50 +201,50 @@ fn test_solver_manager_with_entity_solution() {
         score: None,
     };
 
-    let manager = solver_manager_builder::<EntityTestSolution, EntityTestDirector, _>(
+    let factory = solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(
         calculate_entity_score,
     )
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(0));
 }
 
 #[test]
-fn test_solver_manager_with_phases() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_with_phases() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_step_limit(10)
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 5,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-5));
 }
 
 #[test]
-fn test_solver_manager_with_multiple_phases() {
-    let manager = solver_manager_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
+fn test_solver_factory_with_multiple_phases() {
+    let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
         SimpleScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_phase(NoOpPhase)
     .with_time_limit(Duration::from_secs(1))
     .build()
-    .expect("Failed to build manager");
+    .expect("Failed to build factory");
 
     let solution = TestSolution {
         value: 7,
         score: None,
     };
-    let score = manager.calculate_score(&solution);
+    let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(-7));
 }
 

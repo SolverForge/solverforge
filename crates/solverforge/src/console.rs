@@ -1,31 +1,35 @@
 //! Colorful console output for solver metrics.
 //!
 //! Provides a custom `tracing` layer that formats solver events with colors.
-//!
-//! # Example
-//!
-//! ```no_run
-//! use solverforge::console::SolverConsoleLayer;
-//! use tracing_subscriber::layer::SubscriberExt;
-//! use tracing_subscriber::util::SubscriberInitExt;
-//! use tracing_subscriber::EnvFilter;
-//!
-//! let filter = EnvFilter::from_default_env()
-//!     .add_directive("solverforge_solver=info".parse().unwrap());
-//!
-//! tracing_subscriber::registry()
-//!     .with(filter)
-//!     .with(SolverConsoleLayer)
-//!     .init();
-//! ```
+//! Auto-initialized when the `console` feature is enabled.
 
 use num_format::{Locale, ToFormattedString};
 use owo_colors::OwoColorize;
 use std::io::{self, Write};
+use std::sync::OnceLock;
 use tracing::field::{Field, Visit};
 use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
-use tracing_subscriber::Layer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, Layer};
+
+static INIT: OnceLock<()> = OnceLock::new();
+
+/// Initializes the solver console output.
+///
+/// Safe to call multiple times - only the first call has effect.
+pub fn init() {
+    INIT.get_or_init(|| {
+        let filter = EnvFilter::from_default_env()
+            .add_directive("solverforge_solver=info".parse().unwrap());
+
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(SolverConsoleLayer)
+            .init();
+    });
+}
 
 /// A tracing layer that formats solver events with colors.
 pub struct SolverConsoleLayer;

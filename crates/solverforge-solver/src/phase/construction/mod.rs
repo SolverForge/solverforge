@@ -116,7 +116,7 @@ where
         // Get all placements (entities that need values assigned)
         let placements = self.placer.get_placements(phase_scope.score_director());
 
-        for placement in placements {
+        for mut placement in placements {
             // Check early termination
             if phase_scope.solver_scope().is_terminate_early() {
                 break;
@@ -124,12 +124,15 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            // Use forager to pick the best move for this placement
-            let selected_move = self
+            // Use forager to pick the best move index for this placement
+            let selected_idx = self
                 .forager
-                .pick_move(&placement, step_scope.score_director_mut());
+                .pick_move_index(&placement, step_scope.score_director_mut());
 
-            if let Some(m) = selected_move {
+            if let Some(idx) = selected_idx {
+                // Take ownership of the move
+                let m = placement.take_move(idx);
+
                 // Execute the move
                 m.do_move(step_scope.score_director_mut());
 

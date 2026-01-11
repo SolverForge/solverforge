@@ -75,9 +75,16 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_solver, run_solver_with_events, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
-    SolutionManager, SolverEvent, SolverManager, SolverStatus,
+    run_solver, run_solver_with_listener, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
+    SolutionManager, SolverManager, SolverStatus,
 };
+
+// ============================================================================
+// Console Output (feature-gated)
+// ============================================================================
+
+#[cfg(feature = "console")]
+pub mod console;
 
 // ============================================================================
 // Prelude

@@ -16,6 +16,7 @@
 //!
 //! Uses macro-generated tuple implementations for neighborhoods. Each neighborhood
 //! is a concrete `MoveSelector` type, enabling full monomorphization.
+//! Moves are never cloned - ownership transfers via `arena.take(index)`.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -115,11 +116,12 @@ macro_rules! impl_vnd_phase {
                     arena.reset();
                     arena.extend((self.0).$idx.iter_moves(step_scope.score_director()));
 
-                    let best_move = find_best_improving_move(&arena, &mut step_scope, &current_score);
+                    let best_index = find_best_improving_move_index(&arena, &mut step_scope, &current_score);
 
-                    if let Some((selected_move, selected_score)) = best_move {
+                    if let Some((selected_index, selected_score)) = best_index {
+                        let selected_move = arena.take(selected_index);
                         selected_move.do_move(step_scope.score_director_mut());
-                        step_scope.set_step_score(selected_score.clone());
+                        step_scope.set_step_score(selected_score);
                         current_score = selected_score;
                         step_scope.phase_scope_mut().update_best_solution();
                         step_scope.complete();
@@ -162,11 +164,12 @@ macro_rules! impl_vnd_phase {
                         _ => {}
                     }
 
-                    let best_move = find_best_improving_move(&arena, &mut step_scope, &current_score);
+                    let best_index = find_best_improving_move_index(&arena, &mut step_scope, &current_score);
 
-                    if let Some((selected_move, selected_score)) = best_move {
+                    if let Some((selected_index, selected_score)) = best_index {
+                        let selected_move = arena.take(selected_index);
                         selected_move.do_move(step_scope.score_director_mut());
-                        step_scope.set_step_score(selected_score.clone());
+                        step_scope.set_step_score(selected_score);
                         current_score = selected_score;
                         step_scope.phase_scope_mut().update_best_solution();
                         step_scope.complete();
@@ -190,18 +193,20 @@ macro_rules! impl_vnd_phase {
     };
 }
 
-/// Finds the best improving move in the arena.
-fn find_best_improving_move<S, D, M>(
+/// Finds the index of the best improving move in the arena.
+///
+/// Returns `Some((index, score))` if an improving move is found, `None` otherwise.
+fn find_best_improving_move_index<S, D, M>(
     arena: &MoveArena<M>,
     step_scope: &mut StepScope<'_, '_, S, D>,
     current_score: &S::Score,
-) -> Option<(M, S::Score)>
+) -> Option<(usize, S::Score)>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
     M: Move<S>,
 {
-    let mut best_move: Option<(M, S::Score)> = None;
+    let mut best: Option<(usize, S::Score)> = None;
 
     for i in 0..arena.len() {
         let m = arena.get(i).unwrap();
@@ -216,19 +221,19 @@ where
         recording.undo_changes();
 
         if move_score > *current_score {
-            match &best_move {
+            match &best {
                 Some((_, best_score)) if move_score > *best_score => {
-                    best_move = Some((m.clone(), move_score));
+                    best = Some((i, move_score));
                 }
                 None => {
-                    best_move = Some((m.clone(), move_score));
+                    best = Some((i, move_score));
                 }
                 _ => {}
             }
         }
     }
 
-    best_move
+    best
 }
 
 impl_vnd_phase!(0: MS0);
@@ -376,7 +381,7 @@ mod tests {
 
         phase.solve(&mut solver_scope);
 
-        let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
+        let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
     }
 
@@ -392,7 +397,7 @@ mod tests {
 
         phase.solve(&mut solver_scope);
 
-        let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
+        let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
     }
 }

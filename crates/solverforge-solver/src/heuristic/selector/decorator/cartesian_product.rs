@@ -1,74 +1,13 @@
 //! Cartesian product move selector.
 //!
-//! Combines moves from two selectors into composite moves.
-//! For selectors A (producing M1) and B (producing M2), yields
-//! CompositeMove for each pair (a, b) where a ∈ A and b ∈ B.
+//! Combines moves from two selectors by storing them in separate arenas
+//! and yielding CompositeMove references for each pair.
 //!
 //! # Zero-Erasure Design
 //!
-//! Both selectors are stored as concrete types. The resulting composite
-//! moves are fully typed CompositeMove<S, M1, M2>.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::decorator::CartesianProductMoveSelector;
-//! use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
-//! use solverforge_solver::heuristic::r#move::CompositeMove;
-//! use solverforge_core::domain::{PlanningSolution, EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-//! use solverforge_core::score::SimpleScore;
-//! use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-//! use std::any::TypeId;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Task { x: Option<i32>, y: Option<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Sol { tasks: Vec<Task>, score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for Sol {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn get_tasks(s: &Sol) -> &Vec<Task> { &s.tasks }
-//! fn get_tasks_mut(s: &mut Sol) -> &mut Vec<Task> { &mut s.tasks }
-//! fn get_x(s: &Sol, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.x) }
-//! fn set_x(s: &mut Sol, i: usize, v: Option<i32>) {
-//!     if let Some(t) = s.tasks.get_mut(i) { t.x = v; }
-//! }
-//! fn get_y(s: &Sol, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.y) }
-//! fn set_y(s: &mut Sol, i: usize, v: Option<i32>) {
-//!     if let Some(t) = s.tasks.get_mut(i) { t.y = v; }
-//! }
-//!
-//! // Selector for x values: 1, 2
-//! let x_selector = ChangeMoveSelector::simple(
-//!     get_x, set_x, 0, "x", vec![1, 2],
-//! );
-//! // Selector for y values: 10, 20, 30
-//! let y_selector = ChangeMoveSelector::simple(
-//!     get_y, set_y, 0, "y", vec![10, 20, 30],
-//! );
-//!
-//! // Cartesian product: 2 * 3 = 6 composite moves
-//! let product = CartesianProductMoveSelector::new(x_selector, y_selector);
-//!
-//! let solution = Sol { tasks: vec![Task { x: Some(0), y: Some(0) }], score: None };
-//! let extractor = Box::new(TypedEntityExtractor::new("Task", "tasks", get_tasks, get_tasks_mut));
-//! let entity_desc = EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
-//!     .with_extractor(extractor);
-//! let descriptor = SolutionDescriptor::new("Sol", TypeId::of::<Sol>()).with_entity(entity_desc);
-//! let director = SimpleScoreDirector::with_calculator(
-//!     solution, descriptor, |_| SimpleScore::of(0)
-//! );
-//!
-//! // Produces 6 moves: (x=1,y=10), (x=1,y=20), (x=1,y=30), (x=2,y=10), (x=2,y=20), (x=2,y=30)
-//! assert_eq!(product.size(&director), 6);
-//! let moves: Vec<_> = product.iter_moves(&director).collect();
-//! assert_eq!(moves.len(), 6);
-//! ```
+//! Moves are stored in typed arenas. The cartesian product iterator
+//! yields indices into both arenas. The caller creates CompositeMove
+//! references on-the-fly for each evaluation - no cloning.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -76,103 +15,134 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::{CompositeMove, Move};
+use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
 
-/// Combines moves from two selectors into composite moves (cartesian product).
+/// Holds two arenas of moves and provides iteration over all pairs.
 ///
-/// For each move `m1` from the first selector and each move `m2` from the second,
-/// yields a `CompositeMove<S, M1, M2>` that applies both moves in sequence.
+/// This is NOT a MoveSelector - it's a specialized structure for
+/// cartesian product iteration that preserves zero-erasure.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `M1` - Move type from first selector
-/// * `M2` - Move type from second selector
-/// * `A` - First selector type
-/// * `B` - Second selector type
-///
-/// # Zero-Erasure
-///
-/// Both selectors are stored inline as concrete types. The resulting
-/// CompositeMove is fully typed - no trait objects in the hot path.
-pub struct CartesianProductMoveSelector<S, M1, M2, A, B> {
-    first: A,
-    second: B,
-    _phantom: PhantomData<(S, M1, M2)>,
-}
-
-impl<S, M1, M2, A, B> CartesianProductMoveSelector<S, M1, M2, A, B> {
-    /// Creates a new cartesian product selector.
-    ///
-    /// # Arguments
-    /// * `first` - Selector for the first move type
-    /// * `second` - Selector for the second move type
-    ///
-    /// The resulting moves apply `first` then `second`.
-    pub fn new(first: A, second: B) -> Self {
-        Self {
-            first,
-            second,
-            _phantom: PhantomData,
-        }
-    }
-
-    /// Returns a reference to the first selector.
-    pub fn first(&self) -> &A {
-        &self.first
-    }
-
-    /// Returns a reference to the second selector.
-    pub fn second(&self) -> &B {
-        &self.second
-    }
-}
-
-impl<S, M1, M2, A: Debug, B: Debug> Debug for CartesianProductMoveSelector<S, M1, M2, A, B> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CartesianProductMoveSelector")
-            .field("first", &self.first)
-            .field("second", &self.second)
-            .finish()
-    }
-}
-
-impl<S, M1, M2, A, B> MoveSelector<S, CompositeMove<S, M1, M2>>
-    for CartesianProductMoveSelector<S, M1, M2, A, B>
+/// * `M1` - First move type
+/// * `M2` - Second move type
+pub struct CartesianProductArena<S, M1, M2>
 where
     S: PlanningSolution,
     M1: Move<S>,
     M2: Move<S>,
-    A: MoveSelector<S, M1>,
-    B: MoveSelector<S, M2>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
-        &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = CompositeMove<S, M1, M2>> + 'a> {
-        // Materialize first selector's moves (required for cartesian product)
-        let first_moves: Vec<M1> = self.first.iter_moves(score_director).collect();
+    arena_1: MoveArena<M1>,
+    arena_2: MoveArena<M2>,
+    _phantom: PhantomData<S>,
+}
 
-        Box::new(first_moves.into_iter().flat_map(move |m1| {
-            self.second
-                .iter_moves(score_director)
-                .map(move |m2| CompositeMove::new(m1.clone(), m2))
-        }))
+impl<S, M1, M2> CartesianProductArena<S, M1, M2>
+where
+    S: PlanningSolution,
+    M1: Move<S>,
+    M2: Move<S>,
+{
+    /// Creates a new empty cartesian product arena.
+    pub fn new() -> Self {
+        Self {
+            arena_1: MoveArena::new(),
+            arena_2: MoveArena::new(),
+            _phantom: PhantomData,
+        }
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
-        self.first.size(score_director) * self.second.size(score_director)
+    /// Resets both arenas for the next step.
+    pub fn reset(&mut self) {
+        self.arena_1.reset();
+        self.arena_2.reset();
     }
 
-    fn is_never_ending(&self) -> bool {
-        // If either is never-ending and the other is non-empty, product is never-ending
-        self.first.is_never_ending() || self.second.is_never_ending()
+    /// Populates arena 1 from a move selector.
+    pub fn populate_first<D, MS>(&mut self, selector: &MS, score_director: &D)
+    where
+        D: ScoreDirector<S>,
+        MS: MoveSelector<S, M1>,
+    {
+        self.arena_1.extend(selector.iter_moves(score_director));
+    }
+
+    /// Populates arena 2 from a move selector.
+    pub fn populate_second<D, MS>(&mut self, selector: &MS, score_director: &D)
+    where
+        D: ScoreDirector<S>,
+        MS: MoveSelector<S, M2>,
+    {
+        self.arena_2.extend(selector.iter_moves(score_director));
+    }
+
+    /// Returns the number of pairs (size of cartesian product).
+    pub fn len(&self) -> usize {
+        self.arena_1.len() * self.arena_2.len()
+    }
+
+    /// Returns true if either arena is empty.
+    pub fn is_empty(&self) -> bool {
+        self.arena_1.is_empty() || self.arena_2.is_empty()
+    }
+
+    /// Returns the first move at the given index.
+    pub fn get_first(&self, index: usize) -> Option<&M1> {
+        self.arena_1.get(index)
+    }
+
+    /// Returns the second move at the given index.
+    pub fn get_second(&self, index: usize) -> Option<&M2> {
+        self.arena_2.get(index)
+    }
+
+    /// Returns an iterator over all (i, j) index pairs.
+    pub fn iter_indices(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        let len_1 = self.arena_1.len();
+        let len_2 = self.arena_2.len();
+        (0..len_1).flat_map(move |i| (0..len_2).map(move |j| (i, j)))
+    }
+
+    /// Returns an iterator over all (i, j) pairs with references to both moves.
+    pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, usize, &M1, &M2)> + '_ {
+        self.iter_indices().filter_map(|(i, j)| {
+            let m1 = self.arena_1.get(i)?;
+            let m2 = self.arena_2.get(j)?;
+            Some((i, j, m1, m2))
+        })
+    }
+}
+
+impl<S, M1, M2> Default for CartesianProductArena<S, M1, M2>
+where
+    S: PlanningSolution,
+    M1: Move<S>,
+    M2: Move<S>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, M1, M2> Debug for CartesianProductArena<S, M1, M2>
+where
+    S: PlanningSolution,
+    M1: Move<S>,
+    M2: Move<S>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CartesianProductArena")
+            .field("arena_1_len", &self.arena_1.len())
+            .field("arena_2_len", &self.arena_2.len())
+            .finish()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
@@ -240,124 +210,47 @@ mod tests {
     }
 
     #[test]
-    fn cartesian_product_yields_all_pairs() {
+    fn cartesian_product_arena_yields_all_pairs() {
         let director = create_director(vec![Task {
             x: Some(0),
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
+        let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
+        let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
 
-        let product = CartesianProductMoveSelector::new(x_sel, y_sel);
+        let mut arena: CartesianProductArena<Sol, ChangeMove<Sol, i32>, ChangeMove<Sol, i32>> =
+            CartesianProductArena::new();
 
-        let moves: Vec<_> = product.iter_moves(&director).collect();
+        arena.populate_first(&x_selector, &director);
+        arena.populate_second(&y_selector, &director);
 
-        // 2 * 3 = 6 moves
-        assert_eq!(moves.len(), 6);
-        assert_eq!(product.size(&director), 6);
+        // 2 x-moves * 3 y-moves = 6 pairs
+        assert_eq!(arena.len(), 6);
+
+        let pairs: Vec<_> = arena.iter_pairs().collect();
+        assert_eq!(pairs.len(), 6);
     }
 
     #[test]
-    fn cartesian_product_applies_both_moves() {
-        let mut director = create_director(vec![Task {
-            x: Some(0),
-            y: Some(0),
-        }]);
-
-        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![5]);
-        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![50]);
-
-        let product = CartesianProductMoveSelector::new(x_sel, y_sel);
-        let moves: Vec<_> = product.iter_moves(&director).collect();
-
-        assert_eq!(moves.len(), 1);
-
-        // Apply the composite move
-        moves[0].do_move(&mut director);
-
-        assert_eq!(get_x(director.working_solution(), 0), Some(5));
-        assert_eq!(get_y(director.working_solution(), 0), Some(50));
-    }
-
-    #[test]
-    fn empty_first_yields_empty() {
+    fn reset_clears_both_arenas() {
         let director = create_director(vec![Task {
             x: Some(0),
             y: Some(0),
         }]);
 
-        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![]);
-        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20]);
+        let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
+        let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20]);
 
-        let product = CartesianProductMoveSelector::new(x_sel, y_sel);
-        let moves: Vec<_> = product.iter_moves(&director).collect();
+        let mut arena: CartesianProductArena<Sol, ChangeMove<Sol, i32>, ChangeMove<Sol, i32>> =
+            CartesianProductArena::new();
 
-        assert!(moves.is_empty());
-        assert_eq!(product.size(&director), 0);
-    }
+        arena.populate_first(&x_selector, &director);
+        arena.populate_second(&y_selector, &director);
+        assert_eq!(arena.len(), 4);
 
-    #[test]
-    fn empty_second_yields_empty() {
-        let director = create_director(vec![Task {
-            x: Some(0),
-            y: Some(0),
-        }]);
-
-        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![]);
-
-        let product = CartesianProductMoveSelector::new(x_sel, y_sel);
-        let moves: Vec<_> = product.iter_moves(&director).collect();
-
-        assert!(moves.is_empty());
-        assert_eq!(product.size(&director), 0);
-    }
-
-    #[test]
-    fn single_from_each_yields_single_composite() {
-        let director = create_director(vec![Task {
-            x: Some(0),
-            y: Some(0),
-        }]);
-
-        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1]);
-        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10]);
-
-        let product = CartesianProductMoveSelector::new(x_sel, y_sel);
-        let moves: Vec<_> = product.iter_moves(&director).collect();
-
-        assert_eq!(moves.len(), 1);
-        assert_eq!(product.size(&director), 1);
-    }
-
-    #[test]
-    fn maintains_order() {
-        let director = create_director(vec![Task {
-            x: Some(0),
-            y: Some(0),
-        }]);
-
-        let x_sel = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
-        let y_sel = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20]);
-
-        let product = CartesianProductMoveSelector::new(x_sel, y_sel);
-        let moves: Vec<_> = product.iter_moves(&director).collect();
-
-        // Order should be: (1,10), (1,20), (2,10), (2,20)
-        assert_eq!(moves.len(), 4);
-
-        // Check first move's x-move and second move's y-move values
-        assert_eq!(moves[0].first().to_value(), Some(&1));
-        assert_eq!(moves[0].second().to_value(), Some(&10));
-
-        assert_eq!(moves[1].first().to_value(), Some(&1));
-        assert_eq!(moves[1].second().to_value(), Some(&20));
-
-        assert_eq!(moves[2].first().to_value(), Some(&2));
-        assert_eq!(moves[2].second().to_value(), Some(&10));
-
-        assert_eq!(moves[3].first().to_value(), Some(&2));
-        assert_eq!(moves[3].second().to_value(), Some(&20));
+        arena.reset();
+        assert!(arena.is_empty());
+        assert_eq!(arena.len(), 0);
     }
 }

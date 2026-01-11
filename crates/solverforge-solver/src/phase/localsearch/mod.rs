@@ -57,22 +57,23 @@ pub enum AcceptorType {
 /// Local search phase that improves an existing solution.
 ///
 /// This phase iteratively:
-/// 1. Generates candidate moves
-/// 2. Evaluates each move
+/// 1. Generates candidate moves into an arena
+/// 2. Evaluates each move by index
 /// 3. Accepts/rejects based on the acceptor
-/// 4. Applies the best accepted move
+/// 4. Takes ownership of the best accepted move from arena
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `M` - The move type (must implement `Move<S> + Clone`)
+/// * `M` - The move type
 /// * `MS` - The move selector type
 /// * `A` - The acceptor type
 /// * `Fo` - The forager type
 ///
-/// # Performance
+/// # Zero-Clone Design
 ///
-/// Uses `MoveArena<M>` for O(1) per-step cleanup instead of allocating
-/// a new Vec each step.
+/// Uses index-based foraging. The forager stores `(usize, Score)` pairs.
+/// When a move is selected, ownership transfers via `arena.take(index)`.
+/// Moves are NEVER cloned.
 pub struct LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
@@ -175,7 +176,7 @@ where
             self.arena
                 .extend(self.move_selector.iter_moves(step_scope.score_director()));
 
-            // Evaluate moves
+            // Evaluate moves by index
             for i in 0..self.arena.len() {
                 let m = self.arena.get(i).unwrap();
 
@@ -184,7 +185,7 @@ where
                 }
 
                 // Use RecordingScoreDirector for automatic undo
-                {
+                let move_score = {
                     let mut recording =
                         RecordingScoreDirector::new(step_scope.score_director_mut());
 
@@ -192,18 +193,20 @@ where
                     m.do_move(&mut recording);
 
                     // Calculate resulting score
-                    let move_score = recording.calculate_score();
-
-                    // Check if accepted
-                    let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
-
-                    // Add to forager if accepted
-                    if accepted {
-                        self.forager.add_move(m.clone(), move_score);
-                    }
+                    let score = recording.calculate_score();
 
                     // Undo the move
                     recording.undo_changes();
+
+                    score
+                };
+
+                // Check if accepted
+                let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
+
+                // Add index to forager if accepted (not the move itself)
+                if accepted {
+                    self.forager.add_move_index(i, move_score);
                 }
 
                 // Check if forager wants to quit early
@@ -212,11 +215,14 @@ where
                 }
             }
 
-            // Pick the best accepted move
-            if let Some((selected_move, selected_score)) = self.forager.pick_move() {
+            // Pick the best accepted move index
+            if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
+                // Take ownership of the move from arena
+                let selected_move = self.arena.take(selected_index);
+
                 // Execute the selected move (for real this time)
                 selected_move.do_move(step_scope.score_director_mut());
-                step_scope.set_step_score(selected_score.clone());
+                step_scope.set_step_score(selected_score);
 
                 // Update last step score
                 last_step_score = selected_score;
@@ -376,13 +382,14 @@ mod tests {
         let values: Vec<i32> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
-        let forager: AcceptedCountForager<_, NQueensMove> = AcceptedCountForager::new(1);
-        let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(100));
+        let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
+        let mut phase: LocalSearchPhase<_, NQueensMove, _, _, _> =
+            LocalSearchPhase::new(move_selector, acceptor, forager, Some(100));
 
         phase.solve(&mut solver_scope);
 
         // Should have improved (or at least not gotten worse)
-        let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
+        let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
     }
 
@@ -397,13 +404,14 @@ mod tests {
         let values: Vec<i32> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
-        let forager: AcceptedCountForager<_, NQueensMove> = AcceptedCountForager::new(1);
-        let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(50));
+        let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
+        let mut phase: LocalSearchPhase<_, NQueensMove, _, _, _> =
+            LocalSearchPhase::new(move_selector, acceptor, forager, Some(50));
 
         phase.solve(&mut solver_scope);
 
         // Check that we didn't make it worse
-        let final_score = solver_scope.best_score().cloned().unwrap_or(initial_score);
+        let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
     }
 
@@ -415,8 +423,9 @@ mod tests {
         let values: Vec<i32> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
-        let forager: AcceptedCountForager<_, NQueensMove> = AcceptedCountForager::new(1);
-        let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(3));
+        let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
+        let mut phase: LocalSearchPhase<_, NQueensMove, _, _, _> =
+            LocalSearchPhase::new(move_selector, acceptor, forager, Some(3));
 
         phase.solve(&mut solver_scope);
 

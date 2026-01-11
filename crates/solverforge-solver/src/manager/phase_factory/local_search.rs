@@ -68,7 +68,7 @@ where
 
 // Convenience constructors with specific acceptors
 
-impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, HillClimbingAcceptor, AcceptedCountForager<S, M>>
+impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, HillClimbingAcceptor, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -84,7 +84,7 @@ where
     }
 }
 
-impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, TabuSearchAcceptor<S>, AcceptedCountForager<S, M>>
+impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, TabuSearchAcceptor<S>, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -101,7 +101,7 @@ where
 }
 
 impl<S, M, MS>
-    LocalSearchPhaseFactory<S, M, MS, SimulatedAnnealingAcceptor, AcceptedCountForager<S, M>>
+    LocalSearchPhaseFactory<S, M, MS, SimulatedAnnealingAcceptor, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -122,7 +122,7 @@ where
 }
 
 impl<S, M, MS>
-    LocalSearchPhaseFactory<S, M, MS, LateAcceptanceAcceptor<S>, AcceptedCountForager<S, M>>
+    LocalSearchPhaseFactory<S, M, MS, LateAcceptanceAcceptor<S>, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -142,7 +142,7 @@ impl<S, D, M, MS, A, Fo> PhaseFactory<S, D> for LocalSearchPhaseFactory<S, M, MS
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    M: Move<S> + Clone + Send + Sync + 'static,
+    M: Move<S> + Send + Sync + 'static,
     MS: MoveSelector<S, M> + Clone + Send + Sync + 'static,
     A: Acceptor<S> + Clone + Send + Sync + 'static,
     Fo: LocalSearchForager<S, M> + Clone + Send + Sync + 'static,

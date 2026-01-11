@@ -5,7 +5,7 @@
 //! - Phases (construction heuristic, local search, exhaustive search)
 //! - Move system
 //! - Termination conditions
-//! - Event system for monitoring
+//! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
 pub mod basic;
@@ -101,9 +101,10 @@ pub use solver::{MaybeTermination, NoTermination, Solver};
 pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    DiminishedReturnsTermination, MoveCountTermination, OrTermination,
+    DiminishedReturnsTermination, ExternalTermination, MoveCountTermination, OrTermination,
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
+pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 
-pub use basic::{run_solver, run_solver_with_events, SolverEvent};
+pub use basic::{run_solver, run_solver_with_channel};

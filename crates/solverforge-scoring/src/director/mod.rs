@@ -50,6 +50,8 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
     fn clone_working_solution(&self) -> S;
 
     /// Called before a planning variable is changed.
+    ///
+    /// Full signature with descriptor and variable metadata.
     fn before_variable_changed(
         &mut self,
         descriptor_index: usize,
@@ -58,12 +60,28 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
     );
 
     /// Called after a planning variable is changed.
+    ///
+    /// Full signature with descriptor and variable metadata.
     fn after_variable_changed(
         &mut self,
         descriptor_index: usize,
         entity_index: usize,
         variable_name: &str,
     );
+
+    /// Simplified notification for entity change.
+    ///
+    /// Used by basic phases. Default delegates to full signature with empty metadata.
+    fn before_entity_changed(&mut self, entity_index: usize) {
+        self.before_variable_changed(0, entity_index, "");
+    }
+
+    /// Simplified notification for entity change.
+    ///
+    /// Used by basic phases. Default delegates to full signature with empty metadata.
+    fn after_entity_changed(&mut self, entity_index: usize) {
+        self.after_variable_changed(0, entity_index, "");
+    }
 
     /// Triggers shadow variable listeners to update derived values.
     fn trigger_variable_listeners(&mut self);

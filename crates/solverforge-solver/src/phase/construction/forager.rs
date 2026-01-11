@@ -2,6 +2,11 @@
 //!
 //! Foragers determine which move to select from the candidates
 //! generated for each entity placement.
+//!
+//! # Zero-Erasure Design
+//!
+//! Foragers return indices into the placement's move Vec, not cloned moves.
+//! The caller takes ownership via the index.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -17,6 +22,7 @@ use super::Placement;
 /// Trait for selecting a move during construction.
 ///
 /// Foragers evaluate candidate moves and pick one based on their strategy.
+/// Returns the index of the selected move, not a cloned move.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -26,14 +32,14 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// Picks a move from the placement's candidates.
+    /// Picks a move index from the placement's candidates.
     ///
     /// Returns None if no suitable move is found.
-    fn pick_move<D: ScoreDirector<S>>(
+    fn pick_move_index<D: ScoreDirector<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<M>;
+    ) -> Option<usize>;
 }
 
 /// First Fit forager - picks the first feasible move.
@@ -78,15 +84,14 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move<D: ScoreDirector<S>>(
+    fn pick_move_index<D: ScoreDirector<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<M> {
-        // Return the first doable move
-        for m in &placement.moves {
+    ) -> Option<usize> {
+        for (idx, m) in placement.moves.iter().enumerate() {
             if m.is_doable(score_director) {
-                return Some(m.clone());
+                return Some(idx);
             }
         }
         None
@@ -136,15 +141,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move<D: ScoreDirector<S>>(
+    fn pick_move_index<D: ScoreDirector<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<M> {
-        let mut best_move: Option<M> = None;
+    ) -> Option<usize> {
+        let mut best_idx: Option<usize> = None;
         let mut best_score: Option<S::Score> = None;
 
-        for m in &placement.moves {
+        for (idx, m) in placement.moves.iter().enumerate() {
             if !m.is_doable(score_director) {
                 continue;
             }
@@ -172,12 +177,12 @@ where
             };
 
             if is_better {
-                best_move = Some(m.clone());
+                best_idx = Some(idx);
                 best_score = Some(score);
             }
         }
 
-        best_move
+        best_idx
     }
 }
 
@@ -223,15 +228,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move<D: ScoreDirector<S>>(
+    fn pick_move_index<D: ScoreDirector<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<M> {
-        let mut fallback_move: Option<M> = None;
+    ) -> Option<usize> {
+        let mut fallback_idx: Option<usize> = None;
         let mut fallback_score: Option<S::Score> = None;
 
-        for m in &placement.moves {
+        for (idx, m) in placement.moves.iter().enumerate() {
             if !m.is_doable(score_director) {
                 continue;
             }
@@ -246,10 +251,10 @@ where
                 // Evaluate
                 let score = recording.calculate_score();
 
-                // If feasible, return this move immediately
+                // If feasible, return this move index immediately
                 if score.is_feasible() {
                     recording.undo_changes();
-                    return Some(m.clone());
+                    return Some(idx);
                 }
 
                 // Undo move
@@ -265,13 +270,13 @@ where
             };
 
             if is_better {
-                fallback_move = Some(m.clone());
+                fallback_idx = Some(idx);
                 fallback_score = Some(score);
             }
         }
 
         // No feasible move found, return best infeasible
-        fallback_move
+        fallback_idx
     }
 }
 
@@ -280,36 +285,6 @@ where
 /// This forager evaluates each candidate move using a strength function
 /// and selects the move with the minimum strength. This is useful for
 /// assigning the "weakest" or least constraining values first.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::construction::WeakestFitForager;
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { priority: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// type Move = ChangeMove<Solution, i32>;
-///
-/// // Strength function: priority value (lower = weaker)
-/// fn priority_strength(m: &Move) -> i64 {
-///     m.to_value().map(|&v| v as i64).unwrap_or(0)
-/// }
-///
-/// let forager = WeakestFitForager::<Solution, Move>::new(priority_strength);
-/// ```
 pub struct WeakestFitForager<S, M> {
     /// Function to evaluate strength of a move.
     strength_fn: fn(&M) -> i64,
@@ -348,15 +323,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move<D: ScoreDirector<S>>(
+    fn pick_move_index<D: ScoreDirector<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<M> {
-        let mut best_move: Option<M> = None;
+    ) -> Option<usize> {
+        let mut best_idx: Option<usize> = None;
         let mut min_strength: Option<i64> = None;
 
-        for m in &placement.moves {
+        for (idx, m) in placement.moves.iter().enumerate() {
             if !m.is_doable(score_director) {
                 continue;
             }
@@ -369,12 +344,12 @@ where
             };
 
             if is_weaker {
-                best_move = Some(m.clone());
+                best_idx = Some(idx);
                 min_strength = Some(strength);
             }
         }
 
-        best_move
+        best_idx
     }
 }
 
@@ -383,36 +358,6 @@ where
 /// This forager evaluates each candidate move using a strength function
 /// and selects the move with the maximum strength. This is useful for
 /// assigning the "strongest" or most constraining values first.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::construction::StrongestFitForager;
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { priority: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// type Move = ChangeMove<Solution, i32>;
-///
-/// // Strength function: priority value (higher = stronger)
-/// fn priority_strength(m: &Move) -> i64 {
-///     m.to_value().map(|&v| v as i64).unwrap_or(0)
-/// }
-///
-/// let forager = StrongestFitForager::<Solution, Move>::new(priority_strength);
-/// ```
 pub struct StrongestFitForager<S, M> {
     /// Function to evaluate strength of a move.
     strength_fn: fn(&M) -> i64,
@@ -451,15 +396,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move<D: ScoreDirector<S>>(
+    fn pick_move_index<D: ScoreDirector<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<M> {
-        let mut best_move: Option<M> = None;
+    ) -> Option<usize> {
+        let mut best_idx: Option<usize> = None;
         let mut max_strength: Option<i64> = None;
 
-        for m in &placement.moves {
+        for (idx, m) in placement.moves.iter().enumerate() {
             if !m.is_doable(score_director) {
                 continue;
             }
@@ -472,12 +417,12 @@ where
             };
 
             if is_stronger {
-                best_move = Some(m.clone());
+                best_idx = Some(idx);
                 max_strength = Some(strength);
             }
         }
 
-        best_move
+        best_idx
     }
 }
 
@@ -522,12 +467,10 @@ mod tests {
         &mut s.queens
     }
 
-    // Typed getter - zero erasure
     fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
         s.queens.get(idx).and_then(|q| q.row)
     }
 
-    // Typed setter - zero erasure
     fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
         if let Some(queen) = s.queens.get_mut(idx) {
             queen.row = v;
@@ -554,7 +497,6 @@ mod tests {
             SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
                 .with_entity(entity_desc);
 
-        // Score function: prefer higher row values
         SimpleScoreDirector::with_calculator(solution, descriptor, |sol| {
             let sum: i64 = sol.queens.iter().filter_map(|q| q.row).sum();
             SimpleScore::of(sum)
@@ -576,28 +518,35 @@ mod tests {
     #[test]
     fn test_first_fit_forager() {
         let mut director = create_test_director();
-        let placement = create_placement();
+        let mut placement = create_placement();
 
         let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
-        let selected = forager.pick_move(&placement, &mut director);
+        let selected_idx = forager.pick_move_index(&placement, &mut director);
 
-        // First Fit should pick the first move (value 1)
-        assert!(selected.is_some());
+        // First Fit should pick the first move (index 0)
+        assert_eq!(selected_idx, Some(0));
+
+        // Take move and execute
+        if let Some(idx) = selected_idx {
+            let m = placement.moves.swap_remove(idx);
+            m.do_move(&mut director);
+        }
     }
 
     #[test]
     fn test_best_fit_forager() {
         let mut director = create_test_director();
-        let placement = create_placement();
+        let mut placement = create_placement();
 
         let forager = BestFitForager::<NQueensSolution, TestMove>::new();
-        let selected = forager.pick_move(&placement, &mut director);
+        let selected_idx = forager.pick_move_index(&placement, &mut director);
 
-        // Best Fit should pick the move with highest score (value 5)
-        assert!(selected.is_some());
+        // Best Fit should pick the move with highest score (index 1, value 5)
+        assert_eq!(selected_idx, Some(1));
 
-        // Execute the selected move and check the score
-        if let Some(m) = selected {
+        // Take move and execute
+        if let Some(idx) = selected_idx {
+            let m = placement.moves.swap_remove(idx);
             m.do_move(&mut director);
             let score = director.calculate_score();
             assert_eq!(score, SimpleScore::of(5));
@@ -611,9 +560,9 @@ mod tests {
             Placement::new(EntityReference::new(0, 0), vec![]);
 
         let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
-        let selected = forager.pick_move(&placement, &mut director);
+        let selected_idx = forager.pick_move_index(&placement, &mut director);
 
-        assert!(selected.is_none());
+        assert!(selected_idx.is_none());
     }
 
     fn value_strength(m: &TestMove) -> i64 {
@@ -623,14 +572,16 @@ mod tests {
     #[test]
     fn test_weakest_fit_forager() {
         let mut director = create_test_director();
-        let placement = create_placement(); // values: 1, 5, 3
+        let mut placement = create_placement(); // values: 1, 5, 3
 
         let forager = WeakestFitForager::<NQueensSolution, TestMove>::new(value_strength);
-        let selected = forager.pick_move(&placement, &mut director);
+        let selected_idx = forager.pick_move_index(&placement, &mut director);
 
-        // Weakest Fit should pick the move with lowest strength (value 1)
-        assert!(selected.is_some());
-        if let Some(m) = selected {
+        // Weakest Fit should pick the move with lowest strength (index 0, value 1)
+        assert_eq!(selected_idx, Some(0));
+
+        if let Some(idx) = selected_idx {
+            let m = placement.moves.swap_remove(idx);
             m.do_move(&mut director);
             let score = director.calculate_score();
             assert_eq!(score, SimpleScore::of(1));
@@ -640,14 +591,16 @@ mod tests {
     #[test]
     fn test_strongest_fit_forager() {
         let mut director = create_test_director();
-        let placement = create_placement(); // values: 1, 5, 3
+        let mut placement = create_placement(); // values: 1, 5, 3
 
         let forager = StrongestFitForager::<NQueensSolution, TestMove>::new(value_strength);
-        let selected = forager.pick_move(&placement, &mut director);
+        let selected_idx = forager.pick_move_index(&placement, &mut director);
 
-        // Strongest Fit should pick the move with highest strength (value 5)
-        assert!(selected.is_some());
-        if let Some(m) = selected {
+        // Strongest Fit should pick the move with highest strength (index 1, value 5)
+        assert_eq!(selected_idx, Some(1));
+
+        if let Some(idx) = selected_idx {
+            let m = placement.moves.swap_remove(idx);
             m.do_move(&mut director);
             let score = director.calculate_score();
             assert_eq!(score, SimpleScore::of(5));

@@ -135,7 +135,10 @@ where
             final_score = %score,
             "Solving ended"
         );
-        return solver_scope.take_best_or_working_solution();
+        let mut solution = solver_scope.take_best_or_working_solution();
+        solution.set_score(Some(score));
+        let _ = sender.send((solution.clone(), score));
+        return solution;
     }
 
     // Build phases

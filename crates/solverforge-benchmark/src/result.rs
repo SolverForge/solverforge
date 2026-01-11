@@ -3,11 +3,29 @@
 use std::time::Duration;
 
 use solverforge_core::score::Score;
-use solverforge_solver::statistics::{ScoreImprovement, SolverStatistics};
 
 /// Result of a single benchmark run.
 ///
 /// Contains timing, score, and statistics for one solver execution.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_benchmark::BenchmarkRun;
+/// use solverforge_core::score::SimpleScore;
+/// use std::time::Duration;
+///
+/// let run = BenchmarkRun::new(
+///     0,
+///     Duration::from_secs(1),
+///     SimpleScore::of(0),
+///     1000,
+///     500,
+///     1000,
+/// );
+/// assert_eq!(run.run_index, 0);
+/// assert!((run.moves_per_second() - 1000.0).abs() < 0.001);
+/// ```
 #[derive(Debug, Clone)]
 pub struct BenchmarkRun<Sc: Score> {
     /// Run index (0-based).
@@ -16,8 +34,6 @@ pub struct BenchmarkRun<Sc: Score> {
     pub solve_time: Duration,
     /// Final score achieved.
     pub final_score: Sc,
-    /// Score progression over time.
-    pub score_history: Vec<ScoreImprovement<Sc>>,
     /// Total moves evaluated.
     pub moves_evaluated: u64,
     /// Total moves accepted.
@@ -27,28 +43,43 @@ pub struct BenchmarkRun<Sc: Score> {
 }
 
 impl<Sc: Score> BenchmarkRun<Sc> {
-    /// Creates a benchmark run from solver statistics and final score.
+    /// Creates a new benchmark run.
     ///
     /// # Example
     ///
     /// ```
     /// use solverforge_benchmark::BenchmarkRun;
-    /// use solverforge_solver::statistics::SolverStatistics;
     /// use solverforge_core::score::SimpleScore;
+    /// use std::time::Duration;
     ///
-    /// let stats = SolverStatistics::<SimpleScore>::new();
-    /// let run = BenchmarkRun::from_statistics(0, stats, SimpleScore::of(0));
+    /// let run = BenchmarkRun::new(
+    ///     0,
+    ///     Duration::from_millis(500),
+    ///     SimpleScore::of(-10),
+    ///     2000,
+    ///     800,
+    ///     2000,
+    /// );
     /// assert_eq!(run.run_index, 0);
+    /// assert_eq!(run.moves_evaluated, 2000);
+    /// assert_eq!(run.moves_accepted, 800);
+    /// assert_eq!(run.score_calculations, 2000);
     /// ```
-    pub fn from_statistics(run_index: usize, stats: SolverStatistics<Sc>, final_score: Sc) -> Self {
+    pub fn new(
+        run_index: usize,
+        solve_time: Duration,
+        final_score: Sc,
+        moves_evaluated: u64,
+        moves_accepted: u64,
+        score_calculations: u64,
+    ) -> Self {
         Self {
             run_index,
-            solve_time: stats.total_duration,
+            solve_time,
             final_score,
-            score_history: stats.score_history,
-            moves_evaluated: stats.total_moves_evaluated,
-            moves_accepted: stats.total_moves_accepted,
-            score_calculations: stats.score_calculation_count,
+            moves_evaluated,
+            moves_accepted,
+            score_calculations,
         }
     }
 
@@ -61,16 +92,14 @@ impl<Sc: Score> BenchmarkRun<Sc> {
     /// use solverforge_core::score::SimpleScore;
     /// use std::time::Duration;
     ///
-    /// let mut run = BenchmarkRun {
-    ///     run_index: 0,
-    ///     solve_time: Duration::from_secs(2),
-    ///     final_score: SimpleScore::of(0),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 1000,
-    ///     moves_accepted: 500,
-    ///     score_calculations: 1000,
-    /// };
-    ///
+    /// let run = BenchmarkRun::new(
+    ///     0,
+    ///     Duration::from_secs(2),
+    ///     SimpleScore::of(0),
+    ///     1000,
+    ///     500,
+    ///     1000,
+    /// );
     /// assert!((run.moves_per_second() - 500.0).abs() < 0.001);
     /// ```
     pub fn moves_per_second(&self) -> f64 {
@@ -82,6 +111,24 @@ impl<Sc: Score> BenchmarkRun<Sc> {
     }
 
     /// Returns acceptance rate (accepted / evaluated).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_benchmark::BenchmarkRun;
+    /// use solverforge_core::score::SimpleScore;
+    /// use std::time::Duration;
+    ///
+    /// let run = BenchmarkRun::new(
+    ///     0,
+    ///     Duration::from_secs(1),
+    ///     SimpleScore::of(0),
+    ///     1000,
+    ///     250,
+    ///     1000,
+    /// );
+    /// assert!((run.acceptance_rate() - 0.25).abs() < 0.001);
+    /// ```
     pub fn acceptance_rate(&self) -> f64 {
         if self.moves_evaluated == 0 {
             0.0
@@ -94,6 +141,22 @@ impl<Sc: Score> BenchmarkRun<Sc> {
 /// Aggregated results from multiple benchmark runs.
 ///
 /// Contains individual runs and computed statistics.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_benchmark::{BenchmarkResult, BenchmarkRun};
+/// use solverforge_core::score::SimpleScore;
+/// use std::time::Duration;
+///
+/// let mut result = BenchmarkResult::<SimpleScore>::new("Bench", "HC", "NQueens");
+/// result.add_run(BenchmarkRun::new(0, Duration::from_millis(100), SimpleScore::of(-2), 500, 200, 500));
+/// result.add_run(BenchmarkRun::new(1, Duration::from_millis(200), SimpleScore::of(0), 1000, 400, 1000));
+///
+/// assert_eq!(result.run_count(), 2);
+/// assert_eq!(*result.best_score().unwrap(), SimpleScore::of(0));
+/// assert_eq!(result.avg_solve_time(), Duration::from_millis(150));
+/// ```
 #[derive(Debug, Clone)]
 pub struct BenchmarkResult<Sc: Score> {
     /// Benchmark name.
@@ -141,24 +204,8 @@ impl<Sc: Score> BenchmarkResult<Sc> {
     /// use std::time::Duration;
     ///
     /// let mut result = BenchmarkResult::<SimpleScore>::new("Test", "HC", "Problem1");
-    /// result.add_run(BenchmarkRun {
-    ///     run_index: 0,
-    ///     solve_time: Duration::from_millis(100),
-    ///     final_score: SimpleScore::of(-5),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 100,
-    ///     moves_accepted: 50,
-    ///     score_calculations: 100,
-    /// });
-    /// result.add_run(BenchmarkRun {
-    ///     run_index: 1,
-    ///     solve_time: Duration::from_millis(100),
-    ///     final_score: SimpleScore::of(0),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 100,
-    ///     moves_accepted: 50,
-    ///     score_calculations: 100,
-    /// });
+    /// result.add_run(BenchmarkRun::new(0, Duration::from_millis(100), SimpleScore::of(-5), 100, 50, 100));
+    /// result.add_run(BenchmarkRun::new(1, Duration::from_millis(100), SimpleScore::of(0), 100, 50, 100));
     ///
     /// assert_eq!(*result.best_score().unwrap(), SimpleScore::of(0));
     /// ```
@@ -181,24 +228,8 @@ impl<Sc: Score> BenchmarkResult<Sc> {
     /// use std::time::Duration;
     ///
     /// let mut result = BenchmarkResult::<SimpleScore>::new("Test", "HC", "Problem1");
-    /// result.add_run(BenchmarkRun {
-    ///     run_index: 0,
-    ///     solve_time: Duration::from_millis(100),
-    ///     final_score: SimpleScore::of(0),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 100,
-    ///     moves_accepted: 50,
-    ///     score_calculations: 100,
-    /// });
-    /// result.add_run(BenchmarkRun {
-    ///     run_index: 1,
-    ///     solve_time: Duration::from_millis(200),
-    ///     final_score: SimpleScore::of(0),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 100,
-    ///     moves_accepted: 50,
-    ///     score_calculations: 100,
-    /// });
+    /// result.add_run(BenchmarkRun::new(0, Duration::from_millis(100), SimpleScore::of(0), 100, 50, 100));
+    /// result.add_run(BenchmarkRun::new(1, Duration::from_millis(200), SimpleScore::of(0), 100, 50, 100));
     ///
     /// assert_eq!(result.avg_solve_time(), Duration::from_millis(150));
     /// ```
@@ -229,6 +260,20 @@ impl<Sc: Score> BenchmarkResult<Sc> {
     }
 
     /// Returns the average moves per second.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_benchmark::{BenchmarkResult, BenchmarkRun};
+    /// use solverforge_core::score::SimpleScore;
+    /// use std::time::Duration;
+    ///
+    /// let mut result = BenchmarkResult::<SimpleScore>::new("Test", "HC", "Problem1");
+    /// result.add_run(BenchmarkRun::new(0, Duration::from_secs(1), SimpleScore::of(0), 1000, 500, 1000));
+    /// result.add_run(BenchmarkRun::new(1, Duration::from_secs(1), SimpleScore::of(0), 2000, 800, 2000));
+    ///
+    /// assert!((result.avg_moves_per_second() - 1500.0).abs() < 0.001);
+    /// ```
     pub fn avg_moves_per_second(&self) -> f64 {
         if self.runs.is_empty() {
             return 0.0;
@@ -238,6 +283,20 @@ impl<Sc: Score> BenchmarkResult<Sc> {
     }
 
     /// Returns the average acceptance rate.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_benchmark::{BenchmarkResult, BenchmarkRun};
+    /// use solverforge_core::score::SimpleScore;
+    /// use std::time::Duration;
+    ///
+    /// let mut result = BenchmarkResult::<SimpleScore>::new("Test", "HC", "Problem1");
+    /// result.add_run(BenchmarkRun::new(0, Duration::from_secs(1), SimpleScore::of(0), 1000, 500, 1000));
+    /// result.add_run(BenchmarkRun::new(1, Duration::from_secs(1), SimpleScore::of(0), 1000, 300, 1000));
+    ///
+    /// assert!((result.avg_acceptance_rate() - 0.4).abs() < 0.001);
+    /// ```
     pub fn avg_acceptance_rate(&self) -> f64 {
         if self.runs.is_empty() {
             return 0.0;

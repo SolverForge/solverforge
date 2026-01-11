@@ -1,7 +1,7 @@
 //! Solver-level scope.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -36,6 +36,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     terminate: Option<&'t AtomicBool>,
     /// Solver statistics.
     stats: SolverStats,
+    /// Time limit for solving (checked by phases).
+    time_limit: Option<Duration>,
 }
 
 impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
@@ -50,6 +52,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             total_step_count: 0,
             terminate: None,
             stats: SolverStats::default(),
+            time_limit: None,
         }
     }
 
@@ -64,6 +67,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             total_step_count: 0,
             terminate,
             stats: SolverStats::default(),
+            time_limit: None,
         }
     }
 
@@ -78,6 +82,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             total_step_count: 0,
             terminate: None,
             stats: SolverStats::default(),
+            time_limit: None,
         }
     }
 
@@ -175,10 +180,30 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             .unwrap_or_else(|| self.score_director.clone_working_solution())
     }
 
-    /// Checks if early termination was requested.
+    /// Checks if early termination was requested (external flag only).
     pub fn is_terminate_early(&self) -> bool {
         self.terminate
             .is_some_and(|flag| flag.load(Ordering::SeqCst))
+    }
+
+    /// Sets the time limit for solving.
+    pub fn set_time_limit(&mut self, limit: Duration) {
+        self.time_limit = Some(limit);
+    }
+
+    /// Checks if solving should terminate (external flag OR time limit).
+    pub fn should_terminate(&self) -> bool {
+        // Check external termination flag
+        if self.is_terminate_early() {
+            return true;
+        }
+        // Check time limit
+        if let (Some(start), Some(limit)) = (self.start_time, self.time_limit) {
+            if start.elapsed() >= limit {
+                return true;
+            }
+        }
+        false
     }
 
     /// Returns a reference to the solver statistics.

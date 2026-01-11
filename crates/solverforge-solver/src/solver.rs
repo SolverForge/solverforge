@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
+use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
@@ -28,6 +29,7 @@ pub struct Solver<'t, P, T, S, D> {
     termination: T,
     terminate: Option<&'t AtomicBool>,
     config: Option<SolverConfig>,
+    time_limit: Option<Duration>,
     _phantom: PhantomData<fn(S, D)>,
 }
 
@@ -51,6 +53,7 @@ where
             termination: NoTermination,
             terminate: None,
             config: None,
+            time_limit: None,
             _phantom: PhantomData,
         }
     }
@@ -62,6 +65,7 @@ where
             termination: Some(termination),
             terminate: self.terminate,
             config: self.config,
+            time_limit: self.time_limit,
             _phantom: PhantomData,
         }
     }
@@ -80,8 +84,15 @@ where
             termination: self.termination,
             terminate: Some(terminate),
             config: self.config,
+            time_limit: self.time_limit,
             _phantom: PhantomData,
         }
+    }
+
+    /// Sets the time limit for solving.
+    pub fn with_time_limit(mut self, limit: Duration) -> Self {
+        self.time_limit = Some(limit);
+        self
     }
 
     /// Sets configuration.
@@ -141,6 +152,9 @@ macro_rules! impl_solver {
             /// Solves using the provided score director.
             pub fn solve(&mut self, score_director: D) -> S {
                 let mut solver_scope = SolverScope::with_terminate(score_director, self.terminate);
+                if let Some(limit) = self.time_limit {
+                    solver_scope.set_time_limit(limit);
+                }
                 solver_scope.start_solving();
 
                 // Execute phases with termination checking
@@ -195,6 +209,7 @@ macro_rules! impl_solver_with_director {
                     termination: self.termination,
                     terminate: self.terminate,
                     config: self.config,
+                    time_limit: self.time_limit,
                     _phantom: PhantomData,
                 };
                 solver.solve(director)

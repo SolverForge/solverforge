@@ -196,20 +196,20 @@ where
     if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
         let step = StepCountTermination::new(step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, step));
-        build_and_solve(construction, local_search, termination, terminate, director)
+        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
     } else if let Some(unimproved_step_limit) =
         term_config.and_then(|c| c.unimproved_step_count_limit)
     {
         let unimproved = UnimprovedStepCountTermination::<S>::new(unimproved_step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        build_and_solve(construction, local_search, termination, terminate, director)
+        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
         let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        build_and_solve(construction, local_search, termination, terminate, director)
+        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
     } else {
         let termination: OrTermination<_, S, D> = OrTermination::new((time,));
-        build_and_solve(construction, local_search, termination, terminate, director)
+        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
     }
 }
 
@@ -219,6 +219,7 @@ fn build_and_solve<S, D, G, T, E, V, Term>(
     termination: Term,
     terminate: Option<&AtomicBool>,
     director: D,
+    time_limit: Duration,
 ) -> S
 where
     S: PlanningSolution,
@@ -233,10 +234,12 @@ where
     match terminate {
         Some(flag) => Solver::new((construction, local_search))
             .with_termination(termination)
+            .with_time_limit(time_limit)
             .with_terminate(flag)
             .solve(director),
         None => Solver::new((construction, local_search))
             .with_termination(termination)
+            .with_time_limit(time_limit)
             .solve(director),
     }
 }

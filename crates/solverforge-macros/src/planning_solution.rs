@@ -183,7 +183,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path);
+    let list_operations = generate_list_operations(&shadow_config, fields);
     let basic_operations =
         generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
     let solvable_solution_impl =
@@ -230,7 +230,6 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 fn generate_list_operations(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    constraints_path: &Option<String>,
 ) -> TokenStream {
     let (list_owner, list_field, element_type, element_collection) = match (
         &config.list_owner,
@@ -260,104 +259,6 @@ fn generate_list_operations(
         &descriptor_index.to_string(),
         proc_macro2::Span::call_site(),
     );
-
-    // Generate solve() only if constraints path is provided
-    let list_field_str = list_field;
-    let solve_impl = constraints_path.as_ref().map(|path| {
-        let constraints_fn: syn::Path = syn::parse_str(path)
-            .expect("constraints path must be a valid Rust path");
-
-        quote! {
-            /// Solve with external termination flag.
-            pub fn solve_with_terminate(
-                self,
-                terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
-            ) -> Self {
-                Self::solve_internal(self, terminate)
-            }
-
-            /// Solve with zero parameters - constraints embedded at compile time.
-            pub fn solve(self) -> Self {
-                Self::solve_internal(self, None)
-            }
-
-            fn solve_internal(
-                solution: Self,
-                _terminate: Option<::std::sync::Arc<::std::sync::atomic::AtomicBool>>,
-            ) -> Self {
-                use ::solverforge::__internal::{
-                    SolverFactory, PhaseFactory,
-                    KOptPhaseBuilder, ListConstructionPhaseBuilder,
-                    FromSolutionEntitySelector, DefaultDistanceMeter,
-                    ShadowAwareScoreDirector, TypedScoreDirector, ScoreDirector,
-                    SolverConfig,
-                };
-
-                // Load config
-                let config = SolverConfig::load("solver.toml").unwrap_or_default();
-
-                // Constraints embedded at compile time
-                let constraints = #constraints_fn();
-
-                // Build SolverFactory with constraint-based scoring
-                let descriptor_index = Self::list_variable_descriptor_index();
-
-                // Construction phase
-                let construction = ListConstructionPhaseBuilder::<Self, usize>::new(
-                    Self::element_count,
-                    Self::assigned_elements,
-                    Self::n_entities,
-                    Self::assign_element,
-                    |i| i,
-                    #list_field_str,
-                    descriptor_index,
-                );
-
-                // Local search phase
-                let local_search = KOptPhaseBuilder::<Self, usize, _, _>::new(
-                    DefaultDistanceMeter,
-                    move || Box::new(FromSolutionEntitySelector::new(descriptor_index)),
-                    Self::list_len,
-                    Self::sublist_remove,
-                    Self::sublist_insert,
-                    #list_field_str,
-                    descriptor_index,
-                );
-
-                let factory = SolverFactory::<Self>::builder(move |solution: &Self| {
-                    let constraints_clone = #constraints_fn();
-                    let mut director = ShadowAwareScoreDirector::new(
-                        TypedScoreDirector::with_descriptor(
-                            solution.clone(),
-                            constraints_clone,
-                            Self::descriptor(),
-                            Self::entity_count,
-                        ),
-                    );
-                    director.calculate_score()
-                })
-                .with_phase_factory(construction)
-                .with_phase_factory(local_search)
-                .with_config(config)
-                .build()
-                .expect("Failed to build solver");
-
-                // Create director for solving
-                let director = ShadowAwareScoreDirector::new(
-                    TypedScoreDirector::with_descriptor(
-                        solution,
-                        constraints,
-                        Self::descriptor(),
-                        Self::entity_count,
-                    ),
-                );
-
-                // Solve
-                let mut solver = factory.create_solver();
-                solver.solve_with_director(Box::new(director))
-            }
-        }
-    });
 
     let element_collection_ident2 = Ident::new(element_collection, proc_macro2::Span::call_site());
 
@@ -443,8 +344,6 @@ fn generate_list_operations(
                 e.#list_field_ident.push(elem);
             }
         }
-
-        #solve_impl
     }
 }
 
@@ -505,42 +404,14 @@ fn generate_basic_variable_operations(
         })
         .collect();
 
-    // Generate solve() and solve_with_listener() only if constraints path is provided
+    // Generate solve_internal() only if constraints path is provided
     let solve_impl = constraints_path.as_ref().map(|path| {
         let constraints_fn: syn::Path =
             syn::parse_str(path).expect("constraints path must be a valid Rust path");
 
         quote! {
-            /// Solve with zero parameters - constraints embedded at compile time.
-            pub fn solve(self) -> Self {
-                #[cfg(feature = "console")]
-                ::solverforge::console::init();
-
-                ::solverforge::run_solver(
-                    self,
-                    Self::finalize_all,
-                    #constraints_fn,
-                    Self::basic_get_variable,
-                    Self::basic_set_variable,
-                    Self::basic_value_count,
-                    Self::basic_entity_count,
-                    Self::descriptor,
-                    Self::entity_count,
-                    #variable_field_str,
-                    Self::basic_variable_descriptor_index(),
-                )
-            }
-
-            /// Solve with channel-based solution streaming.
-            ///
-            /// Solver progress is logged via `tracing` at INFO/DEBUG levels.
-            /// Each new best solution is sent through the channel.
-            ///
-            /// # Arguments
-            ///
-            /// * `terminate` - Optional flag to request early termination
-            /// * `sender` - Channel to send each new best solution
-            pub fn solve_with_channel(
+            /// Internal solve implementation called by the Solvable trait.
+            fn solve_internal(
                 self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
                 sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
@@ -648,12 +519,12 @@ fn generate_solvable_solution(
 
         quote! {
             impl ::solverforge::Solvable for #solution_name {
-                fn solve_with_listener(
+                fn solve(
                     self,
                     terminate: Option<&std::sync::atomic::AtomicBool>,
                     sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
                 ) {
-                    let _ = #solution_name::solve_with_channel(self, terminate, sender);
+                    let _ = #solution_name::solve_internal(self, terminate, sender);
                 }
             }
 

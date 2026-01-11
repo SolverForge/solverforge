@@ -5,7 +5,7 @@
 //! fixed value range.
 
 use rand::Rng;
-use solverforge_config::SolverConfig;
+use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
@@ -17,6 +17,114 @@ const LATE_ACCEPTANCE_SIZE: usize = 400;
 
 /// Default time limit in seconds.
 const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
+
+/// Tracks termination conditions during solving.
+///
+/// Supports all termination types from `TerminationConfig`:
+/// - Time limit (seconds/minutes)
+/// - Step count limit
+/// - Unimproved step count limit
+/// - Unimproved time limit
+/// - Best score limit (requires score parsing)
+/// - External termination flag
+struct TerminationChecker<'a, Sc> {
+    start: Instant,
+    time_limit: Option<Duration>,
+    step_limit: Option<u64>,
+    unimproved_step_limit: Option<u64>,
+    unimproved_time_limit: Option<Duration>,
+    best_score_limit: Option<Sc>,
+    external_flag: Option<&'a AtomicBool>,
+    last_improvement_step: u64,
+    last_improvement_time: Instant,
+}
+
+impl<'a, Sc: Score> TerminationChecker<'a, Sc> {
+    fn new(
+        config: &TerminationConfig,
+        external_flag: Option<&'a AtomicBool>,
+        best_score_limit: Option<Sc>,
+    ) -> Self {
+        let now = Instant::now();
+        Self {
+            start: now,
+            time_limit: config.time_limit().or(Some(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS))),
+            step_limit: config.step_count_limit,
+            unimproved_step_limit: config.unimproved_step_count_limit,
+            unimproved_time_limit: config.unimproved_time_limit(),
+            best_score_limit,
+            external_flag,
+            last_improvement_step: 0,
+            last_improvement_time: now,
+        }
+    }
+
+    fn from_defaults(external_flag: Option<&'a AtomicBool>) -> Self {
+        let now = Instant::now();
+        Self {
+            start: now,
+            time_limit: Some(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS)),
+            step_limit: None,
+            unimproved_step_limit: None,
+            unimproved_time_limit: None,
+            best_score_limit: None,
+            external_flag,
+            last_improvement_step: 0,
+            last_improvement_time: now,
+        }
+    }
+
+    /// Records that the best score improved at this step.
+    fn record_improvement(&mut self, step: u64) {
+        self.last_improvement_step = step;
+        self.last_improvement_time = Instant::now();
+    }
+
+    /// Checks if solving should terminate.
+    fn should_terminate(&self, step: u64, best_score: Sc) -> bool {
+        // External termination flag
+        if self.external_flag.map_or(false, |f| f.load(Ordering::Relaxed)) {
+            return true;
+        }
+
+        // Time limit
+        if let Some(limit) = self.time_limit {
+            if self.start.elapsed() >= limit {
+                return true;
+            }
+        }
+
+        // Step count limit
+        if let Some(limit) = self.step_limit {
+            if step >= limit {
+                return true;
+            }
+        }
+
+        // Unimproved step count limit
+        if let Some(limit) = self.unimproved_step_limit {
+            if step - self.last_improvement_step >= limit {
+                return true;
+            }
+        }
+
+        // Unimproved time limit
+        if let Some(limit) = self.unimproved_time_limit {
+            if self.last_improvement_time.elapsed() >= limit {
+                return true;
+            }
+        }
+
+        // Best score limit (terminate when score >= limit)
+        if let Some(ref limit) = self.best_score_limit {
+            if best_score >= *limit {
+                return true;
+            }
+        }
+
+        false
+    }
+}
 
 /// Events emitted during solving for console/UI feedback.
 #[derive(Debug, Clone)]
@@ -138,13 +246,12 @@ where
     // Finalize derived fields
     finalize_fn(&mut solution);
 
-    // Load config
+    // Load config and create termination checker
     let config = SolverConfig::load("solver.toml").unwrap_or_default();
-    let time_limit = config
-        .termination
-        .as_ref()
-        .and_then(|t| t.seconds_spent_limit)
-        .unwrap_or(DEFAULT_TIME_LIMIT_SECS);
+    let mut termination = match &config.termination {
+        Some(term_config) => TerminationChecker::new(term_config, terminate, None),
+        None => TerminationChecker::from_defaults(terminate),
+    };
 
     // Create constraints and score director
     let constraints = constraints_fn();
@@ -224,14 +331,14 @@ where
     let phase2_start = Instant::now();
 
     let mut late_scores = vec![current_score; LATE_ACCEPTANCE_SIZE];
-    let time_limit_duration = Duration::from_secs(time_limit);
     let mut step: u64 = 0;
     let mut moves_evaluated: u64 = 0;
     let mut steps_accepted: u64 = 0;
 
-    while phase2_start.elapsed() < time_limit_duration
-        && !terminate.map_or(false, |t| t.load(Ordering::Relaxed))
-    {
+    // Record initial improvement point
+    termination.record_improvement(0);
+
+    while !termination.should_terminate(step, best_score) {
         // Pick random entity and new value
         let entity_idx = rng.random_range(0..n_entities);
         let old_value = get_variable(director.working_solution(), entity_idx);
@@ -262,6 +369,7 @@ where
             // Check if this is a new best
             if new_score > best_score {
                 best_score = new_score;
+                termination.record_improvement(step);
                 let mut best = director.working_solution().clone();
                 best.set_score(Some(best_score));
                 on_event(SolverEvent::BestSolutionChanged {

@@ -71,9 +71,7 @@ where
         let m2 = arena_2.get(self.index_2);
 
         match (m1, m2) {
-            (Some(m1), Some(m2)) => {
-                m1.is_doable(score_director) || m2.is_doable(score_director)
-            }
+            (Some(m1), Some(m2)) => m1.is_doable(score_director) || m2.is_doable(score_director),
             _ => false,
         }
     }

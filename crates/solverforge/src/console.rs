@@ -188,7 +188,9 @@ fn format_event(v: &EventVisitor, level: Level) -> String {
 }
 
 fn format_elapsed() -> String {
-    format!("{:>7.3}s", elapsed_secs()).bright_black().to_string()
+    format!("{:>7.3}s", elapsed_secs())
+        .bright_black()
+        .to_string()
 }
 
 fn format_solve_start(v: &EventVisitor) -> String {
@@ -309,7 +311,10 @@ fn format_phase_end(v: &EventVisitor) -> String {
         phase.white().bold(),
         format_duration_ms(duration).yellow(),
         steps.to_formatted_string(&Locale::en).white(),
-        speed.to_formatted_string(&Locale::en).bright_magenta().bold(),
+        speed
+            .to_formatted_string(&Locale::en)
+            .bright_magenta()
+            .bold(),
         format_score(score)
     )
 }
@@ -324,7 +329,10 @@ fn format_progress(v: &EventVisitor) -> String {
         format_elapsed(),
         "⚡".bright_cyan(),
         steps.to_formatted_string(&Locale::en).white(),
-        speed.to_formatted_string(&Locale::en).bright_magenta().bold(),
+        speed
+            .to_formatted_string(&Locale::en)
+            .bright_magenta()
+            .bold(),
         format_score(score)
     )
 }

@@ -39,8 +39,11 @@ fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
 
 fn create_scope_with_score(
     score: SimpleScore,
-) -> SolverScope<'static, TestSolution, SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>>
-{
+) -> SolverScope<
+    'static,
+    TestSolution,
+    SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
+> {
     let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
     let score_clone = score;
     let director = SimpleScoreDirector::with_calculator(

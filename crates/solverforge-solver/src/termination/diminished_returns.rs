@@ -103,7 +103,9 @@ impl<S: PlanningSolution> DiminishedReturnsTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for DiminishedReturnsTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for DiminishedReturnsTermination<S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
+    for DiminishedReturnsTermination<S>
+{
     fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         let Some(current_score) = solver_scope.best_score() else {
             return false; // No score yet
@@ -212,8 +214,11 @@ mod tests {
 
     fn create_scope_with_score(
         score: SimpleScore,
-    ) -> SolverScope<'static, TestSolution, SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>>
-    {
+    ) -> SolverScope<
+        'static,
+        TestSolution,
+        SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
+    > {
         let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
         let score_clone = score;
         let director = SimpleScoreDirector::with_calculator(

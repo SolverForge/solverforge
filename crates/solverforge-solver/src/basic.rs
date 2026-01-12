@@ -132,12 +132,8 @@ where
     }
 
     // Build phases
-    let construction = BasicConstructionPhase::new(
-        get_variable,
-        set_variable,
-        entity_count_fn,
-        value_count,
-    );
+    let construction =
+        BasicConstructionPhase::new(get_variable, set_variable, entity_count_fn, value_count);
 
     let local_search = BasicLocalSearchPhase::new(
         get_variable,
@@ -186,20 +182,48 @@ where
     if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
         let step = StepCountTermination::new(step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, step));
-        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
+        build_and_solve(
+            construction,
+            local_search,
+            termination,
+            terminate,
+            director,
+            time_limit,
+        )
     } else if let Some(unimproved_step_limit) =
         term_config.and_then(|c| c.unimproved_step_count_limit)
     {
         let unimproved = UnimprovedStepCountTermination::<S>::new(unimproved_step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
+        build_and_solve(
+            construction,
+            local_search,
+            termination,
+            terminate,
+            director,
+            time_limit,
+        )
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
         let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
+        build_and_solve(
+            construction,
+            local_search,
+            termination,
+            terminate,
+            director,
+            time_limit,
+        )
     } else {
         let termination: OrTermination<_, S, D> = OrTermination::new((time,));
-        build_and_solve(construction, local_search, termination, terminate, director, time_limit)
+        build_and_solve(
+            construction,
+            local_search,
+            termination,
+            terminate,
+            director,
+            time_limit,
+        )
     }
 }
 

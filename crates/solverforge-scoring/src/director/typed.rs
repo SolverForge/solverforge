@@ -172,7 +172,8 @@ where
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
-        self.working_solution.set_score(Some(self.cached_score.clone()));
+        self.working_solution
+            .set_score(Some(self.cached_score.clone()));
         self.cached_score.clone()
     }
 
@@ -456,7 +457,10 @@ where
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
-        Some((self.entity_counter)(&self.working_solution, descriptor_index))
+        Some((self.entity_counter)(
+            &self.working_solution,
+            descriptor_index,
+        ))
     }
 
     fn total_entity_count(&self) -> Option<usize> {

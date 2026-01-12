@@ -197,13 +197,8 @@ mod tests {
     fn empty_when_no_moves_pass() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30],
-        );
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
         let filtered = FilteringMoveSelector::new(inner, high_value_filter);
 
         let moves: Vec<_> = filtered.iter_moves(&director).collect();

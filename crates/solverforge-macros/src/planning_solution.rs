@@ -378,17 +378,13 @@ fn generate_basic_variable_operations(
 
     let descriptor_index = entity_fields
         .iter()
-        .position(|f| {
-            f.ident
-                .as_ref()
-                .map(|i| i.to_string())
-                .as_ref()
-                == Some(entity_collection)
-        })
+        .position(|f| f.ident.as_ref().map(|i| i.to_string()).as_ref() == Some(entity_collection))
         .expect("entity_collection must be a planning_entity_collection field");
 
-    let descriptor_index_lit =
-        syn::LitInt::new(&descriptor_index.to_string(), proc_macro2::Span::call_site());
+    let descriptor_index_lit = syn::LitInt::new(
+        &descriptor_index.to_string(),
+        proc_macro2::Span::call_site(),
+    );
 
     // Generate finalize calls for all problem_fact_collection fields
     let finalize_calls: Vec<_> = fields

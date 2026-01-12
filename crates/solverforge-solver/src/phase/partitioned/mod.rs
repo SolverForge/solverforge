@@ -152,7 +152,8 @@ where
     }
 }
 
-impl<S, D, PD, Part, SDF, PF, CP> Phase<S, D> for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
+impl<S, D, PD, Part, SDF, PF, CP> Phase<S, D>
+    for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution + 'static,
     D: ScoreDirector<S>,

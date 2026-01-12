@@ -48,6 +48,9 @@ jobs:
       - name: Run integration tests
         run: cargo test --workspace --all-features --test '*'
 
+      - name: Run doc tests
+        run: cargo test --workspace --doc
+
       - name: Extract version from Cargo.toml
         id: version
         run: |

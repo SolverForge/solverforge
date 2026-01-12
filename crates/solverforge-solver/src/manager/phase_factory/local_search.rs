@@ -108,11 +108,7 @@ where
     MS: MoveSelector<S, M>,
 {
     /// Creates a simulated annealing local search.
-    pub fn simulated_annealing(
-        move_selector: MS,
-        starting_temp: f64,
-        decay_rate: f64,
-    ) -> Self {
+    pub fn simulated_annealing(move_selector: MS, starting_temp: f64, decay_rate: f64) -> Self {
         Self::new(
             move_selector,
             SimulatedAnnealingAcceptor::new(starting_temp, decay_rate),
@@ -121,8 +117,7 @@ where
     }
 }
 
-impl<S, M, MS>
-    LocalSearchPhaseFactory<S, M, MS, LateAcceptanceAcceptor<S>, AcceptedCountForager<S>>
+impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, LateAcceptanceAcceptor<S>, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,

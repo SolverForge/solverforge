@@ -232,13 +232,8 @@ mod tests {
     fn preserves_size() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![30, 10, 50],
-        );
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 10, 50]);
         let sorted = SortingMoveSelector::new(inner, by_value_asc);
 
         assert_eq!(sorted.size(&director), 3);

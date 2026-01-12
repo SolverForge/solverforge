@@ -170,8 +170,7 @@ where
             return;
         }
 
-        let assigned: Vec<E> =
-            (self.get_assigned)(phase_scope.score_director().working_solution());
+        let assigned: Vec<E> = (self.get_assigned)(phase_scope.score_director().working_solution());
 
         if assigned.len() >= n_elements {
             tracing::info!("All elements already assigned, skipping construction");

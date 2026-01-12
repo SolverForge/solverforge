@@ -169,10 +169,7 @@ where
     /// # Panics
     ///
     /// Panics if no free slots are available.
-    pub fn solve(
-        &'static self,
-        solution: S,
-    ) -> (usize, mpsc::UnboundedReceiver<(S, S::Score)>) {
+    pub fn solve(&'static self, solution: S) -> (usize, mpsc::UnboundedReceiver<(S, S::Score)>) {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         // Find a free slot

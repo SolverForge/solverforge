@@ -83,7 +83,9 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedStepCountTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for UnimprovedStepCountTermination<S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
+    for UnimprovedStepCountTermination<S>
+{
     fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         let mut state = self.state.borrow_mut();
         let current_step = solver_scope.total_step_count();

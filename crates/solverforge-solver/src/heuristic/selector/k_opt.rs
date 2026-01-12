@@ -434,7 +434,9 @@ impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug
     }
 }
 
-impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> NearbyKOptMoveSelector<S, V, D, ES> {
+impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
+    NearbyKOptMoveSelector<S, V, D, ES>
+{
     /// Creates a new nearby k-opt move selector.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -585,7 +587,9 @@ struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
     done: bool,
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> NearbyCutIterator<'a, S, V, D, ES> {
+impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
+    NearbyCutIterator<'a, S, V, D, ES>
+{
     fn new(
         selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
         solution: &'a S,

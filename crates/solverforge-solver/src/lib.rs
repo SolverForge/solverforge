@@ -68,9 +68,10 @@ pub use heuristic::{
 pub use manager::{
     Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolutionManager, SolverFactory,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
+pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
@@ -105,6 +106,5 @@ pub use termination::{
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
-pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 
 pub use basic::{run_solver, run_solver_with_channel};

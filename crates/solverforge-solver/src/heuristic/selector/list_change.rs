@@ -308,8 +308,8 @@ mod tests {
         ));
         let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles")
             .with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("Solution", TypeId::of::<Solution>())
-            .with_entity(entity_desc);
+        let descriptor =
+            SolutionDescriptor::new("Solution", TypeId::of::<Solution>()).with_entity(entity_desc);
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
     }
 
@@ -347,10 +347,7 @@ mod tests {
 
     #[test]
     fn generates_inter_entity_moves() {
-        let vehicles = vec![
-            Vehicle { visits: vec![1, 2] },
-            Vehicle { visits: vec![10] },
-        ];
+        let vehicles = vec![Vehicle { visits: vec![1, 2] }, Vehicle { visits: vec![10] }];
         let director = create_director(vehicles);
 
         let selector = ListChangeMoveSelector::<Solution, i32, _>::new(

@@ -191,13 +191,8 @@ mod tests {
     fn returns_all_when_under_limit() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20],
-        );
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
         let limited = SelectedCountLimitMoveSelector::new(inner, 10);
 
         let moves: Vec<_> = limited.iter_moves(&director).collect();
@@ -210,13 +205,8 @@ mod tests {
     fn zero_limit_yields_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30],
-        );
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
         let limited = SelectedCountLimitMoveSelector::new(inner, 0);
 
         let moves: Vec<_> = limited.iter_moves(&director).collect();

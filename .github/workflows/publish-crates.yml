@@ -45,6 +45,9 @@ jobs:
       - name: Run integration tests
         run: cargo test --workspace --all-features --test '*'
 
+      - name: Run doc tests
+        run: cargo test --workspace --doc
+
       # Publish in dependency order
       - name: Publish solverforge-core
         run: cargo publish -p solverforge-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

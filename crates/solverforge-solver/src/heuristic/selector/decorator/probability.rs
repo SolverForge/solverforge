@@ -256,13 +256,8 @@ mod tests {
     fn zero_weight_selects_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30],
-        );
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
         let prob = ProbabilityMoveSelector::with_seed(inner, zero_weight, 42);
 
         let moves: Vec<_> = prob.iter_moves(&director).collect();

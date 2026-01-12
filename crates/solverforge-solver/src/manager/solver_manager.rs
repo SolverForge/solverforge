@@ -46,7 +46,7 @@ pub trait Solvable: solverforge_core::domain::PlanningSolution + Send + 'static 
     ///
     /// * `terminate` - Optional flag to request early termination
     /// * `sender` - Channel to send each new best solution (ownership transferred)
-    fn solve_with_listener(
+    fn solve(
         self,
         terminate: Option<&AtomicBool>,
         sender: mpsc::UnboundedSender<(Self, Self::Score)>,
@@ -169,10 +169,7 @@ where
     /// # Panics
     ///
     /// Panics if no free slots are available.
-    pub fn solve(
-        &'static self,
-        solution: S,
-    ) -> (usize, mpsc::UnboundedReceiver<(S, S::Score)>) {
+    pub fn solve(&'static self, solution: S) -> (usize, mpsc::UnboundedReceiver<(S, S::Score)>) {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         // Find a free slot
@@ -193,8 +190,8 @@ where
         rayon::spawn(move || {
             let terminate_ref = &slot.terminate;
 
-            // solve_with_listener sends all solutions (including final) through the channel
-            solution.solve_with_listener(Some(terminate_ref), sender);
+            // solve sends all solutions (including final) through the channel
+            solution.solve(Some(terminate_ref), sender);
 
             slot.state.store(SLOT_DONE, Ordering::Release);
         });

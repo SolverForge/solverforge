@@ -98,7 +98,8 @@ pub fn planning_solution(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! {}
     };
 
-    let constraints_attr = constraints_path.map(|p| quote! { #[solverforge_constraints_path = #p] });
+    let constraints_attr =
+        constraints_path.map(|p| quote! { #[solverforge_constraints_path = #p] });
 
     let expanded = quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::PlanningSolutionImpl)]

@@ -16,7 +16,7 @@ pub mod phase;
 pub mod realtime;
 pub mod scope;
 pub mod solver;
-pub mod statistics;
+pub mod stats;
 pub mod termination;
 
 pub use builder::AcceptorBuilder;
@@ -68,9 +68,10 @@ pub use heuristic::{
 pub use manager::{
     Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolutionManager, SolverFactory,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
+pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
@@ -98,13 +99,12 @@ pub use phase::{
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, Solver};
-pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
+pub use stats::{PhaseStats, SolverStats};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    DiminishedReturnsTermination, ExternalTermination, MoveCountTermination, OrTermination,
+    DiminishedReturnsTermination, MoveCountTermination, OrTermination,
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
-pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 
 pub use basic::{run_solver, run_solver_with_channel};

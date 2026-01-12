@@ -1,80 +1,80 @@
 # SolverForge
 
-SolverForge is a high-performance heuristic constraint programming framework and solver written in Rust. 
+A zero-erasure constraint solver in Rust.
 
 SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API with efficient incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
 
+## Zero-Erasure Architecture
+
+SolverForge preserves concrete types through the entire solver pipeline:
+
+- **No trait objects** (`Box<dyn Trait>`, `Arc<dyn Trait>`)
+- **No runtime dispatch** - all generics resolved at compile time
+- **No hidden allocations** - moves, scores, and constraints are stack-allocated
+- **Predictable performance** - no GC pauses, no vtable lookups
+
+This enables aggressive compiler optimizations and cache-friendly data layouts.
+
 ## Features
 
-- **Score Types**: SimpleScore, HardSoftScore, HardMediumSoftScore, BendableScore
-- **ConstraintStream API**: Declarative constraint definition
-- **Incremental Scoring**: SERIO engine (Scoring Engine for Real-time Incremental Optimization)
+- **Score Types**: SimpleScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
+- **ConstraintStream API**: Declarative constraint definition with fluent builders
+- **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Construction Heuristic (First Fit, Best Fit)
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded)
-- **SolverManager API**: Ergonomic builder pattern for solver configuration
-- **Phase Factories**: Auto-configuration of phases from solution metadata
-- **Move System**: Zero-allocation typed moves with arena allocation
-- **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[value_range_provider]`
-- **Configuration**: TOML/YAML support with builder API
-- **Variable Types**: Genuine, shadow, list, and chained variables
- 
+  - VND (Variable Neighborhood Descent)
+- **SolverManager/SolutionManager API**: Channel-based async solving with score analysis
+- **Move System**: Zero-allocation typed moves
+- **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
+- **Configuration**: TOML support with builder API
+- **Console Output**: Colorful tracing-based progress display
+
 ## Installation
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = "0.4"
+solverforge = { version = "0.4", features = ["console"] }
 ```
 
-Or for specific crates:
+### Feature Flags
 
-```toml
-[dependencies]
-solverforge-core = "0.4"      # Core types and traits
-solverforge-solver = "0.4"    # Solver engine, phases, moves, SolverManager
-solverforge-scoring = "0.4"   # ConstraintStream API, SERIO incremental scoring
-solverforge-macros = "0.4"    # Derive macros
-solverforge-config = "0.4"    # Configuration (TOML/YAML)
-solverforge-benchmark = "0.4" # Benchmarking framework
-```
+| Feature | Description |
+|---------|-------------|
+| `console` | Colorful console output with progress tracking |
+| `verbose-logging` | DEBUG-level progress updates (1/sec during local search) |
+| `decimal` | Decimal score support via `rust_decimal` |
+| `serde` | Serialization support for domain types |
 
 ## Quick Start
 
 ### 1. Define Your Domain Model
 
-Use derive macros for ergonomic domain modeling:
-
 ```rust
-use chrono::NaiveDateTime;
 use solverforge::prelude::*;
 
-/// An employee who can be assigned to shifts.
 #[problem_fact]
 pub struct Employee {
-    pub index: usize,
+    pub id: i64,
     pub name: String,
-    pub skills: HashSet<String>,
+    pub skills: Vec<String>,
 }
 
-/// A shift that needs to be staffed.
 #[planning_entity]
 pub struct Shift {
     #[planning_id]
-    pub id: String,
-    pub start: NaiveDateTime,
-    pub end: NaiveDateTime,
+    pub id: i64,
     pub required_skill: String,
-    #[planning_variable(allows_unassigned = true)]
-    pub employee_idx: Option<usize>,  // Solver assigns this
+    #[planning_variable]
+    pub employee: Option<i64>,
 }
 
-/// The employee scheduling solution.
 #[planning_solution]
-pub struct EmployeeSchedule {
+pub struct Schedule {
     #[problem_fact_collection]
     pub employees: Vec<Employee>,
     #[planning_entity_collection]
@@ -84,83 +84,93 @@ pub struct EmployeeSchedule {
 }
 ```
 
-### 2. Define Constraints (Fluent ConstraintStream API)
+### 2. Define Constraints
 
 ```rust
-use solverforge::prelude::*;
-use solverforge::stream::{ConstraintFactory, joiner::equal_bi};
+use solverforge::stream::{ConstraintFactory, joiner};
 
-fn define_constraints() -> impl ConstraintSet<EmployeeSchedule, HardSoftScore> {
-    let factory = ConstraintFactory::<EmployeeSchedule, HardSoftScore>::new();
+fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
+    let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
 
-    // HARD: Employee must have the required skill
     let required_skill = factory
         .clone()
-        .for_each(|s: &EmployeeSchedule| s.shifts.as_slice())
-        .join(
-            |s: &EmployeeSchedule| s.employees.as_slice(),
-            equal_bi(
-                |shift: &Shift| shift.employee_idx,
-                |emp: &Employee| Some(emp.index),
-            ),
-        )
-        .filter(|shift: &Shift, emp: &Employee| {
-            !emp.skills.contains(&shift.required_skill)
+        .for_each(|s: &Schedule| s.shifts.as_slice())
+        .filter(|shift: &Shift| shift.employee.is_some())
+        .penalize_configurable(|shift| {
+            // Check if assigned employee has required skill
+            if !has_skill(shift) { 1 } else { 0 }
         })
-        .penalize(HardSoftScore::ONE_HARD)
         .as_constraint("Required skill");
 
-    // HARD: No overlapping shifts for same employee
     let no_overlap = factory
-        .clone()
         .for_each_unique_pair(
-            |s: &EmployeeSchedule| s.shifts.as_slice(),
-            joiner::equal(|shift: &Shift| shift.employee_idx),
+            |s: &Schedule| s.shifts.as_slice(),
+            joiner::equal(|shift: &Shift| shift.employee),
         )
-        .filter(|a: &Shift, b: &Shift| {
-            a.employee_idx.is_some() && a.start < b.end && b.start < a.end
-        })
+        .filter(|a: &Shift, b: &Shift| overlaps(a, b))
         .penalize(HardSoftScore::ONE_HARD)
-        .as_constraint("Overlapping shift");
+        .as_constraint("No overlap");
 
-    // SOFT: Balance shift assignments across employees
-    let balanced = factory
-        .for_each(|s: &EmployeeSchedule| s.shifts.as_slice())
-        .balance(|shift: &Shift| shift.employee_idx)
-        .penalize(HardSoftScore::ONE_SOFT)
-        .as_constraint("Balance assignments");
-
-    // Combine constraints into a tuple (zero-erasure, fully monomorphized)
-    (required_skill, no_overlap, balanced)
+    (required_skill, no_overlap)
 }
 ```
 
-### 3. Configure and Run the Solver
+### 3. Solve
 
 ```rust
-use solverforge::{SolverManager, LocalSearchType};
-use std::time::Duration;
+use solverforge::{SolverManager, Solvable};
 
 fn main() {
-    let schedule = EmployeeSchedule::new(employees, shifts);
+    let schedule = Schedule::new(employees, shifts);
 
-    // Build solver with fluent API
-    let manager = SolverManager::<EmployeeSchedule>::builder(define_constraints())
-        .with_construction_heuristic()
-        .with_local_search(LocalSearchType::TabuSearch)
-        .with_time_limit(Duration::from_secs(30))
-        .build()
-        .expect("Failed to build solver");
+    // Channel-based solving with progress updates
+    let (job_id, receiver) = SolverManager::global().solve(schedule);
 
-    // Solve
-    let solution = manager.solve(schedule);
-    println!("Score: {:?}", solution.score);
+    // Receive best solutions as they're found
+    while let Ok((solution, score)) = receiver.recv() {
+        println!("New best: {}", score);
+    }
 }
 ```
 
-## Architecture
+## Console Output
 
-![SERIO Scoring Engine](assets/SERIO.jpg)
+With `features = ["console"]`, SolverForge displays colorful progress:
+
+```
+ ____        _                 _____
+/ ___|  ___ | |_   _____ _ __ |  ___|__  _ __ __ _  ___
+\___ \ / _ \| \ \ / / _ \ '__|| |_ / _ \| '__/ _` |/ _ \
+ ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
+|____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
+                                             |___/
+                   v0.4.0 - Zero-Erasure Constraint Solver
+
+  0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
+  0.001s ▶ Construction Heuristic started
+  0.002s ◀ Construction Heuristic ended │ 1ms │ 14 steps │ 14,000/s │ 0hard/-50soft
+  0.002s ▶ Late Acceptance started
+  1.002s ⚡    12,456 steps │      445,000/s │ -2hard/8soft
+  2.003s ⚡    24,891 steps │      448,000/s │ 0hard/12soft
+ 30.001s ◀ Late Acceptance ended │ 30.00s │ 104,864 steps │ 456,000/s │ 0hard/15soft
+ 30.001s ■ Solving complete │ 0hard/15soft │ FEASIBLE
+
+╔══════════════════════════════════════════════════════════╗
+║                 FEASIBLE SOLUTION FOUND                  ║
+╠══════════════════════════════════════════════════════════╣
+║  Final Score:                            0hard/15soft    ║
+╚══════════════════════════════════════════════════════════╝
+```
+
+### Log Levels
+
+| Level | Content | When |
+|-------|---------|------|
+| INFO | Lifecycle events (solve/phase start/end) | Default |
+| DEBUG | Progress updates (1/sec with speed and score) | `verbose-logging` feature |
+| TRACE | Individual move evaluations | `RUST_LOG=solverforge_solver=trace` |
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -173,13 +183,12 @@ fn main() {
 │solverforge-  │solverforge-  │solverforge-  │solverforge-  │
 │   solver     │   scoring    │   config     │  benchmark   │
 │              │              │              │              │
-│ • Phases     │ • Constraint │ • TOML/YAML  │ • Runner     │
+│ • Phases     │ • Constraint │ • TOML       │ • Runner     │
 │ • Moves      │   Streams    │ • Builders   │ • Statistics │
 │ • Selectors  │ • Score      │              │ • Reports    │
-│ • Foragers   │   Directors  │              │              │
-│ • Acceptors  │ • SERIO      │              │              │
-│ • Termination│   Engine     │              │              │
-│ • Manager    │              │              │              │
+│ • Acceptors  │   Directors  │              │              │
+│ • Termination│ • SERIO      │              │              │
+│ • Manager    │   Engine     │              │              │
 └──────────────┴──────────────┴──────────────┴──────────────┘
         │              │
         └──────┬───────┘
@@ -197,9 +206,9 @@ fn main() {
         ┌──────────────────────────────┐
         │      solverforge-macros      │
         │                              │
-        │ • #[derive(PlanningSolution)]│
-        │ • #[derive(PlanningEntity)]  │
-        │ • #[derive(ProblemFact)]     │
+        │ • #[planning_solution]       │
+        │ • #[planning_entity]         │
+        │ • #[problem_fact]            │
         └──────────────────────────────┘
 ```
 
@@ -208,179 +217,139 @@ fn main() {
 | Crate | Purpose |
 |-------|---------|
 | `solverforge` | Main facade with prelude and re-exports |
-| `solverforge-core` | Core types: scores, domain traits, descriptors, variable system |
-| `solverforge-solver` | Solver engine: phases, moves, selectors, termination, SolverManager |
-| `solverforge-scoring` | ConstraintStream API, SERIO incremental scoring, score directors |
-| `solverforge-config` | Configuration via TOML/YAML and builder API |
-| `solverforge-macros` | Procedural derive macros for domain model |
-| `solverforge-benchmark` | Benchmarking framework for solver configurations |
+| `solverforge-core` | Core types: scores, domain traits, descriptors |
+| `solverforge-solver` | Solver engine: phases, moves, termination, SolverManager |
+| `solverforge-scoring` | ConstraintStream API, SERIO incremental scoring |
+| `solverforge-config` | Configuration via TOML and builder API |
+| `solverforge-macros` | Procedural macros for domain model |
+| `solverforge-benchmark` | Benchmarking framework |
 
 ## Score Types
 
 ```rust
 use solverforge::prelude::*;
 
-// Single-level score (constraint violations count)
+// Single-level score
 let score = SimpleScore::of(-5);
 
-// Two-level score (hard constraints + soft optimization)
-let score = HardSoftScore::of(-2, -100);  // 2 hard violations, 100 soft penalty
+// Two-level score (hard + soft)
+let score = HardSoftScore::of(-2, 100);
 assert!(!score.is_feasible());  // Hard score < 0
 
 // Three-level score
-let score = HardMediumSoftScore::of(0, -50, -200);
+let score = HardMediumSoftScore::of(0, -50, 200);
 
-// N-level configurable score
+// Decimal precision
+let score = HardSoftDecimalScore::of(dec!(0), dec!(-123.45));
+
+// N-level configurable
 let score = BendableScore::new(vec![0, -1], vec![-50, -100]);
 ```
 
-## Solver Phases
+## Termination
 
-### Construction Heuristic
-
-Builds an initial solution by assigning values to uninitialized variables:
-
-```rust
-use solverforge::{ConstructionPhaseFactory, SolverPhaseFactory};
-
-// First Fit: Accept first valid assignment
-let factory = ConstructionPhaseFactory::first_fit(|| create_placer());
-let phase = factory.create_phase();
-
-// Best Fit: Evaluate all, pick best score
-let factory = ConstructionPhaseFactory::best_fit(|| create_placer());
-let phase = factory.create_phase();
-```
-
-### Local Search
-
-Improves solution through iterative moves:
-
-```rust
-use solverforge::{LocalSearchPhaseFactory, SolverPhaseFactory};
-
-// Hill Climbing: Only accept improvements
-let factory = LocalSearchPhaseFactory::hill_climbing(|| create_move_selector())
-    .with_step_limit(1000);
-let phase = factory.create_phase();
-
-// Tabu Search: Avoid recently visited states
-let factory = LocalSearchPhaseFactory::tabu_search(|| create_move_selector(), 10);
-
-// Simulated Annealing: Accept worse moves with decreasing probability
-let factory = LocalSearchPhaseFactory::simulated_annealing(
-    || create_move_selector(), 1.0, 0.995
-);
-
-// Late Acceptance: Compare against score from N steps ago
-let factory = LocalSearchPhaseFactory::late_acceptance(|| create_move_selector(), 100);
-```
-
-### Exhaustive Search
-
-Systematically explores solution space with pruning:
-
-```rust
-let phase = ExhaustiveSearchPhase::new(
-    decider,
-    ExplorationOrder::DepthFirst,  // or BreadthFirst, ScoreFirst
-    bounder,
-);
-```
-
-## Termination Conditions
-
-Termination is configured via `solver.toml`, not in code:
+Configure via `solver.toml`:
 
 ```toml
 [termination]
 seconds_spent_limit = 30
 unimproved_seconds_spent_limit = 5
-step_count_limit = 1000
-best_score_limit = "0hard/0soft"
+step_count_limit = 10000
 ```
 
-## Move Types
+Or programmatically:
 
 ```rust
-use solverforge::{ChangeMove, SwapMove};
-
-// ChangeMove: Assign new value to entity's variable
-let mv = ChangeMove::<Solution, i32>::new(entity_idx, "row", new_value);
-
-// SwapMove: Exchange values between two entities
-let mv = SwapMove::<Solution, i32>::new(entity1_idx, entity2_idx, "row");
+let config = SolverConfig::load("solver.toml").unwrap_or_default();
 ```
 
-## Configuration
+## SolverManager API
 
-### Builder API
+The `SolverManager` provides async solving with channel-based solution streaming:
 
 ```rust
-use solverforge::SolverConfig;
+use solverforge::{SolverManager, SolverStatus};
 
-let config = SolverConfig::new()
-    .with_environment_mode(EnvironmentMode::Reproducible)
-    .with_termination_seconds(30)
-    .with_construction_heuristic(ConstructionHeuristicConfig::default())
-    .with_local_search(LocalSearchConfig {
-        acceptor: AcceptorConfig::HillClimbing,
-        forager: ForagerConfig::default(),
-        termination: Some(TerminationConfig {
-            step_count_limit: Some(1000),
-            ..Default::default()
-        }),
-    });
+// Get global solver manager instance
+let manager = SolverManager::global();
+
+// Start solving (returns immediately)
+let (job_id, receiver) = manager.solve(problem);
+
+// Check status
+match manager.get_status(job_id) {
+    SolverStatus::Solving => println!("Still working..."),
+    SolverStatus::Terminated => println!("Done!"),
+    SolverStatus::NotStarted => println!("Queued"),
+}
+
+// Terminate early if needed
+manager.terminate_early(job_id);
+
+// Receive solutions as they improve
+while let Ok((solution, score)) = receiver.recv() {
+    // Process each improving solution
+}
 ```
 
-## Performance
+## SolutionManager API
 
-SolverForge leverages Rust's zero-cost abstractions:
+Analyze solutions without solving:
 
-- **Typed Moves**: `ChangeMove<S, V>` stores values inline (no boxing)
-- **Arena Allocation**: `MoveArena<M>` provides O(1) per-step cleanup
-- **Incremental Scoring**: SERIO engine propagates only changed constraints
-- **No GC Pauses**: Predictable latency without garbage collection
+```rust
+use solverforge::SolutionManager;
+
+let manager = SolutionManager::<Schedule>::new();
+let analysis = manager.analyze(&solution);
+
+println!("Score: {}", analysis.score);
+for constraint in &analysis.constraints {
+    println!("  {}: {}", constraint.name, constraint.score);
+}
+```
 
 ## Examples
 
 See the [`examples/`](examples/) directory:
 
-- **N-Queens**: Classic constraint satisfaction problem demonstrating SolverForge features
-
-Run examples:
+- **N-Queens**: Classic constraint satisfaction problem
 
 ```bash
 cargo run -p nqueens
 ```
 
-For more comprehensive examples including employee scheduling and vehicle routing, see the [SolverForge Quickstarts](https://github.com/solverforge/solverforge-quickstarts) repository.
+For comprehensive examples including employee scheduling and vehicle routing, see [SolverForge Quickstarts](https://github.com/solverforge/solverforge-quickstarts).
+
+## Performance
+
+SolverForge leverages Rust's zero-cost abstractions:
+
+- **Typed Moves**: Values stored inline, no boxing
+- **Incremental Scoring**: SERIO propagates only changed constraints
+- **No GC**: Predictable latency without garbage collection
+- **Cache-friendly**: Contiguous memory layouts for hot paths
+
+Typical throughput: 100k-500k moves/second depending on constraint complexity.
 
 ## Status
-
-SolverForge is feature-complete for a production constraint solver:
 
 | Component | Status |
 |-----------|--------|
 | Score types | Complete |
-| Domain model | Complete |
+| Domain model macros | Complete |
 | ConstraintStream API | Complete |
 | SERIO incremental scoring | Complete |
 | Construction heuristics | Complete |
 | Local search | Complete |
 | Exhaustive search | Complete |
 | Partitioned search | Complete |
-| VND (Variable Neighborhood Descent) | Complete |
-| Move system | Complete (zero-erasure) |
+| VND | Complete |
+| Move system | Complete |
 | Termination | Complete |
-| Configuration | Complete |
+| SolverManager | Complete |
+| SolutionManager | Complete |
+| Console output | Complete |
 | Benchmarking | Complete |
-
-### Roadmap
-
-- Multi-threaded move evaluation
-- Constraint strength system
-- Constraint match analysis/explanation
 
 ## Minimum Rust Version
 
@@ -388,12 +357,12 @@ Rust 1.80 or later.
 
 ## License
 
-Licensed under Apache License 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Contributing
 
-Contributions welcome! Please open an issue or submit a pull request.
+Contributions welcome. Please open an issue or pull request.
 
 ## Acknowledgments
 
-SolverForge is inspired by [Timefold](https://timefold.ai/) (formerly OptaPlanner), the leading open-source constraint solver for Java. We thank the Timefold team for their excellent documentation and design patterns.
+Inspired by [Timefold](https://timefold.ai/) (formerly OptaPlanner).

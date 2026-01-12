@@ -279,7 +279,11 @@ mod tests {
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 1, SimpleScore::of(-5)); // Best
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 2, SimpleScore::of(-8));
 
-        let (index, score) = <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::pick_move_index(&mut forager).unwrap();
+        let (index, score) = <AcceptedCountForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut forager)
+        .unwrap();
         assert_eq!(index, 1);
         assert_eq!(score, SimpleScore::of(-5));
     }
@@ -289,7 +293,11 @@ mod tests {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
 
-        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::pick_move_index(&mut forager).is_none());
+        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut forager)
+        .is_none());
     }
 
     #[test]
@@ -305,7 +313,11 @@ mod tests {
         // Second move should be ignored
         <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 1, SimpleScore::of(-5));
 
-        let (index, score) = <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::pick_move_index(&mut forager).unwrap();
+        let (index, score) = <FirstAcceptedForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut forager)
+        .unwrap();
         // Should get the first one
         assert_eq!(index, 0);
         assert_eq!(score, SimpleScore::of(-10));
@@ -320,7 +332,11 @@ mod tests {
 
         <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
         // After reset, should be empty
-        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::pick_move_index(&mut forager).is_none());
+        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut forager)
+        .is_none());
     }
 
     // Suppress unused warnings for test helper functions

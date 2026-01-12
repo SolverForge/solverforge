@@ -409,13 +409,8 @@ mod tests {
         assert_eq!(solution.tasks[1].id, 1);
         assert_eq!(solution.tasks[2].id, 2);
 
-        let selector = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30],
-        );
+        let selector =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -450,12 +445,7 @@ mod tests {
             },
         ]);
 
-        let selector = SwapMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-        );
+        let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, "priority");
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -476,13 +466,8 @@ mod tests {
             priority: Some(1),
         }]);
 
-        let selector = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![99],
-        );
+        let selector =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![99]);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
         assert_eq!(moves.len(), 1);
@@ -520,12 +505,7 @@ mod tests {
             },
         ]);
 
-        let selector = SwapMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-        );
+        let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, "priority");
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
         assert_eq!(moves.len(), 1);

@@ -177,7 +177,7 @@ macro_rules! impl_vnd_phase {
 /// Returns `Some((index, score))` if an improving move is found, `None` otherwise.
 fn find_best_improving_move_index<S, D, M>(
     arena: &MoveArena<M>,
-    step_scope: &mut StepScope<'_, '_, S, D>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D>,
     current_score: &S::Score,
 ) -> Option<(usize, S::Score)>
 where

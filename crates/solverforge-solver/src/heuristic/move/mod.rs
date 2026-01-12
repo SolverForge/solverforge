@@ -30,13 +30,25 @@
 //! # Zero-Erasure Design
 //!
 //! Moves are NEVER cloned. Ownership transfers via arena indices:
-//! ```ignore
-//! // Store index in forager, not move
-//! forager.add_move_index(arena_index, score);
+//!
+//! ```
+//! use solverforge_solver::heuristic::MoveArena;
+//!
+//! // Simple move type for demonstration
+//! struct SimpleMove { value: i32 }
+//!
+//! let mut arena: MoveArena<SimpleMove> = MoveArena::new();
+//!
+//! // Store moves - track indices manually
+//! arena.push(SimpleMove { value: 1 }); // index 0
+//! arena.push(SimpleMove { value: 2 }); // index 1
 //!
 //! // Take ownership from arena when picking
-//! let selected = arena.take(picked_index);
-//! selected.do_move(director);
+//! let selected = arena.take(0);
+//! assert_eq!(selected.value, 1);
+//!
+//! // Reset clears arena for next step
+//! arena.reset();
 //! ```
 
 mod arena;

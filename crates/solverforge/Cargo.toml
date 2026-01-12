@@ -10,6 +10,7 @@ default = []
 decimal = ["solverforge-core/decimal"]
 serde = ["solverforge-core/serde"]
 console = ["dep:tracing", "dep:tracing-subscriber", "dep:owo-colors", "dep:num-format"]
+verbose-logging = []
 
 [dependencies]
 solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
@@ -20,6 +21,6 @@ solverforge-config = { version = "0.4.0", path = "../solverforge-config" }
 
 # Console output (optional)
 tracing = { version = "0.1", optional = true }
-tracing-subscriber = { version = "0.3", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 owo-colors = { version = "4", optional = true }
 num-format = { version = "0.4", optional = true }

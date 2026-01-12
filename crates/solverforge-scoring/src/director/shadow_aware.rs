@@ -147,7 +147,6 @@ pub trait SolvableSolution: ShadowVariableSupport {
     /// This is an associated function (not a method) to match the
     /// `fn(&S, usize) -> usize` signature required by `TypedScoreDirector`.
     fn entity_count(solution: &Self, descriptor_index: usize) -> usize;
-
 }
 
 /// A score director that integrates shadow variable updates.
@@ -395,8 +394,7 @@ mod tests {
         }
     }
 
-    fn make_sum_constraint(
-    ) -> IncrementalUniConstraint<
+    fn make_sum_constraint() -> IncrementalUniConstraint<
         TestSolution,
         i32,
         fn(&TestSolution) -> &[i32],

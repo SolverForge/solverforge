@@ -56,4 +56,4 @@ mod runner;
 pub use config::BenchmarkConfig;
 pub use report::{CsvExporter, MarkdownReport};
 pub use result::{BenchmarkResult, BenchmarkRun};
-pub use runner::{Benchmark, BenchmarkBuilder, Solvable};
+pub use runner::{Benchmark, BenchmarkBuilder, Solvable, SolveResult};

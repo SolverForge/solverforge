@@ -141,12 +141,11 @@ fn test_solver_with_time_limit_termination() {
 
     let _director = create_entity_director(solution.clone());
 
-    let factory = solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(
-        calculate_entity_score,
-    )
-    .with_time_limit(Duration::from_millis(100))
-    .build()
-    .expect("Failed to build factory");
+    let factory =
+        solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(calculate_entity_score)
+            .with_time_limit(Duration::from_millis(100))
+            .build()
+            .expect("Failed to build factory");
 
     // Verify the factory can calculate scores
     let score = factory.calculate_score(&solution);
@@ -172,12 +171,11 @@ fn test_solver_with_step_limit_termination() {
 
     let _director = create_entity_director(solution.clone());
 
-    let factory = solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(
-        calculate_entity_score,
-    )
-    .with_step_limit(5)
-    .build()
-    .expect("Failed to build factory");
+    let factory =
+        solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(calculate_entity_score)
+            .with_step_limit(5)
+            .build()
+            .expect("Failed to build factory");
 
     // Verify the factory can calculate scores
     let score = factory.calculate_score(&solution);
@@ -201,11 +199,10 @@ fn test_solver_factory_with_entity_solution() {
         score: None,
     };
 
-    let factory = solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(
-        calculate_entity_score,
-    )
-    .build()
-    .expect("Failed to build factory");
+    let factory =
+        solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(calculate_entity_score)
+            .build()
+            .expect("Failed to build factory");
 
     let score = factory.calculate_score(&solution);
     assert_eq!(score, SimpleScore::of(0));

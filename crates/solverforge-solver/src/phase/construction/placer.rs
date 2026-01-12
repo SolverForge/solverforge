@@ -167,7 +167,10 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, ChangeMove<S, V>>> {
+    fn get_placements<D: ScoreDirector<S>>(
+        &self,
+        score_director: &D,
+    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;

@@ -89,20 +89,14 @@ impl<const H: usize, const S: usize> BendableScore<H, S> {
     pub const fn one_hard(level: usize) -> Self {
         let mut hard = [0; H];
         hard[level] = 1;
-        BendableScore {
-            hard,
-            soft: [0; S],
-        }
+        BendableScore { hard, soft: [0; S] }
     }
 
     /// Creates a score with a single soft level penalty at the given index.
     pub const fn one_soft(level: usize) -> Self {
         let mut soft = [0; S];
         soft[level] = 1;
-        BendableScore {
-            hard: [0; H],
-            soft,
-        }
+        BendableScore { hard: [0; H], soft }
     }
 }
 

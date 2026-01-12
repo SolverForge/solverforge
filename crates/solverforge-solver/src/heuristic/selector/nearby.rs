@@ -311,12 +311,36 @@ mod tests {
     ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
         // Create a grid of locations: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
         let locations = vec![
-            Location { id: 0, x: 0.0, y: 0.0 },
-            Location { id: 1, x: 1.0, y: 0.0 },
-            Location { id: 2, x: 2.0, y: 0.0 },
-            Location { id: 3, x: 0.0, y: 1.0 },
-            Location { id: 4, x: 1.0, y: 1.0 },
-            Location { id: 5, x: 2.0, y: 1.0 },
+            Location {
+                id: 0,
+                x: 0.0,
+                y: 0.0,
+            },
+            Location {
+                id: 1,
+                x: 1.0,
+                y: 0.0,
+            },
+            Location {
+                id: 2,
+                x: 2.0,
+                y: 0.0,
+            },
+            Location {
+                id: 3,
+                x: 0.0,
+                y: 1.0,
+            },
+            Location {
+                id: 4,
+                x: 1.0,
+                y: 1.0,
+            },
+            Location {
+                id: 5,
+                x: 2.0,
+                y: 1.0,
+            },
         ];
 
         let solution = RoutingSolution {

@@ -63,10 +63,7 @@ impl AcceptorBuilder {
     }
 
     /// Creates a simulated annealing acceptor.
-    pub fn simulated_annealing(
-        starting_temp: f64,
-        decay_rate: f64,
-    ) -> SimulatedAnnealingAcceptor {
+    pub fn simulated_annealing(starting_temp: f64, decay_rate: f64) -> SimulatedAnnealingAcceptor {
         SimulatedAnnealingAcceptor::new(starting_temp, decay_rate)
     }
 

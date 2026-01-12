@@ -75,8 +75,8 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
-    SolutionManager, SolverManager, SolverStatus,
+    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis,
+    SolutionManager, Solvable, SolverManager, SolverStatus,
 };
 
 // ============================================================================
@@ -106,6 +106,13 @@ pub mod prelude {
 /// Internal module for macro-generated code. Not part of public API.
 #[doc(hidden)]
 pub mod __internal {
+    /// Initializes console output if the feature is enabled.
+    #[inline]
+    pub fn init_console() {
+        #[cfg(feature = "console")]
+        crate::console::init();
+    }
+
     // Derive macros
     pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
 

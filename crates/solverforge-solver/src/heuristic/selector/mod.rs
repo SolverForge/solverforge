@@ -19,7 +19,10 @@ pub mod typed_value;
 pub use entity::{
     AllEntitiesSelector, EntityReference, EntitySelector, FromSolutionEntitySelector,
 };
-pub use k_opt::{DefaultDistanceMeter, KOptConfig, KOptMoveSelector, ListPositionDistanceMeter, NearbyKOptMoveSelector};
+pub use k_opt::{
+    DefaultDistanceMeter, KOptConfig, KOptMoveSelector, ListPositionDistanceMeter,
+    NearbyKOptMoveSelector,
+};
 pub use list_change::ListChangeMoveSelector;
 pub use list_ruin::ListRuinMoveSelector;
 pub use mimic::{MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector};

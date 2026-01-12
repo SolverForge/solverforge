@@ -1,7 +1,7 @@
 //! Integration tests for derive macros.
 
-use solverforge::prelude::*;
 use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
+use solverforge::prelude::*;
 
 /// A problem fact representing an employee.
 #[problem_fact]
@@ -55,13 +55,25 @@ fn test_planning_entity_derives_correctly() {
 #[test]
 fn test_planning_solution_derives_correctly() {
     let schedule = Schedule {
-        employees: vec![Employee { id: 1, name: "Alice".to_string() }],
-        shifts: vec![Shift { id: 42, employee_id: None }],
+        employees: vec![Employee {
+            id: 1,
+            name: "Alice".to_string(),
+        }],
+        shifts: vec![Shift {
+            id: 42,
+            employee_id: None,
+        }],
         score: Some(HardSoftScore::of(0, 0)),
     };
-    assert_eq!(PlanningSolutionTrait::score(&schedule), Some(HardSoftScore::of(0, 0)));
+    assert_eq!(
+        PlanningSolutionTrait::score(&schedule),
+        Some(HardSoftScore::of(0, 0))
+    );
 
     let mut schedule2 = schedule.clone();
     PlanningSolutionTrait::set_score(&mut schedule2, Some(HardSoftScore::of(-1, -5)));
-    assert_eq!(PlanningSolutionTrait::score(&schedule2), Some(HardSoftScore::of(-1, -5)));
+    assert_eq!(
+        PlanningSolutionTrait::score(&schedule2),
+        Some(HardSoftScore::of(-1, -5))
+    );
 }

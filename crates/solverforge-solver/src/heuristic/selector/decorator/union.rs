@@ -173,13 +173,8 @@ mod tests {
     fn combines_both_selectors() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20],
-        );
+        let first =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
         let second = ChangeMoveSelector::simple(
             get_priority,
             set_priority,
@@ -202,20 +197,9 @@ mod tests {
     fn handles_empty_first() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![],
-        );
-        let second = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![100, 200],
-        );
+        let first = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![]);
+        let second =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![100, 200]);
         let union = UnionMoveSelector::new(first, second);
 
         let values: Vec<_> = union
@@ -230,20 +214,9 @@ mod tests {
     fn handles_empty_second() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20],
-        );
-        let second = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![],
-        );
+        let first =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
+        let second = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![]);
         let union = UnionMoveSelector::new(first, second);
 
         let values: Vec<_> = union
@@ -258,20 +231,8 @@ mod tests {
     fn both_empty_yields_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
-        let first = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![],
-        );
-        let second = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![],
-        );
+        let first = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![]);
+        let second = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![]);
         let union = UnionMoveSelector::new(first, second);
 
         let moves: Vec<_> = union.iter_moves(&director).collect();

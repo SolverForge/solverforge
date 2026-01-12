@@ -12,7 +12,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::ScoreDirector;
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 use super::Phase;
 use crate::scope::{PhaseScope, SolverScope};
@@ -96,27 +96,27 @@ where
         let n_values = (self.value_count)(phase_scope.solver_scope().working_solution());
 
         info!(
+            event = "phase_start",
+            phase = "Construction Heuristic",
             phase_index = 0,
-            phase_name = "Construction Heuristic",
-            entity_count = n_entities,
-            value_count = n_values,
-            "Phase started"
         );
 
         if n_entities == 0 || n_values == 0 {
             phase_scope.update_best_solution();
             info!(
+                event = "phase_end",
+                phase = "Construction Heuristic",
                 phase_index = 0,
-                phase_name = "Construction Heuristic",
                 duration_ms = phase_scope.elapsed().as_millis() as u64,
-                steps = 0,
-                "Phase ended"
+                steps = 0u64,
+                speed = 0u64,
+                score = "N/A",
             );
             return;
         }
 
         for entity_idx in 0..n_entities {
-            if phase_scope.solver_scope().is_terminate_early() {
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 
@@ -143,21 +143,20 @@ where
 
         let duration = phase_scope.elapsed();
         let steps = phase_scope.step_count();
-        let moves_per_sec = if duration.as_secs_f64() > 0.0 {
+        let speed = if duration.as_secs_f64() > 0.0 {
             (steps as f64 / duration.as_secs_f64()) as u64
         } else {
             0
         };
 
         info!(
+            event = "phase_end",
+            phase = "Construction Heuristic",
             phase_index = 0,
-            phase_name = "Construction Heuristic",
             duration_ms = duration.as_millis() as u64,
             steps = steps,
-            moves_evaluated = steps,
-            moves_per_sec = moves_per_sec,
-            best_score = best_score,
-            "Phase ended"
+            speed = speed,
+            score = best_score,
         );
     }
 
@@ -248,20 +247,20 @@ where
         let n_values = (self.value_count)(phase_scope.solver_scope().working_solution());
 
         info!(
+            event = "phase_start",
+            phase = "Late Acceptance",
             phase_index = 1,
-            phase_name = "Late Acceptance",
-            entity_count = n_entities,
-            value_count = n_values,
-            "Phase started"
         );
 
         if n_entities == 0 || n_values == 0 {
             info!(
+                event = "phase_end",
+                phase = "Late Acceptance",
                 phase_index = 1,
-                phase_name = "Late Acceptance",
                 duration_ms = phase_scope.elapsed().as_millis() as u64,
-                steps = 0,
-                "Phase ended"
+                steps = 0u64,
+                speed = 0u64,
+                score = "N/A",
             );
             return;
         }
@@ -274,21 +273,17 @@ where
         // Late acceptance history
         let mut late_scores = vec![initial_score; LATE_ACCEPTANCE_SIZE];
         let mut moves_evaluated: u64 = 0;
+        let mut last_progress_time = std::time::Instant::now();
+        let mut last_progress_moves: u64 = 0;
 
         // Send initial best through channel
         {
             let solution = phase_scope.solver_scope().working_solution().clone();
-            debug!(
-                step = 0,
-                score = %best_score,
-                "New best solution"
-            );
             let _ = self.sender.send((solution, best_score));
         }
 
         loop {
-            // Check termination via solver scope
-            if phase_scope.solver_scope().is_terminate_early() {
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 
@@ -302,7 +297,22 @@ where
             }
 
             moves_evaluated += 1;
-            let step = phase_scope.step_count();
+
+            // Log progress every second
+            let now = std::time::Instant::now();
+            if now.duration_since(last_progress_time).as_secs() >= 1 {
+                let moves_delta = moves_evaluated - last_progress_moves;
+                let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
+                let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
+                debug!(
+                    event = "progress",
+                    steps = phase_scope.step_count(),
+                    speed = current_speed,
+                    score = %best_score,
+                );
+                last_progress_time = now;
+                last_progress_moves = moves_evaluated;
+            }
 
             // Apply move
             let director = phase_scope.score_director_mut();
@@ -311,27 +321,38 @@ where
             director.after_entity_changed(entity_idx);
             let new_score = director.calculate_score();
 
+            let step = phase_scope.step_count();
             let late_idx = (step as usize) % LATE_ACCEPTANCE_SIZE;
             let late_score = late_scores[late_idx];
 
             if new_score >= current_score || new_score >= late_score {
                 late_scores[late_idx] = new_score;
                 current_score = new_score;
-                phase_scope.increment_step_count();
+                let new_step = phase_scope.increment_step_count();
+
+                trace!(
+                    event = "step",
+                    step = new_step,
+                    entity = entity_idx,
+                    score = %new_score,
+                    accepted = true,
+                );
 
                 if new_score > best_score {
                     best_score = new_score;
                     phase_scope.update_best_solution();
 
                     let solution = phase_scope.solver_scope().working_solution().clone();
-                    debug!(
-                        step = step,
-                        score = %best_score,
-                        "New best solution"
-                    );
                     let _ = self.sender.send((solution, best_score));
                 }
             } else {
+                trace!(
+                    event = "step",
+                    step = moves_evaluated,
+                    entity = entity_idx,
+                    score = %new_score,
+                    accepted = false,
+                );
                 // Undo move
                 let director = phase_scope.score_director_mut();
                 director.before_entity_changed(entity_idx);
@@ -342,7 +363,7 @@ where
         }
 
         let duration = phase_scope.elapsed();
-        let moves_per_sec = if duration.as_secs_f64() > 0.0 {
+        let speed = if duration.as_secs_f64() > 0.0 {
             (moves_evaluated as f64 / duration.as_secs_f64()) as u64
         } else {
             0
@@ -350,14 +371,13 @@ where
 
         let best_score_str = format!("{best_score}");
         info!(
+            event = "phase_end",
+            phase = "Late Acceptance",
             phase_index = 1,
-            phase_name = "Late Acceptance",
             duration_ms = duration.as_millis() as u64,
             steps = phase_scope.step_count(),
-            moves_evaluated = moves_evaluated,
-            moves_per_sec = moves_per_sec,
-            best_score = best_score_str,
-            "Phase ended"
+            speed = speed,
+            score = best_score_str,
         );
     }
 

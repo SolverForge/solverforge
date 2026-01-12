@@ -19,8 +19,9 @@ pub use selector::{
     AllEntitiesSelector, ChangeMoveSelector, DefaultDistanceMeter, DefaultPillarSelector,
     EntityReference, EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
     KOptConfig, KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter,
-    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector,
-    MoveSelector, NearbyDistanceMeter, NearbyEntitySelector, NearbyKOptMoveSelector,
-    NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector, SelectionOrder,
-    StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector, TypedValueSelector,
+    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
+    MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
+    NearbyKOptMoveSelector, NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector,
+    SelectionOrder, StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector,
+    TypedValueSelector,
 };

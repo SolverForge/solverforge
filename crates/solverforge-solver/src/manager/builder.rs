@@ -8,8 +8,8 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
-use crate::termination::{OrTermination, StepCountTermination, Termination, TimeTermination};
 use crate::solver::NoTermination;
+use crate::termination::{OrTermination, StepCountTermination, Termination, TimeTermination};
 
 use super::{PhaseFactory, SolverFactory};
 
@@ -60,7 +60,10 @@ where
     /// Adds a phase from a factory, returning a new builder with updated phase tuple.
     ///
     /// The factory's `create()` method is called to produce the phase.
-    pub fn with_phase_factory<F>(self, factory: F) -> SolverFactoryBuilder<S, D, C, (P, F::Phase), T>
+    pub fn with_phase_factory<F>(
+        self,
+        factory: F,
+    ) -> SolverFactoryBuilder<S, D, C, (P, F::Phase), T>
     where
         D: ScoreDirector<S>,
         F: PhaseFactory<S, D>,
@@ -77,7 +80,10 @@ where
     /// Applies configuration from a SolverConfig.
     ///
     /// Currently applies termination settings from the config.
-    pub fn with_config(self, config: SolverConfig) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
+    pub fn with_config(
+        self,
+        config: SolverConfig,
+    ) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
         let term = config.termination.unwrap_or_default();
         let duration = term.time_limit().unwrap_or(Duration::from_secs(30));
         SolverFactoryBuilder {
@@ -89,7 +95,10 @@ where
     }
 
     /// Sets time limit termination.
-    pub fn with_time_limit(self, duration: Duration) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
+    pub fn with_time_limit(
+        self,
+        duration: Duration,
+    ) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
@@ -99,7 +108,10 @@ where
     }
 
     /// Sets step limit termination.
-    pub fn with_step_limit(self, steps: u64) -> SolverFactoryBuilder<S, D, C, P, StepCountTermination> {
+    pub fn with_step_limit(
+        self,
+        steps: u64,
+    ) -> SolverFactoryBuilder<S, D, C, P, StepCountTermination> {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
@@ -139,7 +151,11 @@ where
     /// Returns `Ok(SolverFactory)` on success, or `Err` if configuration is invalid.
     /// Currently always succeeds as validation happens at compile time via type bounds.
     pub fn build(self) -> Result<SolverFactory<S, D, C, P, T>, SolverBuildError> {
-        Ok(SolverFactory::new(self.score_calculator, self.phases, self.termination))
+        Ok(SolverFactory::new(
+            self.score_calculator,
+            self.phases,
+            self.termination,
+        ))
     }
 }
 
@@ -153,7 +169,9 @@ pub enum SolverBuildError {
 impl std::fmt::Display for SolverBuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SolverBuildError::InvalidConfig(msg) => write!(f, "Invalid solver configuration: {}", msg),
+            SolverBuildError::InvalidConfig(msg) => {
+                write!(f, "Invalid solver configuration: {}", msg)
+            }
         }
     }
 }

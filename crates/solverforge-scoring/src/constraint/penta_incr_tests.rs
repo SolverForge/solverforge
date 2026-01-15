@@ -1,6 +1,6 @@
 //! Unit tests for IncrementalPentaConstraint.
 
-use super::penta_incremental::IncrementalPentaConstraint;
+use super::IncrementalPentaConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};

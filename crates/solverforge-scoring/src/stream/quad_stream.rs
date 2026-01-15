@@ -45,7 +45,7 @@ use std::hash::Hash;
 
 use solverforge_core::score::Score;
 
-use crate::constraint::quad_incremental::IncrementalQuadConstraint;
+use crate::constraint::IncrementalQuadConstraint;
 
 use super::filter::{FnPentaFilter, PentaFilter, QuadFilter};
 use super::joiner::Joiner;

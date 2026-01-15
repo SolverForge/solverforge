@@ -43,7 +43,7 @@ use std::hash::Hash;
 
 use solverforge_core::score::Score;
 
-use crate::constraint::tri_incremental::IncrementalTriConstraint;
+use crate::constraint::IncrementalTriConstraint;
 
 use super::filter::{FnQuadFilter, QuadFilter, TriFilter};
 use super::joiner::Joiner;

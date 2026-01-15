@@ -113,7 +113,6 @@ where
     }
 
     fn is_never_ending(&self) -> bool {
-        // Shuffling collects all moves, so it's always finite
         false
     }
 }
@@ -121,85 +120,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::test_utils::{Task, create_director, get_priority, set_priority};
     use crate::heuristic::selector::ChangeMoveSelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
-
-    #[derive(Clone, Debug)]
-    struct Task {
-        priority: Option<i32>,
-    }
-
-    #[derive(Clone, Debug)]
-    struct TaskSolution {
-        tasks: Vec<Task>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for TaskSolution {
-        type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    fn get_tasks(s: &TaskSolution) -> &Vec<Task> {
-        &s.tasks
-    }
-    fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
-        &mut s.tasks
-    }
-    fn get_priority(s: &TaskSolution, i: usize) -> Option<i32> {
-        s.tasks.get(i).and_then(|t| t.priority)
-    }
-    fn set_priority(s: &mut TaskSolution, i: usize, v: Option<i32>) {
-        if let Some(t) = s.tasks.get_mut(i) {
-            t.priority = v;
-        }
-    }
-
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
-        let solution = TaskSolution { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
-    }
 
     #[test]
     fn preserves_all_moves() {
         let director = create_director(vec![Task { priority: Some(1) }]);
-
         let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30, 40, 50],
+            get_priority, set_priority, 0, "priority", vec![10, 20, 30, 40, 50],
         );
         let shuffled = ShufflingMoveSelector::with_seed(inner, 42);
 
         let moves: Vec<_> = shuffled.iter_moves(&director).collect();
-
-        // All moves are present
         assert_eq!(moves.len(), 5);
         assert_eq!(shuffled.size(&director), 5);
 
-        // Check all values are present (order may differ)
         let values: Vec<_> = moves.iter().filter_map(|m| m.to_value().copied()).collect();
         assert!(values.contains(&10));
         assert!(values.contains(&20));
@@ -213,31 +148,17 @@ mod tests {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
         let inner1 = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30, 40, 50],
+            get_priority, set_priority, 0, "priority", vec![10, 20, 30, 40, 50],
         );
         let shuffled1 = ShufflingMoveSelector::with_seed(inner1, 42);
 
         let inner2 = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30, 40, 50],
+            get_priority, set_priority, 0, "priority", vec![10, 20, 30, 40, 50],
         );
         let shuffled2 = ShufflingMoveSelector::with_seed(inner2, 42);
 
-        let moves1: Vec<_> = shuffled1
-            .iter_moves(&director)
-            .filter_map(|m| m.to_value().copied())
-            .collect();
-        let moves2: Vec<_> = shuffled2
-            .iter_moves(&director)
-            .filter_map(|m| m.to_value().copied())
-            .collect();
+        let moves1: Vec<_> = shuffled1.iter_moves(&director).filter_map(|m| m.to_value().copied()).collect();
+        let moves2: Vec<_> = shuffled2.iter_moves(&director).filter_map(|m| m.to_value().copied()).collect();
 
         assert_eq!(moves1, moves2);
     }
@@ -247,33 +168,18 @@ mod tests {
         let director = create_director(vec![Task { priority: Some(1) }]);
 
         let inner1 = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+            get_priority, set_priority, 0, "priority", vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
         );
         let shuffled1 = ShufflingMoveSelector::with_seed(inner1, 42);
 
         let inner2 = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+            get_priority, set_priority, 0, "priority", vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
         );
         let shuffled2 = ShufflingMoveSelector::with_seed(inner2, 123);
 
-        let moves1: Vec<_> = shuffled1
-            .iter_moves(&director)
-            .filter_map(|m| m.to_value().copied())
-            .collect();
-        let moves2: Vec<_> = shuffled2
-            .iter_moves(&director)
-            .filter_map(|m| m.to_value().copied())
-            .collect();
+        let moves1: Vec<_> = shuffled1.iter_moves(&director).filter_map(|m| m.to_value().copied()).collect();
+        let moves2: Vec<_> = shuffled2.iter_moves(&director).filter_map(|m| m.to_value().copied()).collect();
 
-        // With 10 elements, probability of same order with different seeds is 1/10! ≈ 0
         assert_ne!(moves1, moves2);
     }
 }

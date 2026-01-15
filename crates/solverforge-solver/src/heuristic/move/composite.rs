@@ -99,11 +99,7 @@ where
     M2: Move<S>,
 {
     fn clone(&self) -> Self {
-        Self {
-            index_1: self.index_1,
-            index_2: self.index_2,
-            _phantom: PhantomData,
-        }
+        *self
     }
 }
 

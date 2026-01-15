@@ -109,7 +109,7 @@ where
 
         // Optimistic bound = current score + max_improvement * remaining_entities
         // Since we don't know remaining entities, we assume all could improve
-        let bound = current_score + self.max_improvement_per_entity.clone() * (total as i32);
+        let bound = current_score + self.max_improvement_per_entity * (total as i32);
 
         Some(bound)
     }

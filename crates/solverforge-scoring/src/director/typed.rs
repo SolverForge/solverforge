@@ -173,8 +173,8 @@ where
             self.initialized = true;
         }
         self.working_solution
-            .set_score(Some(self.cached_score.clone()));
-        self.cached_score.clone()
+            .set_score(Some(self.cached_score));
+        self.cached_score
     }
 
     /// Called before changing an entity's variable.
@@ -195,7 +195,7 @@ where
         let delta = self
             .constraints
             .on_retract_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     /// Called after changing an entity's variable.
@@ -215,7 +215,7 @@ where
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     /// Called after changing an entity's variable, with shadow update.
@@ -241,7 +241,7 @@ where
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     /// Convenience method for a complete variable change cycle.
@@ -258,7 +258,7 @@ where
         self.before_variable_changed(entity_index);
         change_fn(&mut self.working_solution);
         self.after_variable_changed(entity_index);
-        self.cached_score.clone()
+        self.cached_score
     }
 
     /// Variable change cycle with automatic shadow updates.
@@ -277,7 +277,7 @@ where
         self.before_variable_changed(entity_index);
         change_fn(&mut self.working_solution);
         self.after_variable_changed_with_shadows(entity_index);
-        self.cached_score.clone()
+        self.cached_score
     }
 
     /// Returns the cached score without recalculation.
@@ -285,7 +285,7 @@ where
     /// Returns zero score if not yet initialized.
     #[inline]
     pub fn get_score(&self) -> S::Score {
-        self.cached_score.clone()
+        self.cached_score
     }
 
     /// Resets the director state.
@@ -333,7 +333,7 @@ where
             .map(|r| {
                 // Weight is approximated from score / match_count
                 let weight = if r.match_count > 0 {
-                    r.score.clone()
+                    r.score
                 } else {
                     S::Score::zero()
                 };
@@ -410,8 +410,8 @@ where
             self.initialized = true;
         }
         self.working_solution
-            .set_score(Some(self.cached_score.clone()));
-        self.cached_score.clone()
+            .set_score(Some(self.cached_score));
+        self.cached_score
     }
 
     fn solution_descriptor(&self) -> &SolutionDescriptor {
@@ -434,7 +434,7 @@ where
         let delta = self
             .constraints
             .on_retract_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     fn after_variable_changed(
@@ -449,7 +449,7 @@ where
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     fn trigger_variable_listeners(&mut self) {

@@ -137,7 +137,7 @@ where
                     ImpactType::Penalty => -base,
                     ImpactType::Reward => base,
                 };
-                matches.insert(pair, score.clone());
+                matches.insert(pair, score);
                 a_to_matches.entry(a_idx).or_default().insert(pair);
                 total = total + score;
             }

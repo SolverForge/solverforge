@@ -152,7 +152,7 @@ where
             let mut child = ExhaustiveSearchNode::child(
                 parent_index,
                 new_depth,
-                score.clone(),
+                score,
                 entity_index,
                 value_index,
             );

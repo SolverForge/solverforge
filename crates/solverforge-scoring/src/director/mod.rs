@@ -224,13 +224,13 @@ where
     fn calculate_score(&mut self) -> S::Score {
         if !self.score_dirty {
             if let Some(ref score) = self.cached_score {
-                return score.clone();
+                return *score;
             }
         }
 
         let score = (self.score_calculator)(&self.working_solution);
-        self.working_solution.set_score(Some(score.clone()));
-        self.cached_score = Some(score.clone());
+        self.working_solution.set_score(Some(score));
+        self.cached_score = Some(score);
         self.score_dirty = false;
         score
     }

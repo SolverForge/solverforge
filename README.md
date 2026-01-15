@@ -1,5 +1,17 @@
 # SolverForge
 
+<div align="center">
+
+[![CI](https://github.com/solverforge/solverforge-rs/workflows/CI/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml)
+[![Release](https://github.com/solverforge/solverforge-rs/workflows/Release/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml)
+[![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)
+[![Documentation](https://docs.rs/solverforge/badge.svg)](https://docs.rs/solverforge)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Rust Version](https://img.shields.io/badge/rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+[![Downloads](https://img.shields.io/crates/d/solverforge.svg)](https://crates.io/crates/solverforge)
+
+</div>
+
 A zero-erasure constraint solver in Rust.
 
 SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API with efficient incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.

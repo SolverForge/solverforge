@@ -59,7 +59,7 @@ impl<S: PlanningSolution> Clone for TabuSearchAcceptor<S> {
             tabu_size: self.tabu_size,
             tabu_list: self.tabu_list.clone(),
             aspiration_enabled: self.aspiration_enabled,
-            best_score: self.best_score.clone(),
+            best_score: self.best_score,
         }
     }
 }
@@ -143,7 +143,7 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
 
     fn phase_started(&mut self, initial_score: &S::Score) {
         self.tabu_list.clear();
-        self.best_score = Some(initial_score.clone());
+        self.best_score = Some(*initial_score);
     }
 
     fn phase_ended(&mut self) {
@@ -152,15 +152,15 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
 
     fn step_ended(&mut self, step_score: &S::Score) {
         // Add the step score to the tabu list
-        self.add_to_tabu(step_score.clone());
+        self.add_to_tabu(*step_score);
 
         // Update best score
         if let Some(best) = &self.best_score {
             if step_score > best {
-                self.best_score = Some(step_score.clone());
+                self.best_score = Some(*step_score);
             }
         } else {
-            self.best_score = Some(step_score.clone());
+            self.best_score = Some(*step_score);
         }
     }
 }

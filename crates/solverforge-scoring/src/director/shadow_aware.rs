@@ -196,7 +196,7 @@ pub trait SolvableSolution: ShadowVariableSupport {
 ///     ConstraintRef::new("", "SumLimit"),
 ///     ImpactType::Penalty,
 ///     |s: &Solution| std::slice::from_ref(&s.cached_sum),
-///     |&sum| sum > 100,
+///     |_s: &Solution, &sum| sum > 100,
 ///     |&sum| SimpleScore::of((sum - 100) as i64),
 ///     false,
 /// );
@@ -398,14 +398,14 @@ mod tests {
         TestSolution,
         i32,
         fn(&TestSolution) -> &[i32],
-        fn(&i32) -> bool,
+        fn(&TestSolution, &i32) -> bool,
         fn(&i32) -> SimpleScore,
         SimpleScore,
     > {
         fn extract(s: &TestSolution) -> &[i32] {
             std::slice::from_ref(&s.cached_sum)
         }
-        fn filter(&sum: &i32) -> bool {
+        fn filter(_s: &TestSolution, &sum: &i32) -> bool {
             sum > 100
         }
         fn score(&sum: &i32) -> SimpleScore {
@@ -416,7 +416,7 @@ mod tests {
             ConstraintRef::new("", "SumLimit"),
             ImpactType::Penalty,
             extract as fn(&TestSolution) -> &[i32],
-            filter as fn(&i32) -> bool,
+            filter as fn(&TestSolution, &i32) -> bool,
             score as fn(&i32) -> SimpleScore,
             false,
         )

@@ -262,7 +262,7 @@ where
         let initial_score = phase_scope.calculate_score();
 
         // Create root node
-        let root = ExhaustiveSearchNode::root(initial_score.clone());
+        let root = ExhaustiveSearchNode::root(initial_score);
 
         // Initialize best score
         let mut best_score: Option<S::Score> = None;
@@ -312,7 +312,7 @@ where
                 };
 
                 if is_better {
-                    best_score = Some(node.score().clone());
+                    best_score = Some(*node.score());
                     phase_scope.update_best_solution();
                 }
 

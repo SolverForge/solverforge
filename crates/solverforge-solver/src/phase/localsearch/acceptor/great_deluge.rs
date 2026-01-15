@@ -58,8 +58,8 @@ impl<S: PlanningSolution> Clone for GreatDelugeAcceptor<S> {
     fn clone(&self) -> Self {
         Self {
             rain_speed: self.rain_speed,
-            water_level: self.water_level.clone(),
-            initial_abs_score: self.initial_abs_score.clone(),
+            water_level: self.water_level,
+            initial_abs_score: self.initial_abs_score,
         }
     }
 }
@@ -100,7 +100,7 @@ impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
     }
 
     fn phase_started(&mut self, initial_score: &S::Score) {
-        self.water_level = Some(initial_score.clone());
+        self.water_level = Some(*initial_score);
         self.initial_abs_score = Some(initial_score.abs());
     }
 
@@ -108,7 +108,7 @@ impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
         // Raise water level by rain_speed * |initial_score|
         if let (Some(water), Some(abs_score)) = (&self.water_level, &self.initial_abs_score) {
             let increment = abs_score.multiply(self.rain_speed);
-            self.water_level = Some(water.clone() + increment);
+            self.water_level = Some(*water + increment);
         }
     }
 

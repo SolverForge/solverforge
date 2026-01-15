@@ -32,7 +32,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: Fn(&A) -> bool + Send + Sync,
+    F: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -57,8 +57,8 @@ where
     }
 
     #[inline]
-    fn matches(&self, entity: &A) -> bool {
-        (self.filter)(entity)
+    fn matches(&self, solution: &S, entity: &A) -> bool {
+        (self.filter)(solution, entity)
     }
 
     #[inline]
@@ -85,7 +85,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Debug + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: Fn(&A) -> bool + Send + Sync,
+    F: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -93,7 +93,7 @@ where
         let entities = (self.extractor)(solution);
         let mut total = Sc::zero();
         for entity in entities {
-            if self.matches(entity) {
+            if self.matches(solution, entity) {
                 total = total + self.compute_delta(entity);
             }
         }
@@ -102,7 +102,10 @@ where
 
     fn match_count(&self, solution: &S) -> usize {
         let entities = (self.extractor)(solution);
-        entities.iter().filter(|e| self.matches(e)).count()
+        entities
+            .iter()
+            .filter(|e| self.matches(solution, e))
+            .count()
     }
 
     fn initialize(&mut self, solution: &S) -> Sc {
@@ -115,7 +118,7 @@ where
             return Sc::zero();
         }
         let entity = &entities[entity_index];
-        if self.matches(entity) {
+        if self.matches(solution, entity) {
             self.compute_delta(entity)
         } else {
             Sc::zero()
@@ -128,7 +131,7 @@ where
             return Sc::zero();
         }
         let entity = &entities[entity_index];
-        if self.matches(entity) {
+        if self.matches(solution, entity) {
             self.reverse_delta(entity)
         } else {
             Sc::zero()
@@ -156,7 +159,7 @@ where
         let cref = self.constraint_ref.clone();
         entities
             .iter()
-            .filter(|e| self.matches(e))
+            .filter(|e| self.matches(solution, e))
             .map(|entity| {
                 let entity_ref = EntityRef::new(entity);
                 let justification = ConstraintJustification::new(vec![entity_ref]);

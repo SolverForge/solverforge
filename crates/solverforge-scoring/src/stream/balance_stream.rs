@@ -74,7 +74,7 @@ where
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: UniFilter<A>,
+    F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
@@ -157,7 +157,7 @@ where
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: UniFilter<A>,
+    F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {

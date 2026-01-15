@@ -12,19 +12,17 @@
 
 #[macro_use]
 pub mod macros;
+#[macro_use]
+pub mod nary_incremental;
 
 pub mod balance;
-pub mod bi_incremental;
 pub mod complemented;
 pub mod cross_bi_incremental;
 pub mod flattened_bi;
 pub mod grouped;
 pub mod if_exists;
 pub mod incremental;
-pub mod penta_incremental;
-pub mod quad_incremental;
 pub mod shared;
-pub mod tri_incremental;
 
 #[cfg(test)]
 mod bi_incr_tests;
@@ -36,13 +34,13 @@ mod quad_incr_tests;
 mod tri_incr_tests;
 
 pub use balance::BalanceConstraint;
-pub use bi_incremental::IncrementalBiConstraint;
 pub use complemented::ComplementedGroupConstraint;
 pub use cross_bi_incremental::IncrementalCrossBiConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
 pub use grouped::GroupedUniConstraint;
 pub use if_exists::{ExistenceMode, IfExistsUniConstraint};
 pub use incremental::IncrementalUniConstraint;
-pub use penta_incremental::IncrementalPentaConstraint;
-pub use quad_incremental::IncrementalQuadConstraint;
-pub use tri_incremental::IncrementalTriConstraint;
+pub use nary_incremental::{
+    IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
+    IncrementalTriConstraint,
+};

@@ -53,6 +53,7 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 /// * `_entity_count` - Entity count function (unused, for future extensions)
 /// * `_variable_field` - Variable field name (unused, for future extensions)
 /// * `_descriptor_index` - Descriptor index (unused, for future extensions)
+#[allow(clippy::too_many_arguments)]
 pub fn run_solver<S, C>(
     solution: S,
     finalize_fn: fn(&mut S),
@@ -90,6 +91,7 @@ where
 ///
 /// Logs solver progress via `tracing`. Optionally accepts a termination flag.
 /// Solutions are sent through the channel as they improve.
+#[allow(clippy::too_many_arguments)]
 pub fn run_solver_with_channel<S, C>(
     mut solution: S,
     finalize_fn: fn(&mut S),

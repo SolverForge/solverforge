@@ -50,8 +50,43 @@ macro_rules! impl_fn_filter {
     };
 }
 
-impl_fn_filter!(FnUniFilter, UniFilter, "A uni-filter wrapping a closure.", (A, a));
-impl_fn_filter!(FnBiFilter, BiFilter, "A bi-filter wrapping a closure.", (A, a), (B, b));
-impl_fn_filter!(FnTriFilter, TriFilter, "A tri-filter wrapping a closure.", (A, a), (B, b), (C, c));
-impl_fn_filter!(FnQuadFilter, QuadFilter, "A quad-filter wrapping a closure.", (A, a), (B, b), (C, c), (D, d));
-impl_fn_filter!(FnPentaFilter, PentaFilter, "A penta-filter wrapping a closure.", (A, a), (B, b), (C, c), (D, d), (E, e));
+impl_fn_filter!(
+    FnUniFilter,
+    UniFilter,
+    "A uni-filter wrapping a closure.",
+    (A, a)
+);
+impl_fn_filter!(
+    FnBiFilter,
+    BiFilter,
+    "A bi-filter wrapping a closure.",
+    (A, a),
+    (B, b)
+);
+impl_fn_filter!(
+    FnTriFilter,
+    TriFilter,
+    "A tri-filter wrapping a closure.",
+    (A, a),
+    (B, b),
+    (C, c)
+);
+impl_fn_filter!(
+    FnQuadFilter,
+    QuadFilter,
+    "A quad-filter wrapping a closure.",
+    (A, a),
+    (B, b),
+    (C, c),
+    (D, d)
+);
+impl_fn_filter!(
+    FnPentaFilter,
+    PentaFilter,
+    "A penta-filter wrapping a closure.",
+    (A, a),
+    (B, b),
+    (C, c),
+    (D, d),
+    (E, e)
+);

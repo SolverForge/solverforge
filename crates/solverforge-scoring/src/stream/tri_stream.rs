@@ -114,8 +114,9 @@ where
         F: 'static,
     {
         let filter = self.filter;
-        let combined_filter =
-            move |s: &S, a: &A, b: &A, c: &A, d: &A| filter.test(s, a, b, c) && joiner.matches(a, d);
+        let combined_filter = move |s: &S, a: &A, b: &A, c: &A, d: &A| {
+            filter.test(s, a, b, c) && joiner.matches(a, d)
+        };
 
         QuadConstraintStream::new_self_join_with_filter(
             self.extractor,

@@ -22,7 +22,7 @@ fn test_evaluate_no_conflicts() {
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
-        |q: &Queen| q.row,                           // Key by row for grouping
+        |q: &Queen| q.row, // Key by row for grouping
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,

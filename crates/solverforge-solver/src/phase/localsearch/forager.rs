@@ -327,5 +327,4 @@ mod tests {
         >>::pick_move_index(&mut forager)
         .is_none());
     }
-
 }

@@ -1,5 +1,17 @@
 # SolverForge
 
+<div align="center">
+
+[![CI](https://github.com/solverforge/solverforge-rs/workflows/CI/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml)
+[![Release](https://github.com/solverforge/solverforge-rs/workflows/Release/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml)
+[![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)
+[![Documentation](https://docs.rs/solverforge/badge.svg)](https://docs.rs/solverforge)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Rust Version](https://img.shields.io/badge/rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
+[![Downloads](https://img.shields.io/crates/d/solverforge.svg)](https://crates.io/crates/solverforge)
+
+</div>
+
 A zero-erasure constraint solver in Rust.
 
 SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API with efficient incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
@@ -38,7 +50,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.4", features = ["console"] }
+solverforge = { version = "0.5", features = ["console"] }
 ```
 
 ### Feature Flags
@@ -95,19 +107,27 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
     let required_skill = factory
         .clone()
         .for_each(|s: &Schedule| s.shifts.as_slice())
-        .filter(|shift: &Shift| shift.employee.is_some())
-        .penalize_configurable(|shift| {
-            // Check if assigned employee has required skill
-            if !has_skill(shift) { 1 } else { 0 }
+        .join(
+            |s: &Schedule| s.employees.as_slice(),
+            joiner::equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |emp: &Employee| Some(emp.id),
+            ),
+        )
+        .filter(|shift: &Shift, emp: &Employee| {
+            !emp.skills.contains(&shift.required_skill)
         })
+        .penalize(HardSoftScore::ONE_HARD)
         .as_constraint("Required skill");
 
     let no_overlap = factory
         .for_each_unique_pair(
             |s: &Schedule| s.shifts.as_slice(),
-            joiner::equal(|shift: &Shift| shift.employee),
+            joiner::equal(|shift: &Shift| shift.employee_id),
         )
-        .filter(|a: &Shift, b: &Shift| overlaps(a, b))
+        .filter(|a: &Shift, b: &Shift| {
+            a.employee_id.is_some() && a.start < b.end && b.start < a.end
+        })
         .penalize(HardSoftScore::ONE_HARD)
         .as_constraint("No overlap");
 
@@ -144,7 +164,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.4.0 - Zero-Erasure Constraint Solver
+                   v0.5.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -332,6 +352,22 @@ SolverForge leverages Rust's zero-cost abstractions:
 Typical throughput: 100k-500k moves/second depending on constraint complexity.
 
 ## Status
+
+**Current Version**: 0.5.0 (pre-release, on `release/0.5.0` branch)
+
+### What's New in 0.5.0
+
+**Breaking Changes:**
+- **Solution-aware filter traits**: Uni-stream filters can now optionally access the solution using `filter_with_solution()`, enabling access to shadow variables and computed solution state. The standard `filter()` method remains unchanged for simple predicates. Bi/Tri/Quad/Penta stream filters (after joins) continue to receive only the entity tuples without the solution reference.
+
+**Improvements:**
+- Added `filter_with_solution()` for uni-streams to access shadow variables
+- Refactored incremental constraint internals using macro-based codegen
+- Improved code organization with extracted test utilities
+- Enhanced clippy compliance and eliminated unnecessary clones
+- Better structured logging with trace-level move evaluation
+
+### Component Status
 
 | Component | Status |
 |-----------|--------|

@@ -172,8 +172,7 @@ where
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
-        self.working_solution
-            .set_score(Some(self.cached_score));
+        self.working_solution.set_score(Some(self.cached_score));
         self.cached_score
     }
 
@@ -409,8 +408,7 @@ where
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
-        self.working_solution
-            .set_score(Some(self.cached_score));
+        self.working_solution.set_score(Some(self.cached_score));
         self.cached_score
     }
 

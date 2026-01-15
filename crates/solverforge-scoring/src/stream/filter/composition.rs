@@ -31,8 +31,43 @@ macro_rules! impl_and_filter {
     };
 }
 
-impl_and_filter!(AndUniFilter, UniFilter, "Combines two uni-filters with AND semantics.", (A, a));
-impl_and_filter!(AndBiFilter, BiFilter, "Combines two bi-filters with AND semantics.", (A, a), (B, b));
-impl_and_filter!(AndTriFilter, TriFilter, "Combines two tri-filters with AND semantics.", (A, a), (B, b), (C, c));
-impl_and_filter!(AndQuadFilter, QuadFilter, "Combines two quad-filters with AND semantics.", (A, a), (B, b), (C, c), (D, d));
-impl_and_filter!(AndPentaFilter, PentaFilter, "Combines two penta-filters with AND semantics.", (A, a), (B, b), (C, c), (D, d), (E, e));
+impl_and_filter!(
+    AndUniFilter,
+    UniFilter,
+    "Combines two uni-filters with AND semantics.",
+    (A, a)
+);
+impl_and_filter!(
+    AndBiFilter,
+    BiFilter,
+    "Combines two bi-filters with AND semantics.",
+    (A, a),
+    (B, b)
+);
+impl_and_filter!(
+    AndTriFilter,
+    TriFilter,
+    "Combines two tri-filters with AND semantics.",
+    (A, a),
+    (B, b),
+    (C, c)
+);
+impl_and_filter!(
+    AndQuadFilter,
+    QuadFilter,
+    "Combines two quad-filters with AND semantics.",
+    (A, a),
+    (B, b),
+    (C, c),
+    (D, d)
+);
+impl_and_filter!(
+    AndPentaFilter,
+    PentaFilter,
+    "Combines two penta-filters with AND semantics.",
+    (A, a),
+    (B, b),
+    (C, c),
+    (D, d),
+    (E, e)
+);

@@ -448,7 +448,9 @@ mod tests {
             |emp: &Employee| emp.unavailable_days.as_slice(),
             |day: &u32| *day,
             |shift: &Shift| shift.day,
-            |_s: &Schedule, shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day,
+            |_s: &Schedule, shift: &Shift, day: &u32| {
+                shift.employee_id.is_some() && shift.day == *day
+            },
             |_shift: &Shift, _day: &u32| SimpleScore::of(1),
             false,
         )

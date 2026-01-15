@@ -243,16 +243,6 @@ mod tests {
         }
     }
 
-    fn get_value(s: &DummySolution, idx: usize) -> Option<i32> {
-        s.values.get(idx).copied().flatten()
-    }
-
-    fn set_value(s: &mut DummySolution, idx: usize, v: Option<i32>) {
-        if let Some(val) = s.values.get_mut(idx) {
-            *val = v;
-        }
-    }
-
     type TestMove = ChangeMove<DummySolution, i32>;
 
     #[test]
@@ -339,7 +329,4 @@ mod tests {
         .is_none());
     }
 
-    // Suppress unused warnings for test helper functions
-    const _: fn(&DummySolution, usize) -> Option<i32> = get_value;
-    const _: fn(&mut DummySolution, usize, Option<i32>) = set_value;
 }

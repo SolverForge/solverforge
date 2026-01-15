@@ -8,7 +8,6 @@
 /// Doctests and unique methods (like join_self) should be defined outside the macro
 /// in the individual stream files.
 macro_rules! impl_arity_stream {
-    // Bi arity (2 params: a, b)
     (bi, $stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>
         where
@@ -53,7 +52,6 @@ macro_rules! impl_arity_stream {
                 Self { extractor, key_extractor, filter, _phantom: std::marker::PhantomData }
             }
 
-            /// Adds a filter predicate to the stream.
             pub fn filter<P>(
                 self,
                 predicate: P,
@@ -145,7 +143,7 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug for $stream<S, A, K, E, KE, F, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("BiConstraintStream").finish()
+                f.debug_struct(stringify!($stream)).finish()
             }
         }
 
@@ -183,12 +181,11 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, W, Sc: solverforge_core::score::Score> std::fmt::Debug for $builder<S, A, K, E, KE, F, W, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("BiConstraintBuilder").field("impact_type", &self.impact_type).finish()
+                f.debug_struct(stringify!($builder)).field("impact_type", &self.impact_type).finish()
             }
         }
     };
 
-    // Tri arity (3 params: a, b, c)
     (tri, $stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>
         where
@@ -233,7 +230,6 @@ macro_rules! impl_arity_stream {
                 Self { extractor, key_extractor, filter, _phantom: std::marker::PhantomData }
             }
 
-            /// Adds a filter predicate to the stream.
             pub fn filter<P>(
                 self,
                 predicate: P,
@@ -325,7 +321,7 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug for $stream<S, A, K, E, KE, F, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("TriConstraintStream").finish()
+                f.debug_struct(stringify!($stream)).finish()
             }
         }
 
@@ -363,12 +359,11 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, W, Sc: solverforge_core::score::Score> std::fmt::Debug for $builder<S, A, K, E, KE, F, W, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("TriConstraintBuilder").field("impact_type", &self.impact_type).finish()
+                f.debug_struct(stringify!($builder)).field("impact_type", &self.impact_type).finish()
             }
         }
     };
 
-    // Quad arity (4 params: a, b, c, d)
     (quad, $stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>
         where
@@ -413,7 +408,6 @@ macro_rules! impl_arity_stream {
                 Self { extractor, key_extractor, filter, _phantom: std::marker::PhantomData }
             }
 
-            /// Adds a filter predicate to the stream.
             pub fn filter<P>(
                 self,
                 predicate: P,
@@ -505,7 +499,7 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug for $stream<S, A, K, E, KE, F, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("QuadConstraintStream").finish()
+                f.debug_struct(stringify!($stream)).finish()
             }
         }
 
@@ -543,12 +537,11 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, W, Sc: solverforge_core::score::Score> std::fmt::Debug for $builder<S, A, K, E, KE, F, W, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("QuadConstraintBuilder").field("impact_type", &self.impact_type).finish()
+                f.debug_struct(stringify!($builder)).field("impact_type", &self.impact_type).finish()
             }
         }
     };
 
-    // Penta arity (5 params: a, b, c, d, e)
     (penta, $stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>
         where
@@ -593,7 +586,6 @@ macro_rules! impl_arity_stream {
                 Self { extractor, key_extractor, filter, _phantom: std::marker::PhantomData }
             }
 
-            /// Adds a filter predicate to the stream.
             pub fn filter<P>(
                 self,
                 predicate: P,
@@ -685,7 +677,7 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug for $stream<S, A, K, E, KE, F, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("PentaConstraintStream").finish()
+                f.debug_struct(stringify!($stream)).finish()
             }
         }
 
@@ -723,7 +715,7 @@ macro_rules! impl_arity_stream {
 
         impl<S, A, K, E, KE, F, W, Sc: solverforge_core::score::Score> std::fmt::Debug for $builder<S, A, K, E, KE, F, W, Sc> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_struct("PentaConstraintBuilder").field("impact_type", &self.impact_type).finish()
+                f.debug_struct(stringify!($builder)).field("impact_type", &self.impact_type).finish()
             }
         }
     };

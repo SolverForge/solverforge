@@ -6,39 +6,46 @@ use super::traits::{BiFilter, PentaFilter, QuadFilter, TriFilter, UniFilter};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TrueFilter;
 
-impl<S, A> UniFilter<S, A> for TrueFilter {
-    #[inline]
-    fn test(&self, _: &S, _: &A) -> bool {
-        true
-    }
+macro_rules! impl_true_filter {
+    ($trait:ident, $($param:ident),+) => {
+        impl<S, $($param),+> $trait<S, $($param),+> for TrueFilter {
+            #[inline]
+            fn test(&self, _: &S, $(_: &$param),+) -> bool {
+                true
+            }
+        }
+    };
 }
 
-impl<S, A, B> BiFilter<S, A, B> for TrueFilter {
-    #[inline]
-    fn test(&self, _: &S, _: &A, _: &B) -> bool {
-        true
-    }
-}
+impl_true_filter!(UniFilter, A);
+impl_true_filter!(BiFilter, A, B);
+impl_true_filter!(TriFilter, A, B, C);
+impl_true_filter!(QuadFilter, A, B, C, D);
+impl_true_filter!(PentaFilter, A, B, C, D, E);
 
-impl<S, A, B, C> TriFilter<S, A, B, C> for TrueFilter {
-    #[inline]
-    fn test(&self, _: &S, _: &A, _: &B, _: &C) -> bool {
-        true
-    }
-}
+macro_rules! impl_fn_filter {
+    ($name:ident, $trait:ident, $($param:ident),+) => {
+        pub struct $name<F> {
+            f: F,
+        }
 
-impl<S, A, B, C, D> QuadFilter<S, A, B, C, D> for TrueFilter {
-    #[inline]
-    fn test(&self, _: &S, _: &A, _: &B, _: &C, _: &D) -> bool {
-        true
-    }
-}
+        impl<F> $name<F> {
+            #[inline]
+            pub fn new(f: F) -> Self {
+                Self { f }
+            }
+        }
 
-impl<S, A, B, C, D, E> PentaFilter<S, A, B, C, D, E> for TrueFilter {
-    #[inline]
-    fn test(&self, _: &S, _: &A, _: &B, _: &C, _: &D, _: &E) -> bool {
-        true
-    }
+        impl<S, $($param,)+ F> $trait<S, $($param),+> for $name<F>
+        where
+            F: Fn(&S, $(&$param),+) -> bool + Send + Sync,
+        {
+            #[inline]
+            fn test(&self, solution: &S, $($param: &$param),+) -> bool {
+                (self.f)(solution, $($param),+)
+            }
+        }
+    };
 }
 
 /// A uni-filter wrapping a closure.
@@ -60,116 +67,16 @@ impl<S, A, B, C, D, E> PentaFilter<S, A, B, C, D, E> for TrueFilter {
 /// assert!(filter.test(&schedule, &35));
 /// assert!(!filter.test(&schedule, &50));
 /// ```
-pub struct FnUniFilter<F> {
-    f: F,
-}
-
-impl<F> FnUniFilter<F> {
-    /// Creates a new filter from a closure.
-    #[inline]
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-impl<S, A, F> UniFilter<S, A> for FnUniFilter<F>
-where
-    F: Fn(&S, &A) -> bool + Send + Sync,
-{
-    #[inline]
-    fn test(&self, solution: &S, a: &A) -> bool {
-        (self.f)(solution, a)
-    }
-}
+impl_fn_filter!(FnUniFilter, UniFilter, A);
 
 /// A bi-filter wrapping a closure.
-pub struct FnBiFilter<F> {
-    f: F,
-}
-
-impl<F> FnBiFilter<F> {
-    /// Creates a new filter from a closure.
-    #[inline]
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-impl<S, A, B, F> BiFilter<S, A, B> for FnBiFilter<F>
-where
-    F: Fn(&S, &A, &B) -> bool + Send + Sync,
-{
-    #[inline]
-    fn test(&self, solution: &S, a: &A, b: &B) -> bool {
-        (self.f)(solution, a, b)
-    }
-}
+impl_fn_filter!(FnBiFilter, BiFilter, A, B);
 
 /// A tri-filter wrapping a closure.
-pub struct FnTriFilter<F> {
-    f: F,
-}
-
-impl<F> FnTriFilter<F> {
-    /// Creates a new filter from a closure.
-    #[inline]
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-impl<S, A, B, C, F> TriFilter<S, A, B, C> for FnTriFilter<F>
-where
-    F: Fn(&S, &A, &B, &C) -> bool + Send + Sync,
-{
-    #[inline]
-    fn test(&self, solution: &S, a: &A, b: &B, c: &C) -> bool {
-        (self.f)(solution, a, b, c)
-    }
-}
+impl_fn_filter!(FnTriFilter, TriFilter, A, B, C);
 
 /// A quad-filter wrapping a closure.
-pub struct FnQuadFilter<F> {
-    f: F,
-}
-
-impl<F> FnQuadFilter<F> {
-    /// Creates a new filter from a closure.
-    #[inline]
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-impl<S, A, B, C, D, F> QuadFilter<S, A, B, C, D> for FnQuadFilter<F>
-where
-    F: Fn(&S, &A, &B, &C, &D) -> bool + Send + Sync,
-{
-    #[inline]
-    fn test(&self, solution: &S, a: &A, b: &B, c: &C, d: &D) -> bool {
-        (self.f)(solution, a, b, c, d)
-    }
-}
+impl_fn_filter!(FnQuadFilter, QuadFilter, A, B, C, D);
 
 /// A penta-filter wrapping a closure.
-pub struct FnPentaFilter<F> {
-    f: F,
-}
-
-impl<F> FnPentaFilter<F> {
-    /// Creates a new filter from a closure.
-    #[inline]
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-impl<S, A, B, C, D, E, F> PentaFilter<S, A, B, C, D, E> for FnPentaFilter<F>
-where
-    F: Fn(&S, &A, &B, &C, &D, &E) -> bool + Send + Sync,
-{
-    #[inline]
-    fn test(&self, solution: &S, a: &A, b: &B, c: &C, d: &D, e: &E) -> bool {
-        (self.f)(solution, a, b, c, d, e)
-    }
-}
+impl_fn_filter!(FnPentaFilter, PentaFilter, A, B, C, D, E);

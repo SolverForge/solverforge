@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod benchmarks {
-    use crate::constraint::bi_incremental::IncrementalBiConstraint;
+    use crate::constraint::IncrementalBiConstraint;
     use crate::constraint::incremental::IncrementalUniConstraint;
     use crate::director::typed::TypedScoreDirector;
     use solverforge_core::domain::PlanningSolution;

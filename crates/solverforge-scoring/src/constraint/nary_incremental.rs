@@ -1291,3 +1291,20 @@ macro_rules! impl_incremental_nary_constraint {
 }
 
 pub use impl_incremental_nary_constraint;
+
+// Generate the N-ary constraint types
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
+
+use solverforge_core::score::Score;
+use solverforge_core::{ConstraintRef, ImpactType};
+
+use crate::api::analysis::DetailedConstraintMatch;
+use crate::api::constraint_set::IncrementalConstraint;
+
+impl_incremental_nary_constraint!(bi, IncrementalBiConstraint);
+impl_incremental_nary_constraint!(tri, IncrementalTriConstraint);
+impl_incremental_nary_constraint!(quad, IncrementalQuadConstraint);
+impl_incremental_nary_constraint!(penta, IncrementalPentaConstraint);

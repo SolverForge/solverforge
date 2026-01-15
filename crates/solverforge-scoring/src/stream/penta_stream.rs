@@ -43,7 +43,7 @@
 //! assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1));
 //! ```
 
-use crate::constraint::penta_incremental::IncrementalPentaConstraint;
+use crate::constraint::IncrementalPentaConstraint;
 
 super::arity_stream_macros::impl_arity_stream!(
     penta,

@@ -1,6 +1,6 @@
 //! Unit tests for IncrementalQuadConstraint.
 
-use super::quad_incremental::IncrementalQuadConstraint;
+use super::IncrementalQuadConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};

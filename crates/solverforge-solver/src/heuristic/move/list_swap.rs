@@ -8,7 +8,6 @@
 //! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -62,7 +61,6 @@ use super::Move;
 ///     "visits", 0,
 /// );
 /// ```
-#[derive(Clone, Copy)]
 pub struct ListSwapMove<S, V> {
     /// First entity index
     first_entity_index: usize,
@@ -82,8 +80,15 @@ pub struct ListSwapMove<S, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
 }
+
+impl<S, V> Clone for ListSwapMove<S, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, V> Copy for ListSwapMove<S, V> {}
 
 impl<S, V: Debug> Debug for ListSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -133,7 +138,6 @@ impl<S, V> ListSwapMove<S, V> {
             variable_name,
             descriptor_index,
             indices: [first_entity_index, second_entity_index],
-            _phantom: PhantomData,
         }
     }
 
@@ -168,7 +172,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check first position is valid
@@ -195,7 +199,7 @@ where
         first_val != second_val
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Get both values
         let first_val = (self.list_get)(
             score_director.working_solution(),

@@ -12,11 +12,12 @@ mod unimproved;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;
 
 pub use best_score::{BestScoreFeasibleTermination, BestScoreTermination};
-pub use composite::{AndCompositeTermination, OrCompositeTermination};
+pub use composite::{AndTermination, OrTermination};
 pub use diminished_returns::DiminishedReturnsTermination;
 pub use move_count::MoveCountTermination;
 pub use score_calculation_count::ScoreCalculationCountTermination;
@@ -25,9 +26,13 @@ pub use time::TimeTermination;
 pub use unimproved::{UnimprovedStepCountTermination, UnimprovedTimeTermination};
 
 /// Trait for determining when to stop solving.
-pub trait Termination<S: PlanningSolution>: Send + Debug {
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+pub trait Termination<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// Returns true if solving should terminate.
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool;
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool;
 }
 
 #[cfg(test)]

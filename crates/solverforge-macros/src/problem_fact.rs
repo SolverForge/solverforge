@@ -37,7 +37,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         let field_name = field.ident.as_ref().unwrap();
         let field_type = &field.ty;
         quote! {
-            impl #impl_generics ::solverforge::PlanningId for #name #ty_generics #where_clause {
+            impl #impl_generics ::solverforge::__internal::PlanningId for #name #ty_generics #where_clause {
                 type Id = #field_type;
                 fn planning_id(&self) -> Self::Id { self.#field_name.clone() }
             }
@@ -47,10 +47,6 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     let expanded = quote! {
-        impl #impl_generics ::solverforge::ProblemFactTrait for #name #ty_generics #where_clause {
-            fn as_any(&self) -> &dyn ::std::any::Any { self }
-        }
-
         #planning_id_impl
     };
 

@@ -1,10 +1,7 @@
 //! Integration tests for derive macros.
-//!
-//! These tests verify that the attribute macros compile and produce
-//! correct implementations.
 
+use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
 use solverforge::prelude::*;
-use std::any::Any;
 
 /// A problem fact representing an employee.
 #[problem_fact]
@@ -43,13 +40,7 @@ fn test_problem_fact_derives_correctly() {
         id: 1,
         name: "Alice".to_string(),
     };
-
-    // PlanningId trait is implemented
-    assert_eq!(employee.planning_id(), 1);
-
-    // as_any works
-    let any: &dyn Any = employee.as_any();
-    assert!(any.is::<Employee>());
+    assert_eq!(PlanningId::planning_id(&employee), 1);
 }
 
 #[test]
@@ -58,13 +49,7 @@ fn test_planning_entity_derives_correctly() {
         id: 42,
         employee_id: Some(1),
     };
-
-    // PlanningId trait is implemented
-    assert_eq!(shift.planning_id(), 42);
-
-    // as_any works
-    let any: &dyn Any = shift.as_any();
-    assert!(any.is::<Shift>());
+    assert_eq!(PlanningId::planning_id(&shift), 42);
 }
 
 #[test]
@@ -80,8 +65,6 @@ fn test_planning_solution_derives_correctly() {
         }],
         score: Some(HardSoftScore::of(0, 0)),
     };
-
-    // PlanningSolution trait is implemented
     assert_eq!(
         PlanningSolutionTrait::score(&schedule),
         Some(HardSoftScore::of(0, 0))

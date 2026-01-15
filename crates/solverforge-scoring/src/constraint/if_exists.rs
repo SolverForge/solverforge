@@ -66,7 +66,7 @@ pub enum ExistenceMode {
 ///     |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect::<Vec<_>>(),
 ///     |shift: &Shift| shift.employee_idx,
 ///     |emp: &Employee| Some(emp.id),
-///     |shift: &Shift| shift.employee_idx.is_some(),
+///     |_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
 ///     |_shift: &Shift| SimpleScore::of(1),
 ///     false,
 /// );
@@ -114,7 +114,7 @@ where
     EB: Fn(&S) -> Vec<B>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
-    FA: Fn(&A) -> bool,
+    FA: Fn(&S, &A) -> bool,
     W: Fn(&A) -> Sc,
     Sc: Score,
 {
@@ -182,7 +182,7 @@ where
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    FA: Fn(&A) -> bool + Send + Sync,
+    FA: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -192,7 +192,7 @@ where
 
         let mut total = Sc::zero();
         for a in entities_a {
-            if (self.filter_a)(a) && self.matches_existence(a, &b_keys) {
+            if (self.filter_a)(solution, a) && self.matches_existence(a, &b_keys) {
                 total = total + self.compute_score(a);
             }
         }
@@ -205,7 +205,7 @@ where
 
         entities_a
             .iter()
-            .filter(|a| (self.filter_a)(a) && self.matches_existence(a, &b_keys))
+            .filter(|a| (self.filter_a)(solution, a) && self.matches_existence(a, &b_keys))
             .count()
     }
 
@@ -220,7 +220,7 @@ where
         }
 
         let a = &entities_a[entity_index];
-        if !(self.filter_a)(a) {
+        if !(self.filter_a)(solution, a) {
             return Sc::zero();
         }
 
@@ -239,7 +239,7 @@ where
         }
 
         let a = &entities_a[entity_index];
-        if !(self.filter_a)(a) {
+        if !(self.filter_a)(solution, a) {
             return Sc::zero();
         }
 
@@ -314,7 +314,7 @@ mod tests {
             |s: &Schedule| s.workers.iter().filter(|w| !w.available).cloned().collect(),
             |t: &Task| t.assignee,
             |w: &Worker| Some(w.id),
-            |t: &Task| t.assignee.is_some(),
+            |_s: &Schedule, t: &Task| t.assignee.is_some(),
             |_t: &Task| SimpleScore::of(1),
             false,
         );
@@ -362,7 +362,7 @@ mod tests {
             |s: &Schedule| s.workers.iter().filter(|w| w.available).cloned().collect(),
             |t: &Task| t.assignee,
             |w: &Worker| Some(w.id),
-            |t: &Task| t.assignee.is_some(),
+            |_s: &Schedule, t: &Task| t.assignee.is_some(),
             |_t: &Task| SimpleScore::of(1),
             false,
         );

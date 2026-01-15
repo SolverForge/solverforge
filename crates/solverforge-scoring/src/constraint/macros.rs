@@ -45,7 +45,7 @@ macro_rules! impl_get_matches_nary {
                     let idx_b = indices[j];
                     let a = &entities[idx_a];
                     let b = &entities[idx_b];
-                    if ($self.filter)(a, b) {
+                    if ($self.filter)($solution, a, b) {
                         let justification = ConstraintJustification::new(vec![
                             EntityRef::new(a),
                             EntityRef::new(b),
@@ -88,7 +88,7 @@ macro_rules! impl_get_matches_nary {
                         let a = &entities[i];
                         let b = &entities[j];
                         let c = &entities[k];
-                        if ($self.filter)(a, b, c) {
+                        if ($self.filter)($solution, a, b, c) {
                             let justification = ConstraintJustification::new(vec![
                                 EntityRef::new(a),
                                 EntityRef::new(b),
@@ -136,7 +136,7 @@ macro_rules! impl_get_matches_nary {
                             let b = &entities[j];
                             let c = &entities[k];
                             let d = &entities[l];
-                            if ($self.filter)(a, b, c, d) {
+                            if ($self.filter)($solution, a, b, c, d) {
                                 let justification = ConstraintJustification::new(vec![
                                     EntityRef::new(a),
                                     EntityRef::new(b),
@@ -189,7 +189,7 @@ macro_rules! impl_get_matches_nary {
                                 let c = &entities[k];
                                 let d = &entities[l];
                                 let e = &entities[m];
-                                if ($self.filter)(a, b, c, d, e) {
+                                if ($self.filter)($solution, a, b, c, d, e) {
                                     let justification = ConstraintJustification::new(vec![
                                         EntityRef::new(a),
                                         EntityRef::new(b),

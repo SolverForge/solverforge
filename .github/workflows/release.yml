@@ -102,21 +102,7 @@ jobs:
             **Rust:**
             ```toml
             [dependencies]
-            solverforge-core = "${{ steps.version.outputs.version }}"
-            ```
-
-            **Python:**
-            ```bash
-            pip install solverforge==${{ steps.version.outputs.version }}
-            ```
-
-            **Maven:**
-            ```xml
-            <dependency>
-              <groupId>org.solverforge</groupId>
-              <artifactId>solverforge-wasm-service</artifactId>
-              <version>${{ steps.version.outputs.version }}</version>
-            </dependency>
+            solverforge = "${{ steps.version.outputs.version }}"
             ```
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, '-') }}

@@ -7,12 +7,14 @@
 //! - [`SimpleScoreDirector`] - Full recalculation (baseline)
 //! - [`TypedScoreDirector`] - Zero-erasure incremental scoring
 //! - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
+//! - [`ShadowAwareScoreDirector`] - Shadow variable integration wrapper
 
 use std::any::Any;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
 pub mod recording;
+pub mod shadow_aware;
 pub mod typed;
 
 #[cfg(test)]
@@ -21,6 +23,7 @@ mod recording_tests;
 mod typed_bench;
 
 pub use recording::RecordingScoreDirector;
+pub use shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport, SolvableSolution};
 
 /// The score director manages solution state and score calculation.
 ///
@@ -47,6 +50,8 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
     fn clone_working_solution(&self) -> S;
 
     /// Called before a planning variable is changed.
+    ///
+    /// Full signature with descriptor and variable metadata.
     fn before_variable_changed(
         &mut self,
         descriptor_index: usize,
@@ -55,12 +60,28 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
     );
 
     /// Called after a planning variable is changed.
+    ///
+    /// Full signature with descriptor and variable metadata.
     fn after_variable_changed(
         &mut self,
         descriptor_index: usize,
         entity_index: usize,
         variable_name: &str,
     );
+
+    /// Simplified notification for entity change.
+    ///
+    /// Used by basic phases. Default delegates to full signature with empty metadata.
+    fn before_entity_changed(&mut self, entity_index: usize) {
+        self.before_variable_changed(0, entity_index, "");
+    }
+
+    /// Simplified notification for entity change.
+    ///
+    /// Used by basic phases. Default delegates to full signature with empty metadata.
+    fn after_entity_changed(&mut self, entity_index: usize) {
+        self.after_variable_changed(0, entity_index, "");
+    }
 
     /// Triggers shadow variable listeners to update derived values.
     fn trigger_variable_listeners(&mut self);
@@ -203,13 +224,13 @@ where
     fn calculate_score(&mut self) -> S::Score {
         if !self.score_dirty {
             if let Some(ref score) = self.cached_score {
-                return score.clone();
+                return *score;
             }
         }
 
         let score = (self.score_calculator)(&self.working_solution);
-        self.working_solution.set_score(Some(score.clone()));
-        self.cached_score = Some(score.clone());
+        self.working_solution.set_score(Some(score));
+        self.cached_score = Some(score);
         self.score_dirty = false;
         score
     }

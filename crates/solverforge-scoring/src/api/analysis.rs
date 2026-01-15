@@ -288,7 +288,7 @@ impl<Sc: Score> Indictment<Sc> {
 
     /// Adds a match to this indictment.
     pub fn add_match(&mut self, constraint_match: DetailedConstraintMatch<Sc>) {
-        self.score = self.score.clone() + constraint_match.score.clone();
+        self.score = self.score + constraint_match.score;
         self.constraint_matches
             .entry(constraint_match.constraint_ref.clone())
             .or_default()

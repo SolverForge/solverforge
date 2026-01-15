@@ -110,7 +110,7 @@ where
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: UniFilter<A>,
+    F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
@@ -200,7 +200,7 @@ where
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: UniFilter<A>,
+    F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
@@ -210,7 +210,7 @@ where
         // Build counts from scratch
         let mut counts: HashMap<K, i64> = HashMap::new();
         for entity in entities {
-            if !self.filter.test(entity) {
+            if !self.filter.test(solution, entity) {
                 continue;
             }
             if let Some(key) = (self.key_fn)(entity) {
@@ -236,7 +236,7 @@ where
         // Count groups that deviate from mean
         let mut counts: HashMap<K, i64> = HashMap::new();
         for entity in entities {
-            if !self.filter.test(entity) {
+            if !self.filter.test(solution, entity) {
                 continue;
             }
             if let Some(key) = (self.key_fn)(entity) {
@@ -264,7 +264,7 @@ where
         let entities = (self.extractor)(solution);
 
         for (idx, entity) in entities.iter().enumerate() {
-            if !self.filter.test(entity) {
+            if !self.filter.test(solution, entity) {
                 continue;
             }
             if let Some(key) = (self.key_fn)(entity) {
@@ -291,7 +291,7 @@ where
         }
 
         let entity = &entities[entity_index];
-        if !self.filter.test(entity) {
+        if !self.filter.test(solution, entity) {
             return Sc::zero();
         }
 

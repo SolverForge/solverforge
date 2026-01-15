@@ -100,7 +100,7 @@ where
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    FA: UniFilter<A>,
+    FA: UniFilter<S, A>,
     Sc: Score + 'static,
 {
     /// Creates a new if_exists stream.
@@ -129,7 +129,7 @@ where
         weight: Sc,
     ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         let is_hard = weight
             .to_level_numbers()
@@ -144,7 +144,7 @@ where
             key_b: self.key_b,
             filter_a: self.filter_a,
             impact_type: ImpactType::Penalty,
-            weight: move |_: &A| weight.clone(),
+            weight: move |_: &A| weight,
             is_hard,
             _phantom: PhantomData,
         }
@@ -200,7 +200,7 @@ where
         weight: Sc,
     ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
-        Sc: Clone,
+        Sc: Copy,
     {
         let is_hard = weight
             .to_level_numbers()
@@ -215,7 +215,7 @@ where
             key_b: self.key_b,
             filter_a: self.filter_a,
             impact_type: ImpactType::Reward,
-            weight: move |_: &A| weight.clone(),
+            weight: move |_: &A| weight,
             is_hard,
             _phantom: PhantomData,
         }
@@ -303,7 +303,7 @@ where
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    FA: UniFilter<A>,
+    FA: UniFilter<S, A>,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
@@ -311,10 +311,21 @@ where
     pub fn as_constraint(
         self,
         name: &str,
-    ) -> IfExistsUniConstraint<S, A, B, K, EA, EB, KA, KB, impl Fn(&A) -> bool + Send + Sync, W, Sc>
-    {
+    ) -> IfExistsUniConstraint<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
         let filter = self.filter_a;
-        let combined_filter = move |a: &A| filter.test(a);
+        let combined_filter = move |s: &S, a: &A| filter.test(s, a);
 
         IfExistsUniConstraint::new(
             ConstraintRef::new("", name),

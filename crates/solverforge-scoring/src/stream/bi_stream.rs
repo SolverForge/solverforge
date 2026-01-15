@@ -41,9 +41,9 @@ use std::hash::Hash;
 
 use solverforge_core::score::Score;
 
-use crate::constraint::bi_incremental::IncrementalBiConstraint;
+use crate::constraint::IncrementalBiConstraint;
 
-use super::filter::{BiFilter, FnTriFilter};
+use super::filter::{BiFilter, FnTriFilter, TriFilter};
 use super::joiner::Joiner;
 use super::tri_stream::TriConstraintStream;
 
@@ -62,7 +62,7 @@ where
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
-    F: BiFilter<A, A>,
+    F: BiFilter<S, A, A>,
     Sc: Score + 'static,
 {
     /// Joins this stream with a third element to create triples.
@@ -104,13 +104,14 @@ where
     pub fn join_self<J>(
         self,
         joiner: J,
-    ) -> TriConstraintStream<S, A, K, E, KE, impl super::filter::TriFilter<A, A, A>, Sc>
+    ) -> TriConstraintStream<S, A, K, E, KE, impl TriFilter<S, A, A, A>, Sc>
     where
         J: Joiner<A, A> + 'static,
         F: 'static,
     {
         let filter = self.filter;
-        let combined_filter = move |a: &A, b: &A, c: &A| filter.test(a, b) && joiner.matches(a, c);
+        let combined_filter =
+            move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b) && joiner.matches(a, c);
 
         TriConstraintStream::new_self_join_with_filter(
             self.extractor,

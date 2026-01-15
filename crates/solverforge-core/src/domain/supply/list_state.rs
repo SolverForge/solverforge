@@ -1,425 +1,212 @@
-//! List variable state supply for managing list-related shadow variables.
+//! List variable state supply for tracking element positions.
 //!
-//! This module provides centralized tracking of list variable shadow state:
-//! - Element position (index within list)
-//! - Element inverse (which entity owns the element)
-//! - Previous/Next element relationships
+//! # Zero-Erasure Design
 //!
-//! By centralizing this tracking, we avoid duplicate iteration when multiple
-//! shadow variables need to be updated.
+//! - **Index-based**: Elements identified by index, entity owners by index
+//! - **Owned**: No `Arc`, `RwLock`, or interior mutability - uses `&mut self`
+//! - **No Clone**: All lookups return indices or `Copy` types
 
-use std::any::Any;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::RwLock;
-
-use super::{DemandKey, Supply, SupplyDemand};
 
 /// Position of an element within a list variable.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ElementPosition<E> {
-    /// Element is not assigned to any list.
-    Unassigned,
-    /// Element is at the given index within the entity's list.
-    Assigned {
-        /// The entity that owns the list containing this element.
-        entity: E,
-        /// The index of this element within the list.
-        index: usize,
-    },
-}
-
-impl<E> ElementPosition<E> {
-    /// Returns true if the element is unassigned.
-    pub fn is_unassigned(&self) -> bool {
-        matches!(self, ElementPosition::Unassigned)
-    }
-
-    /// Returns true if the element is assigned.
-    pub fn is_assigned(&self) -> bool {
-        matches!(self, ElementPosition::Assigned { .. })
-    }
-
-    /// Returns the index if assigned.
-    pub fn index(&self) -> Option<usize> {
-        match self {
-            ElementPosition::Assigned { index, .. } => Some(*index),
-            ElementPosition::Unassigned => None,
-        }
-    }
-
-    /// Returns the entity if assigned.
-    pub fn entity(&self) -> Option<&E> {
-        match self {
-            ElementPosition::Assigned { entity, .. } => Some(entity),
-            ElementPosition::Unassigned => None,
-        }
-    }
-}
-
-/// Mutable position storage for efficient updates.
-#[derive(Debug, Clone)]
-struct MutablePosition<E: Clone> {
-    entity: E,
-    index: usize,
-}
-
-impl<E: Clone> MutablePosition<E> {
-    fn new(entity: E, index: usize) -> Self {
-        Self { entity, index }
-    }
-
-    fn to_position(&self) -> ElementPosition<E> {
-        ElementPosition::Assigned {
-            entity: self.entity.clone(),
-            index: self.index,
-        }
-    }
-}
-
-/// Change type for position updates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ChangeType {
-    /// Both entity and index changed (or first assignment).
-    Both,
-    /// Only index changed (same entity).
-    Index,
-    /// Nothing changed.
-    Neither,
+pub struct ElementPosition {
+    /// The entity index that owns the list containing this element.
+    pub entity_idx: usize,
+    /// The index of this element within the entity's list.
+    pub list_idx: usize,
 }
 
-impl ChangeType {
-    fn anything_changed(&self) -> bool {
-        !matches!(self, ChangeType::Neither)
-    }
-}
-
-/// Supply that tracks list variable element positions.
+/// Index-based list variable state supply.
 ///
-/// This is the single source of truth for all list variable shadow state.
-/// It tracks index, inverse, and next/previous relationships efficiently.
+/// Tracks which entity owns each element and at what position.
+/// All values are indices - no cloning of actual domain objects.
 ///
 /// # Type Parameters
 ///
-/// - `Element`: The type of elements in the list variable
-/// - `Entity`: The type of entities that own list variables
-pub struct ListVariableStateSupply<Element, Entity>
+/// - `E`: Element identifier type (must be `Eq + Hash`, typically `usize` or a small `Copy` type)
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::domain::supply::ListStateSupply;
+///
+/// // Using usize as element identifier
+/// let mut supply: ListStateSupply<usize> = ListStateSupply::new();
+///
+/// // Element 0 is at position 0 in entity 0's list
+/// supply.assign(0, 0, 0);
+///
+/// // Element 1 is at position 1 in entity 0's list
+/// supply.assign(1, 0, 1);
+///
+/// // Element 2 is at position 0 in entity 1's list
+/// supply.assign(2, 1, 0);
+///
+/// assert_eq!(supply.get_position(&0), Some(solverforge_core::domain::supply::ElementPosition { entity_idx: 0, list_idx: 0 }));
+/// assert_eq!(supply.get_entity(&1), Some(0));
+/// assert_eq!(supply.get_list_index(&2), Some(0));
+/// ```
+#[derive(Debug)]
+pub struct ListStateSupply<E>
 where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
+    E: Eq + Hash,
 {
-    /// Map from element to its current position.
-    element_position_map: RwLock<HashMap<Element, MutablePosition<Entity>>>,
+    /// Map from element to its position.
+    position_map: HashMap<E, ElementPosition>,
     /// Count of unassigned elements.
-    unassigned_count: RwLock<usize>,
-    /// Name of the source list variable.
-    variable_name: String,
+    unassigned_count: usize,
 }
 
-impl<Element, Entity> ListVariableStateSupply<Element, Entity>
+impl<E> Default for ListStateSupply<E>
 where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
+    E: Eq + Hash,
 {
-    /// Creates a new list variable state supply.
-    pub fn new(variable_name: impl Into<String>) -> Self {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<E> ListStateSupply<E>
+where
+    E: Eq + Hash,
+{
+    /// Creates a new empty list state supply.
+    pub fn new() -> Self {
         Self {
-            element_position_map: RwLock::new(HashMap::new()),
-            unassigned_count: RwLock::new(0),
-            variable_name: variable_name.into(),
+            position_map: HashMap::new(),
+            unassigned_count: 0,
         }
     }
 
-    /// Initializes the supply with the initial unassigned count.
-    pub fn initialize(&self, initial_unassigned_count: usize) {
-        let mut map = self.element_position_map.write().unwrap();
-        map.clear();
-        *self.unassigned_count.write().unwrap() = initial_unassigned_count;
+    /// Creates a new supply with initial unassigned count.
+    pub fn with_unassigned(count: usize) -> Self {
+        Self {
+            position_map: HashMap::new(),
+            unassigned_count: count,
+        }
     }
 
-    /// Adds an element at the given position.
+    /// Initializes/resets the supply with a new unassigned count.
+    pub fn initialize(&mut self, unassigned_count: usize) {
+        self.position_map.clear();
+        self.unassigned_count = unassigned_count;
+    }
+
+    /// Assigns an element to a position in an entity's list.
     ///
-    /// Called when an element is inserted into a list.
-    pub fn add_element(&self, entity: Entity, element: Element, index: usize) {
-        let mut map = self.element_position_map.write().unwrap();
-        let old = map.insert(element.clone(), MutablePosition::new(entity, index));
+    /// Decrements the unassigned count.
+    #[inline]
+    pub fn assign(&mut self, element: E, entity_idx: usize, list_idx: usize) {
+        let pos = ElementPosition {
+            entity_idx,
+            list_idx,
+        };
+        let old = self.position_map.insert(element, pos);
+        if old.is_none() && self.unassigned_count > 0 {
+            self.unassigned_count -= 1;
+        }
+    }
+
+    /// Unassigns an element (removes from any list).
+    ///
+    /// Increments the unassigned count.
+    #[inline]
+    pub fn unassign(&mut self, element: &E) -> Option<ElementPosition> {
+        let old = self.position_map.remove(element);
         if old.is_some() {
-            panic!(
-                "List variable '{}' supply corrupted: element already exists",
-                self.variable_name
-            );
+            self.unassigned_count += 1;
         }
-        *self.unassigned_count.write().unwrap() -= 1;
+        old
     }
 
-    /// Removes an element from the given position.
+    /// Updates an element's position.
     ///
-    /// Called when an element is removed from a list.
-    pub fn remove_element(&self, element: &Element, expected_index: usize) {
-        let mut map = self.element_position_map.write().unwrap();
-        let old = map.remove(element);
-        match old {
-            None => {
-                panic!(
-                    "List variable '{}' supply corrupted: element not found for removal",
-                    self.variable_name
-                );
-            }
-            Some(pos) if pos.index != expected_index => {
-                panic!(
-                    "List variable '{}' supply corrupted: element at wrong index ({} vs {})",
-                    self.variable_name, pos.index, expected_index
-                );
-            }
-            _ => {}
-        }
-        *self.unassigned_count.write().unwrap() += 1;
-    }
-
-    /// Unassigns an element (removes without index validation).
-    ///
-    /// Called when an element is completely removed from any list.
-    pub fn unassign_element(&self, element: &Element) {
-        let mut map = self.element_position_map.write().unwrap();
-        let old = map.remove(element);
-        if old.is_none() {
-            panic!(
-                "List variable '{}' supply corrupted: element not found for unassignment",
-                self.variable_name
-            );
-        }
-        *self.unassigned_count.write().unwrap() += 1;
-    }
-
-    /// Updates an element's position and returns whether it changed.
-    ///
-    /// Called when processing a range change in the list.
-    pub fn change_element(&self, entity: Entity, element: &Element, index: usize) -> bool {
-        let mut map = self.element_position_map.write().unwrap();
-
-        if let Some(pos) = map.get_mut(element) {
-            let change_type = if pos.entity.type_id() != entity.type_id() {
-                // Different entity (note: this is a rough check, proper eq would be better)
-                pos.entity = entity;
-                pos.index = index;
-                ChangeType::Both
-            } else if pos.index != index {
-                pos.index = index;
-                ChangeType::Index
+    /// Returns true if the position changed.
+    #[inline]
+    pub fn update(&mut self, element: &E, entity_idx: usize, list_idx: usize) -> bool
+    where
+        E: Clone,
+    {
+        let new_pos = ElementPosition {
+            entity_idx,
+            list_idx,
+        };
+        if let Some(pos) = self.position_map.get_mut(element) {
+            if *pos != new_pos {
+                *pos = new_pos;
+                true
             } else {
-                ChangeType::Neither
-            };
-            change_type.anything_changed()
+                false
+            }
         } else {
-            // Element wasn't tracked yet, add it
-            map.insert(element.clone(), MutablePosition::new(entity, index));
-            *self.unassigned_count.write().unwrap() -= 1;
+            // Element wasn't tracked - assign it
+            self.position_map.insert(element.clone(), new_pos);
+            if self.unassigned_count > 0 {
+                self.unassigned_count -= 1;
+            }
             true
         }
     }
 
-    /// Updates an element's position with entity equality check.
-    pub fn change_element_with_eq<F>(
-        &self,
-        entity: Entity,
-        element: &Element,
-        index: usize,
-        entity_eq: F,
-    ) -> bool
-    where
-        F: Fn(&Entity, &Entity) -> bool,
-    {
-        let mut map = self.element_position_map.write().unwrap();
-
-        if let Some(pos) = map.get_mut(element) {
-            let change_type = if !entity_eq(&pos.entity, &entity) {
-                pos.entity = entity;
-                pos.index = index;
-                ChangeType::Both
-            } else if pos.index != index {
-                pos.index = index;
-                ChangeType::Index
-            } else {
-                ChangeType::Neither
-            };
-            change_type.anything_changed()
-        } else {
-            map.insert(element.clone(), MutablePosition::new(entity, index));
-            *self.unassigned_count.write().unwrap() -= 1;
-            true
-        }
+    /// Gets the full position of an element.
+    #[inline]
+    pub fn get_position(&self, element: &E) -> Option<ElementPosition> {
+        self.position_map.get(element).copied()
     }
 
-    /// Gets the position of an element.
-    pub fn get_position(&self, element: &Element) -> ElementPosition<Entity> {
-        let map = self.element_position_map.read().unwrap();
-        match map.get(element) {
-            Some(pos) => pos.to_position(),
-            None => ElementPosition::Unassigned,
-        }
+    /// Gets the entity index that owns this element.
+    #[inline]
+    pub fn get_entity(&self, element: &E) -> Option<usize> {
+        self.position_map.get(element).map(|p| p.entity_idx)
     }
 
-    /// Gets the index of an element, if assigned.
-    pub fn get_index(&self, element: &Element) -> Option<usize> {
-        let map = self.element_position_map.read().unwrap();
-        map.get(element).map(|pos| pos.index)
-    }
-
-    /// Gets the entity (inverse) for an element, if assigned.
-    pub fn get_inverse(&self, element: &Element) -> Option<Entity> {
-        let map = self.element_position_map.read().unwrap();
-        map.get(element).map(|pos| pos.entity.clone())
-    }
-
-    /// Gets the previous element, if any.
-    ///
-    /// Requires a function to get the list from an entity.
-    pub fn get_previous_element<F>(&self, element: &Element, get_list: F) -> Option<Element>
-    where
-        F: Fn(&Entity) -> &[Element],
-    {
-        let map = self.element_position_map.read().unwrap();
-        let pos = map.get(element)?;
-        if pos.index == 0 {
-            None
-        } else {
-            let list = get_list(&pos.entity);
-            list.get(pos.index - 1).cloned()
-        }
-    }
-
-    /// Gets the next element, if any.
-    ///
-    /// Requires a function to get the list from an entity.
-    pub fn get_next_element<F>(&self, element: &Element, get_list: F) -> Option<Element>
-    where
-        F: Fn(&Entity) -> &[Element],
-    {
-        let map = self.element_position_map.read().unwrap();
-        let pos = map.get(element)?;
-        let list = get_list(&pos.entity);
-        if pos.index >= list.len() - 1 {
-            None
-        } else {
-            list.get(pos.index + 1).cloned()
-        }
-    }
-
-    /// Returns the count of unassigned elements.
-    pub fn unassigned_count(&self) -> usize {
-        *self.unassigned_count.read().unwrap()
+    /// Gets the list index of this element within its entity's list.
+    #[inline]
+    pub fn get_list_index(&self, element: &E) -> Option<usize> {
+        self.position_map.get(element).map(|p| p.list_idx)
     }
 
     /// Returns true if the element is assigned to a list.
-    pub fn is_assigned(&self, element: &Element) -> bool {
-        self.element_position_map
-            .read()
-            .unwrap()
-            .contains_key(element)
+    #[inline]
+    pub fn is_assigned(&self, element: &E) -> bool {
+        self.position_map.contains_key(element)
     }
 
-    /// Returns the variable name this supply tracks.
-    pub fn variable_name(&self) -> &str {
-        &self.variable_name
-    }
-}
-
-impl<Element, Entity> Supply for ListVariableStateSupply<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-}
-
-impl<Element, Entity> std::fmt::Debug for ListVariableStateSupply<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let map = self.element_position_map.read().unwrap();
-        f.debug_struct("ListVariableStateSupply")
-            .field("variable_name", &self.variable_name)
-            .field("element_count", &map.len())
-            .field("unassigned_count", &*self.unassigned_count.read().unwrap())
-            .finish()
-    }
-}
-
-/// Demand for a ListVariableStateSupply.
-pub struct ListVariableStateDemand<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-    variable_name: String,
-    _phantom: std::marker::PhantomData<(Element, Entity)>,
-}
-
-impl<Element, Entity> ListVariableStateDemand<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-    /// Creates a new demand for a list variable state supply.
-    pub fn new(variable_name: impl Into<String>) -> Self {
-        Self {
-            variable_name: variable_name.into(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<Element, Entity> SupplyDemand for ListVariableStateDemand<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-    type Output = ListVariableStateSupply<Element, Entity>;
-
-    fn demand_key(&self) -> DemandKey {
-        DemandKey::new::<ListVariableStateSupply<Element, Entity>>(&self.variable_name)
+    /// Returns the count of unassigned elements.
+    #[inline]
+    pub fn unassigned_count(&self) -> usize {
+        self.unassigned_count
     }
 
-    fn create_supply(&self) -> Self::Output {
-        ListVariableStateSupply::new(&self.variable_name)
+    /// Returns the count of assigned elements.
+    #[inline]
+    pub fn assigned_count(&self) -> usize {
+        self.position_map.len()
     }
-}
 
-/// Trait for supplies that provide index information.
-pub trait IndexVariableSupply {
-    /// Gets the index of an element in its list, if assigned.
-    fn get_index_dyn(&self, element: &dyn Any) -> Option<usize>;
-}
-
-/// Trait for supplies that provide inverse (owner entity) information.
-pub trait InverseVariableSupply {
-    /// Gets the entity that owns an element, if assigned.
-    fn get_inverse_dyn(&self, element: &dyn Any) -> Option<Box<dyn Any + Send + Sync>>;
-}
-
-impl<Element, Entity> IndexVariableSupply for ListVariableStateSupply<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-    fn get_index_dyn(&self, element: &dyn Any) -> Option<usize> {
-        element
-            .downcast_ref::<Element>()
-            .and_then(|e| self.get_index(e))
+    /// Clears all position data.
+    #[inline]
+    pub fn clear(&mut self) {
+        let assigned = self.position_map.len();
+        self.position_map.clear();
+        self.unassigned_count += assigned;
     }
-}
 
-impl<Element, Entity> InverseVariableSupply for ListVariableStateSupply<Element, Entity>
-where
-    Element: Eq + Hash + Clone + Send + Sync + 'static,
-    Entity: Clone + Send + Sync + 'static,
-{
-    fn get_inverse_dyn(&self, element: &dyn Any) -> Option<Box<dyn Any + Send + Sync>> {
-        element.downcast_ref::<Element>().and_then(|e| {
-            self.get_inverse(e)
-                .map(|entity| Box::new(entity) as Box<dyn Any + Send + Sync>)
-        })
+    /// Returns an iterator over all (element, position) pairs.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = (&E, &ElementPosition)> {
+        self.position_map.iter()
+    }
+
+    /// Returns all elements assigned to a specific entity.
+    pub fn elements_for_entity(&self, entity_idx: usize) -> Vec<&E> {
+        self.position_map
+            .iter()
+            .filter(|(_, pos)| pos.entity_idx == entity_idx)
+            .map(|(e, _)| e)
+            .collect()
     }
 }
 
@@ -427,139 +214,110 @@ where
 mod tests {
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-    struct Task {
-        id: usize,
-    }
+    #[test]
+    fn test_assign_and_get() {
+        let mut supply: ListStateSupply<usize> = ListStateSupply::with_unassigned(3);
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    struct Vehicle {
-        id: usize,
-        tasks: Vec<Task>,
+        supply.assign(0, 10, 0);
+        supply.assign(1, 10, 1);
+        supply.assign(2, 20, 0);
+
+        assert_eq!(
+            supply.get_position(&0),
+            Some(ElementPosition {
+                entity_idx: 10,
+                list_idx: 0
+            })
+        );
+        assert_eq!(supply.get_entity(&1), Some(10));
+        assert_eq!(supply.get_list_index(&2), Some(0));
+        assert_eq!(supply.unassigned_count(), 0);
     }
 
     #[test]
-    fn test_add_and_get_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
-        supply.initialize(3);
+    fn test_unassign() {
+        let mut supply: ListStateSupply<usize> = ListStateSupply::with_unassigned(2);
 
-        let vehicle = Vehicle {
-            id: 1,
-            tasks: vec![],
-        };
-        let task = Task { id: 1 };
+        supply.assign(0, 10, 0);
+        supply.assign(1, 10, 1);
+        assert_eq!(supply.unassigned_count(), 0);
 
-        supply.add_element(vehicle.clone(), task.clone(), 0);
-
-        assert!(supply.is_assigned(&task));
-        assert_eq!(supply.get_index(&task), Some(0));
-        assert_eq!(supply.get_inverse(&task), Some(vehicle));
-        assert_eq!(supply.unassigned_count(), 2);
+        let old = supply.unassign(&0);
+        assert_eq!(
+            old,
+            Some(ElementPosition {
+                entity_idx: 10,
+                list_idx: 0
+            })
+        );
+        assert_eq!(supply.unassigned_count(), 1);
+        assert!(!supply.is_assigned(&0));
     }
 
     #[test]
-    fn test_remove_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
-        supply.initialize(3);
+    fn test_update() {
+        let mut supply: ListStateSupply<usize> = ListStateSupply::with_unassigned(1);
 
-        let vehicle = Vehicle {
-            id: 1,
-            tasks: vec![],
-        };
-        let task = Task { id: 1 };
+        supply.assign(0, 10, 0);
 
-        supply.add_element(vehicle, task.clone(), 0);
-        assert_eq!(supply.unassigned_count(), 2);
-
-        supply.remove_element(&task, 0);
-        assert!(!supply.is_assigned(&task));
-        assert_eq!(supply.unassigned_count(), 3);
-    }
-
-    #[test]
-    fn test_change_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
-        supply.initialize(1);
-
-        let vehicle = Vehicle {
-            id: 1,
-            tasks: vec![],
-        };
-        let task = Task { id: 1 };
-
-        supply.add_element(vehicle.clone(), task.clone(), 0);
-
-        // Change index only
-        let changed = supply.change_element_with_eq(vehicle.clone(), &task, 2, |a, b| a.id == b.id);
+        // Update to new position
+        let changed = supply.update(&0, 10, 5);
         assert!(changed);
-        assert_eq!(supply.get_index(&task), Some(2));
+        assert_eq!(supply.get_list_index(&0), Some(5));
 
-        // No change
-        let changed = supply.change_element_with_eq(vehicle.clone(), &task, 2, |a, b| a.id == b.id);
+        // Update with same values - no change
+        let changed = supply.update(&0, 10, 5);
         assert!(!changed);
+
+        // Update to different entity
+        let changed = supply.update(&0, 20, 0);
+        assert!(changed);
+        assert_eq!(supply.get_entity(&0), Some(20));
     }
 
     #[test]
-    fn test_element_position() {
-        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
-        supply.initialize(1);
+    fn test_elements_for_entity() {
+        let mut supply: ListStateSupply<usize> = ListStateSupply::new();
 
-        let vehicle = Vehicle {
-            id: 1,
-            tasks: vec![],
-        };
-        let task = Task { id: 1 };
+        supply.assign(0, 10, 0);
+        supply.assign(1, 10, 1);
+        supply.assign(2, 20, 0);
+        supply.assign(3, 10, 2);
 
-        // Unassigned initially
-        let pos = supply.get_position(&task);
-        assert!(pos.is_unassigned());
+        let mut elements: Vec<_> = supply
+            .elements_for_entity(10)
+            .into_iter()
+            .copied()
+            .collect();
+        elements.sort();
 
-        // After assignment
-        supply.add_element(vehicle.clone(), task.clone(), 3);
-        let pos = supply.get_position(&task);
-        assert!(pos.is_assigned());
-        assert_eq!(pos.index(), Some(3));
-        assert_eq!(pos.entity(), Some(&vehicle));
+        assert_eq!(elements, vec![0, 1, 3]);
     }
 
     #[test]
-    fn test_demand() {
-        let demand: ListVariableStateDemand<Task, Vehicle> = ListVariableStateDemand::new("tasks");
-        let supply = demand.create_supply();
+    fn test_clear() {
+        let mut supply: ListStateSupply<usize> = ListStateSupply::with_unassigned(5);
 
-        assert_eq!(supply.variable_name(), "tasks");
+        supply.assign(0, 10, 0);
+        supply.assign(1, 10, 1);
+        assert_eq!(supply.unassigned_count(), 3);
+        assert_eq!(supply.assigned_count(), 2);
+
+        supply.clear();
+        assert_eq!(supply.unassigned_count(), 5);
+        assert_eq!(supply.assigned_count(), 0);
     }
 
     #[test]
-    fn test_previous_next_element() {
-        let supply: ListVariableStateSupply<Task, Vehicle> = ListVariableStateSupply::new("tasks");
-        supply.initialize(3);
+    fn test_is_assigned() {
+        let mut supply: ListStateSupply<usize> = ListStateSupply::new();
 
-        let task0 = Task { id: 0 };
-        let task1 = Task { id: 1 };
-        let task2 = Task { id: 2 };
+        assert!(!supply.is_assigned(&0));
 
-        let vehicle = Vehicle {
-            id: 1,
-            tasks: vec![task0.clone(), task1.clone(), task2.clone()],
-        };
+        supply.assign(0, 10, 0);
+        assert!(supply.is_assigned(&0));
 
-        supply.add_element(vehicle.clone(), task0.clone(), 0);
-        supply.add_element(vehicle.clone(), task1.clone(), 1);
-        supply.add_element(vehicle.clone(), task2.clone(), 2);
-
-        // Get previous
-        let prev = supply.get_previous_element(&task1, |v| &v.tasks);
-        assert_eq!(prev, Some(task0.clone()));
-
-        let prev_first = supply.get_previous_element(&task0, |v| &v.tasks);
-        assert_eq!(prev_first, None);
-
-        // Get next
-        let next = supply.get_next_element(&task1, |v| &v.tasks);
-        assert_eq!(next, Some(task2.clone()));
-
-        let next_last = supply.get_next_element(&task2, |v| &v.tasks);
-        assert_eq!(next_last, None);
+        supply.unassign(&0);
+        assert!(!supply.is_assigned(&0));
     }
 }

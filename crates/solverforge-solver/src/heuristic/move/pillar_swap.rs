@@ -9,7 +9,6 @@
 //! compile-time type safety. No runtime type checks or downcasting.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
@@ -24,7 +23,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
-#[derive(Clone)]
 pub struct PillarSwapMove<S, V> {
     left_indices: Vec<usize>,
     right_indices: Vec<usize>,
@@ -34,7 +32,19 @@ pub struct PillarSwapMove<S, V> {
     getter: fn(&S, usize) -> Option<V>,
     /// Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
-    _phantom: PhantomData<S>,
+}
+
+impl<S, V: Clone> Clone for PillarSwapMove<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            left_indices: self.left_indices.clone(),
+            right_indices: self.right_indices.clone(),
+            descriptor_index: self.descriptor_index,
+            variable_name: self.variable_name,
+            getter: self.getter,
+            setter: self.setter,
+        }
+    }
 }
 
 impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
@@ -73,7 +83,6 @@ impl<S, V> PillarSwapMove<S, V> {
             variable_name,
             getter,
             setter,
-            _phantom: PhantomData,
         }
     }
 
@@ -93,7 +102,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable(&self, score_director: &dyn ScoreDirector<S>) -> bool {
+    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         if self.left_indices.is_empty() || self.right_indices.is_empty() {
             return false;
         }
@@ -121,7 +130,7 @@ where
         left_val != right_val
     }
 
-    fn do_move(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Capture all old values using typed getter - zero erasure
         let left_old: Vec<(usize, Option<V>)> = self
             .left_indices

@@ -5,25 +5,21 @@
 //! - Phases (construction heuristic, local search, exhaustive search)
 //! - Move system
 //! - Termination conditions
-//! - Event system for monitoring
+//! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
+pub mod basic;
 pub mod builder;
-pub mod event;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;
 pub mod realtime;
 pub mod scope;
 pub mod solver;
-pub mod statistics;
+pub mod stats;
 pub mod termination;
 
-pub use builder::{AcceptorBuilder, SolverBuilder, TerminationBuilder};
-pub use event::{
-    CountingEventListener, LoggingEventListener, PhaseLifecycleListener, SolverEventListener,
-    SolverEventSupport, StepLifecycleListener,
-};
+pub use builder::AcceptorBuilder;
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -34,6 +30,7 @@ pub use heuristic::{
     ChangeMoveSelector,
     CompositeMove,
     CutPoint,
+    DefaultDistanceMeter,
     DefaultPillarSelector,
     EntityReference,
     EntitySelector,
@@ -69,9 +66,12 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    CloneablePhaseFactory, ClosurePhaseFactory, ConstructionType, LocalSearchType, SolverManager,
-    SolverManagerBuilder, SolverPhaseFactory,
+    Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
+    KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
+    SolverFactoryBuilder, SolverManager, SolverStatus,
 };
+pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
@@ -91,17 +91,20 @@ pub use phase::{
         TabuSearchAcceptor, ValueTabuAcceptor,
     },
     partitioned::{
-        FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase, PhaseFactory,
-        ScoreDirectorFactory, SolutionPartitioner, ThreadCount,
+        ChildPhases, FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,
+        SolutionPartitioner, ThreadCount,
     },
     vnd::VndPhase,
     Phase,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
-pub use solver::{Solver, SolverFactory};
-pub use statistics::{PhaseStatistics, ScoreImprovement, SolverStatistics, StatisticsCollector};
+pub use solver::{MaybeTermination, NoTermination, Solver};
+pub use stats::{PhaseStats, SolverStats};
 pub use termination::{
-    AndCompositeTermination, BestScoreFeasibleTermination, BestScoreTermination,
-    OrCompositeTermination, StepCountTermination, Termination, TimeTermination,
+    AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
+    DiminishedReturnsTermination, MoveCountTermination, OrTermination,
+    ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
+
+pub use basic::{run_solver, run_solver_with_channel};

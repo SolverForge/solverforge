@@ -1,263 +1,246 @@
-//! SolverManager implementation.
+//! SolverManager for async job management.
+//!
+//! Provides the high-level API for:
+//! - Starting solve jobs that stream solutions via tokio channels
+//! - Tracking solver status per job
+//! - Early termination of solving jobs
+//!
+//! # Zero-Erasure Design
+//!
+//! This implementation uses tokio channels for ownership transfer.
+//! The solver sends owned solutions through the channel - no Clone required.
+//! Fixed-size slot arrays avoid heap indirection.
 
-#![allow(clippy::type_complexity)]
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
-use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use tokio::sync::mpsc;
 
-use crate::phase::Phase;
-use crate::solver::Solver;
-use crate::termination::Termination;
+/// Maximum concurrent jobs per SolverManager instance.
+pub const MAX_JOBS: usize = 16;
 
-use super::SolverPhaseFactory;
+/// Slot states for job lifecycle.
+const SLOT_FREE: u8 = 0;
+const SLOT_SOLVING: u8 = 1;
+const SLOT_DONE: u8 = 2;
 
-/// High-level solver manager for ergonomic solving.
+/// Trait for solutions that can be solved with channel-based solution streaming.
 ///
-/// `SolverManager` stores solver configuration and can create solvers on demand.
-/// For solving, use [`create_solver()`](Self::create_solver) to get a configured
-/// [`Solver`] instance, then provide your own `ScoreDirector`.
+/// This trait is implemented by the `#[planning_solution]` macro when
+/// `constraints` is specified. The solver sends owned solutions through
+/// the channel - no Clone required.
 ///
-/// # Creating a SolverManager
+/// Solver progress is logged via `tracing` at INFO/DEBUG levels.
 ///
-/// Use the builder pattern via [`SolverManager::builder()`]:
+/// # Type Parameters
 ///
-/// ```
-/// use solverforge_solver::manager::{SolverManager, LocalSearchType};
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-/// use std::time::Duration;
-///
-/// #[derive(Clone)]
-/// struct Schedule {
-///     tasks: Vec<i64>,
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// // Build a manager with hill climbing and 30-second time limit
-/// let manager = SolverManager::<Schedule>::builder(|s| {
-///     // Simple scoring: sum of tasks
-///     SimpleScore::of(s.tasks.iter().sum())
-/// })
-///     .with_time_limit(Duration::from_secs(30))
-///     .build()
-///     .expect("Failed to build manager");
-///
-/// // Score calculation is available without solving
-/// let schedule = Schedule { tasks: vec![1, 2, 3], score: None };
-/// let score = manager.calculate_score(&schedule);
-/// assert_eq!(score, SimpleScore::of(6));
-/// ```
-///
-/// # Creating Solvers
-///
-/// The manager creates fresh [`Solver`] instances for each solve:
-///
-/// ```no_run
-/// use solverforge_solver::manager::SolverManager;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// # #[derive(Clone)]
-/// # struct Schedule { score: Option<SimpleScore> }
-/// # impl PlanningSolution for Schedule {
-/// #     type Score = SimpleScore;
-/// #     fn score(&self) -> Option<Self::Score> { self.score }
-/// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// # }
-/// # let manager = SolverManager::<Schedule>::builder(|_| SimpleScore::of(0)).build().unwrap();
-/// // Create a solver for this problem instance
-/// let solver = manager.create_solver();
-///
-/// // Each call creates a fresh solver with clean state
-/// let solver2 = manager.create_solver();
-/// ```
-///
-/// # Zero-Erasure Design
-///
-/// The score calculator is stored as a concrete generic type parameter `C`,
-/// not as `Arc<dyn Fn>`. This eliminates virtual dispatch overhead for the
-/// hot path (score calculation is called millions of times per solve).
-///
-/// The default `C = fn(&S) -> S::Score` allows writing `SolverManager::<T>::builder(...)`
-/// without specifying the calculator type (it's inferred from the builder).
-pub struct SolverManager<S: PlanningSolution, C = fn(&S) -> <S as PlanningSolution>::Score>
-where
-    C: Fn(&S) -> S::Score + Send + Sync,
-{
-    /// Score calculator function (zero-erasure: concrete generic type).
-    score_calculator: C,
-
-    /// Configured phases (as factories that create fresh phases per solve).
-    phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
-
-    /// Global termination condition factory.
-    termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>>,
+/// The solution must be `Send + 'static` to support async job execution.
+/// Note: `Clone` is NOT required - ownership is transferred via channel.
+pub trait Solvable: solverforge_core::domain::PlanningSolution + Send + 'static {
+    /// Solves the solution, sending each new best through the channel.
+    ///
+    /// The final solution is sent through the channel before this returns.
+    /// Ownership of solutions transfers through the channel.
+    ///
+    /// # Arguments
+    ///
+    /// * `terminate` - Optional flag to request early termination
+    /// * `sender` - Channel to send each new best solution (ownership transferred)
+    fn solve(
+        self,
+        terminate: Option<&AtomicBool>,
+        sender: mpsc::UnboundedSender<(Self, Self::Score)>,
+    );
 }
 
-impl<S: PlanningSolution> SolverManager<S, fn(&S) -> S::Score> {
-    /// Creates a new [`SolverManagerBuilder`](super::SolverManagerBuilder) with the given score calculator.
-    ///
-    /// The score calculator is a function that computes the score for a solution.
-    /// This is the entry point for building a `SolverManager`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManager;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// #[derive(Clone)]
-    /// struct Problem { value: i64, score: Option<SimpleScore> }
-    ///
-    /// impl PlanningSolution for Problem {
-    ///     type Score = SimpleScore;
-    ///     fn score(&self) -> Option<Self::Score> { self.score }
-    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// }
-    ///
-    /// let builder = SolverManager::<Problem>::builder(|p| {
-    ///     SimpleScore::of(-p.value.abs()) // Minimize absolute value
-    /// });
-    /// ```
-    pub fn builder<F>(score_calculator: F) -> super::SolverManagerBuilder<S, F>
-    where
-        F: Fn(&S) -> S::Score + Send + Sync + 'static,
-    {
-        super::SolverManagerBuilder::new(score_calculator)
+/// Status of a solving job.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SolverStatus {
+    /// Not currently solving.
+    NotSolving,
+    /// Actively solving.
+    Solving,
+}
+
+impl SolverStatus {
+    /// Returns the status as a string.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SolverStatus::NotSolving => "NOT_SOLVING",
+            SolverStatus::Solving => "SOLVING",
+        }
     }
 }
 
-impl<S, C> SolverManager<S, C>
-where
-    S: PlanningSolution,
-    C: Fn(&S) -> S::Score + Send + Sync,
-{
-    /// Creates a SolverManager with explicit configuration (zero-erasure).
-    pub(crate) fn new(
-        score_calculator: C,
-        phase_factories: Vec<Box<dyn SolverPhaseFactory<S>>>,
-        termination_factory: Option<Box<dyn Fn() -> Box<dyn Termination<S>> + Send + Sync>>,
-    ) -> Self {
+/// A single job slot for tracking solve state.
+struct JobSlot {
+    /// Current slot state (FREE, SOLVING, DONE).
+    state: AtomicU8,
+    /// Termination flag - solver checks this periodically.
+    terminate: AtomicBool,
+}
+
+impl JobSlot {
+    /// Creates an empty job slot.
+    const fn new() -> Self {
         Self {
-            score_calculator,
-            phase_factories,
-            termination_factory,
+            state: AtomicU8::new(SLOT_FREE),
+            terminate: AtomicBool::new(false),
         }
     }
 
-    /// Creates a fresh [`Solver`] instance with configured phases.
+    /// Resets the slot to free state.
+    fn reset(&self) {
+        self.terminate.store(false, Ordering::Release);
+        self.state.store(SLOT_FREE, Ordering::Release);
+    }
+}
+
+/// Manages async solve jobs with channel-based solution streaming.
+///
+/// Uses fixed-size slot array for job tracking. Solutions stream through
+/// tokio channels - the solver sends owned solutions, users receive them
+/// without cloning.
+///
+/// # Type Parameters
+///
+/// * `S` - Solution type that implements `Solvable`
+///
+/// # Thread Safety
+///
+/// `SolverManager` is thread-safe. Jobs can be started, queried, and terminated
+/// from any thread.
+pub struct SolverManager<S: Solvable> {
+    slots: [JobSlot; MAX_JOBS],
+    _phantom: std::marker::PhantomData<fn() -> S>,
+}
+
+impl<S: Solvable> Default for SolverManager<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S: Solvable> SolverManager<S>
+where
+    S::Score: Score,
+{
+    /// Creates a new SolverManager with empty slots.
+    pub const fn new() -> Self {
+        Self {
+            slots: [
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+                JobSlot::new(),
+            ],
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Starts solving and returns a receiver for streaming solutions.
     ///
-    /// Each call returns a new solver with clean state, suitable for solving
-    /// a new problem instance. The solver is configured with termination
-    /// conditions and phases from this manager.
+    /// The solver runs asynchronously via rayon. Solutions stream through
+    /// the returned receiver as they're found. Each solution is owned -
+    /// no cloning occurs.
     ///
-    /// # Example
+    /// # Arguments
     ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManager;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    /// use std::time::Duration;
+    /// * `solution` - The starting solution (ownership transferred)
     ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let manager = SolverManager::<Problem>::builder(|_| SimpleScore::of(0))
-    ///     .with_step_limit(100)
-    ///     .build()
-    ///     .unwrap();
+    /// # Returns
     ///
-    /// // Create solver - each call gives a fresh instance
-    /// let solver = manager.create_solver();
-    /// ```
-    pub fn create_solver(&self) -> Solver<S> {
-        // Create fresh phases for this solve
-        let phases: Vec<Box<dyn Phase<S>>> = self
-            .phase_factories
+    /// A tuple of (job_id, receiver). The receiver yields `(solution, score)`
+    /// pairs as new best solutions are found.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no free slots are available.
+    pub fn solve(&'static self, solution: S) -> (usize, mpsc::UnboundedReceiver<(S, S::Score)>) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+
+        // Find a free slot
+        let slot_idx = self
+            .slots
             .iter()
-            .map(|f| f.create_phase())
-            .collect();
+            .position(|s| {
+                s.state
+                    .compare_exchange(SLOT_FREE, SLOT_SOLVING, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+            })
+            .expect("No free job slots available");
 
-        // Create solver
-        let mut solver = Solver::new(phases);
+        let slot = &self.slots[slot_idx];
+        slot.terminate.store(false, Ordering::SeqCst);
 
-        // Add termination if configured
-        if let Some(factory) = &self.termination_factory {
-            solver = solver.with_termination(factory());
+        // Spawn the solver via rayon
+        rayon::spawn(move || {
+            let terminate_ref = &slot.terminate;
+
+            // solve sends all solutions (including final) through the channel
+            solution.solve(Some(terminate_ref), sender);
+
+            slot.state.store(SLOT_DONE, Ordering::Release);
+        });
+
+        (slot_idx, receiver)
+    }
+
+    /// Gets the solver status for a job.
+    pub fn get_status(&self, job_id: usize) -> SolverStatus {
+        if job_id >= MAX_JOBS {
+            return SolverStatus::NotSolving;
+        }
+        match self.slots[job_id].state.load(Ordering::Acquire) {
+            SLOT_SOLVING => SolverStatus::Solving,
+            _ => SolverStatus::NotSolving,
+        }
+    }
+
+    /// Requests early termination of a job.
+    ///
+    /// Returns `true` if the job was found and is currently solving.
+    pub fn terminate_early(&self, job_id: usize) -> bool {
+        if job_id >= MAX_JOBS {
+            return false;
         }
 
-        solver
+        let slot = &self.slots[job_id];
+        if slot.state.load(Ordering::Acquire) == SLOT_SOLVING {
+            slot.terminate.store(true, Ordering::SeqCst);
+            true
+        } else {
+            false
+        }
     }
 
-    /// Returns a reference to the score calculator function.
+    /// Frees a job slot after solving completes.
     ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManager;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { value: i64, score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let manager = SolverManager::<Problem>::builder(|p| SimpleScore::of(p.value))
-    ///     .build()
-    ///     .unwrap();
-    ///
-    /// let calculator = manager.score_calculator();
-    /// let problem = Problem { value: 42, score: None };
-    /// let score = calculator(&problem);
-    /// assert_eq!(score, SimpleScore::of(42));
-    /// ```
-    pub fn score_calculator(&self) -> &C {
-        &self.score_calculator
+    /// Call this after the receiver is drained to allow reuse of the slot.
+    pub fn free_slot(&self, job_id: usize) {
+        if job_id < MAX_JOBS {
+            self.slots[job_id].reset();
+        }
     }
 
-    /// Calculates the score for a solution using the configured calculator.
-    ///
-    /// This is a convenience method equivalent to calling the score calculator
-    /// directly.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::manager::SolverManager;
-    /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// # #[derive(Clone)]
-    /// # struct Problem { value: i64, score: Option<SimpleScore> }
-    /// # impl PlanningSolution for Problem {
-    /// #     type Score = SimpleScore;
-    /// #     fn score(&self) -> Option<Self::Score> { self.score }
-    /// #     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    /// # }
-    /// let manager = SolverManager::<Problem>::builder(|p| {
-    ///     SimpleScore::of(-p.value) // Negate for minimization
-    /// })
-    ///     .build()
-    ///     .unwrap();
-    ///
-    /// let problem = Problem { value: 10, score: None };
-    /// let score = manager.calculate_score(&problem);
-    /// assert_eq!(score, SimpleScore::of(-10));
-    /// ```
-    pub fn calculate_score(&self, solution: &S) -> S::Score {
-        (self.score_calculator)(solution)
+    /// Returns the number of active (solving) jobs.
+    pub fn active_job_count(&self) -> usize {
+        self.slots
+            .iter()
+            .filter(|s| s.state.load(Ordering::Relaxed) == SLOT_SOLVING)
+            .count()
     }
 }

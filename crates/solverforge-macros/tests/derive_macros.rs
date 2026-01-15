@@ -1,7 +1,8 @@
 //! Integration tests for derive macros.
 
-use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
-use solverforge::prelude::*;
+use solverforge_core::domain::{PlanningId, PlanningSolution as PlanningSolutionTrait};
+use solverforge_core::score::HardSoftScore;
+use solverforge_macros::{planning_entity, planning_solution, problem_fact};
 
 /// A problem fact representing an employee.
 #[problem_fact]

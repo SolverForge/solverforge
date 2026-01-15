@@ -50,7 +50,7 @@ use crate::director::ScoreDirector;
 ///     ConstraintRef::new("", "Unassigned"),
 ///     ImpactType::Penalty,
 ///     |s: &Solution| s.values.as_slice(),
-///     |v: &Option<i32>| v.is_none(),
+///     |_s: &Solution, v: &Option<i32>| v.is_none(),
 ///     |_: &Option<i32>| SimpleScore::of(1),
 ///     false,
 /// );
@@ -518,7 +518,7 @@ mod tests {
             ConstraintRef::new("", "Unassigned"),
             ImpactType::Penalty,
             |s: &TestSolution| s.values.as_slice(),
-            |v: &Option<i32>| v.is_none(),
+            |_s: &TestSolution, v: &Option<i32>| v.is_none(),
             |_v: &Option<i32>| SimpleScore::of(1),
             false,
         )
@@ -659,7 +659,7 @@ mod tests {
             ConstraintRef::new("", "Assigned"),
             ImpactType::Reward,
             |s: &TestSolution| s.values.as_slice(),
-            |v: &Option<i32>| v.is_some(),
+            |_s: &TestSolution, v: &Option<i32>| v.is_some(),
             |_v: &Option<i32>| SimpleScore::of(1),
             false,
         );

@@ -45,7 +45,7 @@ use solverforge_core::score::Score;
 
 use crate::constraint::tri_incremental::IncrementalTriConstraint;
 
-use super::filter::{FnQuadFilter, TriFilter};
+use super::filter::{FnQuadFilter, QuadFilter, TriFilter};
 use super::joiner::Joiner;
 use super::quad_stream::QuadConstraintStream;
 
@@ -64,7 +64,7 @@ where
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
-    F: TriFilter<A, A, A>,
+    F: TriFilter<S, A, A, A>,
     Sc: Score + 'static,
 {
     /// Joins this stream with a fourth element to create quadruples.
@@ -108,14 +108,14 @@ where
     pub fn join_self<J>(
         self,
         joiner: J,
-    ) -> QuadConstraintStream<S, A, K, E, KE, impl super::filter::QuadFilter<A, A, A, A>, Sc>
+    ) -> QuadConstraintStream<S, A, K, E, KE, impl QuadFilter<S, A, A, A, A>, Sc>
     where
         J: Joiner<A, A> + 'static,
         F: 'static,
     {
         let filter = self.filter;
         let combined_filter =
-            move |a: &A, b: &A, c: &A, d: &A| filter.test(a, b, c) && joiner.matches(a, d);
+            move |s: &S, a: &A, b: &A, c: &A, d: &A| filter.test(s, a, b, c) && joiner.matches(a, d);
 
         QuadConstraintStream::new_self_join_with_filter(
             self.extractor,

@@ -46,7 +46,7 @@ where
     EB: Fn(&S) -> &[B],
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
-    F: Fn(&A, &B) -> bool,
+    F: Fn(&S, &A, &B) -> bool,
     W: Fn(&A, &B) -> Sc,
     Sc: Score,
 {
@@ -108,7 +108,7 @@ where
         self.b_by_key.get(&key).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
-    fn insert_a(&mut self, entities_a: &[A], entities_b: &[B], a_idx: usize) -> Sc {
+    fn insert_a(&mut self, solution: &S, entities_a: &[A], entities_b: &[B], a_idx: usize) -> Sc {
         if a_idx >= entities_a.len() {
             return Sc::zero();
         }
@@ -130,7 +130,7 @@ where
         let mut total = Sc::zero();
         for &b_idx in b_indices {
             let b = &entities_b[b_idx];
-            if filter(a, b) {
+            if filter(solution, a, b) {
                 let pair = (a_idx, b_idx);
                 let base = weight(a, b);
                 let score = match impact_type {
@@ -176,7 +176,7 @@ where
     EB: Fn(&S) -> &[B] + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    F: Fn(&A, &B) -> bool + Send + Sync,
+    F: Fn(&S, &A, &B) -> bool + Send + Sync,
     W: Fn(&A, &B) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -188,7 +188,7 @@ where
         for a in entities_a {
             for &b_idx in self.matching_b_indices(a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(a, b) {
+                if (self.filter)(solution, a, b) {
                     total = total + self.compute_score(a, b);
                 }
             }
@@ -205,7 +205,7 @@ where
         for a in entities_a {
             for &b_idx in self.matching_b_indices(a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(a, b) {
+                if (self.filter)(solution, a, b) {
                     count += 1;
                 }
             }
@@ -224,7 +224,7 @@ where
 
         let mut total = Sc::zero();
         for a_idx in 0..entities_a.len() {
-            total = total + self.insert_a(entities_a, entities_b, a_idx);
+            total = total + self.insert_a(solution, entities_a, entities_b, a_idx);
         }
 
         total
@@ -233,7 +233,7 @@ where
     fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
-        self.insert_a(entities_a, entities_b, entity_index)
+        self.insert_a(solution, entities_a, entities_b, entity_index)
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
@@ -270,7 +270,7 @@ where
         for a in entities_a {
             for &b_idx in self.matching_b_indices(a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(a, b) {
+                if (self.filter)(solution, a, b) {
                     let entity_a = EntityRef::new(a);
                     let entity_b = EntityRef::new(b);
                     let justification = ConstraintJustification::new(vec![entity_a, entity_b]);

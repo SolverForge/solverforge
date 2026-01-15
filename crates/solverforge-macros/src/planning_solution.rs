@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields, Ident, Lit, Meta};
 
-use crate::{get_attribute, has_attribute, parse_attribute_string};
+use crate::{get_attribute, has_attribute, parse_attribute_list, parse_attribute_string};
 
 #[derive(Default)]
 struct ShadowConfig {
@@ -17,6 +17,12 @@ struct ShadowConfig {
     cascading_listener: Option<String>,
     post_update_listener: Option<String>,
     element_type: Option<String>,
+    /// Aggregate shadow fields on the list owner entity.
+    /// Format: "field_name:aggregation:source_field" (e.g., "total_demand:sum:demand")
+    entity_aggregates: Vec<String>,
+    /// Computed shadow fields on the list owner entity.
+    /// Format: "field_name:method_name" (e.g., "total_driving_time:compute_driving_time")
+    entity_computes: Vec<String>,
 }
 
 /// Configuration for basic (non-list) planning variables.
@@ -67,6 +73,8 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");
         config.post_update_listener = parse_attribute_string(attr, "post_update_listener");
         config.element_type = parse_attribute_string(attr, "element_type");
+        config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
+        config.entity_computes = parse_attribute_list(attr, "entity_compute");
     }
 
     config
@@ -634,6 +642,51 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
         }
     });
 
+    // Entity aggregates: "target_field:sum:source_field" on list owner
+    // Sums a field from each element in the list and stores on the entity
+    let aggregate_updates: Vec<_> = config
+        .entity_aggregates
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 3 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let aggregation = parts[1];
+            let source_field = Ident::new(parts[2], proc_macro2::Span::call_site());
+
+            match aggregation {
+                "sum" => Some(quote! {
+                    self.#list_owner_ident[entity_idx].#target_field = element_indices
+                        .iter()
+                        .map(|&idx| self.#element_collection_ident[idx].#source_field)
+                        .sum();
+                }),
+                _ => None,
+            }
+        })
+        .collect();
+
+    // Entity computes: "target_field:method_name" on list owner
+    // Calls a method on self that takes entity_idx and returns the value
+    let compute_updates: Vec<_> = config
+        .entity_computes
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 2 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
+
+            Some(quote! {
+                self.#list_owner_ident[entity_idx].#target_field = self.#method_name(entity_idx);
+            })
+        })
+        .collect();
+
     quote! {
         impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
             #[inline]
@@ -646,6 +699,8 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
                 #previous_update
                 #next_update
                 #cascading_update
+                #(#aggregate_updates)*
+                #(#compute_updates)*
                 #post_update
             }
         }

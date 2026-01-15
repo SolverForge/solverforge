@@ -85,7 +85,7 @@ where
     EB: Fn(&S) -> &[B] + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    F: BiFilter<A, B>,
+    F: BiFilter<S, A, B>,
     Sc: Score + 'static,
 {
     /// Creates a new cross-bi constraint stream with an initial filter.
@@ -108,21 +108,7 @@ where
             _phantom: PhantomData,
         }
     }
-}
 
-impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
-where
-    S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
-    KA: Fn(&A) -> K + Send + Sync,
-    KB: Fn(&B) -> K + Send + Sync,
-    F: BiFilter<A, B>,
-    Sc: Score + 'static,
-{
     /// Adds a filter predicate to the stream.
     ///
     /// Multiple filters are combined with AND semantics at compile time.
@@ -139,7 +125,18 @@ where
     pub fn filter<P>(
         self,
         predicate: P,
-    ) -> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, AndBiFilter<F, FnBiFilter<P>>, Sc>
+    ) -> CrossBiConstraintStream<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &B) -> bool + Send + Sync>>,
+        Sc,
+    >
     where
         P: Fn(&A, &B) -> bool + Send + Sync,
     {
@@ -148,7 +145,10 @@ where
             extractor_b: self.extractor_b,
             key_a: self.key_a,
             key_b: self.key_b,
-            filter: AndBiFilter::new(self.filter, FnBiFilter::new(predicate)),
+            filter: AndBiFilter::new(
+                self.filter,
+                FnBiFilter::new(move |_s: &S, a: &A, b: &B| predicate(a, b)),
+            ),
             _phantom: PhantomData,
         }
     }
@@ -454,7 +454,7 @@ where
     EB: Fn(&S) -> &[B] + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    F: BiFilter<A, B>,
+    F: BiFilter<S, A, B>,
     W: Fn(&A, &B) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
@@ -474,12 +474,12 @@ where
         EB,
         KA,
         KB,
-        impl Fn(&A, &B) -> bool + Send + Sync,
+        impl Fn(&S, &A, &B) -> bool + Send + Sync,
         W,
         Sc,
     > {
         let filter = self.filter;
-        let combined_filter = move |a: &A, b: &B| filter.test(a, b);
+        let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b);
 
         IncrementalCrossBiConstraint::new(
             ConstraintRef::new("", name),

@@ -109,10 +109,10 @@ where
     /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
     /// use solverforge_core::score::SimpleScore;
     ///
-    /// #[derive(Clone)]
+    /// #[derive(Clone, Debug)]
     /// struct Shift { id: usize, employee_idx: Option<usize> }
     ///
-    /// #[derive(Clone)]
+    /// #[derive(Clone, Debug)]
     /// struct Schedule {
     ///     shifts: Vec<Shift>,
     ///     hours_by_employee: Vec<i32>, // shadow variable

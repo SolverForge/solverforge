@@ -22,7 +22,7 @@ fn test_tri_constraint_evaluate() {
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(1),
         false,
     );
@@ -47,7 +47,7 @@ fn test_tri_constraint_multiple_triples() {
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(1),
         false,
     );
@@ -72,7 +72,7 @@ fn test_tri_constraint_incremental() {
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(1),
         false,
     );
@@ -103,7 +103,7 @@ fn test_tri_constraint_reward() {
         ImpactType::Reward,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(5),
         false,
     );

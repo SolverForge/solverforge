@@ -60,10 +60,6 @@ pub struct FilteringMoveSelector<S, M, Inner> {
 
 impl<S, M, Inner> FilteringMoveSelector<S, M, Inner> {
     /// Creates a new filtering selector with the given predicate.
-    ///
-    /// # Arguments
-    /// * `inner` - The inner selector to filter
-    /// * `predicate` - Function pointer that returns `true` for moves to keep
     pub fn new(inner: Inner, predicate: fn(&M) -> bool) -> Self {
         Self {
             inner,
@@ -96,7 +92,6 @@ where
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
-        // Size is approximate - we don't know how many will pass the filter
         self.inner.size(score_director)
     }
 
@@ -108,65 +103,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::test_utils::{Task, TaskSolution, create_director, get_priority, set_priority};
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
-
-    #[derive(Clone, Debug)]
-    struct Task {
-        priority: Option<i32>,
-    }
-
-    #[derive(Clone, Debug)]
-    struct TaskSolution {
-        tasks: Vec<Task>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for TaskSolution {
-        type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    fn get_tasks(s: &TaskSolution) -> &Vec<Task> {
-        &s.tasks
-    }
-    fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
-        &mut s.tasks
-    }
-    fn get_priority(s: &TaskSolution, i: usize) -> Option<i32> {
-        s.tasks.get(i).and_then(|t| t.priority)
-    }
-    fn set_priority(s: &mut TaskSolution, i: usize, v: Option<i32>) {
-        if let Some(t) = s.tasks.get_mut(i) {
-            t.priority = v;
-        }
-    }
-
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
-        let solution = TaskSolution { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
-    }
 
     fn high_value_filter(m: &ChangeMove<TaskSolution, i32>) -> bool {
         m.to_value().is_some_and(|v| *v > 50)
@@ -175,19 +114,12 @@ mod tests {
     #[test]
     fn filters_moves_by_predicate() {
         let director = create_director(vec![Task { priority: Some(1) }]);
-
         let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![10, 60, 80, 30],
+            get_priority, set_priority, 0, "priority", vec![10, 60, 80, 30],
         );
         let filtered = FilteringMoveSelector::new(inner, high_value_filter);
 
         let moves: Vec<_> = filtered.iter_moves(&director).collect();
-
-        // Only values > 50 pass: 60, 80
         assert_eq!(moves.len(), 2);
         assert_eq!(moves[0].to_value(), Some(&60));
         assert_eq!(moves[1].to_value(), Some(&80));
@@ -196,9 +128,7 @@ mod tests {
     #[test]
     fn empty_when_no_moves_pass() {
         let director = create_director(vec![Task { priority: Some(1) }]);
-
-        let inner =
-            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
+        let inner = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
         let filtered = FilteringMoveSelector::new(inner, high_value_filter);
 
         let moves: Vec<_> = filtered.iter_moves(&director).collect();

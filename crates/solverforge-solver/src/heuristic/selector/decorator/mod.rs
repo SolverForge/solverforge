@@ -17,6 +17,8 @@ mod filtering;
 mod probability;
 mod shuffling;
 mod sorting;
+#[cfg(test)]
+mod test_utils;
 mod union;
 
 pub use cartesian_product::CartesianProductArena;

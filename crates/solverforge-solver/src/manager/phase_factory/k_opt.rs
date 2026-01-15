@@ -257,7 +257,7 @@ where
             // Apply best move if found
             if let (Some(idx), Some(score)) = (best_move_idx, best_score) {
                 moves[idx].do_move(step_scope.score_director_mut());
-                step_scope.set_step_score(score.clone());
+                step_scope.set_step_score(score);
                 last_step_score = score;
                 step_scope.phase_scope_mut().update_best_solution();
             } else {

@@ -95,14 +95,14 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
     fn phase_started(&mut self, initial_score: &S::Score) {
         // Initialize history with the initial score
         for slot in &mut self.score_history {
-            *slot = Some(initial_score.clone());
+            *slot = Some(*initial_score);
         }
         self.current_index = 0;
     }
 
     fn step_ended(&mut self, step_score: &S::Score) {
         // Record the step score in the history
-        self.score_history[self.current_index] = Some(step_score.clone());
+        self.score_history[self.current_index] = Some(*step_score);
         self.current_index = (self.current_index + 1) % self.late_acceptance_size;
     }
 }

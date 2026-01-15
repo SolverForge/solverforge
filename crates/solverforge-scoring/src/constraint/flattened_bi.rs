@@ -73,7 +73,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 ///     |emp: &Employee| emp.unavailable_days.as_slice(),
 ///     |day: &u32| *day,           // C → index key
 ///     |shift: &Shift| shift.day,  // A → lookup key
-///     |shift: &Shift, day: &u32| shift.day == *day,
+///     |_s: &Schedule, shift: &Shift, day: &u32| shift.day == *day,
 ///     |_shift: &Shift, _day: &u32| SimpleScore::of(1),
 ///     false,
 /// );
@@ -146,7 +146,7 @@ where
     Flatten: Fn(&B) -> &[C],
     CKeyFn: Fn(&C) -> CK,
     ALookup: Fn(&A) -> CK,
-    F: Fn(&A, &C) -> bool,
+    F: Fn(&S, &A, &C) -> bool,
     W: Fn(&A, &C) -> Sc,
     Sc: Score,
 {
@@ -210,7 +210,7 @@ where
     }
 
     /// Compute score for entity A using O(1) index lookup.
-    fn compute_a_score(&self, a: &A) -> Sc {
+    fn compute_a_score(&self, solution: &S, a: &A) -> Sc {
         let join_key = (self.key_a)(a);
         let lookup_key = (self.a_lookup_fn)(a);
 
@@ -222,23 +222,23 @@ where
 
         let mut total = Sc::zero();
         for (_b_idx, c) in matches {
-            if (self.filter)(a, c) {
+            if (self.filter)(solution, a, c) {
                 total = total + self.compute_score(a, c);
             }
         }
         total
     }
 
-    fn insert_a(&mut self, entities_a: &[A], a_idx: usize) -> Sc {
+    fn insert_a(&mut self, solution: &S, entities_a: &[A], a_idx: usize) -> Sc {
         if a_idx >= entities_a.len() {
             return Sc::zero();
         }
 
         let a = &entities_a[a_idx];
-        let score = self.compute_a_score(a);
+        let score = self.compute_a_score(solution, a);
 
         if score != Sc::zero() {
-            self.a_scores.insert(a_idx, score.clone());
+            self.a_scores.insert(a_idx, score);
         }
         score
     }
@@ -268,7 +268,7 @@ where
     Flatten: Fn(&B) -> &[C] + Send + Sync,
     CKeyFn: Fn(&C) -> CK + Send + Sync,
     ALookup: Fn(&A) -> CK + Send + Sync,
-    F: Fn(&A, &C) -> bool + Send + Sync,
+    F: Fn(&S, &A, &C) -> bool + Send + Sync,
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -296,7 +296,7 @@ where
 
             if let Some(matches) = temp_index.get(&(join_key, lookup_key)) {
                 for (_b_idx, c) in matches {
-                    if (self.filter)(a, c) {
+                    if (self.filter)(solution, a, c) {
                         total = total + self.compute_score(a, c);
                     }
                 }
@@ -330,7 +330,7 @@ where
 
             if let Some(matches) = temp_index.get(&(join_key, lookup_key)) {
                 for (_b_idx, c) in matches {
-                    if (self.filter)(a, c) {
+                    if (self.filter)(solution, a, c) {
                         count += 1;
                     }
                 }
@@ -352,7 +352,7 @@ where
         // Insert all A entities: O(A) with O(1) lookups each
         let mut total = Sc::zero();
         for a_idx in 0..entities_a.len() {
-            total = total + self.insert_a(entities_a, a_idx);
+            total = total + self.insert_a(solution, entities_a, a_idx);
         }
 
         total
@@ -360,7 +360,7 @@ where
 
     fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
-        self.insert_a(entities_a, entity_index)
+        self.insert_a(solution, entities_a, entity_index)
     }
 
     fn on_retract(&mut self, _solution: &S, entity_index: usize) -> Sc {
@@ -434,7 +434,7 @@ mod tests {
         impl Fn(&Employee) -> &[u32],
         impl Fn(&u32) -> u32,
         impl Fn(&Shift) -> u32,
-        impl Fn(&Shift, &u32) -> bool,
+        impl Fn(&Schedule, &Shift, &u32) -> bool,
         impl Fn(&Shift, &u32) -> SimpleScore,
         SimpleScore,
     > {
@@ -448,7 +448,7 @@ mod tests {
             |emp: &Employee| emp.unavailable_days.as_slice(),
             |day: &u32| *day,
             |shift: &Shift| shift.day,
-            |shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day,
+            |_s: &Schedule, shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day,
             |_shift: &Shift, _day: &u32| SimpleScore::of(1),
             false,
         )

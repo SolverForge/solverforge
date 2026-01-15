@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod benchmarks {
-    use crate::constraint::bi_incremental::IncrementalBiConstraint;
+    use crate::constraint::IncrementalBiConstraint;
     use crate::constraint::incremental::IncrementalUniConstraint;
     use crate::director::typed::TypedScoreDirector;
     use solverforge_core::domain::PlanningSolution;
@@ -145,7 +145,7 @@ mod benchmarks {
             ConstraintRef::new("", "Unassigned"),
             ImpactType::Penalty,
             |s: &Schedule| s.shifts.as_slice(),
-            |s: &Shift| s.employee_id.is_none(),
+            |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
             |_s: &Shift| SimpleScore::of(1),
             false,
         );
@@ -155,7 +155,7 @@ mod benchmarks {
             ImpactType::Penalty,
             |s: &Schedule| s.shifts.as_slice(),
             |s: &Shift| s.employee_id, // Key by employee_id
-            |a: &Shift, b: &Shift| {
+            |_sol: &Schedule, a: &Shift, b: &Shift| {
                 a.id < b.id // Ordering to avoid duplicates
                     && a.start_hour < b.end_hour
                     && b.start_hour < a.end_hour
@@ -234,7 +234,7 @@ mod benchmarks {
                 ConstraintRef::new("", "Unassigned"),
                 ImpactType::Penalty,
                 |s: &Schedule| s.shifts.as_slice(),
-                |s: &Shift| s.employee_id.is_none(),
+                |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
                 |_s: &Shift| SimpleScore::of(1),
                 false,
             );
@@ -244,7 +244,7 @@ mod benchmarks {
                 ImpactType::Penalty,
                 |s: &Schedule| s.shifts.as_slice(),
                 |s: &Shift| s.employee_id,
-                |a: &Shift, b: &Shift| {
+                |_sol: &Schedule, a: &Shift, b: &Shift| {
                     a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
                 },
                 |_a: &Shift, _b: &Shift| SimpleScore::of(10),

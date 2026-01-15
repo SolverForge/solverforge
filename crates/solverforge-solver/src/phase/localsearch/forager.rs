@@ -227,7 +227,6 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct DummySolution {
-        values: Vec<Option<i32>>,
         score: Option<SimpleScore>,
     }
 
@@ -240,16 +239,6 @@ mod tests {
 
         fn set_score(&mut self, score: Option<Self::Score>) {
             self.score = score;
-        }
-    }
-
-    fn get_value(s: &DummySolution, idx: usize) -> Option<i32> {
-        s.values.get(idx).copied().flatten()
-    }
-
-    fn set_value(s: &mut DummySolution, idx: usize, v: Option<i32>) {
-        if let Some(val) = s.values.get_mut(idx) {
-            *val = v;
         }
     }
 
@@ -339,7 +328,4 @@ mod tests {
         .is_none());
     }
 
-    // Suppress unused warnings for test helper functions
-    const _: fn(&DummySolution, usize) -> Option<i32> = get_value;
-    const _: fn(&mut DummySolution, usize, Option<i32>) = set_value;
 }

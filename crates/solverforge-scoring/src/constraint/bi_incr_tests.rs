@@ -1,6 +1,6 @@
 //! Tests for zero-erasure incremental bi-constraint.
 
-use super::bi_incremental::IncrementalBiConstraint;
+use super::IncrementalBiConstraint;
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -22,8 +22,8 @@ fn test_evaluate_no_conflicts() {
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
-        |q: &Queen| q.row,                    // Key by row for grouping
-        |a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
+        |q: &Queen| q.row,                           // Key by row for grouping
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -48,7 +48,7 @@ fn test_evaluate_with_conflicts() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -72,7 +72,7 @@ fn test_incremental_insert() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -109,7 +109,7 @@ fn test_incremental_retract() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -136,7 +136,7 @@ fn test_reward_type() {
         ImpactType::Reward,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row, // Group by row
-        |a: &Queen, b: &Queen| a.col < b.col && (a.col - b.col).abs() == 1,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col && (a.col - b.col).abs() == 1,
         |_a: &Queen, _b: &Queen| SimpleScore::of(2),
         false,
     );
@@ -158,7 +158,7 @@ fn test_dynamic_weight() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |a: &Queen, b: &Queen| SimpleScore::of((b.col - a.col).abs()),
         false,
     );
@@ -180,7 +180,7 @@ fn test_multiple_conflicts() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -205,7 +205,7 @@ fn test_reset() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -233,7 +233,7 @@ fn test_in_constraint_set() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );
@@ -257,7 +257,7 @@ fn test_out_of_bounds() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
-        |a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
     );

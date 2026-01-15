@@ -45,9 +45,9 @@ use std::hash::Hash;
 
 use solverforge_core::score::Score;
 
-use crate::constraint::quad_incremental::IncrementalQuadConstraint;
+use crate::constraint::IncrementalQuadConstraint;
 
-use super::filter::{FnPentaFilter, QuadFilter};
+use super::filter::{FnPentaFilter, PentaFilter, QuadFilter};
 use super::joiner::Joiner;
 use super::penta_stream::PentaConstraintStream;
 
@@ -66,7 +66,7 @@ where
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
-    F: QuadFilter<A, A, A, A>,
+    F: QuadFilter<S, A, A, A, A>,
     Sc: Score + 'static,
 {
     /// Joins this stream with a fifth element to create quintuples.
@@ -112,14 +112,14 @@ where
     pub fn join_self<J>(
         self,
         joiner: J,
-    ) -> PentaConstraintStream<S, A, K, E, KE, impl super::filter::PentaFilter<A, A, A, A, A>, Sc>
+    ) -> PentaConstraintStream<S, A, K, E, KE, impl PentaFilter<S, A, A, A, A, A>, Sc>
     where
         J: Joiner<A, A> + 'static,
         F: 'static,
     {
         let filter = self.filter;
-        let combined_filter = move |a: &A, b: &A, c: &A, d: &A, e: &A| {
-            filter.test(a, b, c, d) && joiner.matches(a, e)
+        let combined_filter = move |s: &S, a: &A, b: &A, c: &A, d: &A, e: &A| {
+            filter.test(s, a, b, c, d) && joiner.matches(a, e)
         };
 
         PentaConstraintStream::new_self_join_with_filter(

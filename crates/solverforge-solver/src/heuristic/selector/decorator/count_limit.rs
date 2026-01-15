@@ -103,15 +103,19 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_utils::{create_director, get_priority, set_priority, Task};
     use super::*;
-    use super::super::test_utils::{Task, create_director, get_priority, set_priority};
     use crate::heuristic::selector::ChangeMoveSelector;
 
     #[test]
     fn limits_move_count() {
         let director = create_director(vec![Task { priority: Some(1) }]);
         let inner = ChangeMoveSelector::simple(
-            get_priority, set_priority, 0, "priority", vec![10, 20, 30, 40, 50],
+            get_priority,
+            set_priority,
+            0,
+            "priority",
+            vec![10, 20, 30, 40, 50],
         );
         let limited = SelectedCountLimitMoveSelector::new(inner, 3);
 
@@ -123,7 +127,8 @@ mod tests {
     #[test]
     fn returns_all_when_under_limit() {
         let director = create_director(vec![Task { priority: Some(1) }]);
-        let inner = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
         let limited = SelectedCountLimitMoveSelector::new(inner, 10);
 
         let moves: Vec<_> = limited.iter_moves(&director).collect();
@@ -134,7 +139,8 @@ mod tests {
     #[test]
     fn zero_limit_yields_nothing() {
         let director = create_director(vec![Task { priority: Some(1) }]);
-        let inner = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
+        let inner =
+            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
         let limited = SelectedCountLimitMoveSelector::new(inner, 0);
 
         let moves: Vec<_> = limited.iter_moves(&director).collect();

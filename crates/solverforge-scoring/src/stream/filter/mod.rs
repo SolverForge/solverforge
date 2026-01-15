@@ -6,15 +6,15 @@
 //! All filters receive the solution reference, enabling access to
 //! shadow variables and computed solution state during filtering.
 
+mod adapters;
+mod composition;
 mod traits;
 mod wrappers;
-mod composition;
-mod adapters;
 
-pub use traits::{UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter};
-pub use wrappers::{TrueFilter, FnUniFilter, FnBiFilter, FnTriFilter, FnQuadFilter, FnPentaFilter};
-pub use composition::{AndUniFilter, AndBiFilter, AndTriFilter, AndQuadFilter, AndPentaFilter};
 pub use adapters::{UniBiFilter, UniLeftBiFilter};
+pub use composition::{AndBiFilter, AndPentaFilter, AndQuadFilter, AndTriFilter, AndUniFilter};
+pub use traits::{BiFilter, PentaFilter, QuadFilter, TriFilter, UniFilter};
+pub use wrappers::{FnBiFilter, FnPentaFilter, FnQuadFilter, FnTriFilter, FnUniFilter, TrueFilter};
 
 #[cfg(test)]
 mod tests {

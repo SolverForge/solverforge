@@ -82,7 +82,13 @@ where
     pub fn filter<P>(
         self,
         predicate: P,
-    ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<impl Fn(&S, &A) -> bool + Send + Sync>>, Sc>
+    ) -> UniConstraintStream<
+        S,
+        A,
+        E,
+        AndUniFilter<F, FnUniFilter<impl Fn(&S, &A) -> bool + Send + Sync>>,
+        Sc,
+    >
     where
         P: Fn(&A) -> bool + Send + Sync + 'static,
     {

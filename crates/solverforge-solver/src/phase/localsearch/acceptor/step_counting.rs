@@ -56,7 +56,7 @@ impl<S: PlanningSolution> Clone for StepCountingHillClimbingAcceptor<S> {
         Self {
             step_count_limit: self.step_count_limit,
             steps_since_improvement: self.steps_since_improvement,
-            best_score: self.best_score.clone(),
+            best_score: self.best_score,
         }
     }
 }
@@ -93,7 +93,7 @@ impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
     }
 
     fn phase_started(&mut self, initial_score: &S::Score) {
-        self.best_score = Some(initial_score.clone());
+        self.best_score = Some(*initial_score);
         self.steps_since_improvement = 0;
     }
 
@@ -105,7 +105,7 @@ impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
         };
 
         if improved {
-            self.best_score = Some(step_score.clone());
+            self.best_score = Some(*step_score);
             self.steps_since_improvement = 0;
         } else {
             self.steps_since_improvement += 1;

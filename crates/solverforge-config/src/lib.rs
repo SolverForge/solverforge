@@ -1,6 +1,44 @@
-//! Configuration system for SolverForge
+//! Configuration system for SolverForge.
 //!
-//! Supports TOML and YAML configuration formats.
+//! Load solver configuration from TOML files to control termination,
+//! phases, and acceptors without code changes.
+//!
+//! # Examples
+//!
+//! Load configuration from TOML string:
+//!
+//! ```
+//! use solverforge_config::SolverConfig;
+//! use std::time::Duration;
+//!
+//! let config = SolverConfig::from_toml_str(r#"
+//!     [termination]
+//!     seconds_spent_limit = 30
+//!     unimproved_seconds_spent_limit = 5
+//!
+//!     [[phases]]
+//!     type = "construction_heuristic"
+//!     construction_heuristic_type = "first_fit"
+//!
+//!     [[phases]]
+//!     type = "local_search"
+//!     [phases.acceptor]
+//!     type = "late_acceptance"
+//!     late_acceptance_size = 400
+//! "#).unwrap();
+//!
+//! assert_eq!(config.time_limit(), Some(Duration::from_secs(30)));
+//! assert_eq!(config.phases.len(), 2);
+//! ```
+//!
+//! Use default config when file is missing:
+//!
+//! ```
+//! use solverforge_config::SolverConfig;
+//!
+//! let config = SolverConfig::load("solver.toml").unwrap_or_default();
+//! // Proceeds with defaults if file doesn't exist
+//! ```
 
 use std::path::Path;
 use std::time::Duration;
@@ -60,6 +98,15 @@ impl SolverConfig {
     }
 
     /// Loads configuration from a TOML file.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if file doesn't exist or contains invalid TOML.
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
+        Self::from_toml_file(path)
+    }
+
+    /// Loads configuration from a TOML file.
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let contents = std::fs::read_to_string(path)?;
         Self::from_toml_str(&contents)
@@ -100,6 +147,27 @@ impl SolverConfig {
     pub fn with_phase(mut self, phase: PhaseConfig) -> Self {
         self.phases.push(phase);
         self
+    }
+
+    /// Returns the termination time limit, if configured.
+    ///
+    /// Convenience method that delegates to `termination.time_limit()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_config::SolverConfig;
+    /// use std::time::Duration;
+    ///
+    /// let config = SolverConfig::from_toml_str(r#"
+    ///     [termination]
+    ///     seconds_spent_limit = 30
+    /// "#).unwrap();
+    ///
+    /// assert_eq!(config.time_limit(), Some(Duration::from_secs(30)));
+    /// ```
+    pub fn time_limit(&self) -> Option<Duration> {
+        self.termination.as_ref().and_then(|t| t.time_limit())
     }
 }
 
@@ -150,10 +218,10 @@ pub struct TerminationConfig {
     pub best_score_limit: Option<String>,
 
     /// Maximum number of steps.
-    pub step_count_limit: Option<usize>,
+    pub step_count_limit: Option<u64>,
 
     /// Maximum unimproved steps before terminating.
-    pub unimproved_step_count_limit: Option<usize>,
+    pub unimproved_step_count_limit: Option<u64>,
 
     /// Maximum seconds without improvement.
     pub unimproved_seconds_spent_limit: Option<u64>,
@@ -169,6 +237,11 @@ impl TerminationConfig {
         } else {
             None
         }
+    }
+
+    /// Returns the unimproved time limit as a Duration, if any.
+    pub fn unimproved_time_limit(&self) -> Option<Duration> {
+        self.unimproved_seconds_spent_limit.map(Duration::from_secs)
     }
 }
 

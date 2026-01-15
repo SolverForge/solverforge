@@ -28,18 +28,21 @@ impl EntityReference {
 ///
 /// Entity selectors provide an iteration order over the entities that
 /// the solver will consider for moves.
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
 pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
     /// Returns an iterator over entity references.
     ///
     /// The iterator yields `EntityReference` values that identify entities
     /// within the solution.
-    fn iter<'a>(
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a>;
 
     /// Returns the approximate number of entities.
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize;
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same entity multiple times.
     fn is_never_ending(&self) -> bool {
@@ -73,9 +76,9 @@ impl FromSolutionEntitySelector {
 }
 
 impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
-    fn iter<'a>(
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
         let count = score_director
             .entity_count(self.descriptor_index)
@@ -86,7 +89,7 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
         Box::new((0..count).map(move |i| EntityReference::new(desc_idx, i)))
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         score_director
             .entity_count(self.descriptor_index)
             .unwrap_or(0)
@@ -105,9 +108,9 @@ impl AllEntitiesSelector {
 }
 
 impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
-    fn iter<'a>(
+    fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
-        score_director: &'a dyn ScoreDirector<S>,
+        score_director: &'a D,
     ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
         let desc = score_director.solution_descriptor();
         let descriptor_count = desc.entity_descriptors.len();
@@ -123,7 +126,7 @@ impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
         Box::new(refs.into_iter())
     }
 
-    fn size(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         score_director.total_entity_count().unwrap_or(0)
     }
 }
@@ -136,11 +139,9 @@ mod tests {
     use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
-    #[allow(dead_code)]
     #[derive(Clone, Debug)]
     struct Queen {
         id: i64,
-        row: Option<i32>,
     }
 
     #[derive(Clone, Debug)]
@@ -172,12 +173,7 @@ mod tests {
     fn create_test_director(
         n: usize,
     ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-        let queens: Vec<_> = (0..n)
-            .map(|i| Queen {
-                id: i as i64,
-                row: Some(i as i32),
-            })
-            .collect();
+        let queens: Vec<_> = (0..n).map(|i| Queen { id: i as i64 }).collect();
 
         let solution = NQueensSolution {
             queens,

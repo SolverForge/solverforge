@@ -1,8 +1,7 @@
 //! Solver-level scope.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -10,14 +9,19 @@ use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::statistics::StatisticsCollector;
+use crate::stats::SolverStats;
 
 /// Top-level scope for the entire solving process.
 ///
 /// Holds the working solution, score director, and tracks the best solution found.
-pub struct SolverScope<S: PlanningSolution> {
+///
+/// # Type Parameters
+/// * `'t` - Lifetime of the termination flag reference
+/// * `S` - The planning solution type
+/// * `D` - The score director type
+pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     /// The score director managing the working solution.
-    score_director: Box<dyn ScoreDirector<S>>,
+    score_director: D,
     /// The best solution found so far.
     best_solution: Option<S>,
     /// The score of the best solution.
@@ -28,15 +32,17 @@ pub struct SolverScope<S: PlanningSolution> {
     start_time: Option<Instant>,
     /// Total number of steps across all phases.
     total_step_count: u64,
-    /// Optional statistics collector for tracking solver metrics.
-    statistics: Option<Arc<StatisticsCollector<S::Score>>>,
-    /// Flag for early termination requests, shared with Solver.
-    terminate_early_flag: Option<Arc<AtomicBool>>,
+    /// Flag for early termination requests.
+    terminate: Option<&'t AtomicBool>,
+    /// Solver statistics.
+    stats: SolverStats,
+    /// Time limit for solving (checked by phases).
+    time_limit: Option<Duration>,
 }
 
-impl<S: PlanningSolution> SolverScope<S> {
+impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     /// Creates a new solver scope with the given score director.
-    pub fn new(score_director: Box<dyn ScoreDirector<S>>) -> Self {
+    pub fn new(score_director: D) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -44,13 +50,29 @@ impl<S: PlanningSolution> SolverScope<S> {
             rng: StdRng::from_os_rng(),
             start_time: None,
             total_step_count: 0,
-            statistics: None,
-            terminate_early_flag: None,
+            terminate: None,
+            stats: SolverStats::default(),
+            time_limit: None,
+        }
+    }
+
+    /// Creates a solver scope with a termination flag.
+    pub fn with_terminate(score_director: D, terminate: Option<&'t AtomicBool>) -> Self {
+        Self {
+            score_director,
+            best_solution: None,
+            best_score: None,
+            rng: StdRng::from_os_rng(),
+            start_time: None,
+            total_step_count: 0,
+            terminate,
+            stats: SolverStats::default(),
+            time_limit: None,
         }
     }
 
     /// Creates a solver scope with a specific random seed.
-    pub fn with_seed(score_director: Box<dyn ScoreDirector<S>>, seed: u64) -> Self {
+    pub fn with_seed(score_director: D, seed: u64) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -58,39 +80,9 @@ impl<S: PlanningSolution> SolverScope<S> {
             rng: StdRng::seed_from_u64(seed),
             start_time: None,
             total_step_count: 0,
-            statistics: None,
-            terminate_early_flag: None,
-        }
-    }
-
-    /// Attaches a statistics collector to this scope.
-    ///
-    /// The collector will be updated during solving to track metrics.
-    pub fn with_statistics(mut self, collector: Arc<StatisticsCollector<S::Score>>) -> Self {
-        self.statistics = Some(collector);
-        self
-    }
-
-    /// Returns the statistics collector, if one is attached.
-    pub fn statistics(&self) -> Option<&Arc<StatisticsCollector<S::Score>>> {
-        self.statistics.as_ref()
-    }
-
-    /// Records a move evaluation in statistics.
-    ///
-    /// Does nothing if no statistics collector is attached.
-    pub fn record_move(&self, accepted: bool) {
-        if let Some(stats) = &self.statistics {
-            stats.record_move(accepted);
-        }
-    }
-
-    /// Records a score calculation in statistics.
-    ///
-    /// Does nothing if no statistics collector is attached.
-    pub fn record_score_calculation(&self) {
-        if let Some(stats) = &self.statistics {
-            stats.record_score_calculation();
+            terminate: None,
+            stats: SolverStats::default(),
+            time_limit: None,
         }
     }
 
@@ -98,6 +90,7 @@ impl<S: PlanningSolution> SolverScope<S> {
     pub fn start_solving(&mut self) {
         self.start_time = Some(Instant::now());
         self.total_step_count = 0;
+        self.stats.start();
     }
 
     /// Returns the elapsed time since solving started.
@@ -106,13 +99,13 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Returns a reference to the score director.
-    pub fn score_director(&self) -> &dyn ScoreDirector<S> {
-        self.score_director.as_ref()
+    pub fn score_director(&self) -> &D {
+        &self.score_director
     }
 
     /// Returns a mutable reference to the score director.
-    pub fn score_director_mut(&mut self) -> &mut dyn ScoreDirector<S> {
-        self.score_director.as_mut()
+    pub fn score_director_mut(&mut self) -> &mut D {
+        &mut self.score_director
     }
 
     /// Returns a reference to the working solution.
@@ -150,12 +143,7 @@ impl<S: PlanningSolution> SolverScope<S> {
 
         if is_better {
             self.best_solution = Some(self.score_director.clone_working_solution());
-            self.best_score = Some(current_score.clone());
-
-            // Record improvement in statistics
-            if let Some(stats) = &self.statistics {
-                stats.record_improvement(current_score);
-            }
+            self.best_score = Some(current_score);
         }
     }
 
@@ -187,27 +175,44 @@ impl<S: PlanningSolution> SolverScope<S> {
     }
 
     /// Returns the best solution or the current working solution if no best was set.
-    ///
-    /// This is useful after construction heuristic where the working solution
-    /// may be the only valid solution even if it wasn't marked as "best".
     pub fn take_best_or_working_solution(self) -> S {
         self.best_solution
             .unwrap_or_else(|| self.score_director.clone_working_solution())
     }
 
-    /// Sets the terminate-early flag shared with the Solver.
-    ///
-    /// This allows phases to check if early termination was requested.
-    pub fn set_terminate_early_flag(&mut self, flag: Arc<AtomicBool>) {
-        self.terminate_early_flag = Some(flag);
+    /// Checks if early termination was requested (external flag only).
+    pub fn is_terminate_early(&self) -> bool {
+        self.terminate
+            .is_some_and(|flag| flag.load(Ordering::SeqCst))
     }
 
-    /// Checks if early termination was requested.
-    ///
-    /// Returns `true` if the terminate-early flag is set, otherwise `false`.
-    pub fn is_terminate_early(&self) -> bool {
-        self.terminate_early_flag
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::SeqCst))
+    /// Sets the time limit for solving.
+    pub fn set_time_limit(&mut self, limit: Duration) {
+        self.time_limit = Some(limit);
+    }
+
+    /// Checks if solving should terminate (external flag OR time limit).
+    pub fn should_terminate(&self) -> bool {
+        // Check external termination flag
+        if self.is_terminate_early() {
+            return true;
+        }
+        // Check time limit
+        if let (Some(start), Some(limit)) = (self.start_time, self.time_limit) {
+            if start.elapsed() >= limit {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Returns a reference to the solver statistics.
+    pub fn stats(&self) -> &SolverStats {
+        &self.stats
+    }
+
+    /// Returns a mutable reference to the solver statistics.
+    pub fn stats_mut(&mut self) -> &mut SolverStats {
+        &mut self.stats
     }
 }

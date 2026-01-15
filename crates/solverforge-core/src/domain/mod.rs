@@ -21,13 +21,8 @@ pub use entity_ref::{EntityExtractor, EntityRef, TypedEntityExtractor};
 pub use listener::{
     ListVariableListener, ListVariableNotification, VariableListener, VariableNotification,
 };
-pub use supply::{
-    AnchorVariableSupply, DemandKey, ElementPosition, ExternalizedAnchorVariableSupply,
-    ExternalizedSingletonInverseVariableSupply, IndexVariableSupply, InverseVariableSupply,
-    ListVariableStateDemand, ListVariableStateSupply, SingletonInverseVariableSupply, Supply,
-    SupplyDemand, SupplyManager,
-};
-pub use traits::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
+pub use supply::{AnchorSupply, ElementPosition, InverseSupply, ListStateSupply};
+pub use traits::{ListVariableSolution, PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use value_range::{
     ComputedValueRangeProvider, FieldValueRangeProvider, IntegerRange, StaticValueRange,
     ValueRangeProvider,

@@ -37,15 +37,14 @@ impl CsvExporter {
     /// use std::time::Duration;
     ///
     /// let mut result = BenchmarkResult::<SimpleScore>::new("Test", "HC", "Problem");
-    /// result.add_run(BenchmarkRun {
-    ///     run_index: 0,
-    ///     solve_time: Duration::from_millis(100),
-    ///     final_score: SimpleScore::of(0),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 1000,
-    ///     moves_accepted: 500,
-    ///     score_calculations: 1000,
-    /// });
+    /// result.add_run(BenchmarkRun::new(
+    ///     0,
+    ///     Duration::from_millis(100),
+    ///     SimpleScore::of(0),
+    ///     1000,
+    ///     500,
+    ///     1000,
+    /// ));
     ///
     /// let csv = CsvExporter::to_string(&result);
     /// assert!(csv.contains("0,100,"));
@@ -126,15 +125,14 @@ impl MarkdownReport {
     /// use std::time::Duration;
     ///
     /// let mut result = BenchmarkResult::<SimpleScore>::new("Test", "HC", "Problem");
-    /// result.add_run(BenchmarkRun {
-    ///     run_index: 0,
-    ///     solve_time: Duration::from_millis(100),
-    ///     final_score: SimpleScore::of(0),
-    ///     score_history: vec![],
-    ///     moves_evaluated: 1000,
-    ///     moves_accepted: 500,
-    ///     score_calculations: 1000,
-    /// });
+    /// result.add_run(BenchmarkRun::new(
+    ///     0,
+    ///     Duration::from_millis(100),
+    ///     SimpleScore::of(0),
+    ///     1000,
+    ///     500,
+    ///     1000,
+    /// ));
     ///
     /// let md = MarkdownReport::to_string(&result);
     /// assert!(md.contains("## Summary"));

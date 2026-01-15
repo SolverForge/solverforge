@@ -1,9 +1,9 @@
 //! Time-based termination.
 
-use std::fmt::Debug;
 use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -16,10 +16,7 @@ use crate::scope::SolverScope;
 /// use std::time::Duration;
 /// use solverforge_solver::termination::TimeTermination;
 ///
-/// // Terminate after 30 seconds
 /// let term = TimeTermination::new(Duration::from_secs(30));
-///
-/// // Or use convenience constructors
 /// let term = TimeTermination::seconds(30);
 /// let term = TimeTermination::millis(500);
 /// ```
@@ -42,8 +39,8 @@ impl TimeTermination {
     }
 }
 
-impl<S: PlanningSolution> Termination<S> for TimeTermination {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for TimeTermination {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         solver_scope.elapsed().is_some_and(|e| e >= self.limit)
     }
 }

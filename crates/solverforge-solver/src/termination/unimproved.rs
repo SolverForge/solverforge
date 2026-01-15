@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
+use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -82,8 +83,10 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedStepCountTermination<S> {}
 
-impl<S: PlanningSolution> Termination<S> for UnimprovedStepCountTermination<S> {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
+    for UnimprovedStepCountTermination<S>
+{
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         let mut state = self.state.borrow_mut();
         let current_step = solver_scope.total_step_count();
 
@@ -98,13 +101,13 @@ impl<S: PlanningSolution> Termination<S> for UnimprovedStepCountTermination<S> {
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
                 // First score recorded
-                state.last_best_score = Some(score.clone());
+                state.last_best_score = Some(*score);
                 state.steps_since_improvement = 0;
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
                     // Improvement found
-                    state.last_best_score = Some(current.clone());
+                    state.last_best_score = Some(*current);
                     state.steps_since_improvement = 0;
                 } else {
                     // No improvement
@@ -201,8 +204,8 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedTimeTermination<S> {}
 
-impl<S: PlanningSolution> Termination<S> for UnimprovedTimeTermination<S> {
-    fn is_terminated(&self, solver_scope: &SolverScope<S>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for UnimprovedTimeTermination<S> {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
         let mut state = self.state.borrow_mut();
         let current_best = solver_scope.best_score();
         let now = Instant::now();
@@ -210,14 +213,14 @@ impl<S: PlanningSolution> Termination<S> for UnimprovedTimeTermination<S> {
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
                 // First score recorded
-                state.last_best_score = Some(score.clone());
+                state.last_best_score = Some(*score);
                 state.last_improvement_time = Some(now);
                 false
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
                     // Improvement found
-                    state.last_best_score = Some(current.clone());
+                    state.last_best_score = Some(*current);
                     state.last_improvement_time = Some(now);
                     false
                 } else {

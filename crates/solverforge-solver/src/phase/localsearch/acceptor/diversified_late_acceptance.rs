@@ -65,7 +65,7 @@ impl<S: PlanningSolution> Clone for DiversifiedLateAcceptanceAcceptor<S> {
             late_acceptance_size: self.late_acceptance_size,
             score_history: self.score_history.clone(),
             current_index: self.current_index,
-            best_score: self.best_score.clone(),
+            best_score: self.best_score,
             tolerance: self.tolerance,
         }
     }
@@ -120,7 +120,7 @@ impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
         if let Some(best) = &self.best_score {
             // Calculate threshold: best - tolerance * |best|
             let abs_best = best.abs();
-            let threshold = best.clone() - abs_best.multiply(self.tolerance);
+            let threshold = *best - abs_best.multiply(self.tolerance);
             if move_score >= &threshold {
                 return true;
             }
@@ -132,24 +132,24 @@ impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
     fn phase_started(&mut self, initial_score: &S::Score) {
         // Initialize history with the initial score
         for slot in &mut self.score_history {
-            *slot = Some(initial_score.clone());
+            *slot = Some(*initial_score);
         }
         self.current_index = 0;
-        self.best_score = Some(initial_score.clone());
+        self.best_score = Some(*initial_score);
     }
 
     fn step_ended(&mut self, step_score: &S::Score) {
         // Update best score if improved
         if let Some(best) = &self.best_score {
             if step_score > best {
-                self.best_score = Some(step_score.clone());
+                self.best_score = Some(*step_score);
             }
         } else {
-            self.best_score = Some(step_score.clone());
+            self.best_score = Some(*step_score);
         }
 
         // Record the step score in the history
-        self.score_history[self.current_index] = Some(step_score.clone());
+        self.score_history[self.current_index] = Some(*step_score);
         self.current_index = (self.current_index + 1) % self.late_acceptance_size;
     }
 }

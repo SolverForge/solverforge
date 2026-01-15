@@ -1,6 +1,6 @@
 //! Unit tests for IncrementalPentaConstraint.
 
-use super::penta_incremental::IncrementalPentaConstraint;
+use super::IncrementalPentaConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -22,7 +22,7 @@ fn test_penta_constraint_evaluate() {
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
         false,
     );
@@ -49,7 +49,7 @@ fn test_penta_constraint_multiple_pentas() {
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
         false,
     );
@@ -76,7 +76,7 @@ fn test_penta_constraint_incremental() {
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
         false,
     );
@@ -113,7 +113,7 @@ fn test_penta_constraint_reward() {
         ImpactType::Reward,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(5),
         false,
     );

@@ -50,7 +50,7 @@ use crate::director::ScoreDirector;
 ///     ConstraintRef::new("", "Unassigned"),
 ///     ImpactType::Penalty,
 ///     |s: &Solution| s.values.as_slice(),
-///     |v: &Option<i32>| v.is_none(),
+///     |_s: &Solution, v: &Option<i32>| v.is_none(),
 ///     |_: &Option<i32>| SimpleScore::of(1),
 ///     false,
 /// );
@@ -82,6 +82,12 @@ where
     initialized: bool,
     /// Solution descriptor for trait interface compatibility.
     solution_descriptor: SolutionDescriptor,
+    /// Typed entity counter function.
+    ///
+    /// Returns the number of entities for the given descriptor index.
+    /// This is a typed function pointer that preserves full type information
+    /// throughout the solver pipeline.
+    entity_counter: fn(&S, usize) -> usize,
     /// Phantom for score type.
     _phantom: PhantomData<S::Score>,
 }
@@ -104,6 +110,7 @@ where
             solution,
             constraints,
             SolutionDescriptor::new("", TypeId::of::<()>()),
+            |_, _| 0,
         )
     }
 
@@ -112,11 +119,17 @@ where
     /// This constructor enables the `ScoreDirector` trait implementation for
     /// integration with the full solver infrastructure (phases, move selectors, etc.).
     ///
-    /// The constraints should be a tuple of typed constraints (e.g., `(C1, C2, C3)`).
+    /// # Arguments
+    ///
+    /// * `solution` - The initial solution
+    /// * `constraints` - Tuple of typed constraints (e.g., `(C1, C2, C3)`)
+    /// * `solution_descriptor` - Metadata for solver infrastructure
+    /// * `entity_counter` - Typed function returning entity count for descriptor index
     pub fn with_descriptor(
         solution: S,
         constraints: C,
         solution_descriptor: SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
         Self {
             working_solution: solution,
@@ -124,6 +137,7 @@ where
             cached_score: S::Score::zero(),
             initialized: false,
             solution_descriptor,
+            entity_counter,
             _phantom: PhantomData,
         }
     }
@@ -141,16 +155,25 @@ where
         &mut self.working_solution
     }
 
+    /// Consumes the director and returns the working solution with final score set.
+    pub fn into_working_solution(mut self) -> S {
+        self.working_solution.set_score(Some(self.cached_score));
+        self.working_solution
+    }
+
     /// Calculates and returns the current score.
     ///
     /// On first call, initializes all constraints (O(n) for uni, O(n²) for bi).
     /// Subsequent calls return the cached score (O(1)).
+    ///
+    /// Also sets the score on the working solution to keep it in sync.
     pub fn calculate_score(&mut self) -> S::Score {
         if !self.initialized {
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
-        self.cached_score.clone()
+        self.working_solution.set_score(Some(self.cached_score));
+        self.cached_score
     }
 
     /// Called before changing an entity's variable.
@@ -171,7 +194,7 @@ where
         let delta = self
             .constraints
             .on_retract_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     /// Called after changing an entity's variable.
@@ -191,7 +214,33 @@ where
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
+    }
+
+    /// Called after changing an entity's variable, with shadow update.
+    ///
+    /// Updates shadow variables for the entity FIRST, then inserts into
+    /// constraints. This ensures constraints see the updated shadow state.
+    ///
+    /// # Arguments
+    ///
+    /// * `entity_index` - Index of the entity that was changed
+    #[inline]
+    pub fn after_variable_changed_with_shadows(&mut self, entity_index: usize)
+    where
+        S: crate::director::ShadowVariableSupport,
+    {
+        if !self.initialized {
+            return;
+        }
+
+        // Shadow updates first - O(1) per entity
+        self.working_solution.update_entity_shadows(entity_index);
+
+        let delta = self
+            .constraints
+            .on_insert_all(&self.working_solution, entity_index);
+        self.cached_score = self.cached_score + delta;
     }
 
     /// Convenience method for a complete variable change cycle.
@@ -208,7 +257,26 @@ where
         self.before_variable_changed(entity_index);
         change_fn(&mut self.working_solution);
         self.after_variable_changed(entity_index);
-        self.cached_score.clone()
+        self.cached_score
+    }
+
+    /// Variable change cycle with automatic shadow updates.
+    ///
+    /// Equivalent to:
+    /// 1. `before_variable_changed(entity_index)`
+    /// 2. Apply the change via `change_fn`
+    /// 3. Update shadow variables for entity
+    /// 4. Insert into constraints
+    #[inline]
+    pub fn do_change_with_shadows<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
+    where
+        S: crate::director::ShadowVariableSupport,
+        F: FnOnce(&mut S),
+    {
+        self.before_variable_changed(entity_index);
+        change_fn(&mut self.working_solution);
+        self.after_variable_changed_with_shadows(entity_index);
+        self.cached_score
     }
 
     /// Returns the cached score without recalculation.
@@ -216,7 +284,7 @@ where
     /// Returns zero score if not yet initialized.
     #[inline]
     pub fn get_score(&self) -> S::Score {
-        self.cached_score.clone()
+        self.cached_score
     }
 
     /// Resets the director state.
@@ -252,6 +320,57 @@ where
     /// Returns whether the director is initialized.
     pub fn is_initialized(&self) -> bool {
         self.initialized
+    }
+
+    /// Returns constraint match totals for score analysis.
+    ///
+    /// Returns a vector of (name, weight, score, match_count) tuples.
+    pub fn constraint_match_totals(&self) -> Vec<(String, S::Score, S::Score, usize)> {
+        self.constraints
+            .evaluate_each(&self.working_solution)
+            .into_iter()
+            .map(|r| {
+                // Weight is approximated from score / match_count
+                let weight = if r.match_count > 0 {
+                    r.score
+                } else {
+                    S::Score::zero()
+                };
+                (r.name, weight, r.score, r.match_count)
+            })
+            .collect()
+    }
+
+    /// Consumes the director and returns the working solution.
+    ///
+    /// Use this to extract the final solution after solving.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_scoring::director::typed::TypedScoreDirector;
+    /// use solverforge_core::domain::PlanningSolution;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution {
+    ///     values: Vec<i32>,
+    ///     score: Option<SimpleScore>,
+    /// }
+    ///
+    /// impl PlanningSolution for Solution {
+    ///     type Score = SimpleScore;
+    ///     fn score(&self) -> Option<Self::Score> { self.score }
+    ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+    /// }
+    ///
+    /// let solution = Solution { values: vec![1, 2, 3], score: None };
+    /// let director = TypedScoreDirector::new(solution, ());
+    /// let result = director.take_solution();
+    /// assert_eq!(result.values, vec![1, 2, 3]);
+    /// ```
+    pub fn take_solution(self) -> S {
+        self.working_solution
     }
 }
 
@@ -289,9 +408,8 @@ where
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
-        self.working_solution
-            .set_score(Some(self.cached_score.clone()));
-        self.cached_score.clone()
+        self.working_solution.set_score(Some(self.cached_score));
+        self.cached_score
     }
 
     fn solution_descriptor(&self) -> &SolutionDescriptor {
@@ -314,7 +432,7 @@ where
         let delta = self
             .constraints
             .on_retract_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     fn after_variable_changed(
@@ -329,7 +447,7 @@ where
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score.clone() + delta;
+        self.cached_score = self.cached_score + delta;
     }
 
     fn trigger_variable_listeners(&mut self) {
@@ -337,23 +455,23 @@ where
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
-        self.solution_descriptor
-            .entity_descriptors
-            .get(descriptor_index)?
-            .entity_count(&self.working_solution as &dyn Any)
+        Some((self.entity_counter)(
+            &self.working_solution,
+            descriptor_index,
+        ))
     }
 
     fn total_entity_count(&self) -> Option<usize> {
-        self.solution_descriptor
-            .total_entity_count(&self.working_solution as &dyn Any)
+        // Sum across all descriptor indices
+        let count: usize = (0..self.solution_descriptor.entity_descriptors.len())
+            .map(|i| (self.entity_counter)(&self.working_solution, i))
+            .sum();
+        Some(count)
     }
 
-    fn get_entity(&self, descriptor_index: usize, entity_index: usize) -> Option<&dyn Any> {
-        self.solution_descriptor.get_entity(
-            &self.working_solution as &dyn Any,
-            descriptor_index,
-            entity_index,
-        )
+    fn get_entity(&self, _descriptor_index: usize, _entity_index: usize) -> Option<&dyn Any> {
+        // Entity access through typed functions, not dyn Any
+        None
     }
 
     fn is_incremental(&self) -> bool {
@@ -398,7 +516,7 @@ mod tests {
             ConstraintRef::new("", "Unassigned"),
             ImpactType::Penalty,
             |s: &TestSolution| s.values.as_slice(),
-            |v: &Option<i32>| v.is_none(),
+            |_s: &TestSolution, v: &Option<i32>| v.is_none(),
             |_v: &Option<i32>| SimpleScore::of(1),
             false,
         )
@@ -539,7 +657,7 @@ mod tests {
             ConstraintRef::new("", "Assigned"),
             ImpactType::Reward,
             |s: &TestSolution| s.values.as_slice(),
-            |v: &Option<i32>| v.is_some(),
+            |_s: &TestSolution, v: &Option<i32>| v.is_some(),
             |_v: &Option<i32>| SimpleScore::of(1),
             false,
         );

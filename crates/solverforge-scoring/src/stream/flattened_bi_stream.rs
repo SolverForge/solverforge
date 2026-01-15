@@ -139,7 +139,7 @@ where
     Flatten: Fn(&B) -> &[C] + Send + Sync,
     CKeyFn: Fn(&C) -> CK + Send + Sync,
     ALookup: Fn(&A) -> CK + Send + Sync,
-    F: BiFilter<A, C>,
+    F: BiFilter<S, A, C>,
     Sc: Score + 'static,
 {
     /// Adds a filter predicate to the stream.
@@ -160,7 +160,7 @@ where
         Flatten,
         CKeyFn,
         ALookup,
-        AndBiFilter<F, FnBiFilter<P>>,
+        AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &C) -> bool + Send + Sync>>,
         Sc,
     >
     where
@@ -174,7 +174,10 @@ where
             flatten: self.flatten,
             c_key_fn: self.c_key_fn,
             a_lookup_fn: self.a_lookup_fn,
-            filter: AndBiFilter::new(self.filter, FnBiFilter::new(predicate)),
+            filter: AndBiFilter::new(
+                self.filter,
+                FnBiFilter::new(move |_s: &S, a: &A, c: &C| predicate(a, c)),
+            ),
             _phantom: PhantomData,
         }
     }
@@ -487,7 +490,7 @@ where
     Flatten: Fn(&B) -> &[C] + Send + Sync,
     CKeyFn: Fn(&C) -> CK + Send + Sync,
     ALookup: Fn(&A) -> CK + Send + Sync,
-    F: BiFilter<A, C>,
+    F: BiFilter<S, A, C>,
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
@@ -509,12 +512,12 @@ where
         Flatten,
         CKeyFn,
         ALookup,
-        impl Fn(&A, &C) -> bool + Send + Sync,
+        impl Fn(&S, &A, &C) -> bool + Send + Sync,
         W,
         Sc,
     > {
         let filter = self.filter;
-        let combined_filter = move |a: &A, c: &C| filter.test(a, c);
+        let combined_filter = move |s: &S, a: &A, c: &C| filter.test(s, a, c);
 
         FlattenedBiConstraint::new(
             ConstraintRef::new("", name),

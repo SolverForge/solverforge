@@ -32,7 +32,7 @@ type Quintuple = (usize, usize, usize, usize, usize);
 /// - `K` - Key type for grouping (entities with same key form quintuples)
 /// - `E` - Extractor function `Fn(&S) -> &[A]`
 /// - `KE` - Key extractor function `Fn(&A) -> K`
-/// - `F` - Filter function `Fn(&A, &A, &A, &A, &A) -> bool`
+/// - `F` - Filter function `Fn(&S, &A, &A, &A, &A, &A) -> bool`
 /// - `W` - Weight function `Fn(&A, &A, &A, &A, &A) -> Sc`
 /// - `Sc` - Score type
 ///
@@ -56,7 +56,7 @@ type Quintuple = (usize, usize, usize, usize, usize);
 ///     ImpactType::Penalty,
 ///     |s: &Solution| s.tasks.as_slice(),
 ///     |t: &Task| t.team,  // Group by team
-///     |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
+///     |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
 ///     |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
 ///     false,
 /// );
@@ -104,7 +104,7 @@ where
     K: Eq + Hash + Clone,
     E: Fn(&S) -> &[A],
     KE: Fn(&A) -> K,
-    F: Fn(&A, &A, &A, &A, &A) -> bool,
+    F: Fn(&S, &A, &A, &A, &A, &A) -> bool,
     W: Fn(&A, &A, &A, &A, &A) -> Sc,
     Sc: Score,
 {
@@ -144,7 +144,7 @@ where
     }
 
     /// Insert entity and find matches with other entity quads sharing the same key.
-    fn insert_entity(&mut self, entities: &[A], index: usize) -> Sc {
+    fn insert_entity(&mut self, solution: &S, entities: &[A], index: usize) -> Sc {
         if index >= entities.len() {
             return Sc::zero();
         }
@@ -208,7 +208,7 @@ where
                             let d = &entities[d_idx];
                             let e = &entities[e_idx];
 
-                            if filter(a, b, c, d, e) && matches.insert(penta) {
+                            if filter(solution, a, b, c, d, e) && matches.insert(penta) {
                                 entity_to_matches.entry(a_idx).or_default().insert(penta);
                                 entity_to_matches.entry(b_idx).or_default().insert(penta);
                                 entity_to_matches.entry(c_idx).or_default().insert(penta);
@@ -294,7 +294,7 @@ where
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
-    F: Fn(&A, &A, &A, &A, &A) -> bool + Send + Sync,
+    F: Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync,
     W: Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -326,7 +326,7 @@ where
                                 let c = &entities[k];
                                 let d = &entities[l];
                                 let e = &entities[m];
-                                if (self.filter)(a, b, c, d, e) {
+                                if (self.filter)(solution, a, b, c, d, e) {
                                     total = total + self.compute_score(a, b, c, d, e);
                                 }
                             }
@@ -363,6 +363,7 @@ where
                                 let l = indices[pos_l];
                                 let m = indices[pos_m];
                                 if (self.filter)(
+                                    solution,
                                     &entities[i],
                                     &entities[j],
                                     &entities[k],
@@ -387,14 +388,14 @@ where
         let entities = (self.extractor)(solution);
         let mut total = Sc::zero();
         for i in 0..entities.len() {
-            total = total + self.insert_entity(entities, i);
+            total = total + self.insert_entity(solution, entities, i);
         }
         total
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
-        self.insert_entity(entities, entity_index)
+        self.insert_entity(solution, entities, entity_index)
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {

@@ -18,10 +18,7 @@ use super::balance_stream::BalanceConstraintStream;
 use super::bi_stream::BiConstraintStream;
 use super::collector::UniCollector;
 use super::cross_bi_stream::CrossBiConstraintStream;
-use super::filter::{
-    AndSolutionUniFilter, EntityOnlyUniFilter, FnSolutionUniFilter, FnUniFilter,
-    SolutionUniFilter, SolutionUniLeftBiFilter, TrueFilter,
-};
+use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter};
 use super::grouped_stream::GroupedConstraintStream;
 use super::if_exists_stream::IfExistsStream;
 use super::joiner::EqualJoiner;
@@ -72,7 +69,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: SolutionUniFilter<S, A>,
+    F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
     /// Adds a filter predicate to the stream.
@@ -85,15 +82,15 @@ where
     pub fn filter<P>(
         self,
         predicate: P,
-    ) -> UniConstraintStream<S, A, E, AndSolutionUniFilter<F, EntityOnlyUniFilter<FnUniFilter<P>>>, Sc>
+    ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<impl Fn(&S, &A) -> bool + Send + Sync>>, Sc>
     where
-        P: Fn(&A) -> bool + Send + Sync,
+        P: Fn(&A) -> bool + Send + Sync + 'static,
     {
         UniConstraintStream {
             extractor: self.extractor,
-            filter: AndSolutionUniFilter::new(
+            filter: AndUniFilter::new(
                 self.filter,
-                EntityOnlyUniFilter(FnUniFilter::new(predicate)),
+                FnUniFilter::new(move |_s: &S, a: &A| predicate(a)),
             ),
             _phantom: PhantomData,
         }
@@ -146,13 +143,13 @@ where
     pub fn filter_with_solution<P>(
         self,
         predicate: P,
-    ) -> UniConstraintStream<S, A, E, AndSolutionUniFilter<F, FnSolutionUniFilter<P>>, Sc>
+    ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<P>>, Sc>
     where
         P: Fn(&S, &A) -> bool + Send + Sync,
     {
         UniConstraintStream {
             extractor: self.extractor,
-            filter: AndSolutionUniFilter::new(self.filter, FnSolutionUniFilter::new(predicate)),
+            filter: AndUniFilter::new(self.filter, FnUniFilter::new(predicate)),
             _phantom: PhantomData,
         }
     }
@@ -167,7 +164,7 @@ where
     pub fn join_self<K, KA, KB>(
         self,
         joiner: EqualJoiner<KA, KB, K>,
-    ) -> BiConstraintStream<S, A, K, E, KA, SolutionUniLeftBiFilter<F, A>, Sc>
+    ) -> BiConstraintStream<S, A, K, E, KA, UniLeftBiFilter<F, A>, Sc>
     where
         A: Hash + PartialEq,
         K: Eq + Hash + Clone + Send + Sync,
@@ -177,7 +174,7 @@ where
         let (key_extractor, _) = joiner.into_keys();
 
         // Convert uni-filter to bi-filter that applies to left entity
-        let bi_filter = SolutionUniLeftBiFilter::new(self.filter);
+        let bi_filter = UniLeftBiFilter::new(self.filter);
 
         BiConstraintStream::new_self_join_with_filter(self.extractor, key_extractor, bi_filter)
     }
@@ -195,7 +192,7 @@ where
         self,
         extractor_b: EB,
         joiner: EqualJoiner<KA, KB, K>,
-    ) -> CrossBiConstraintStream<S, A, B, K, E, EB, KA, KB, SolutionUniLeftBiFilter<F, B>, Sc>
+    ) -> CrossBiConstraintStream<S, A, B, K, E, EB, KA, KB, UniLeftBiFilter<F, B>, Sc>
     where
         B: Clone + Send + Sync + 'static,
         EB: Fn(&S) -> &[B] + Send + Sync,
@@ -206,7 +203,7 @@ where
         let (key_a, key_b) = joiner.into_keys();
 
         // Convert uni-filter to bi-filter that applies to left entity only
-        let bi_filter = SolutionUniLeftBiFilter::new(self.filter);
+        let bi_filter = UniLeftBiFilter::new(self.filter);
 
         CrossBiConstraintStream::new_with_filter(
             self.extractor,
@@ -575,7 +572,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: SolutionUniFilter<S, A>,
+    F: UniFilter<S, A>,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {

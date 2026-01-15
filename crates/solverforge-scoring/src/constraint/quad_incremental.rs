@@ -29,7 +29,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 /// - `K` - Key type for grouping (entities with same key form quadruples)
 /// - `E` - Extractor function `Fn(&S) -> &[A]`
 /// - `KE` - Key extractor function `Fn(&A) -> K`
-/// - `F` - Filter function `Fn(&A, &A, &A, &A) -> bool`
+/// - `F` - Filter function `Fn(&S, &A, &A, &A, &A) -> bool`
 /// - `W` - Weight function `Fn(&A, &A, &A, &A) -> Sc`
 /// - `Sc` - Score type
 ///
@@ -53,7 +53,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 ///     ImpactType::Penalty,
 ///     |s: &Solution| s.tasks.as_slice(),
 ///     |t: &Task| t.team,  // Group by team
-///     |_a: &Task, _b: &Task, _c: &Task, _d: &Task| true,  // All quads in same group match
+///     |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,  // All quads in same group match
 ///     |_a: &Task, _b: &Task, _c: &Task, _d: &Task| SimpleScore::of(1),
 ///     false,
 /// );
@@ -100,7 +100,7 @@ where
     K: Eq + Hash + Clone,
     E: Fn(&S) -> &[A],
     KE: Fn(&A) -> K,
-    F: Fn(&A, &A, &A, &A) -> bool,
+    F: Fn(&S, &A, &A, &A, &A) -> bool,
     W: Fn(&A, &A, &A, &A) -> Sc,
     Sc: Score,
 {
@@ -140,7 +140,7 @@ where
     }
 
     /// Insert entity and find matches with other entity triples sharing the same key.
-    fn insert_entity(&mut self, entities: &[A], index: usize) -> Sc {
+    fn insert_entity(&mut self, solution: &S, entities: &[A], index: usize) -> Sc {
         if index >= entities.len() {
             return Sc::zero();
         }
@@ -199,7 +199,7 @@ where
                         let c = &entities[c_idx];
                         let d = &entities[d_idx];
 
-                        if filter(a, b, c, d) && matches.insert(quad) {
+                        if filter(solution, a, b, c, d) && matches.insert(quad) {
                             entity_to_matches.entry(a_idx).or_default().insert(quad);
                             entity_to_matches.entry(b_idx).or_default().insert(quad);
                             entity_to_matches.entry(c_idx).or_default().insert(quad);
@@ -274,7 +274,7 @@ where
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
-    F: Fn(&A, &A, &A, &A) -> bool + Send + Sync,
+    F: Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync,
     W: Fn(&A, &A, &A, &A) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -303,7 +303,7 @@ where
                             let b = &entities[j];
                             let c = &entities[k];
                             let d = &entities[l];
-                            if (self.filter)(a, b, c, d) {
+                            if (self.filter)(solution, a, b, c, d) {
                                 total = total + self.compute_score(a, b, c, d);
                             }
                         }
@@ -336,8 +336,13 @@ where
                             let j = indices[pos_j];
                             let k = indices[pos_k];
                             let l = indices[pos_l];
-                            if (self.filter)(&entities[i], &entities[j], &entities[k], &entities[l])
-                            {
+                            if (self.filter)(
+                                solution,
+                                &entities[i],
+                                &entities[j],
+                                &entities[k],
+                                &entities[l],
+                            ) {
                                 count += 1;
                             }
                         }
@@ -355,14 +360,14 @@ where
         let entities = (self.extractor)(solution);
         let mut total = Sc::zero();
         for i in 0..entities.len() {
-            total = total + self.insert_entity(entities, i);
+            total = total + self.insert_entity(solution, entities, i);
         }
         total
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
-        self.insert_entity(entities, entity_index)
+        self.insert_entity(solution, entities, entity_index)
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {

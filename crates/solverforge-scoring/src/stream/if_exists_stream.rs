@@ -100,7 +100,7 @@ where
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    FA: UniFilter<A>,
+    FA: UniFilter<S, A>,
     Sc: Score + 'static,
 {
     /// Creates a new if_exists stream.
@@ -303,7 +303,7 @@ where
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    FA: UniFilter<A>,
+    FA: UniFilter<S, A>,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
@@ -311,10 +311,21 @@ where
     pub fn as_constraint(
         self,
         name: &str,
-    ) -> IfExistsUniConstraint<S, A, B, K, EA, EB, KA, KB, impl Fn(&A) -> bool + Send + Sync, W, Sc>
-    {
+    ) -> IfExistsUniConstraint<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
         let filter = self.filter_a;
-        let combined_filter = move |a: &A| filter.test(a);
+        let combined_filter = move |s: &S, a: &A| filter.test(s, a);
 
         IfExistsUniConstraint::new(
             ConstraintRef::new("", name),

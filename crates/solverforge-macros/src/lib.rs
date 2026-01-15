@@ -228,3 +228,24 @@ fn parse_attribute_string(attr: &Attribute, key: &str) -> Option<String> {
     }
     None
 }
+
+fn parse_attribute_list(attr: &Attribute, key: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    if let Meta::List(meta_list) = &attr.meta {
+        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
+        if let Ok(nested) = parser.parse2(meta_list.tokens.clone()) {
+            for meta in nested {
+                if let Meta::NameValue(nv) = meta {
+                    if nv.path.is_ident(key) {
+                        if let Expr::Lit(expr_lit) = &nv.value {
+                            if let Lit::Str(lit_str) = &expr_lit.lit {
+                                result.push(lit_str.value());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result
+}

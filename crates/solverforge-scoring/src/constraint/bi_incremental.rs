@@ -47,7 +47,7 @@ where
     K: Eq + Hash + Clone,
     E: Fn(&S) -> &[A],
     KE: Fn(&A) -> K,
-    F: Fn(&A, &A) -> bool,
+    F: Fn(&S, &A, &A) -> bool,
     W: Fn(&A, &A) -> Sc,
     Sc: Score,
 {
@@ -86,7 +86,7 @@ where
     }
 
     /// Insert entity and find matches with other entities sharing the same key.
-    fn insert_entity(&mut self, entities: &[A], index: usize) -> Sc {
+    fn insert_entity(&mut self, solution: &S, entities: &[A], index: usize) -> Sc {
         if index >= entities.len() {
             return Sc::zero();
         }
@@ -128,7 +128,7 @@ where
                     (other_idx, index, other, entity)
                 };
 
-                if filter(low_entity, high_entity) {
+                if filter(solution, low_entity, high_entity) {
                     let pair = (low_idx, high_idx);
                     if matches.insert(pair) {
                         entity_to_matches.entry(low_idx).or_default().insert(pair);
@@ -197,7 +197,7 @@ where
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
-    F: Fn(&A, &A) -> bool + Send + Sync,
+    F: Fn(&S, &A, &A) -> bool + Send + Sync,
     W: Fn(&A, &A) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -220,7 +220,7 @@ where
                     let high = indices[j];
                     let a = &entities[low];
                     let b = &entities[high];
-                    if (self.filter)(a, b) {
+                    if (self.filter)(solution, a, b) {
                         total = total + self.compute_score(a, b);
                     }
                 }
@@ -247,7 +247,7 @@ where
                 for j in (i + 1)..indices.len() {
                     let low = indices[i];
                     let high = indices[j];
-                    if (self.filter)(&entities[low], &entities[high]) {
+                    if (self.filter)(solution, &entities[low], &entities[high]) {
                         count += 1;
                     }
                 }
@@ -263,14 +263,14 @@ where
         let entities = (self.extractor)(solution);
         let mut total = Sc::zero();
         for i in 0..entities.len() {
-            total = total + self.insert_entity(entities, i);
+            total = total + self.insert_entity(solution, entities, i);
         }
         total
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
-        self.insert_entity(entities, entity_index)
+        self.insert_entity(solution, entities, entity_index)
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {

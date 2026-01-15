@@ -271,7 +271,7 @@ where
         let mut best_score = initial_score;
 
         // Late acceptance history
-        let mut late_scores = vec![initial_score; LATE_ACCEPTANCE_SIZE];
+        let mut late_scores = [initial_score; LATE_ACCEPTANCE_SIZE];
         let mut moves_evaluated: u64 = 0;
         let mut last_progress_time = std::time::Instant::now();
         let mut last_progress_moves: u64 = 0;

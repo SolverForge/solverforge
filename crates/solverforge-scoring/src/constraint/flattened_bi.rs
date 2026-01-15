@@ -238,7 +238,7 @@ where
         let score = self.compute_a_score(solution, a);
 
         if score != Sc::zero() {
-            self.a_scores.insert(a_idx, score.clone());
+            self.a_scores.insert(a_idx, score);
         }
         score
     }

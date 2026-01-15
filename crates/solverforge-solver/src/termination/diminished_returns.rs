@@ -122,7 +122,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
         // Don't terminate during the initial grace period (first window)
         if now.duration_since(state.start_time.unwrap()) < self.window {
             // Still record the sample
-            state.samples.push_back((now, current_score.clone()));
+            state.samples.push_back((now, *current_score));
             return false;
         }
 
@@ -137,7 +137,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
         }
 
         // Add current sample
-        state.samples.push_back((now, current_score.clone()));
+        state.samples.push_back((now, *current_score));
 
         // Need at least 2 samples to calculate rate
         if state.samples.len() < 2 {

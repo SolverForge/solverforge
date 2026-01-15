@@ -101,13 +101,13 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
                 // First score recorded
-                state.last_best_score = Some(score.clone());
+                state.last_best_score = Some(*score);
                 state.steps_since_improvement = 0;
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
                     // Improvement found
-                    state.last_best_score = Some(current.clone());
+                    state.last_best_score = Some(*current);
                     state.steps_since_improvement = 0;
                 } else {
                     // No improvement
@@ -213,14 +213,14 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for UnimprovedT
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
                 // First score recorded
-                state.last_best_score = Some(score.clone());
+                state.last_best_score = Some(*score);
                 state.last_improvement_time = Some(now);
                 false
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
                     // Improvement found
-                    state.last_best_score = Some(current.clone());
+                    state.last_best_score = Some(*current);
                     state.last_improvement_time = Some(now);
                     false
                 } else {

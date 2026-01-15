@@ -18,7 +18,10 @@ use super::balance_stream::BalanceConstraintStream;
 use super::bi_stream::BiConstraintStream;
 use super::collector::UniCollector;
 use super::cross_bi_stream::CrossBiConstraintStream;
-use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter};
+use super::filter::{
+    AndSolutionUniFilter, EntityOnlyUniFilter, FnSolutionUniFilter, FnUniFilter,
+    SolutionUniFilter, SolutionUniLeftBiFilter, TrueFilter,
+};
 use super::grouped_stream::GroupedConstraintStream;
 use super::if_exists_stream::IfExistsStream;
 use super::joiner::EqualJoiner;
@@ -69,23 +72,87 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: UniFilter<A>,
+    F: SolutionUniFilter<S, A>,
     Sc: Score + 'static,
 {
     /// Adds a filter predicate to the stream.
     ///
     /// Multiple filters are combined with AND semantics at compile time.
     /// Each filter adds a new type layer, preserving zero-erasure.
+    ///
+    /// For filters that need access to solution state (shadow variables),
+    /// use [`filter_with_solution`](Self::filter_with_solution) instead.
     pub fn filter<P>(
         self,
         predicate: P,
-    ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<P>>, Sc>
+    ) -> UniConstraintStream<S, A, E, AndSolutionUniFilter<F, EntityOnlyUniFilter<FnUniFilter<P>>>, Sc>
     where
         P: Fn(&A) -> bool + Send + Sync,
     {
         UniConstraintStream {
             extractor: self.extractor,
-            filter: AndUniFilter::new(self.filter, FnUniFilter::new(predicate)),
+            filter: AndSolutionUniFilter::new(
+                self.filter,
+                EntityOnlyUniFilter(FnUniFilter::new(predicate)),
+            ),
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Adds a solution-aware filter predicate to the stream.
+    ///
+    /// Unlike [`filter`](Self::filter), this method receives the solution
+    /// reference alongside the entity, enabling access to shadow variables
+    /// and computed solution state.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_scoring::stream::ConstraintFactory;
+    /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone)]
+    /// struct Shift { id: usize, employee_idx: Option<usize> }
+    ///
+    /// #[derive(Clone)]
+    /// struct Schedule {
+    ///     shifts: Vec<Shift>,
+    ///     hours_by_employee: Vec<i32>, // shadow variable
+    /// }
+    ///
+    /// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+    ///     .for_each(|s: &Schedule| &s.shifts)
+    ///     .filter(|shift: &Shift| shift.employee_idx.is_some())
+    ///     .filter_with_solution(|schedule: &Schedule, shift: &Shift| {
+    ///         // Access shadow variable from solution
+    ///         let emp_idx = shift.employee_idx.unwrap();
+    ///         schedule.hours_by_employee[emp_idx] > 40
+    ///     })
+    ///     .penalize(SimpleScore::of(1))
+    ///     .as_constraint("Overtime");
+    ///
+    /// let schedule = Schedule {
+    ///     shifts: vec![
+    ///         Shift { id: 0, employee_idx: Some(0) },
+    ///         Shift { id: 1, employee_idx: Some(1) },
+    ///     ],
+    ///     hours_by_employee: vec![45, 35], // emp 0 has overtime
+    /// };
+    ///
+    /// // Only shift 0 matches (employee 0 has > 40 hours)
+    /// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    /// ```
+    pub fn filter_with_solution<P>(
+        self,
+        predicate: P,
+    ) -> UniConstraintStream<S, A, E, AndSolutionUniFilter<F, FnSolutionUniFilter<P>>, Sc>
+    where
+        P: Fn(&S, &A) -> bool + Send + Sync,
+    {
+        UniConstraintStream {
+            extractor: self.extractor,
+            filter: AndSolutionUniFilter::new(self.filter, FnSolutionUniFilter::new(predicate)),
             _phantom: PhantomData,
         }
     }
@@ -100,7 +167,7 @@ where
     pub fn join_self<K, KA, KB>(
         self,
         joiner: EqualJoiner<KA, KB, K>,
-    ) -> BiConstraintStream<S, A, K, E, KA, UniLeftBiFilter<F, A>, Sc>
+    ) -> BiConstraintStream<S, A, K, E, KA, SolutionUniLeftBiFilter<F, A>, Sc>
     where
         A: Hash + PartialEq,
         K: Eq + Hash + Clone + Send + Sync,
@@ -110,7 +177,7 @@ where
         let (key_extractor, _) = joiner.into_keys();
 
         // Convert uni-filter to bi-filter that applies to left entity
-        let bi_filter = UniLeftBiFilter::new(self.filter);
+        let bi_filter = SolutionUniLeftBiFilter::new(self.filter);
 
         BiConstraintStream::new_self_join_with_filter(self.extractor, key_extractor, bi_filter)
     }
@@ -128,7 +195,7 @@ where
         self,
         extractor_b: EB,
         joiner: EqualJoiner<KA, KB, K>,
-    ) -> CrossBiConstraintStream<S, A, B, K, E, EB, KA, KB, UniLeftBiFilter<F, B>, Sc>
+    ) -> CrossBiConstraintStream<S, A, B, K, E, EB, KA, KB, SolutionUniLeftBiFilter<F, B>, Sc>
     where
         B: Clone + Send + Sync + 'static,
         EB: Fn(&S) -> &[B] + Send + Sync,
@@ -139,7 +206,7 @@ where
         let (key_a, key_b) = joiner.into_keys();
 
         // Convert uni-filter to bi-filter that applies to left entity only
-        let bi_filter = UniLeftBiFilter::new(self.filter);
+        let bi_filter = SolutionUniLeftBiFilter::new(self.filter);
 
         CrossBiConstraintStream::new_with_filter(
             self.extractor,
@@ -508,7 +575,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
-    F: UniFilter<A>,
+    F: SolutionUniFilter<S, A>,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
@@ -516,9 +583,9 @@ where
     pub fn as_constraint(
         self,
         name: &str,
-    ) -> IncrementalUniConstraint<S, A, E, impl Fn(&A) -> bool + Send + Sync, W, Sc> {
+    ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
         let filter = self.filter;
-        let combined_filter = move |a: &A| filter.test(a);
+        let combined_filter = move |s: &S, a: &A| filter.test(s, a);
 
         IncrementalUniConstraint::new(
             ConstraintRef::new("", name),

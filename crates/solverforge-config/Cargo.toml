@@ -6,7 +6,7 @@ license.workspace = true
 description = "Configuration system for SolverForge constraint solver"
 
 [dependencies]
-solverforge-core = { version = "0.4.0", path = "../solverforge-core" }
+solverforge-core = { version = "0.5.0" }
 serde.workspace = true
 toml.workspace = true
 serde_yaml.workspace = true

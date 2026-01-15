@@ -14,4 +14,3 @@ quote.workspace = true
 proc-macro2.workspace = true
 
 [dev-dependencies]
-solverforge-core = { version = "0.5.0" }

@@ -24,59 +24,34 @@ impl_true_filter!(QuadFilter, A, B, C, D);
 impl_true_filter!(PentaFilter, A, B, C, D, E);
 
 macro_rules! impl_fn_filter {
-    ($name:ident, $trait:ident, $($param:ident),+) => {
+    ($name:ident, $trait:ident, $doc:expr, $(($type_param:ident, $var:ident)),+) => {
+        #[doc = $doc]
         pub struct $name<F> {
             f: F,
         }
 
         impl<F> $name<F> {
+            /// Creates a new filter wrapping the given closure.
             #[inline]
             pub fn new(f: F) -> Self {
                 Self { f }
             }
         }
 
-        impl<S, $($param,)+ F> $trait<S, $($param),+> for $name<F>
+        impl<S, $($type_param,)+ F> $trait<S, $($type_param),+> for $name<F>
         where
-            F: Fn(&S, $(&$param),+) -> bool + Send + Sync,
+            F: Fn(&S, $(&$type_param),+) -> bool + Send + Sync,
         {
             #[inline]
-            fn test(&self, solution: &S, $($param: &$param),+) -> bool {
-                (self.f)(solution, $($param),+)
+            fn test(&self, solution: &S, $($var: &$type_param),+) -> bool {
+                (self.f)(solution, $($var),+)
             }
         }
     };
 }
 
-/// A uni-filter wrapping a closure.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::stream::filter::{FnUniFilter, UniFilter};
-///
-/// struct Schedule {
-///     max_hours: i32,
-/// }
-///
-/// let filter = FnUniFilter::new(|schedule: &Schedule, hours: &i32| {
-///     *hours <= schedule.max_hours
-/// });
-///
-/// let schedule = Schedule { max_hours: 40 };
-/// assert!(filter.test(&schedule, &35));
-/// assert!(!filter.test(&schedule, &50));
-/// ```
-impl_fn_filter!(FnUniFilter, UniFilter, A);
-
-/// A bi-filter wrapping a closure.
-impl_fn_filter!(FnBiFilter, BiFilter, A, B);
-
-/// A tri-filter wrapping a closure.
-impl_fn_filter!(FnTriFilter, TriFilter, A, B, C);
-
-/// A quad-filter wrapping a closure.
-impl_fn_filter!(FnQuadFilter, QuadFilter, A, B, C, D);
-
-/// A penta-filter wrapping a closure.
-impl_fn_filter!(FnPentaFilter, PentaFilter, A, B, C, D, E);
+impl_fn_filter!(FnUniFilter, UniFilter, "A uni-filter wrapping a closure.", (A, a));
+impl_fn_filter!(FnBiFilter, BiFilter, "A bi-filter wrapping a closure.", (A, a), (B, b));
+impl_fn_filter!(FnTriFilter, TriFilter, "A tri-filter wrapping a closure.", (A, a), (B, b), (C, c));
+impl_fn_filter!(FnQuadFilter, QuadFilter, "A quad-filter wrapping a closure.", (A, a), (B, b), (C, c), (D, d));
+impl_fn_filter!(FnPentaFilter, PentaFilter, "A penta-filter wrapping a closure.", (A, a), (B, b), (C, c), (D, d), (E, e));

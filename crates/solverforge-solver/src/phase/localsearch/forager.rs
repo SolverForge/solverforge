@@ -227,7 +227,6 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct DummySolution {
-        values: Vec<Option<i32>>,
         score: Option<SimpleScore>,
     }
 

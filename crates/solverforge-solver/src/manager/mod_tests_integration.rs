@@ -1,10 +1,8 @@
 //! Integration tests for SolverFactory with termination and solving.
 
 use super::*;
-use std::any::TypeId;
 use std::time::Duration;
 
-use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;
 
@@ -65,37 +63,10 @@ impl PlanningSolution for EntityTestSolution {
     }
 }
 
-fn get_entities(s: &EntityTestSolution) -> &Vec<TestEntity> {
-    &s.entities
-}
-
-fn get_entities_mut(s: &mut EntityTestSolution) -> &mut Vec<TestEntity> {
-    &mut s.entities
-}
-
 fn calculate_entity_score(solution: &EntityTestSolution) -> SimpleScore {
     let sum: i64 = solution.entities.iter().filter_map(|e| e.value).sum();
     let diff = (sum - solution.target_sum).abs();
     SimpleScore::of(-diff)
-}
-
-fn create_entity_director(
-    solution: EntityTestSolution,
-) -> SimpleScoreDirector<EntityTestSolution, impl Fn(&EntityTestSolution) -> SimpleScore> {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    let descriptor =
-        SolutionDescriptor::new("EntityTestSolution", TypeId::of::<EntityTestSolution>())
-            .with_entity(entity_desc);
-
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_entity_score)
 }
 
 // ============================================================================
@@ -139,8 +110,6 @@ fn test_solver_with_time_limit_termination() {
         score: None,
     };
 
-    let _director = create_entity_director(solution.clone());
-
     let factory =
         solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(calculate_entity_score)
             .with_time_limit(Duration::from_millis(100))
@@ -168,8 +137,6 @@ fn test_solver_with_step_limit_termination() {
         target_sum: 6,
         score: None,
     };
-
-    let _director = create_entity_director(solution.clone());
 
     let factory =
         solver_factory_builder::<EntityTestSolution, EntityTestDirector, _>(calculate_entity_score)

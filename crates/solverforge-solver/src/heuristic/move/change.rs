@@ -299,7 +299,7 @@ mod tests {
             "priority",
             0,
         );
-        let m2 = m1.clone();
+        let m2 = m1;
         assert_eq!(m1.entity_index, m2.entity_index);
         assert_eq!(m1.to_value, m2.to_value);
     }

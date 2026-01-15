@@ -12,6 +12,8 @@
 
 #[macro_use]
 pub mod macros;
+#[macro_use]
+pub mod nary_incremental;
 
 pub mod balance;
 pub mod bi_incremental;

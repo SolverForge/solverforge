@@ -138,11 +138,11 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
     fn multiply(&self, multiplicand: f64) -> Self {
         let mut hard = [0; H];
         let mut soft = [0; S];
-        for i in 0..H {
-            hard[i] = (self.hard[i] as f64 * multiplicand).round() as i64;
+        for (i, item) in hard.iter_mut().enumerate().take(H) {
+            *item = (self.hard[i] as f64 * multiplicand).round() as i64;
         }
-        for i in 0..S {
-            soft[i] = (self.soft[i] as f64 * multiplicand).round() as i64;
+        for (i, item) in soft.iter_mut().enumerate().take(S) {
+            *item = (self.soft[i] as f64 * multiplicand).round() as i64;
         }
         BendableScore { hard, soft }
     }
@@ -150,11 +150,11 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
     fn divide(&self, divisor: f64) -> Self {
         let mut hard = [0; H];
         let mut soft = [0; S];
-        for i in 0..H {
-            hard[i] = (self.hard[i] as f64 / divisor).round() as i64;
+        for (i, item) in hard.iter_mut().enumerate().take(H) {
+            *item = (self.hard[i] as f64 / divisor).round() as i64;
         }
-        for i in 0..S {
-            soft[i] = (self.soft[i] as f64 / divisor).round() as i64;
+        for (i, item) in soft.iter_mut().enumerate().take(S) {
+            *item = (self.soft[i] as f64 / divisor).round() as i64;
         }
         BendableScore { hard, soft }
     }
@@ -162,11 +162,11 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
     fn abs(&self) -> Self {
         let mut hard = [0; H];
         let mut soft = [0; S];
-        for i in 0..H {
-            hard[i] = self.hard[i].abs();
+        for (i, item) in hard.iter_mut().enumerate().take(H) {
+            *item = self.hard[i].abs();
         }
-        for i in 0..S {
-            soft[i] = self.soft[i].abs();
+        for (i, item) in soft.iter_mut().enumerate().take(S) {
+            *item = self.soft[i].abs();
         }
         BendableScore { hard, soft }
     }
@@ -206,11 +206,11 @@ impl<const H: usize, const S: usize> Add for BendableScore<H, S> {
     fn add(self, other: Self) -> Self {
         let mut hard = [0; H];
         let mut soft = [0; S];
-        for i in 0..H {
-            hard[i] = self.hard[i] + other.hard[i];
+        for (i, item) in hard.iter_mut().enumerate().take(H) {
+            *item = self.hard[i] + other.hard[i];
         }
-        for i in 0..S {
-            soft[i] = self.soft[i] + other.soft[i];
+        for (i, item) in soft.iter_mut().enumerate().take(S) {
+            *item = self.soft[i] + other.soft[i];
         }
         BendableScore { hard, soft }
     }
@@ -222,11 +222,11 @@ impl<const H: usize, const S: usize> Sub for BendableScore<H, S> {
     fn sub(self, other: Self) -> Self {
         let mut hard = [0; H];
         let mut soft = [0; S];
-        for i in 0..H {
-            hard[i] = self.hard[i] - other.hard[i];
+        for (i, item) in hard.iter_mut().enumerate().take(H) {
+            *item = self.hard[i] - other.hard[i];
         }
-        for i in 0..S {
-            soft[i] = self.soft[i] - other.soft[i];
+        for (i, item) in soft.iter_mut().enumerate().take(S) {
+            *item = self.soft[i] - other.soft[i];
         }
         BendableScore { hard, soft }
     }
@@ -238,11 +238,11 @@ impl<const H: usize, const S: usize> Neg for BendableScore<H, S> {
     fn neg(self) -> Self {
         let mut hard = [0; H];
         let mut soft = [0; S];
-        for i in 0..H {
-            hard[i] = -self.hard[i];
+        for (i, item) in hard.iter_mut().enumerate().take(H) {
+            *item = -self.hard[i];
         }
-        for i in 0..S {
-            soft[i] = -self.soft[i];
+        for (i, item) in soft.iter_mut().enumerate().take(S) {
+            *item = -self.soft[i];
         }
         BendableScore { hard, soft }
     }

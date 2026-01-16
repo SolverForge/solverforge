@@ -357,11 +357,7 @@ Typical throughput: 100k-500k moves/second depending on constraint complexity.
 
 ### What's New in 0.5.0
 
-**Breaking Changes:**
-- **Solution-aware filter traits**: Uni-stream filters can now optionally access the solution using `filter_with_solution()`, enabling access to shadow variables and computed solution state. The standard `filter()` method remains unchanged for simple predicates. Bi/Tri/Quad/Penta stream filters (after joins) continue to receive only the entity tuples without the solution reference.
-
 **Improvements:**
-- Added `filter_with_solution()` for uni-streams to access shadow variables
 - Refactored incremental constraint internals using macro-based codegen
 - Improved code organization with extracted test utilities
 - Enhanced clippy compliance and eliminated unnecessary clones

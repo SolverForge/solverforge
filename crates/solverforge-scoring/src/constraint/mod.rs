@@ -20,6 +20,7 @@ pub mod complemented;
 pub mod cross_bi_incremental;
 pub mod flattened_bi;
 pub mod grouped;
+pub mod grouped_bi;
 pub mod if_exists;
 pub mod incremental;
 pub mod shared;
@@ -38,6 +39,7 @@ pub use complemented::ComplementedGroupConstraint;
 pub use cross_bi_incremental::IncrementalCrossBiConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
 pub use grouped::GroupedUniConstraint;
+pub use grouped_bi::GroupedBiConstraint;
 pub use if_exists::{ExistenceMode, IfExistsUniConstraint};
 pub use incremental::IncrementalUniConstraint;
 pub use nary_incremental::{

@@ -77,8 +77,8 @@ where
     /// Multiple filters are combined with AND semantics at compile time.
     /// Each filter adds a new type layer, preserving zero-erasure.
     ///
-    /// For filters that need access to solution state (shadow variables),
-    /// use [`filter_with_solution`](Self::filter_with_solution) instead.
+    /// To access related entities, use shadow variables on your entity type
+    /// (e.g., `#[inverse_relation_shadow_variable]`) rather than solution traversal.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -98,64 +98,6 @@ where
                 self.filter,
                 FnUniFilter::new(move |_s: &S, a: &A| predicate(a)),
             ),
-            _phantom: PhantomData,
-        }
-    }
-
-    /// Adds a solution-aware filter predicate to the stream.
-    ///
-    /// Unlike [`filter`](Self::filter), this method receives the solution
-    /// reference alongside the entity, enabling access to shadow variables
-    /// and computed solution state.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_scoring::stream::ConstraintFactory;
-    /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    /// use solverforge_core::score::SimpleScore;
-    ///
-    /// #[derive(Clone, Debug)]
-    /// struct Shift { id: usize, employee_idx: Option<usize> }
-    ///
-    /// #[derive(Clone, Debug)]
-    /// struct Schedule {
-    ///     shifts: Vec<Shift>,
-    ///     hours_by_employee: Vec<i32>, // shadow variable
-    /// }
-    ///
-    /// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
-    ///     .for_each(|s: &Schedule| &s.shifts)
-    ///     .filter(|shift: &Shift| shift.employee_idx.is_some())
-    ///     .filter_with_solution(|schedule: &Schedule, shift: &Shift| {
-    ///         // Access shadow variable from solution
-    ///         let emp_idx = shift.employee_idx.unwrap();
-    ///         schedule.hours_by_employee[emp_idx] > 40
-    ///     })
-    ///     .penalize(SimpleScore::of(1))
-    ///     .as_constraint("Overtime");
-    ///
-    /// let schedule = Schedule {
-    ///     shifts: vec![
-    ///         Shift { id: 0, employee_idx: Some(0) },
-    ///         Shift { id: 1, employee_idx: Some(1) },
-    ///     ],
-    ///     hours_by_employee: vec![45, 35], // emp 0 has overtime
-    /// };
-    ///
-    /// // Only shift 0 matches (employee 0 has > 40 hours)
-    /// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
-    /// ```
-    pub fn filter_with_solution<P>(
-        self,
-        predicate: P,
-    ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<P>>, Sc>
-    where
-        P: Fn(&S, &A) -> bool + Send + Sync,
-    {
-        UniConstraintStream {
-            extractor: self.extractor,
-            filter: AndUniFilter::new(self.filter, FnUniFilter::new(predicate)),
             _phantom: PhantomData,
         }
     }

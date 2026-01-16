@@ -2,9 +2,6 @@
 //!
 //! Filters are composed at compile time using nested generic types,
 //! avoiding dynamic dispatch and Arc allocations.
-//!
-//! All filters receive the solution reference, enabling access to
-//! shadow variables and computed solution state during filtering.
 
 mod adapters;
 mod composition;

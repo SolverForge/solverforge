@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.5.1](///compare/v0.5.0...v0.5.1) (2026-01-16)
+
+
+### Bug Fixes
+
+* remove filter_with_solution() - use shadow variables on entities instead 431e503
+
 ## [0.5.0](///compare/v0.4.0...v0.5.0) (2026-01-15)
 
 

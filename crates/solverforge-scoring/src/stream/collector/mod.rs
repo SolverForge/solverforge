@@ -15,10 +15,12 @@
 //! let summer = sum(|x: &i32| *x as i64);
 //! ```
 
+mod bi;
 mod count;
 mod load_balance;
 mod sum;
 
+pub use bi::{bi_count, bi_sum, BiCollector, MappedBiCollector};
 pub use count::{count, CountAccumulator, CountCollector};
 pub use load_balance::{load_balance, LoadBalance, LoadBalanceAccumulator, LoadBalanceCollector};
 pub use sum::{sum, SumAccumulator, SumCollector};

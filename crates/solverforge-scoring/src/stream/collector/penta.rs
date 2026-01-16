@@ -95,7 +95,7 @@ where
 /// acc.accumulate(&collector.extract(&t, &t, &t, &t, &t));
 /// assert_eq!(acc.finish(), 2);
 /// ```
-pub fn penta_count<A>() -> MappedPentaCollector<A, (), impl Fn(&A, &A, &A, &A, &A) -> () + Send + Sync, super::CountCollector<()>>
+pub fn penta_count<A>() -> MappedPentaCollector<A, (), impl Fn(&A, &A, &A, &A, &A) + Send + Sync, super::CountCollector<()>>
 where
     A: Send + Sync + 'static,
 {

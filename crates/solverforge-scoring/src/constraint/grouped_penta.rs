@@ -90,6 +90,7 @@ where
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,

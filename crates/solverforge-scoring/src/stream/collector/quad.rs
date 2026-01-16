@@ -99,7 +99,7 @@ where
 /// acc.accumulate(&collector.extract(&t, &t, &t, &t));
 /// assert_eq!(acc.finish(), 2);
 /// ```
-pub fn quad_count<A>() -> MappedQuadCollector<A, (), impl Fn(&A, &A, &A, &A) -> () + Send + Sync, super::CountCollector<()>>
+pub fn quad_count<A>() -> MappedQuadCollector<A, (), impl Fn(&A, &A, &A, &A) + Send + Sync, super::CountCollector<()>>
 where
     A: Send + Sync + 'static,
 {

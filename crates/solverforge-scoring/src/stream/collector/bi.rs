@@ -145,7 +145,7 @@ where
 /// acc.accumulate(&collector.extract(&t1, &t2));
 /// assert_eq!(acc.finish(), 2);
 /// ```
-pub fn bi_count<A>() -> MappedBiCollector<A, (), impl Fn(&A, &A) -> () + Send + Sync, super::CountCollector<()>>
+pub fn bi_count<A>() -> MappedBiCollector<A, (), impl Fn(&A, &A) + Send + Sync, super::CountCollector<()>>
 where
     A: Send + Sync + 'static,
 {

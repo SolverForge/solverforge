@@ -92,6 +92,7 @@ where
     Sc: Score + 'static,
 {
     /// Creates a new zero-erasure grouped tri-constraint.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,

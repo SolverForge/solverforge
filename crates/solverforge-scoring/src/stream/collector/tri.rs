@@ -117,7 +117,7 @@ where
 /// acc.accumulate(&collector.extract(&t1, &t2, &t3));
 /// assert_eq!(acc.finish(), 2);
 /// ```
-pub fn tri_count<A>() -> MappedTriCollector<A, (), impl Fn(&A, &A, &A) -> () + Send + Sync, super::CountCollector<()>>
+pub fn tri_count<A>() -> MappedTriCollector<A, (), impl Fn(&A, &A, &A) + Send + Sync, super::CountCollector<()>>
 where
     A: Send + Sync + 'static,
 {

@@ -235,3 +235,112 @@ impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
+
+// ----------------------------------------------------------------------------
+// Unified run_solver entry point
+// ----------------------------------------------------------------------------
+
+use solverforge_core::score::Score;
+use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
+use tokio::sync::mpsc;
+use tracing::info;
+
+use crate::manager::ListConstructionPhaseBuilder;
+use crate::operations::VariableOperations;
+use crate::phase::localsearch::{
+    AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase,
+};
+use crate::heuristic::{ListChangeMoveSelector, FromSolutionEntitySelector};
+use crate::termination::{OrTermination, TimeTermination};
+
+/// Default time limit in seconds.
+const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
+
+/// Unified solver entry point for solutions implementing `VariableOperations`.
+///
+/// Wires the existing infrastructure:
+/// - `ListConstructionPhase` for construction
+/// - `LocalSearchPhase` with `LateAcceptanceAcceptor` for local search
+/// - Existing move selectors (`ListChangeMoveSelector`, etc.)
+///
+/// The `VariableOperations` trait provides the abstraction layer that allows
+/// the same solver to work with both basic and list variables.
+pub fn run_solver<S, C>(
+    solution: S,
+    constraints: C,
+    terminate: Option<&AtomicBool>,
+    sender: mpsc::UnboundedSender<(S, S::Score)>,
+) -> S
+where
+    S: PlanningSolution + VariableOperations<Element = usize>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    let n_entities = solution.entity_count();
+    let n_elements = solution.element_count();
+
+    info!(
+        event = "solve_start",
+        entity_count = n_entities,
+        element_count = n_elements,
+        variable = S::variable_name(),
+        is_list = S::is_list_variable(),
+    );
+
+    let director = TypedScoreDirector::new(solution, constraints);
+
+    if n_entities == 0 || n_elements == 0 {
+        let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
+        let score = solver_scope.calculate_score();
+        info!(event = "solve_end", score = %score);
+        return solver_scope.take_best_or_working_solution();
+    }
+
+    let time_limit = Duration::from_secs(DEFAULT_TIME_LIMIT_SECS);
+    let termination: OrTermination<_, S, _> = OrTermination::new((TimeTermination::new(time_limit),));
+
+    // Construction phase using VariableOperations
+    let construction = ListConstructionPhaseBuilder::<S, usize>::new(
+        S::element_count,
+        |s| s.assigned_elements(),
+        S::entity_count,
+        |s, entity_idx, elem| s.assign(entity_idx, elem),
+        |idx| idx,
+        S::variable_name(),
+        S::descriptor_index(),
+    ).create_phase();
+
+    // Local search phase with late acceptance
+    let entity_selector = FromSolutionEntitySelector::new(S::descriptor_index());
+    let move_selector = ListChangeMoveSelector::new(
+        entity_selector,
+        |s: &S, entity_idx| s.list_len(entity_idx),
+        |s: &mut S, entity_idx, pos| Some(s.remove(entity_idx, pos)),
+        |s: &mut S, entity_idx, pos, elem| s.insert(entity_idx, pos, elem),
+        S::variable_name(),
+        S::descriptor_index(),
+    );
+    let acceptor = LateAcceptanceAcceptor::new(400);
+    let forager = AcceptedCountForager::new(1);
+    let local_search = LocalSearchPhase::new(move_selector, acceptor, forager, None);
+
+    let mut solver = Solver::new((construction, local_search))
+        .with_termination(termination)
+        .with_time_limit(time_limit);
+
+    let result = if let Some(flag) = terminate {
+        solver.with_terminate(flag).solve(director)
+    } else {
+        solver.solve(director)
+    };
+
+    // Send final solution
+    if let Some(score) = result.score() {
+        let _ = sender.send((result.clone(), score));
+    }
+
+    let final_score = result.score().unwrap_or_default();
+    info!(event = "solve_end", score = %final_score);
+    result
+}

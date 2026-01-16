@@ -43,7 +43,9 @@ use solverforge_core::score::Score;
 
 use crate::constraint::IncrementalBiConstraint;
 
+use super::collector::BiCollector;
 use super::filter::{BiFilter, FnTriFilter, TriFilter};
+use super::grouped_bi_stream::GroupedBiConstraintStream;
 use super::joiner::Joiner;
 use super::tri_stream::TriConstraintStream;
 
@@ -59,7 +61,7 @@ impl<S, A, K, E, KE, F, Sc> BiConstraintStream<S, A, K, E, KE, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
-    K: Eq + Hash + Clone + Send + Sync,
+    K: Eq + Hash + Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
     F: BiFilter<S, A, A>,
@@ -117,6 +119,70 @@ where
             self.extractor,
             self.key_extractor,
             FnTriFilter::new(combined_filter),
+        )
+    }
+
+    /// Groups pairs by a key and aggregates using a collector.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_scoring::stream::ConstraintFactory;
+    /// use solverforge_scoring::stream::joiner::equal;
+    /// use solverforge_scoring::stream::collector::bi_count;
+    /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    /// struct Task { team: u32, priority: u32 }
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution { tasks: Vec<Task> }
+    ///
+    /// // Count pairs per priority, penalize squared count
+    /// let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+    ///     .for_each(|s: &Solution| s.tasks.as_slice())
+    ///     .join_self(equal(|t: &Task| t.team))
+    ///     .group_by(
+    ///         |_a: &Task, b: &Task| b.priority,
+    ///         bi_count(),
+    ///     )
+    ///     .penalize_with(|count: &usize| SimpleScore::of((*count * *count) as i64))
+    ///     .as_constraint("Priority clustering");
+    ///
+    /// let solution = Solution {
+    ///     tasks: vec![
+    ///         Task { team: 1, priority: 1 },
+    ///         Task { team: 1, priority: 1 },
+    ///         Task { team: 1, priority: 1 },
+    ///     ],
+    /// };
+    ///
+    /// // 3 tasks form 3 pairs, all priority 1 -> 9 penalty
+    /// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-9));
+    /// ```
+    pub fn group_by<GK, KF, C>(
+        self,
+        key_fn: KF,
+        collector: C,
+    ) -> GroupedBiConstraintStream<S, A, GK, K, E, KE, impl Fn(&S, &A, &A) -> bool + Send + Sync, KF, C, Sc>
+    where
+        GK: Clone + Eq + Hash + Send + Sync + 'static,
+        KF: Fn(&A, &A) -> GK + Send + Sync,
+        C: BiCollector<A> + Send + Sync + 'static,
+        C::Accumulator: Send + Sync,
+        C::Result: Clone + Send + Sync,
+        F: 'static,
+    {
+        let filter = self.filter;
+        let combined_filter = move |s: &S, a: &A, b: &A| filter.test(s, a, b);
+
+        GroupedBiConstraintStream::new(
+            self.extractor,
+            self.key_extractor,
+            combined_filter,
+            key_fn,
+            collector,
         )
     }
 }

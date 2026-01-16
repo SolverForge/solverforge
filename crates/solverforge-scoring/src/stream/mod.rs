@@ -69,6 +69,7 @@ mod cross_bi_stream;
 mod factory;
 pub mod filter;
 mod flattened_bi_stream;
+mod grouped_bi_stream;
 mod grouped_stream;
 mod if_exists_stream;
 pub mod joiner;
@@ -83,6 +84,7 @@ pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstra
 pub use cross_bi_stream::{CrossBiConstraintBuilder, CrossBiConstraintStream};
 pub use factory::ConstraintFactory;
 pub use flattened_bi_stream::{FlattenedBiConstraintBuilder, FlattenedBiConstraintStream};
+pub use grouped_bi_stream::{GroupedBiConstraintBuilder, GroupedBiConstraintStream};
 pub use grouped_stream::{GroupedConstraintBuilder, GroupedConstraintStream};
 pub use if_exists_stream::{IfExistsBuilder, IfExistsStream};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};

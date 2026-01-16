@@ -12,7 +12,9 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::cross_bi_incremental::IncrementalCrossBiConstraint;
 
+use super::collector::CrossBiCollector;
 use super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
+use super::grouped_cross_bi_stream::GroupedCrossBiConstraintStream;
 use super::flattened_bi_stream::FlattenedBiConstraintStream;
 
 /// Zero-erasure constraint stream over cross-entity pairs.
@@ -415,6 +417,75 @@ where
             flatten,
             c_key_fn,
             a_lookup_fn,
+        )
+    }
+
+    /// Groups cross-entity pairs by a key and aggregates using a collector.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_scoring::stream::ConstraintFactory;
+    /// use solverforge_scoring::stream::joiner::equal_bi;
+    /// use solverforge_scoring::stream::collector::cross_bi_count;
+    /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    /// struct Shift { day: u32 }
+    ///
+    /// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    /// struct Employee { skill: u32 }
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution { shifts: Vec<Shift>, employees: Vec<Employee> }
+    ///
+    /// // Count shift-employee pairs per day
+    /// let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+    ///     .for_each(|s: &Solution| s.shifts.as_slice())
+    ///     .join(|s: &Solution| s.employees.as_slice(), equal_bi(|sh: &Shift| sh.day, |_: &Employee| 1u32))
+    ///     .group_by(
+    ///         |sh: &Shift, _emp: &Employee| sh.day,
+    ///         cross_bi_count(),
+    ///     )
+    ///     .penalize_with(|count: &usize| SimpleScore::of(*count as i64))
+    ///     .as_constraint("Shifts per day");
+    ///
+    /// let solution = Solution {
+    ///     shifts: vec![Shift { day: 1 }, Shift { day: 1 }],
+    ///     employees: vec![Employee { skill: 1 }],
+    /// };
+    ///
+    /// // 2 shifts × 1 employee on day 1 = 2 pairs -> -2
+    /// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-2));
+    /// ```
+    pub fn group_by<GK, KF, C>(
+        self,
+        key_fn: KF,
+        collector: C,
+    ) -> GroupedCrossBiConstraintStream<S, A, B, GK, K, EA, EB, KA, KB, impl Fn(&S, &A, &B) -> bool + Send + Sync, KF, C, Sc>
+    where
+        GK: Clone + Eq + Hash + Send + Sync + 'static,
+        KF: Fn(&A, &B) -> GK + Send + Sync,
+        C: CrossBiCollector<A, B> + Send + Sync + 'static,
+        C::Accumulator: Send + Sync,
+        C::Result: Clone + Send + Sync,
+        A: Hash + PartialEq,
+        B: Hash + PartialEq,
+        K: 'static,
+        F: 'static,
+    {
+        let filter = self.filter;
+        let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b);
+
+        GroupedCrossBiConstraintStream::new(
+            self.extractor_a,
+            self.extractor_b,
+            self.key_a,
+            self.key_b,
+            combined_filter,
+            key_fn,
+            collector,
         )
     }
 }

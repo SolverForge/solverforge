@@ -21,6 +21,7 @@ pub mod cross_bi_incremental;
 pub mod flattened_bi;
 pub mod grouped;
 pub mod grouped_bi;
+pub mod grouped_cross_bi;
 pub mod grouped_penta;
 pub mod grouped_quad;
 pub mod grouped_tri;

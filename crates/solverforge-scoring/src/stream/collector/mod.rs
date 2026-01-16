@@ -17,6 +17,7 @@
 
 mod bi;
 mod count;
+mod cross_bi;
 mod load_balance;
 mod penta;
 mod quad;
@@ -24,6 +25,7 @@ mod sum;
 mod tri;
 
 pub use bi::{bi_count, bi_sum, BiCollector, MappedBiCollector};
+pub use cross_bi::{cross_bi_count, cross_bi_sum, CrossBiCollector, MappedCrossBiCollector};
 pub use penta::{penta_count, penta_sum, MappedPentaCollector, PentaCollector};
 pub use quad::{quad_count, quad_sum, MappedQuadCollector, QuadCollector};
 pub use tri::{tri_count, tri_sum, MappedTriCollector, TriCollector};

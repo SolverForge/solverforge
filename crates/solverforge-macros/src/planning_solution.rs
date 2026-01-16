@@ -394,20 +394,6 @@ fn generate_basic_variable_operations(
         proc_macro2::Span::call_site(),
     );
 
-    // Generate finalize calls for all problem_fact_collection fields
-    let finalize_calls: Vec<_> = fields
-        .iter()
-        .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
-        .filter_map(|f| {
-            let field_name = f.ident.as_ref()?;
-            Some(quote! {
-                for item in &mut s.#field_name {
-                    item.finalize();
-                }
-            })
-        })
-        .collect();
-
     // Generate solve_internal() only if constraints path is provided
     let solve_impl = constraints_path.as_ref().map(|path| {
         let constraints_fn: syn::Path =
@@ -424,7 +410,6 @@ fn generate_basic_variable_operations(
 
                 ::solverforge::run_solver_with_channel(
                     self,
-                    Self::finalize_all,
                     #constraints_fn,
                     Self::basic_get_variable,
                     Self::basic_set_variable,
@@ -476,13 +461,6 @@ fn generate_basic_variable_operations(
         #[inline]
         pub const fn basic_variable_field_name() -> &'static str {
             #variable_field_str
-        }
-
-        /// Finalize all problem facts before solving.
-        /// Called automatically by solve() to prepare derived fields.
-        #[inline]
-        pub fn finalize_all(s: &mut Self) {
-            #(#finalize_calls)*
         }
 
         #solve_impl

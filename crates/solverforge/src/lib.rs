@@ -61,7 +61,7 @@ pub use solverforge_scoring::{
 
 /// Fluent constraint stream API.
 pub mod stream {
-    pub use solverforge_scoring::stream::{joiner, ConstraintFactory};
+    pub use solverforge_scoring::stream::{collector, joiner, ConstraintFactory};
 }
 
 // ============================================================================

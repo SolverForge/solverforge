@@ -43,7 +43,6 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 /// # Arguments
 ///
 /// * `solution` - The initial solution to solve
-/// * `finalize_fn` - Function to prepare derived fields before solving
 /// * `constraints_fn` - Function that creates the constraint set
 /// * `get_variable` - Gets the planning variable value for an entity
 /// * `set_variable` - Sets the planning variable value for an entity
@@ -56,7 +55,6 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 #[allow(clippy::too_many_arguments)]
 pub fn run_solver<S, C>(
     solution: S,
-    finalize_fn: fn(&mut S),
     constraints_fn: fn() -> C,
     get_variable: fn(&S, usize) -> Option<usize>,
     set_variable: fn(&mut S, usize, Option<usize>),
@@ -72,11 +70,9 @@ where
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    // Create a channel but ignore the receiver - no streaming needed
     let (sender, _receiver) = mpsc::unbounded_channel();
     run_solver_with_channel(
         solution,
-        finalize_fn,
         constraints_fn,
         get_variable,
         set_variable,
@@ -93,8 +89,7 @@ where
 /// Solutions are sent through the channel as they improve.
 #[allow(clippy::too_many_arguments)]
 pub fn run_solver_with_channel<S, C>(
-    mut solution: S,
-    finalize_fn: fn(&mut S),
+    solution: S,
     constraints_fn: fn() -> C,
     get_variable: fn(&S, usize) -> Option<usize>,
     set_variable: fn(&mut S, usize, Option<usize>),
@@ -108,7 +103,6 @@ where
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    finalize_fn(&mut solution);
 
     let config = SolverConfig::load("solver.toml").unwrap_or_default();
     let n_entities = entity_count_fn(&solution);

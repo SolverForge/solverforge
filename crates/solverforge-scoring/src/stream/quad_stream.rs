@@ -47,7 +47,9 @@ use solverforge_core::score::Score;
 
 use crate::constraint::IncrementalQuadConstraint;
 
+use super::collector::QuadCollector;
 use super::filter::{FnPentaFilter, PentaFilter, QuadFilter};
+use super::grouped_quad_stream::GroupedQuadConstraintStream;
 use super::joiner::Joiner;
 use super::penta_stream::PentaConstraintStream;
 
@@ -63,7 +65,7 @@ impl<S, A, K, E, KE, F, Sc> QuadConstraintStream<S, A, K, E, KE, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
-    K: Eq + Hash + Clone + Send + Sync,
+    K: Eq + Hash + Clone + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
     KE: Fn(&A) -> K + Send + Sync,
     F: QuadFilter<S, A, A, A, A>,
@@ -126,6 +128,72 @@ where
             self.extractor,
             self.key_extractor,
             FnPentaFilter::new(combined_filter),
+        )
+    }
+
+    /// Groups quadruples by a key and aggregates using a collector.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_scoring::stream::ConstraintFactory;
+    /// use solverforge_scoring::stream::joiner::equal;
+    /// use solverforge_scoring::stream::collector::quad_count;
+    /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    /// use solverforge_core::score::SimpleScore;
+    ///
+    /// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    /// struct Task { team: u32, priority: u32 }
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution { tasks: Vec<Task> }
+    ///
+    /// let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+    ///     .for_each(|s: &Solution| s.tasks.as_slice())
+    ///     .join_self(equal(|t: &Task| t.team))
+    ///     .join_self(equal(|t: &Task| t.team))
+    ///     .join_self(equal(|t: &Task| t.team))
+    ///     .group_by(
+    ///         |_a: &Task, _b: &Task, _c: &Task, d: &Task| d.priority,
+    ///         quad_count(),
+    ///     )
+    ///     .penalize_with(|count: &usize| SimpleScore::of(*count as i64))
+    ///     .as_constraint("Priority clustering");
+    ///
+    /// let solution = Solution {
+    ///     tasks: vec![
+    ///         Task { team: 1, priority: 1 },
+    ///         Task { team: 1, priority: 1 },
+    ///         Task { team: 1, priority: 1 },
+    ///         Task { team: 1, priority: 1 },
+    ///     ],
+    /// };
+    ///
+    /// // 1 quadruple -> 1 penalty
+    /// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1));
+    /// ```
+    pub fn group_by<GK, KF, C>(
+        self,
+        key_fn: KF,
+        collector: C,
+    ) -> GroupedQuadConstraintStream<S, A, GK, K, E, KE, impl Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync, KF, C, Sc>
+    where
+        GK: Clone + Eq + Hash + Send + Sync + 'static,
+        KF: Fn(&A, &A, &A, &A) -> GK + Send + Sync,
+        C: QuadCollector<A> + Send + Sync + 'static,
+        C::Accumulator: Send + Sync,
+        C::Result: Clone + Send + Sync,
+        F: 'static,
+    {
+        let filter = self.filter;
+        let combined_filter = move |s: &S, a: &A, b: &A, c: &A, d: &A| filter.test(s, a, b, c, d);
+
+        GroupedQuadConstraintStream::new(
+            self.extractor,
+            self.key_extractor,
+            combined_filter,
+            key_fn,
+            collector,
         )
     }
 }

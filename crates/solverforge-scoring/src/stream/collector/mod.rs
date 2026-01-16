@@ -19,8 +19,10 @@ mod bi;
 mod count;
 mod load_balance;
 mod sum;
+mod tri;
 
 pub use bi::{bi_count, bi_sum, BiCollector, MappedBiCollector};
+pub use tri::{tri_count, tri_sum, MappedTriCollector, TriCollector};
 pub use count::{count, CountAccumulator, CountCollector};
 pub use load_balance::{load_balance, LoadBalance, LoadBalanceAccumulator, LoadBalanceCollector};
 pub use sum::{sum, SumAccumulator, SumCollector};

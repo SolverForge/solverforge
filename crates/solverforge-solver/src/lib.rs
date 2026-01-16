@@ -8,8 +8,8 @@
 //! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
-pub mod basic;
 pub mod builder;
+pub mod operations;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;
@@ -71,7 +71,6 @@ pub use manager::{
     LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
-pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
@@ -107,4 +106,5 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use basic::{run_solver, run_solver_with_channel};
+pub use operations::VariableOperations;
+pub use solver::run_solver;

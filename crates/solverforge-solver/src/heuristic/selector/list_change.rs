@@ -2,6 +2,10 @@
 //!
 //! Generates `ListChangeMove`s that relocate elements within or between list variables.
 //! Essential for vehicle routing and scheduling problems.
+//!
+//! # Zero-Erasure Design
+//!
+//! No value type parameter. Uses VariableOperations trait for list access.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,6 +14,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::list_change::ListChangeMove;
+use crate::operations::VariableOperations;
 
 use super::entity::EntitySelector;
 use super::typed_move_selector::MoveSelector;
@@ -20,8 +25,8 @@ use super::typed_move_selector::MoveSelector;
 /// combinations for relocating elements within or between list variables.
 ///
 /// # Type Parameters
-/// * `S` - The solution type
-/// * `V` - The list element type
+/// * `S` - The solution type (must implement VariableOperations)
+/// * `ES` - The entity selector type
 ///
 /// # Complexity
 ///
@@ -31,23 +36,17 @@ use super::typed_move_selector::MoveSelector;
 /// - Total: O(n² * m²) worst case
 ///
 /// Use with a forager that quits early for better performance.
-pub struct ListChangeMoveSelector<S, V, ES> {
+pub struct ListChangeMoveSelector<S, ES> {
     /// Selects entities (vehicles) for moves.
     entity_selector: ES,
-    /// Get list length for an entity.
-    list_len: fn(&S, usize) -> usize,
-    /// Remove element at position.
-    list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    /// Insert element at position.
-    list_insert: fn(&mut S, usize, usize, V),
     /// Variable name for notifications.
     variable_name: &'static str,
     /// Entity descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {
+impl<S, ES: Debug> Debug for ListChangeMoveSelector<S, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListChangeMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -57,29 +56,16 @@ impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {
     }
 }
 
-impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
+impl<S, ES> ListChangeMoveSelector<S, ES> {
     /// Creates a new list change move selector.
     ///
     /// # Arguments
     /// * `entity_selector` - Selects entities to consider for moves
-    /// * `list_len` - Function to get list length for an entity
-    /// * `list_remove` - Function to remove element at position
-    /// * `list_insert` - Function to insert element at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
-    pub fn new(
-        entity_selector: ES,
-        list_len: fn(&S, usize) -> usize,
-        list_remove: fn(&mut S, usize, usize) -> Option<V>,
-        list_insert: fn(&mut S, usize, usize, V),
-        variable_name: &'static str,
-        descriptor_index: usize,
-    ) -> Self {
+    pub fn new(entity_selector: ES, variable_name: &'static str, descriptor_index: usize) -> Self {
         Self {
             entity_selector,
-            list_len,
-            list_remove,
-            list_insert,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -87,20 +73,16 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     }
 }
 
-impl<S, V, ES> MoveSelector<S, ListChangeMove<S, V>> for ListChangeMoveSelector<S, V, ES>
+impl<S, ES> MoveSelector<S, ListChangeMove<S>> for ListChangeMoveSelector<S, ES>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
     ES: EntitySelector<S>,
 {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ListChangeMove<S, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = ListChangeMove<S>> + 'a> {
         let solution = score_director.working_solution();
-        let list_len = self.list_len;
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
@@ -112,7 +94,10 @@ where
             .collect();
 
         // Pre-compute route lengths
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
+        let route_lens: Vec<usize> = entities
+            .iter()
+            .map(|&e| solution.list_len(e))
+            .collect();
 
         // Generate all valid moves
         let mut moves = Vec::new();
@@ -138,9 +123,6 @@ where
                         src_pos,
                         src_entity,
                         dst_pos,
-                        list_len,
-                        list_remove,
-                        list_insert,
                         variable_name,
                         descriptor_index,
                     ));
@@ -160,9 +142,6 @@ where
                             src_pos,
                             dst_entity,
                             dst_pos,
-                            list_len,
-                            list_remove,
-                            list_insert,
                             variable_name,
                             descriptor_index,
                         ));
@@ -176,7 +155,6 @@ where
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let solution = score_director.working_solution();
-        let list_len = self.list_len;
 
         let entities: Vec<usize> = self
             .entity_selector
@@ -184,7 +162,10 @@ where
             .map(|r| r.entity_index)
             .collect();
 
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
+        let route_lens: Vec<usize> = entities
+            .iter()
+            .map(|&e| solution.list_len(e))
+            .collect();
         let total_elements: usize = route_lens.iter().sum();
 
         // Approximate: each element can move to any position in any entity
@@ -207,6 +188,7 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::Move;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -214,7 +196,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        visits: Vec<i32>,
+        visits: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -233,23 +215,59 @@ mod tests {
         }
     }
 
+    impl VariableOperations for Solution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.vehicles.iter().map(|v| v.visits.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.vehicles.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.vehicles.iter().flat_map(|v| v.visits.iter().copied()).collect()
+        }
+
+        fn assign(&mut self, _entity_idx: usize, _elem: Self::Element) {
+            // Not used for list variables
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits[pos]
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.insert(pos, elem);
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "visits"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_vehicles(s: &Solution) -> &Vec<Vehicle> {
         &s.vehicles
     }
     fn get_vehicles_mut(s: &mut Solution) -> &mut Vec<Vehicle> {
         &mut s.vehicles
-    }
-
-    fn list_len(s: &Solution, entity_idx: usize) -> usize {
-        s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-    }
-    fn list_remove(s: &mut Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-        s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
-    }
-    fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
-        if let Some(v) = s.vehicles.get_mut(entity_idx) {
-            v.visits.insert(pos, val);
-        }
     }
 
     fn create_director(
@@ -279,11 +297,8 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+        let selector = ListChangeMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            list_remove,
-            list_insert,
             "visits",
             0,
         );
@@ -309,11 +324,8 @@ mod tests {
         let vehicles = vec![Vehicle { visits: vec![1, 2] }, Vehicle { visits: vec![10] }];
         let director = create_director(vehicles);
 
-        let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+        let selector = ListChangeMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            list_remove,
-            list_insert,
             "visits",
             0,
         );
@@ -337,11 +349,8 @@ mod tests {
         ];
         let director = create_director(vehicles);
 
-        let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+        let selector = ListChangeMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            list_remove,
-            list_insert,
             "visits",
             0,
         );

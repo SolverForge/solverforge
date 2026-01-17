@@ -8,12 +8,15 @@
 //!
 //! NO Box, NO dyn, NO Arc. Each variant wraps a concrete move type directly.
 //! The compiler generates optimized code paths for each variant.
+//! Moves store only indices - no value type parameter needed.
 
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::change::ChangeMove;
 use super::k_opt::KOptMove;
@@ -32,67 +35,64 @@ use super::traits::Move;
 /// Monomorphic enum containing ALL move types.
 ///
 /// This unified type enables config-driven move selection without type erasure.
-/// The solver pipeline uses `MoveImpl<S, V>` as the concrete move type, and
+/// The solver pipeline uses `MoveImpl<S>` as the concrete move type, and
 /// the enum dispatches to the appropriate inner move at runtime.
 ///
 /// # Type Parameters
 ///
-/// * `S` - The planning solution type
-/// * `V` - The value type for variables (same across all move variants)
-pub enum MoveImpl<S, V>
+/// * `S` - The planning solution type (must implement VariableOperations)
+pub enum MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     /// Change move - assigns a new value to a single entity's variable.
-    Change(ChangeMove<S, V>),
+    Change(ChangeMove<S>),
 
     /// Swap move - exchanges values between two entities.
-    Swap(SwapMove<S, V>),
+    Swap(SwapMove<S>),
 
     /// Pillar change move - changes multiple entities with the same current value.
-    PillarChange(PillarChangeMove<S, V>),
+    PillarChange(PillarChangeMove<S>),
 
     /// Pillar swap move - swaps values between two groups of entities.
-    PillarSwap(PillarSwapMove<S, V>),
+    PillarSwap(PillarSwapMove<S>),
 
     /// List change move - relocates a single element within/between list variables.
-    ListChange(ListChangeMove<S, V>),
+    ListChange(ListChangeMove<S>),
 
     /// List swap move - swaps two elements in list variables.
-    ListSwap(ListSwapMove<S, V>),
+    ListSwap(ListSwapMove<S>),
 
     /// SubList change move - relocates a contiguous segment of a list.
-    SubListChange(SubListChangeMove<S, V>),
+    SubListChange(SubListChangeMove<S>),
 
     /// SubList swap move - swaps two contiguous segments.
-    SubListSwap(SubListSwapMove<S, V>),
+    SubListSwap(SubListSwapMove<S>),
 
     /// List reverse move - reverses a segment (2-opt for TSP).
-    ListReverse(ListReverseMove<S, V>),
+    ListReverse(ListReverseMove<S>),
 
     /// K-opt move - tour optimization via segment reconnection.
-    KOpt(KOptMove<S, V>),
+    KOpt(KOptMove<S>),
 
     /// Ruin move - unassigns multiple entities (for Large Neighborhood Search).
-    Ruin(RuinMove<S, V>),
+    Ruin(RuinMove<S>),
 
     /// List ruin move - removes elements from list variables (for LNS).
-    ListRuin(ListRuinMove<S, V>),
+    ListRuin(ListRuinMove<S>),
 
     /// Composite move - applies two moves in sequence.
     /// Uses indices into arena rather than owned moves to avoid recursion.
     Composite {
         first_index: usize,
         second_index: usize,
-        _phantom: PhantomData<(S, V)>,
+        _phantom: PhantomData<fn() -> S>,
     },
 }
 
-impl<S, V> Debug for MoveImpl<S, V>
+impl<S> Debug for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -121,25 +121,45 @@ where
     }
 }
 
-// Manual Send + Sync implementations to avoid phantom type bounds
-unsafe impl<S, V> Send for MoveImpl<S, V>
+impl<S> Clone for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Change(m) => Self::Change(*m),
+            Self::Swap(m) => Self::Swap(*m),
+            Self::PillarChange(m) => Self::PillarChange(m.clone()),
+            Self::PillarSwap(m) => Self::PillarSwap(m.clone()),
+            Self::ListChange(m) => Self::ListChange(*m),
+            Self::ListSwap(m) => Self::ListSwap(*m),
+            Self::SubListChange(m) => Self::SubListChange(*m),
+            Self::SubListSwap(m) => Self::SubListSwap(*m),
+            Self::ListReverse(m) => Self::ListReverse(*m),
+            Self::KOpt(m) => Self::KOpt(*m),
+            Self::Ruin(m) => Self::Ruin(m.clone()),
+            Self::ListRuin(m) => Self::ListRuin(m.clone()),
+            Self::Composite {
+                first_index,
+                second_index,
+                _phantom,
+            } => Self::Composite {
+                first_index: *first_index,
+                second_index: *second_index,
+                _phantom: PhantomData,
+            },
+        }
+    }
 }
 
-unsafe impl<S, V> Sync for MoveImpl<S, V>
-where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
-{
-}
+// Manual Send + Sync implementations
+unsafe impl<S> Send for MoveImpl<S> where S: PlanningSolution + VariableOperations {}
 
-impl<S, V> Move<S> for MoveImpl<S, V>
+unsafe impl<S> Sync for MoveImpl<S> where S: PlanningSolution + VariableOperations {}
+
+impl<S> Move<S> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         match self {
@@ -240,123 +260,110 @@ where
 }
 
 // Conversion traits for easy wrapping
-impl<S, V> From<ChangeMove<S, V>> for MoveImpl<S, V>
+impl<S> From<ChangeMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: ChangeMove<S, V>) -> Self {
+    fn from(m: ChangeMove<S>) -> Self {
         Self::Change(m)
     }
 }
 
-impl<S, V> From<SwapMove<S, V>> for MoveImpl<S, V>
+impl<S> From<SwapMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: SwapMove<S, V>) -> Self {
+    fn from(m: SwapMove<S>) -> Self {
         Self::Swap(m)
     }
 }
 
-impl<S, V> From<PillarChangeMove<S, V>> for MoveImpl<S, V>
+impl<S> From<PillarChangeMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: PillarChangeMove<S, V>) -> Self {
+    fn from(m: PillarChangeMove<S>) -> Self {
         Self::PillarChange(m)
     }
 }
 
-impl<S, V> From<PillarSwapMove<S, V>> for MoveImpl<S, V>
+impl<S> From<PillarSwapMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: PillarSwapMove<S, V>) -> Self {
+    fn from(m: PillarSwapMove<S>) -> Self {
         Self::PillarSwap(m)
     }
 }
 
-impl<S, V> From<ListChangeMove<S, V>> for MoveImpl<S, V>
+impl<S> From<ListChangeMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: ListChangeMove<S, V>) -> Self {
+    fn from(m: ListChangeMove<S>) -> Self {
         Self::ListChange(m)
     }
 }
 
-impl<S, V> From<ListSwapMove<S, V>> for MoveImpl<S, V>
+impl<S> From<ListSwapMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: ListSwapMove<S, V>) -> Self {
+    fn from(m: ListSwapMove<S>) -> Self {
         Self::ListSwap(m)
     }
 }
 
-impl<S, V> From<SubListChangeMove<S, V>> for MoveImpl<S, V>
+impl<S> From<SubListChangeMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: SubListChangeMove<S, V>) -> Self {
+    fn from(m: SubListChangeMove<S>) -> Self {
         Self::SubListChange(m)
     }
 }
 
-impl<S, V> From<SubListSwapMove<S, V>> for MoveImpl<S, V>
+impl<S> From<SubListSwapMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: SubListSwapMove<S, V>) -> Self {
+    fn from(m: SubListSwapMove<S>) -> Self {
         Self::SubListSwap(m)
     }
 }
 
-impl<S, V> From<ListReverseMove<S, V>> for MoveImpl<S, V>
+impl<S> From<ListReverseMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: ListReverseMove<S, V>) -> Self {
+    fn from(m: ListReverseMove<S>) -> Self {
         Self::ListReverse(m)
     }
 }
 
-impl<S, V> From<KOptMove<S, V>> for MoveImpl<S, V>
+impl<S> From<KOptMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: KOptMove<S, V>) -> Self {
+    fn from(m: KOptMove<S>) -> Self {
         Self::KOpt(m)
     }
 }
 
-impl<S, V> From<RuinMove<S, V>> for MoveImpl<S, V>
+impl<S> From<RuinMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: RuinMove<S, V>) -> Self {
+    fn from(m: RuinMove<S>) -> Self {
         Self::Ruin(m)
     }
 }
 
-impl<S, V> From<ListRuinMove<S, V>> for MoveImpl<S, V>
+impl<S> From<ListRuinMove<S>> for MoveImpl<S>
 where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
-    fn from(m: ListRuinMove<S, V>) -> Self {
+    fn from(m: ListRuinMove<S>) -> Self {
         Self::ListRuin(m)
     }
 }
-

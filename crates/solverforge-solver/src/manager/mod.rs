@@ -7,7 +7,6 @@
 //! which generates concrete types at compile time.
 
 mod builder;
-mod config;
 mod phase_factory;
 mod solution_manager;
 mod solver_factory;
@@ -21,7 +20,6 @@ mod mod_tests;
 mod mod_tests_integration;
 
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
-pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
     ListConstructionPhaseBuilder, LocalSearchPhaseFactory,

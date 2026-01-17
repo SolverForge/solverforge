@@ -2,6 +2,10 @@
 //!
 //! Placers enumerate the entities that need values assigned and
 //! generate candidate moves for each entity.
+//!
+//! # Zero-Erasure Design
+//!
+//! No value type parameter. Uses VariableOperations trait for value access.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -12,7 +16,7 @@ use solverforge_scoring::ScoreDirector;
 use crate::heuristic::r#move::change::ChangeMove;
 use crate::heuristic::r#move::traits::Move;
 use crate::heuristic::selector::entity::{EntityReference, EntitySelector};
-use crate::heuristic::selector::typed_value::TypedValueSelector;
+use crate::operations::VariableOperations;
 
 /// A placement represents an entity that needs a value assigned,
 /// along with the candidate moves to assign values.
@@ -97,54 +101,39 @@ where
 /// A queued entity placer that processes entities in order.
 ///
 /// For each uninitialized entity, generates change moves for all possible values.
-/// Uses typed function pointers for zero-erasure access.
+/// Uses VariableOperations trait for zero-erasure access.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The value type
+/// * `S` - The planning solution type (must implement VariableOperations)
 /// * `ES` - The entity selector type
-/// * `VS` - The value selector type
-pub struct QueuedEntityPlacer<S, V, ES, VS>
+pub struct QueuedEntityPlacer<S, ES>
 where
     S: PlanningSolution,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
 {
     /// The entity selector.
     entity_selector: ES,
-    /// The value selector.
-    value_selector: VS,
-    /// Typed getter function pointer.
-    getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer.
-    setter: fn(&mut S, usize, Option<V>),
     /// The variable name.
     variable_name: &'static str,
     /// The descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
+impl<S, ES> QueuedEntityPlacer<S, ES>
 where
     S: PlanningSolution,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
 {
-    /// Creates a new queued entity placer with typed function pointers.
-    pub fn new(
-        entity_selector: ES,
-        value_selector: VS,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
-        descriptor_index: usize,
-        variable_name: &'static str,
-    ) -> Self {
+    /// Creates a new queued entity placer.
+    ///
+    /// # Arguments
+    /// * `entity_selector` - Selects entities to place
+    /// * `variable_name` - Name of the variable
+    /// * `descriptor_index` - Index of the entity descriptor
+    pub fn new(entity_selector: ES, variable_name: &'static str, descriptor_index: usize) -> Self {
         Self {
             entity_selector,
-            value_selector,
-            getter,
-            setter,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -152,66 +141,49 @@ where
     }
 }
 
-impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>
+impl<S, ES> Debug for QueuedEntityPlacer<S, ES>
 where
     S: PlanningSolution,
     ES: EntitySelector<S> + Debug,
-    VS: TypedValueSelector<S, V> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueuedEntityPlacer")
             .field("entity_selector", &self.entity_selector)
-            .field("value_selector", &self.value_selector)
             .field("variable_name", &self.variable_name)
             .finish()
     }
 }
 
-impl<S, V, ES, VS> EntityPlacer<S, ChangeMove<S, V>> for QueuedEntityPlacer<S, V, ES, VS>
+impl<S, ES> EntityPlacer<S, ChangeMove<S>> for QueuedEntityPlacer<S, ES>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
 {
-    fn get_placements<D: ScoreDirector<S>>(
-        &self,
-        score_director: &D,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
+    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, ChangeMove<S>>> {
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
-        let getter = self.getter;
-        let setter = self.setter;
+        let solution = score_director.working_solution();
+
+        // Get value range from solution
+        let values: Vec<_> = solution.value_range();
 
         self.entity_selector
             .iter(score_director)
             .filter_map(|entity_ref| {
-                // Check if entity is uninitialized using typed getter - zero erasure
-                let current_value =
-                    getter(score_director.working_solution(), entity_ref.entity_index);
+                // Check if entity is uninitialized
+                let is_assigned = solution.list_len(entity_ref.entity_index) > 0;
 
                 // Only include uninitialized entities
-                if current_value.is_some() {
+                if is_assigned {
                     return None;
                 }
 
                 // Generate moves for all possible values
-                let moves: Vec<ChangeMove<S, V>> = self
-                    .value_selector
-                    .iter_typed(
-                        score_director,
-                        entity_ref.descriptor_index,
-                        entity_ref.entity_index,
-                    )
+                let moves: Vec<ChangeMove<S>> = values
+                    .iter()
+                    .copied()
                     .map(|value| {
-                        ChangeMove::new(
-                            entity_ref.entity_index,
-                            Some(value),
-                            getter,
-                            setter,
-                            variable_name,
-                            descriptor_index,
-                        )
+                        ChangeMove::new(entity_ref.entity_index, value, variable_name, descriptor_index)
                     })
                     .collect();
 
@@ -294,5 +266,214 @@ where
         });
 
         placements
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+    use crate::operations::VariableOperations;
+    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+    use solverforge_core::score::SimpleScore;
+    use solverforge_scoring::SimpleScoreDirector;
+    use std::any::TypeId;
+
+    #[derive(Clone, Debug)]
+    struct Task {
+        id: usize,
+        priority: Option<usize>,
+    }
+
+    #[derive(Clone, Debug)]
+    struct TaskSolution {
+        tasks: Vec<Task>,
+        priorities: Vec<usize>,
+        score: Option<SimpleScore>,
+    }
+
+    impl PlanningSolution for TaskSolution {
+        type Score = SimpleScore;
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    impl VariableOperations for TaskSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.priorities.len()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tasks.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tasks.iter().filter_map(|t| t.priority).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tasks[entity_idx].priority = Some(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            if self.tasks[entity_idx].priority.is_some() {
+                1
+            } else {
+                0
+            }
+        }
+
+        fn remove(&mut self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].priority.take().unwrap()
+        }
+
+        fn insert(&mut self, entity_idx: usize, _pos: usize, elem: Self::Element) {
+            self.tasks[entity_idx].priority = Some(elem);
+        }
+
+        fn get(&self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].priority.unwrap()
+        }
+
+        fn value_range(&self) -> Vec<Self::Element> {
+            self.priorities.clone()
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "priority"
+        }
+
+        fn is_list_variable() -> bool {
+            false
+        }
+    }
+
+    fn get_tasks(s: &TaskSolution) -> &Vec<Task> {
+        &s.tasks
+    }
+
+    fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
+        &mut s.tasks
+    }
+
+    fn create_director(
+        tasks: Vec<Task>,
+        priorities: Vec<usize>,
+    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+        let solution = TaskSolution {
+            tasks,
+            priorities,
+            score: None,
+        };
+
+        let extractor = Box::new(TypedEntityExtractor::new(
+            "Task",
+            "tasks",
+            get_tasks,
+            get_tasks_mut,
+        ));
+        let entity_desc =
+            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
+
+        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
+            .with_entity(entity_desc);
+
+        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    }
+
+    #[test]
+    fn queued_placer_generates_placements() {
+        let director = create_director(
+            vec![
+                Task { id: 0, priority: None },
+                Task { id: 1, priority: None },
+                Task { id: 2, priority: Some(5) }, // Already assigned
+            ],
+            vec![1, 2, 3],
+        );
+
+        let placer = QueuedEntityPlacer::<TaskSolution, _>::new(
+            FromSolutionEntitySelector::new(0),
+            "priority",
+            0,
+        );
+
+        let placements = placer.get_placements(&director);
+
+        // Only 2 placements (unassigned entities)
+        assert_eq!(placements.len(), 2);
+
+        // Each has 3 moves (one per value)
+        for p in &placements {
+            assert_eq!(p.move_count(), 3);
+        }
+    }
+
+    #[test]
+    fn sorted_placer_orders_by_comparator() {
+        let director = create_director(
+            vec![
+                Task { id: 0, priority: None },
+                Task { id: 1, priority: None },
+                Task { id: 2, priority: None },
+            ],
+            vec![1],
+        );
+
+        let inner = QueuedEntityPlacer::<TaskSolution, _>::new(
+            FromSolutionEntitySelector::new(0),
+            "priority",
+            0,
+        );
+
+        // Sort by descending entity index
+        fn cmp(s: &TaskSolution, a: usize, b: usize) -> std::cmp::Ordering {
+            s.tasks[b].id.cmp(&s.tasks[a].id)
+        }
+
+        let placer = SortedEntityPlacer::new(inner, cmp);
+
+        let placements = placer.get_placements(&director);
+
+        // Should be sorted in descending order
+        assert_eq!(placements[0].entity_ref.entity_index, 2);
+        assert_eq!(placements[1].entity_ref.entity_index, 1);
+        assert_eq!(placements[2].entity_ref.entity_index, 0);
+    }
+
+    #[test]
+    fn placement_take_move() {
+        let director = create_director(
+            vec![Task { id: 0, priority: None }],
+            vec![10, 20, 30],
+        );
+
+        let placer = QueuedEntityPlacer::<TaskSolution, _>::new(
+            FromSolutionEntitySelector::new(0),
+            "priority",
+            0,
+        );
+
+        let mut placements = placer.get_placements(&director);
+        assert_eq!(placements.len(), 1);
+
+        let placement = &mut placements[0];
+        assert_eq!(placement.move_count(), 3);
+
+        let m = placement.take_move(0);
+        assert_eq!(placement.move_count(), 2);
+
+        // Move was taken
+        assert_eq!(m.entity_index(), 0);
     }
 }

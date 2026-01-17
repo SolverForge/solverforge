@@ -74,7 +74,7 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::RuinMove;
+use crate::heuristic::r#move::ruin::RuinMove;
 
 use super::MoveSelector;
 

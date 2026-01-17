@@ -73,7 +73,7 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::ListRuinMove;
+use crate::heuristic::r#move::list_ruin::ListRuinMove;
 
 use super::MoveSelector;
 

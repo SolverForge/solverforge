@@ -50,7 +50,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::ListChangeMove;
+use crate::heuristic::r#move::list_change::ListChangeMove;
 
 use super::entity::EntitySelector;
 use super::typed_move_selector::MoveSelector;

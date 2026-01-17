@@ -9,7 +9,9 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::{ChangeMove, Move, SwapMove};
+use crate::heuristic::r#move::change::ChangeMove;
+use crate::heuristic::r#move::swap::SwapMove;
+use crate::heuristic::r#move::traits::Move;
 
 use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector};
 use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};

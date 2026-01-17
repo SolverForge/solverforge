@@ -58,7 +58,7 @@ use solverforge_scoring::ScoreDirector;
 use crate::heuristic::r#move::k_opt_reconnection::{
     enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
 };
-use crate::heuristic::r#move::{CutPoint, KOptMove};
+use crate::heuristic::r#move::k_opt::{CutPoint, KOptMove};
 
 use super::entity::EntitySelector;
 use super::typed_move_selector::MoveSelector;

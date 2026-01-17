@@ -298,7 +298,7 @@ pub fn run_solver<S, C>(
     info!(
         event = "solve_start",
         entity_count = n_entities,
-        element_count = n_elements,
+        value_count = n_elements,
         variable = S::variable_name(),
         is_list = S::is_list_variable(),
     );
@@ -320,9 +320,9 @@ pub fn run_solver<S, C>(
 
     // Construction phase using VariableOperations
     let construction = ListConstructionPhaseBuilder::<S, usize>::new(
-        S::element_count,
+        |s| s.element_count(),
         |s| s.assigned_elements(),
-        S::entity_count,
+        |s| s.entity_count(),
         |s, entity_idx, elem| s.assign(entity_idx, elem),
         |idx| idx,
         S::variable_name(),

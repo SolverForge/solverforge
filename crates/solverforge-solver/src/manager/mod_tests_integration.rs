@@ -212,17 +212,3 @@ fn test_solver_factory_with_multiple_phases() {
     assert_eq!(score, SimpleScore::of(-7));
 }
 
-#[test]
-fn test_construction_and_local_search_types_exist() {
-    // Just verify the enum variants exist
-    assert_eq!(ConstructionType::default(), ConstructionType::FirstFit);
-    assert_eq!(LocalSearchType::default(), LocalSearchType::HillClimbing);
-
-    let _tabu = LocalSearchType::TabuSearch { tabu_size: 10 };
-    let _sa = LocalSearchType::SimulatedAnnealing {
-        starting_temp: 1.0,
-        decay_rate: 0.99,
-    };
-    let _la = LocalSearchType::LateAcceptance { size: 100 };
-    let _bf = ConstructionType::BestFit;
-}

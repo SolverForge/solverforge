@@ -51,6 +51,11 @@ where
         self.moves.is_empty()
     }
 
+    /// Returns the number of candidate moves.
+    pub fn move_count(&self) -> usize {
+        self.moves.len()
+    }
+
     /// Takes ownership of a move at the given index.
     ///
     /// Uses swap_remove for O(1) removal.

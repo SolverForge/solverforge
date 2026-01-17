@@ -5,49 +5,34 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! PillarChangeMove uses typed function pointers instead of `dyn Any` for complete
-//! compile-time type safety. No runtime type checks or downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::Move;
 
 /// A move that assigns a value to all entities in a pillar.
 ///
-/// Stores entity indices and typed function pointers for zero-erasure access.
-/// Undo is handled by `RecordingScoreDirector`, not by this move.
+/// Stores entity indices and uses `VariableOperations` for zero-erasure access.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The variable value type
-pub struct PillarChangeMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone)]
+pub struct PillarChangeMove<S> {
     entity_indices: Vec<usize>,
     descriptor_index: usize,
     variable_name: &'static str,
-    to_value: Option<V>,
-    /// Typed getter function pointer - zero erasure.
-    getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
-    setter: fn(&mut S, usize, Option<V>),
+    to_value: usize,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Clone> Clone for PillarChangeMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_indices: self.entity_indices.clone(),
-            descriptor_index: self.descriptor_index,
-            variable_name: self.variable_name,
-            to_value: self.to_value.clone(),
-            getter: self.getter,
-            setter: self.setter,
-        }
-    }
-}
-
-impl<S, V: Debug> Debug for PillarChangeMove<S, V> {
+impl<S> Debug for PillarChangeMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PillarChangeMove")
             .field("entity_indices", &self.entity_indices)
@@ -58,21 +43,17 @@ impl<S, V: Debug> Debug for PillarChangeMove<S, V> {
     }
 }
 
-impl<S, V> PillarChangeMove<S, V> {
-    /// Creates a new pillar change move with typed function pointers.
+impl<S> PillarChangeMove<S> {
+    /// Creates a new pillar change move.
     ///
     /// # Arguments
     /// * `entity_indices` - Indices of entities in the pillar
-    /// * `to_value` - The new value to assign to all entities
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
+    /// * `to_value` - The new value index to assign to all entities
     /// * `variable_name` - Name of the variable being changed
     /// * `descriptor_index` - Index in the entity descriptor
     pub fn new(
         entity_indices: Vec<usize>,
-        to_value: Option<V>,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        to_value: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -81,8 +62,7 @@ impl<S, V> PillarChangeMove<S, V> {
             descriptor_index,
             variable_name,
             to_value,
-            getter,
-            setter,
+            _phantom: PhantomData,
         }
     }
 
@@ -92,47 +72,53 @@ impl<S, V> PillarChangeMove<S, V> {
     }
 
     /// Returns the target value.
-    pub fn to_value(&self) -> Option<&V> {
-        self.to_value.as_ref()
+    pub fn to_value(&self) -> usize {
+        self.to_value
     }
 }
 
-impl<S, V> Move<S> for PillarChangeMove<S, V>
+impl<S> Move<S> for PillarChangeMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         if self.entity_indices.is_empty() {
             return false;
         }
 
-        // Check first entity exists
-        let count = score_director.entity_count(self.descriptor_index);
+        let solution = score_director.working_solution();
+
+        // Check first entity exists and is assigned
         if let Some(&first_idx) = self.entity_indices.first() {
-            if count.is_none_or(|c| first_idx >= c) {
-                return false;
+            let len = solution.list_len(first_idx);
+            if len == 0 {
+                // Unassigned - can assign
+                return true;
             }
 
-            // Get current value using typed getter - zero erasure
-            let current = (self.getter)(score_director.working_solution(), first_idx);
-
-            match (&current, &self.to_value) {
-                (None, None) => false,
-                (Some(cur), Some(target)) => cur != target,
-                _ => true,
-            }
+            // Get current value
+            let current = solution.get(first_idx, 0);
+            current != self.to_value
         } else {
             false
         }
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        // Capture old values using typed getter - zero erasure
-        let old_values: Vec<(usize, Option<V>)> = self
+        // Capture old values
+        let old_values: Vec<(usize, Option<<S as VariableOperations>::Element>)> = self
             .entity_indices
             .iter()
-            .map(|&idx| (idx, (self.getter)(score_director.working_solution(), idx)))
+            .map(|&idx| {
+                let solution = score_director.working_solution();
+                let len = solution.list_len(idx);
+                let old_val = if len > 0 {
+                    Some(solution.get(idx, 0))
+                } else {
+                    None
+                };
+                (idx, old_val)
+            })
             .collect();
 
         // Notify before changes for all entities
@@ -140,13 +126,14 @@ where
             score_director.before_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
-        // Apply new value to all entities using typed setter - zero erasure
+        // Apply new value to all entities
         for &idx in &self.entity_indices {
-            (self.setter)(
-                score_director.working_solution_mut(),
-                idx,
-                self.to_value.clone(),
-            );
+            let sol = score_director.working_solution_mut();
+            let len = sol.list_len(idx);
+            if len > 0 {
+                sol.remove(idx, 0);
+            }
+            sol.insert(idx, 0, self.to_value);
         }
 
         // Notify after changes
@@ -154,11 +141,15 @@ where
             score_director.after_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
-        // Register typed undo closure
-        let setter = self.setter;
+        // Register undo
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, old_value) in old_values {
-                setter(s, idx, old_value);
+                // Remove current value
+                s.remove(idx, 0);
+                // Restore old value if there was one
+                if let Some(old) = old_value {
+                    s.insert(idx, 0, old);
+                }
             }
         }));
     }
@@ -179,6 +170,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -187,7 +179,7 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Employee {
         id: usize,
-        shift: Option<i32>,
+        shift: Option<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -206,15 +198,55 @@ mod tests {
         }
     }
 
-    // Typed getter - zero erasure
-    fn get_shift(s: &ScheduleSolution, idx: usize) -> Option<i32> {
-        s.employees.get(idx).and_then(|e| e.shift)
-    }
+    impl VariableOperations for ScheduleSolution {
+        type Element = usize;
 
-    // Typed setter - zero erasure
-    fn set_shift(s: &mut ScheduleSolution, idx: usize, v: Option<i32>) {
-        if let Some(e) = s.employees.get_mut(idx) {
-            e.shift = v;
+        fn element_count(&self) -> usize {
+            10 // 10 shift values
+        }
+
+        fn entity_count(&self) -> usize {
+            self.employees.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.employees.iter().filter_map(|e| e.shift).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.employees[entity_idx].shift = Some(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            if self.employees[entity_idx].shift.is_some() {
+                1
+            } else {
+                0
+            }
+        }
+
+        fn remove(&mut self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.employees[entity_idx].shift.take().unwrap()
+        }
+
+        fn insert(&mut self, entity_idx: usize, _pos: usize, elem: Self::Element) {
+            self.employees[entity_idx].shift = Some(elem);
+        }
+
+        fn get(&self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.employees[entity_idx].shift.unwrap()
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "shift"
+        }
+
+        fn is_list_variable() -> bool {
+            false
         }
     }
 
@@ -243,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pillar_change_all_entities() {
+    fn pillar_change_all_entities() {
         let mut director = create_director(vec![
             Employee {
                 id: 0,
@@ -260,14 +292,7 @@ mod tests {
         ]);
 
         // Change pillar [0, 1] from shift 1 to shift 5
-        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![0, 1],
-            Some(5),
-            get_shift,
-            set_shift,
-            "shift",
-            0,
-        );
+        let m = PillarChangeMove::<ScheduleSolution>::new(vec![0, 1], 5, "shift", 0);
 
         assert!(m.is_doable(&director));
         assert_eq!(m.pillar_size(), 2);
@@ -276,18 +301,18 @@ mod tests {
             let mut recording = RecordingScoreDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            // Verify ALL entities changed using typed getter
-            assert_eq!(get_shift(recording.working_solution(), 0), Some(5));
-            assert_eq!(get_shift(recording.working_solution(), 1), Some(5));
-            assert_eq!(get_shift(recording.working_solution(), 2), Some(2)); // Unchanged
+            // Verify ALL entities changed
+            assert_eq!(recording.working_solution().employees[0].shift, Some(5));
+            assert_eq!(recording.working_solution().employees[1].shift, Some(5));
+            assert_eq!(recording.working_solution().employees[2].shift, Some(2)); // Unchanged
 
             // Undo
             recording.undo_changes();
         }
 
-        assert_eq!(get_shift(director.working_solution(), 0), Some(1));
-        assert_eq!(get_shift(director.working_solution(), 1), Some(1));
-        assert_eq!(get_shift(director.working_solution(), 2), Some(2));
+        assert_eq!(director.working_solution().employees[0].shift, Some(1));
+        assert_eq!(director.working_solution().employees[1].shift, Some(1));
+        assert_eq!(director.working_solution().employees[2].shift, Some(2));
 
         // Verify entity identity preserved
         let solution = director.working_solution();
@@ -297,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pillar_change_same_value_not_doable() {
+    fn pillar_change_same_value_not_doable() {
         let director = create_director(vec![
             Employee {
                 id: 0,
@@ -309,47 +334,26 @@ mod tests {
             },
         ]);
 
-        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![0, 1],
-            Some(5),
-            get_shift,
-            set_shift,
-            "shift",
-            0,
-        );
+        let m = PillarChangeMove::<ScheduleSolution>::new(vec![0, 1], 5, "shift", 0);
 
         assert!(!m.is_doable(&director));
     }
 
     #[test]
-    fn test_pillar_change_empty_pillar_not_doable() {
+    fn pillar_change_empty_pillar_not_doable() {
         let director = create_director(vec![Employee {
             id: 0,
             shift: Some(1),
         }]);
 
-        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![],
-            Some(5),
-            get_shift,
-            set_shift,
-            "shift",
-            0,
-        );
+        let m = PillarChangeMove::<ScheduleSolution>::new(vec![], 5, "shift", 0);
 
         assert!(!m.is_doable(&director));
     }
 
     #[test]
-    fn test_pillar_change_entity_indices() {
-        let m = PillarChangeMove::<ScheduleSolution, i32>::new(
-            vec![1, 3, 5],
-            Some(5),
-            get_shift,
-            set_shift,
-            "shift",
-            0,
-        );
+    fn pillar_change_entity_indices() {
+        let m = PillarChangeMove::<ScheduleSolution>::new(vec![1, 3, 5], 5, "shift", 0);
         assert_eq!(m.entity_indices(), &[1, 3, 5]);
     }
 }

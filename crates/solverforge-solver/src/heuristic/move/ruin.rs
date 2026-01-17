@@ -6,49 +6,37 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses typed function pointers for variable access. No `dyn Any`, no downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::operations::VariableOperations;
+
 use super::Move;
 
 /// A move that unassigns multiple entities for Large Neighborhood Search.
 ///
-/// This move sets the planning variable to `None` for a set of entities,
+/// This move removes the value at position 0 for basic variables,
 /// creating "gaps" that a construction heuristic can fill. Combined with
 /// construction, this enables exploring distant regions of the search space.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The variable value type
-pub struct RuinMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone)]
+pub struct RuinMove<S> {
     /// Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
-    /// Get current value for an entity
-    getter: fn(&S, usize) -> Option<V>,
-    /// Set value for an entity
-    setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for RuinMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_indices: self.entity_indices.clone(),
-            getter: self.getter,
-            setter: self.setter,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-        }
-    }
-}
-
-impl<S, V: Debug> Debug for RuinMove<S, V> {
+impl<S> Debug for RuinMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMove")
             .field("entities", &self.entity_indices.as_slice())
@@ -57,28 +45,19 @@ impl<S, V: Debug> Debug for RuinMove<S, V> {
     }
 }
 
-impl<S, V> RuinMove<S, V> {
-    /// Creates a new ruin move with typed function pointers.
+impl<S> RuinMove<S> {
+    /// Creates a new ruin move.
     ///
     /// # Arguments
     /// * `entity_indices` - Indices of entities to unassign
-    /// * `getter` - Function to get current value
-    /// * `setter` - Function to set value
     /// * `variable_name` - Name of the planning variable
     /// * `descriptor_index` - Entity descriptor index
-    pub fn new(
-        entity_indices: &[usize],
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
-        variable_name: &'static str,
-        descriptor_index: usize,
-    ) -> Self {
+    pub fn new(entity_indices: &[usize], variable_name: &'static str, descriptor_index: usize) -> Self {
         Self {
             entity_indices: SmallVec::from_slice(entity_indices),
-            getter,
-            setter,
             variable_name,
             descriptor_index,
+            _phantom: PhantomData,
         }
     }
 
@@ -93,31 +72,33 @@ impl<S, V> RuinMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for RuinMove<S, V>
+impl<S> Move<S> for RuinMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
         self.entity_indices
             .iter()
-            .any(|&idx| (self.getter)(solution, idx).is_some())
+            .any(|&idx| solution.list_len(idx) > 0)
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        let getter = self.getter;
-        let setter = self.setter;
         let descriptor = self.descriptor_index;
         let variable_name = self.variable_name;
 
         // Collect old values for undo
-        let old_values: SmallVec<[(usize, Option<V>); 8]> = self
+        let old_values: SmallVec<[(usize, Option<<S as VariableOperations>::Element>); 8]> = self
             .entity_indices
             .iter()
             .map(|&idx| {
-                let old = getter(score_director.working_solution(), idx);
+                let solution = score_director.working_solution();
+                let old = if solution.list_len(idx) > 0 {
+                    Some(solution.get(idx, 0))
+                } else {
+                    None
+                };
                 (idx, old)
             })
             .collect();
@@ -125,14 +106,19 @@ where
         // Unassign all entities
         for &idx in &self.entity_indices {
             score_director.before_variable_changed(descriptor, idx, variable_name);
-            setter(score_director.working_solution_mut(), idx, None);
+            let sol = score_director.working_solution_mut();
+            if sol.list_len(idx) > 0 {
+                sol.remove(idx, 0);
+            }
             score_director.after_variable_changed(descriptor, idx, variable_name);
         }
 
         // Register undo to restore old values
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, old_value) in old_values {
-                setter(s, idx, old_value);
+                if let Some(old) = old_value {
+                    s.insert(idx, 0, old);
+                }
             }
         }));
     }
@@ -153,6 +139,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -160,7 +147,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Task {
-        assigned_to: Option<i32>,
+        assigned_to: Option<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -179,6 +166,58 @@ mod tests {
         }
     }
 
+    impl VariableOperations for Schedule {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            10 // 10 possible assignments
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tasks.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tasks.iter().filter_map(|t| t.assigned_to).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tasks[entity_idx].assigned_to = Some(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            if self.tasks[entity_idx].assigned_to.is_some() {
+                1
+            } else {
+                0
+            }
+        }
+
+        fn remove(&mut self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].assigned_to.take().unwrap()
+        }
+
+        fn insert(&mut self, entity_idx: usize, _pos: usize, elem: Self::Element) {
+            self.tasks[entity_idx].assigned_to = Some(elem);
+        }
+
+        fn get(&self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].assigned_to.unwrap()
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "assigned_to"
+        }
+
+        fn is_list_variable() -> bool {
+            false
+        }
+    }
+
     fn get_tasks(s: &Schedule) -> &Vec<Task> {
         &s.tasks
     }
@@ -186,17 +225,8 @@ mod tests {
         &mut s.tasks
     }
 
-    fn get_assigned(s: &Schedule, idx: usize) -> Option<i32> {
-        s.tasks.get(idx).and_then(|t| t.assigned_to)
-    }
-    fn set_assigned(s: &mut Schedule, idx: usize, v: Option<i32>) {
-        if let Some(t) = s.tasks.get_mut(idx) {
-            t.assigned_to = v;
-        }
-    }
-
     fn create_director(
-        assignments: &[Option<i32>],
+        assignments: &[Option<usize>],
     ) -> SimpleScoreDirector<Schedule, impl Fn(&Schedule) -> SimpleScore> {
         let tasks: Vec<Task> = assignments
             .iter()
@@ -220,7 +250,7 @@ mod tests {
     fn ruin_single_entity() {
         let mut director = create_director(&[Some(1), Some(2), Some(3)]);
 
-        let m = RuinMove::<Schedule, i32>::new(&[1], get_assigned, set_assigned, "assigned_to", 0);
+        let m = RuinMove::<Schedule>::new(&[1], "assigned_to", 0);
 
         assert!(m.is_doable(&director));
 
@@ -228,28 +258,22 @@ mod tests {
             let mut recording = RecordingScoreDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            assert_eq!(get_assigned(recording.working_solution(), 0), Some(1));
-            assert_eq!(get_assigned(recording.working_solution(), 1), None);
-            assert_eq!(get_assigned(recording.working_solution(), 2), Some(3));
+            assert_eq!(recording.working_solution().tasks[0].assigned_to, Some(1));
+            assert_eq!(recording.working_solution().tasks[1].assigned_to, None);
+            assert_eq!(recording.working_solution().tasks[2].assigned_to, Some(3));
 
             recording.undo_changes();
         }
 
         // Restored
-        assert_eq!(get_assigned(director.working_solution(), 1), Some(2));
+        assert_eq!(director.working_solution().tasks[1].assigned_to, Some(2));
     }
 
     #[test]
     fn ruin_multiple_entities() {
         let mut director = create_director(&[Some(1), Some(2), Some(3), Some(4)]);
 
-        let m = RuinMove::<Schedule, i32>::new(
-            &[0, 2, 3],
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        );
+        let m = RuinMove::<Schedule>::new(&[0, 2, 3], "assigned_to", 0);
 
         assert!(m.is_doable(&director));
         assert_eq!(m.ruin_count(), 3);
@@ -258,18 +282,18 @@ mod tests {
             let mut recording = RecordingScoreDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            assert_eq!(get_assigned(recording.working_solution(), 0), None);
-            assert_eq!(get_assigned(recording.working_solution(), 1), Some(2));
-            assert_eq!(get_assigned(recording.working_solution(), 2), None);
-            assert_eq!(get_assigned(recording.working_solution(), 3), None);
+            assert_eq!(recording.working_solution().tasks[0].assigned_to, None);
+            assert_eq!(recording.working_solution().tasks[1].assigned_to, Some(2));
+            assert_eq!(recording.working_solution().tasks[2].assigned_to, None);
+            assert_eq!(recording.working_solution().tasks[3].assigned_to, None);
 
             recording.undo_changes();
         }
 
         // All restored
-        assert_eq!(get_assigned(director.working_solution(), 0), Some(1));
-        assert_eq!(get_assigned(director.working_solution(), 2), Some(3));
-        assert_eq!(get_assigned(director.working_solution(), 3), Some(4));
+        assert_eq!(director.working_solution().tasks[0].assigned_to, Some(1));
+        assert_eq!(director.working_solution().tasks[2].assigned_to, Some(3));
+        assert_eq!(director.working_solution().tasks[3].assigned_to, Some(4));
     }
 
     #[test]
@@ -278,8 +302,7 @@ mod tests {
         let director = create_director(&[Some(1), None]);
 
         // Ruin both - still doable because entity 0 is assigned
-        let m =
-            RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+        let m = RuinMove::<Schedule>::new(&[0, 1], "assigned_to", 0);
 
         assert!(m.is_doable(&director));
     }
@@ -288,8 +311,7 @@ mod tests {
     fn ruin_all_unassigned_not_doable() {
         let director = create_director(&[None, None]);
 
-        let m =
-            RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+        let m = RuinMove::<Schedule>::new(&[0, 1], "assigned_to", 0);
 
         assert!(!m.is_doable(&director));
     }

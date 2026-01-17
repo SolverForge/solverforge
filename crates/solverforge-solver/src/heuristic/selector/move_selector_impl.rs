@@ -36,7 +36,7 @@ use super::typed_value::StaticTypedValueSelector;
 pub enum MoveSelectorImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     /// Change moves - assigns values to entities.
     Change(ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>),
@@ -63,7 +63,7 @@ where
 impl<S, V> Debug for MoveSelectorImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -84,14 +84,14 @@ where
 unsafe impl<S, V> Send for MoveSelectorImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
 }
 
 impl<S, V> MoveSelectorImpl<S, V>
 where
     S: PlanningSolution + VariableOperations<Element = V>,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     /// Creates a change selector with the given values.
     pub fn change(values: Vec<V>) -> Self {
@@ -327,7 +327,7 @@ where
 impl<S, V> Default for MoveSelectorImpl<S, V>
 where
     S: PlanningSolution + VariableOperations<Element = V>,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn default() -> Self {
         Self::list_change()
@@ -337,7 +337,7 @@ where
 impl<S, V> MoveSelector<S, MoveImpl<S, V>> for MoveSelectorImpl<S, V>
 where
     S: PlanningSolution + VariableOperations<Element = V>,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,

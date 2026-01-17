@@ -163,7 +163,7 @@ where
 impl<S, V, D> Phase<S, D> for ListPhaseImpl<S, V, D>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
     D: ScoreDirector<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
@@ -270,7 +270,7 @@ where
 impl<S, V, D> Phase<S, D> for PhaseSequence<S, V, D>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
     D: ScoreDirector<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
@@ -304,7 +304,7 @@ where
 impl<S, V> PhaseFactory<S, V>
 where
     S: PlanningSolution + VariableOperations<Element = V>,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
     S::Score: Score,
 {
     /// Creates a construction phase from configuration.

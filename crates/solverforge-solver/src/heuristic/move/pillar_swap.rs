@@ -5,49 +5,34 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! PillarSwapMove uses typed function pointers instead of `dyn Any` for complete
-//! compile-time type safety. No runtime type checks or downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::Move;
 
 /// A move that swaps values between two pillars.
 ///
-/// Stores pillar indices and typed function pointers for zero-erasure access.
-/// Undo is handled by `RecordingScoreDirector`, not by this move.
+/// Stores pillar indices and uses `VariableOperations` for zero-erasure access.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The variable value type
-pub struct PillarSwapMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone)]
+pub struct PillarSwapMove<S> {
     left_indices: Vec<usize>,
     right_indices: Vec<usize>,
     descriptor_index: usize,
     variable_name: &'static str,
-    /// Typed getter function pointer - zero erasure.
-    getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
-    setter: fn(&mut S, usize, Option<V>),
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Clone> Clone for PillarSwapMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            left_indices: self.left_indices.clone(),
-            right_indices: self.right_indices.clone(),
-            descriptor_index: self.descriptor_index,
-            variable_name: self.variable_name,
-            getter: self.getter,
-            setter: self.setter,
-        }
-    }
-}
-
-impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
+impl<S> Debug for PillarSwapMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PillarSwapMove")
             .field("left_indices", &self.left_indices)
@@ -58,21 +43,17 @@ impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
     }
 }
 
-impl<S, V> PillarSwapMove<S, V> {
-    /// Creates a new pillar swap move with typed function pointers.
+impl<S> PillarSwapMove<S> {
+    /// Creates a new pillar swap move.
     ///
     /// # Arguments
     /// * `left_indices` - Indices of entities in the left pillar
     /// * `right_indices` - Indices of entities in the right pillar
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
     /// * `variable_name` - Name of the variable being swapped
     /// * `descriptor_index` - Index in the entity descriptor
     pub fn new(
         left_indices: Vec<usize>,
         right_indices: Vec<usize>,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -81,8 +62,7 @@ impl<S, V> PillarSwapMove<S, V> {
             right_indices,
             descriptor_index,
             variable_name,
-            getter,
-            setter,
+            _phantom: PhantomData,
         }
     }
 
@@ -97,76 +77,64 @@ impl<S, V> PillarSwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for PillarSwapMove<S, V>
+impl<S> Move<S> for PillarSwapMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         if self.left_indices.is_empty() || self.right_indices.is_empty() {
             return false;
         }
 
-        let count = score_director.entity_count(self.descriptor_index);
-        let max = count.unwrap_or(0);
+        let solution = score_director.working_solution();
 
-        // Check all indices valid
+        // Check all entities are assigned
         for &idx in self.left_indices.iter().chain(&self.right_indices) {
-            if idx >= max {
+            if solution.list_len(idx) == 0 {
                 return false;
             }
         }
 
-        // Get representative values using typed getter - zero erasure
-        let left_val = self
-            .left_indices
-            .first()
-            .map(|&idx| (self.getter)(score_director.working_solution(), idx));
-        let right_val = self
-            .right_indices
-            .first()
-            .map(|&idx| (self.getter)(score_director.working_solution(), idx));
+        // Get representative values
+        let left_val = self.left_indices.first().map(|&idx| solution.get(idx, 0));
+        let right_val = self.right_indices.first().map(|&idx| solution.get(idx, 0));
 
         left_val != right_val
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        // Capture all old values using typed getter - zero erasure
-        let left_old: Vec<(usize, Option<V>)> = self
+        // Capture all old values
+        let left_old: Vec<(usize, <S as VariableOperations>::Element)> = self
             .left_indices
             .iter()
-            .map(|&idx| (idx, (self.getter)(score_director.working_solution(), idx)))
+            .map(|&idx| (idx, score_director.working_solution().get(idx, 0)))
             .collect();
-        let right_old: Vec<(usize, Option<V>)> = self
+        let right_old: Vec<(usize, <S as VariableOperations>::Element)> = self
             .right_indices
             .iter()
-            .map(|&idx| (idx, (self.getter)(score_director.working_solution(), idx)))
+            .map(|&idx| (idx, score_director.working_solution().get(idx, 0)))
             .collect();
 
         // Get representative values for the swap
-        let left_value = left_old.first().and_then(|(_, v)| v.clone());
-        let right_value = right_old.first().and_then(|(_, v)| v.clone());
+        let left_value = left_old.first().map(|(_, v)| *v).unwrap();
+        let right_value = right_old.first().map(|(_, v)| *v).unwrap();
 
         // Notify before changes for all entities
         for &idx in self.left_indices.iter().chain(&self.right_indices) {
             score_director.before_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
-        // Swap: left gets right's value using typed setter - zero erasure
+        // Swap: left gets right's value
         for &idx in &self.left_indices {
-            (self.setter)(
-                score_director.working_solution_mut(),
-                idx,
-                right_value.clone(),
-            );
+            let sol = score_director.working_solution_mut();
+            sol.remove(idx, 0);
+            sol.insert(idx, 0, right_value);
         }
         // Right gets left's value
         for &idx in &self.right_indices {
-            (self.setter)(
-                score_director.working_solution_mut(),
-                idx,
-                left_value.clone(),
-            );
+            let sol = score_director.working_solution_mut();
+            sol.remove(idx, 0);
+            sol.insert(idx, 0, left_value);
         }
 
         // Notify after changes
@@ -174,14 +142,15 @@ where
             score_director.after_variable_changed(self.descriptor_index, idx, self.variable_name);
         }
 
-        // Register typed undo closure - restore all original values
-        let setter = self.setter;
+        // Register undo - restore all original values
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, old_value) in left_old {
-                setter(s, idx, old_value);
+                s.remove(idx, 0);
+                s.insert(idx, 0, old_value);
             }
             for (idx, old_value) in right_old {
-                setter(s, idx, old_value);
+                s.remove(idx, 0);
+                s.insert(idx, 0, old_value);
             }
         }));
     }
@@ -203,6 +172,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -211,7 +181,7 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Employee {
         id: usize,
-        shift: Option<i32>,
+        shift: Option<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -230,15 +200,55 @@ mod tests {
         }
     }
 
-    // Typed getter - zero erasure
-    fn get_shift(s: &Solution, idx: usize) -> Option<i32> {
-        s.employees.get(idx).and_then(|e| e.shift)
-    }
+    impl VariableOperations for Solution {
+        type Element = usize;
 
-    // Typed setter - zero erasure
-    fn set_shift(s: &mut Solution, idx: usize, v: Option<i32>) {
-        if let Some(e) = s.employees.get_mut(idx) {
-            e.shift = v;
+        fn element_count(&self) -> usize {
+            10 // 10 shift values
+        }
+
+        fn entity_count(&self) -> usize {
+            self.employees.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.employees.iter().filter_map(|e| e.shift).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.employees[entity_idx].shift = Some(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            if self.employees[entity_idx].shift.is_some() {
+                1
+            } else {
+                0
+            }
+        }
+
+        fn remove(&mut self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.employees[entity_idx].shift.take().unwrap()
+        }
+
+        fn insert(&mut self, entity_idx: usize, _pos: usize, elem: Self::Element) {
+            self.employees[entity_idx].shift = Some(elem);
+        }
+
+        fn get(&self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.employees[entity_idx].shift.unwrap()
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "shift"
+        }
+
+        fn is_list_variable() -> bool {
+            false
         }
     }
 
@@ -263,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pillar_swap_all_entities() {
+    fn pillar_swap_all_entities() {
         let mut director = create_director(vec![
             Employee {
                 id: 0,
@@ -283,33 +293,26 @@ mod tests {
             },
         ]);
 
-        let m = PillarSwapMove::<Solution, i32>::new(
-            vec![0, 1],
-            vec![2, 3],
-            get_shift,
-            set_shift,
-            "shift",
-            0,
-        );
+        let m = PillarSwapMove::<Solution>::new(vec![0, 1], vec![2, 3], "shift", 0);
         assert!(m.is_doable(&director));
 
         {
             let mut recording = RecordingScoreDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            // Verify swap using typed getter
-            assert_eq!(get_shift(recording.working_solution(), 0), Some(2));
-            assert_eq!(get_shift(recording.working_solution(), 1), Some(2));
-            assert_eq!(get_shift(recording.working_solution(), 2), Some(1));
-            assert_eq!(get_shift(recording.working_solution(), 3), Some(1));
+            // Verify swap
+            assert_eq!(recording.working_solution().employees[0].shift, Some(2));
+            assert_eq!(recording.working_solution().employees[1].shift, Some(2));
+            assert_eq!(recording.working_solution().employees[2].shift, Some(1));
+            assert_eq!(recording.working_solution().employees[3].shift, Some(1));
 
             recording.undo_changes();
         }
 
-        assert_eq!(get_shift(director.working_solution(), 0), Some(1));
-        assert_eq!(get_shift(director.working_solution(), 1), Some(1));
-        assert_eq!(get_shift(director.working_solution(), 2), Some(2));
-        assert_eq!(get_shift(director.working_solution(), 3), Some(2));
+        assert_eq!(director.working_solution().employees[0].shift, Some(1));
+        assert_eq!(director.working_solution().employees[1].shift, Some(1));
+        assert_eq!(director.working_solution().employees[2].shift, Some(2));
+        assert_eq!(director.working_solution().employees[3].shift, Some(2));
 
         // Verify entity identity preserved
         let solution = director.working_solution();
@@ -320,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pillar_swap_same_value_not_doable() {
+    fn pillar_swap_same_value_not_doable() {
         let director = create_director(vec![
             Employee {
                 id: 0,
@@ -331,25 +334,17 @@ mod tests {
                 shift: Some(1),
             },
         ]);
-        let m = PillarSwapMove::<Solution, i32>::new(
-            vec![0],
-            vec![1],
-            get_shift,
-            set_shift,
-            "shift",
-            0,
-        );
+        let m = PillarSwapMove::<Solution>::new(vec![0], vec![1], "shift", 0);
         assert!(!m.is_doable(&director));
     }
 
     #[test]
-    fn test_pillar_swap_empty_pillar_not_doable() {
+    fn pillar_swap_empty_pillar_not_doable() {
         let director = create_director(vec![Employee {
             id: 0,
             shift: Some(1),
         }]);
-        let m =
-            PillarSwapMove::<Solution, i32>::new(vec![], vec![0], get_shift, set_shift, "shift", 0);
+        let m = PillarSwapMove::<Solution>::new(vec![], vec![0], "shift", 0);
         assert!(!m.is_doable(&director));
     }
 }

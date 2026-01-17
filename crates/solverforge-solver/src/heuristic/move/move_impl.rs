@@ -42,7 +42,7 @@ use super::traits::Move;
 pub enum MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     /// Change move - assigns a new value to a single entity's variable.
     Change(ChangeMove<S, V>),
@@ -92,7 +92,7 @@ where
 impl<S, V> Debug for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -125,21 +125,21 @@ where
 unsafe impl<S, V> Send for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
 }
 
 unsafe impl<S, V> Sync for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
 }
 
 impl<S, V> Move<S> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         match self {
@@ -243,7 +243,7 @@ where
 impl<S, V> From<ChangeMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: ChangeMove<S, V>) -> Self {
         Self::Change(m)
@@ -253,7 +253,7 @@ where
 impl<S, V> From<SwapMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: SwapMove<S, V>) -> Self {
         Self::Swap(m)
@@ -263,7 +263,7 @@ where
 impl<S, V> From<PillarChangeMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: PillarChangeMove<S, V>) -> Self {
         Self::PillarChange(m)
@@ -273,7 +273,7 @@ where
 impl<S, V> From<PillarSwapMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: PillarSwapMove<S, V>) -> Self {
         Self::PillarSwap(m)
@@ -283,7 +283,7 @@ where
 impl<S, V> From<ListChangeMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: ListChangeMove<S, V>) -> Self {
         Self::ListChange(m)
@@ -293,7 +293,7 @@ where
 impl<S, V> From<ListSwapMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: ListSwapMove<S, V>) -> Self {
         Self::ListSwap(m)
@@ -303,7 +303,7 @@ where
 impl<S, V> From<SubListChangeMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: SubListChangeMove<S, V>) -> Self {
         Self::SubListChange(m)
@@ -313,7 +313,7 @@ where
 impl<S, V> From<SubListSwapMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: SubListSwapMove<S, V>) -> Self {
         Self::SubListSwap(m)
@@ -323,7 +323,7 @@ where
 impl<S, V> From<ListReverseMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: ListReverseMove<S, V>) -> Self {
         Self::ListReverse(m)
@@ -333,7 +333,7 @@ where
 impl<S, V> From<KOptMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: KOptMove<S, V>) -> Self {
         Self::KOpt(m)
@@ -343,7 +343,7 @@ where
 impl<S, V> From<RuinMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: RuinMove<S, V>) -> Self {
         Self::Ruin(m)
@@ -353,7 +353,7 @@ where
 impl<S, V> From<ListRuinMove<S, V>> for MoveImpl<S, V>
 where
     S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Send + Sync + Debug + 'static,
 {
     fn from(m: ListRuinMove<S, V>) -> Self {
         Self::ListRuin(m)

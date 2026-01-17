@@ -247,9 +247,7 @@ use tracing::info;
 
 use crate::manager::ListConstructionPhaseBuilder;
 use crate::operations::VariableOperations;
-use crate::phase::localsearch::{
-    AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase,
-};
+use crate::phase::localsearch::{AcceptedCountForager, AcceptorImpl, LocalSearchPhase};
 use crate::heuristic::{ListChangeMoveSelector, FromSolutionEntitySelector};
 use crate::termination::{OrTermination, TimeTermination};
 
@@ -260,18 +258,36 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 ///
 /// Wires the existing infrastructure:
 /// - `ListConstructionPhase` for construction
-/// - `LocalSearchPhase` with `LateAcceptanceAcceptor` for local search
+/// - `LocalSearchPhase` with `AcceptorImpl` (monomorphic) for local search
 /// - Existing move selectors (`ListChangeMoveSelector`, etc.)
 ///
-/// The `VariableOperations` trait provides the abstraction layer that allows
-/// the same solver to work with both basic and list variables.
+/// # Zero-Erasure Architecture
+///
+/// Uses [`AcceptorImpl`] enum instead of `Box<dyn Acceptor>` to preserve
+/// concrete types throughout the solver pipeline. The compiler generates
+/// code paths for all acceptor variants at compile time.
+///
+/// Solutions are sent through the channel - no Clone required.
+/// Ownership transfers through the channel for the final solution.
+///
+/// # Example
+///
+/// ```ignore
+/// use solverforge_solver::run_solver;
+/// use tokio::sync::mpsc;
+///
+/// let (tx, mut rx) = mpsc::unbounded_channel();
+/// run_solver(my_solution, my_constraints, None, tx);
+/// while let Some((solution, score)) = rx.recv().await {
+///     println!("New best: {}", score);
+/// }
+/// ```
 pub fn run_solver<S, C>(
     solution: S,
     constraints: C,
     terminate: Option<&AtomicBool>,
     sender: mpsc::UnboundedSender<(S, S::Score)>,
-) -> S
-where
+) where
     S: PlanningSolution + VariableOperations<Element = usize>,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
@@ -294,7 +310,9 @@ where
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
         info!(event = "solve_end", score = %score);
-        return solver_scope.take_best_or_working_solution();
+        let result = solver_scope.take_best_or_working_solution();
+        let _ = sender.send((result, score));
+        return;
     }
 
     let time_limit = Duration::from_secs(DEFAULT_TIME_LIMIT_SECS);
@@ -311,7 +329,7 @@ where
         S::descriptor_index(),
     ).create_phase();
 
-    // Local search phase with late acceptance
+    // Local search phase with late acceptance (monomorphic AcceptorImpl)
     let entity_selector = FromSolutionEntitySelector::new(S::descriptor_index());
     let move_selector = ListChangeMoveSelector::new(
         entity_selector,
@@ -321,7 +339,7 @@ where
         S::variable_name(),
         S::descriptor_index(),
     );
-    let acceptor = LateAcceptanceAcceptor::new(400);
+    let acceptor: AcceptorImpl<S> = AcceptorImpl::default();
     let forager = AcceptedCountForager::new(1);
     let local_search = LocalSearchPhase::new(move_selector, acceptor, forager, None);
 
@@ -335,12 +353,9 @@ where
         solver.solve(director)
     };
 
-    // Send final solution
-    if let Some(score) = result.score() {
-        let _ = sender.send((result.clone(), score));
-    }
-
     let final_score = result.score().unwrap_or_default();
     info!(event = "solve_end", score = %final_score);
-    result
+
+    // Send final solution through channel (ownership transferred)
+    let _ = sender.send((result, final_score));
 }

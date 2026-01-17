@@ -357,6 +357,21 @@ pub enum AcceptorConfig {
 
     /// Great deluge acceptor.
     GreatDeluge(GreatDelugeConfig),
+
+    /// Step counting hill climbing acceptor.
+    StepCountingHillClimbing(StepCountingHillClimbingConfig),
+
+    /// Diversified late acceptance acceptor.
+    DiversifiedLateAcceptance(DiversifiedLateAcceptanceConfig),
+
+    /// Entity tabu acceptor.
+    EntityTabu(EntityTabuConfig),
+
+    /// Move tabu acceptor.
+    MoveTabu(MoveTabuConfig),
+
+    /// Value tabu acceptor.
+    ValueTabu(ValueTabuConfig),
 }
 
 /// Tabu search configuration.
@@ -400,6 +415,49 @@ pub struct GreatDelugeConfig {
     pub water_level_increase_ratio: Option<f64>,
 }
 
+/// Step counting hill climbing configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StepCountingHillClimbingConfig {
+    /// Number of steps to count before accepting worse moves.
+    pub step_count_limit: Option<usize>,
+}
+
+/// Diversified late acceptance configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DiversifiedLateAcceptanceConfig {
+    /// Size of late acceptance list.
+    pub late_acceptance_size: Option<usize>,
+
+    /// Diversity minimum percentage (0-100).
+    pub diversity_minimum_percentage: Option<u8>,
+}
+
+/// Entity tabu acceptor configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct EntityTabuConfig {
+    /// Size of entity tabu list.
+    pub entity_tabu_size: Option<usize>,
+}
+
+/// Move tabu acceptor configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MoveTabuConfig {
+    /// Size of move tabu list.
+    pub move_tabu_size: Option<usize>,
+}
+
+/// Value tabu acceptor configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ValueTabuConfig {
+    /// Size of value tabu list.
+    pub value_tabu_size: Option<usize>,
+}
+
 /// Forager configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -436,6 +494,18 @@ pub enum MoveSelectorConfig {
     /// Swap move selector.
     SwapMoveSelector(SwapMoveConfig),
 
+    /// List change move selector.
+    ListChangeMoveSelector(ListChangeMoveConfig),
+
+    /// List ruin move selector.
+    ListRuinMoveSelector(ListRuinMoveConfig),
+
+    /// Ruin move selector.
+    RuinMoveSelector(RuinMoveSelectorConfig),
+
+    /// K-opt move selector.
+    KOptMoveSelector(KOptMoveSelectorConfig),
+
     /// Union of multiple selectors.
     UnionMoveSelector(UnionMoveSelectorConfig),
 
@@ -457,6 +527,41 @@ pub struct ChangeMoveConfig {
 pub struct SwapMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+}
+
+/// List change move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListChangeMoveConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+}
+
+/// List ruin move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListRuinMoveConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+}
+
+/// Ruin move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RuinMoveSelectorConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+}
+
+/// K-opt move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct KOptMoveSelectorConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+
+    /// K value for k-opt moves.
+    pub k_value: Option<usize>,
 }
 
 /// Union move selector configuration.

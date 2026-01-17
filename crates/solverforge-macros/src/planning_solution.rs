@@ -196,6 +196,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
     let solvable_solution_impl =
         generate_solvable_solution(&shadow_config, &basic_config, name, &constraints_path);
+    let variable_operations_impl = generate_variable_operations(&shadow_config, fields, name);
 
     let expanded = quote! {
         impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
@@ -230,6 +231,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         #shadow_support_impl
 
         #solvable_solution_impl
+
+        #variable_operations_impl
     };
 
     Ok(expanded)
@@ -494,57 +497,69 @@ fn generate_solvable_solution(
     };
 
     // Generate Solvable and Analyzable trait impls only if constraints are specified
-    let solvable_impl = constraints_path.as_ref().map(|path| {
-        let constraints_fn: syn::Path =
-            syn::parse_str(path).expect("constraints path must be a valid Rust path");
+    // For list variables, we use run_solver with VariableOperations (zero-erasure)
+    let solvable_impl = if has_list_config {
+        constraints_path.as_ref().map(|path| {
+            let constraints_fn: syn::Path =
+                syn::parse_str(path).expect("constraints path must be a valid Rust path");
 
-        quote! {
-            impl ::solverforge::Solvable for #solution_name {
-                fn solve(
-                    self,
-                    terminate: Option<&std::sync::atomic::AtomicBool>,
-                    sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
-                ) {
-                    let _ = #solution_name::solve_internal(self, terminate, sender);
+            quote! {
+                impl ::solverforge::Solvable for #solution_name {
+                    fn solve(
+                        self,
+                        terminate: Option<&std::sync::atomic::AtomicBool>,
+                        sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+                    ) {
+                        ::solverforge::__internal::init_console();
+                        ::solverforge::__internal::run_solver(
+                            self,
+                            #constraints_fn(),
+                            terminate,
+                            sender,
+                        );
+                    }
+                }
+
+                impl ::solverforge::Analyzable for #solution_name {
+                    fn analyze(&self) -> ::solverforge::ScoreAnalysis<<Self as ::solverforge::__internal::PlanningSolution>::Score> {
+                        use ::solverforge::__internal::{
+                            TypedScoreDirector, ScoreDirector, ShadowAwareScoreDirector,
+                        };
+
+                        let constraints = #constraints_fn();
+                        let mut director = ShadowAwareScoreDirector::new(
+                            TypedScoreDirector::with_descriptor(
+                                self.clone(),
+                                constraints,
+                                Self::descriptor(),
+                                Self::entity_count,
+                            ),
+                        );
+
+                        let score = director.calculate_score();
+                        let constraint_scores = director.constraint_match_totals();
+
+                        let constraints = constraint_scores
+                            .into_iter()
+                            .map(|(name, weight, contribution, match_count)| {
+                                ::solverforge::ConstraintAnalysis {
+                                    name,
+                                    weight,
+                                    score: contribution,
+                                    match_count,
+                                }
+                            })
+                            .collect();
+
+                        ::solverforge::ScoreAnalysis { score, constraints }
+                    }
                 }
             }
-
-            impl ::solverforge::Analyzable for #solution_name {
-                fn analyze(&self) -> ::solverforge::ScoreAnalysis<<Self as ::solverforge::__internal::PlanningSolution>::Score> {
-                    use ::solverforge::__internal::{
-                        TypedScoreDirector, ScoreDirector, ShadowAwareScoreDirector,
-                    };
-
-                    let constraints = #constraints_fn();
-                    let mut director = ShadowAwareScoreDirector::new(
-                        TypedScoreDirector::with_descriptor(
-                            self.clone(),
-                            constraints,
-                            Self::descriptor(),
-                            Self::entity_count,
-                        ),
-                    );
-
-                    let score = director.calculate_score();
-                    let constraint_scores = director.constraint_match_totals();
-
-                    let constraints = constraint_scores
-                        .into_iter()
-                        .map(|(name, weight, contribution, match_count)| {
-                            ::solverforge::ConstraintAnalysis {
-                                name,
-                                weight,
-                                score: contribution,
-                                match_count,
-                            }
-                        })
-                        .collect();
-
-                    ::solverforge::ScoreAnalysis { score, constraints }
-                }
-            }
-        }
-    });
+        })
+    } else {
+        // Basic variables use the older approach (not yet migrated)
+        None
+    };
 
     quote! {
         #solvable_solution_impl
@@ -680,6 +695,108 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
                 #(#aggregate_updates)*
                 #(#compute_updates)*
                 #post_update
+            }
+        }
+    }
+}
+
+/// Generates VariableOperations implementation for list variables.
+fn generate_variable_operations(
+    shadow_config: &ShadowConfig,
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    solution_name: &Ident,
+) -> TokenStream {
+    let (list_owner, list_field, element_collection) = match (
+        &shadow_config.list_owner,
+        &shadow_config.list_field,
+        &shadow_config.element_collection,
+    ) {
+        (Some(lo), Some(lf), Some(ec)) => (lo, lf, ec),
+        _ => return TokenStream::new(),
+    };
+
+    let list_owner_ident = Ident::new(list_owner, proc_macro2::Span::call_site());
+    let list_field_ident = Ident::new(list_field, proc_macro2::Span::call_site());
+    let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
+
+    let entity_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .collect();
+
+    let descriptor_index = entity_fields
+        .iter()
+        .position(|f| f.ident.as_ref().map(|i| i.to_string()) == Some(list_owner.clone()))
+        .expect("list_owner must be a planning_entity_collection field");
+
+    let descriptor_index_lit = syn::LitInt::new(
+        &descriptor_index.to_string(),
+        proc_macro2::Span::call_site(),
+    );
+
+    let list_field_str = list_field.as_str();
+
+    quote! {
+        impl ::solverforge::__internal::VariableOperations for #solution_name {
+            type Element = usize;
+
+            #[inline]
+            fn element_count(&self) -> usize {
+                self.#element_collection_ident.len()
+            }
+
+            #[inline]
+            fn entity_count(&self) -> usize {
+                self.#list_owner_ident.len()
+            }
+
+            #[inline]
+            fn assigned_elements(&self) -> Vec<Self::Element> {
+                self.#list_owner_ident
+                    .iter()
+                    .flat_map(|e| e.#list_field_ident.iter().copied())
+                    .collect()
+            }
+
+            #[inline]
+            fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+                if let Some(e) = self.#list_owner_ident.get_mut(entity_idx) {
+                    e.#list_field_ident.push(elem);
+                }
+            }
+
+            #[inline]
+            fn list_len(&self, entity_idx: usize) -> usize {
+                self.#list_owner_ident
+                    .get(entity_idx)
+                    .map_or(0, |e| e.#list_field_ident.len())
+            }
+
+            #[inline]
+            fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+                self.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+            }
+
+            #[inline]
+            fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+                if let Some(e) = self.#list_owner_ident.get_mut(entity_idx) {
+                    e.#list_field_ident.insert(pos, elem);
+                }
+            }
+
+            #[inline]
+            fn descriptor_index() -> usize {
+                #descriptor_index_lit
+            }
+
+            #[inline]
+            fn variable_name() -> &'static str {
+                #list_field_str
+            }
+
+            #[inline]
+            fn is_list_variable() -> bool {
+                true
             }
         }
     }

@@ -8,9 +8,10 @@ mod forager;
 mod phase;
 
 pub use acceptor::{
-    Acceptor, DiversifiedLateAcceptanceAcceptor, EntityTabuAcceptor, GreatDelugeAcceptor,
-    HillClimbingAcceptor, LateAcceptanceAcceptor, MoveTabuAcceptor, SimulatedAnnealingAcceptor,
-    StepCountingHillClimbingAcceptor, TabuSearchAcceptor, ValueTabuAcceptor,
+    Acceptor, AcceptorImpl, DiversifiedLateAcceptanceAcceptor, EntityTabuAcceptor,
+    GreatDelugeAcceptor, HillClimbingAcceptor, LateAcceptanceAcceptor, MoveTabuAcceptor,
+    SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
+    ValueTabuAcceptor,
 };
 pub use forager::{AcceptedCountForager, FirstAcceptedForager, LocalSearchForager};
 pub use phase::LocalSearchPhase;

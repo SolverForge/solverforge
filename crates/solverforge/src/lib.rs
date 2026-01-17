@@ -137,6 +137,10 @@ pub mod __internal {
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
 
+    // Variable operations for run_solver
+    pub use solverforge_solver::operations::VariableOperations;
+    pub use solverforge_solver::run_solver;
+
     // Config
     pub use solverforge_config::SolverConfig;
 }

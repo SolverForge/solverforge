@@ -8,8 +8,6 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 
-use crate::heuristic::r#move::Move;
-
 /// Trait for collecting and selecting moves in local search.
 ///
 /// Foragers are responsible for:
@@ -19,11 +17,9 @@ use crate::heuristic::r#move::Move;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `M` - The move type (for trait bounds only, moves are never stored)
-pub trait LocalSearchForager<S, M>: Send + Debug
+pub trait LocalSearchForager<S>: Send + Debug
 where
     S: PlanningSolution,
-    M: Move<S>,
 {
     /// Called at the start of each step to reset state.
     fn step_started(&mut self);
@@ -100,10 +96,9 @@ where
     }
 }
 
-impl<S, M> LocalSearchForager<S, M> for AcceptedCountForager<S>
+impl<S> LocalSearchForager<S> for AcceptedCountForager<S>
 where
     S: PlanningSolution,
-    M: Move<S>,
 {
     fn step_started(&mut self) {
         self.accepted_moves.clear();
@@ -195,10 +190,9 @@ where
     }
 }
 
-impl<S, M> LocalSearchForager<S, M> for FirstAcceptedForager<S>
+impl<S> LocalSearchForager<S> for FirstAcceptedForager<S>
 where
     S: PlanningSolution,
-    M: Move<S>,
 {
     fn step_started(&mut self) {
         self.accepted_move = None;
@@ -222,7 +216,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::heuristic::r#move::ChangeMove;
     use solverforge_core::score::SimpleScore;
 
     #[derive(Clone, Debug)]
@@ -242,37 +235,31 @@ mod tests {
         }
     }
 
-    type TestMove = ChangeMove<DummySolution, i32>;
-
     #[test]
     fn test_accepted_count_forager_collects_indices() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
+        forager.step_started();
 
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
-        assert!(!<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
+        forager.add_move_index(0, SimpleScore::of(-10));
+        assert!(!forager.is_quit_early());
 
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 1, SimpleScore::of(-5));
-        assert!(!<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
+        forager.add_move_index(1, SimpleScore::of(-5));
+        assert!(!forager.is_quit_early());
 
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 2, SimpleScore::of(-8));
-        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
+        forager.add_move_index(2, SimpleScore::of(-8));
+        assert!(forager.is_quit_early());
     }
 
     #[test]
     fn test_accepted_count_forager_picks_best_index() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(10);
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
+        forager.step_started();
 
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 1, SimpleScore::of(-5)); // Best
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 2, SimpleScore::of(-8));
+        forager.add_move_index(0, SimpleScore::of(-10));
+        forager.add_move_index(1, SimpleScore::of(-5)); // Best
+        forager.add_move_index(2, SimpleScore::of(-8));
 
-        let (index, score) = <AcceptedCountForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::pick_move_index(&mut forager)
-        .unwrap();
+        let (index, score) = forager.pick_move_index().unwrap();
         assert_eq!(index, 1);
         assert_eq!(score, SimpleScore::of(-5));
     }
@@ -280,33 +267,25 @@ mod tests {
     #[test]
     fn test_accepted_count_forager_empty() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
+        forager.step_started();
 
-        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::pick_move_index(&mut forager)
-        .is_none());
+        assert!(forager.pick_move_index().is_none());
     }
 
     #[test]
     fn test_first_accepted_forager() {
         let mut forager = FirstAcceptedForager::<DummySolution>::new();
-        <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
+        forager.step_started();
 
-        assert!(!<FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
+        assert!(!forager.is_quit_early());
 
-        <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
-        assert!(<FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(&forager));
+        forager.add_move_index(0, SimpleScore::of(-10));
+        assert!(forager.is_quit_early());
 
         // Second move should be ignored
-        <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 1, SimpleScore::of(-5));
+        forager.add_move_index(1, SimpleScore::of(-5));
 
-        let (index, score) = <FirstAcceptedForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::pick_move_index(&mut forager)
-        .unwrap();
+        let (index, score) = forager.pick_move_index().unwrap();
         // Should get the first one
         assert_eq!(index, 0);
         assert_eq!(score, SimpleScore::of(-10));
@@ -316,15 +295,11 @@ mod tests {
     fn test_forager_resets_on_step() {
         let mut forager = AcceptedCountForager::<DummySolution>::new(3);
 
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
+        forager.step_started();
+        forager.add_move_index(0, SimpleScore::of(-10));
 
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(&mut forager);
+        forager.step_started();
         // After reset, should be empty
-        assert!(<AcceptedCountForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::pick_move_index(&mut forager)
-        .is_none());
+        assert!(forager.pick_move_index().is_none());
     }
 }

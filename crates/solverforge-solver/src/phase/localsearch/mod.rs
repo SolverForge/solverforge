@@ -5,6 +5,7 @@
 
 mod acceptor;
 mod forager;
+mod forager_impl;
 mod phase;
 
 pub use acceptor::{
@@ -14,6 +15,7 @@ pub use acceptor::{
     ValueTabuAcceptor,
 };
 pub use forager::{AcceptedCountForager, FirstAcceptedForager, LocalSearchForager};
+pub use forager_impl::ForagerImpl;
 pub use phase::LocalSearchPhase;
 
 /// Local search phase configuration.

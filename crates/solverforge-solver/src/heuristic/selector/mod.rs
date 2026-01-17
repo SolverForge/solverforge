@@ -17,7 +17,6 @@ pub(crate) mod pillar;
 pub(crate) mod ruin;
 pub(crate) mod selection_order;
 pub(crate) mod typed_move_selector;
-pub(crate) mod typed_value;
 
 pub use move_selector_impl::MoveSelectorImpl;
 pub use typed_move_selector::MoveSelector;

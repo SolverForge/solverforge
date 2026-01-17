@@ -2,9 +2,11 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use tracing::{debug, info, trace};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -98,10 +100,17 @@ where
     Fo: LocalSearchForager<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+        let phase_start = Instant::now();
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         // Calculate initial score
         let mut last_step_score = phase_scope.calculate_score();
+
+        info!(
+            event = "local_search_phase_start",
+            initial_score = %last_step_score,
+            step_limit = ?self.step_limit,
+        );
 
         // Notify acceptor of phase start
         self.acceptor.phase_started(&last_step_score);
@@ -109,17 +118,25 @@ where
         loop {
             // Check early termination
             if phase_scope.solver_scope().is_terminate_early() {
+                debug!(event = "local_search_terminated_early", reason = "termination_flag");
                 break;
             }
 
             // Check step limit
             if let Some(limit) = self.step_limit {
                 if phase_scope.step_count() >= limit {
+                    debug!(
+                        event = "local_search_step_limit_reached",
+                        step_count = phase_scope.step_count(),
+                        limit = limit,
+                    );
                     break;
                 }
             }
 
+            let step_start = Instant::now();
             let mut step_scope = StepScope::new(&mut phase_scope);
+            let step_number = step_scope.phase_scope().step_count();
 
             // Reset forager for this step
             self.forager.step_started();
@@ -129,6 +146,16 @@ where
             self.arena
                 .extend(self.move_selector.iter_moves(step_scope.score_director()));
 
+            let move_count = self.arena.len();
+            trace!(
+                event = "local_search_step_start",
+                step = step_number,
+                candidate_moves = move_count,
+            );
+
+            let mut evaluated_count = 0;
+            let mut accepted_count = 0;
+
             // Evaluate moves by index
             for i in 0..self.arena.len() {
                 let m = self.arena.get(i).unwrap();
@@ -136,6 +163,8 @@ where
                 if !m.is_doable(step_scope.score_director()) {
                     continue;
                 }
+
+                evaluated_count += 1;
 
                 // Use RecordingScoreDirector for automatic undo
                 let move_score = {
@@ -159,6 +188,7 @@ where
 
                 // Add index to forager if accepted (not the move itself)
                 if accepted {
+                    accepted_count += 1;
                     self.forager.add_move_index(i, move_score);
                 }
 
@@ -177,6 +207,18 @@ where
                 selected_move.do_move(step_scope.score_director_mut());
                 step_scope.set_step_score(selected_score);
 
+                let step_duration = step_start.elapsed();
+
+                debug!(
+                    event = "local_search_step_complete",
+                    step = step_number,
+                    moves_evaluated = evaluated_count,
+                    moves_accepted = accepted_count,
+                    old_score = %last_step_score,
+                    new_score = %selected_score,
+                    step_duration_ms = step_duration.as_millis() as u64,
+                );
+
                 // Update last step score
                 last_step_score = selected_score;
 
@@ -184,6 +226,11 @@ where
                 step_scope.phase_scope_mut().update_best_solution();
             } else {
                 // No accepted moves - we're stuck
+                debug!(
+                    event = "local_search_no_accepted_moves",
+                    step = step_number,
+                    moves_evaluated = evaluated_count,
+                );
                 break;
             }
 
@@ -192,6 +239,14 @@ where
 
         // Notify acceptor of phase end
         self.acceptor.phase_ended();
+
+        let phase_duration = phase_start.elapsed();
+        info!(
+            event = "local_search_phase_end",
+            final_score = %last_step_score,
+            total_steps = phase_scope.step_count(),
+            phase_duration_ms = phase_duration.as_millis() as u64,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

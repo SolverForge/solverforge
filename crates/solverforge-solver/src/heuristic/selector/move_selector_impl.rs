@@ -21,7 +21,10 @@ use super::entity::FromSolutionEntitySelector;
 use super::k_opt::{KOptConfig, KOptMoveSelector};
 use super::list_change::ListChangeMoveSelector;
 use super::list_ruin::ListRuinMoveSelector;
+use super::list_swap::ListSwapMoveSelector;
 use super::ruin::RuinMoveSelector;
+use super::sublist_change::SubListChangeMoveSelector;
+use super::sublist_swap::SubListSwapMoveSelector;
 use super::typed_move_selector::MoveSelector;
 use super::typed_move_selector::{ChangeMoveSelector, SwapMoveSelector};
 use super::typed_value::StaticTypedValueSelector;
@@ -41,6 +44,12 @@ where
     Swap(SwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>),
     /// List change moves - relocate elements.
     ListChange(ListChangeMoveSelector<S, V, FromSolutionEntitySelector>),
+    /// List swap moves - swap two elements.
+    ListSwap(ListSwapMoveSelector<S, V, FromSolutionEntitySelector>),
+    /// SubList change moves - relocate segments.
+    SubListChange(SubListChangeMoveSelector<S, V, FromSolutionEntitySelector>),
+    /// SubList swap moves - swap two segments.
+    SubListSwap(SubListSwapMoveSelector<S, V, FromSolutionEntitySelector>),
     /// K-opt moves - tour optimization.
     KOpt(KOptMoveSelector<S, V, FromSolutionEntitySelector>),
     /// Ruin moves for basic variables.
@@ -61,6 +70,9 @@ where
             Self::Change(sel) => sel.fmt(f),
             Self::Swap(sel) => sel.fmt(f),
             Self::ListChange(sel) => sel.fmt(f),
+            Self::ListSwap(sel) => sel.fmt(f),
+            Self::SubListChange(sel) => sel.fmt(f),
+            Self::SubListSwap(sel) => sel.fmt(f),
             Self::KOpt(sel) => sel.fmt(f),
             Self::Ruin(sel) => sel.fmt(f),
             Self::ListRuin(sel) => sel.fmt(f),
@@ -143,6 +155,60 @@ where
         ))
     }
 
+    /// Creates a list swap selector.
+    pub fn list_swap() -> Self {
+        let entity_selector = FromSolutionEntitySelector::new(S::descriptor_index());
+        Self::ListSwap(ListSwapMoveSelector::new(
+            entity_selector,
+            |s: &S, entity_idx| s.list_len(entity_idx),
+            |s: &S, entity_idx, pos| {
+                if pos < s.list_len(entity_idx) {
+                    Some(s.get(entity_idx, pos))
+                } else {
+                    None
+                }
+            },
+            |s: &mut S, entity_idx, pos, elem| {
+                if pos < s.list_len(entity_idx) {
+                    s.remove(entity_idx, pos);
+                    s.insert(entity_idx, pos, elem);
+                }
+            },
+            S::variable_name(),
+            S::descriptor_index(),
+        ))
+    }
+
+    /// Creates a sublist change selector.
+    pub fn sublist_change(min_len: usize, max_len: usize) -> Self {
+        let entity_selector = FromSolutionEntitySelector::new(S::descriptor_index());
+        Self::SubListChange(SubListChangeMoveSelector::new(
+            entity_selector,
+            |s: &S, entity_idx| s.list_len(entity_idx),
+            |s: &mut S, entity_idx, start, end| s.remove_sublist(entity_idx, start, end),
+            |s: &mut S, entity_idx, pos, elems| s.insert_sublist(entity_idx, pos, elems),
+            S::variable_name(),
+            S::descriptor_index(),
+            min_len,
+            max_len,
+        ))
+    }
+
+    /// Creates a sublist swap selector.
+    pub fn sublist_swap(min_len: usize, max_len: usize) -> Self {
+        let entity_selector = FromSolutionEntitySelector::new(S::descriptor_index());
+        Self::SubListSwap(SubListSwapMoveSelector::new(
+            entity_selector,
+            |s: &S, entity_idx| s.list_len(entity_idx),
+            |s: &mut S, entity_idx, start, end| s.remove_sublist(entity_idx, start, end),
+            |s: &mut S, entity_idx, pos, elems| s.insert_sublist(entity_idx, pos, elems),
+            S::variable_name(),
+            S::descriptor_index(),
+            min_len,
+            max_len,
+        ))
+    }
+
     /// Creates a k-opt selector.
     pub fn k_opt(k: usize) -> Self {
         let entity_selector = FromSolutionEntitySelector::new(S::descriptor_index());
@@ -219,6 +285,17 @@ where
             }
             Some(MoveSelectorConfig::SwapMoveSelector(_)) => Self::swap(),
             Some(MoveSelectorConfig::ListChangeMoveSelector(_)) => Self::list_change(),
+            Some(MoveSelectorConfig::ListSwapMoveSelector(_)) => Self::list_swap(),
+            Some(MoveSelectorConfig::SubListChangeMoveSelector(cfg)) => {
+                let min_len = cfg.min_sublist_length.unwrap_or(1);
+                let max_len = cfg.max_sublist_length.unwrap_or(usize::MAX);
+                Self::sublist_change(min_len, max_len)
+            }
+            Some(MoveSelectorConfig::SubListSwapMoveSelector(cfg)) => {
+                let min_len = cfg.min_sublist_length.unwrap_or(1);
+                let max_len = cfg.max_sublist_length.unwrap_or(usize::MAX);
+                Self::sublist_swap(min_len, max_len)
+            }
             Some(MoveSelectorConfig::KOptMoveSelector(cfg)) => {
                 let k = cfg.k_value.unwrap_or(3);
                 Self::k_opt(k)
@@ -270,6 +347,11 @@ where
             Self::Change(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
             Self::Swap(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
             Self::ListChange(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
+            Self::ListSwap(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
+            Self::SubListChange(sel) => {
+                Box::new(sel.iter_moves(score_director).map(MoveImpl::from))
+            }
+            Self::SubListSwap(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
             Self::KOpt(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
             Self::Ruin(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
             Self::ListRuin(sel) => Box::new(sel.iter_moves(score_director).map(MoveImpl::from)),
@@ -288,6 +370,9 @@ where
             Self::Change(sel) => sel.size(score_director),
             Self::Swap(sel) => sel.size(score_director),
             Self::ListChange(sel) => sel.size(score_director),
+            Self::ListSwap(sel) => sel.size(score_director),
+            Self::SubListChange(sel) => sel.size(score_director),
+            Self::SubListSwap(sel) => sel.size(score_director),
             Self::KOpt(sel) => sel.size(score_director),
             Self::Ruin(sel) => sel.size(score_director),
             Self::ListRuin(sel) => sel.size(score_director),

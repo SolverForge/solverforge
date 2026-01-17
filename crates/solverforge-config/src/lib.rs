@@ -497,6 +497,15 @@ pub enum MoveSelectorConfig {
     /// List change move selector.
     ListChangeMoveSelector(ListChangeMoveConfig),
 
+    /// List swap move selector.
+    ListSwapMoveSelector(ListSwapMoveConfig),
+
+    /// SubList change move selector.
+    SubListChangeMoveSelector(SubListChangeMoveConfig),
+
+    /// SubList swap move selector.
+    SubListSwapMoveSelector(SubListSwapMoveConfig),
+
     /// List ruin move selector.
     ListRuinMoveSelector(ListRuinMoveConfig),
 
@@ -535,6 +544,38 @@ pub struct SwapMoveConfig {
 pub struct ListChangeMoveConfig {
     /// Variable descriptor index.
     pub descriptor_index: Option<usize>,
+}
+
+/// List swap move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListSwapMoveConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+}
+
+/// SubList change move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SubListChangeMoveConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+    /// Minimum sublist length (default: 1).
+    pub min_sublist_length: Option<usize>,
+    /// Maximum sublist length (default: unlimited).
+    pub max_sublist_length: Option<usize>,
+}
+
+/// SubList swap move selector configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SubListSwapMoveConfig {
+    /// Variable descriptor index.
+    pub descriptor_index: Option<usize>,
+    /// Minimum sublist length (default: 1).
+    pub min_sublist_length: Option<usize>,
+    /// Maximum sublist length (default: unlimited).
+    pub max_sublist_length: Option<usize>,
 }
 
 /// List ruin move selector configuration.

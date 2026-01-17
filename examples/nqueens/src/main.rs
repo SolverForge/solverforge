@@ -3,9 +3,7 @@
 //! Place N queens on an N×N board so no two threaten each other.
 
 use rand::Rng;
-use solverforge::__internal::TypedScoreDirector;
 use solverforge::prelude::*;
-use solverforge::stream::ConstraintFactory;
 
 #[planning_entity]
 pub struct Queen {

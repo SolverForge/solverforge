@@ -1,6 +1,6 @@
 //! SolverForge - A Constraint Solver in Rust
 //!
-//! SolverForge is a constraint satisfaction/optimization solver inspired by Timefold.
+//! SolverForge is a constraint satisfaction/optimization solver.
 //! It helps you optimize planning and scheduling problems.
 //!
 //! # Quick Start
@@ -35,69 +35,46 @@
 //! ```
 
 // ============================================================================
-// Attribute Macros
-// ============================================================================
-
-pub use solverforge_macros::{planning_entity, planning_solution, problem_fact};
-
-// Derive macros (used by attribute macros, must be at root level)
-pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
-
-// ============================================================================
-// Score Types
-// ============================================================================
-
-pub use solverforge_core::score::{
-    BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
-};
-
-// ============================================================================
-// Constraint API
-// ============================================================================
-
-pub use solverforge_scoring::{
-    ConstraintSet, IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint,
-};
-
-/// Fluent constraint stream API.
-pub mod stream {
-    pub use solverforge_scoring::stream::{collector, joiner, ConstraintFactory};
-}
-
-// ============================================================================
-// Score Director
-// ============================================================================
-
-pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
-
-// ============================================================================
-// Solver
-// ============================================================================
-
-pub use solverforge_solver::{
-    Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable, SolverManager,
-    SolverStatus,
-};
-
-// ============================================================================
-// Console Output (feature-gated)
-// ============================================================================
-
-#[cfg(feature = "console")]
-pub mod console;
-
-// ============================================================================
-// Prelude
+// Prelude - The ONE import users need
 // ============================================================================
 
 pub mod prelude {
-    pub use crate::stream::{joiner, ConstraintFactory};
-    pub use crate::{
-        planning_entity, planning_solution, problem_fact, BendableScore, ConstraintSet,
-        HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, ScoreDirector,
-        SimpleScore, TypedScoreDirector,
+    // Macros to define domain
+    pub use solverforge_macros::{planning_entity, planning_solution, problem_fact};
+
+    // Score types
+    pub use solverforge_core::score::{
+        BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
+    };
+
+    // Constraint API
+    pub use solverforge_scoring::stream::{collector, joiner, ConstraintFactory};
+    pub use solverforge_scoring::ConstraintSet;
+
+    // Score director for manual solving
+    pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
+
+    // Solver API
+    pub use solverforge_solver::{
+        Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable, SolverManager,
+        SolverStatus,
     };
 }
+
+// Re-export prelude at root for convenience
+pub use prelude::*;
+
+// Derive macros must be at crate root for macro expansion
+pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
+
+// Incremental constraints (advanced API, not in prelude)
+pub use solverforge_scoring::{
+    IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint,
+};
+
+// Console output (feature-gated)
+#[cfg(feature = "console")]
+pub mod console;
 
 // ============================================================================
 // Internal API for Macros

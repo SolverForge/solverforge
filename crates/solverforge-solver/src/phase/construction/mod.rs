@@ -8,8 +8,8 @@ mod phase;
 mod placer;
 
 pub use forager::{
-    BestFitForager, ConstructionForager, FirstFeasibleForager, FirstFitForager,
-    StrongestFitForager, WeakestFitForager,
+    BestFitForager, CheapestInsertionForager, ConstructionForager, FirstFeasibleForager,
+    FirstFitForager, RegretInsertionForager, StrongestFitForager, WeakestFitForager,
 };
 pub use phase::ConstructionHeuristicPhase;
 pub use placer::{EntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer};

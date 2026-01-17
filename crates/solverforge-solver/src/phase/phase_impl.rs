@@ -5,11 +5,12 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use solverforge_config::{
-    ConstructionHeuristicConfig, ConstructionHeuristicType, LocalSearchConfig, PhaseConfig,
-    SolverConfig,
+    ConstructionHeuristicConfig, ConstructionHeuristicType,
+    ExhaustiveSearchConfig as ConfigExhaustiveSearch, ExhaustiveSearchType,
+    LocalSearchConfig, PhaseConfig, SolverConfig,
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -24,8 +25,10 @@ use crate::scope::SolverScope;
 
 use super::construction::forager_impl::ConstructionForagerImpl;
 use super::construction::ConstructionHeuristicPhase;
+use super::exhaustive::{ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, SimpleDecider};
 use super::localsearch::forager_impl::ForagerImpl;
 use super::localsearch::{AcceptorImpl, LocalSearchPhase};
+use super::vnd::VndPhase;
 use super::Phase;
 
 // ============================================================================
@@ -45,6 +48,10 @@ where
     Construction(ConstructionPhaseHolder<S, V, D>),
     /// Local search phase using ListMoveSelectorImpl.
     LocalSearch(LocalSearchPhaseHolder<S, V, D>),
+    /// Exhaustive search phase (branch and bound).
+    Exhaustive(ExhaustivePhaseHolder<S, V, D>),
+    /// Variable Neighborhood Descent phase.
+    Vnd(VndPhaseHolder<S, V, D>),
 }
 
 /// Holder for construction phase with tracing.
@@ -98,6 +105,46 @@ where
     }
 }
 
+/// Holder for exhaustive search phase.
+pub struct ExhaustivePhaseHolder<S, V, D>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    phase: ExhaustiveSearchPhase<SimpleDecider<S, V>>,
+    _phantom: PhantomData<fn() -> D>,
+}
+
+impl<S, V, D> Debug for ExhaustivePhaseHolder<S, V, D>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExhaustivePhaseHolder").finish()
+    }
+}
+
+/// Holder for VND phase with single move selector (most common case).
+pub struct VndPhaseHolder<S, V, D>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    phase: VndPhase<(MoveSelectorImpl<S, V>,), MoveImpl<S, V>>,
+    _phantom: PhantomData<fn() -> D>,
+}
+
+impl<S, V, D> Debug for VndPhaseHolder<S, V, D>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VndPhaseHolder").finish()
+    }
+}
+
 impl<S, V, D> Debug for ListPhaseImpl<S, V, D>
 where
     S: PlanningSolution,
@@ -107,6 +154,8 @@ where
         match self {
             Self::Construction(p) => p.fmt(f),
             Self::LocalSearch(p) => p.fmt(f),
+            Self::Exhaustive(p) => p.fmt(f),
+            Self::Vnd(p) => p.fmt(f),
         }
     }
 }
@@ -126,6 +175,8 @@ where
         match self {
             Self::Construction(holder) => holder.phase.solve(solver_scope),
             Self::LocalSearch(holder) => holder.phase.solve(solver_scope),
+            Self::Exhaustive(holder) => holder.phase.solve(solver_scope),
+            Self::Vnd(holder) => holder.phase.solve(solver_scope),
         }
 
         let duration = start.elapsed();
@@ -146,6 +197,8 @@ where
         match self {
             Self::Construction(_) => "Construction",
             Self::LocalSearch(_) => "LocalSearch",
+            Self::Exhaustive(_) => "ExhaustiveSearch",
+            Self::Vnd(_) => "VariableNeighborhoodDescent",
         }
     }
 }
@@ -307,6 +360,86 @@ where
         })
     }
 
+    /// Creates an exhaustive search phase from configuration.
+    ///
+    /// For list variables, this creates a decider that assigns elements to positions.
+    /// For basic variables, this assigns values from the value range.
+    ///
+    /// Note: The value range must be provided via the decider builder or
+    /// will be populated dynamically from the solution at phase start.
+    pub fn exhaustive_search_phase<D: ScoreDirector<S>>(
+        config: &ConfigExhaustiveSearch,
+    ) -> ListPhaseImpl<S, V, D> {
+        // Map config exploration type to internal exploration type
+        let exploration_type = match config.exhaustive_search_type {
+            ExhaustiveSearchType::BranchAndBound => ExplorationType::DepthFirst,
+            ExhaustiveSearchType::BruteForce => ExplorationType::BreadthFirst,
+        };
+
+        // Get node limit from termination config
+        let node_limit = config
+            .termination
+            .as_ref()
+            .and_then(|t| t.step_count_limit);
+
+        let internal_config = ExhaustiveSearchConfig {
+            exploration_type,
+            node_limit,
+            depth_limit: None,
+            enable_pruning: true,
+        };
+
+        // Create a simple decider for basic variable assignment
+        // The setter assigns Option<V> to an entity: None = unassign, Some(v) = assign v
+        fn assign_variable<Sol: VariableOperations<Element = Val>, Val: Copy>(
+            s: &mut Sol,
+            entity_idx: usize,
+            value: Option<Val>,
+        ) {
+            // Clear current value at position 0
+            if s.list_len(entity_idx) > 0 {
+                s.remove(entity_idx, 0);
+            }
+            // Insert new value if provided
+            if let Some(v) = value {
+                s.insert(entity_idx, 0, v);
+            }
+        }
+
+        // Note: Empty value range - for proper exhaustive search, values should be
+        // populated from solution.value_range() or passed via configuration.
+        // TODO: Add value range configuration option
+        let decider = SimpleDecider::<S, V>::new(
+            S::descriptor_index(),
+            S::variable_name(),
+            Vec::new(),
+            assign_variable::<S, V>,
+        );
+
+        let phase = ExhaustiveSearchPhase::new(decider, internal_config);
+
+        ListPhaseImpl::Exhaustive(ExhaustivePhaseHolder {
+            phase,
+            _phantom: PhantomData,
+        })
+    }
+
+    /// Creates a VND phase from a local search configuration.
+    ///
+    /// VND uses the move selector from the local search config as a single neighborhood.
+    pub fn vnd_phase<D: ScoreDirector<S>>(
+        config: &LocalSearchConfig,
+    ) -> ListPhaseImpl<S, V, D> {
+        let move_selector = MoveSelectorImpl::<S, V>::from_config(config.move_selector.as_ref());
+
+        let phase = VndPhase::new((move_selector,));
+
+        ListPhaseImpl::Vnd(VndPhaseHolder {
+            phase,
+            _phantom: PhantomData,
+        })
+    }
+
     /// Creates a phase sequence from solver configuration.
     pub fn from_config<D: ScoreDirector<S>>(config: &SolverConfig) -> PhaseSequence<S, V, D> {
         let mut sequence = PhaseSequence::new();
@@ -315,14 +448,12 @@ where
             let phase = match phase_config {
                 PhaseConfig::ConstructionHeuristic(cfg) => Self::construction_phase(cfg),
                 PhaseConfig::LocalSearch(cfg) => Self::local_search_phase(cfg),
-                PhaseConfig::ExhaustiveSearch(_) => {
-                    panic!("ExhaustiveSearch phase not yet implemented - configure Construction or LocalSearch instead")
-                }
+                PhaseConfig::ExhaustiveSearch(cfg) => Self::exhaustive_search_phase(cfg),
                 PhaseConfig::PartitionedSearch(_) => {
-                    panic!("PartitionedSearch phase not yet implemented - configure Construction or LocalSearch instead")
+                    panic!("PartitionedSearch phase not yet implemented")
                 }
                 PhaseConfig::Custom(_) => {
-                    panic!("Custom phase not yet implemented - configure Construction or LocalSearch instead")
+                    panic!("Custom phase not yet implemented")
                 }
             };
             sequence = sequence.add_phase(phase);

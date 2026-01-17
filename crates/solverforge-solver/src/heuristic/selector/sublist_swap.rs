@@ -2,6 +2,10 @@
 //!
 //! Generates `SubListSwapMove`s that swap contiguous segments
 //! within or between list variables. Essential for VRP-style problems.
+//!
+//! # Zero-Erasure Design
+//!
+//! No value type parameter. Uses VariableOperations trait for list access.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,6 +14,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::sublist_swap::SubListSwapMove;
+use crate::operations::VariableOperations;
 
 use super::entity::EntitySelector;
 use super::typed_move_selector::MoveSelector;
@@ -19,8 +24,7 @@ use super::typed_move_selector::MoveSelector;
 /// Enumerates all valid pairs of sublists to swap within or between entities.
 ///
 /// # Type Parameters
-/// * `S` - The solution type
-/// * `V` - The list element type
+/// * `S` - The solution type (must implement VariableOperations)
 /// * `ES` - The entity selector type
 ///
 /// # Complexity
@@ -30,15 +34,9 @@ use super::typed_move_selector::MoveSelector;
 /// - Pairs of sublists: O(n² * m⁴) worst case
 ///
 /// Use `min_sublist_len` and `max_sublist_len` to limit complexity.
-pub struct SubListSwapMoveSelector<S, V, ES> {
+pub struct SubListSwapMoveSelector<S, ES> {
     /// Selects entities for moves.
     entity_selector: ES,
-    /// Get list length for an entity.
-    list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end).
-    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert sublist at position.
-    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     /// Variable name for notifications.
     variable_name: &'static str,
     /// Entity descriptor index.
@@ -47,10 +45,10 @@ pub struct SubListSwapMoveSelector<S, V, ES> {
     min_sublist_len: usize,
     /// Maximum sublist length (inclusive).
     max_sublist_len: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Debug, ES: Debug> Debug for SubListSwapMoveSelector<S, V, ES> {
+impl<S, ES: Debug> Debug for SubListSwapMoveSelector<S, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SubListSwapMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -61,24 +59,17 @@ impl<S, V: Debug, ES: Debug> Debug for SubListSwapMoveSelector<S, V, ES> {
     }
 }
 
-impl<S, V, ES> SubListSwapMoveSelector<S, V, ES> {
+impl<S, ES> SubListSwapMoveSelector<S, ES> {
     /// Creates a new sublist swap move selector.
     ///
     /// # Arguments
     /// * `entity_selector` - Selects entities to consider for moves
-    /// * `list_len` - Function to get list length for an entity
-    /// * `sublist_remove` - Function to remove sublist [start, end)
-    /// * `sublist_insert` - Function to insert sublist at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     /// * `min_sublist_len` - Minimum sublist length (default: 1)
     /// * `max_sublist_len` - Maximum sublist length
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,
-        list_len: fn(&S, usize) -> usize,
-        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
         descriptor_index: usize,
         min_sublist_len: usize,
@@ -86,9 +77,6 @@ impl<S, V, ES> SubListSwapMoveSelector<S, V, ES> {
     ) -> Self {
         Self {
             entity_selector,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             variable_name,
             descriptor_index,
             min_sublist_len: min_sublist_len.max(1),
@@ -101,20 +89,16 @@ impl<S, V, ES> SubListSwapMoveSelector<S, V, ES> {
 /// Represents a sublist: (entity_idx, start, end)
 type Sublist = (usize, usize, usize);
 
-impl<S, V, ES> MoveSelector<S, SubListSwapMove<S, V>> for SubListSwapMoveSelector<S, V, ES>
+impl<S, ES> MoveSelector<S, SubListSwapMove<S>> for SubListSwapMoveSelector<S, ES>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
     ES: EntitySelector<S>,
 {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = SubListSwapMove<S, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = SubListSwapMove<S>> + 'a> {
         let solution = score_director.working_solution();
-        let list_len = self.list_len;
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let min_len = self.min_sublist_len;
@@ -128,7 +112,10 @@ where
             .collect();
 
         // Pre-compute route lengths
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
+        let route_lens: Vec<usize> = entities
+            .iter()
+            .map(|&e| solution.list_len(e))
+            .collect();
 
         // Generate all sublists for each entity
         let mut all_sublists: Vec<(usize, Vec<Sublist>)> = Vec::new();
@@ -172,9 +159,6 @@ where
                         e1,
                         s2,
                         e2_end,
-                        list_len,
-                        sublist_remove,
-                        sublist_insert,
                         variable_name,
                         descriptor_index,
                     ));
@@ -196,9 +180,6 @@ where
                             e2,
                             s2,
                             e2_end,
-                            list_len,
-                            sublist_remove,
-                            sublist_insert,
                             variable_name,
                             descriptor_index,
                         ));
@@ -212,7 +193,6 @@ where
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let solution = score_director.working_solution();
-        let list_len = self.list_len;
 
         let entities: Vec<usize> = self
             .entity_selector
@@ -220,7 +200,10 @@ where
             .map(|r| r.entity_index)
             .collect();
 
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
+        let route_lens: Vec<usize> = entities
+            .iter()
+            .map(|&e| solution.list_len(e))
+            .collect();
         let total_elements: usize = route_lens.iter().sum();
 
         let n = entities.len();
@@ -240,6 +223,7 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::Move;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -247,7 +231,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        visits: Vec<i32>,
+        visits: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -266,28 +250,62 @@ mod tests {
         }
     }
 
+    impl VariableOperations for Solution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.vehicles.iter().map(|v| v.visits.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.vehicles.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.vehicles
+                .iter()
+                .flat_map(|v| v.visits.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits[pos]
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.insert(pos, elem);
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "visits"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_vehicles(s: &Solution) -> &Vec<Vehicle> {
         &s.vehicles
     }
     fn get_vehicles_mut(s: &mut Solution) -> &mut Vec<Vehicle> {
         &mut s.vehicles
-    }
-
-    fn list_len(s: &Solution, entity_idx: usize) -> usize {
-        s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-    }
-    fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
-        s.vehicles
-            .get_mut(entity_idx)
-            .map(|v| v.visits.drain(start..end).collect())
-            .unwrap_or_default()
-    }
-    fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-        if let Some(v) = s.vehicles.get_mut(entity_idx) {
-            for (i, item) in items.into_iter().enumerate() {
-                v.visits.insert(pos + i, item);
-            }
-        }
     }
 
     fn create_director(
@@ -317,11 +335,8 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
+        let selector = SubListSwapMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "visits",
             0,
             1,
@@ -351,11 +366,8 @@ mod tests {
         ];
         let director = create_director(vehicles);
 
-        let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
+        let selector = SubListSwapMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "visits",
             0,
             1,
@@ -381,11 +393,8 @@ mod tests {
         ];
         let director = create_director(vehicles);
 
-        let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
+        let selector = SubListSwapMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "visits",
             0,
             1,
@@ -404,11 +413,8 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
+        let selector = SubListSwapMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "visits",
             0,
             1,
@@ -433,11 +439,8 @@ mod tests {
         let vehicles = vec![Vehicle { visits: vec![] }, Vehicle { visits: vec![] }];
         let director = create_director(vehicles);
 
-        let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
+        let selector = SubListSwapMoveSelector::<Solution, _>::new(
             FromSolutionEntitySelector::new(0),
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "visits",
             0,
             1,

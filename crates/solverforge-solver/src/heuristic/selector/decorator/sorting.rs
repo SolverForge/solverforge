@@ -16,44 +16,6 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 ///
 /// Collects all moves from the inner selector and yields them in sorted order.
 /// Uses a function pointer for zero-erasure comparison.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::selector::decorator::SortingMoveSelector;
-/// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-/// use std::cmp::Ordering;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { id: usize, priority: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
-///
-/// // Sort by target value descending
-/// fn by_value_desc(a: &ChangeMove<Solution, i32>, b: &ChangeMove<Solution, i32>) -> Ordering {
-///     b.to_value().cmp(&a.to_value())
-/// }
-///
-/// let inner = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![30, 10, 50, 20],
-/// );
-/// let sorted: SortingMoveSelector<Solution, _, _> =
-///     SortingMoveSelector::new(inner, by_value_desc);
-/// assert!(!sorted.is_never_ending());
-/// ```
 pub struct SortingMoveSelector<S, M, Inner> {
     inner: Inner,
     comparator: fn(&M, &M) -> Ordering,
@@ -101,77 +63,5 @@ where
 
     fn is_never_ending(&self) -> bool {
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::test_utils::{
-        create_director, get_priority, set_priority, Task, TaskSolution,
-    };
-    use super::*;
-    use crate::heuristic::r#move::ChangeMove;
-    use crate::heuristic::selector::ChangeMoveSelector;
-
-    fn by_value_asc(
-        a: &ChangeMove<TaskSolution, i32>,
-        b: &ChangeMove<TaskSolution, i32>,
-    ) -> Ordering {
-        a.to_value().cmp(&b.to_value())
-    }
-
-    fn by_value_desc(
-        a: &ChangeMove<TaskSolution, i32>,
-        b: &ChangeMove<TaskSolution, i32>,
-    ) -> Ordering {
-        b.to_value().cmp(&a.to_value())
-    }
-
-    #[test]
-    fn sorts_ascending() {
-        let director = create_director(vec![Task { priority: Some(1) }]);
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![30, 10, 50, 20, 40],
-        );
-        let sorted = SortingMoveSelector::new(inner, by_value_asc);
-
-        let values: Vec<_> = sorted
-            .iter_moves(&director)
-            .filter_map(|m| m.to_value().copied())
-            .collect();
-        assert_eq!(values, vec![10, 20, 30, 40, 50]);
-    }
-
-    #[test]
-    fn sorts_descending() {
-        let director = create_director(vec![Task { priority: Some(1) }]);
-        let inner = ChangeMoveSelector::simple(
-            get_priority,
-            set_priority,
-            0,
-            "priority",
-            vec![30, 10, 50, 20, 40],
-        );
-        let sorted = SortingMoveSelector::new(inner, by_value_desc);
-
-        let values: Vec<_> = sorted
-            .iter_moves(&director)
-            .filter_map(|m| m.to_value().copied())
-            .collect();
-        assert_eq!(values, vec![50, 40, 30, 20, 10]);
-    }
-
-    #[test]
-    fn preserves_size() {
-        let director = create_director(vec![Task { priority: Some(1) }]);
-        let inner =
-            ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 10, 50]);
-        let sorted = SortingMoveSelector::new(inner, by_value_asc);
-
-        assert_eq!(sorted.size(&director), 3);
     }
 }

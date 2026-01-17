@@ -139,4 +139,59 @@ pub trait VariableOperations: Sized + Send + 'static {
     ///
     /// `true` for list variables, `false` for basic variables.
     fn is_list_variable() -> bool;
+
+    /// Returns the difficulty weight for an entity.
+    ///
+    /// Higher values indicate more difficult entities that should be placed first
+    /// in *Decreasing construction heuristic variants (FirstFitDecreasing, etc.).
+    ///
+    /// Default implementation returns 0 for all entities (no sorting).
+    /// Override this to enable difficulty-based entity ordering.
+    ///
+    /// # Arguments
+    ///
+    /// * `entity_idx` - The entity index to get difficulty for
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // For a task scheduling problem, difficulty might be based on:
+    /// // - Task duration (longer tasks harder to place)
+    /// // - Number of required skills
+    /// // - Time window constraints
+    /// fn entity_difficulty(&self, entity_idx: usize) -> i64 {
+    ///     self.tasks[entity_idx].duration as i64
+    /// }
+    /// ```
+    fn entity_difficulty(&self, _entity_idx: usize) -> i64 {
+        0
+    }
+
+    /// Returns the strength of assigning an element to an entity.
+    ///
+    /// Used by WeakestFit and StrongestFit construction heuristics:
+    /// - WeakestFit picks the move with lowest strength (leaves strong assignments for later)
+    /// - StrongestFit picks the move with highest strength (makes strongest assignments first)
+    ///
+    /// Default implementation returns 0 for all moves (equivalent to BestFit behavior).
+    /// Override this to enable strength-based selection.
+    ///
+    /// # Arguments
+    ///
+    /// * `entity_idx` - The entity receiving the assignment
+    /// * `elem` - The element being assigned
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // For a bin packing problem, strength might be remaining capacity utilization:
+    /// fn assignment_strength(&self, entity_idx: usize, elem: usize) -> i64 {
+    ///     let bin = &self.bins[entity_idx];
+    ///     let item_size = self.items[elem].size;
+    ///     (bin.capacity - bin.used - item_size) as i64  // Lower = tighter fit = weaker
+    /// }
+    /// ```
+    fn assignment_strength(&self, _entity_idx: usize, _elem: Self::Element) -> i64 {
+        0
+    }
 }

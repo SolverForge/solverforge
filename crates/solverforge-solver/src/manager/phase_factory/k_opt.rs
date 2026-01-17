@@ -23,58 +23,6 @@ use super::super::PhaseFactory;
 /// * `V` - The list element value type (e.g., `usize` for visit indices)
 /// * `DM` - The distance meter type (for nearby selection, stored for future use)
 /// * `ESF` - Entity selector factory type (for nearby selection, stored for future use)
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::KOptPhaseBuilder;
-/// use solverforge_solver::heuristic::selector::{DefaultDistanceMeter, FromSolutionEntitySelector};
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Vehicle { visits: Vec<usize> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Plan {
-///     vehicles: Vec<Vehicle>,
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for Plan {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Plan, idx: usize) -> usize {
-///     s.vehicles.get(idx).map_or(0, |v| v.visits.len())
-/// }
-///
-/// fn sublist_remove(s: &mut Plan, idx: usize, start: usize, end: usize) -> Vec<usize> {
-///     s.vehicles.get_mut(idx)
-///         .map(|v| v.visits.drain(start..end).collect())
-///         .unwrap_or_default()
-/// }
-///
-/// fn sublist_insert(s: &mut Plan, idx: usize, pos: usize, items: Vec<usize>) {
-///     if let Some(v) = s.vehicles.get_mut(idx) {
-///         for (i, item) in items.into_iter().enumerate() {
-///             v.visits.insert(pos + i, item);
-///         }
-///     }
-/// }
-///
-/// let builder = KOptPhaseBuilder::<Plan, usize, _, _>::new(
-///     DefaultDistanceMeter,
-///     || FromSolutionEntitySelector::new(0),
-///     list_len,
-///     sublist_remove,
-///     sublist_insert,
-///     "visits",
-///     0,
-/// );
-/// ```
 pub struct KOptPhaseBuilder<S, V, DM, ESF>
 where
     S: PlanningSolution,

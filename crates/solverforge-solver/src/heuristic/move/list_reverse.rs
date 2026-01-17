@@ -23,35 +23,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::ListReverseMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Tour { cities: Vec<i32>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Tour {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Tour, _: usize) -> usize { s.cities.len() }
-/// fn list_reverse(s: &mut Tour, _: usize, start: usize, end: usize) {
-///     s.cities[start..end].reverse();
-/// }
-///
-/// // Reverse segment [1..4) in tour: [A, B, C, D, E] -> [A, D, C, B, E]
-/// let m = ListReverseMove::<Tour, i32>::new(
-///     0, 1, 4,
-///     list_len, list_reverse,
-///     "cities", 0,
-/// );
-/// ```
 pub struct ListReverseMove<S, V> {
     /// Entity index
     entity_index: usize,

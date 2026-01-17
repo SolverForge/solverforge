@@ -21,44 +21,6 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 /// # Type Parameters
 /// * `T` - Tuple of move selectors
 /// * `M` - The move type produced by all selectors
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::vnd::VndPhase;
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_solver::heuristic::selector::ChangeMoveSelector;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct MySolution {
-///     values: Vec<Option<i32>>,
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_value(s: &MySolution, idx: usize) -> Option<i32> {
-///     s.values.get(idx).copied().flatten()
-/// }
-/// fn set_value(s: &mut MySolution, idx: usize, v: Option<i32>) {
-///     if let Some(slot) = s.values.get_mut(idx) { *slot = v; }
-/// }
-///
-/// type MyMove = ChangeMove<MySolution, i32>;
-///
-/// let selector = ChangeMoveSelector::simple(
-///     get_value, set_value, 0, "value", vec![1, 2, 3]
-/// );
-///
-/// // Single neighborhood VND
-/// let vnd: VndPhase<_, MyMove> = VndPhase::new((selector,));
-/// ```
 pub struct VndPhase<T, M>(pub T, PhantomData<M>);
 
 impl<T: Debug, M> Debug for VndPhase<T, M> {

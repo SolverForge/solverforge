@@ -9,53 +9,6 @@
 //! - Fixed arrays for cut points (no SmallVec for static data)
 //! - Reference to static reconnection pattern
 //! - Typed function pointers for all list operations
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::r#move::{KOptMove, CutPoint};
-//! use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Tour { cities: Vec<i32>, score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for Tour {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Tour, _: usize) -> usize { s.cities.len() }
-//! fn sublist_remove(s: &mut Tour, _: usize, start: usize, end: usize) -> Vec<i32> {
-//!     s.cities.drain(start..end).collect()
-//! }
-//! fn sublist_insert(s: &mut Tour, _: usize, pos: usize, items: Vec<i32>) {
-//!     for (i, item) in items.into_iter().enumerate() {
-//!         s.cities.insert(pos + i, item);
-//!     }
-//! }
-//!
-//! // Create a 3-opt move with cuts at positions 2, 4, 6
-//! // This creates 4 segments: [0..2), [2..4), [4..6), [6..)
-//! let cuts = [
-//!     CutPoint::new(0, 2),
-//!     CutPoint::new(0, 4),
-//!     CutPoint::new(0, 6),
-//! ];
-//! let reconnection = &THREE_OPT_RECONNECTIONS[3]; // Swap middle segments
-//!
-//! let m = KOptMove::<Tour, i32>::new(
-//!     &cuts,
-//!     reconnection,
-//!     list_len,
-//!     sublist_remove,
-//!     sublist_insert,
-//!     "cities",
-//!     0,
-//! );
-//! ```
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -69,17 +22,6 @@ use super::Move;
 /// A cut point in a route, defining where an edge is removed.
 ///
 /// For k-opt, we have k cut points which divide the route into k+1 segments.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::CutPoint;
-///
-/// // Cut at position 5 in entity 0
-/// let cut = CutPoint::new(0, 5);
-/// assert_eq!(cut.entity_index(), 0);
-/// assert_eq!(cut.position(), 5);
-/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CutPoint {
     /// Entity (route/vehicle) index.

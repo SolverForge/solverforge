@@ -229,44 +229,6 @@ where
 ///
 /// Wraps an inner placer and sorts its placements using a typed comparator.
 /// This enables FIRST_FIT_DECREASING and similar construction variants.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::construction::{SortedEntityPlacer, QueuedEntityPlacer, EntityPlacer};
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-/// use solverforge_scoring::SimpleScoreDirector;
-/// use std::cmp::Ordering;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { difficulty: i32, assigned: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_assigned(s: &Solution, i: usize) -> Option<i32> {
-///     s.tasks.get(i).and_then(|t| t.assigned)
-/// }
-/// fn set_assigned(s: &mut Solution, i: usize, v: Option<i32>) {
-///     if let Some(t) = s.tasks.get_mut(i) { t.assigned = v; }
-/// }
-///
-/// // Sort entities by difficulty (descending) for FIRST_FIT_DECREASING
-/// fn difficulty_descending(s: &Solution, a: usize, b: usize) -> Ordering {
-///     let da = s.tasks.get(a).map(|t| t.difficulty).unwrap_or(0);
-///     let db = s.tasks.get(b).map(|t| t.difficulty).unwrap_or(0);
-///     db.cmp(&da)  // Descending order
-/// }
-/// ```
 pub struct SortedEntityPlacer<S, M, Inner>
 where
     S: PlanningSolution,

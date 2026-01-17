@@ -22,45 +22,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::ListSwapMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Vehicle { id: usize, visits: Vec<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Solution, entity_idx: usize) -> usize {
-///     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-/// }
-/// fn list_get(s: &Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-///     s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos).copied())
-/// }
-/// fn list_set(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
-///     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-///         if let Some(elem) = v.visits.get_mut(pos) { *elem = val; }
-///     }
-/// }
-///
-/// // Swap elements at positions 1 and 3 in vehicle 0
-/// let m = ListSwapMove::<Solution, i32>::new(
-///     0, 1, 0, 3,
-///     list_len, list_get, list_set,
-///     "visits", 0,
-/// );
-/// ```
 pub struct ListSwapMove<S, V> {
     /// First entity index
     first_entity_index: usize,

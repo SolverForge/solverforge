@@ -22,43 +22,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::ListChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Vehicle { id: usize, visits: Vec<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Solution, entity_idx: usize) -> usize {
-///     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-/// }
-/// fn list_remove(s: &mut Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-///     s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
-/// }
-/// fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
-///     if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
-/// }
-///
-/// // Move element from vehicle 0 position 2 to vehicle 1 position 0
-/// let m = ListChangeMove::<Solution, i32>::new(
-///     0, 2, 1, 0,
-///     list_len, list_remove, list_insert,
-///     "visits", 0,
-/// );
-/// ```
 pub struct ListChangeMove<S, V> {
     /// Source entity index (which entity's list to remove from)
     source_entity_index: usize,

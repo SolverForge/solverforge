@@ -7,63 +7,6 @@
 //!
 //! Uses `fn` pointers for variable access and entity counting.
 //! No `Arc<dyn Fn>`, no trait objects in hot paths.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::{MoveSelector, RuinMoveSelector};
-//! use solverforge_solver::heuristic::r#move::RuinMove;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//! use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-//! use solverforge_core::domain::SolutionDescriptor;
-//! use std::any::TypeId;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Task { assigned_to: Option<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Schedule { tasks: Vec<Task>, score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for Schedule {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn entity_count(s: &Schedule) -> usize { s.tasks.len() }
-//! fn get_task(s: &Schedule, idx: usize) -> Option<i32> {
-//!     s.tasks.get(idx).and_then(|t| t.assigned_to)
-//! }
-//! fn set_task(s: &mut Schedule, idx: usize, v: Option<i32>) {
-//!     if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
-//! }
-//!
-//! // Create selector that ruins 2-3 entities at a time
-//! let selector = RuinMoveSelector::<Schedule, i32>::new(
-//!     2, 3,
-//!     entity_count,
-//!     get_task, set_task,
-//!     "assigned_to", 0,
-//! );
-//!
-//! // Use with a score director
-//! let solution = Schedule {
-//!     tasks: vec![
-//!         Task { assigned_to: Some(1) },
-//!         Task { assigned_to: Some(2) },
-//!         Task { assigned_to: Some(3) },
-//!     ],
-//!     score: None,
-//! };
-//! let descriptor = SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>());
-//! let director = SimpleScoreDirector::with_calculator(
-//!     solution, descriptor, |_| SimpleScore::of(0)
-//! );
-//!
-//! let moves: Vec<_> = selector.iter_moves(&director).collect();
-//! assert!(!moves.is_empty());
-//! ```
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

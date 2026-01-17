@@ -32,7 +32,7 @@
 //! Moves are NEVER cloned. Ownership transfers via arena indices:
 //!
 //! ```
-//! use solverforge_solver::heuristic::MoveArena;
+//! use solverforge_solver::MoveArena;
 //!
 //! // Simple move type for demonstration
 //! struct SimpleMove { value: i32 }

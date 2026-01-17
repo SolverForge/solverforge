@@ -9,22 +9,6 @@
 //! - `[u8; 6]` for segment order (max 6 segments for 5-opt)
 //! - `u8` bitmask for reversal flags
 //! - `const fn` constructors
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::r#move::k_opt_reconnection::{
-//!     KOptReconnection, THREE_OPT_RECONNECTIONS,
-//! };
-//!
-//! // 3-opt has 7 non-trivial reconnection patterns
-//! assert_eq!(THREE_OPT_RECONNECTIONS.len(), 7);
-//!
-//! // Each pattern specifies segment order and reversals
-//! let pattern = &THREE_OPT_RECONNECTIONS[0];
-//! assert_eq!(pattern.k(), 3);
-//! assert_eq!(pattern.segment_count(), 4);
-//! ```
 
 /// A reconnection pattern for k-opt.
 ///
@@ -41,22 +25,6 @@
 ///   Bit i is set if segment i should be reversed.
 ///
 /// - `len`: Number of valid segments (k+1 for k-opt).
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-///
-/// // 3-opt reconnection: swap B and C, reverse both
-/// // Original: A -> B -> C -> D
-/// // Result:   A -> C' -> B' -> D
-/// let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0b0110, 4);
-///
-/// assert_eq!(pattern.k(), 3);
-/// assert!(pattern.should_reverse(1));  // B reversed
-/// assert!(pattern.should_reverse(2));  // C reversed
-/// assert!(!pattern.should_reverse(0)); // A not reversed
-/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KOptReconnection {
     /// Segment order as fixed array.
@@ -75,19 +43,6 @@ impl KOptReconnection {
     /// * `segment_order` - Permutation of segment indices
     /// * `reverse_mask` - Bitmask of segments to reverse
     /// * `len` - Number of valid segments (k+1)
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-    ///
-    /// const PATTERN: KOptReconnection = KOptReconnection::new(
-    ///     [0, 2, 1, 3, 0, 0],
-    ///     0b0000,
-    ///     4,
-    /// );
-    /// assert_eq!(PATTERN.segment_at(1), 2);
-    /// ```
     #[inline]
     pub const fn new(segment_order: [u8; 6], reverse_mask: u8, len: u8) -> Self {
         Self {
@@ -98,65 +53,24 @@ impl KOptReconnection {
     }
 
     /// Returns the k value (number of edges removed).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-    ///
-    /// assert_eq!(THREE_OPT_RECONNECTIONS[0].k(), 3);
-    /// ```
     #[inline]
     pub const fn k(&self) -> usize {
         (self.len - 1) as usize
     }
 
     /// Returns the number of segments (k+1).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-    ///
-    /// assert_eq!(THREE_OPT_RECONNECTIONS[0].segment_count(), 4);
-    /// ```
     #[inline]
     pub const fn segment_count(&self) -> usize {
         self.len as usize
     }
 
     /// Returns the segment index at position `pos` in the reconnected order.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-    ///
-    /// // Pattern swaps segments 1 and 2: [A, C, B, D]
-    /// let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0, 4);
-    /// assert_eq!(pattern.segment_at(0), 0); // A
-    /// assert_eq!(pattern.segment_at(1), 2); // C (was at position 2)
-    /// assert_eq!(pattern.segment_at(2), 1); // B (was at position 1)
-    /// assert_eq!(pattern.segment_at(3), 3); // D
-    /// ```
     #[inline]
     pub const fn segment_at(&self, pos: usize) -> usize {
         self.segment_order[pos] as usize
     }
 
     /// Returns true if segment at index `idx` should be reversed.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-    ///
-    /// let pattern = KOptReconnection::new([0, 1, 2, 3, 0, 0], 0b0110, 4);
-    /// assert!(!pattern.should_reverse(0));
-    /// assert!(pattern.should_reverse(1));
-    /// assert!(pattern.should_reverse(2));
-    /// assert!(!pattern.should_reverse(3));
-    /// ```
     #[inline]
     pub const fn should_reverse(&self, idx: usize) -> bool {
         (self.reverse_mask >> idx) & 1 == 1
@@ -197,21 +111,6 @@ impl KOptReconnection {
 /// | 4 | A-C'-B-D   | C       | Swap, reverse C          |
 /// | 5 | A-C-B'-D   | B       | Swap, reverse B          |
 /// | 6 | A-C'-B'-D  | B,C     | Swap, reverse both       |
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-///
-/// assert_eq!(THREE_OPT_RECONNECTIONS.len(), 7);
-///
-/// // Pattern 3 swaps B and C without reversal
-/// let swap_pattern = &THREE_OPT_RECONNECTIONS[3];
-/// assert_eq!(swap_pattern.segment_at(1), 2); // C moved to position 1
-/// assert_eq!(swap_pattern.segment_at(2), 1); // B moved to position 2
-/// assert!(!swap_pattern.should_reverse(1));
-/// assert!(!swap_pattern.should_reverse(2));
-/// ```
 pub static THREE_OPT_RECONNECTIONS: &[KOptReconnection] = &[
     // No swap, with reversals
     KOptReconnection::new([0, 1, 2, 3, 0, 0], 0b0010, 4), // Reverse B
@@ -238,21 +137,6 @@ pub static THREE_OPT_RECONNECTIONS: &[KOptReconnection] = &[
 /// # Panics
 ///
 /// Panics if k < 2 or k > 5.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::k_opt_reconnection::enumerate_reconnections;
-///
-/// let patterns_2opt = enumerate_reconnections(2);
-/// assert_eq!(patterns_2opt.len(), 1); // Only reverse middle
-///
-/// let patterns_3opt = enumerate_reconnections(3);
-/// assert_eq!(patterns_3opt.len(), 7);
-///
-/// let patterns_4opt = enumerate_reconnections(4);
-/// assert_eq!(patterns_4opt.len(), 47); // 3! * 2^3 - 1
-/// ```
 pub fn enumerate_reconnections(k: usize) -> Vec<KOptReconnection> {
     assert!((2..=5).contains(&k), "k must be between 2 and 5");
 
@@ -315,6 +199,38 @@ fn generate_permutations(items: &[u8]) -> Vec<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn k_opt_reconnection_basics() {
+        // 3-opt reconnection: swap B and C, reverse both
+        let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0b0110, 4);
+
+        assert_eq!(pattern.k(), 3);
+        assert_eq!(pattern.segment_count(), 4);
+        assert!(pattern.should_reverse(1));
+        assert!(pattern.should_reverse(2));
+        assert!(!pattern.should_reverse(0));
+        assert!(!pattern.should_reverse(3));
+    }
+
+    #[test]
+    fn segment_at_returns_correct_order() {
+        // Pattern swaps segments 1 and 2: [A, C, B, D]
+        let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0, 4);
+        assert_eq!(pattern.segment_at(0), 0);
+        assert_eq!(pattern.segment_at(1), 2);
+        assert_eq!(pattern.segment_at(2), 1);
+        assert_eq!(pattern.segment_at(3), 3);
+    }
+
+    #[test]
+    fn three_opt_reconnections_count() {
+        assert_eq!(THREE_OPT_RECONNECTIONS.len(), 7);
+        for pattern in THREE_OPT_RECONNECTIONS {
+            assert_eq!(pattern.k(), 3);
+            assert_eq!(pattern.segment_count(), 4);
+        }
+    }
 
     #[test]
     fn enumerate_2opt_count() {

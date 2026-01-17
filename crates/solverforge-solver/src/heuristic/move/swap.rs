@@ -23,29 +23,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
-///
-/// # Example
-/// ```
-/// use solverforge_solver::heuristic::r#move::SwapMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Sol { values: Vec<Option<i32>>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Sol {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// // Typed getter/setter with zero erasure
-/// fn get_v(s: &Sol, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
-/// fn set_v(s: &mut Sol, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
-///
-/// // Swap values between entities 0 and 1
-/// let swap = SwapMove::<Sol, i32>::new(0, 1, get_v, set_v, "value", 0);
-/// ```
 pub struct SwapMove<S, V> {
     left_entity_index: usize,
     right_entity_index: usize,

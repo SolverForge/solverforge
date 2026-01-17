@@ -23,50 +23,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::SubListChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Vehicle { id: usize, visits: Vec<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Solution, entity_idx: usize) -> usize {
-///     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-/// }
-/// fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
-///     s.vehicles.get_mut(entity_idx)
-///         .map(|v| v.visits.drain(start..end).collect())
-///         .unwrap_or_default()
-/// }
-/// fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-///     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-///         for (i, item) in items.into_iter().enumerate() {
-///             v.visits.insert(pos + i, item);
-///         }
-///     }
-/// }
-///
-/// // Move elements [1..3) from vehicle 0 to vehicle 1 at position 0
-/// let m = SubListChangeMove::<Solution, i32>::new(
-///     0, 1, 3,  // source: entity 0, range [1, 3)
-///     1, 0,     // dest: entity 1, position 0
-///     list_len, sublist_remove, sublist_insert,
-///     "visits", 0,
-/// );
-/// ```
 pub struct SubListChangeMove<S, V> {
     /// Source entity index
     source_entity_index: usize,

@@ -2,55 +2,6 @@
 //!
 //! Generates `SubListSwapMove`s that swap contiguous segments
 //! within or between list variables. Essential for VRP-style problems.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::sublist_swap::SubListSwapMoveSelector;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, entity_idx: usize) -> usize {
-//!     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-//! }
-//! fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
-//!     s.vehicles.get_mut(entity_idx)
-//!         .map(|v| v.visits.drain(start..end).collect())
-//!         .unwrap_or_default()
-//! }
-//! fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-//!     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-//!         for (i, item) in items.into_iter().enumerate() {
-//!             v.visits.insert(pos + i, item);
-//!         }
-//!     }
-//! }
-//!
-//! let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     list_len,
-//!     sublist_remove,
-//!     sublist_insert,
-//!     "visits",
-//!     0,
-//!     1,  // min sublist size
-//!     3,  // max sublist size
-//! );
-//! ```
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

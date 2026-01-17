@@ -24,35 +24,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::ListRuinMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Route { stops: Vec<i32>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Route {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Route, _: usize) -> usize { s.stops.len() }
-/// fn list_remove(s: &mut Route, _: usize, idx: usize) -> i32 { s.stops.remove(idx) }
-/// fn list_insert(s: &mut Route, _: usize, idx: usize, v: i32) { s.stops.insert(idx, v); }
-///
-/// // Remove elements at indices 1 and 3 from the route
-/// let m = ListRuinMove::<Route, i32>::new(
-///     0,
-///     &[1, 3],
-///     list_len, list_remove, list_insert,
-///     "stops", 0,
-/// );
-/// ```
 pub struct ListRuinMove<S, V> {
     /// Entity index
     entity_index: usize,

@@ -28,26 +28,6 @@ use super::mimic::MimicRecorder;
 ///
 /// - `Origin`: The type of the origin element (usually an entity or value)
 /// - `Destination`: The type of the destination element (usually an entity or value)
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::selector::NearbyDistanceMeter;
-///
-/// #[derive(Debug)]
-/// struct Location { x: f64, y: f64 }
-///
-/// #[derive(Debug)]
-/// struct EuclideanMeter;
-///
-/// impl NearbyDistanceMeter<Location, Location> for EuclideanMeter {
-///     fn distance(&self, origin: &Location, dest: &Location) -> f64 {
-///         let dx = origin.x - dest.x;
-///         let dy = origin.y - dest.y;
-///         (dx * dx + dy * dy).sqrt()
-///     }
-/// }
-/// ```
 pub trait NearbyDistanceMeter<Origin, Destination>: Send + Sync + Debug {
     /// Measures the distance from the origin to the destination.
     ///

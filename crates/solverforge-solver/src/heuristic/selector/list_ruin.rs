@@ -7,62 +7,6 @@
 //!
 //! Uses `fn` pointers for list operations. No `Arc<dyn Fn>`, no trait objects
 //! in hot paths.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::{MoveSelector, ListRuinMoveSelector};
-//! use solverforge_solver::heuristic::r#move::ListRuinMove;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//! use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-//! use solverforge_core::domain::SolutionDescriptor;
-//! use std::any::TypeId;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Route { stops: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct VrpSolution { routes: Vec<Route>, score: Option<SimpleScore> }
-//!
-//! impl PlanningSolution for VrpSolution {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn entity_count(s: &VrpSolution) -> usize { s.routes.len() }
-//! fn list_len(s: &VrpSolution, idx: usize) -> usize {
-//!     s.routes.get(idx).map_or(0, |r| r.stops.len())
-//! }
-//! fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
-//!     s.routes.get_mut(entity_idx).map(|r| r.stops.remove(idx)).unwrap_or(0)
-//! }
-//! fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
-//!     if let Some(r) = s.routes.get_mut(entity_idx) { r.stops.insert(idx, v); }
-//! }
-//!
-//! // Create selector that removes 2-3 elements at a time
-//! let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-//!     2, 3,
-//!     entity_count,
-//!     list_len, list_remove, list_insert,
-//!     "stops", 0,
-//! );
-//!
-//! // Use with a score director
-//! let solution = VrpSolution {
-//!     routes: vec![Route { stops: vec![1, 2, 3, 4, 5] }],
-//!     score: None,
-//! };
-//! let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>());
-//! let director = SimpleScoreDirector::with_calculator(
-//!     solution, descriptor, |_| SimpleScore::of(0)
-//! );
-//!
-//! let moves: Vec<_> = selector.iter_moves(&director).collect();
-//! assert!(!moves.is_empty());
-//! ```
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

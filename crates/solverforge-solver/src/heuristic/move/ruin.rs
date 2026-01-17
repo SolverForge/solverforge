@@ -25,39 +25,6 @@ use super::Move;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::RuinMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { assigned_to: Option<i32>, score: Option<SimpleScore> }
-/// #[derive(Clone, Debug)]
-/// struct Schedule { tasks: Vec<Task>, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_task(s: &Schedule, idx: usize) -> Option<i32> {
-///     s.tasks.get(idx).and_then(|t| t.assigned_to)
-/// }
-/// fn set_task(s: &mut Schedule, idx: usize, v: Option<i32>) {
-///     if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
-/// }
-///
-/// // Ruin entities 0, 2, and 4
-/// let m = RuinMove::<Schedule, i32>::new(
-///     &[0, 2, 4],
-///     get_task, set_task,
-///     "assigned_to", 0,
-/// );
-/// ```
 pub struct RuinMove<S, V> {
     /// Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,

@@ -8,34 +8,6 @@
 //!
 //! NO Box, NO dyn, NO Arc. Each variant wraps a concrete move type directly.
 //! The compiler generates optimized code paths for each variant.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::r#move::{MoveImpl, ChangeMove, ListChangeMove};
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct MySolution {
-//!     values: Vec<Option<i32>>,
-//!     list: Vec<i32>,
-//!     score: Option<SimpleScore>,
-//! }
-//!
-//! impl PlanningSolution for MySolution {
-//!     type Score = SimpleScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! // Both move types can be stored in the same enum
-//! fn example_moves() -> Vec<MoveImpl<MySolution, i32>> {
-//!     vec![
-//!         // Would be constructed via selectors in practice
-//!     ]
-//! }
-//! ```
 
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;

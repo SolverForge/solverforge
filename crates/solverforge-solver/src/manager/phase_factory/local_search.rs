@@ -31,7 +31,7 @@ where
     M: Move<S>,
     MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, M>,
+    Fo: LocalSearchForager<S>,
 {
     move_selector: MS,
     acceptor: A,
@@ -46,7 +46,7 @@ where
     M: Move<S>,
     MS: MoveSelector<S, M>,
     A: Acceptor<S>,
-    Fo: LocalSearchForager<S, M>,
+    Fo: LocalSearchForager<S>,
 {
     /// Creates a new factory with concrete components.
     pub fn new(move_selector: MS, acceptor: A, forager: Fo) -> Self {
@@ -140,7 +140,7 @@ where
     M: Move<S> + Send + Sync + 'static,
     MS: MoveSelector<S, M> + Clone + Send + Sync + 'static,
     A: Acceptor<S> + Clone + Send + Sync + 'static,
-    Fo: LocalSearchForager<S, M> + Clone + Send + Sync + 'static,
+    Fo: LocalSearchForager<S> + Clone + Send + Sync + 'static,
 {
     type Phase = LocalSearchPhase<S, M, MS, A, Fo>;
 

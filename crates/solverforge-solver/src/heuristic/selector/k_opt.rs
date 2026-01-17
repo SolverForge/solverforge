@@ -3,6 +3,10 @@
 //! Generates k-opt moves by enumerating all valid cut point combinations
 //! within selected entities and applying reconnection patterns.
 //!
+//! # Zero-Erasure Design
+//!
+//! No value type parameter. Uses VariableOperations trait for list access.
+//!
 //! # Complexity
 //!
 //! For a route of length n and k-opt:
@@ -15,10 +19,11 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::heuristic::r#move::k_opt::{CutPoint, KOptMove};
 use crate::heuristic::r#move::k_opt_reconnection::{
     enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
 };
-use crate::heuristic::r#move::k_opt::{CutPoint, KOptMove};
+use crate::operations::VariableOperations;
 
 use super::entity::EntitySelector;
 use super::typed_move_selector::MoveSelector;
@@ -66,27 +71,25 @@ impl KOptConfig {
 ///
 /// Enumerates all valid cut point combinations for each selected entity
 /// and generates moves for each reconnection pattern.
-pub struct KOptMoveSelector<S, V, ES> {
+///
+/// # Type Parameters
+/// * `S` - The solution type (must implement VariableOperations)
+/// * `ES` - The entity selector type
+pub struct KOptMoveSelector<S, ES> {
     /// Selects entities (routes) to apply k-opt to.
     entity_selector: ES,
     /// K-opt configuration.
     config: KOptConfig,
     /// Reconnection patterns to use.
     patterns: Vec<&'static KOptReconnection>,
-    /// Get list length for an entity.
-    list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end).
-    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position.
-    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     /// Variable name.
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
+impl<S, ES: Debug> Debug for KOptMoveSelector<S, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KOptMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -97,15 +100,11 @@ impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
     }
 }
 
-impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
+impl<S: PlanningSolution, ES> KOptMoveSelector<S, ES> {
     /// Creates a new k-opt move selector.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,
         config: KOptConfig,
-        list_len: fn(&S, usize) -> usize,
-        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -124,9 +123,6 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
             entity_selector,
             config,
             patterns,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -134,22 +130,18 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
     }
 }
 
-impl<S, V, ES> MoveSelector<S, KOptMove<S, V>> for KOptMoveSelector<S, V, ES>
+impl<S, ES> MoveSelector<S, KOptMove<S>> for KOptMoveSelector<S, ES>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + VariableOperations,
     ES: EntitySelector<S>,
-    V: Clone + Send + Sync + Debug + 'static,
 {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = KOptMove<S>> + 'a> {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
-        let list_len = self.list_len;
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
@@ -159,7 +151,7 @@ where
             .flat_map(move |entity_ref| {
                 let entity_idx = entity_ref.entity_index;
                 let solution = score_director.working_solution();
-                let len = list_len(solution, entity_idx);
+                let len = solution.list_len(entity_idx);
 
                 // Generate all valid cut combinations
                 let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
@@ -167,15 +159,7 @@ where
                 cuts_iter.flat_map(move |cuts| {
                     // For each cut combination, generate moves for each pattern
                     patterns.iter().map(move |&pattern| {
-                        KOptMove::new(
-                            &cuts,
-                            pattern,
-                            list_len,
-                            sublist_remove,
-                            sublist_insert,
-                            variable_name,
-                            descriptor_index,
-                        )
+                        KOptMove::new(&cuts, pattern, variable_name, descriptor_index)
                     })
                 })
             });
@@ -192,7 +176,7 @@ where
             .iter(score_director)
             .map(|entity_ref| {
                 let solution = score_director.working_solution();
-                let len = (self.list_len)(solution, entity_ref.entity_index);
+                let len = solution.list_len(entity_ref.entity_index);
                 count_cut_combinations(k, len, min_seg) * pattern_count
             })
             .sum()
@@ -357,33 +341,30 @@ impl<S> ListPositionDistanceMeter<S> for DefaultDistanceMeter {
 /// 4. etc.
 ///
 /// This dramatically reduces the search space for large routes.
-pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>, ES> {
+///
+/// # Type Parameters
+/// * `S` - The solution type (must implement VariableOperations)
+/// * `DM` - The distance meter type
+/// * `ES` - The entity selector type
+pub struct NearbyKOptMoveSelector<S, DM: ListPositionDistanceMeter<S>, ES> {
     /// Selects entities (routes) to apply k-opt to.
     entity_selector: ES,
     /// Distance meter for nearby selection.
-    distance_meter: D,
+    distance_meter: DM,
     /// Maximum nearby positions to consider.
     max_nearby: usize,
     /// K-opt configuration.
     config: KOptConfig,
     /// Reconnection patterns.
     patterns: Vec<&'static KOptReconnection>,
-    /// Get list length for an entity.
-    list_len: fn(&S, usize) -> usize,
-    /// Remove sublist.
-    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert sublist.
-    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     /// Variable name.
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug
-    for NearbyKOptMoveSelector<S, V, D, ES>
-{
+impl<S, DM: ListPositionDistanceMeter<S>, ES: Debug> Debug for NearbyKOptMoveSelector<S, DM, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyKOptMoveSelector")
             .field("entity_selector", &self.entity_selector)
@@ -394,19 +375,15 @@ impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug
     }
 }
 
-impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
-    NearbyKOptMoveSelector<S, V, D, ES>
+impl<S: PlanningSolution, DM: ListPositionDistanceMeter<S>, ES>
+    NearbyKOptMoveSelector<S, DM, ES>
 {
     /// Creates a new nearby k-opt move selector.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,
-        distance_meter: D,
+        distance_meter: DM,
         max_nearby: usize,
         config: KOptConfig,
-        list_len: fn(&S, usize) -> usize,
-        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -424,9 +401,6 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
             max_nearby,
             config,
             patterns,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -457,23 +431,19 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
     }
 }
 
-impl<S, V, DM, ES> MoveSelector<S, KOptMove<S, V>> for NearbyKOptMoveSelector<S, V, DM, ES>
+impl<S, DM, ES> MoveSelector<S, KOptMove<S>> for NearbyKOptMoveSelector<S, DM, ES>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
     DM: ListPositionDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
     fn iter_moves<'a, SD: ScoreDirector<S>>(
         &'a self,
         score_director: &'a SD,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = KOptMove<S>> + 'a> {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
-        let list_len_fn = self.list_len;
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
@@ -483,7 +453,7 @@ where
             .flat_map(move |entity_ref| {
                 let entity_idx = entity_ref.entity_index;
                 let solution = score_director.working_solution();
-                let len = list_len_fn(solution, entity_idx);
+                let len = solution.list_len(entity_idx);
 
                 // Generate nearby cut combinations
                 let cuts_iter = NearbyCutIterator::new(self, solution, entity_idx, k, len, min_seg);
@@ -494,15 +464,7 @@ where
                         let mut sorted_cuts = cuts.clone();
                         sorted_cuts.sort_by_key(|c| c.position());
 
-                        KOptMove::new(
-                            &sorted_cuts,
-                            pattern,
-                            list_len_fn,
-                            sublist_remove,
-                            sublist_insert,
-                            variable_name,
-                            descriptor_index,
-                        )
+                        KOptMove::new(&sorted_cuts, pattern, variable_name, descriptor_index)
                     })
                 })
             });
@@ -520,7 +482,7 @@ where
             .iter(score_director)
             .map(|entity_ref| {
                 let solution = score_director.working_solution();
-                let len = (self.list_len)(solution, entity_ref.entity_index);
+                let len = solution.list_len(entity_ref.entity_index);
                 if len < (k + 1) * self.config.min_segment_len {
                     0
                 } else {
@@ -533,8 +495,8 @@ where
 }
 
 /// Iterator for nearby k-cut combinations.
-struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
-    selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
+struct NearbyCutIterator<'a, S, DM: ListPositionDistanceMeter<S>, ES> {
+    selector: &'a NearbyKOptMoveSelector<S, DM, ES>,
     solution: &'a S,
     entity_idx: usize,
     k: usize,
@@ -547,11 +509,11 @@ struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
     done: bool,
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
-    NearbyCutIterator<'a, S, V, D, ES>
+impl<'a, S: PlanningSolution, DM: ListPositionDistanceMeter<S>, ES>
+    NearbyCutIterator<'a, S, DM, ES>
 {
     fn new(
-        selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
+        selector: &'a NearbyKOptMoveSelector<S, DM, ES>,
         solution: &'a S,
         entity_idx: usize,
         k: usize,
@@ -687,8 +649,8 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
     }
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> Iterator
-    for NearbyCutIterator<'a, S, V, D, ES>
+impl<'a, S: PlanningSolution, DM: ListPositionDistanceMeter<S>, ES> Iterator
+    for NearbyCutIterator<'a, S, DM, ES>
 {
     type Item = Vec<CutPoint>;
 
@@ -714,6 +676,7 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::Move;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -721,7 +684,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Tour {
-        cities: Vec<i32>,
+        cities: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -740,32 +703,62 @@ mod tests {
         }
     }
 
+    impl VariableOperations for TspSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.tours.iter().map(|t| t.cities.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tours.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tours
+                .iter()
+                .flat_map(|t| t.cities.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tours[entity_idx].cities.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.tours.get(entity_idx).map_or(0, |t| t.cities.len())
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.tours[entity_idx].cities[pos]
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.tours[entity_idx].cities.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.tours[entity_idx].cities.insert(pos, elem);
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "cities"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_tours(s: &TspSolution) -> &Vec<Tour> {
         &s.tours
     }
     fn get_tours_mut(s: &mut TspSolution) -> &mut Vec<Tour> {
         &mut s.tours
-    }
-    fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
-        s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
-    }
-    fn sublist_remove(
-        s: &mut TspSolution,
-        entity_idx: usize,
-        start: usize,
-        end: usize,
-    ) -> Vec<i32> {
-        s.tours
-            .get_mut(entity_idx)
-            .map(|t| t.cities.drain(start..end).collect())
-            .unwrap_or_default()
-    }
-    fn sublist_insert(s: &mut TspSolution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-        if let Some(t) = s.tours.get_mut(entity_idx) {
-            for (i, item) in items.into_iter().enumerate() {
-                t.cities.insert(pos + i, item);
-            }
-        }
     }
 
     fn create_director(
@@ -829,12 +822,9 @@ mod tests {
 
         let config = KOptConfig::new(3);
 
-        let selector = KOptMoveSelector::<TspSolution, i32, _>::new(
+        let selector = KOptMoveSelector::<TspSolution, _>::new(
             FromSolutionEntitySelector::new(0),
             config,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "cities",
             0,
         );
@@ -859,12 +849,9 @@ mod tests {
 
         let config = KOptConfig::new(3);
 
-        let selector = KOptMoveSelector::<TspSolution, i32, _>::new(
+        let selector = KOptMoveSelector::<TspSolution, _>::new(
             FromSolutionEntitySelector::new(0),
             config,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             "cities",
             0,
         );

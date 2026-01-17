@@ -1,27 +1,9 @@
-//! Heuristic components for solving
+//! Heuristic components for solving.
 //!
-//! This module contains:
-//! - Moves: Operations that modify planning variables
-//! - Selectors: Components that enumerate entities, values, and moves
+//! Use `MoveImpl` for moves and `MoveSelectorImpl` for selectors.
 
-pub mod r#move;
-pub mod selector;
+pub(crate) mod r#move;
+pub(crate) mod selector;
 
-// Re-export move types
-pub use r#move::k_opt_reconnection;
-pub use r#move::{
-    ChangeMove, CompositeMove, CutPoint, KOptMove, ListChangeMove, ListRuinMove, Move, MoveArena,
-    PillarChangeMove, PillarSwapMove, RuinMove, SwapMove,
-};
-
-// Re-export selector types
-pub use selector::{
-    AllEntitiesSelector, ChangeMoveSelector, DefaultDistanceMeter, DefaultPillarSelector,
-    EntityReference, EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
-    KOptConfig, KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter,
-    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
-    MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
-    NearbyKOptMoveSelector, NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector,
-    SelectionOrder, StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector,
-    TypedValueSelector,
-};
+pub use r#move::{Move, MoveArena, MoveImpl};
+pub use selector::{MoveSelector, MoveSelectorImpl};

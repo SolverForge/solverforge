@@ -20,55 +20,11 @@ pub mod stats;
 pub mod termination;
 
 pub use builder::AcceptorBuilder;
-pub use heuristic::{
-    // K-opt reconnection patterns
-    k_opt_reconnection,
-    // Selectors
-    AllEntitiesSelector,
-    // Move types
-    ChangeMove,
-    ChangeMoveSelector,
-    CompositeMove,
-    CutPoint,
-    DefaultDistanceMeter,
-    DefaultPillarSelector,
-    EntityReference,
-    EntitySelector,
-    FromSolutionEntitySelector,
-    FromSolutionTypedValueSelector,
-    KOptConfig,
-    KOptMove,
-    KOptMoveSelector,
-    ListPositionDistanceMeter,
-    ListRuinMove,
-    ListRuinMoveSelector,
-    MimicRecorder,
-    MimicRecordingEntitySelector,
-    MimicReplayingEntitySelector,
-    Move,
-    MoveArena,
-    MoveSelector,
-    NearbyDistanceMeter,
-    NearbyEntitySelector,
-    NearbyKOptMoveSelector,
-    NearbySelectionConfig,
-    Pillar,
-    PillarChangeMove,
-    PillarSelector,
-    PillarSwapMove,
-    RuinMove,
-    RuinMoveSelector,
-    SelectionOrder,
-    StaticTypedValueSelector,
-    SubPillarConfig,
-    SwapMove,
-    SwapMoveSelector,
-    TypedValueSelector,
-};
+pub use heuristic::{Move, MoveArena, MoveImpl, MoveSelector, MoveSelectorImpl};
 pub use manager::{
-    Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
+    Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, KOptPhase,
     KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
+    PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
 pub use phase::{

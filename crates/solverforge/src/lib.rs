@@ -130,12 +130,10 @@ pub mod __internal {
     };
 
     // Solver infrastructure
-    pub use solverforge_solver::heuristic::selector::{
-        DefaultDistanceMeter, FromSolutionEntitySelector,
-    };
     pub use solverforge_solver::manager::{
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
+    pub use solverforge_solver::{MoveImpl, MoveSelectorImpl};
 
     // Variable operations for run_solver
     pub use solverforge_solver::operations::VariableOperations;

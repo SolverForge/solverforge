@@ -88,6 +88,45 @@ pub trait VariableOperations: Sized + Send + 'static {
     /// For list variables: inserts into the list at that position.
     fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element);
 
+    /// Gets the element at the given position without removing it.
+    ///
+    /// For basic variables: position must be 0, returns current value.
+    /// For list variables: returns the element at that position.
+    fn get(&self, entity_idx: usize, pos: usize) -> Self::Element;
+
+    /// Returns all possible values for basic variables.
+    ///
+    /// For basic variables: returns the value range.
+    /// For list variables: returns empty vec (not applicable).
+    fn value_range(&self) -> Vec<Self::Element> {
+        Vec::new()
+    }
+
+    /// Removes a contiguous range of elements from an entity's list.
+    ///
+    /// For list variables: removes elements from `start` to `end` (exclusive).
+    /// Returns the removed elements as a Vec.
+    ///
+    /// Default implementation removes elements one by one.
+    fn remove_sublist(&mut self, entity_idx: usize, start: usize, end: usize) -> Vec<Self::Element> {
+        let mut removed = Vec::with_capacity(end - start);
+        for _ in start..end {
+            removed.push(self.remove(entity_idx, start));
+        }
+        removed
+    }
+
+    /// Inserts multiple elements at a position in an entity's list.
+    ///
+    /// For list variables: inserts all elements starting at `pos`.
+    ///
+    /// Default implementation inserts elements one by one.
+    fn insert_sublist(&mut self, entity_idx: usize, pos: usize, elements: Vec<Self::Element>) {
+        for (i, elem) in elements.into_iter().enumerate() {
+            self.insert(entity_idx, pos + i, elem);
+        }
+    }
+
     /// Returns the descriptor index for this variable type.
     ///
     /// Used internally for score director coordination.

@@ -5,8 +5,7 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses `fn` pointers for list operations. No `Arc<dyn Fn>`, no trait objects
-//! in hot paths.
+//! No value type parameter. Uses VariableOperations trait for list access.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -18,6 +17,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::list_ruin::ListRuinMove;
+use crate::operations::VariableOperations;
 
 use super::MoveSelector;
 
@@ -27,41 +27,28 @@ use super::MoveSelector;
 /// enabling a construction heuristic to reinsert them in better positions.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
+/// * `S` - The planning solution type (must implement VariableOperations)
 ///
 /// # Zero-Erasure
 ///
-/// All list access uses `fn` pointers:
-/// - `list_len: fn(&S, usize) -> usize` - gets list length
-/// - `list_remove: fn(&mut S, usize, usize) -> V` - removes element
-/// - `list_insert: fn(&mut S, usize, usize, V)` - inserts element
-/// - `entity_count: fn(&S) -> usize` - counts entities
-pub struct ListRuinMoveSelector<S, V> {
+/// Uses VariableOperations trait for list access. No function pointers required.
+pub struct ListRuinMoveSelector<S> {
     /// Minimum elements to remove per move.
     min_ruin_count: usize,
     /// Maximum elements to remove per move.
     max_ruin_count: usize,
     /// Random seed for reproducible subset selection.
     seed: Option<u64>,
-    /// Function to get entity count from solution.
-    entity_count: fn(&S) -> usize,
-    /// Function to get list length for an entity.
-    list_len: fn(&S, usize) -> usize,
-    /// Function to remove element at index, returning it.
-    list_remove: fn(&mut S, usize, usize) -> V,
-    /// Function to insert element at index.
-    list_insert: fn(&mut S, usize, usize, V),
     /// Variable name.
     variable_name: &'static str,
     /// Entity descriptor index.
     descriptor_index: usize,
     /// Number of ruin moves to generate per iteration.
     moves_per_step: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
+impl<S> Debug for ListRuinMoveSelector<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListRuinMoveSelector")
             .field("min_ruin_count", &self.min_ruin_count)
@@ -73,29 +60,20 @@ impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
     }
 }
 
-impl<S, V> ListRuinMoveSelector<S, V> {
-    /// Creates a new list ruin move selector with typed function pointers.
+impl<S> ListRuinMoveSelector<S> {
+    /// Creates a new list ruin move selector.
     ///
     /// # Arguments
     /// * `min_ruin_count` - Minimum elements to remove (at least 1)
     /// * `max_ruin_count` - Maximum elements to remove
-    /// * `entity_count` - Function to get total entity count
-    /// * `list_len` - Function to get list length for an entity
-    /// * `list_remove` - Function to remove element at index
-    /// * `list_insert` - Function to insert element at index
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     ///
     /// # Panics
     /// Panics if `min_ruin_count` is 0 or `max_ruin_count < min_ruin_count`.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         min_ruin_count: usize,
         max_ruin_count: usize,
-        entity_count: fn(&S) -> usize,
-        list_len: fn(&S, usize) -> usize,
-        list_remove: fn(&mut S, usize, usize) -> V,
-        list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -109,10 +87,6 @@ impl<S, V> ListRuinMoveSelector<S, V> {
             min_ruin_count,
             max_ruin_count,
             seed: None,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
             variable_name,
             descriptor_index,
             moves_per_step: 10,
@@ -143,20 +117,16 @@ impl<S, V> ListRuinMoveSelector<S, V> {
     }
 }
 
-impl<S, V> MoveSelector<S, ListRuinMove<S, V>> for ListRuinMoveSelector<S, V>
+impl<S> MoveSelector<S, ListRuinMove<S>> for ListRuinMoveSelector<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ListRuinMove<S, V>> + 'a> {
+    ) -> Box<dyn Iterator<Item = ListRuinMove<S>> + 'a> {
         let solution = score_director.working_solution();
-        let total_entities = (self.entity_count)(solution);
-        let list_len = self.list_len;
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
+        let total_entities = solution.entity_count();
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let min_ruin = self.min_ruin_count;
@@ -169,11 +139,11 @@ where
 
         // Pre-generate moves using RNG
         let mut rng = self.create_rng();
-        let moves: Vec<ListRuinMove<S, V>> = (0..moves_count)
+        let moves: Vec<ListRuinMove<S>> = (0..moves_count)
             .filter_map(|_| {
                 // Pick a random entity
                 let entity_idx = rng.random_range(0..total_entities);
-                let list_length = list_len(solution, entity_idx);
+                let list_length = solution.list_len(entity_idx);
 
                 if list_length == 0 {
                     return None;
@@ -199,9 +169,6 @@ where
                 Some(ListRuinMove::new(
                     entity_idx,
                     &indices,
-                    list_len,
-                    list_remove,
-                    list_insert,
                     variable_name,
                     descriptor_index,
                 ))
@@ -212,7 +179,7 @@ where
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
-        let total = (self.entity_count)(score_director.working_solution());
+        let total = score_director.working_solution().entity_count();
         if total == 0 {
             return 0;
         }
@@ -234,7 +201,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Route {
-        stops: Vec<i32>,
+        stops: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -253,26 +220,59 @@ mod tests {
         }
     }
 
-    fn entity_count(s: &VrpSolution) -> usize {
-        s.routes.len()
-    }
-    fn list_len(s: &VrpSolution, entity_idx: usize) -> usize {
-        s.routes.get(entity_idx).map_or(0, |r| r.stops.len())
-    }
-    fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
-        s.routes
-            .get_mut(entity_idx)
-            .map(|r| r.stops.remove(idx))
-            .unwrap_or(0)
-    }
-    fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
-        if let Some(r) = s.routes.get_mut(entity_idx) {
-            r.stops.insert(idx, v);
+    impl VariableOperations for VrpSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.routes.iter().map(|r| r.stops.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.routes.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.routes
+                .iter()
+                .flat_map(|r| r.stops.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.routes[entity_idx].stops.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.routes.get(entity_idx).map_or(0, |r| r.stops.len())
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.routes[entity_idx].stops[pos]
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.routes[entity_idx].stops.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.routes[entity_idx].stops.insert(pos, elem);
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "stops"
+        }
+
+        fn is_list_variable() -> bool {
+            true
         }
     }
 
     fn create_director(
-        routes: Vec<Vec<i32>>,
+        routes: Vec<Vec<usize>>,
     ) -> SimpleScoreDirector<VrpSolution, impl Fn(&VrpSolution) -> SimpleScore> {
         let routes = routes.into_iter().map(|stops| Route { stops }).collect();
         let solution = VrpSolution {
@@ -287,17 +287,8 @@ mod tests {
     fn generates_list_ruin_moves() {
         let director = create_director(vec![vec![1, 2, 3, 4, 5]]);
 
-        let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            2,
-            3,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        )
-        .with_moves_per_step(5);
+        let selector =
+            ListRuinMoveSelector::<VrpSolution>::new(2, 3, "stops", 0).with_moves_per_step(5);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -313,17 +304,8 @@ mod tests {
         let director = create_director(vec![vec![1, 2]]);
 
         // Request more elements than available
-        let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            5,
-            10,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        )
-        .with_moves_per_step(3);
+        let selector =
+            ListRuinMoveSelector::<VrpSolution>::new(5, 10, "stops", 0).with_moves_per_step(3);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -337,16 +319,7 @@ mod tests {
     fn empty_solution_yields_no_moves() {
         let director = create_director(vec![]);
 
-        let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            1,
-            2,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let selector = ListRuinMoveSelector::<VrpSolution>::new(1, 2, "stops", 0);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
         assert!(moves.is_empty());
@@ -356,18 +329,9 @@ mod tests {
     fn empty_list_yields_no_moves_for_that_entity() {
         let director = create_director(vec![vec![], vec![1, 2, 3]]);
 
-        let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            1,
-            2,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        )
-        .with_moves_per_step(10)
-        .with_seed(42);
+        let selector = ListRuinMoveSelector::<VrpSolution>::new(1, 2, "stops", 0)
+            .with_moves_per_step(10)
+            .with_seed(42);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -382,17 +346,8 @@ mod tests {
     fn size_returns_moves_per_step() {
         let director = create_director(vec![vec![1, 2, 3]]);
 
-        let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            1,
-            2,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        )
-        .with_moves_per_step(7);
+        let selector =
+            ListRuinMoveSelector::<VrpSolution>::new(1, 2, "stops", 0).with_moves_per_step(7);
 
         assert_eq!(selector.size(&director), 7);
     }
@@ -400,30 +355,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "min_ruin_count must be at least 1")]
     fn panics_on_zero_min() {
-        let _selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            0,
-            2,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let _selector = ListRuinMoveSelector::<VrpSolution>::new(0, 2, "stops", 0);
     }
 
     #[test]
     #[should_panic(expected = "max_ruin_count must be >= min_ruin_count")]
     fn panics_on_invalid_range() {
-        let _selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-            5,
-            2,
-            entity_count,
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let _selector = ListRuinMoveSelector::<VrpSolution>::new(5, 2, "stops", 0);
     }
 }

@@ -5,24 +5,26 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::operations::VariableOperations;
+
 use super::Move;
 
 /// A move that relocates an element from one list position to another.
 ///
 /// Supports both intra-list moves (within same entity) and inter-list moves
-/// (between different entities). Uses typed function pointers for zero-erasure.
+/// (between different entities). Uses `VariableOperations` trait for zero-erasure.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
-pub struct ListChangeMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone, Copy)]
+pub struct ListChangeMove<S> {
     /// Source entity index (which entity's list to remove from)
     source_entity_index: usize,
     /// Position in source list to remove from
@@ -31,27 +33,14 @@ pub struct ListChangeMove<S, V> {
     dest_entity_index: usize,
     /// Position in destination list to insert at
     dest_position: usize,
-    /// Get list length for an entity
-    list_len: fn(&S, usize) -> usize,
-    /// Remove element at position, returns removed value
-    list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    /// Insert element at position
-    list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for ListChangeMove<S, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, V> Copy for ListChangeMove<S, V> {}
-
-impl<S, V: Debug> Debug for ListChangeMove<S, V> {
+impl<S> Debug for ListChangeMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListChangeMove")
             .field("source_entity", &self.source_entity_index)
@@ -63,28 +52,21 @@ impl<S, V: Debug> Debug for ListChangeMove<S, V> {
     }
 }
 
-impl<S, V> ListChangeMove<S, V> {
-    /// Creates a new list change move with typed function pointers.
+impl<S> ListChangeMove<S> {
+    /// Creates a new list change move.
     ///
     /// # Arguments
     /// * `source_entity_index` - Entity index to remove from
     /// * `source_position` - Position in source list
     /// * `dest_entity_index` - Entity index to insert into
     /// * `dest_position` - Position in destination list
-    /// * `list_len` - Function to get list length
-    /// * `list_remove` - Function to remove element at position
-    /// * `list_insert` - Function to insert element at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_entity_index: usize,
         source_position: usize,
         dest_entity_index: usize,
         dest_position: usize,
-        list_len: fn(&S, usize) -> usize,
-        list_remove: fn(&mut S, usize, usize) -> Option<V>,
-        list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -93,12 +75,10 @@ impl<S, V> ListChangeMove<S, V> {
             source_position,
             dest_entity_index,
             dest_position,
-            list_len,
-            list_remove,
-            list_insert,
             variable_name,
             descriptor_index,
             indices: [source_entity_index, dest_entity_index],
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -128,16 +108,15 @@ impl<S, V> ListChangeMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for ListChangeMove<S, V>
+impl<S> Move<S> for ListChangeMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check source position is valid
-        let source_len = (self.list_len)(solution, self.source_entity_index);
+        let source_len = solution.list_len(self.source_entity_index);
         if self.source_position >= source_len {
             return false;
         }
@@ -145,7 +124,7 @@ where
         // Check destination position is valid
         // For intra-list, dest can be 0..=len-1 (after removal)
         // For inter-list, dest can be 0..=len
-        let dest_len = (self.list_len)(solution, self.dest_entity_index);
+        let dest_len = solution.list_len(self.dest_entity_index);
         let max_dest = if self.is_intra_list() {
             source_len - 1 // After removal, list is shorter
         } else {
@@ -157,9 +136,6 @@ where
         }
 
         // For intra-list moves, check for no-ops
-        // Moving to same position is obviously a no-op
-        // Moving forward by 1 position is also a no-op due to index adjustment:
-        //   remove at source, adjusted_dest = dest-1 = source, insert at source → same list
         if self.is_intra_list() {
             if self.source_position == self.dest_position {
                 return false;
@@ -189,12 +165,9 @@ where
         }
 
         // Remove from source
-        let value = (self.list_remove)(
-            score_director.working_solution_mut(),
-            self.source_entity_index,
-            self.source_position,
-        )
-        .expect("source position should be valid");
+        let value = score_director
+            .working_solution_mut()
+            .remove(self.source_entity_index, self.source_position);
 
         // For intra-list moves, adjust dest position if it was after source
         let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
@@ -204,12 +177,9 @@ where
         };
 
         // Insert at destination
-        (self.list_insert)(
-            score_director.working_solution_mut(),
-            self.dest_entity_index,
-            adjusted_dest,
-            value.clone(),
-        );
+        score_director
+            .working_solution_mut()
+            .insert(self.dest_entity_index, adjusted_dest, value);
 
         // Notify after changes
         score_director.after_variable_changed(
@@ -226,17 +196,22 @@ where
         }
 
         // Register undo - reverse the operation
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
         let src_entity = self.source_entity_index;
         let src_pos = self.source_position;
         let dest_entity = self.dest_entity_index;
+        let is_intra = self.is_intra_list();
 
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Remove from where we inserted
-            let removed = list_remove(s, dest_entity, adjusted_dest).unwrap();
+            let removed = s.remove(dest_entity, adjusted_dest);
             // Insert back at original source position
-            list_insert(s, src_entity, src_pos, removed);
+            // For intra-list backward moves, need to adjust
+            let restore_pos = if is_intra && src_pos > adjusted_dest {
+                src_pos
+            } else {
+                src_pos
+            };
+            s.insert(src_entity, restore_pos, removed);
         }));
     }
 
@@ -264,10 +239,11 @@ mod tests {
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
     use std::any::TypeId;
+    use std::hash::Hash;
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        visits: Vec<i32>,
+        visits: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -286,23 +262,59 @@ mod tests {
         }
     }
 
+    impl VariableOperations for RoutingSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.vehicles.iter().map(|v| v.visits.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.vehicles.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.vehicles.iter().flat_map(|v| v.visits.iter().copied()).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.insert(pos, elem);
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits[pos]
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "visits"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_vehicles(s: &RoutingSolution) -> &Vec<Vehicle> {
         &s.vehicles
     }
     fn get_vehicles_mut(s: &mut RoutingSolution) -> &mut Vec<Vehicle> {
         &mut s.vehicles
-    }
-
-    fn list_len(s: &RoutingSolution, entity_idx: usize) -> usize {
-        s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-    }
-    fn list_remove(s: &mut RoutingSolution, entity_idx: usize, pos: usize) -> Option<i32> {
-        s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
-    }
-    fn list_insert(s: &mut RoutingSolution, entity_idx: usize, pos: usize, val: i32) {
-        if let Some(v) = s.vehicles.get_mut(entity_idx) {
-            v.visits.insert(pos, val);
-        }
     }
 
     fn create_director(
@@ -334,17 +346,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 1 (value=2) to position 3
-        let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            0,
-            3,
-            list_len,
-            list_remove,
-            list_insert,
-            "visits",
-            0,
-        );
+        let m = ListChangeMove::<RoutingSolution>::new(0, 1, 0, 3, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -372,17 +374,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 3 (value=4) to position 1
-        let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            3,
-            0,
-            1,
-            list_len,
-            list_remove,
-            list_insert,
-            "visits",
-            0,
-        );
+        let m = ListChangeMove::<RoutingSolution>::new(0, 3, 0, 1, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -414,17 +406,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element from vehicle 0 position 1 (value=2) to vehicle 1 position 1
-        let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            1,
-            1,
-            list_len,
-            list_remove,
-            list_insert,
-            "visits",
-            0,
-        );
+        let m = ListChangeMove::<RoutingSolution>::new(0, 1, 1, 1, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -452,17 +434,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // Move to same effective position
-        let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            0,
-            1,
-            list_len,
-            list_remove,
-            list_insert,
-            "visits",
-            0,
-        );
+        let m = ListChangeMove::<RoutingSolution>::new(0, 1, 0, 1, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -474,17 +446,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            10,
-            0,
-            0,
-            list_len,
-            list_remove,
-            list_insert,
-            "visits",
-            0,
-        );
+        let m = ListChangeMove::<RoutingSolution>::new(0, 10, 0, 0, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }

@@ -5,7 +5,7 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -13,17 +13,19 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::operations::VariableOperations;
+
 use super::Move;
 
 /// A move that relocates a contiguous sublist from one position to another.
 ///
 /// Supports both intra-list moves (within same entity) and inter-list moves
-/// (between different entities). Uses typed function pointers for zero-erasure.
+/// (between different entities). Uses `VariableOperations` trait for zero-erasure.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
-pub struct SubListChangeMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone, Copy)]
+pub struct SubListChangeMove<S> {
     /// Source entity index
     source_entity_index: usize,
     /// Start of range in source list (inclusive)
@@ -34,28 +36,14 @@ pub struct SubListChangeMove<S, V> {
     dest_entity_index: usize,
     /// Position in destination list to insert at
     dest_position: usize,
-    /// Get list length for an entity
-    list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end), returns removed elements
-    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position
-    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for SubListChangeMove<S, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, V> Copy for SubListChangeMove<S, V> {}
-
-impl<S, V: Debug> Debug for SubListChangeMove<S, V> {
+impl<S> Debug for SubListChangeMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SubListChangeMove")
             .field("source_entity", &self.source_entity_index)
@@ -67,8 +55,8 @@ impl<S, V: Debug> Debug for SubListChangeMove<S, V> {
     }
 }
 
-impl<S, V> SubListChangeMove<S, V> {
-    /// Creates a new sublist change move with typed function pointers.
+impl<S> SubListChangeMove<S> {
+    /// Creates a new sublist change move.
     ///
     /// # Arguments
     /// * `source_entity_index` - Entity index to remove from
@@ -76,9 +64,6 @@ impl<S, V> SubListChangeMove<S, V> {
     /// * `source_end` - End of range (exclusive)
     /// * `dest_entity_index` - Entity index to insert into
     /// * `dest_position` - Position in destination list
-    /// * `list_len` - Function to get list length
-    /// * `sublist_remove` - Function to remove range [start, end)
-    /// * `sublist_insert` - Function to insert elements at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
@@ -88,9 +73,6 @@ impl<S, V> SubListChangeMove<S, V> {
         source_end: usize,
         dest_entity_index: usize,
         dest_position: usize,
-        list_len: fn(&S, usize) -> usize,
-        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -100,9 +82,6 @@ impl<S, V> SubListChangeMove<S, V> {
             source_end,
             dest_entity_index,
             dest_position,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             variable_name,
             descriptor_index,
             indices: [source_entity_index, dest_entity_index],
@@ -146,10 +125,9 @@ impl<S, V> SubListChangeMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for SubListChangeMove<S, V>
+impl<S> Move<S> for SubListChangeMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
@@ -160,13 +138,13 @@ where
         }
 
         // Check source range is within bounds
-        let source_len = (self.list_len)(solution, self.source_entity_index);
+        let source_len = solution.list_len(self.source_entity_index);
         if self.source_end > source_len {
             return false;
         }
 
         // Check destination position is valid
-        let dest_len = (self.list_len)(solution, self.dest_entity_index);
+        let dest_len = solution.list_len(self.dest_entity_index);
         let sublist_len = self.sublist_len();
 
         let max_dest = if self.is_intra_list() {
@@ -207,23 +185,17 @@ where
         }
 
         // Remove sublist from source
-        let elements = (self.sublist_remove)(
-            score_director.working_solution_mut(),
-            self.source_entity_index,
-            self.source_start,
-            self.source_end,
-        );
+        let elements = score_director
+            .working_solution_mut()
+            .remove_sublist(self.source_entity_index, self.source_start, self.source_end);
 
         // dest_position is relative to post-removal list, no adjustment needed
         let dest_pos = self.dest_position;
 
         // Insert at destination
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            self.dest_entity_index,
-            dest_pos,
-            elements.clone(),
-        );
+        score_director
+            .working_solution_mut()
+            .insert_sublist(self.dest_entity_index, dest_pos, elements.clone());
 
         // Notify after changes
         score_director.after_variable_changed(
@@ -240,8 +212,6 @@ where
         }
 
         // Register undo
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
         let src_entity = self.source_entity_index;
         let src_start = self.source_start;
         let dest_entity = self.dest_entity_index;
@@ -249,9 +219,9 @@ where
 
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Remove from where we inserted
-            let removed = sublist_remove(s, dest_entity, dest_pos, dest_pos + sublist_len);
+            let removed = s.remove_sublist(dest_entity, dest_pos, dest_pos + sublist_len);
             // Insert back at original position
-            sublist_insert(s, src_entity, src_start, removed);
+            s.insert_sublist(src_entity, src_start, removed);
         }));
     }
 
@@ -275,6 +245,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -282,7 +253,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        visits: Vec<i32>,
+        visits: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -301,33 +272,62 @@ mod tests {
         }
     }
 
+    impl VariableOperations for RoutingSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.vehicles.iter().map(|v| v.visits.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.vehicles.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.vehicles
+                .iter()
+                .flat_map(|v| v.visits.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.insert(pos, elem);
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits[pos]
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "visits"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_vehicles(s: &RoutingSolution) -> &Vec<Vehicle> {
         &s.vehicles
     }
     fn get_vehicles_mut(s: &mut RoutingSolution) -> &mut Vec<Vehicle> {
         &mut s.vehicles
-    }
-
-    fn list_len(s: &RoutingSolution, entity_idx: usize) -> usize {
-        s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-    }
-    fn sublist_remove(
-        s: &mut RoutingSolution,
-        entity_idx: usize,
-        start: usize,
-        end: usize,
-    ) -> Vec<i32> {
-        s.vehicles
-            .get_mut(entity_idx)
-            .map(|v| v.visits.drain(start..end).collect())
-            .unwrap_or_default()
-    }
-    fn sublist_insert(s: &mut RoutingSolution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-        if let Some(v) = s.vehicles.get_mut(entity_idx) {
-            for (i, item) in items.into_iter().enumerate() {
-                v.visits.insert(pos + i, item);
-            }
-        }
     }
 
     fn create_director(
@@ -360,18 +360,7 @@ mod tests {
 
         // Move elements [1..3) (values 2, 3) to end of list
         // After removing [1..3), list is [1, 4, 5, 6], insert at position 4
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            3,
-            0,
-            4, // Position in post-removal list
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "visits",
-            0,
-        );
+        let m = SubListChangeMove::<RoutingSolution>::new(0, 1, 3, 0, 4, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -398,18 +387,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move elements [3..5) (values 4, 5) to position 1
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            3,
-            5,
-            0,
-            1,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "visits",
-            0,
-        );
+        let m = SubListChangeMove::<RoutingSolution>::new(0, 3, 5, 0, 1, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -441,18 +419,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move elements [1..3) (values 2, 3) from vehicle 0 to vehicle 1 at position 1
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            3,
-            1,
-            1,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "visits",
-            0,
-        );
+        let m = SubListChangeMove::<RoutingSolution>::new(0, 1, 3, 1, 1, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -480,18 +447,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // start >= end is not doable
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            2,
-            2,
-            0,
-            0,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "visits",
-            0,
-        );
+        let m = SubListChangeMove::<RoutingSolution>::new(0, 2, 2, 0, 0, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -503,18 +459,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            10,
-            0,
-            0,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "visits",
-            0,
-        );
+        let m = SubListChangeMove::<RoutingSolution>::new(0, 1, 10, 0, 0, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -527,18 +472,7 @@ mod tests {
         let director = create_director(vehicles);
 
         // Moving [1..4) to position 2 (within the range) is a no-op
-        let m = SubListChangeMove::<RoutingSolution, i32>::new(
-            0,
-            1,
-            4,
-            0,
-            2,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "visits",
-            0,
-        );
+        let m = SubListChangeMove::<RoutingSolution>::new(0, 1, 4, 0, 2, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }

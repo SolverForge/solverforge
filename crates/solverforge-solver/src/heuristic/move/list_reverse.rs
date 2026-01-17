@@ -5,13 +5,15 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::Move;
 
@@ -21,33 +23,21 @@ use super::Move;
 /// can significantly reduce total distance by eliminating crossing edges.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
-pub struct ListReverseMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone, Copy)]
+pub struct ListReverseMove<S> {
     /// Entity index
     entity_index: usize,
     /// Start of range to reverse (inclusive)
     start: usize,
     /// End of range to reverse (exclusive)
     end: usize,
-    /// Get list length for an entity
-    list_len: fn(&S, usize) -> usize,
-    /// Reverse elements in range [start, end)
-    list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for ListReverseMove<S, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, V> Copy for ListReverseMove<S, V> {}
-
-impl<S, V: Debug> Debug for ListReverseMove<S, V> {
+impl<S> Debug for ListReverseMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListReverseMove")
             .field("entity", &self.entity_index)
@@ -57,24 +47,19 @@ impl<S, V: Debug> Debug for ListReverseMove<S, V> {
     }
 }
 
-impl<S, V> ListReverseMove<S, V> {
-    /// Creates a new list reverse move with typed function pointers.
+impl<S> ListReverseMove<S> {
+    /// Creates a new list reverse move.
     ///
     /// # Arguments
     /// * `entity_index` - Entity index
     /// * `start` - Start of range (inclusive)
     /// * `end` - End of range (exclusive)
-    /// * `list_len` - Function to get list length
-    /// * `list_reverse` - Function to reverse elements in range
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_index: usize,
         start: usize,
         end: usize,
-        list_len: fn(&S, usize) -> usize,
-        list_reverse: fn(&mut S, usize, usize, usize),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -82,8 +67,6 @@ impl<S, V> ListReverseMove<S, V> {
             entity_index,
             start,
             end,
-            list_len,
-            list_reverse,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -111,10 +94,9 @@ impl<S, V> ListReverseMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for ListReverseMove<S, V>
+impl<S> Move<S> for ListReverseMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
@@ -125,7 +107,7 @@ where
         }
 
         // Check range is within bounds
-        let len = (self.list_len)(solution, self.entity_index);
+        let len = solution.list_len(self.entity_index);
         if self.end > len {
             return false;
         }
@@ -141,13 +123,25 @@ where
             self.variable_name,
         );
 
-        // Reverse the segment
-        (self.list_reverse)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            self.start,
-            self.end,
-        );
+        // Collect elements to reverse
+        let mut elements = Vec::with_capacity(self.end - self.start);
+        {
+            let sol = score_director.working_solution();
+            for i in self.start..self.end {
+                elements.push(sol.get(self.entity_index, i));
+            }
+        }
+
+        // Remove and reinsert in reverse order
+        {
+            let sol = score_director.working_solution_mut();
+            for i in (self.start..self.end).rev() {
+                sol.remove(self.entity_index, i);
+            }
+            for (i, elem) in elements.iter().rev().enumerate() {
+                sol.insert(self.entity_index, self.start + i, *elem);
+            }
+        }
 
         // Notify after change
         score_director.after_variable_changed(
@@ -157,13 +151,23 @@ where
         );
 
         // Register undo - reversing twice restores original
-        let list_reverse = self.list_reverse;
         let entity = self.entity_index;
         let start = self.start;
         let end = self.end;
 
         score_director.register_undo(Box::new(move |s: &mut S| {
-            list_reverse(s, entity, start, end);
+            // Collect current elements
+            let mut elems = Vec::with_capacity(end - start);
+            for i in start..end {
+                elems.push(s.get(entity, i));
+            }
+            // Remove and reinsert reversed
+            for i in (start..end).rev() {
+                s.remove(entity, i);
+            }
+            for (i, elem) in elems.iter().rev().enumerate() {
+                s.insert(entity, start + i, *elem);
+            }
         }));
     }
 
@@ -183,6 +187,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -190,7 +195,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Tour {
-        cities: Vec<i32>,
+        cities: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -209,20 +214,62 @@ mod tests {
         }
     }
 
+    impl VariableOperations for TspSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.tours.iter().map(|t| t.cities.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tours.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tours
+                .iter()
+                .flat_map(|t| t.cities.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tours[entity_idx].cities.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.tours.get(entity_idx).map_or(0, |t| t.cities.len())
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.tours[entity_idx].cities.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.tours[entity_idx].cities.insert(pos, elem);
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.tours[entity_idx].cities[pos]
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "cities"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_tours(s: &TspSolution) -> &Vec<Tour> {
         &s.tours
     }
     fn get_tours_mut(s: &mut TspSolution) -> &mut Vec<Tour> {
         &mut s.tours
-    }
-
-    fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
-        s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
-    }
-    fn list_reverse(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize) {
-        if let Some(t) = s.tours.get_mut(entity_idx) {
-            t.cities[start..end].reverse();
-        }
     }
 
     fn create_director(
@@ -250,8 +297,7 @@ mod tests {
         let mut director = create_director(tours);
 
         // Reverse [1..4): [1, 2, 3, 4, 5] -> [1, 4, 3, 2, 5]
-        let m =
-            ListReverseMove::<TspSolution, i32>::new(0, 1, 4, list_len, list_reverse, "cities", 0);
+        let m = ListReverseMove::<TspSolution>::new(0, 1, 4, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -276,8 +322,7 @@ mod tests {
         }];
         let mut director = create_director(tours);
 
-        let m =
-            ListReverseMove::<TspSolution, i32>::new(0, 0, 4, list_len, list_reverse, "cities", 0);
+        let m = ListReverseMove::<TspSolution>::new(0, 0, 4, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -303,8 +348,7 @@ mod tests {
         let director = create_director(tours);
 
         // Reversing a single element is a no-op
-        let m =
-            ListReverseMove::<TspSolution, i32>::new(0, 1, 2, list_len, list_reverse, "cities", 0);
+        let m = ListReverseMove::<TspSolution>::new(0, 1, 2, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -316,8 +360,7 @@ mod tests {
         }];
         let director = create_director(tours);
 
-        let m =
-            ListReverseMove::<TspSolution, i32>::new(0, 1, 10, list_len, list_reverse, "cities", 0);
+        let m = ListReverseMove::<TspSolution>::new(0, 1, 10, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }

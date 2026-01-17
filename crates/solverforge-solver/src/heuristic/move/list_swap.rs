@@ -5,24 +5,27 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::Move;
 
 /// A move that swaps two elements in list variables.
 ///
 /// Supports both intra-list swaps (within same entity) and inter-list swaps
-/// (between different entities). Uses typed function pointers for zero-erasure.
+/// (between different entities). Uses `VariableOperations` trait for zero-erasure.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
-pub struct ListSwapMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone, Copy)]
+pub struct ListSwapMove<S> {
     /// First entity index
     first_entity_index: usize,
     /// Position in first entity's list
@@ -31,27 +34,14 @@ pub struct ListSwapMove<S, V> {
     second_entity_index: usize,
     /// Position in second entity's list
     second_position: usize,
-    /// Get list length for an entity
-    list_len: fn(&S, usize) -> usize,
-    /// Get element at position
-    list_get: fn(&S, usize, usize) -> Option<V>,
-    /// Set element at position
-    list_set: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for ListSwapMove<S, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, V> Copy for ListSwapMove<S, V> {}
-
-impl<S, V: Debug> Debug for ListSwapMove<S, V> {
+impl<S> Debug for ListSwapMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListSwapMove")
             .field("first_entity", &self.first_entity_index)
@@ -63,28 +53,21 @@ impl<S, V: Debug> Debug for ListSwapMove<S, V> {
     }
 }
 
-impl<S, V> ListSwapMove<S, V> {
-    /// Creates a new list swap move with typed function pointers.
+impl<S> ListSwapMove<S> {
+    /// Creates a new list swap move.
     ///
     /// # Arguments
     /// * `first_entity_index` - First entity index
     /// * `first_position` - Position in first entity's list
     /// * `second_entity_index` - Second entity index
     /// * `second_position` - Position in second entity's list
-    /// * `list_len` - Function to get list length
-    /// * `list_get` - Function to get element at position
-    /// * `list_set` - Function to set element at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         first_entity_index: usize,
         first_position: usize,
         second_entity_index: usize,
         second_position: usize,
-        list_len: fn(&S, usize) -> usize,
-        list_get: fn(&S, usize, usize) -> Option<V>,
-        list_set: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -93,12 +76,10 @@ impl<S, V> ListSwapMove<S, V> {
             first_position,
             second_entity_index,
             second_position,
-            list_len,
-            list_get,
-            list_set,
             variable_name,
             descriptor_index,
             indices: [first_entity_index, second_entity_index],
+            _phantom: PhantomData,
         }
     }
 
@@ -128,22 +109,21 @@ impl<S, V> ListSwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for ListSwapMove<S, V>
+impl<S> Move<S> for ListSwapMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check first position is valid
-        let first_len = (self.list_len)(solution, self.first_entity_index);
+        let first_len = solution.list_len(self.first_entity_index);
         if self.first_position >= first_len {
             return false;
         }
 
         // Check second position is valid
-        let second_len = (self.list_len)(solution, self.second_entity_index);
+        let second_len = solution.list_len(self.second_entity_index);
         if self.second_position >= second_len {
             return false;
         }
@@ -154,27 +134,20 @@ where
         }
 
         // Get values and check they're different
-        let first_val = (self.list_get)(solution, self.first_entity_index, self.first_position);
-        let second_val = (self.list_get)(solution, self.second_entity_index, self.second_position);
+        let first_val = solution.get(self.first_entity_index, self.first_position);
+        let second_val = solution.get(self.second_entity_index, self.second_position);
 
         first_val != second_val
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Get both values
-        let first_val = (self.list_get)(
-            score_director.working_solution(),
-            self.first_entity_index,
-            self.first_position,
-        )
-        .expect("first position should be valid");
-
-        let second_val = (self.list_get)(
-            score_director.working_solution(),
-            self.second_entity_index,
-            self.second_position,
-        )
-        .expect("second position should be valid");
+        let first_val = score_director
+            .working_solution()
+            .get(self.first_entity_index, self.first_position);
+        let second_val = score_director
+            .working_solution()
+            .get(self.second_entity_index, self.second_position);
 
         // Notify before changes
         score_director.before_variable_changed(
@@ -190,19 +163,14 @@ where
             );
         }
 
-        // Swap: first gets second's value, second gets first's value
-        (self.list_set)(
-            score_director.working_solution_mut(),
-            self.first_entity_index,
-            self.first_position,
-            second_val.clone(),
-        );
-        (self.list_set)(
-            score_director.working_solution_mut(),
-            self.second_entity_index,
-            self.second_position,
-            first_val.clone(),
-        );
+        // Swap: remove and insert at each position
+        {
+            let sol = score_director.working_solution_mut();
+            sol.remove(self.first_entity_index, self.first_position);
+            sol.insert(self.first_entity_index, self.first_position, second_val);
+            sol.remove(self.second_entity_index, self.second_position);
+            sol.insert(self.second_entity_index, self.second_position, first_val);
+        }
 
         // Notify after changes
         score_director.after_variable_changed(
@@ -219,7 +187,6 @@ where
         }
 
         // Register undo - swap back
-        let list_set = self.list_set;
         let first_entity = self.first_entity_index;
         let first_pos = self.first_position;
         let second_entity = self.second_entity_index;
@@ -227,8 +194,10 @@ where
 
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Restore original values
-            list_set(s, first_entity, first_pos, first_val);
-            list_set(s, second_entity, second_pos, second_val);
+            s.remove(first_entity, first_pos);
+            s.insert(first_entity, first_pos, first_val);
+            s.remove(second_entity, second_pos);
+            s.insert(second_entity, second_pos, second_val);
         }));
     }
 
@@ -252,6 +221,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -259,7 +229,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Vehicle {
-        visits: Vec<i32>,
+        visits: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -278,27 +248,62 @@ mod tests {
         }
     }
 
+    impl VariableOperations for RoutingSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.vehicles.iter().map(|v| v.visits.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.vehicles.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.vehicles
+                .iter()
+                .flat_map(|v| v.visits.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.vehicles[entity_idx].visits.insert(pos, elem);
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.vehicles[entity_idx].visits[pos]
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "visits"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_vehicles(s: &RoutingSolution) -> &Vec<Vehicle> {
         &s.vehicles
     }
     fn get_vehicles_mut(s: &mut RoutingSolution) -> &mut Vec<Vehicle> {
         &mut s.vehicles
-    }
-
-    fn list_len(s: &RoutingSolution, entity_idx: usize) -> usize {
-        s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-    }
-    fn list_get(s: &RoutingSolution, entity_idx: usize, pos: usize) -> Option<i32> {
-        s.vehicles
-            .get(entity_idx)
-            .and_then(|v| v.visits.get(pos).copied())
-    }
-    fn list_set(s: &mut RoutingSolution, entity_idx: usize, pos: usize, val: i32) {
-        if let Some(v) = s.vehicles.get_mut(entity_idx) {
-            if let Some(elem) = v.visits.get_mut(pos) {
-                *elem = val;
-            }
-        }
     }
 
     fn create_director(
@@ -330,9 +335,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap positions 1 and 3 (values 2 and 4)
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 0, 3, list_len, list_get, list_set, "visits", 0,
-        );
+        let m = ListSwapMove::<RoutingSolution>::new(0, 1, 0, 3, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -363,9 +366,7 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap vehicle 0 position 1 (value=2) with vehicle 1 position 2 (value=30)
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 1, 2, list_len, list_get, list_set, "visits", 0,
-        );
+        let m = ListSwapMove::<RoutingSolution>::new(0, 1, 1, 2, "visits", 0);
 
         assert!(m.is_doable(&director));
 
@@ -392,9 +393,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 0, 1, list_len, list_get, list_set, "visits", 0,
-        );
+        let m = ListSwapMove::<RoutingSolution>::new(0, 1, 0, 1, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -406,9 +405,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 0, 0, 2, list_len, list_get, list_set, "visits", 0,
-        );
+        let m = ListSwapMove::<RoutingSolution>::new(0, 0, 0, 2, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -420,9 +417,7 @@ mod tests {
         }];
         let director = create_director(vehicles);
 
-        let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 0, 10, list_len, list_get, list_set, "visits", 0,
-        );
+        let m = ListSwapMove::<RoutingSolution>::new(0, 1, 0, 10, "visits", 0);
 
         assert!(!m.is_doable(&director));
     }

@@ -9,6 +9,8 @@ pub(crate) mod list_change;
 pub(crate) mod list_ruin;
 pub(crate) mod list_swap;
 pub(crate) mod mimic;
+pub(crate) mod sublist_change;
+pub(crate) mod sublist_swap;
 pub(crate) mod move_selector_impl;
 pub(crate) mod nearby;
 pub(crate) mod pillar;

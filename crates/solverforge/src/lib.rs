@@ -35,6 +35,13 @@
 //! ```
 
 // ============================================================================
+// Derive Macros (MUST be at crate root for proc macro expansion)
+// ============================================================================
+
+#[doc(hidden)]
+pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
+
+// ============================================================================
 // Prelude - The ONE import users need
 // ============================================================================
 
@@ -61,20 +68,9 @@ pub mod prelude {
     };
 }
 
-// Re-export prelude at root for convenience
-pub use prelude::*;
-
-// Derive macros must be at crate root for macro expansion
-pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
-
-// Incremental constraints (advanced API, not in prelude)
-pub use solverforge_scoring::{
-    IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint,
-};
-
-// Console output (feature-gated)
+// Console output (feature-gated, internal)
 #[cfg(feature = "console")]
-pub mod console;
+pub(crate) mod console;
 
 // ============================================================================
 // Internal API for Macros

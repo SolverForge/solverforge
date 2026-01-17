@@ -27,6 +27,7 @@ use crate::director::{ScoreDirector, ShadowVariableSupport};
 ///
 /// ```
 /// use solverforge_scoring::director::typed::TypedScoreDirector;
+/// use solverforge_scoring::director::shadow_aware::ShadowVariableSupport;
 /// use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 /// use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
 /// use solverforge_core::domain::PlanningSolution;
@@ -43,6 +44,10 @@ use crate::director::{ScoreDirector, ShadowVariableSupport};
 ///     type Score = SimpleScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// impl ShadowVariableSupport for Solution {
+///     fn update_entity_shadows(&mut self, _entity_index: usize) {}
 /// }
 ///
 /// // Create zero-erasure constraint (all closures as generics)
@@ -295,6 +300,7 @@ where
     ///
     /// ```
     /// use solverforge_scoring::director::typed::TypedScoreDirector;
+    /// use solverforge_scoring::director::shadow_aware::ShadowVariableSupport;
     /// use solverforge_core::domain::PlanningSolution;
     /// use solverforge_core::score::SimpleScore;
     ///
@@ -308,6 +314,10 @@ where
     ///     type Score = SimpleScore;
     ///     fn score(&self) -> Option<Self::Score> { self.score }
     ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+    /// }
+    ///
+    /// impl ShadowVariableSupport for Solution {
+    ///     fn update_entity_shadows(&mut self, _entity_index: usize) {}
     /// }
     ///
     /// let solution = Solution { values: vec![1, 2, 3], score: None };
@@ -437,6 +447,7 @@ mod tests {
     use super::*;
     use crate::api::constraint_set::IncrementalConstraint;
     use crate::constraint::incremental::IncrementalUniConstraint;
+    use crate::director::shadow_aware::ShadowVariableSupport;
     use solverforge_core::score::SimpleScore;
     use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -456,6 +467,10 @@ mod tests {
         fn set_score(&mut self, score: Option<Self::Score>) {
             self.score = score;
         }
+    }
+
+    impl ShadowVariableSupport for TestSolution {
+        fn update_entity_shadows(&mut self, _entity_index: usize) {}
     }
 
     fn make_unassigned_constraint() -> impl IncrementalConstraint<TestSolution, SimpleScore> {

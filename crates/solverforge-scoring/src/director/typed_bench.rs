@@ -8,6 +8,7 @@
 mod benchmarks {
     use crate::constraint::incremental::IncrementalUniConstraint;
     use crate::constraint::IncrementalBiConstraint;
+    use crate::director::shadow_aware::ShadowVariableSupport;
     use crate::director::typed::TypedScoreDirector;
     use solverforge_core::domain::PlanningSolution;
     use solverforge_core::score::SimpleScore;
@@ -42,6 +43,10 @@ mod benchmarks {
         fn set_score(&mut self, score: Option<Self::Score>) {
             self.score = score;
         }
+    }
+
+    impl ShadowVariableSupport for Schedule {
+        fn update_entity_shadows(&mut self, _entity_index: usize) {}
     }
 
     /// Full recalculation scoring function (for comparison).

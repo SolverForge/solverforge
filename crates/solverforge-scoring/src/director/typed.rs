@@ -10,7 +10,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
 use crate::api::constraint_set::ConstraintSet;
-use crate::director::ScoreDirector;
+use crate::director::{ScoreDirector, ShadowVariableSupport};
 
 /// A typed score director for zero-erasure incremental scoring.
 ///
@@ -69,7 +69,7 @@ use crate::director::ScoreDirector;
 /// ```
 pub struct TypedScoreDirector<S, C>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     C: ConstraintSet<S, S::Score>,
 {
     /// The working solution.
@@ -94,7 +94,7 @@ where
 
 impl<S, C> TypedScoreDirector<S, C>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
@@ -199,44 +199,14 @@ where
 
     /// Called after changing an entity's variable.
     ///
-    /// This inserts the entity (with new state) into all constraints,
-    /// computing the delta and updating the cached score.
-    ///
-    /// # Arguments
-    ///
-    /// * `entity_index` - Index of the entity that was changed
+    /// Updates shadow variables first, then inserts the entity into all
+    /// constraints, computing the delta and updating the cached score.
     #[inline]
     pub fn after_variable_changed(&mut self, entity_index: usize) {
         if !self.initialized {
             return;
         }
-
-        let delta = self
-            .constraints
-            .on_insert_all(&self.working_solution, entity_index);
-        self.cached_score = self.cached_score + delta;
-    }
-
-    /// Called after changing an entity's variable, with shadow update.
-    ///
-    /// Updates shadow variables for the entity FIRST, then inserts into
-    /// constraints. This ensures constraints see the updated shadow state.
-    ///
-    /// # Arguments
-    ///
-    /// * `entity_index` - Index of the entity that was changed
-    #[inline]
-    pub fn after_variable_changed_with_shadows(&mut self, entity_index: usize)
-    where
-        S: crate::director::ShadowVariableSupport,
-    {
-        if !self.initialized {
-            return;
-        }
-
-        // Shadow updates first - O(1) per entity
         self.working_solution.update_entity_shadows(entity_index);
-
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
@@ -244,11 +214,6 @@ where
     }
 
     /// Convenience method for a complete variable change cycle.
-    ///
-    /// Equivalent to:
-    /// 1. `before_variable_changed(entity_index)`
-    /// 2. Apply the change via `change_fn`
-    /// 3. `after_variable_changed(entity_index)`
     #[inline]
     pub fn do_change<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
     where
@@ -257,25 +222,6 @@ where
         self.before_variable_changed(entity_index);
         change_fn(&mut self.working_solution);
         self.after_variable_changed(entity_index);
-        self.cached_score
-    }
-
-    /// Variable change cycle with automatic shadow updates.
-    ///
-    /// Equivalent to:
-    /// 1. `before_variable_changed(entity_index)`
-    /// 2. Apply the change via `change_fn`
-    /// 3. Update shadow variables for entity
-    /// 4. Insert into constraints
-    #[inline]
-    pub fn do_change_with_shadows<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
-    where
-        S: crate::director::ShadowVariableSupport,
-        F: FnOnce(&mut S),
-    {
-        self.before_variable_changed(entity_index);
-        change_fn(&mut self.working_solution);
-        self.after_variable_changed_with_shadows(entity_index);
         self.cached_score
     }
 
@@ -376,7 +322,7 @@ where
 
 impl<S, C> std::fmt::Debug for TypedScoreDirector<S, C>
 where
-    S: PlanningSolution + std::fmt::Debug,
+    S: PlanningSolution + ShadowVariableSupport + std::fmt::Debug,
     S::Score: std::fmt::Debug,
     C: ConstraintSet<S, S::Score>,
 {
@@ -391,7 +337,7 @@ where
 
 impl<S, C> ScoreDirector<S> for TypedScoreDirector<S, C>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score> + Send,
 {
@@ -444,6 +390,7 @@ where
         if !self.initialized {
             return;
         }
+        self.working_solution.update_entity_shadows(entity_index);
         let delta = self
             .constraints
             .on_insert_all(&self.working_solution, entity_index);
@@ -451,7 +398,7 @@ where
     }
 
     fn trigger_variable_listeners(&mut self) {
-        // No shadow variables in typed director (yet)
+        self.working_solution.update_all_shadows();
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {

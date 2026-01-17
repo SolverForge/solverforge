@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::{ScoreDirector, ShadowVariableSupport};
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
@@ -288,7 +288,7 @@ pub fn run_solver<S, C>(
     terminate: Option<&AtomicBool>,
     sender: mpsc::UnboundedSender<(S, S::Score)>,
 ) where
-    S: PlanningSolution + VariableOperations<Element = usize>,
+    S: PlanningSolution + VariableOperations<Element = usize> + ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {

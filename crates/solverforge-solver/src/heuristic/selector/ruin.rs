@@ -5,8 +5,7 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses `fn` pointers for variable access and entity counting.
-//! No `Arc<dyn Fn>`, no trait objects in hot paths.
+//! No value type parameter. Uses VariableOperations trait for entity access.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -18,6 +17,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::ruin::RuinMove;
+use crate::operations::VariableOperations;
 
 use super::MoveSelector;
 
@@ -27,38 +27,28 @@ use super::MoveSelector;
 /// heuristic to reassign them in potentially better configurations.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The variable value type
+/// * `S` - The planning solution type (must implement VariableOperations)
 ///
 /// # Zero-Erasure
 ///
-/// All variable access uses `fn` pointers:
-/// - `getter: fn(&S, usize) -> Option<V>` - gets current value
-/// - `setter: fn(&mut S, usize, Option<V>)` - sets value
-/// - `entity_count: fn(&S) -> usize` - counts entities
-pub struct RuinMoveSelector<S, V> {
+/// Uses VariableOperations trait for entity counting. No function pointers required.
+pub struct RuinMoveSelector<S> {
     /// Minimum entities to include in each ruin move.
     min_ruin_count: usize,
     /// Maximum entities to include in each ruin move.
     max_ruin_count: usize,
     /// Random seed for reproducible subset selection.
     seed: Option<u64>,
-    /// Function to get entity count from solution.
-    entity_count: fn(&S) -> usize,
-    /// Function to get current value.
-    getter: fn(&S, usize) -> Option<V>,
-    /// Function to set value.
-    setter: fn(&mut S, usize, Option<V>),
     /// Variable name.
     variable_name: &'static str,
     /// Entity descriptor index.
     descriptor_index: usize,
     /// Number of ruin moves to generate per iteration.
     moves_per_step: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Debug> Debug for RuinMoveSelector<S, V> {
+impl<S> Debug for RuinMoveSelector<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMoveSelector")
             .field("min_ruin_count", &self.min_ruin_count)
@@ -70,15 +60,12 @@ impl<S, V: Debug> Debug for RuinMoveSelector<S, V> {
     }
 }
 
-impl<S, V> RuinMoveSelector<S, V> {
-    /// Creates a new ruin move selector with typed function pointers.
+impl<S> RuinMoveSelector<S> {
+    /// Creates a new ruin move selector.
     ///
     /// # Arguments
     /// * `min_ruin_count` - Minimum entities to ruin (at least 1)
     /// * `max_ruin_count` - Maximum entities to ruin
-    /// * `entity_count` - Function to get total entity count
-    /// * `getter` - Function to get current value
-    /// * `setter` - Function to set value
     /// * `variable_name` - Name of the planning variable
     /// * `descriptor_index` - Entity descriptor index
     ///
@@ -87,9 +74,6 @@ impl<S, V> RuinMoveSelector<S, V> {
     pub fn new(
         min_ruin_count: usize,
         max_ruin_count: usize,
-        entity_count: fn(&S) -> usize,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -103,12 +87,9 @@ impl<S, V> RuinMoveSelector<S, V> {
             min_ruin_count,
             max_ruin_count,
             seed: None,
-            entity_count,
-            getter,
-            setter,
             variable_name,
             descriptor_index,
-            moves_per_step: 10, // Default: generate 10 ruin moves per step
+            moves_per_step: 10,
             _phantom: PhantomData,
         }
     }
@@ -136,18 +117,16 @@ impl<S, V> RuinMoveSelector<S, V> {
     }
 }
 
-impl<S, V> MoveSelector<S, RuinMove<S, V>> for RuinMoveSelector<S, V>
+impl<S> MoveSelector<S, RuinMove<S>> for RuinMoveSelector<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = RuinMove<S, V>> + 'a> {
-        let total_entities = (self.entity_count)(score_director.working_solution());
-        let getter = self.getter;
-        let setter = self.setter;
+    ) -> Box<dyn Iterator<Item = RuinMove<S>> + 'a> {
+        let solution = score_director.working_solution();
+        let total_entities = solution.entity_count();
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
@@ -178,21 +157,19 @@ where
             .collect();
 
         Box::new(subsets.into_iter().map(move |indices| {
-            RuinMove::new(&indices, getter, setter, variable_name, descriptor_index)
+            RuinMove::new(&indices, variable_name, descriptor_index)
         }))
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
-        let total = (self.entity_count)(score_director.working_solution());
+        let total = score_director.working_solution().entity_count();
         if total == 0 {
             return 0;
         }
-        // Return configured moves per step (not combinatorial count)
         self.moves_per_step
     }
 
     fn is_never_ending(&self) -> bool {
-        // Random selection means we could generate moves indefinitely
         false
     }
 }
@@ -200,6 +177,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::SolutionDescriptor;
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
@@ -207,7 +185,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Task {
-        assigned_to: Option<i32>,
+        assigned_to: Option<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -226,20 +204,60 @@ mod tests {
         }
     }
 
-    fn entity_count(s: &Schedule) -> usize {
-        s.tasks.len()
-    }
-    fn get_assigned(s: &Schedule, idx: usize) -> Option<i32> {
-        s.tasks.get(idx).and_then(|t| t.assigned_to)
-    }
-    fn set_assigned(s: &mut Schedule, idx: usize, v: Option<i32>) {
-        if let Some(t) = s.tasks.get_mut(idx) {
-            t.assigned_to = v;
+    impl VariableOperations for Schedule {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            10 // 10 possible assignments
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tasks.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tasks.iter().filter_map(|t| t.assigned_to).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tasks[entity_idx].assigned_to = Some(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            if self.tasks[entity_idx].assigned_to.is_some() {
+                1
+            } else {
+                0
+            }
+        }
+
+        fn remove(&mut self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].assigned_to.take().unwrap()
+        }
+
+        fn insert(&mut self, entity_idx: usize, _pos: usize, elem: Self::Element) {
+            self.tasks[entity_idx].assigned_to = Some(elem);
+        }
+
+        fn get(&self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].assigned_to.unwrap()
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "assigned_to"
+        }
+
+        fn is_list_variable() -> bool {
+            false
         }
     }
 
     fn create_director(
-        assignments: &[Option<i32>],
+        assignments: &[Option<usize>],
     ) -> SimpleScoreDirector<Schedule, impl Fn(&Schedule) -> SimpleScore> {
         let tasks: Vec<Task> = assignments
             .iter()
@@ -254,16 +272,8 @@ mod tests {
     fn generates_ruin_moves() {
         let director = create_director(&[Some(1), Some(2), Some(3), Some(4), Some(5)]);
 
-        let selector = RuinMoveSelector::<Schedule, i32>::new(
-            2,
-            3,
-            entity_count,
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        )
-        .with_moves_per_step(5);
+        let selector = RuinMoveSelector::<Schedule>::new(2, 3, "assigned_to", 0)
+            .with_moves_per_step(5);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -279,16 +289,8 @@ mod tests {
         let director = create_director(&[Some(1), Some(2)]);
 
         // Request more entities than available
-        let selector = RuinMoveSelector::<Schedule, i32>::new(
-            5,
-            10,
-            entity_count,
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        )
-        .with_moves_per_step(3);
+        let selector = RuinMoveSelector::<Schedule>::new(5, 10, "assigned_to", 0)
+            .with_moves_per_step(3);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -303,15 +305,7 @@ mod tests {
     fn empty_solution_yields_empty_moves() {
         let director = create_director(&[]);
 
-        let selector = RuinMoveSelector::<Schedule, i32>::new(
-            1,
-            2,
-            entity_count,
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        );
+        let selector = RuinMoveSelector::<Schedule>::new(1, 2, "assigned_to", 0);
 
         let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -325,16 +319,8 @@ mod tests {
     fn size_returns_moves_per_step() {
         let director = create_director(&[Some(1), Some(2), Some(3)]);
 
-        let selector = RuinMoveSelector::<Schedule, i32>::new(
-            1,
-            2,
-            entity_count,
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        )
-        .with_moves_per_step(7);
+        let selector = RuinMoveSelector::<Schedule>::new(1, 2, "assigned_to", 0)
+            .with_moves_per_step(7);
 
         assert_eq!(selector.size(&director), 7);
     }
@@ -342,28 +328,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "min_ruin_count must be at least 1")]
     fn panics_on_zero_min() {
-        let _selector = RuinMoveSelector::<Schedule, i32>::new(
-            0,
-            2,
-            entity_count,
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        );
+        let _selector = RuinMoveSelector::<Schedule>::new(0, 2, "assigned_to", 0);
     }
 
     #[test]
     #[should_panic(expected = "max_ruin_count must be >= min_ruin_count")]
     fn panics_on_invalid_range() {
-        let _selector = RuinMoveSelector::<Schedule, i32>::new(
-            5,
-            2,
-            entity_count,
-            get_assigned,
-            set_assigned,
-            "assigned_to",
-            0,
-        );
+        let _selector = RuinMoveSelector::<Schedule>::new(5, 2, "assigned_to", 0);
     }
 }

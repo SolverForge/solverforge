@@ -248,7 +248,8 @@ use tracing::info;
 use crate::manager::ListConstructionPhaseBuilder;
 use crate::operations::VariableOperations;
 use crate::phase::localsearch::{AcceptedCountForager, AcceptorImpl, LocalSearchPhase};
-use crate::heuristic::{ListChangeMoveSelector, FromSolutionEntitySelector};
+use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+use crate::heuristic::selector::list_change::ListChangeMoveSelector;
 use crate::termination::{OrTermination, TimeTermination};
 
 /// Default time limit in seconds.

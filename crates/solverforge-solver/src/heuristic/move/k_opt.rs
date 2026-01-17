@@ -6,15 +6,15 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! - Fixed arrays for cut points (no SmallVec for static data)
-//! - Reference to static reconnection pattern
-//! - Typed function pointers for all list operations
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::k_opt_reconnection::KOptReconnection;
 use super::Move;
@@ -63,52 +63,29 @@ impl CutPoint {
 ///
 /// - Fixed array `[CutPoint; 5]` for up to 5 cuts (5-opt)
 /// - Reference to static `&'static KOptReconnection`
-/// - Typed function pointers for list operations
+/// - Uses `VariableOperations` trait for all list operations
 ///
 /// # Type Parameters
 ///
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
-pub struct KOptMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone, Copy)]
+pub struct KOptMove<S> {
     /// Cut points (up to 5 for 5-opt).
     cuts: [CutPoint; 5],
     /// Number of actual cuts (k value).
     cut_count: u8,
     /// Reconnection pattern to apply.
     reconnection: &'static KOptReconnection,
-    /// Get list length for an entity.
-    list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end), returns removed elements.
-    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position.
-    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     /// Variable name.
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
     /// Entity index (for intra-route moves).
     entity_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for KOptMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            cuts: self.cuts,
-            cut_count: self.cut_count,
-            reconnection: self.reconnection,
-            list_len: self.list_len,
-            sublist_remove: self.sublist_remove,
-            sublist_insert: self.sublist_insert,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            entity_index: self.entity_index,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<S, V: Debug> Debug for KOptMove<S, V> {
+impl<S> Debug for KOptMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cuts: Vec<_> = self.cuts[..self.cut_count as usize]
             .iter()
@@ -124,29 +101,22 @@ impl<S, V: Debug> Debug for KOptMove<S, V> {
     }
 }
 
-impl<S, V> KOptMove<S, V> {
+impl<S> KOptMove<S> {
     /// Creates a new k-opt move.
     ///
     /// # Arguments
     ///
     /// * `cuts` - Slice of cut points (must be sorted by position for intra-route)
     /// * `reconnection` - How to reconnect the segments
-    /// * `list_len` - Function to get list length
-    /// * `sublist_remove` - Function to remove a range
-    /// * `sublist_insert` - Function to insert elements
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     ///
     /// # Panics
     ///
     /// Panics if cuts is empty or has more than 5 elements.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         cuts: &[CutPoint],
         reconnection: &'static KOptReconnection,
-        list_len: fn(&S, usize) -> usize,
-        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -164,9 +134,6 @@ impl<S, V> KOptMove<S, V> {
             cuts: cut_array,
             cut_count: cuts.len() as u8,
             reconnection,
-            list_len,
-            sublist_remove,
-            sublist_insert,
             variable_name,
             descriptor_index,
             entity_index,
@@ -195,10 +162,9 @@ impl<S, V> KOptMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for KOptMove<S, V>
+impl<S> Move<S> for KOptMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
@@ -215,7 +181,7 @@ where
         }
 
         // For intra-route, verify cuts are sorted and within bounds
-        let len = (self.list_len)(solution, self.entity_index);
+        let len = solution.list_len(self.entity_index);
 
         // Check cuts are valid positions
         for cut in &self.cuts[..k] {
@@ -231,8 +197,6 @@ where
                     return false;
                 }
             }
-            // Need at least 1 element between cuts for meaningful segments
-            // Actually, empty segments are allowed in some cases
         }
 
         true
@@ -258,11 +222,7 @@ where
         // ...
         // Segment k: [pk-1, len)
 
-        let solution = score_director.working_solution_mut();
-        let len = (self.list_len)(solution, entity);
-
-        // Extract all elements
-        let all_elements = (self.sublist_remove)(solution, entity, 0, len);
+        let len = score_director.working_solution().list_len(entity);
 
         // Build segment boundaries
         let mut boundaries = Vec::with_capacity(k + 2);
@@ -272,8 +232,13 @@ where
         }
         boundaries.push(len);
 
+        // Extract all elements
+        let all_elements = score_director
+            .working_solution_mut()
+            .remove_sublist(entity, 0, len);
+
         // Extract segments
-        let mut segments: Vec<Vec<V>> = Vec::with_capacity(k + 1);
+        let mut segments: Vec<Vec<_>> = Vec::with_capacity(k + 1);
         for i in 0..=k {
             let start = boundaries[i];
             let end = boundaries[i + 1];
@@ -292,26 +257,20 @@ where
         }
 
         // Insert reordered elements back
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            entity,
-            0,
-            new_elements.clone(),
-        );
+        score_director
+            .working_solution_mut()
+            .insert_sublist(entity, 0, new_elements.clone());
 
         // Notify after change
         score_director.after_variable_changed(self.descriptor_index, entity, self.variable_name);
 
         // Register undo - need to restore original order
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
-
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Remove current elements
             let current_len = new_elements.len();
-            let _ = sublist_remove(s, entity, 0, current_len);
+            let _ = s.remove_sublist(entity, 0, current_len);
             // Insert original elements
-            sublist_insert(s, entity, 0, all_elements);
+            s.insert_sublist(entity, 0, all_elements);
         }));
     }
 
@@ -332,6 +291,7 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -339,7 +299,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Tour {
-        cities: Vec<i32>,
+        cities: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -358,33 +318,62 @@ mod tests {
         }
     }
 
+    impl VariableOperations for TspSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.tours.iter().map(|t| t.cities.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tours.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tours
+                .iter()
+                .flat_map(|t| t.cities.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tours[entity_idx].cities.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.tours.get(entity_idx).map_or(0, |t| t.cities.len())
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.tours[entity_idx].cities.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.tours[entity_idx].cities.insert(pos, elem);
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.tours[entity_idx].cities[pos]
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "cities"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_tours(s: &TspSolution) -> &Vec<Tour> {
         &s.tours
     }
     fn get_tours_mut(s: &mut TspSolution) -> &mut Vec<Tour> {
         &mut s.tours
-    }
-
-    fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
-        s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
-    }
-    fn sublist_remove(
-        s: &mut TspSolution,
-        entity_idx: usize,
-        start: usize,
-        end: usize,
-    ) -> Vec<i32> {
-        s.tours
-            .get_mut(entity_idx)
-            .map(|t| t.cities.drain(start..end).collect())
-            .unwrap_or_default()
-    }
-    fn sublist_insert(s: &mut TspSolution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-        if let Some(t) = s.tours.get_mut(entity_idx) {
-            for (i, item) in items.into_iter().enumerate() {
-                t.cities.insert(pos + i, item);
-            }
-        }
     }
 
     fn create_director(
@@ -427,15 +416,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[3]; // [0,2,1,3] no reversal
 
-        let m = KOptMove::<TspSolution, i32>::new(
-            &cuts,
-            reconnection,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "cities",
-            0,
-        );
+        let m = KOptMove::<TspSolution>::new(&cuts, reconnection, "cities", 0);
 
         assert!(m.is_doable(&director));
         assert_eq!(m.k(), 3);
@@ -456,10 +437,6 @@ mod tests {
 
     #[test]
     fn three_opt_reverse_segment() {
-        // Tour: [1, 2, 3, 4, 5, 6]
-        // Cuts at 2, 4 (only using 2 cuts for simpler test, but with 3-opt pattern)
-        // Wait, 3-opt needs 3 cuts. Let me use proper 3 cuts.
-
         // Tour: [1, 2, 3, 4, 5, 6, 7, 8]
         // Cuts at 2, 4, 6
         // Pattern 0 (reverse B only): segments [A, B', C, D]
@@ -478,15 +455,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[0]; // Reverse B only
 
-        let m = KOptMove::<TspSolution, i32>::new(
-            &cuts,
-            reconnection,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "cities",
-            0,
-        );
+        let m = KOptMove::<TspSolution>::new(&cuts, reconnection, "cities", 0);
 
         assert!(m.is_doable(&director));
 
@@ -519,15 +488,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[0];
 
-        let m = KOptMove::<TspSolution, i32>::new(
-            &cuts,
-            reconnection,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "cities",
-            0,
-        );
+        let m = KOptMove::<TspSolution>::new(&cuts, reconnection, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -547,15 +508,7 @@ mod tests {
         ];
         let reconnection = &THREE_OPT_RECONNECTIONS[0];
 
-        let m = KOptMove::<TspSolution, i32>::new(
-            &cuts,
-            reconnection,
-            list_len,
-            sublist_remove,
-            sublist_insert,
-            "cities",
-            0,
-        );
+        let m = KOptMove::<TspSolution>::new(&cuts, reconnection, "cities", 0);
 
         assert!(!m.is_doable(&director));
     }

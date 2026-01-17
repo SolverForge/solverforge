@@ -5,7 +5,7 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -13,6 +13,8 @@ use std::marker::PhantomData;
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::Move;
 
@@ -22,40 +24,19 @@ use super::Move;
 /// heuristic. This is the list-variable equivalent of `RuinMove`.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The list element value type
-pub struct ListRuinMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone)]
+pub struct ListRuinMove<S> {
     /// Entity index
     entity_index: usize,
     /// Indices of elements to remove (in ascending order for correct removal)
     element_indices: SmallVec<[usize; 8]>,
-    /// Get list length
-    list_len: fn(&S, usize) -> usize,
-    /// Remove element at index, returning it
-    list_remove: fn(&mut S, usize, usize) -> V,
-    /// Insert element at index
-    list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for ListRuinMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_index: self.entity_index,
-            element_indices: self.element_indices.clone(),
-            list_len: self.list_len,
-            list_remove: self.list_remove,
-            list_insert: self.list_insert,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<S, V: Debug> Debug for ListRuinMove<S, V> {
+impl<S> Debug for ListRuinMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListRuinMove")
             .field("entity", &self.entity_index)
@@ -65,27 +46,20 @@ impl<S, V: Debug> Debug for ListRuinMove<S, V> {
     }
 }
 
-impl<S, V> ListRuinMove<S, V> {
-    /// Creates a new list ruin move with typed function pointers.
+impl<S> ListRuinMove<S> {
+    /// Creates a new list ruin move.
     ///
     /// # Arguments
     /// * `entity_index` - Entity index
     /// * `element_indices` - Indices of elements to remove
-    /// * `list_len` - Function to get list length
-    /// * `list_remove` - Function to remove element at index
-    /// * `list_insert` - Function to insert element at index
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     ///
     /// # Note
     /// Indices are sorted internally for correct removal order.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_index: usize,
         element_indices: &[usize],
-        list_len: fn(&S, usize) -> usize,
-        list_remove: fn(&mut S, usize, usize) -> V,
-        list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -94,9 +68,6 @@ impl<S, V> ListRuinMove<S, V> {
         Self {
             entity_index,
             element_indices: indices,
-            list_len,
-            list_remove,
-            list_insert,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -119,10 +90,9 @@ impl<S, V> ListRuinMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for ListRuinMove<S, V>
+impl<S> Move<S> for ListRuinMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         if self.element_indices.is_empty() {
@@ -130,15 +100,13 @@ where
         }
 
         let solution = score_director.working_solution();
-        let len = (self.list_len)(solution, self.entity_index);
+        let len = solution.list_len(self.entity_index);
 
         // All indices must be within bounds
         self.element_indices.iter().all(|&idx| idx < len)
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
         let entity = self.entity_index;
         let descriptor = self.descriptor_index;
         let variable_name = self.variable_name;
@@ -147,9 +115,10 @@ where
         score_director.before_variable_changed(descriptor, entity, variable_name);
 
         // Remove elements in reverse order (highest index first) to preserve indices
-        let mut removed: SmallVec<[(usize, V); 8]> = SmallVec::new();
+        let mut removed: SmallVec<[(usize, <S as VariableOperations>::Element); 8]> =
+            SmallVec::new();
         for &idx in self.element_indices.iter().rev() {
-            let value = list_remove(score_director.working_solution_mut(), entity, idx);
+            let value = score_director.working_solution_mut().remove(entity, idx);
             removed.push((idx, value));
         }
 
@@ -159,7 +128,7 @@ where
         // Register undo - reinsert in original order (lowest index first)
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, value) in removed.into_iter().rev() {
-                list_insert(s, entity, idx, value);
+                s.insert(entity, idx, value);
             }
         }));
     }
@@ -180,6 +149,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -187,7 +157,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     struct Route {
-        stops: Vec<i32>,
+        stops: Vec<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -206,6 +176,57 @@ mod tests {
         }
     }
 
+    impl VariableOperations for VrpSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            self.routes.iter().map(|r| r.stops.len()).sum()
+        }
+
+        fn entity_count(&self) -> usize {
+            self.routes.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.routes
+                .iter()
+                .flat_map(|r| r.stops.iter().copied())
+                .collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.routes[entity_idx].stops.push(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            self.routes.get(entity_idx).map_or(0, |r| r.stops.len())
+        }
+
+        fn remove(&mut self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.routes[entity_idx].stops.remove(pos)
+        }
+
+        fn insert(&mut self, entity_idx: usize, pos: usize, elem: Self::Element) {
+            self.routes[entity_idx].stops.insert(pos, elem);
+        }
+
+        fn get(&self, entity_idx: usize, pos: usize) -> Self::Element {
+            self.routes[entity_idx].stops[pos]
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "stops"
+        }
+
+        fn is_list_variable() -> bool {
+            true
+        }
+    }
+
     fn get_routes(s: &VrpSolution) -> &Vec<Route> {
         &s.routes
     }
@@ -213,23 +234,8 @@ mod tests {
         &mut s.routes
     }
 
-    fn list_len(s: &VrpSolution, entity_idx: usize) -> usize {
-        s.routes.get(entity_idx).map_or(0, |r| r.stops.len())
-    }
-    fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
-        s.routes
-            .get_mut(entity_idx)
-            .map(|r| r.stops.remove(idx))
-            .unwrap_or(0)
-    }
-    fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
-        if let Some(r) = s.routes.get_mut(entity_idx) {
-            r.stops.insert(idx, v);
-        }
-    }
-
     fn create_director(
-        stops: Vec<i32>,
+        stops: Vec<usize>,
     ) -> SimpleScoreDirector<VrpSolution, impl Fn(&VrpSolution) -> SimpleScore> {
         let routes = vec![Route { stops }];
         let solution = VrpSolution {
@@ -253,15 +259,7 @@ mod tests {
     fn ruin_single_element() {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
-        let m = ListRuinMove::<VrpSolution, i32>::new(
-            0,
-            &[2],
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let m = ListRuinMove::<VrpSolution>::new(0, &[2], "stops", 0);
 
         assert!(m.is_doable(&director));
         assert_eq!(m.ruin_count(), 1);
@@ -285,15 +283,7 @@ mod tests {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
         // Remove indices 1, 3 (values 2, 4)
-        let m = ListRuinMove::<VrpSolution, i32>::new(
-            0,
-            &[1, 3],
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let m = ListRuinMove::<VrpSolution>::new(0, &[1, 3], "stops", 0);
 
         assert!(m.is_doable(&director));
         assert_eq!(m.ruin_count(), 2);
@@ -317,15 +307,7 @@ mod tests {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
         // Indices provided in reverse order - should still work
-        let m = ListRuinMove::<VrpSolution, i32>::new(
-            0,
-            &[3, 1],
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let m = ListRuinMove::<VrpSolution>::new(0, &[3, 1], "stops", 0);
 
         {
             let mut recording = RecordingScoreDirector::new(&mut director);
@@ -345,15 +327,7 @@ mod tests {
     fn empty_indices_not_doable() {
         let director = create_director(vec![1, 2, 3]);
 
-        let m = ListRuinMove::<VrpSolution, i32>::new(
-            0,
-            &[],
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let m = ListRuinMove::<VrpSolution>::new(0, &[], "stops", 0);
 
         assert!(!m.is_doable(&director));
     }
@@ -362,15 +336,7 @@ mod tests {
     fn out_of_bounds_not_doable() {
         let director = create_director(vec![1, 2, 3]);
 
-        let m = ListRuinMove::<VrpSolution, i32>::new(
-            0,
-            &[0, 10],
-            list_len,
-            list_remove,
-            list_insert,
-            "stops",
-            0,
-        );
+        let m = ListRuinMove::<VrpSolution>::new(0, &[0, 10], "stops", 0);
 
         assert!(!m.is_doable(&director));
     }

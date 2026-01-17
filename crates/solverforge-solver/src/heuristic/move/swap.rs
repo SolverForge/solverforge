@@ -5,46 +5,36 @@
 //!
 //! # Zero-Erasure Design
 //!
-//! SwapMove uses typed function pointers instead of `dyn Any` for complete
-//! compile-time type safety. No runtime type checks or downcasting.
+//! Stores only indices. No value type parameter. Operations use VariableOperations trait.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+
+use crate::operations::VariableOperations;
 
 use super::Move;
 
 /// A move that swaps values between two entities.
 ///
-/// Stores entity indices and typed function pointers for zero-erasure access.
-/// Undo is handled by `RecordingScoreDirector`, not by this move.
+/// Stores entity indices and uses `VariableOperations` for zero-erasure access.
 ///
 /// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The variable value type
-pub struct SwapMove<S, V> {
+/// * `S` - The planning solution type (must implement VariableOperations)
+#[derive(Clone, Copy)]
+pub struct SwapMove<S> {
     left_entity_index: usize,
     right_entity_index: usize,
-    /// Typed getter function pointer - zero erasure.
-    getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
-    setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices inline for entity_indices() to return a slice.
     indices: [usize; 2],
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V> Clone for SwapMove<S, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, V> Copy for SwapMove<S, V> {}
-
-impl<S, V: Debug> Debug for SwapMove<S, V> {
+impl<S> Debug for SwapMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SwapMove")
             .field("left_entity_index", &self.left_entity_index)
@@ -55,32 +45,27 @@ impl<S, V: Debug> Debug for SwapMove<S, V> {
     }
 }
 
-impl<S, V> SwapMove<S, V> {
-    /// Creates a new swap move with typed function pointers.
+impl<S> SwapMove<S> {
+    /// Creates a new swap move.
     ///
     /// # Arguments
     /// * `left_entity_index` - Index of the first entity
     /// * `right_entity_index` - Index of the second entity
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
     /// * `variable_name` - Name of the variable being swapped
     /// * `descriptor_index` - Index in the entity descriptor
     pub fn new(
         left_entity_index: usize,
         right_entity_index: usize,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
             left_entity_index,
             right_entity_index,
-            getter,
-            setter,
             variable_name,
             descriptor_index,
             indices: [left_entity_index, right_entity_index],
+            _phantom: PhantomData,
         }
     }
 
@@ -95,10 +80,9 @@ impl<S, V> SwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for SwapMove<S, V>
+impl<S> Move<S> for SwapMove<S>
 where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    S: PlanningSolution + VariableOperations,
 {
     fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
         // Can't swap with self
@@ -106,18 +90,29 @@ where
             return false;
         }
 
-        // Get current values using typed getter - zero erasure
-        let left_val = (self.getter)(score_director.working_solution(), self.left_entity_index);
-        let right_val = (self.getter)(score_director.working_solution(), self.right_entity_index);
+        let solution = score_director.working_solution();
+
+        // Both must be assigned
+        let left_len = solution.list_len(self.left_entity_index);
+        let right_len = solution.list_len(self.right_entity_index);
+
+        if left_len == 0 || right_len == 0 {
+            return false;
+        }
 
         // Swap only makes sense if values differ
+        let left_val = solution.get(self.left_entity_index, 0);
+        let right_val = solution.get(self.right_entity_index, 0);
+
         left_val != right_val
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        // Get both values using typed getter - zero erasure
-        let left_value = (self.getter)(score_director.working_solution(), self.left_entity_index);
-        let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);
+        let solution = score_director.working_solution();
+
+        // Get both values
+        let left_value = solution.get(self.left_entity_index, 0);
+        let right_value = solution.get(self.right_entity_index, 0);
 
         // Notify before changes
         score_director.before_variable_changed(
@@ -132,16 +127,13 @@ where
         );
 
         // Swap: left gets right's value, right gets left's value
-        (self.setter)(
-            score_director.working_solution_mut(),
-            self.left_entity_index,
-            right_value.clone(),
-        );
-        (self.setter)(
-            score_director.working_solution_mut(),
-            self.right_entity_index,
-            left_value.clone(),
-        );
+        {
+            let sol = score_director.working_solution_mut();
+            sol.remove(self.left_entity_index, 0);
+            sol.insert(self.left_entity_index, 0, right_value);
+            sol.remove(self.right_entity_index, 0);
+            sol.insert(self.right_entity_index, 0, left_value);
+        }
 
         // Notify after changes
         score_director.after_variable_changed(
@@ -155,14 +147,15 @@ where
             self.variable_name,
         );
 
-        // Register typed undo closure - swap back
-        let setter = self.setter;
+        // Register undo - swap back
         let left_idx = self.left_entity_index;
         let right_idx = self.right_entity_index;
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Restore original values
-            setter(s, left_idx, left_value);
-            setter(s, right_idx, right_value);
+            s.remove(left_idx, 0);
+            s.insert(left_idx, 0, left_value);
+            s.remove(right_idx, 0);
+            s.insert(right_idx, 0, right_value);
         }));
     }
 
@@ -182,6 +175,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::VariableOperations;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
@@ -190,7 +184,7 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Task {
         id: usize,
-        priority: Option<i32>,
+        priority: Option<usize>,
     }
 
     #[derive(Clone, Debug)]
@@ -209,24 +203,64 @@ mod tests {
         }
     }
 
+    impl VariableOperations for TaskSolution {
+        type Element = usize;
+
+        fn element_count(&self) -> usize {
+            5 // Assume 5 priority values
+        }
+
+        fn entity_count(&self) -> usize {
+            self.tasks.len()
+        }
+
+        fn assigned_elements(&self) -> Vec<Self::Element> {
+            self.tasks.iter().filter_map(|t| t.priority).collect()
+        }
+
+        fn assign(&mut self, entity_idx: usize, elem: Self::Element) {
+            self.tasks[entity_idx].priority = Some(elem);
+        }
+
+        fn list_len(&self, entity_idx: usize) -> usize {
+            if self.tasks[entity_idx].priority.is_some() {
+                1
+            } else {
+                0
+            }
+        }
+
+        fn remove(&mut self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].priority.take().unwrap()
+        }
+
+        fn insert(&mut self, entity_idx: usize, _pos: usize, elem: Self::Element) {
+            self.tasks[entity_idx].priority = Some(elem);
+        }
+
+        fn get(&self, entity_idx: usize, _pos: usize) -> Self::Element {
+            self.tasks[entity_idx].priority.unwrap()
+        }
+
+        fn descriptor_index() -> usize {
+            0
+        }
+
+        fn variable_name() -> &'static str {
+            "priority"
+        }
+
+        fn is_list_variable() -> bool {
+            false
+        }
+    }
+
     fn get_tasks(s: &TaskSolution) -> &Vec<Task> {
         &s.tasks
     }
 
     fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
         &mut s.tasks
-    }
-
-    // Typed getter - zero erasure
-    fn get_priority(s: &TaskSolution, idx: usize) -> Option<i32> {
-        s.tasks.get(idx).and_then(|t| t.priority)
-    }
-
-    // Typed setter - zero erasure
-    fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
-        if let Some(task) = s.tasks.get_mut(idx) {
-            task.priority = v;
-        }
     }
 
     fn create_director(
@@ -250,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_swap_move_do_and_undo() {
+    fn swap_move_do_and_undo() {
         let tasks = vec![
             Task {
                 id: 0,
@@ -263,24 +297,24 @@ mod tests {
         ];
         let mut director = create_director(tasks);
 
-        let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution>::new(0, 1, "priority", 0);
         assert!(m.is_doable(&director));
 
         {
             let mut recording = RecordingScoreDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            // Verify swap using typed getter
-            assert_eq!(get_priority(recording.working_solution(), 0), Some(5));
-            assert_eq!(get_priority(recording.working_solution(), 1), Some(1));
+            // Verify swap
+            assert_eq!(recording.working_solution().tasks[0].priority, Some(5));
+            assert_eq!(recording.working_solution().tasks[1].priority, Some(1));
 
             // Undo via recording
             recording.undo_changes();
         }
 
-        // Verify restored using typed getter
-        assert_eq!(get_priority(director.working_solution(), 0), Some(1));
-        assert_eq!(get_priority(director.working_solution(), 1), Some(5));
+        // Verify restored
+        assert_eq!(director.working_solution().tasks[0].priority, Some(1));
+        assert_eq!(director.working_solution().tasks[1].priority, Some(5));
 
         // Verify entity identity preserved
         let solution = director.working_solution();
@@ -289,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn test_swap_same_value_not_doable() {
+    fn swap_same_value_not_doable() {
         let tasks = vec![
             Task {
                 id: 0,
@@ -302,7 +336,7 @@ mod tests {
         ];
         let director = create_director(tasks);
 
-        let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution>::new(0, 1, "priority", 0);
         assert!(
             !m.is_doable(&director),
             "swapping same values should not be doable"
@@ -310,20 +344,20 @@ mod tests {
     }
 
     #[test]
-    fn test_swap_self_not_doable() {
+    fn swap_self_not_doable() {
         let tasks = vec![Task {
             id: 0,
             priority: Some(1),
         }];
         let director = create_director(tasks);
 
-        let m = SwapMove::<TaskSolution, i32>::new(0, 0, get_priority, set_priority, "priority", 0);
+        let m = SwapMove::<TaskSolution>::new(0, 0, "priority", 0);
         assert!(!m.is_doable(&director), "self-swap should not be doable");
     }
 
     #[test]
-    fn test_swap_entity_indices() {
-        let m = SwapMove::<TaskSolution, i32>::new(2, 5, get_priority, set_priority, "priority", 0);
+    fn swap_entity_indices() {
+        let m = SwapMove::<TaskSolution>::new(2, 5, "priority", 0);
         assert_eq!(m.entity_indices(), &[2, 5]);
     }
 }

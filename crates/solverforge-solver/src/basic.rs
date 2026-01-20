@@ -12,7 +12,7 @@
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use solverforge_config::SolverConfig;
+use solverforge_config::{PhaseConfig, SolverConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
@@ -20,6 +20,7 @@ use tokio::sync::mpsc;
 use tracing::info;
 
 use crate::phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
+use crate::phase::localsearch::AcceptorImpl;
 use crate::scope::SolverScope;
 use crate::solver::Solver;
 use crate::termination::{
@@ -120,11 +121,9 @@ where
         value_count = n_values,
     );
 
-    // Create score director
     let constraints = constraints_fn();
     let director = TypedScoreDirector::new(solution, constraints);
 
-    // Handle empty case - nothing to solve, return immediately
     if n_entities == 0 || n_values == 0 {
         let mut solver_scope = SolverScope::new(director);
         solver_scope.start_solving();
@@ -133,19 +132,20 @@ where
         return solver_scope.take_best_or_working_solution();
     }
 
-    // Build phases
     let construction =
         BasicConstructionPhase::new(get_variable, set_variable, entity_count_fn, value_count);
+
+    let acceptor = extract_acceptor_from_config::<S>(&config);
 
     let local_search = BasicLocalSearchPhase::new(
         get_variable,
         set_variable,
         entity_count_fn,
         value_count,
+        acceptor,
         sender,
     );
 
-    // Build solver with termination configuration
     let result = solve_with_termination(
         director,
         construction,
@@ -159,10 +159,21 @@ where
     result
 }
 
-fn solve_with_termination<S, D, G, T, E, V>(
+fn extract_acceptor_from_config<S: PlanningSolution>(config: &SolverConfig) -> AcceptorImpl<S> {
+    for phase in &config.phases {
+        if let PhaseConfig::LocalSearch(ls) = phase {
+            if let Some(acceptor_config) = &ls.acceptor {
+                return AcceptorImpl::from_config(acceptor_config);
+            }
+        }
+    }
+    AcceptorImpl::late_acceptance()
+}
+
+fn solve_with_termination<S, D, G, T, E, V, A>(
     director: D,
     construction: BasicConstructionPhase<S, G, T, E, V>,
-    local_search: BasicLocalSearchPhase<S, G, T, E, V>,
+    local_search: BasicLocalSearchPhase<S, G, T, E, V, A>,
     terminate: Option<&AtomicBool>,
     term_config: Option<&solverforge_config::TerminationConfig>,
 ) -> S
@@ -174,6 +185,7 @@ where
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    A: crate::phase::localsearch::Acceptor<S> + Send,
 {
     let time_limit = term_config
         .and_then(|c| c.time_limit())
@@ -229,9 +241,9 @@ where
     }
 }
 
-fn build_and_solve<S, D, G, T, E, V, Term>(
+fn build_and_solve<S, D, G, T, E, V, A, Term>(
     construction: BasicConstructionPhase<S, G, T, E, V>,
-    local_search: BasicLocalSearchPhase<S, G, T, E, V>,
+    local_search: BasicLocalSearchPhase<S, G, T, E, V, A>,
     termination: Term,
     terminate: Option<&AtomicBool>,
     director: D,
@@ -245,6 +257,7 @@ where
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    A: crate::phase::localsearch::Acceptor<S> + Send,
     Term: crate::termination::Termination<S, D>,
 {
     match terminate {

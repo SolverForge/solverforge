@@ -13,6 +13,7 @@ pub mod config_bridge;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;
+pub mod public_api;
 pub mod realtime;
 pub mod scope;
 pub mod solver;

@@ -90,6 +90,7 @@ where
     /// Base score representing 1 unit of standard deviation
     base_score: Sc,
     is_hard: bool,
+    descriptor_index: usize,
     /// Group key → count of entities in that group
     counts: HashMap<K, i64>,
     /// Entity index → group key (for tracking assignments)
@@ -125,6 +126,7 @@ where
     /// * `key_fn` - Function to extract group key (returns None to skip entity)
     /// * `base_score` - Score per unit of standard deviation
     /// * `is_hard` - Whether this is a hard constraint
+    /// * `descriptor_index` - Index of the entity descriptor this constraint operates on
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,
@@ -133,6 +135,7 @@ where
         key_fn: KF,
         base_score: Sc,
         is_hard: bool,
+        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -142,6 +145,7 @@ where
             key_fn,
             base_score,
             is_hard,
+            descriptor_index,
             counts: HashMap::new(),
             entity_keys: HashMap::new(),
             group_count: 0,
@@ -284,7 +288,10 @@ where
         self.compute_score()
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -316,7 +323,10 @@ where
         new_score - old_score
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -346,6 +356,10 @@ where
 
         let new_score = self.compute_score();
         new_score - old_score
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
     }
 
     fn reset(&mut self) {
@@ -408,6 +422,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000), // 1000 per unit std_dev
             false,
+            0,
         );
 
         // Equal distribution: 2 shifts each
@@ -442,6 +457,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000), // 1000 per unit std_dev
             false,
+            0,
         );
 
         // Unequal: employee 0 has 3, employee 1 has 1
@@ -477,6 +493,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000),
             false,
+            0,
         );
 
         // Employee 0: 2, Employee 1: 2, plus unassigned (ignored)
@@ -512,6 +529,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000),
             false,
+            0,
         );
 
         let solution = Solution {
@@ -558,6 +576,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000),
             false,
+            0,
         );
 
         let solution = Solution { shifts: vec![] };
@@ -574,6 +593,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000),
             false,
+            0,
         );
 
         // Single employee with 5 shifts - no variance possible
@@ -611,6 +631,7 @@ mod tests {
             |shift: &Shift| shift.employee_id,
             SimpleScore::of(1000),
             false,
+            0,
         );
 
         let solution = Solution {

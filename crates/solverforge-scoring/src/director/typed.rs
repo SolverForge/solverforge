@@ -53,6 +53,7 @@ use crate::director::ScoreDirector;
 ///     |_s: &Solution, v: &Option<i32>| v.is_none(),
 ///     |_: &Option<i32>| SimpleScore::of(1),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// // Create typed director with tuple-based constraint set
@@ -184,6 +185,9 @@ where
     /// # Arguments
     ///
     /// * `entity_index` - Index of the entity being changed
+    ///
+    /// Note: Uses descriptor_index = 0. For multi-descriptor solutions,
+    /// use the `ScoreDirector` trait methods instead.
     #[inline]
     pub fn before_variable_changed(&mut self, entity_index: usize) {
         if !self.initialized {
@@ -193,7 +197,7 @@ where
 
         let delta = self
             .constraints
-            .on_retract_all(&self.working_solution, entity_index);
+            .on_retract_all(&self.working_solution, 0, entity_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -205,6 +209,9 @@ where
     /// # Arguments
     ///
     /// * `entity_index` - Index of the entity that was changed
+    ///
+    /// Note: Uses descriptor_index = 0. For multi-descriptor solutions,
+    /// use the `ScoreDirector` trait methods instead.
     #[inline]
     pub fn after_variable_changed(&mut self, entity_index: usize) {
         if !self.initialized {
@@ -213,7 +220,7 @@ where
 
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, entity_index);
+            .on_insert_all(&self.working_solution, 0, entity_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -225,6 +232,9 @@ where
     /// # Arguments
     ///
     /// * `entity_index` - Index of the entity that was changed
+    ///
+    /// Note: Uses descriptor_index = 0. For multi-descriptor solutions,
+    /// use the `ScoreDirector` trait methods instead.
     #[inline]
     pub fn after_variable_changed_with_shadows(&mut self, entity_index: usize)
     where
@@ -239,7 +249,7 @@ where
 
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, entity_index);
+            .on_insert_all(&self.working_solution, 0, entity_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -519,6 +529,7 @@ mod tests {
             |_s: &TestSolution, v: &Option<i32>| v.is_none(),
             |_v: &Option<i32>| SimpleScore::of(1),
             false,
+            0,
         )
     }
 
@@ -660,6 +671,7 @@ mod tests {
             |_s: &TestSolution, v: &Option<i32>| v.is_some(),
             |_v: &Option<i32>| SimpleScore::of(1),
             false,
+            0,
         );
 
         let mut director = TypedScoreDirector::new(solution, (c1, c2));

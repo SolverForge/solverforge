@@ -15,6 +15,7 @@
 //! via `register_undo()`. No BoxedValue, no type erasure on the undo path.
 
 use std::any::Any;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
@@ -24,6 +25,11 @@ use super::ScoreDirector;
 ///
 /// Moves register their own typed undo closures via `register_undo()`.
 /// This enables zero-erasure undo - no BoxedValue, no downcasting.
+///
+/// # Type Parameters
+/// * `'a` - Lifetime of the inner score director reference
+/// * `S` - The planning solution type
+/// * `D` - The concrete score director type (zero-erasure)
 ///
 /// # Example
 ///
@@ -62,22 +68,25 @@ use super::ScoreDirector;
 /// recording.undo_changes();
 /// assert_eq!(recording.working_solution().value, 10);
 /// ```
-pub struct RecordingScoreDirector<'a, S: PlanningSolution> {
-    inner: &'a mut dyn ScoreDirector<S>,
+pub struct RecordingScoreDirector<'a, S: PlanningSolution, D: ScoreDirector<S>> {
+    inner: &'a mut D,
     /// Typed undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
     /// Entities modified during this step that need shadow refresh after undo.
     /// Stores (descriptor_index, entity_index) pairs.
     modified_entities: Vec<(usize, usize)>,
+    /// Phantom data for solution type (fn pointer pattern per CLAUDE.md)
+    _phantom: PhantomData<fn() -> S>,
 }
 
-impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
+impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S, D> {
     /// Creates a new recording score director wrapping the inner director.
-    pub fn new(inner: &'a mut dyn ScoreDirector<S>) -> Self {
+    pub fn new(inner: &'a mut D) -> Self {
         Self {
             inner,
             undo_stack: Vec::with_capacity(16),
             modified_entities: Vec::with_capacity(8),
+            _phantom: PhantomData,
         }
     }
 
@@ -125,7 +134,9 @@ impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
     }
 }
 
-impl<S: PlanningSolution> ScoreDirector<S> for RecordingScoreDirector<'_, S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
+    for RecordingScoreDirector<'_, S, D>
+{
     fn working_solution(&self) -> &S {
         self.inner.working_solution()
     }

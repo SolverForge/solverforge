@@ -25,6 +25,7 @@ fn test_tri_constraint_evaluate() {
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(1),
         false,
+        0,
     );
 
     let solution = Solution {
@@ -50,6 +51,7 @@ fn test_tri_constraint_multiple_triples() {
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(1),
         false,
+        0,
     );
 
     let solution = Solution {
@@ -75,6 +77,7 @@ fn test_tri_constraint_incremental() {
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(1),
         false,
+        0,
     );
 
     let solution = Solution {
@@ -86,12 +89,12 @@ fn test_tri_constraint_incremental() {
     assert_eq!(total, SimpleScore::of(-1));
 
     // Retract one task
-    let delta = constraint.on_retract(&solution, 0);
+    let delta = constraint.on_retract(&solution, 0, 0);
     // Removes the triple = +1
     assert_eq!(delta, SimpleScore::of(1));
 
     // Re-insert the task
-    let delta = constraint.on_insert(&solution, 0);
+    let delta = constraint.on_insert(&solution, 0, 0);
     // Re-adds the triple = -1
     assert_eq!(delta, SimpleScore::of(-1));
 }
@@ -106,6 +109,7 @@ fn test_tri_constraint_reward() {
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_a: &Task, _b: &Task, _c: &Task| SimpleScore::of(5),
         false,
+        0,
     );
 
     let solution = Solution {

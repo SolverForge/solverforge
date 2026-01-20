@@ -262,9 +262,26 @@ where
     Sc: Score + 'static,
 {
     /// Finalizes the builder into a `ComplementedGroupConstraint`.
+    ///
+    /// Uses descriptor_index = 0 (single-descriptor solutions).
+    /// For multi-descriptor solutions, use `as_constraint_for_descriptor`.
     pub fn as_constraint(
         self,
         name: &str,
+    ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> {
+        self.as_constraint_for_descriptor(name, 0)
+    }
+
+    /// Finalizes the builder into a `ComplementedGroupConstraint` for a specific descriptor.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Constraint name
+    /// * `descriptor_index` - The entity descriptor index this constraint operates on
+    pub fn as_constraint_for_descriptor(
+        self,
+        name: &str,
+        descriptor_index: usize,
     ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> {
         ComplementedGroupConstraint::new(
             ConstraintRef::new("", name),
@@ -277,6 +294,7 @@ where
             self.default_fn,
             self.weight_fn,
             self.is_hard,
+            descriptor_index,
         )
     }
 }

@@ -589,10 +589,8 @@ where
             let to_len = (self.list_len)(phase_scope.solver_scope().working_solution(), to_entity);
             let to_pos = rng.random_range(0..=to_len);
 
-            // Skip no-op moves
-            if from_entity == to_entity
-                && (to_pos == from_pos || to_pos == from_pos + 1 || from_pos + 1 == to_pos)
-            {
+            // Skip no-op moves (same position or adjacent positions in same entity)
+            if from_entity == to_entity && (to_pos == from_pos || to_pos == from_pos + 1) {
                 continue;
             }
 
@@ -613,34 +611,44 @@ where
                 last_progress_moves = moves_evaluated;
             }
 
-            // Do the move
-            let _element = (self.list_get)(
-                phase_scope.solver_scope().working_solution(),
-                from_entity,
-                from_pos,
-            );
+            // Adjust to_pos if removing from same entity before to_pos
+            let adjusted_to_pos = if from_entity == to_entity && from_pos < to_pos {
+                to_pos - 1
+            } else {
+                to_pos
+            };
 
+            // Apply move with proper atomic before/after ordering:
+            // 1. Retract ALL affected entities BEFORE any modifications
+            // 2. Apply modifications
+            // 3. Insert ALL affected entities AFTER all modifications
             {
                 let sd = phase_scope.score_director_mut();
+
+                // Step 1: Retract BOTH entities before any changes
                 sd.before_variable_changed(self.descriptor_index, from_entity, self.variable_name);
+                if from_entity != to_entity {
+                    sd.before_variable_changed(
+                        self.descriptor_index,
+                        to_entity,
+                        self.variable_name,
+                    );
+                }
+
+                // Step 2: Apply the move
                 let removed = (self.list_remove)(sd.working_solution_mut(), from_entity, from_pos);
-                sd.after_variable_changed(self.descriptor_index, from_entity, self.variable_name);
-
-                // Adjust to_pos if removing from same entity before to_pos
-                let adjusted_to_pos = if from_entity == to_entity && from_pos < to_pos {
-                    to_pos - 1
-                } else {
-                    to_pos
-                };
-
-                sd.before_variable_changed(self.descriptor_index, to_entity, self.variable_name);
                 (self.list_insert)(
                     sd.working_solution_mut(),
                     to_entity,
                     adjusted_to_pos,
                     removed,
                 );
-                sd.after_variable_changed(self.descriptor_index, to_entity, self.variable_name);
+
+                // Step 3: Insert BOTH entities after all changes
+                sd.after_variable_changed(self.descriptor_index, from_entity, self.variable_name);
+                if from_entity != to_entity {
+                    sd.after_variable_changed(self.descriptor_index, to_entity, self.variable_name);
+                }
             }
 
             let new_score = phase_scope.calculate_score();
@@ -649,6 +657,7 @@ where
             let accepted = self.acceptor.is_accepted(&current_score, &new_score);
 
             if accepted {
+                // Move already applied, just update state
                 self.acceptor.step_ended(&new_score);
                 current_score = new_score;
                 let new_step = phase_scope.increment_step_count();
@@ -681,24 +690,33 @@ where
                     accepted = false,
                 );
 
-                // Undo the move
-                let adjusted_to_pos = if from_entity == to_entity && from_pos < to_pos {
-                    to_pos - 1
-                } else {
-                    to_pos
-                };
-
+                // Undo the move with proper atomic before/after ordering
                 let sd = phase_scope.score_director_mut();
+
+                // Step 1: Retract BOTH entities before any changes
                 sd.before_variable_changed(self.descriptor_index, to_entity, self.variable_name);
+                if from_entity != to_entity {
+                    sd.before_variable_changed(
+                        self.descriptor_index,
+                        from_entity,
+                        self.variable_name,
+                    );
+                }
+
+                // Step 2: Undo the move
                 let removed =
                     (self.list_remove)(sd.working_solution_mut(), to_entity, adjusted_to_pos);
-                sd.after_variable_changed(self.descriptor_index, to_entity, self.variable_name);
-
-                sd.before_variable_changed(self.descriptor_index, from_entity, self.variable_name);
                 (self.list_insert)(sd.working_solution_mut(), from_entity, from_pos, removed);
-                sd.after_variable_changed(self.descriptor_index, from_entity, self.variable_name);
 
-                phase_scope.calculate_score();
+                // Step 3: Insert BOTH entities after all changes
+                sd.after_variable_changed(self.descriptor_index, to_entity, self.variable_name);
+                if from_entity != to_entity {
+                    sd.after_variable_changed(
+                        self.descriptor_index,
+                        from_entity,
+                        self.variable_name,
+                    );
+                }
             }
         }
 

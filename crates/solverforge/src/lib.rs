@@ -120,33 +120,27 @@ pub mod prelude {
 // Internal API for Macros
 // ============================================================================
 
-/// Internal module for macro-generated code. Not part of public API.
 #[doc(hidden)]
 pub mod __internal {
-    /// Initializes console output if the feature is enabled.
     #[inline]
     pub fn init_console() {
         #[cfg(feature = "console")]
         crate::console::init();
     }
 
-    // Derive macros
     pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
 
-    // Domain types
     pub use solverforge_core::domain::{
         EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFact,
         ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor,
         VariableDescriptor,
     };
 
-    // Scoring
     pub use solverforge_scoring::{
         ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
         SolvableSolution, TypedScoreDirector,
     };
 
-    // Solver infrastructure
     pub use solverforge_solver::heuristic::selector::{
         DefaultDistanceMeter, FromSolutionEntitySelector,
     };
@@ -154,6 +148,5 @@ pub mod __internal {
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
 
-    // Config
     pub use solverforge_config::SolverConfig;
 }

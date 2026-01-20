@@ -69,6 +69,7 @@ pub enum ExistenceMode {
 ///     |_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
 ///     |_shift: &Shift| SimpleScore::of(1),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// let schedule = Schedule {

@@ -58,6 +58,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 ///     count::<Shift>(),
 ///     |count: &usize| SimpleScore::of((*count * *count) as i64),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// let solution = Solution {
@@ -439,12 +440,12 @@ mod tests {
         assert_eq!(total, SimpleScore::of(-3));
 
         // Retract shift at index 0 (employee 1)
-        let delta = constraint.on_retract(&solution, 0);
+        let delta = constraint.on_retract(&solution, 0, 0);
         // Employee 1 now has 1 shift -> score goes from -2 to -1, delta = +1
         assert_eq!(delta, SimpleScore::of(1));
 
         // Insert shift at index 0 (employee 1)
-        let delta = constraint.on_insert(&solution, 0);
+        let delta = constraint.on_insert(&solution, 0, 0);
         // Employee 1 now has 2 shifts -> score goes from -1 to -2, delta = -1
         assert_eq!(delta, SimpleScore::of(-1));
     }

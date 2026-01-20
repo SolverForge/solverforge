@@ -516,6 +516,32 @@ where
         W,
         Sc,
     > {
+        self.as_constraint_for_descriptor(name, 0)
+    }
+
+    /// Finalizes the builder into an O(1) indexed constraint with a specific descriptor index.
+    pub fn as_constraint_for_descriptor(
+        self,
+        name: &str,
+        descriptor_index: usize,
+    ) -> FlattenedBiConstraint<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        impl Fn(&S, &A, &C) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
         let filter = self.filter;
         let combined_filter = move |s: &S, a: &A, c: &C| filter.test(s, a, c);
 
@@ -532,6 +558,7 @@ where
             combined_filter,
             self.weight,
             self.is_hard,
+            descriptor_index,
         )
     }
 }

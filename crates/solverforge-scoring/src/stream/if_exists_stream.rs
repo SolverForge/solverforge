@@ -324,6 +324,27 @@ where
         W,
         Sc,
     > {
+        self.as_constraint_for_descriptor(name, 0)
+    }
+
+    /// Finalizes the builder into a zero-erasure `IfExistsUniConstraint` with a specific descriptor index.
+    pub fn as_constraint_for_descriptor(
+        self,
+        name: &str,
+        descriptor_index: usize,
+    ) -> IfExistsUniConstraint<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
         let filter = self.filter_a;
         let combined_filter = move |s: &S, a: &A| filter.test(s, a);
 
@@ -338,6 +359,7 @@ where
             combined_filter,
             self.weight,
             self.is_hard,
+            descriptor_index,
         )
     }
 }

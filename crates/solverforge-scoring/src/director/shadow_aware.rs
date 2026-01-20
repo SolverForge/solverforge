@@ -199,6 +199,7 @@ pub trait SolvableSolution: ShadowVariableSupport {
 ///     |_s: &Solution, &sum| sum > 100,
 ///     |&sum| SimpleScore::of((sum - 100) as i64),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// let solution = Solution { values: vec![10, 20, 30], cached_sum: 0, score: None };
@@ -419,6 +420,7 @@ mod tests {
             filter as fn(&TestSolution, &i32) -> bool,
             score as fn(&i32) -> SimpleScore,
             false,
+            0,
         )
     }
 

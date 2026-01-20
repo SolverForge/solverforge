@@ -80,6 +80,22 @@ pub use solverforge_solver::{
 };
 
 // ============================================================================
+// Fluent Builder API
+// ============================================================================
+
+pub use solverforge_solver::public_api::{acceptors, SolverBuilder};
+
+// ============================================================================
+// Config Types
+// ============================================================================
+
+pub use solverforge_config::{
+    AcceptorConfig, ConstructionHeuristicType, GreatDelugeConfig, LateAcceptanceConfig,
+    LocalSearchConfig, PhaseConfig, SimulatedAnnealingConfig, SolverConfig, TabuSearchConfig,
+    TerminationConfig,
+};
+
+// ============================================================================
 // Console Output (feature-gated)
 // ============================================================================
 
@@ -93,9 +109,9 @@ pub mod console;
 pub mod prelude {
     pub use crate::stream::{joiner, ConstraintFactory};
     pub use crate::{
-        planning_entity, planning_solution, problem_fact, BendableScore, ConstraintSet,
-        HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, ScoreDirector,
-        SimpleScore, TypedScoreDirector,
+        acceptors, planning_entity, planning_solution, problem_fact, AcceptorConfig, BendableScore,
+        ConstraintSet, ConstructionHeuristicType, HardMediumSoftScore, HardSoftDecimalScore,
+        HardSoftScore, Score, ScoreDirector, SimpleScore, SolverBuilder, TypedScoreDirector,
     };
 }
 

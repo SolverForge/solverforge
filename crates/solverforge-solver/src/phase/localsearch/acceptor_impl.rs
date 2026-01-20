@@ -36,11 +36,9 @@ impl<S: PlanningSolution> AcceptorImpl<S> {
                 let decay = sa.decay_rate.unwrap_or(0.99);
                 AcceptorImpl::SimulatedAnnealing(SimulatedAnnealingAcceptor::new(temp, decay))
             }
-            AcceptorConfig::LateAcceptance(la) => {
-                AcceptorImpl::LateAcceptance(LateAcceptanceAcceptor::new(
-                    la.late_acceptance_size.unwrap_or(400),
-                ))
-            }
+            AcceptorConfig::LateAcceptance(la) => AcceptorImpl::LateAcceptance(
+                LateAcceptanceAcceptor::new(la.late_acceptance_size.unwrap_or(400)),
+            ),
             AcceptorConfig::TabuSearch(ts) => {
                 let size = ts
                     .entity_tabu_size

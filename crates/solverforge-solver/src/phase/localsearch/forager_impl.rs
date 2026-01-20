@@ -173,7 +173,10 @@ where
     AcceptedCount(AcceptedCountForager<S>, PhantomData<fn() -> M>),
     FirstAccepted(FirstAcceptedForager<S>, PhantomData<fn() -> M>),
     FirstBestScoreImproving(FirstBestScoreImprovingForager<S>, PhantomData<fn() -> M>),
-    FirstLastStepScoreImproving(FirstLastStepScoreImprovingForager<S>, PhantomData<fn() -> M>),
+    FirstLastStepScoreImproving(
+        FirstLastStepScoreImprovingForager<S>,
+        PhantomData<fn() -> M>,
+    ),
 }
 
 impl<S, M> LocalSearchForagerImpl<S, M>
@@ -319,7 +322,9 @@ where
                 <FirstBestScoreImprovingForager<S> as LocalSearchForager<S, M>>::is_quit_early(f)
             }
             Self::FirstLastStepScoreImproving(f, _) => {
-                <FirstLastStepScoreImprovingForager<S> as LocalSearchForager<S, M>>::is_quit_early(f)
+                <FirstLastStepScoreImprovingForager<S> as LocalSearchForager<S, M>>::is_quit_early(
+                    f,
+                )
             }
         }
     }
@@ -376,7 +381,10 @@ mod tests {
             pick_early_type: None,
         };
         let forager = LocalSearchForagerImpl::<DummySolution, TestMove>::from_config(&config);
-        assert!(matches!(forager, LocalSearchForagerImpl::AcceptedCount(_, _)));
+        assert!(matches!(
+            forager,
+            LocalSearchForagerImpl::AcceptedCount(_, _)
+        ));
     }
 
     #[test]
@@ -405,10 +413,12 @@ mod tests {
             DummySolution,
             TestMove,
         >>::add_move_index(&mut forager, 0, SimpleScore::of(-5));
-        assert!(<FirstBestScoreImprovingForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::is_quit_early(&forager));
+        assert!(
+            <FirstBestScoreImprovingForager<DummySolution> as LocalSearchForager<
+                DummySolution,
+                TestMove,
+            >>::is_quit_early(&forager)
+        );
 
         let picked = <FirstBestScoreImprovingForager<DummySolution> as LocalSearchForager<
             DummySolution,
@@ -430,10 +440,12 @@ mod tests {
             DummySolution,
             TestMove,
         >>::add_move_index(&mut forager, 0, SimpleScore::of(-10));
-        assert!(!<FirstBestScoreImprovingForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::is_quit_early(&forager));
+        assert!(
+            !<FirstBestScoreImprovingForager<DummySolution> as LocalSearchForager<
+                DummySolution,
+                TestMove,
+            >>::is_quit_early(&forager)
+        );
     }
 
     #[test]
@@ -449,9 +461,11 @@ mod tests {
             DummySolution,
             TestMove,
         >>::add_move_index(&mut forager, 0, SimpleScore::of(-5));
-        assert!(<FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
-            DummySolution,
-            TestMove,
-        >>::is_quit_early(&forager));
+        assert!(
+            <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+                DummySolution,
+                TestMove,
+            >>::is_quit_early(&forager)
+        );
     }
 }

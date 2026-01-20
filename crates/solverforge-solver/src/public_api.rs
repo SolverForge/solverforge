@@ -71,14 +71,12 @@ impl SolverBuilder {
 
     /// Adds a construction heuristic phase.
     pub fn with_construction(mut self, heuristic_type: ConstructionHeuristicType) -> Self {
-        self.config
-            .phases
-            .push(PhaseConfig::ConstructionHeuristic(
-                ConstructionHeuristicConfig {
-                    construction_heuristic_type: heuristic_type,
-                    termination: None,
-                },
-            ));
+        self.config.phases.push(PhaseConfig::ConstructionHeuristic(
+            ConstructionHeuristicConfig {
+                construction_heuristic_type: heuristic_type,
+                termination: None,
+            },
+        ));
         self
     }
 
@@ -112,10 +110,12 @@ impl SolverBuilder {
 
     /// Adds a local search phase with simulated annealing.
     pub fn with_simulated_annealing(self, starting_temperature: f64, decay_rate: f64) -> Self {
-        self.with_local_search(AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
-            starting_temperature: Some(format!("{}", starting_temperature)),
-            decay_rate: Some(decay_rate),
-        }))
+        self.with_local_search(AcceptorConfig::SimulatedAnnealing(
+            SimulatedAnnealingConfig {
+                starting_temperature: Some(format!("{}", starting_temperature)),
+                decay_rate: Some(decay_rate),
+            },
+        ))
     }
 
     /// Adds a local search phase with late acceptance.

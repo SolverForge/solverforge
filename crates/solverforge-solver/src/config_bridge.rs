@@ -12,7 +12,9 @@ use solverforge_core::score::Score;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::{Move, MoveSelector};
-use crate::phase::construction::{ConstructionForagerImpl, ConstructionHeuristicPhase, EntityPlacer};
+use crate::phase::construction::{
+    ConstructionForagerImpl, ConstructionHeuristicPhase, EntityPlacer,
+};
 use crate::phase::localsearch::{AcceptorImpl, LocalSearchForagerImpl, LocalSearchPhase};
 use crate::scope::SolverScope;
 use crate::termination::{
@@ -29,7 +31,9 @@ where
 }
 
 /// Creates a local search forager from config.
-pub fn local_search_forager_from_config<S, M>(config: &ForagerConfig) -> LocalSearchForagerImpl<S, M>
+pub fn local_search_forager_from_config<S, M>(
+    config: &ForagerConfig,
+) -> LocalSearchForagerImpl<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,

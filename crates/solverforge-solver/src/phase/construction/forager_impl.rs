@@ -37,10 +37,12 @@ impl<S, M> ConstructionForagerImpl<S, M> {
             ConstructionHeuristicType::FirstFitDecreasing => {
                 ConstructionForagerImpl::BestFit(BestFitForager::new())
             }
-            ConstructionHeuristicType::WeakestFit | ConstructionHeuristicType::WeakestFitDecreasing => {
+            ConstructionHeuristicType::WeakestFit
+            | ConstructionHeuristicType::WeakestFitDecreasing => {
                 ConstructionForagerImpl::WeakestFit(PhantomData)
             }
-            ConstructionHeuristicType::StrongestFit | ConstructionHeuristicType::StrongestFitDecreasing => {
+            ConstructionHeuristicType::StrongestFit
+            | ConstructionHeuristicType::StrongestFitDecreasing => {
                 ConstructionForagerImpl::StrongestFit(PhantomData)
             }
             ConstructionHeuristicType::CheapestInsertion => {

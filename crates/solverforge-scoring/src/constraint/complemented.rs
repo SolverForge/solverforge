@@ -98,6 +98,7 @@ where
     default_fn: D,
     weight_fn: W,
     is_hard: bool,
+    descriptor_index: usize,
     /// Group key -> accumulator for incremental scoring
     groups: HashMap<K, C::Accumulator>,
     /// A entity index -> group key (for tracking which group each entity belongs to)
@@ -139,6 +140,7 @@ where
         default_fn: D,
         weight_fn: W,
         is_hard: bool,
+        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -151,6 +153,7 @@ where
             default_fn,
             weight_fn,
             is_hard,
+            descriptor_index,
             groups: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
@@ -261,7 +264,10 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
 
@@ -273,11 +279,18 @@ where
         self.insert_entity(entities_b, entity_index, entity)
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
 
         self.retract_entity(entities_a, entities_b, entity_index)
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
     }
 
     fn reset(&mut self) {
@@ -490,6 +503,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -522,6 +536,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -557,6 +572,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -606,6 +622,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -649,6 +666,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of((*count as i64).pow(2)),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -686,6 +704,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of((*count as i64).pow(2)),
             false,
+            0,
         );
 
         let schedule = Schedule {

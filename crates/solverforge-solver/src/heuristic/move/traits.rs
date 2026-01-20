@@ -41,4 +41,12 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
 
     /// Returns the variable name this move affects.
     fn variable_name(&self) -> &str;
+
+    /// Returns move strength for WeakestFit/StrongestFit selection.
+    ///
+    /// Higher values indicate "stronger" moves. WeakestFit picks minimum strength,
+    /// StrongestFit picks maximum strength.
+    fn strength(&self) -> i64 {
+        self.entity_indices().first().copied().unwrap_or(0) as i64
+    }
 }

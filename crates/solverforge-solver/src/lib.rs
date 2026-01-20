@@ -74,9 +74,8 @@ pub use manager::{
 pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
-        BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
-        ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
-        ForagerType, Placement, QueuedEntityPlacer,
+        BestFitForager, ConstructionForager, ConstructionForagerImpl, ConstructionHeuristicPhase,
+        EntityPlacer, FirstFeasibleForager, FirstFitForager, Placement, QueuedEntityPlacer,
     },
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,

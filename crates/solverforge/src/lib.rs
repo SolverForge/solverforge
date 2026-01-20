@@ -111,7 +111,8 @@ pub mod prelude {
     pub use crate::{
         acceptors, planning_entity, planning_solution, problem_fact, AcceptorConfig, BendableScore,
         ConstraintSet, ConstructionHeuristicType, HardMediumSoftScore, HardSoftDecimalScore,
-        HardSoftScore, Score, ScoreDirector, SimpleScore, SolverBuilder, TypedScoreDirector,
+        HardSoftScore, Score, ScoreDirector, SimpleScore, Solvable, SolverBuilder,
+        TypedScoreDirector,
     };
 }
 

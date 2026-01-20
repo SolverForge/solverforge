@@ -9,6 +9,7 @@
 //! - Configuration wiring (builder module)
 
 pub mod basic;
+pub mod config_bridge;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;

@@ -11,6 +11,7 @@
 pub mod basic;
 pub mod config_bridge;
 pub mod heuristic;
+pub mod list;
 pub mod manager;
 pub mod phase;
 pub mod public_api;
@@ -108,3 +109,4 @@ pub use termination::{
 };
 
 pub use basic::{run_solver, run_solver_with_channel};
+pub use list::{run_list_solver, run_list_solver_with_channel};

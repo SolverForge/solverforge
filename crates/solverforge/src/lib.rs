@@ -75,8 +75,8 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis,
-    SolutionManager, Solvable, SolverManager, SolverStatus,
+    run_list_solver, run_list_solver_with_channel, run_solver, run_solver_with_channel, Analyzable,
+    ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable, SolverManager, SolverStatus,
 };
 
 // ============================================================================

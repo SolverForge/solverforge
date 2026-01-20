@@ -174,14 +174,13 @@ where
         let type_id = TypeId::of::<S>();
 
         let mut guard = registry.lock().unwrap();
-        if !guard.contains_key(&type_id) {
+        let any = guard.entry(type_id).or_insert_with(|| {
             let manager: &'static SolverManager<S> = Box::leak(Box::new(SolverManager::<S>::new()));
-            guard.insert(type_id, manager as &'static (dyn Any + Send + Sync));
-        }
+            manager as &'static (dyn Any + Send + Sync)
+        });
 
-        guard
-            .get(&type_id)
-            .and_then(|any| (*any).downcast_ref::<SolverManager<S>>())
+        (*any)
+            .downcast_ref::<SolverManager<S>>()
             .expect("Type mismatch in SolverManager registry")
     }
 

@@ -6,6 +6,7 @@
 mod acceptor;
 mod acceptor_impl;
 mod forager;
+mod forager_impl;
 mod phase;
 
 pub use acceptor::{
@@ -15,4 +16,7 @@ pub use acceptor::{
 };
 pub use acceptor_impl::AcceptorImpl;
 pub use forager::{AcceptedCountForager, FirstAcceptedForager, LocalSearchForager};
+pub use forager_impl::{
+    FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager, LocalSearchForagerImpl,
+};
 pub use phase::LocalSearchPhase;

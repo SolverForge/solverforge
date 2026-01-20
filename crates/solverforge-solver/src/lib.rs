@@ -82,10 +82,11 @@ pub use phase::{
     },
     localsearch::{
         AcceptedCountForager, Acceptor, AcceptorImpl, DiversifiedLateAcceptanceAcceptor,
-        EntityTabuAcceptor, FirstAcceptedForager, GreatDelugeAcceptor, HillClimbingAcceptor,
-        LateAcceptanceAcceptor, LocalSearchForager, LocalSearchPhase, MoveTabuAcceptor,
-        SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
-        ValueTabuAcceptor,
+        EntityTabuAcceptor, FirstAcceptedForager, FirstBestScoreImprovingForager,
+        FirstLastStepScoreImprovingForager, GreatDelugeAcceptor, HillClimbingAcceptor,
+        LateAcceptanceAcceptor, LocalSearchForager, LocalSearchForagerImpl, LocalSearchPhase,
+        MoveTabuAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
+        TabuSearchAcceptor, ValueTabuAcceptor,
     },
     partitioned::{
         ChildPhases, FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,

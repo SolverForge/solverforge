@@ -68,7 +68,7 @@ where
 
 // Convenience constructors with specific acceptors
 
-impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, HillClimbingAcceptor, AcceptedCountForager<S>>
+impl<S, M, MS> LocalSearchPhaseFactory<S, M, MS, HillClimbingAcceptor<S>, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -101,7 +101,7 @@ where
 }
 
 impl<S, M, MS>
-    LocalSearchPhaseFactory<S, M, MS, SimulatedAnnealingAcceptor, AcceptedCountForager<S>>
+    LocalSearchPhaseFactory<S, M, MS, SimulatedAnnealingAcceptor<S>, AcceptedCountForager<S>>
 where
     S: PlanningSolution,
     M: Move<S>,

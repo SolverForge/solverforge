@@ -9,7 +9,6 @@
 //! - Configuration wiring (builder module)
 
 pub mod basic;
-pub mod builder;
 pub mod heuristic;
 pub mod manager;
 pub mod phase;
@@ -19,7 +18,6 @@ pub mod solver;
 pub mod stats;
 pub mod termination;
 
-pub use builder::AcceptorBuilder;
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -83,11 +81,11 @@ pub use phase::{
         SimpleDecider, SimpleScoreBounder,
     },
     localsearch::{
-        AcceptedCountForager, Acceptor, AcceptorType, DiversifiedLateAcceptanceAcceptor,
+        AcceptedCountForager, Acceptor, AcceptorImpl, DiversifiedLateAcceptanceAcceptor,
         EntityTabuAcceptor, FirstAcceptedForager, GreatDelugeAcceptor, HillClimbingAcceptor,
-        LateAcceptanceAcceptor, LocalSearchConfig, LocalSearchForager, LocalSearchPhase,
-        MoveTabuAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
-        TabuSearchAcceptor, ValueTabuAcceptor,
+        LateAcceptanceAcceptor, LocalSearchForager, LocalSearchPhase, MoveTabuAcceptor,
+        SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
+        ValueTabuAcceptor,
     },
     partitioned::{
         ChildPhases, FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,

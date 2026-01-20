@@ -382,6 +382,8 @@ pub struct TabuSearchConfig {
 pub struct SimulatedAnnealingConfig {
     /// Starting temperature.
     pub starting_temperature: Option<String>,
+    /// Temperature decay rate per step (0.0 to 1.0, typical: 0.99).
+    pub decay_rate: Option<f64>,
 }
 
 /// Late acceptance configuration.

@@ -1,6 +1,7 @@
 //! Hill climbing acceptor.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -10,27 +11,40 @@ use super::Acceptor;
 ///
 /// This is the simplest acceptor. It only accepts moves that result
 /// in a strictly better score. This can get stuck in local optima.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::localsearch::HillClimbingAcceptor;
-///
-/// let acceptor = HillClimbingAcceptor::new();
-/// ```
-#[derive(Debug, Clone, Default)]
-pub struct HillClimbingAcceptor;
+pub struct HillClimbingAcceptor<S> {
+    _phantom: PhantomData<fn() -> S>,
+}
 
-impl HillClimbingAcceptor {
-    /// Creates a new hill climbing acceptor.
+impl<S> HillClimbingAcceptor<S> {
     pub fn new() -> Self {
-        Self
+        Self {
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<S: PlanningSolution> Acceptor<S> for HillClimbingAcceptor {
+impl<S> Default for HillClimbingAcceptor<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S> Clone for HillClimbingAcceptor<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S> Copy for HillClimbingAcceptor<S> {}
+
+impl<S> Debug for HillClimbingAcceptor<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HillClimbingAcceptor").finish()
+    }
+}
+
+impl<S: PlanningSolution> Acceptor<S> for HillClimbingAcceptor<S> {
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
-        // Accept if the move score is better than the last step score
         move_score > last_step_score
     }
 }

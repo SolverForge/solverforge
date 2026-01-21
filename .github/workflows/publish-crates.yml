@@ -1,0 +1,83 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-publish-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Build workspace
+        run: cargo build --workspace --all-features --release
+
+      - name: Run all tests
+        run: cargo test --workspace --all-features
+
+      - name: Run integration tests
+        run: cargo test --workspace --all-features --test '*'
+
+      - name: Run doc tests
+        run: cargo test --workspace --doc
+
+      # Publish in dependency order
+      - name: Publish solverforge-core
+        run: cargo publish -p solverforge-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge-macros
+        run: cargo publish -p solverforge-macros --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge-scoring
+        run: cargo publish -p solverforge-scoring --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge-config
+        run: cargo publish -p solverforge-config --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge-solver
+        run: cargo publish -p solverforge-solver --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge-benchmark
+        run: cargo publish -p solverforge-benchmark --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge
+        run: cargo publish -p solverforge --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

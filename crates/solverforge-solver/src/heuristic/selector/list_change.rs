@@ -33,12 +33,16 @@
 //! fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
 //!     if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
 //! }
+//! fn list_get_element_idx(s: &Solution, entity_idx: usize, pos: usize) -> usize {
+//!     s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos)).copied().unwrap_or(0) as usize
+//! }
 //!
 //! let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
 //!     FromSolutionEntitySelector::new(0),
 //!     list_len,
 //!     list_remove,
 //!     list_insert,
+//!     list_get_element_idx,
 //!     "visits",
 //!     0,
 //! );
@@ -81,6 +85,8 @@ pub struct ListChangeMoveSelector<S, V, ES> {
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     /// Insert element at position.
     list_insert: fn(&mut S, usize, usize, V),
+    /// Get element index at position (for O(1) shadow updates).
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     /// Variable name for notifications.
     variable_name: &'static str,
     /// Entity descriptor index.
@@ -106,6 +112,7 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     /// * `list_len` - Function to get list length for an entity
     /// * `list_remove` - Function to remove element at position
     /// * `list_insert` - Function to insert element at position
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     pub fn new(
@@ -113,6 +120,7 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -121,6 +129,7 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -142,6 +151,7 @@ where
         let list_len = self.list_len;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
+        let list_get_element_idx = self.list_get_element_idx;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
@@ -179,10 +189,10 @@ where
                         src_pos,
                         src_entity,
                         dst_pos,
-                        src_pos, // element_idx: use position as placeholder
                         list_len,
                         list_remove,
                         list_insert,
+                        list_get_element_idx,
                         variable_name,
                         descriptor_index,
                     ));
@@ -202,10 +212,10 @@ where
                             src_pos,
                             dst_entity,
                             dst_pos,
-                            src_pos, // element_idx: use position as placeholder
                             list_len,
                             list_remove,
                             list_insert,
+                            list_get_element_idx,
                             variable_name,
                             descriptor_index,
                         ));
@@ -294,6 +304,14 @@ mod tests {
             v.visits.insert(pos, val);
         }
     }
+    fn list_get_element_idx(s: &Solution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.vehicles
+            .get(entity_idx)
+            .and_then(|v| v.visits.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         vehicles: Vec<Vehicle>,
@@ -327,6 +345,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -357,6 +376,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -385,6 +405,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );

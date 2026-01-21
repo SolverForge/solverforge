@@ -51,12 +51,14 @@ use super::Move;
 /// fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
 ///     if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
 /// }
+/// fn list_get_element_idx(s: &Solution, entity_idx: usize, pos: usize) -> usize {
+///     s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos)).copied().unwrap_or(0) as usize
+/// }
 ///
 /// // Move element from vehicle 0 position 2 to vehicle 1 position 0
-/// // element_idx 2 indicates the global index of the element being moved
 /// let m = ListChangeMove::<Solution, i32>::new(
-///     0, 2, 1, 0, 2,  // src_entity, src_pos, dst_entity, dst_pos, element_idx
-///     list_len, list_remove, list_insert,
+///     0, 2, 1, 0,  // src_entity, src_pos, dst_entity, dst_pos
+///     list_len, list_remove, list_insert, list_get_element_idx,
 ///     "visits", 0,
 /// );
 /// ```
@@ -69,14 +71,14 @@ pub struct ListChangeMove<S, V> {
     dest_entity_index: usize,
     /// Position in destination list to insert at
     dest_position: usize,
-    /// The element index being moved (for O(1) shadow updates)
-    element_idx: usize,
     /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
     /// Remove element at position, returns removed value
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     /// Insert element at position
     list_insert: fn(&mut S, usize, usize, V),
+    /// Get element index at position (for O(1) shadow updates)
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices for entity_indices()
@@ -90,10 +92,10 @@ impl<S, V> Clone for ListChangeMove<S, V> {
             source_position: self.source_position,
             dest_entity_index: self.dest_entity_index,
             dest_position: self.dest_position,
-            element_idx: self.element_idx,
             list_len: self.list_len,
             list_remove: self.list_remove,
             list_insert: self.list_insert,
+            list_get_element_idx: self.list_get_element_idx,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             indices: self.indices,
@@ -123,10 +125,10 @@ impl<S, V> ListChangeMove<S, V> {
     /// * `source_position` - Position in source list
     /// * `dest_entity_index` - Entity index to insert into
     /// * `dest_position` - Position in destination list
-    /// * `element_idx` - The index of the element being moved (for O(1) shadow updates)
     /// * `list_len` - Function to get list length
     /// * `list_remove` - Function to remove element at position
     /// * `list_insert` - Function to insert element at position
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
@@ -135,10 +137,10 @@ impl<S, V> ListChangeMove<S, V> {
         source_position: usize,
         dest_entity_index: usize,
         dest_position: usize,
-        element_idx: usize,
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -147,19 +149,14 @@ impl<S, V> ListChangeMove<S, V> {
             source_position,
             dest_entity_index,
             dest_position,
-            element_idx,
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             indices: [source_entity_index, dest_entity_index],
         }
-    }
-
-    /// Returns the element index being moved.
-    pub fn element_idx(&self) -> usize {
-        self.element_idx
     }
 
     /// Returns the source entity index.
@@ -234,6 +231,13 @@ where
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+        // Look up actual element index at runtime for correct shadow updates
+        let element_idx = (self.list_get_element_idx)(
+            score_director.working_solution(),
+            self.source_entity_index,
+            self.source_position,
+        );
+
         // For intra-list moves, adjust dest position if it was after source
         let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
             self.dest_position - 1
@@ -246,7 +250,7 @@ where
             self.descriptor_index,
             self.source_entity_index,
             self.source_position,
-            self.element_idx,
+            element_idx,
             self.variable_name,
         );
 
@@ -263,7 +267,7 @@ where
             self.descriptor_index,
             self.source_entity_index,
             self.source_position,
-            self.element_idx,
+            element_idx,
             self.variable_name,
         );
 
@@ -272,7 +276,7 @@ where
             self.descriptor_index,
             self.dest_entity_index,
             adjusted_dest,
-            self.element_idx,
+            element_idx,
             self.variable_name,
         );
 
@@ -289,7 +293,7 @@ where
             self.descriptor_index,
             self.dest_entity_index,
             adjusted_dest,
-            self.element_idx,
+            element_idx,
             self.variable_name,
         );
 
@@ -372,6 +376,14 @@ mod tests {
             v.visits.insert(pos, val);
         }
     }
+    fn list_get_element_idx(s: &RoutingSolution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.vehicles
+            .get(entity_idx)
+            .and_then(|v| v.visits.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         vehicles: Vec<Vehicle>,
@@ -386,7 +398,7 @@ mod tests {
             get_vehicles,
             get_vehicles_mut,
         ));
-        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles")
+        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "visits")
             .with_extractor(extractor);
         let descriptor =
             SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
@@ -402,16 +414,15 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 1 (value=2) to position 3
-        // element_idx=2 because the value at position 1 is 2
         let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             0,
             3,
-            2, // element_idx
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -442,16 +453,15 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 3 (value=4) to position 1
-        // element_idx=4 because the value at position 3 is 4
         let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             3,
             0,
             1,
-            4, // element_idx
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -486,16 +496,15 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element from vehicle 0 position 1 (value=2) to vehicle 1 position 1
-        // element_idx=2 because the value at position 1 is 2
         let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             1,
             1,
-            2, // element_idx
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -531,10 +540,10 @@ mod tests {
             1,
             0,
             1,
-            2, // element_idx
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -554,10 +563,10 @@ mod tests {
             10,
             0,
             0,
-            99, // element_idx (doesn't matter, position is invalid)
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "visits",
             0,
         );

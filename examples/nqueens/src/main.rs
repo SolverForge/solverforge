@@ -96,16 +96,16 @@ fn solve(solution: NQueensSolution) -> NQueensSolution {
     let mut director = TypedScoreDirector::new(solution, define_constraints());
     let mut rng = rand::thread_rng();
 
-    // Construction: round-robin row assignment
+    // Construction: assign each queen to row i % n
     for i in 0..director.working_solution().queens.len() {
-        director.before_variable_changed(i);
         director.working_solution_mut().queens[i].row = Some((i as i32) % n);
-        director.after_variable_changed(i);
     }
 
+    // Initialize constraints and get initial score
+    let mut score = director.calculate_score();
+
     // Local search: hill climbing
-    let mut score = director.get_score();
-    for _ in 0..1000 {
+    for _ in 0..10000 {
         if score.is_feasible() {
             break;
         }
@@ -118,10 +118,11 @@ fn solve(solution: NQueensSolution) -> NQueensSolution {
         director.working_solution_mut().queens[idx].row = new;
         director.after_variable_changed(idx);
 
-        let new_score = director.get_score();
+        let new_score = director.calculate_score();
         if new_score >= score {
             score = new_score;
         } else {
+            // Revert the change
             director.before_variable_changed(idx);
             director.working_solution_mut().queens[idx].row = old;
             director.after_variable_changed(idx);

@@ -148,6 +148,7 @@ mod benchmarks {
             |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
             |_s: &Shift| SimpleScore::of(1),
             false,
+            0,
         );
 
         let overlapping = IncrementalBiConstraint::new(
@@ -162,6 +163,7 @@ mod benchmarks {
             },
             |_a: &Shift, _b: &Shift| SimpleScore::of(10),
             false,
+            0,
         );
 
         let constraints = (unassigned, overlapping);
@@ -237,6 +239,7 @@ mod benchmarks {
                 |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
                 |_s: &Shift| SimpleScore::of(1),
                 false,
+                0,
             );
 
             let overlapping = IncrementalBiConstraint::new(
@@ -249,6 +252,7 @@ mod benchmarks {
                 },
                 |_a: &Shift, _b: &Shift| SimpleScore::of(10),
                 false,
+                0,
             );
 
             let constraints = (unassigned, overlapping);

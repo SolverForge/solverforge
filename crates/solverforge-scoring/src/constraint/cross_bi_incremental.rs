@@ -29,6 +29,7 @@ where
     filter: F,
     weight: W,
     is_hard: bool,
+    descriptor_index: usize,
     matches: HashMap<(usize, usize), Sc>,
     a_to_matches: HashMap<usize, HashSet<(usize, usize)>>,
     b_by_key: HashMap<K, Vec<usize>>,
@@ -53,8 +54,8 @@ where
     /// Creates a new cross-bi-constraint.
     ///
     /// # Arguments
-    /// All 9 arguments are semantically distinct (2 extractors, 2 key functions,
-    /// 1 filter, 1 weight, 1 is_hard) and cannot be meaningfully grouped without losing
+    /// All 10 arguments are semantically distinct (2 extractors, 2 key functions,
+    /// 1 filter, 1 weight, 1 is_hard, 1 descriptor_index) and cannot be meaningfully grouped without losing
     /// higher-ranked lifetime inference for the closures.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -67,6 +68,7 @@ where
         filter: F,
         weight: W,
         is_hard: bool,
+        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -78,6 +80,7 @@ where
             filter,
             weight,
             is_hard,
+            descriptor_index,
             matches: HashMap::new(),
             a_to_matches: HashMap::new(),
             b_by_key: HashMap::new(),
@@ -230,16 +233,26 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
         self.insert_a(solution, entities_a, entities_b, entity_index)
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
         self.retract_a(entities_a, entities_b, entity_index)
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
     }
 
     fn reset(&mut self) {

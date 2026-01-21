@@ -68,6 +68,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 ///     |_emp: &Employee| 0usize,
 ///     |count: &usize| SimpleScore::of(*count as i64),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// let schedule = Schedule {
@@ -98,6 +99,7 @@ where
     default_fn: D,
     weight_fn: W,
     is_hard: bool,
+    descriptor_index: usize,
     /// Group key -> accumulator for incremental scoring
     groups: HashMap<K, C::Accumulator>,
     /// A entity index -> group key (for tracking which group each entity belongs to)
@@ -139,6 +141,7 @@ where
         default_fn: D,
         weight_fn: W,
         is_hard: bool,
+        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -151,6 +154,7 @@ where
             default_fn,
             weight_fn,
             is_hard,
+            descriptor_index,
             groups: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
@@ -261,7 +265,10 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
 
@@ -273,11 +280,18 @@ where
         self.insert_entity(entities_b, entity_index, entity)
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
 
         self.retract_entity(entities_a, entities_b, entity_index)
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
     }
 
     fn reset(&mut self) {
@@ -490,6 +504,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -522,6 +537,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -557,6 +573,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -583,12 +600,12 @@ mod tests {
         assert_eq!(total, SimpleScore::of(-3));
 
         // Retract shift at index 0 (employee 0)
-        let delta = constraint.on_retract(&schedule, 0);
+        let delta = constraint.on_retract(&schedule, 0, 0);
         // Employee 0 now has 1 shift -> score goes from -2 to -1, delta = +1
         assert_eq!(delta, SimpleScore::of(1));
 
         // Insert shift at index 0 (employee 0)
-        let delta = constraint.on_insert(&schedule, 0);
+        let delta = constraint.on_insert(&schedule, 0, 0);
         // Employee 0 now has 2 shifts -> score goes from -1 to -2, delta = -1
         assert_eq!(delta, SimpleScore::of(-1));
     }
@@ -606,6 +623,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of(*count as i64),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -628,11 +646,11 @@ mod tests {
         assert_eq!(total, SimpleScore::of(-2));
 
         // Retract unassigned shift at index 1 - should be no-op
-        let delta = constraint.on_retract(&schedule, 1);
+        let delta = constraint.on_retract(&schedule, 0, 1);
         assert_eq!(delta, SimpleScore::of(0));
 
         // Insert unassigned shift at index 1 - should be no-op
-        let delta = constraint.on_insert(&schedule, 1);
+        let delta = constraint.on_insert(&schedule, 0, 1);
         assert_eq!(delta, SimpleScore::of(0));
     }
 
@@ -649,6 +667,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of((*count as i64).pow(2)),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -686,6 +705,7 @@ mod tests {
             |_emp: &Employee| 0usize,
             |count: &usize| SimpleScore::of((*count as i64).pow(2)),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -716,12 +736,12 @@ mod tests {
         let mut running_total = init_total;
 
         // Retract shift 2 (employee 1)
-        running_total = running_total + constraint.on_retract(&schedule, 2);
+        running_total = running_total + constraint.on_retract(&schedule, 0, 2);
         // Now: Employee 0: 2->4, Employee 1: 0->0, Total: -4
         assert_eq!(running_total, SimpleScore::of(-4));
 
         // Insert shift 2 back (employee 1)
-        running_total = running_total + constraint.on_insert(&schedule, 2);
+        running_total = running_total + constraint.on_insert(&schedule, 0, 2);
         // Back to: Employee 0: 2->4, Employee 1: 1->1, Total: -5
         assert_eq!(running_total, SimpleScore::of(-5));
     }

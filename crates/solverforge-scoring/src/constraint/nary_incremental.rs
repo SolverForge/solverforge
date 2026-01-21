@@ -41,6 +41,7 @@ macro_rules! impl_incremental_nary_constraint {
             filter: F,
             weight: W,
             is_hard: bool,
+            descriptor_index: usize,
             entity_to_matches: HashMap<usize, HashSet<(usize, usize)>>,
             matches: HashSet<(usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
@@ -67,6 +68,7 @@ macro_rules! impl_incremental_nary_constraint {
                 filter: F,
                 weight: W,
                 is_hard: bool,
+                descriptor_index: usize,
             ) -> Self {
                 Self {
                     constraint_ref,
@@ -76,6 +78,7 @@ macro_rules! impl_incremental_nary_constraint {
                     filter,
                     weight,
                     is_hard,
+                    descriptor_index,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
@@ -258,14 +261,24 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
+            }
+
+            fn descriptor_index(&self) -> usize {
+                self.descriptor_index
             }
 
             fn reset(&mut self) {
@@ -323,6 +336,7 @@ macro_rules! impl_incremental_nary_constraint {
             filter: F,
             weight: W,
             is_hard: bool,
+            descriptor_index: usize,
             entity_to_matches: HashMap<usize, HashSet<(usize, usize, usize)>>,
             matches: HashSet<(usize, usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
@@ -349,6 +363,7 @@ macro_rules! impl_incremental_nary_constraint {
                 filter: F,
                 weight: W,
                 is_hard: bool,
+                descriptor_index: usize,
             ) -> Self {
                 Self {
                     constraint_ref,
@@ -358,6 +373,7 @@ macro_rules! impl_incremental_nary_constraint {
                     filter,
                     weight,
                     is_hard,
+                    descriptor_index,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
@@ -565,14 +581,24 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
+            }
+
+            fn descriptor_index(&self) -> usize {
+                self.descriptor_index
             }
 
             fn reset(&mut self) {
@@ -630,6 +656,7 @@ macro_rules! impl_incremental_nary_constraint {
             filter: F,
             weight: W,
             is_hard: bool,
+            descriptor_index: usize,
             entity_to_matches: HashMap<usize, HashSet<(usize, usize, usize, usize)>>,
             matches: HashSet<(usize, usize, usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
@@ -656,6 +683,7 @@ macro_rules! impl_incremental_nary_constraint {
                 filter: F,
                 weight: W,
                 is_hard: bool,
+                descriptor_index: usize,
             ) -> Self {
                 Self {
                     constraint_ref,
@@ -665,6 +693,7 @@ macro_rules! impl_incremental_nary_constraint {
                     filter,
                     weight,
                     is_hard,
+                    descriptor_index,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
@@ -895,14 +924,24 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
+            }
+
+            fn descriptor_index(&self) -> usize {
+                self.descriptor_index
             }
 
             fn reset(&mut self) {
@@ -960,6 +999,7 @@ macro_rules! impl_incremental_nary_constraint {
             filter: F,
             weight: W,
             is_hard: bool,
+            descriptor_index: usize,
             entity_to_matches: HashMap<usize, HashSet<(usize, usize, usize, usize, usize)>>,
             matches: HashSet<(usize, usize, usize, usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
@@ -986,6 +1026,7 @@ macro_rules! impl_incremental_nary_constraint {
                 filter: F,
                 weight: W,
                 is_hard: bool,
+                descriptor_index: usize,
             ) -> Self {
                 Self {
                     constraint_ref,
@@ -995,6 +1036,7 @@ macro_rules! impl_incremental_nary_constraint {
                     filter,
                     weight,
                     is_hard,
+                    descriptor_index,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
@@ -1242,14 +1284,24 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+                if descriptor_index != self.descriptor_index {
+                    return Sc::zero();
+                }
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
+            }
+
+            fn descriptor_index(&self) -> usize {
+                self.descriptor_index
             }
 
             fn reset(&mut self) {

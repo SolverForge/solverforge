@@ -90,6 +90,33 @@ pub trait ShadowVariableSupport: PlanningSolution {
     fn update_all_shadows(&mut self) {
         // Default: no-op - solutions without shadow variables need not implement
     }
+
+    /// Returns the indices of elements affected by shadow variable updates
+    /// for the entity at `entity_index`.
+    ///
+    /// For list variable solutions, this returns the element indices in the
+    /// entity's list (e.g., visit indices for a vehicle). These elements have
+    /// shadow variables that may change when the list changes.
+    ///
+    /// Used by `ShadowAwareScoreDirector` to propagate incremental scoring
+    /// notifications to element-based constraints.
+    ///
+    /// Default implementation returns empty (no affected elements).
+    fn affected_element_indices(&self, _entity_index: usize) -> Vec<usize> {
+        Vec::new()
+    }
+
+    /// Returns the descriptor index for the element collection affected by
+    /// shadow variable updates.
+    ///
+    /// For VRP-style problems with `vehicles` (descriptor 0) and `visits`
+    /// (descriptor 1), this returns 1 since visits have shadow variables
+    /// that depend on vehicle list changes.
+    ///
+    /// Default implementation returns None (no element descriptor).
+    fn element_descriptor_index() -> Option<usize> {
+        None
+    }
 }
 
 /// Trait for solutions that can be solved using the fluent builder API.
@@ -199,6 +226,7 @@ pub trait SolvableSolution: ShadowVariableSupport {
 ///     |_s: &Solution, &sum| sum > 100,
 ///     |&sum| SimpleScore::of((sum - 100) as i64),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// let solution = Solution { values: vec![10, 20, 30], cached_sum: 0, score: None };
@@ -219,6 +247,9 @@ where
     D: ScoreDirector<S>,
 {
     inner: D,
+    /// Stores affected element indices captured during `before_variable_changed`.
+    /// Key: entity_index, Value: list of element indices that were in the entity's list.
+    pending_element_retractions: std::collections::HashMap<usize, Vec<usize>>,
     _phantom: PhantomData<S>,
 }
 
@@ -231,6 +262,7 @@ where
     pub fn new(inner: D) -> Self {
         Self {
             inner,
+            pending_element_retractions: std::collections::HashMap::new(),
             _phantom: PhantomData,
         }
     }
@@ -300,6 +332,18 @@ where
         entity_index: usize,
         variable_name: &str,
     ) {
+        // For list variable solutions with element-based constraints,
+        // capture affected elements BEFORE the move is applied.
+        // These will be used in after_variable_changed to retract old state.
+        if S::element_descriptor_index().is_some() {
+            let affected = self
+                .inner
+                .working_solution()
+                .affected_element_indices(entity_index);
+            self.pending_element_retractions
+                .insert(entity_index, affected);
+        }
+
         self.inner
             .before_variable_changed(descriptor_index, entity_index, variable_name);
     }
@@ -310,12 +354,46 @@ where
         entity_index: usize,
         variable_name: &str,
     ) {
-        // Update shadow variables FIRST
-        self.inner
-            .working_solution_mut()
-            .update_entity_shadows(entity_index);
+        // For list variable solutions with element-based constraints,
+        // we need to retract/insert affected elements from constraints.
+        if let Some(elem_descriptor) = S::element_descriptor_index() {
+            // 1. Get affected elements captured in before_variable_changed (OLD state)
+            //    These are the elements that were in the list BEFORE the move was applied.
+            let affected_before = self
+                .pending_element_retractions
+                .remove(&entity_index)
+                .unwrap_or_default();
 
-        // Then notify inner director (constraint evaluation)
+            // 2. Retract affected elements from constraints (old shadow state)
+            for &elem_idx in &affected_before {
+                self.inner
+                    .before_variable_changed(elem_descriptor, elem_idx, "shadow");
+            }
+
+            // 3. Update shadow variables
+            self.inner
+                .working_solution_mut()
+                .update_entity_shadows(entity_index);
+
+            // 4. Get affected elements AFTER shadow update (current list - NEW state)
+            let affected_after = self
+                .inner
+                .working_solution()
+                .affected_element_indices(entity_index);
+
+            // 5. Insert affected elements into constraints (new shadow state)
+            for &elem_idx in &affected_after {
+                self.inner
+                    .after_variable_changed(elem_descriptor, elem_idx, "shadow");
+            }
+        } else {
+            // No element descriptor - just update shadows
+            self.inner
+                .working_solution_mut()
+                .update_entity_shadows(entity_index);
+        }
+
+        // 6. Insert the entity itself into constraints
         self.inner
             .after_variable_changed(descriptor_index, entity_index, variable_name);
     }
@@ -419,6 +497,7 @@ mod tests {
             filter as fn(&TestSolution, &i32) -> bool,
             score as fn(&i32) -> SimpleScore,
             false,
+            0,
         )
     }
 

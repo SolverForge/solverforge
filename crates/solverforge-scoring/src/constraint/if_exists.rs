@@ -69,6 +69,7 @@ pub enum ExistenceMode {
 ///     |_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
 ///     |_shift: &Shift| SimpleScore::of(1),
 ///     false,
+///     0, // descriptor_index
 /// );
 ///
 /// let schedule = Schedule {
@@ -100,6 +101,7 @@ where
     filter_a: FA,
     weight: W,
     is_hard: bool,
+    descriptor_index: usize,
     _phantom: PhantomData<(S, A, B, K, Sc)>,
 }
 
@@ -131,6 +133,7 @@ where
         filter_a: FA,
         weight: W,
         is_hard: bool,
+        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -143,6 +146,7 @@ where
             filter_a,
             weight,
             is_hard,
+            descriptor_index,
             _phantom: PhantomData,
         }
     }
@@ -213,7 +217,10 @@ where
         self.evaluate(solution)
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         if entity_index >= entities_a.len() {
             return Sc::zero();
@@ -232,7 +239,10 @@ where
         }
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
+        if descriptor_index != self.descriptor_index {
+            return Sc::zero();
+        }
         let entities_a = (self.extractor_a)(solution);
         if entity_index >= entities_a.len() {
             return Sc::zero();
@@ -249,6 +259,10 @@ where
         } else {
             Sc::zero()
         }
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
     }
 
     fn reset(&mut self) {
@@ -317,6 +331,7 @@ mod tests {
             |_s: &Schedule, t: &Task| t.assignee.is_some(),
             |_t: &Task| SimpleScore::of(1),
             false,
+            0,
         );
 
         let schedule = Schedule {
@@ -365,6 +380,7 @@ mod tests {
             |_s: &Schedule, t: &Task| t.assignee.is_some(),
             |_t: &Task| SimpleScore::of(1),
             false,
+            0,
         );
 
         let schedule = Schedule {

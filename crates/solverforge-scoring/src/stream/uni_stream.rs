@@ -525,9 +525,29 @@ where
     Sc: Score + 'static,
 {
     /// Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.
+    ///
+    /// Uses descriptor_index 0 (default for single-entity-collection problems).
+    /// For multi-collection problems (e.g., VRP with vehicles AND visits),
+    /// use `as_constraint_for_descriptor` to specify which collection this constraint operates on.
     pub fn as_constraint(
         self,
         name: &str,
+    ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
+        self.as_constraint_for_descriptor(name, 0)
+    }
+
+    /// Finalizes the builder into a zero-erasure `IncrementalUniConstraint` for a specific descriptor.
+    ///
+    /// # Arguments
+    /// * `name` - The constraint name
+    /// * `descriptor_index` - The entity descriptor index this constraint operates on.
+    ///   Must match the index of the `#[planning_entity_collection]` field in your solution struct.
+    ///   For example, if your solution has `vehicles` (index 0) and `visits` (index 1),
+    ///   constraints on vehicles should use descriptor_index=0.
+    pub fn as_constraint_for_descriptor(
+        self,
+        name: &str,
+        descriptor_index: usize,
     ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
         let filter = self.filter;
         let combined_filter = move |s: &S, a: &A| filter.test(s, a);
@@ -539,6 +559,7 @@ where
             combined_filter,
             self.weight,
             self.is_hard,
+            descriptor_index,
         )
     }
 }

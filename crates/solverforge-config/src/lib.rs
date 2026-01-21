@@ -382,6 +382,8 @@ pub struct TabuSearchConfig {
 pub struct SimulatedAnnealingConfig {
     /// Starting temperature.
     pub starting_temperature: Option<String>,
+    /// Temperature decay rate per step (0.0 to 1.0, typical: 0.99).
+    pub decay_rate: Option<f64>,
 }
 
 /// Late acceptance configuration.
@@ -430,11 +432,26 @@ pub enum PickEarlyType {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MoveSelectorConfig {
-    /// Change move selector.
+    /// Change move selector (basic variables).
     ChangeMoveSelector(ChangeMoveConfig),
 
-    /// Swap move selector.
+    /// Swap move selector (basic variables).
     SwapMoveSelector(SwapMoveConfig),
+
+    /// List change move selector (list variables - relocate element).
+    ListChangeMoveSelector(ListChangeMoveConfig),
+
+    /// List swap move selector (list variables - swap two elements).
+    ListSwapMoveSelector(ListSwapMoveConfig),
+
+    /// K-opt move selector (list variables - tour improvement).
+    KOptMoveSelector(KOptMoveConfig),
+
+    /// Sub-list change move selector (list variables - relocate segment).
+    SubListChangeMoveSelector(SubListChangeMoveConfig),
+
+    /// Sub-list swap move selector (list variables - swap segments).
+    SubListSwapMoveSelector(SubListSwapMoveConfig),
 
     /// Union of multiple selectors.
     UnionMoveSelector(UnionMoveSelectorConfig),
@@ -457,6 +474,57 @@ pub struct ChangeMoveConfig {
 pub struct SwapMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+}
+
+/// List change move configuration (relocate element within/between lists).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListChangeMoveConfig {
+    /// Entity class filter.
+    pub entity_class: Option<String>,
+}
+
+/// List swap move configuration (swap two elements in lists).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListSwapMoveConfig {
+    /// Entity class filter.
+    pub entity_class: Option<String>,
+}
+
+/// K-opt move configuration (tour improvement for list variables).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct KOptMoveConfig {
+    /// K value for k-opt (2 = 2-opt, 3 = 3-opt, etc.).
+    #[serde(default = "default_k_value")]
+    pub k_value: usize,
+}
+
+fn default_k_value() -> usize {
+    2
+}
+
+/// Sub-list change move configuration (relocate contiguous segment).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SubListChangeMoveConfig {
+    /// Minimum sub-list size.
+    pub minimum_sub_list_size: Option<usize>,
+    /// Maximum sub-list size.
+    pub maximum_sub_list_size: Option<usize>,
+}
+
+/// Sub-list swap move configuration (swap two contiguous segments).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SubListSwapMoveConfig {
+    /// Minimum sub-list size.
+    pub minimum_sub_list_size: Option<usize>,
+    /// Maximum sub-list size.
+    pub maximum_sub_list_size: Option<usize>,
+    /// Whether segments can be from the same list.
+    pub select_reverse_movement: Option<bool>,
 }
 
 /// Union move selector configuration.
@@ -598,5 +666,51 @@ mod tests {
 
         assert_eq!(config.random_seed, Some(123));
         assert_eq!(config.phases.len(), 2);
+    }
+
+    #[test]
+    fn test_list_variable_move_selector_parsing() {
+        let toml = r#"
+[[phases]]
+type = "local_search"
+
+[phases.move_selector]
+type = "union_move_selector"
+selectors = [
+    { type = "list_change_move_selector" },
+    { type = "k_opt_move_selector", k_value = 3 }
+]
+"#;
+        let result = SolverConfig::from_toml_str(toml);
+        assert!(
+            result.is_ok(),
+            "Failed to parse list variable move selectors: {:?}",
+            result.err()
+        );
+
+        let config = result.unwrap();
+        assert_eq!(config.phases.len(), 1);
+
+        if let PhaseConfig::LocalSearch(ls) = &config.phases[0] {
+            let move_selector = ls
+                .move_selector
+                .as_ref()
+                .expect("move_selector should exist");
+            if let MoveSelectorConfig::UnionMoveSelector(union) = move_selector {
+                assert_eq!(union.selectors.len(), 2);
+                assert!(matches!(
+                    &union.selectors[0],
+                    MoveSelectorConfig::ListChangeMoveSelector(_)
+                ));
+                assert!(matches!(
+                    &union.selectors[1],
+                    MoveSelectorConfig::KOptMoveSelector(k) if k.k_value == 3
+                ));
+            } else {
+                panic!("Expected UnionMoveSelector");
+            }
+        } else {
+            panic!("Expected LocalSearch phase");
+        }
     }
 }

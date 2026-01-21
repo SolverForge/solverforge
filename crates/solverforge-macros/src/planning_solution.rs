@@ -177,7 +177,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let score_field_str = score_field_name.to_string();
 
     let shadow_config = parse_shadow_config(&input.attrs);
-    let shadow_support_impl = generate_shadow_support(&shadow_config, name);
+    let shadow_support_impl = generate_shadow_support(&shadow_config, name, &fields);
     let constraints_path = parse_constraints_path(&input.attrs);
     let basic_config = parse_basic_variable_config(&input.attrs);
 
@@ -191,7 +191,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    let list_operations = generate_list_operations(&shadow_config, fields);
+    let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path);
     let basic_operations =
         generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
     let solvable_solution_impl =
@@ -238,6 +238,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 fn generate_list_operations(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    constraints_path: &Option<String>,
 ) -> TokenStream {
     let (list_owner, list_field, element_type, element_collection) = match (
         &config.list_owner,
@@ -252,6 +253,7 @@ fn generate_list_operations(
     let list_owner_ident = Ident::new(list_owner, proc_macro2::Span::call_site());
     let list_field_ident = Ident::new(list_field, proc_macro2::Span::call_site());
     let element_type_ident = Ident::new(element_type, proc_macro2::Span::call_site());
+    let list_field_str = list_field.as_str();
 
     let entity_fields: Vec<_> = fields
         .iter()
@@ -269,6 +271,54 @@ fn generate_list_operations(
     );
 
     let element_collection_ident2 = Ident::new(element_collection, proc_macro2::Span::call_site());
+
+    // Generate finalize calls for all problem_fact_collection fields
+    let finalize_calls: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
+        .filter_map(|f| {
+            let field_name = f.ident.as_ref()?;
+            Some(quote! {
+                for item in &mut s.#field_name {
+                    item.finalize();
+                }
+            })
+        })
+        .collect();
+
+    // Generate solve_internal() only if constraints path is provided
+    let solve_impl = constraints_path.as_ref().map(|path| {
+        let constraints_fn: syn::Path =
+            syn::parse_str(path).expect("constraints path must be a valid Rust path");
+
+        quote! {
+            /// Internal solve implementation called by the Solvable trait.
+            fn solve_internal(
+                self,
+                terminate: Option<&std::sync::atomic::AtomicBool>,
+                sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+            ) -> Self {
+                ::solverforge::__internal::init_console();
+
+                ::solverforge::run_list_solver_with_channel(
+                    self,
+                    Self::list_finalize_all,
+                    #constraints_fn,
+                    Self::element_count,
+                    Self::assigned_elements,
+                    Self::n_entities,
+                    Self::list_len,
+                    Self::list_insert_fn,
+                    Self::list_remove_fn,
+                    Self::index_to_element,
+                    Self::list_variable_descriptor_index(),
+                    #list_field_str,
+                    terminate,
+                    sender,
+                )
+            }
+        }
+    });
 
     quote! {
         #[inline]
@@ -352,6 +402,34 @@ fn generate_list_operations(
                 e.#list_field_ident.push(elem);
             }
         }
+
+        /// Insert element at position (function pointer version for solver).
+        #[inline]
+        pub fn list_insert_fn(s: &mut Self, entity_idx: usize, pos: usize, elem: #element_type_ident) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+                e.#list_field_ident.insert(pos, elem);
+            }
+        }
+
+        /// Remove element at position (function pointer version for solver).
+        #[inline]
+        pub fn list_remove_fn(s: &mut Self, entity_idx: usize, pos: usize) -> #element_type_ident {
+            s.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+        }
+
+        /// Convert index to element (identity for usize elements).
+        #[inline]
+        pub fn index_to_element(idx: usize) -> #element_type_ident {
+            idx as #element_type_ident
+        }
+
+        /// Finalize all problem facts before solving (list variable version).
+        #[inline]
+        pub fn list_finalize_all(s: &mut Self) {
+            #(#finalize_calls)*
+        }
+
+        #solve_impl
     }
 }
 
@@ -574,7 +652,11 @@ fn generate_solvable_solution(
     }
 }
 
-fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {
+fn generate_shadow_support(
+    config: &ShadowConfig,
+    solution_name: &Ident,
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> TokenStream {
     let (list_owner, list_field, element_collection) = match (
         &config.list_owner,
         &config.list_field,
@@ -687,6 +769,35 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
         })
         .collect();
 
+    // Find the descriptor index for the element collection (e.g., visits)
+    // This is used by ShadowAwareScoreDirector to propagate incremental scoring
+    // notifications to element-based constraints.
+    let entity_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .collect();
+
+    let element_descriptor_index = entity_fields.iter().position(|f| {
+        f.ident
+            .as_ref()
+            .map(|i| i.to_string())
+            .as_ref()
+            .map(|s| s.as_str())
+            == Some(element_collection.as_str())
+    });
+
+    let element_descriptor_method = match element_descriptor_index {
+        Some(idx) => {
+            let idx_lit = syn::LitInt::new(&idx.to_string(), proc_macro2::Span::call_site());
+            quote! {
+                fn element_descriptor_index() -> Option<usize> {
+                    Some(#idx_lit)
+                }
+            }
+        }
+        None => quote! {},
+    };
+
     quote! {
         impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
             #[inline]
@@ -703,6 +814,15 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
                 #(#compute_updates)*
                 #post_update
             }
+
+            #[inline]
+            fn affected_element_indices(&self, entity_idx: usize) -> Vec<usize> {
+                self.#list_owner_ident[entity_idx]
+                    .#list_field_ident
+                    .clone()
+            }
+
+            #element_descriptor_method
         }
     }
 }

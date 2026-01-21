@@ -4,6 +4,7 @@
 //! - Starting solve jobs that stream solutions via tokio channels
 //! - Tracking solver status per job
 //! - Early termination of solving jobs
+//! - Global singleton access via `SolverManager::global()`
 //!
 //! # Zero-Erasure Design
 //!
@@ -11,10 +12,17 @@
 //! The solver sends owned solutions through the channel - no Clone required.
 //! Fixed-size slot arrays avoid heap indirection.
 
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use solverforge_core::score::Score;
 use tokio::sync::mpsc;
+
+/// Global registry for SolverManager singletons per solution type.
+static MANAGER_REGISTRY: OnceLock<Mutex<HashMap<TypeId, &'static (dyn Any + Send + Sync)>>> =
+    OnceLock::new();
 
 /// Maximum concurrent jobs per SolverManager instance.
 pub const MAX_JOBS: usize = 16;
@@ -149,6 +157,31 @@ where
             ],
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    /// Returns a global solver manager instance for this solution type.
+    ///
+    /// Creates a new instance on first call, then returns the same instance
+    /// for subsequent calls. Each solution type gets its own singleton.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let (job_id, receiver) = SolverManager::<Schedule>::global().solve(schedule);
+    /// ```
+    pub fn global() -> &'static Self {
+        let registry = MANAGER_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()));
+        let type_id = TypeId::of::<S>();
+
+        let mut guard = registry.lock().unwrap();
+        let any = guard.entry(type_id).or_insert_with(|| {
+            let manager: &'static SolverManager<S> = Box::leak(Box::new(SolverManager::<S>::new()));
+            manager as &'static (dyn Any + Send + Sync)
+        });
+
+        (*any)
+            .downcast_ref::<SolverManager<S>>()
+            .expect("Type mismatch in SolverManager registry")
     }
 
     /// Starts solving and returns a receiver for streaming solutions.

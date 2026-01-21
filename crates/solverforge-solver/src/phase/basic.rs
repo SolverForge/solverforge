@@ -14,11 +14,9 @@ use solverforge_scoring::ScoreDirector;
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace};
 
+use super::localsearch::Acceptor;
 use super::Phase;
 use crate::scope::{PhaseScope, SolverScope};
-
-/// Late acceptance history size.
-const LATE_ACCEPTANCE_SIZE: usize = 400;
 
 /// Construction phase for basic variable problems.
 ///
@@ -165,7 +163,7 @@ where
     }
 }
 
-/// Late acceptance local search phase for basic variable problems.
+/// Local search phase for basic variable problems using configurable acceptor.
 ///
 /// # Type Parameters
 /// * `S` - Solution type
@@ -173,49 +171,57 @@ where
 /// * `T` - Set variable function type
 /// * `E` - Entity count function type
 /// * `V` - Value count function type
-pub struct BasicLocalSearchPhase<S, G, T, E, V>
+/// * `A` - Acceptor type
+pub struct BasicLocalSearchPhase<S, G, T, E, V, A>
 where
     S: PlanningSolution,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    A: Acceptor<S> + Send,
 {
     get_variable: G,
     set_variable: T,
     entity_count: E,
     value_count: V,
+    acceptor: A,
     sender: mpsc::UnboundedSender<(S, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, G, T, E, V> Debug for BasicLocalSearchPhase<S, G, T, E, V>
+impl<S, G, T, E, V, A> Debug for BasicLocalSearchPhase<S, G, T, E, V, A>
 where
     S: PlanningSolution,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    A: Acceptor<S> + Send + Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BasicLocalSearchPhase").finish()
+        f.debug_struct("BasicLocalSearchPhase")
+            .field("acceptor", &self.acceptor)
+            .finish()
     }
 }
 
-impl<S, G, T, E, V> BasicLocalSearchPhase<S, G, T, E, V>
+impl<S, G, T, E, V, A> BasicLocalSearchPhase<S, G, T, E, V, A>
 where
     S: PlanningSolution,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    A: Acceptor<S> + Send,
 {
-    /// Creates a new local search phase with a channel sender.
+    /// Creates a new local search phase with a channel sender and acceptor.
     pub fn new(
         get_variable: G,
         set_variable: T,
         entity_count: E,
         value_count: V,
+        acceptor: A,
         sender: mpsc::UnboundedSender<(S, S::Score)>,
     ) -> Self {
         Self {
@@ -223,13 +229,14 @@ where
             set_variable,
             entity_count,
             value_count,
+            acceptor,
             sender,
             _phantom: PhantomData,
         }
     }
 }
 
-impl<S, D, G, T, E, V> Phase<S, D> for BasicLocalSearchPhase<S, G, T, E, V>
+impl<S, D, G, T, E, V, A> Phase<S, D> for BasicLocalSearchPhase<S, G, T, E, V, A>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -238,6 +245,7 @@ where
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
+    A: Acceptor<S> + Send,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 1);
@@ -248,14 +256,14 @@ where
 
         info!(
             event = "phase_start",
-            phase = "Late Acceptance",
+            phase = "Local Search",
             phase_index = 1,
         );
 
         if n_entities == 0 || n_values == 0 {
             info!(
                 event = "phase_end",
-                phase = "Late Acceptance",
+                phase = "Local Search",
                 phase_index = 1,
                 duration_ms = phase_scope.elapsed().as_millis() as u64,
                 steps = 0u64,
@@ -265,25 +273,23 @@ where
             return;
         }
 
-        // Initialize current score
         let initial_score = phase_scope.calculate_score();
         let mut current_score = initial_score;
         let mut best_score = initial_score;
 
-        // Late acceptance history
-        let mut late_scores = [initial_score; LATE_ACCEPTANCE_SIZE];
+        self.acceptor.phase_started(&initial_score);
+
         let mut moves_evaluated: u64 = 0;
         let mut last_progress_time = std::time::Instant::now();
         let mut last_progress_moves: u64 = 0;
 
-        // Send initial best through channel
         {
             let solution = phase_scope.solver_scope().working_solution().clone();
             let _ = self.sender.send((solution, best_score));
         }
 
         loop {
-            if phase_scope.solver_scope().should_terminate() {
+            if phase_scope.solver_scope().should_terminate() || self.sender.is_closed() {
                 break;
             }
 
@@ -298,7 +304,6 @@ where
 
             moves_evaluated += 1;
 
-            // Log progress every second
             let now = std::time::Instant::now();
             if now.duration_since(last_progress_time).as_secs() >= 1 {
                 let moves_delta = moves_evaluated - last_progress_moves;
@@ -314,19 +319,17 @@ where
                 last_progress_moves = moves_evaluated;
             }
 
-            // Apply move
             let director = phase_scope.score_director_mut();
             director.before_entity_changed(entity_idx);
             (self.set_variable)(director.working_solution_mut(), entity_idx, new_value);
             director.after_entity_changed(entity_idx);
             let new_score = director.calculate_score();
 
-            let step = phase_scope.step_count();
-            let late_idx = (step as usize) % LATE_ACCEPTANCE_SIZE;
-            let late_score = late_scores[late_idx];
+            self.acceptor.step_started();
+            let accepted = self.acceptor.is_accepted(&current_score, &new_score);
 
-            if new_score >= current_score || new_score >= late_score {
-                late_scores[late_idx] = new_score;
+            if accepted {
+                self.acceptor.step_ended(&new_score);
                 current_score = new_score;
                 let new_step = phase_scope.increment_step_count();
 
@@ -353,7 +356,6 @@ where
                     score = %new_score,
                     accepted = false,
                 );
-                // Undo move
                 let director = phase_scope.score_director_mut();
                 director.before_entity_changed(entity_idx);
                 (self.set_variable)(director.working_solution_mut(), entity_idx, old_value);
@@ -361,6 +363,8 @@ where
                 director.calculate_score();
             }
         }
+
+        self.acceptor.phase_ended();
 
         let duration = phase_scope.elapsed();
         let speed = if duration.as_secs_f64() > 0.0 {
@@ -372,7 +376,7 @@ where
         let best_score_str = format!("{best_score}");
         info!(
             event = "phase_end",
-            phase = "Late Acceptance",
+            phase = "Local Search",
             phase_index = 1,
             duration_ms = duration.as_millis() as u64,
             steps = phase_scope.step_count(),

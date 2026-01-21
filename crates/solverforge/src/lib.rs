@@ -75,8 +75,24 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis,
-    SolutionManager, Solvable, SolverManager, SolverStatus,
+    run_list_solver, run_list_solver_with_channel, run_solver, run_solver_with_channel, Analyzable,
+    ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable, SolverManager, SolverStatus,
+};
+
+// ============================================================================
+// Fluent Builder API
+// ============================================================================
+
+pub use solverforge_solver::public_api::{acceptors, SolverBuilder};
+
+// ============================================================================
+// Config Types
+// ============================================================================
+
+pub use solverforge_config::{
+    AcceptorConfig, ConstructionHeuristicType, GreatDelugeConfig, LateAcceptanceConfig,
+    LocalSearchConfig, PhaseConfig, SimulatedAnnealingConfig, SolverConfig, TabuSearchConfig,
+    TerminationConfig,
 };
 
 // ============================================================================
@@ -93,9 +109,10 @@ pub mod console;
 pub mod prelude {
     pub use crate::stream::{joiner, ConstraintFactory};
     pub use crate::{
-        planning_entity, planning_solution, problem_fact, BendableScore, ConstraintSet,
-        HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, ScoreDirector,
-        SimpleScore, TypedScoreDirector,
+        acceptors, planning_entity, planning_solution, problem_fact, AcceptorConfig, BendableScore,
+        ConstraintSet, ConstructionHeuristicType, HardMediumSoftScore, HardSoftDecimalScore,
+        HardSoftScore, Score, ScoreDirector, SimpleScore, Solvable, SolverBuilder,
+        TypedScoreDirector,
     };
 }
 
@@ -103,33 +120,27 @@ pub mod prelude {
 // Internal API for Macros
 // ============================================================================
 
-/// Internal module for macro-generated code. Not part of public API.
 #[doc(hidden)]
 pub mod __internal {
-    /// Initializes console output if the feature is enabled.
     #[inline]
     pub fn init_console() {
         #[cfg(feature = "console")]
         crate::console::init();
     }
 
-    // Derive macros
     pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
 
-    // Domain types
     pub use solverforge_core::domain::{
         EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFact,
         ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor,
         VariableDescriptor,
     };
 
-    // Scoring
     pub use solverforge_scoring::{
         ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
         SolvableSolution, TypedScoreDirector,
     };
 
-    // Solver infrastructure
     pub use solverforge_solver::heuristic::selector::{
         DefaultDistanceMeter, FromSolutionEntitySelector,
     };
@@ -137,6 +148,5 @@ pub mod __internal {
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
 
-    // Config
     pub use solverforge_config::SolverConfig;
 }

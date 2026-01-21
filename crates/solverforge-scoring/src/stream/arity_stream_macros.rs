@@ -169,12 +169,17 @@ macro_rules! impl_arity_stream {
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn as_constraint(self, name: &str) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A) -> bool + Send + Sync, W, Sc> {
+                self.as_constraint_for_descriptor(name, 0)
+            }
+
+            pub fn as_constraint_for_descriptor(self, name: &str, descriptor_index: usize) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A) -> bool + Send + Sync, W, Sc> {
                 let filter = self.filter;
                 let combined_filter = move |s: &S, a: &A, b: &A| filter.test(s, a, b);
                 $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type, self.extractor, self.key_extractor, combined_filter, self.weight,
                     self.is_hard,
+                    descriptor_index,
                 )
             }
         }
@@ -347,12 +352,17 @@ macro_rules! impl_arity_stream {
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn as_constraint(self, name: &str) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
+                self.as_constraint_for_descriptor(name, 0)
+            }
+
+            pub fn as_constraint_for_descriptor(self, name: &str, descriptor_index: usize) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
                 let filter = self.filter;
                 let combined_filter = move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b, c);
                 $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type, self.extractor, self.key_extractor, combined_filter, self.weight,
                     self.is_hard,
+                    descriptor_index,
                 )
             }
         }
@@ -525,12 +535,17 @@ macro_rules! impl_arity_stream {
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn as_constraint(self, name: &str) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
+                self.as_constraint_for_descriptor(name, 0)
+            }
+
+            pub fn as_constraint_for_descriptor(self, name: &str, descriptor_index: usize) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
                 let filter = self.filter;
                 let combined_filter = move |s: &S, a: &A, b: &A, c: &A, d: &A| filter.test(s, a, b, c, d);
                 $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type, self.extractor, self.key_extractor, combined_filter, self.weight,
                     self.is_hard,
+                    descriptor_index,
                 )
             }
         }
@@ -703,12 +718,17 @@ macro_rules! impl_arity_stream {
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn as_constraint(self, name: &str) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
+                self.as_constraint_for_descriptor(name, 0)
+            }
+
+            pub fn as_constraint_for_descriptor(self, name: &str, descriptor_index: usize) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
                 let filter = self.filter;
                 let combined_filter = move |s: &S, a: &A, b: &A, c: &A, d: &A, e: &A| filter.test(s, a, b, c, d, e);
                 $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type, self.extractor, self.key_extractor, combined_filter, self.weight,
                     self.is_hard,
+                    descriptor_index,
                 )
             }
         }

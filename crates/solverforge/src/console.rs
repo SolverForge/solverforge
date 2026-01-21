@@ -149,6 +149,7 @@ impl Visit for EventVisitor {
             "duration_ms" => self.duration_ms = Some(value),
             "entity_count" => self.entity_count = Some(value),
             "value_count" => self.value_count = Some(value),
+            "element_count" => self.value_count = Some(value), // List variables use element_count
             _ => {}
         }
     }

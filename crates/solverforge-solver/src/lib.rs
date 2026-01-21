@@ -9,17 +9,18 @@
 //! - Configuration wiring (builder module)
 
 pub mod basic;
-pub mod builder;
+pub mod config_bridge;
 pub mod heuristic;
+pub mod list;
 pub mod manager;
 pub mod phase;
+pub mod public_api;
 pub mod realtime;
 pub mod scope;
 pub mod solver;
 pub mod stats;
 pub mod termination;
 
-pub use builder::AcceptorBuilder;
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -74,9 +75,8 @@ pub use manager::{
 pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
-        BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
-        ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
-        ForagerType, Placement, QueuedEntityPlacer,
+        BestFitForager, ConstructionForager, ConstructionForagerImpl, ConstructionHeuristicPhase,
+        EntityPlacer, FirstFeasibleForager, FirstFitForager, Placement, QueuedEntityPlacer,
     },
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,
@@ -84,9 +84,10 @@ pub use phase::{
         SimpleDecider, SimpleScoreBounder,
     },
     localsearch::{
-        AcceptedCountForager, Acceptor, AcceptorType, DiversifiedLateAcceptanceAcceptor,
-        EntityTabuAcceptor, FirstAcceptedForager, GreatDelugeAcceptor, HillClimbingAcceptor,
-        LateAcceptanceAcceptor, LocalSearchConfig, LocalSearchForager, LocalSearchPhase,
+        AcceptedCountForager, Acceptor, AcceptorImpl, DiversifiedLateAcceptanceAcceptor,
+        EntityTabuAcceptor, FirstAcceptedForager, FirstBestScoreImprovingForager,
+        FirstLastStepScoreImprovingForager, GreatDelugeAcceptor, HillClimbingAcceptor,
+        LateAcceptanceAcceptor, LocalSearchForager, LocalSearchForagerImpl, LocalSearchPhase,
         MoveTabuAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
         TabuSearchAcceptor, ValueTabuAcceptor,
     },
@@ -108,3 +109,4 @@ pub use termination::{
 };
 
 pub use basic::{run_solver, run_solver_with_channel};
+pub use list::{run_list_solver, run_list_solver_with_channel};

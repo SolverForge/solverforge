@@ -424,6 +424,20 @@ where
     /// assert_eq!(constraint.name(), "Category penalty");
     /// ```
     pub fn as_constraint(self, name: &str) -> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc> {
+        self.as_constraint_for_descriptor(name, 0)
+    }
+
+    /// Finalizes the builder into a `GroupedUniConstraint` for a specific descriptor.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Constraint name
+    /// * `descriptor_index` - The entity descriptor index this constraint operates on
+    pub fn as_constraint_for_descriptor(
+        self,
+        name: &str,
+        descriptor_index: usize,
+    ) -> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc> {
         GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -432,6 +446,7 @@ where
             self.collector,
             self.weight_fn,
             self.is_hard,
+            descriptor_index,
         )
     }
 }

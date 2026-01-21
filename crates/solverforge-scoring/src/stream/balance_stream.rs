@@ -162,7 +162,24 @@ where
     Sc: Score + 'static,
 {
     /// Finalizes the builder into a zero-erasure `BalanceConstraint`.
+    ///
+    /// Uses descriptor_index = 0 (single-descriptor solutions).
+    /// For multi-descriptor solutions, use `as_constraint_for_descriptor`.
     pub fn as_constraint(self, name: &str) -> BalanceConstraint<S, A, K, E, F, KF, Sc> {
+        self.as_constraint_for_descriptor(name, 0)
+    }
+
+    /// Finalizes the builder into a zero-erasure `BalanceConstraint` for a specific descriptor.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Constraint name
+    /// * `descriptor_index` - The entity descriptor index this constraint operates on
+    pub fn as_constraint_for_descriptor(
+        self,
+        name: &str,
+        descriptor_index: usize,
+    ) -> BalanceConstraint<S, A, K, E, F, KF, Sc> {
         BalanceConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -171,6 +188,7 @@ where
             self.key_fn,
             self.base_score,
             self.is_hard,
+            descriptor_index,
         )
     }
 }

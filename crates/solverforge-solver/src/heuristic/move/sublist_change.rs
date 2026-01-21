@@ -60,9 +60,10 @@ use super::Move;
 /// }
 ///
 /// // Move elements [1..3) from vehicle 0 to vehicle 1 at position 0
+/// // Element indices [1, 2] are the global indices of elements in the range
 /// let m = SubListChangeMove::<Solution, i32>::new(
-///     0, 1, 3,  // source: entity 0, range [1, 3)
-///     1, 0,     // dest: entity 1, position 0
+///     0, 1, 3, vec![1, 2],  // source: entity 0, range [1, 3), element_indices
+///     1, 0,                  // dest: entity 1, position 0
 ///     list_len, sublist_remove, sublist_insert,
 ///     "visits", 0,
 /// );
@@ -74,6 +75,8 @@ pub struct SubListChangeMove<S, V> {
     source_start: usize,
     /// End of range in source list (exclusive)
     source_end: usize,
+    /// Element indices in the range being moved (for O(1) shadow updates)
+    element_indices: Vec<usize>,
     /// Destination entity index
     dest_entity_index: usize,
     /// Position in destination list to insert at
@@ -93,11 +96,23 @@ pub struct SubListChangeMove<S, V> {
 
 impl<S, V> Clone for SubListChangeMove<S, V> {
     fn clone(&self) -> Self {
-        *self
+        Self {
+            source_entity_index: self.source_entity_index,
+            source_start: self.source_start,
+            source_end: self.source_end,
+            element_indices: self.element_indices.clone(),
+            dest_entity_index: self.dest_entity_index,
+            dest_position: self.dest_position,
+            list_len: self.list_len,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            indices: self.indices,
+            _phantom: PhantomData,
+        }
     }
 }
-
-impl<S, V> Copy for SubListChangeMove<S, V> {}
 
 impl<S, V: Debug> Debug for SubListChangeMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -118,6 +133,7 @@ impl<S, V> SubListChangeMove<S, V> {
     /// * `source_entity_index` - Entity index to remove from
     /// * `source_start` - Start of range (inclusive)
     /// * `source_end` - End of range (exclusive)
+    /// * `element_indices` - Element indices in the range being moved (for O(1) shadow updates)
     /// * `dest_entity_index` - Entity index to insert into
     /// * `dest_position` - Position in destination list
     /// * `list_len` - Function to get list length
@@ -130,6 +146,7 @@ impl<S, V> SubListChangeMove<S, V> {
         source_entity_index: usize,
         source_start: usize,
         source_end: usize,
+        element_indices: Vec<usize>,
         dest_entity_index: usize,
         dest_position: usize,
         list_len: fn(&S, usize) -> usize,
@@ -142,6 +159,7 @@ impl<S, V> SubListChangeMove<S, V> {
             source_entity_index,
             source_start,
             source_end,
+            element_indices,
             dest_entity_index,
             dest_position,
             list_len,
@@ -152,6 +170,11 @@ impl<S, V> SubListChangeMove<S, V> {
             indices: [source_entity_index, dest_entity_index],
             _phantom: PhantomData,
         }
+    }
+
+    /// Returns the element indices in the moved range.
+    pub fn element_indices(&self) -> &[usize] {
+        &self.element_indices
     }
 
     /// Returns the source entity index.
@@ -236,16 +259,14 @@ where
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        // Notify before changes
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.source_entity_index,
-            self.variable_name,
-        );
-        if !self.is_intra_list() {
-            score_director.before_variable_changed(
+        // Notify before removal for each element in the source range
+        for (i, &element_idx) in self.element_indices.iter().enumerate() {
+            let position = self.source_start + i;
+            score_director.before_list_variable_changed(
                 self.descriptor_index,
-                self.dest_entity_index,
+                self.source_entity_index,
+                position,
+                element_idx,
                 self.variable_name,
             );
         }
@@ -258,8 +279,32 @@ where
             self.source_end,
         );
 
+        // Notify after removal (elements detached from source)
+        for (i, &element_idx) in self.element_indices.iter().enumerate() {
+            let position = self.source_start + i;
+            score_director.after_list_variable_changed(
+                self.descriptor_index,
+                self.source_entity_index,
+                position,
+                element_idx,
+                self.variable_name,
+            );
+        }
+
         // dest_position is relative to post-removal list, no adjustment needed
         let dest_pos = self.dest_position;
+
+        // Notify before insertion at destination
+        for (i, &element_idx) in self.element_indices.iter().enumerate() {
+            let position = dest_pos + i;
+            score_director.before_list_variable_changed(
+                self.descriptor_index,
+                self.dest_entity_index,
+                position,
+                element_idx,
+                self.variable_name,
+            );
+        }
 
         // Insert at destination
         (self.sublist_insert)(
@@ -269,16 +314,14 @@ where
             elements.clone(),
         );
 
-        // Notify after changes
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.source_entity_index,
-            self.variable_name,
-        );
-        if !self.is_intra_list() {
-            score_director.after_variable_changed(
+        // Notify after insertion
+        for (i, &element_idx) in self.element_indices.iter().enumerate() {
+            let position = dest_pos + i;
+            score_director.after_list_variable_changed(
                 self.descriptor_index,
                 self.dest_entity_index,
+                position,
+                element_idx,
                 self.variable_name,
             );
         }
@@ -404,10 +447,12 @@ mod tests {
 
         // Move elements [1..3) (values 2, 3) to end of list
         // After removing [1..3), list is [1, 4, 5, 6], insert at position 4
+        // element_indices are [2, 3] (the values at positions 1 and 2)
         let m = SubListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             3,
+            vec![2, 3], // element_indices
             0,
             4, // Position in post-removal list
             list_len,
@@ -442,10 +487,12 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move elements [3..5) (values 4, 5) to position 1
+        // element_indices are [4, 5] (the values at positions 3 and 4)
         let m = SubListChangeMove::<RoutingSolution, i32>::new(
             0,
             3,
             5,
+            vec![4, 5], // element_indices
             0,
             1,
             list_len,
@@ -485,10 +532,12 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move elements [1..3) (values 2, 3) from vehicle 0 to vehicle 1 at position 1
+        // element_indices are [2, 3]
         let m = SubListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             3,
+            vec![2, 3], // element_indices
             1,
             1,
             list_len,
@@ -528,6 +577,7 @@ mod tests {
             0,
             2,
             2,
+            vec![], // empty range
             0,
             0,
             list_len,
@@ -551,6 +601,7 @@ mod tests {
             0,
             1,
             10,
+            vec![], // invalid range
             0,
             0,
             list_len,
@@ -575,6 +626,7 @@ mod tests {
             0,
             1,
             4,
+            vec![2, 3, 4], // element_indices
             0,
             2,
             list_len,

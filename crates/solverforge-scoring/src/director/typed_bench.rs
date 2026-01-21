@@ -9,6 +9,7 @@ mod benchmarks {
     use crate::constraint::incremental::IncrementalUniConstraint;
     use crate::constraint::IncrementalBiConstraint;
     use crate::director::typed::TypedScoreDirector;
+    use crate::director::ScoreDirector;
     use solverforge_core::domain::PlanningSolution;
     use solverforge_core::score::SimpleScore;
     use solverforge_core::{ConstraintRef, ImpactType};
@@ -181,17 +182,17 @@ mod benchmarks {
             let old_employee = director.working_solution().shifts[shift_idx].employee_id;
 
             // Incremental move: retract, change, insert
-            director.before_variable_changed(shift_idx);
+            director.before_variable_changed(0, shift_idx, "employee_id");
             director.working_solution_mut().shifts[shift_idx].employee_id = Some((i % 5) + 1);
-            director.after_variable_changed(shift_idx);
+            director.after_variable_changed(0, shift_idx, "employee_id");
 
             // Score is already updated (O(1) to get)
             let _score = director.get_score();
 
             // Undo move incrementally
-            director.before_variable_changed(shift_idx);
+            director.before_variable_changed(0, shift_idx, "employee_id");
             director.working_solution_mut().shifts[shift_idx].employee_id = old_employee;
-            director.after_variable_changed(shift_idx);
+            director.after_variable_changed(0, shift_idx, "employee_id");
         }
 
         let elapsed = start.elapsed();
@@ -263,13 +264,13 @@ mod benchmarks {
             for i in 0..moves {
                 let shift_idx = i % n;
                 let old = director.working_solution().shifts[shift_idx].employee_id;
-                director.before_variable_changed(shift_idx);
+                director.before_variable_changed(0, shift_idx, "employee_id");
                 director.working_solution_mut().shifts[shift_idx].employee_id = Some((i % 5) + 1);
-                director.after_variable_changed(shift_idx);
+                director.after_variable_changed(0, shift_idx, "employee_id");
                 let _score = director.get_score();
-                director.before_variable_changed(shift_idx);
+                director.before_variable_changed(0, shift_idx, "employee_id");
                 director.working_solution_mut().shifts[shift_idx].employee_id = old;
-                director.after_variable_changed(shift_idx);
+                director.after_variable_changed(0, shift_idx, "employee_id");
             }
             let incr_elapsed = start.elapsed();
 

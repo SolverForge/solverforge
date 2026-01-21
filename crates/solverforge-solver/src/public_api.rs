@@ -14,8 +14,10 @@ use solverforge_config::{
 ///
 /// # Example
 ///
-/// ```ignore
-/// use solverforge::prelude::*;
+/// ```
+/// use std::time::Duration;
+/// use solverforge_solver::public_api::SolverBuilder;
+/// use solverforge_config::ConstructionHeuristicType;
 ///
 /// let config = SolverBuilder::new()
 ///     .with_time_limit(Duration::from_secs(60))

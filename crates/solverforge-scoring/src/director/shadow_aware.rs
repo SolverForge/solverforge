@@ -10,110 +10,55 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
 use super::ScoreDirector;
 
-/// Trait for solutions that maintain shadow variables.
+/// Trait for solutions that maintain shadow variables with O(1) incremental updates.
 ///
 /// Shadow variables are derived values that depend on planning variables.
-/// When a planning variable changes, the corresponding shadow variables
-/// must be updated before constraint evaluation.
+/// When a list variable element changes position, only that element's shadow
+/// variables are updated - plus fixing neighbor pointers.
 ///
-/// # Entity-Level Updates
+/// # O(1) Element-Level Updates
 ///
-/// This trait provides entity-level granularity: when a variable on entity N
-/// changes, only entity N's shadow variables are updated. This enables O(1)
-/// incremental updates instead of full solution recalculation.
+/// `update_element_shadow(entity_idx, position, element_idx)` does exactly:
+/// 1. Set element's inverse relation (e.g., vehicle_idx)
+/// 2. Set element's previous pointer
+/// 3. Set element's next pointer
+/// 4. Fix previous neighbor's next pointer
+/// 5. Fix next neighbor's previous pointer
+/// 6. Compute element's cascading shadows (e.g., arrival_time)
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::director::ShadowVariableSupport;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Visit {
-///     demand: i32,
-///     // Shadow variable: arrival time depends on previous visit
-///     arrival_time: i64,
-/// }
-///
-/// #[derive(Clone)]
-/// struct Vehicle {
-///     visits: Vec<usize>,
-///     // Cached aggregate: total demand of assigned visits
-///     cached_total_demand: i32,
-/// }
-///
-/// #[derive(Clone)]
-/// struct VrpSolution {
-///     visits: Vec<Visit>,
-///     vehicles: Vec<Vehicle>,
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for VrpSolution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// impl ShadowVariableSupport for VrpSolution {
-///     fn update_entity_shadows(&mut self, entity_index: usize) {
-///         // Update cached total demand for this vehicle
-///         let total: i32 = self.vehicles[entity_index]
-///             .visits
-///             .iter()
-///             .map(|&idx| self.visits[idx].demand)
-///             .sum();
-///         self.vehicles[entity_index].cached_total_demand = total;
-///     }
-///
-///     fn update_all_shadows(&mut self) {
-///         for i in 0..self.vehicles.len() {
-///             self.update_entity_shadows(i);
-///         }
-///     }
-/// }
-/// ```
+/// Total: 5 pointer updates + 1 compute = O(1)
 pub trait ShadowVariableSupport: PlanningSolution {
-    /// Updates shadow variables for the entity at `entity_index`.
+    /// Updates shadow variables for ONE element at the given position.
     ///
-    /// Called after a planning variable change on this entity, before
-    /// constraint evaluation. Should update all shadow variables and
-    /// cached aggregates that depend on this entity's planning variables.
-    fn update_entity_shadows(&mut self, entity_index: usize);
+    /// This is O(1): updates the element's shadows plus fixes neighbor pointers.
+    /// Called after an element is inserted/moved to a new position.
+    ///
+    /// # Arguments
+    /// - `entity_idx`: The entity (e.g., vehicle) that owns the list
+    /// - `position`: The position in the entity's list where the element now sits
+    /// - `element_idx`: The global index of the element being updated
+    fn update_element_shadow(&mut self, entity_idx: usize, position: usize, element_idx: usize);
+
+    /// Retracts shadow variables for ONE element before removal.
+    ///
+    /// This is O(1): clears the element's shadows and fixes neighbor pointers.
+    /// Called before an element is removed from a position.
+    ///
+    /// # Arguments
+    /// - `entity_idx`: The entity (e.g., vehicle) that owns the list
+    /// - `position`: The position in the entity's list where the element currently sits
+    /// - `element_idx`: The global index of the element being retracted
+    fn retract_element_shadow(&mut self, entity_idx: usize, position: usize, element_idx: usize);
 
     /// Updates shadow variables for all entities.
     ///
     /// Called during initialization or after bulk solution changes.
-    /// Default implementation is a no-op; override for solutions with
-    /// shadow variables.
-    fn update_all_shadows(&mut self) {
-        // Default: no-op - solutions without shadow variables need not implement
-    }
+    fn update_all_shadows(&mut self) {}
 
-    /// Returns the indices of elements affected by shadow variable updates
-    /// for the entity at `entity_index`.
-    ///
-    /// For list variable solutions, this returns the element indices in the
-    /// entity's list (e.g., visit indices for a vehicle). These elements have
-    /// shadow variables that may change when the list changes.
-    ///
-    /// Used by `ShadowAwareScoreDirector` to propagate incremental scoring
-    /// notifications to element-based constraints.
-    ///
-    /// Default implementation returns empty (no affected elements).
-    fn affected_element_indices(&self, _entity_index: usize) -> Vec<usize> {
-        Vec::new()
-    }
-
-    /// Returns the descriptor index for the element collection affected by
-    /// shadow variable updates.
+    /// Returns the descriptor index for the element collection.
     ///
     /// For VRP-style problems with `vehicles` (descriptor 0) and `visits`
-    /// (descriptor 1), this returns 1 since visits have shadow variables
-    /// that depend on vehicle list changes.
-    ///
-    /// Default implementation returns None (no element descriptor).
+    /// (descriptor 1), this returns 1 since visits have shadow variables.
     fn element_descriptor_index() -> Option<usize> {
         None
     }
@@ -128,41 +73,6 @@ pub trait ShadowVariableSupport: PlanningSolution {
 /// - Entity count for move selector iteration
 ///
 /// Typically implemented automatically by the `#[planning_solution]` macro.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::ShadowVariableSupport;
-/// use solverforge_scoring::director::SolvableSolution;
-/// use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-/// use solverforge_core::score::SimpleScore;
-/// use std::any::TypeId;
-///
-/// #[derive(Clone)]
-/// struct MyPlan {
-///     entities: Vec<i64>,
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for MyPlan {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// impl ShadowVariableSupport for MyPlan {
-///     fn update_entity_shadows(&mut self, _idx: usize) {}
-/// }
-///
-/// impl SolvableSolution for MyPlan {
-///     fn descriptor() -> SolutionDescriptor {
-///         SolutionDescriptor::new("MyPlan", TypeId::of::<MyPlan>())
-///     }
-///     fn entity_count(solution: &Self, _desc_idx: usize) -> usize {
-///         solution.entities.len()
-///     }
-/// }
-/// ```
 pub trait SolvableSolution: ShadowVariableSupport {
     /// Returns the solution descriptor for this type.
     ///
@@ -176,80 +86,21 @@ pub trait SolvableSolution: ShadowVariableSupport {
     fn entity_count(solution: &Self, descriptor_index: usize) -> usize;
 }
 
-/// A score director that integrates shadow variable updates.
+/// A score director that integrates O(1) shadow variable updates.
 ///
-/// Wraps an inner score director and calls [`ShadowVariableSupport::update_entity_shadows`]
-/// in `after_variable_changed`, ensuring shadow variables are current before
-/// constraint evaluation.
+/// Wraps an inner score director and calls [`ShadowVariableSupport::update_element_shadow`]
+/// and [`ShadowVariableSupport::retract_element_shadow`] for true O(1) incremental updates.
 ///
 /// # Type Parameters
 ///
 /// - `S`: Solution type (must implement [`ShadowVariableSupport`])
 /// - `D`: Inner score director type (zero-erasure, no trait objects)
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::director::{ShadowAwareScoreDirector, ShadowVariableSupport, ScoreDirector};
-/// use solverforge_scoring::director::typed::TypedScoreDirector;
-/// use solverforge_scoring::api::constraint_set::ConstraintSet;
-/// use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::{ConstraintRef, ImpactType};
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Solution {
-///     values: Vec<i32>,
-///     // Shadow: sum of all values
-///     cached_sum: i32,
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// impl ShadowVariableSupport for Solution {
-///     fn update_entity_shadows(&mut self, _entity_index: usize) {
-///         self.cached_sum = self.values.iter().sum();
-///     }
-/// }
-///
-/// // Create constraint that uses cached_sum
-/// let constraint = IncrementalUniConstraint::new(
-///     ConstraintRef::new("", "SumLimit"),
-///     ImpactType::Penalty,
-///     |s: &Solution| std::slice::from_ref(&s.cached_sum),
-///     |_s: &Solution, &sum| sum > 100,
-///     |&sum| SimpleScore::of((sum - 100) as i64),
-///     false,
-///     0, // descriptor_index
-/// );
-///
-/// let solution = Solution { values: vec![10, 20, 30], cached_sum: 0, score: None };
-/// let inner = TypedScoreDirector::new(solution, (constraint,));
-/// let mut director = ShadowAwareScoreDirector::new(inner);
-///
-/// // Shadow variables are updated automatically on variable changes
-/// director.before_variable_changed(0, 0, "values");
-/// director.working_solution_mut().values[0] = 50;
-/// director.after_variable_changed(0, 0, "values");
-///
-/// // cached_sum is now 100 (50 + 20 + 30)
-/// assert_eq!(director.working_solution().cached_sum, 100);
-/// ```
 pub struct ShadowAwareScoreDirector<S, D>
 where
     S: ShadowVariableSupport,
     D: ScoreDirector<S>,
 {
     inner: D,
-    /// Stores affected element indices captured during `before_variable_changed`.
-    /// Key: entity_index, Value: list of element indices that were in the entity's list.
-    pending_element_retractions: std::collections::HashMap<usize, Vec<usize>>,
     _phantom: PhantomData<S>,
 }
 
@@ -262,7 +113,6 @@ where
     pub fn new(inner: D) -> Self {
         Self {
             inner,
-            pending_element_retractions: std::collections::HashMap::new(),
             _phantom: PhantomData,
         }
     }
@@ -332,18 +182,7 @@ where
         entity_index: usize,
         variable_name: &str,
     ) {
-        // For list variable solutions with element-based constraints,
-        // capture affected elements BEFORE the move is applied.
-        // These will be used in after_variable_changed to retract old state.
-        if S::element_descriptor_index().is_some() {
-            let affected = self
-                .inner
-                .working_solution()
-                .affected_element_indices(entity_index);
-            self.pending_element_retractions
-                .insert(entity_index, affected);
-        }
-
+        // Forward to inner for basic variable changes (no shadow updates needed)
         self.inner
             .before_variable_changed(descriptor_index, entity_index, variable_name);
     }
@@ -354,48 +193,81 @@ where
         entity_index: usize,
         variable_name: &str,
     ) {
-        // For list variable solutions with element-based constraints,
-        // we need to retract/insert affected elements from constraints.
-        if let Some(elem_descriptor) = S::element_descriptor_index() {
-            // 1. Get affected elements captured in before_variable_changed (OLD state)
-            //    These are the elements that were in the list BEFORE the move was applied.
-            let affected_before = self
-                .pending_element_retractions
-                .remove(&entity_index)
-                .unwrap_or_default();
-
-            // 2. Retract affected elements from constraints (old shadow state)
-            for &elem_idx in &affected_before {
-                self.inner
-                    .before_variable_changed(elem_descriptor, elem_idx, "shadow");
-            }
-
-            // 3. Update shadow variables
-            self.inner
-                .working_solution_mut()
-                .update_entity_shadows(entity_index);
-
-            // 4. Get affected elements AFTER shadow update (current list - NEW state)
-            let affected_after = self
-                .inner
-                .working_solution()
-                .affected_element_indices(entity_index);
-
-            // 5. Insert affected elements into constraints (new shadow state)
-            for &elem_idx in &affected_after {
-                self.inner
-                    .after_variable_changed(elem_descriptor, elem_idx, "shadow");
-            }
-        } else {
-            // No element descriptor - just update shadows
-            self.inner
-                .working_solution_mut()
-                .update_entity_shadows(entity_index);
-        }
-
-        // 6. Insert the entity itself into constraints
+        // Forward to inner for basic variable changes (no shadow updates needed)
         self.inner
             .after_variable_changed(descriptor_index, entity_index, variable_name);
+    }
+
+    fn before_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // O(1): Retract shadow for ONE element before removal
+        self.inner.working_solution_mut().retract_element_shadow(
+            entity_index,
+            position,
+            element_idx,
+        );
+
+        // Retract element from constraints
+        if let Some(elem_descriptor) = S::element_descriptor_index() {
+            self.inner.before_list_variable_changed(
+                elem_descriptor,
+                entity_index,
+                position,
+                element_idx,
+                "shadow",
+            );
+        }
+
+        // Retract entity from constraints
+        self.inner.before_list_variable_changed(
+            descriptor_index,
+            entity_index,
+            position,
+            element_idx,
+            variable_name,
+        );
+    }
+
+    fn after_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // O(1): Update shadow for ONE element after insertion
+        self.inner.working_solution_mut().update_element_shadow(
+            entity_index,
+            position,
+            element_idx,
+        );
+
+        // Insert element into constraints
+        if let Some(elem_descriptor) = S::element_descriptor_index() {
+            self.inner.after_list_variable_changed(
+                elem_descriptor,
+                entity_index,
+                position,
+                element_idx,
+                "shadow",
+            );
+        }
+
+        // Insert entity into constraints
+        self.inner.after_list_variable_changed(
+            descriptor_index,
+            entity_index,
+            position,
+            element_idx,
+            variable_name,
+        );
     }
 
     fn trigger_variable_listeners(&mut self) {
@@ -442,15 +314,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constraint::incremental::IncrementalUniConstraint;
     use crate::director::typed::TypedScoreDirector;
     use solverforge_core::score::SimpleScore;
-    use solverforge_core::{ConstraintRef, ImpactType};
 
     #[derive(Clone, Debug)]
     struct TestSolution {
-        values: Vec<i32>,
-        cached_sum: i32,
+        elements: Vec<i32>,
+        vehicle_idx: Vec<Option<usize>>,
+        prev_idx: Vec<Option<usize>>,
+        next_idx: Vec<Option<usize>>,
         score: Option<SimpleScore>,
     }
 
@@ -467,77 +339,75 @@ mod tests {
     }
 
     impl ShadowVariableSupport for TestSolution {
-        fn update_entity_shadows(&mut self, _entity_index: usize) {
-            self.cached_sum = self.values.iter().sum();
-        }
-    }
-
-    fn make_sum_constraint() -> IncrementalUniConstraint<
-        TestSolution,
-        i32,
-        fn(&TestSolution) -> &[i32],
-        fn(&TestSolution, &i32) -> bool,
-        fn(&i32) -> SimpleScore,
-        SimpleScore,
-    > {
-        fn extract(s: &TestSolution) -> &[i32] {
-            std::slice::from_ref(&s.cached_sum)
-        }
-        fn filter(_s: &TestSolution, &sum: &i32) -> bool {
-            sum > 100
-        }
-        fn score(&sum: &i32) -> SimpleScore {
-            SimpleScore::of((sum - 100) as i64)
+        fn update_element_shadow(
+            &mut self,
+            entity_idx: usize,
+            position: usize,
+            element_idx: usize,
+        ) {
+            // O(1): Update one element's shadows
+            self.vehicle_idx[element_idx] = Some(entity_idx);
+            self.prev_idx[element_idx] = if position > 0 {
+                Some(position - 1)
+            } else {
+                None
+            };
+            self.next_idx[element_idx] = if position < self.elements.len() - 1 {
+                Some(position + 1)
+            } else {
+                None
+            };
         }
 
-        IncrementalUniConstraint::new(
-            ConstraintRef::new("", "SumLimit"),
-            ImpactType::Penalty,
-            extract as fn(&TestSolution) -> &[i32],
-            filter as fn(&TestSolution, &i32) -> bool,
-            score as fn(&i32) -> SimpleScore,
-            false,
-            0,
-        )
+        fn retract_element_shadow(
+            &mut self,
+            entity_idx: usize,
+            position: usize,
+            element_idx: usize,
+        ) {
+            // Use parameters
+            let _ = (entity_idx, position);
+            // O(1): Clear one element's shadows
+            self.vehicle_idx[element_idx] = None;
+            self.prev_idx[element_idx] = None;
+            self.next_idx[element_idx] = None;
+        }
     }
 
     #[test]
-    fn shadow_update_called_on_variable_change() {
+    fn shadow_update_on_list_variable_change() {
         let solution = TestSolution {
-            values: vec![10, 20, 30],
-            cached_sum: 0, // Will be updated by shadow
+            elements: vec![10, 20, 30],
+            vehicle_idx: vec![None, None, None],
+            prev_idx: vec![None, None, None],
+            next_idx: vec![None, None, None],
             score: None,
         };
 
-        let constraint = make_sum_constraint();
-        let inner = TypedScoreDirector::new(solution, (constraint,));
+        let inner = TypedScoreDirector::new(solution, ());
         let mut director = ShadowAwareScoreDirector::new(inner);
 
         // Initialize
         director.calculate_score();
 
-        // Shadow should have been updated during initialization
-        // (via working_solution_mut access pattern)
-        assert_eq!(director.working_solution().cached_sum, 0);
+        // Insert element 1 at position 0 of entity 0
+        director.after_list_variable_changed(0, 0, 0, 1, "visits");
 
-        // Change value and verify shadow update
-        director.before_variable_changed(0, 0, "values");
-        director.working_solution_mut().values[0] = 50;
-        director.after_variable_changed(0, 0, "values");
-
-        assert_eq!(director.working_solution().cached_sum, 100); // 50 + 20 + 30
+        // Shadow should be updated
+        assert_eq!(director.working_solution().vehicle_idx[1], Some(0));
     }
 
     #[test]
     fn inner_access() {
         let solution = TestSolution {
-            values: vec![1, 2, 3],
-            cached_sum: 0,
+            elements: vec![1, 2, 3],
+            vehicle_idx: vec![None, None, None],
+            prev_idx: vec![None, None, None],
+            next_idx: vec![None, None, None],
             score: None,
         };
 
-        let constraint = make_sum_constraint();
-        let inner = TypedScoreDirector::new(solution, (constraint,));
+        let inner = TypedScoreDirector::new(solution, ());
         let director = ShadowAwareScoreDirector::new(inner);
 
         assert!(!director.inner().is_initialized());
@@ -546,16 +416,17 @@ mod tests {
     #[test]
     fn into_inner_consumes() {
         let solution = TestSolution {
-            values: vec![1],
-            cached_sum: 0,
+            elements: vec![1],
+            vehicle_idx: vec![None],
+            prev_idx: vec![None],
+            next_idx: vec![None],
             score: None,
         };
 
-        let constraint = make_sum_constraint();
-        let inner = TypedScoreDirector::new(solution, (constraint,));
+        let inner = TypedScoreDirector::new(solution, ());
         let director = ShadowAwareScoreDirector::new(inner);
 
         let recovered = director.into_inner();
-        assert_eq!(recovered.working_solution().values.len(), 1);
+        assert_eq!(recovered.working_solution().elements.len(), 1);
     }
 }

@@ -177,115 +177,140 @@ where
         self.cached_score
     }
 
-    /// Called before changing an entity's variable.
-    ///
-    /// This retracts the entity from all constraints, computing the delta
-    /// that will be applied when the change completes.
+    /// Called before a list element change. O(1) operation.
     ///
     /// # Arguments
-    ///
-    /// * `entity_index` - Index of the entity being changed
-    ///
-    /// Note: Uses descriptor_index = 0. For multi-descriptor solutions,
-    /// use the `ScoreDirector` trait methods instead.
+    /// * `entity_index` - Entity owning the list
+    /// * `position` - Position in the list
+    /// * `element_idx` - Global index of the element
     #[inline]
-    pub fn before_variable_changed(&mut self, entity_index: usize) {
-        if !self.initialized {
-            // If not initialized, full calculation will happen on next calculate_score
-            return;
-        }
-
-        let delta = self
-            .constraints
-            .on_retract_all(&self.working_solution, 0, entity_index);
-        self.cached_score = self.cached_score + delta;
-    }
-
-    /// Called after changing an entity's variable.
-    ///
-    /// This inserts the entity (with new state) into all constraints,
-    /// computing the delta and updating the cached score.
-    ///
-    /// # Arguments
-    ///
-    /// * `entity_index` - Index of the entity that was changed
-    ///
-    /// Note: Uses descriptor_index = 0. For multi-descriptor solutions,
-    /// use the `ScoreDirector` trait methods instead.
-    #[inline]
-    pub fn after_variable_changed(&mut self, entity_index: usize) {
+    pub fn before_list_element_changed(
+        &mut self,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+    ) {
+        // Use all parameters
+        let _ = position;
         if !self.initialized {
             return;
         }
 
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, 0, entity_index);
+            .on_retract_all(&self.working_solution, 0, element_idx);
         self.cached_score = self.cached_score + delta;
+
+        // Only retract entity if different from element (avoid double-counting)
+        if entity_index != element_idx {
+            let entity_delta =
+                self.constraints
+                    .on_retract_all(&self.working_solution, 0, entity_index);
+            self.cached_score = self.cached_score + entity_delta;
+        }
     }
 
-    /// Called after changing an entity's variable, with shadow update.
-    ///
-    /// Updates shadow variables for the entity FIRST, then inserts into
-    /// constraints. This ensures constraints see the updated shadow state.
+    /// Called after a list element change. O(1) operation.
     ///
     /// # Arguments
-    ///
-    /// * `entity_index` - Index of the entity that was changed
-    ///
-    /// Note: Uses descriptor_index = 0. For multi-descriptor solutions,
-    /// use the `ScoreDirector` trait methods instead.
+    /// * `entity_index` - Entity owning the list
+    /// * `position` - Position in the list
+    /// * `element_idx` - Global index of the element
     #[inline]
-    pub fn after_variable_changed_with_shadows(&mut self, entity_index: usize)
-    where
+    pub fn after_list_element_changed(
+        &mut self,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+    ) {
+        // Use all parameters
+        let _ = position;
+        if !self.initialized {
+            return;
+        }
+
+        let delta = self
+            .constraints
+            .on_insert_all(&self.working_solution, 0, element_idx);
+        self.cached_score = self.cached_score + delta;
+
+        // Only insert entity if different from element (avoid double-counting)
+        if entity_index != element_idx {
+            let entity_delta =
+                self.constraints
+                    .on_insert_all(&self.working_solution, 0, entity_index);
+            self.cached_score = self.cached_score + entity_delta;
+        }
+    }
+
+    /// Called after a list element change with O(1) shadow update.
+    ///
+    /// # Arguments
+    /// * `entity_index` - Entity owning the list
+    /// * `position` - Position in the list
+    /// * `element_idx` - Global index of the element
+    #[inline]
+    pub fn after_list_element_changed_with_shadows(
+        &mut self,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+    ) where
         S: crate::director::ShadowVariableSupport,
     {
         if !self.initialized {
             return;
         }
 
-        // Shadow updates first - O(1) per entity
-        self.working_solution.update_entity_shadows(entity_index);
+        // O(1) shadow update for ONE element
+        self.working_solution
+            .update_element_shadow(entity_index, position, element_idx);
 
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, 0, entity_index);
+            .on_insert_all(&self.working_solution, 0, element_idx);
         self.cached_score = self.cached_score + delta;
+
+        let entity_delta = self
+            .constraints
+            .on_insert_all(&self.working_solution, 0, entity_index);
+        self.cached_score = self.cached_score + entity_delta;
     }
 
-    /// Convenience method for a complete variable change cycle.
-    ///
-    /// Equivalent to:
-    /// 1. `before_variable_changed(entity_index)`
-    /// 2. Apply the change via `change_fn`
-    /// 3. `after_variable_changed(entity_index)`
+    /// Convenience method for a complete list element change cycle.
     #[inline]
-    pub fn do_change<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
+    pub fn do_list_change<F>(
+        &mut self,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        change_fn: F,
+    ) -> S::Score
     where
         F: FnOnce(&mut S),
     {
-        self.before_variable_changed(entity_index);
+        self.before_list_element_changed(entity_index, position, element_idx);
         change_fn(&mut self.working_solution);
-        self.after_variable_changed(entity_index);
+        self.after_list_element_changed(entity_index, position, element_idx);
         self.cached_score
     }
 
-    /// Variable change cycle with automatic shadow updates.
-    ///
-    /// Equivalent to:
-    /// 1. `before_variable_changed(entity_index)`
-    /// 2. Apply the change via `change_fn`
-    /// 3. Update shadow variables for entity
-    /// 4. Insert into constraints
+    /// List element change cycle with O(1) shadow updates.
     #[inline]
-    pub fn do_change_with_shadows<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
+    pub fn do_list_change_with_shadows<F>(
+        &mut self,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        change_fn: F,
+    ) -> S::Score
     where
         S: crate::director::ShadowVariableSupport,
         F: FnOnce(&mut S),
     {
-        self.before_variable_changed(entity_index);
+        self.before_list_element_changed(entity_index, position, element_idx);
         change_fn(&mut self.working_solution);
-        self.after_variable_changed_with_shadows(entity_index);
+        self.after_list_element_changed_with_shadows(entity_index, position, element_idx);
         self.cached_score
     }
 
@@ -434,11 +459,14 @@ where
         &mut self,
         descriptor_index: usize,
         entity_index: usize,
-        _variable_name: &str,
+        variable_name: &str,
     ) {
+        // Use all parameters for basic variable change
+        let _ = variable_name;
         if !self.initialized {
             return;
         }
+        // Retract the entity from constraints
         let delta =
             self.constraints
                 .on_retract_all(&self.working_solution, descriptor_index, entity_index);
@@ -449,15 +477,68 @@ where
         &mut self,
         descriptor_index: usize,
         entity_index: usize,
-        _variable_name: &str,
+        variable_name: &str,
     ) {
+        // Use all parameters for basic variable change
+        let _ = variable_name;
         if !self.initialized {
             return;
         }
+        // Insert the entity back into constraints
         let delta =
             self.constraints
                 .on_insert_all(&self.working_solution, descriptor_index, entity_index);
         self.cached_score = self.cached_score + delta;
+    }
+
+    fn before_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // Use all parameters - O(1) incremental scoring uses element_idx
+        let _ = (position, variable_name);
+        if !self.initialized {
+            return;
+        }
+        // Retract the specific element from constraints
+        let delta =
+            self.constraints
+                .on_retract_all(&self.working_solution, descriptor_index, element_idx);
+        self.cached_score = self.cached_score + delta;
+        // Also retract entity-level constraints
+        let entity_delta =
+            self.constraints
+                .on_retract_all(&self.working_solution, descriptor_index, entity_index);
+        self.cached_score = self.cached_score + entity_delta;
+    }
+
+    fn after_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // Use all parameters - O(1) incremental scoring uses element_idx
+        let _ = (position, variable_name);
+        if !self.initialized {
+            return;
+        }
+        // Insert the specific element into constraints
+        let delta =
+            self.constraints
+                .on_insert_all(&self.working_solution, descriptor_index, element_idx);
+        self.cached_score = self.cached_score + delta;
+        // Also insert entity-level constraints
+        let entity_delta =
+            self.constraints
+                .on_insert_all(&self.working_solution, descriptor_index, entity_index);
+        self.cached_score = self.cached_score + entity_delta;
     }
 
     fn trigger_variable_listeners(&mut self) {
@@ -579,10 +660,10 @@ mod tests {
         let score = director.calculate_score();
         assert_eq!(score, SimpleScore::of(-1)); // One None at index 1
 
-        // Change: None -> Some(3) at index 1
-        director.before_variable_changed(1);
+        // Change: None -> Some(3) at index 1 (entity 0, position 1, element 1)
+        director.before_list_element_changed(0, 1, 1);
         director.working_solution_mut().values[1] = Some(3);
-        director.after_variable_changed(1);
+        director.after_list_element_changed(0, 1, 1);
 
         // Score should improve (no more unassigned)
         let new_score = director.get_score();
@@ -590,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn test_do_change_convenience() {
+    fn test_do_list_change_convenience() {
         let solution = TestSolution {
             values: vec![Some(1), None],
             score: None,
@@ -601,7 +682,7 @@ mod tests {
 
         director.calculate_score();
 
-        let new_score = director.do_change(1, |s| {
+        let new_score = director.do_list_change(0, 1, 1, |s| {
             s.values[1] = Some(5);
         });
 
@@ -709,8 +790,8 @@ mod tests {
         let mut director = TypedScoreDirector::new(solution, (c1,));
 
         // Call before/after without initialization - should not panic
-        director.before_variable_changed(0);
-        director.after_variable_changed(0);
+        director.before_list_element_changed(0, 0, 0);
+        director.after_list_element_changed(0, 0, 0);
 
         // Score should be calculated correctly on first call
         let score = director.calculate_score();
@@ -732,11 +813,11 @@ mod tests {
         assert_eq!(score, SimpleScore::of(-2));
 
         // Assign first value: 1 None = -1
-        director.do_change(0, |s| s.values[0] = Some(1));
+        director.do_list_change(0, 0, 0, |s| s.values[0] = Some(1));
         assert_eq!(director.get_score(), SimpleScore::of(-1));
 
         // Unassign first value: back to 2 Nones = -2
-        director.do_change(0, |s| s.values[0] = None);
+        director.do_list_change(0, 0, 0, |s| s.values[0] = None);
         assert_eq!(director.get_score(), SimpleScore::of(-2));
     }
 }

@@ -114,18 +114,18 @@ fn solve(solution: NQueensSolution) -> NQueensSolution {
         let old = director.working_solution().queens[idx].row;
         let new = Some(rng.gen_range(0..n));
 
-        director.before_variable_changed(idx);
+        director.before_variable_changed(0, idx, "row");
         director.working_solution_mut().queens[idx].row = new;
-        director.after_variable_changed(idx);
+        director.after_variable_changed(0, idx, "row");
 
         let new_score = director.calculate_score();
         if new_score >= score {
             score = new_score;
         } else {
             // Revert the change
-            director.before_variable_changed(idx);
+            director.before_variable_changed(0, idx, "row");
             director.working_solution_mut().queens[idx].row = old;
-            director.after_variable_changed(idx);
+            director.after_variable_changed(0, idx, "row");
         }
     }
 

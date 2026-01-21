@@ -49,9 +49,12 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
     /// Clones the working solution.
     fn clone_working_solution(&self) -> S;
 
-    /// Called before a planning variable is changed.
+    /// Called before a basic (non-list) planning variable is changed.
     ///
-    /// Full signature with descriptor and variable metadata.
+    /// Parameters:
+    /// - `descriptor_index`: Which entity collection
+    /// - `entity_index`: Which entity is being modified
+    /// - `variable_name`: Name of the variable
     fn before_variable_changed(
         &mut self,
         descriptor_index: usize,
@@ -59,9 +62,12 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
         variable_name: &str,
     );
 
-    /// Called after a planning variable is changed.
+    /// Called after a basic (non-list) planning variable is changed.
     ///
-    /// Full signature with descriptor and variable metadata.
+    /// Parameters:
+    /// - `descriptor_index`: Which entity collection
+    /// - `entity_index`: Which entity was modified
+    /// - `variable_name`: Name of the variable
     fn after_variable_changed(
         &mut self,
         descriptor_index: usize,
@@ -69,19 +75,39 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
         variable_name: &str,
     );
 
-    /// Simplified notification for entity change.
+    /// Called before a list variable element is changed.
     ///
-    /// Used by basic phases. Default delegates to full signature with empty metadata.
-    fn before_entity_changed(&mut self, entity_index: usize) {
-        self.before_variable_changed(0, entity_index, "");
-    }
+    /// Parameters provide exact position for O(1) incremental scoring:
+    /// - `descriptor_index`: Which entity collection
+    /// - `entity_index`: Which entity owns the list
+    /// - `position`: Position in the list being modified
+    /// - `element_idx`: Global index of the element being modified
+    /// - `variable_name`: Name of the list variable
+    fn before_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    );
 
-    /// Simplified notification for entity change.
+    /// Called after a list variable element is changed.
     ///
-    /// Used by basic phases. Default delegates to full signature with empty metadata.
-    fn after_entity_changed(&mut self, entity_index: usize) {
-        self.after_variable_changed(0, entity_index, "");
-    }
+    /// Parameters provide exact position for O(1) incremental scoring:
+    /// - `descriptor_index`: Which entity collection
+    /// - `entity_index`: Which entity owns the list
+    /// - `position`: Position in the list being modified
+    /// - `element_idx`: Global index of the element being modified
+    /// - `variable_name`: Name of the list variable
+    fn after_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    );
 
     /// Triggers shadow variable listeners to update derived values.
     fn trigger_variable_listeners(&mut self);
@@ -243,22 +269,51 @@ where
         self.working_solution.clone()
     }
 
+    #[allow(unused_variables)]
     fn before_variable_changed(
         &mut self,
-        _descriptor_index: usize,
-        _entity_index: usize,
-        _variable_name: &str,
+        descriptor_index: usize,
+        entity_index: usize,
+        variable_name: &str,
     ) {
+        // SimpleScoreDirector does full recalculation, not incremental.
         self.mark_dirty();
     }
 
+    #[allow(unused_variables)]
     fn after_variable_changed(
         &mut self,
-        _descriptor_index: usize,
-        _entity_index: usize,
-        _variable_name: &str,
+        descriptor_index: usize,
+        entity_index: usize,
+        variable_name: &str,
     ) {
-        // Already marked dirty in before_variable_changed
+        // SimpleScoreDirector does full recalculation, not incremental.
+    }
+
+    #[allow(unused_variables)]
+    fn before_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // SimpleScoreDirector does full recalculation, not incremental.
+        // Parameters exist for incremental directors to use.
+        self.mark_dirty();
+    }
+
+    #[allow(unused_variables)]
+    fn after_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // SimpleScoreDirector does full recalculation, not incremental.
     }
 
     fn trigger_variable_listeners(&mut self) {

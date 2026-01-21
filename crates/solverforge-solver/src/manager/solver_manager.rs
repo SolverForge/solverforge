@@ -163,12 +163,6 @@ where
     ///
     /// Creates a new instance on first call, then returns the same instance
     /// for subsequent calls. Each solution type gets its own singleton.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let (job_id, receiver) = SolverManager::<Schedule>::global().solve(schedule);
-    /// ```
     pub fn global() -> &'static Self {
         let registry = MANAGER_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()));
         let type_id = TypeId::of::<S>();

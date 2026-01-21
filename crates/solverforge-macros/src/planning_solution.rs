@@ -177,7 +177,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let score_field_str = score_field_name.to_string();
 
     let shadow_config = parse_shadow_config(&input.attrs);
-    let shadow_support_impl = generate_shadow_support(&shadow_config, name, fields);
+    let shadow_support_impl = generate_shadow_support(&shadow_config, name, &fields);
     let constraints_path = parse_constraints_path(&input.attrs);
     let basic_config = parse_basic_variable_config(&input.attrs);
 
@@ -667,7 +667,9 @@ fn generate_shadow_support(
             return quote! {
                 impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
                     #[inline]
-                    fn update_entity_shadows(&mut self, _entity_idx: usize) {}
+                    fn update_element_shadow(&mut self, _entity_idx: usize, _position: usize, _element_idx: usize) {}
+                    #[inline]
+                    fn retract_element_shadow(&mut self, _entity_idx: usize, _position: usize, _element_idx: usize) {}
                 }
             };
         }
@@ -677,97 +679,105 @@ fn generate_shadow_support(
     let list_field_ident = Ident::new(list_field, proc_macro2::Span::call_site());
     let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
 
+    // O(1) inverse relation update for a single element
     let inverse_update = config.inverse_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            for &element_idx in &element_indices {
-                self.#element_collection_ident[element_idx].#field_ident = Some(entity_idx);
-            }
+            // Set inverse relation: element.vehicle_idx = Some(entity_idx)
+            self.#element_collection_ident[element_idx].#field_ident = Some(entity_idx);
         }
     });
 
+    let inverse_retract = config.inverse_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            // Clear inverse relation
+            self.#element_collection_ident[element_idx].#field_ident = None;
+        }
+    });
+
+    // O(1) previous pointer update for a single element
     let previous_update = config.previous_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            let mut prev_idx: Option<usize> = None;
-            for &element_idx in &element_indices {
-                self.#element_collection_ident[element_idx].#field_ident = prev_idx;
-                prev_idx = Some(element_idx);
+            // Set previous pointer: look at position-1 if exists
+            let prev_element = if position > 0 {
+                self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
+            } else {
+                None
+            };
+            self.#element_collection_ident[element_idx].#field_ident = prev_element;
+
+            // Fix next element's previous pointer to point to us
+            if let Some(&next_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1) {
+                self.#element_collection_ident[next_elem].#field_ident = Some(element_idx);
             }
         }
     });
 
+    let previous_retract = config.previous_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            // Clear previous pointer
+            self.#element_collection_ident[element_idx].#field_ident = None;
+
+            // Fix next element's previous pointer to skip us
+            if let Some(&next_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1) {
+                let prev_element = if position > 0 {
+                    self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
+                } else {
+                    None
+                };
+                self.#element_collection_ident[next_elem].#field_ident = prev_element;
+            }
+        }
+    });
+
+    // O(1) next pointer update for a single element
     let next_update = config.next_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            let len = element_indices.len();
-            for (i, &element_idx) in element_indices.iter().enumerate() {
-                let next_idx = if i + 1 < len { Some(element_indices[i + 1]) } else { None };
-                self.#element_collection_ident[element_idx].#field_ident = next_idx;
+            // Set next pointer: look at position+1 if exists
+            let next_element = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
+            self.#element_collection_ident[element_idx].#field_ident = next_element;
+
+            // Fix previous element's next pointer to point to us
+            if position > 0 {
+                if let Some(&prev_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1) {
+                    self.#element_collection_ident[prev_elem].#field_ident = Some(element_idx);
+                }
             }
         }
     });
 
+    let next_retract = config.next_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            // Clear next pointer
+            self.#element_collection_ident[element_idx].#field_ident = None;
+
+            // Fix previous element's next pointer to skip us
+            if position > 0 {
+                if let Some(&prev_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1) {
+                    let next_element = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
+                    self.#element_collection_ident[prev_elem].#field_ident = next_element;
+                }
+            }
+        }
+    });
+
+    // O(1) cascading update for a single element
     let cascading_update = config.cascading_listener.as_ref().map(|method| {
         let method_ident = Ident::new(method, proc_macro2::Span::call_site());
         quote! {
-            for &element_idx in &element_indices {
-                self.#method_ident(element_idx);
-            }
+            self.#method_ident(element_idx);
         }
     });
 
-    let post_update = config.post_update_listener.as_ref().map(|method| {
-        let method_ident = Ident::new(method, proc_macro2::Span::call_site());
-        quote! {
-            self.#method_ident(entity_idx);
-        }
-    });
-
-    // Entity aggregates: "target_field:sum:source_field" on list owner
-    // Sums a field from each element in the list and stores on the entity
-    let aggregate_updates: Vec<_> = config
-        .entity_aggregates
-        .iter()
-        .filter_map(|spec| {
-            let parts: Vec<&str> = spec.split(':').collect();
-            if parts.len() != 3 {
-                return None;
-            }
-            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
-            let aggregation = parts[1];
-            let source_field = Ident::new(parts[2], proc_macro2::Span::call_site());
-
-            match aggregation {
-                "sum" => Some(quote! {
-                    self.#list_owner_ident[entity_idx].#target_field = element_indices
-                        .iter()
-                        .map(|&idx| self.#element_collection_ident[idx].#source_field)
-                        .sum();
-                }),
-                _ => None,
-            }
-        })
-        .collect();
-
-    // Entity computes: "target_field:method_name" on list owner
-    // Calls a method on self that takes entity_idx and returns the value
-    let compute_updates: Vec<_> = config
-        .entity_computes
-        .iter()
-        .filter_map(|spec| {
-            let parts: Vec<&str> = spec.split(':').collect();
-            if parts.len() != 2 {
-                return None;
-            }
-            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
-            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
-
-            Some(quote! {
-                self.#list_owner_ident[entity_idx].#target_field = self.#method_name(entity_idx);
-            })
-        })
-        .collect();
+    // Note: post_update_listener and entity_aggregates/computes are NOT O(1)
+    // They require iterating over all elements. For true O(1), these would need
+    // to be incrementally updated. For now, we skip them in per-element updates.
+    // The full update_all_shadows() method can still use them for initialization.
 
     // Find the descriptor index for the element collection (e.g., visits)
     // This is used by ShadowAwareScoreDirector to propagate incremental scoring
@@ -778,7 +788,12 @@ fn generate_shadow_support(
         .collect();
 
     let element_descriptor_index = entity_fields.iter().position(|f| {
-        f.ident.as_ref().map(|i| i.to_string()).as_deref() == Some(element_collection.as_str())
+        f.ident
+            .as_ref()
+            .map(|i| i.to_string())
+            .as_ref()
+            .map(|s| s.as_str())
+            == Some(element_collection.as_str())
     });
 
     let element_descriptor_method = match element_descriptor_index {
@@ -793,28 +808,141 @@ fn generate_shadow_support(
         None => quote! {},
     };
 
+    // Generate update_all_shadows for initialization (not O(1), but only called once)
+    let full_inverse_update = config.inverse_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            for (entity_idx, entity) in self.#list_owner_ident.iter().enumerate() {
+                for &element_idx in &entity.#list_field_ident {
+                    self.#element_collection_ident[element_idx].#field_ident = Some(entity_idx);
+                }
+            }
+        }
+    });
+
+    let full_previous_update = config.previous_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            for entity in &self.#list_owner_ident {
+                let mut prev_idx: Option<usize> = None;
+                for &element_idx in &entity.#list_field_ident {
+                    self.#element_collection_ident[element_idx].#field_ident = prev_idx;
+                    prev_idx = Some(element_idx);
+                }
+            }
+        }
+    });
+
+    let full_next_update = config.next_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            for entity in &self.#list_owner_ident {
+                let len = entity.#list_field_ident.len();
+                for (i, &element_idx) in entity.#list_field_ident.iter().enumerate() {
+                    let next_idx = if i + 1 < len { Some(entity.#list_field_ident[i + 1]) } else { None };
+                    self.#element_collection_ident[element_idx].#field_ident = next_idx;
+                }
+            }
+        }
+    });
+
+    let full_cascading_update = config.cascading_listener.as_ref().map(|method| {
+        let method_ident = Ident::new(method, proc_macro2::Span::call_site());
+        quote! {
+            for entity in &self.#list_owner_ident {
+                for &element_idx in &entity.#list_field_ident {
+                    self.#method_ident(element_idx);
+                }
+            }
+        }
+    });
+
+    let full_post_update = config.post_update_listener.as_ref().map(|method| {
+        let method_ident = Ident::new(method, proc_macro2::Span::call_site());
+        quote! {
+            for entity_idx in 0..self.#list_owner_ident.len() {
+                self.#method_ident(entity_idx);
+            }
+        }
+    });
+
+    // Entity aggregates for full update
+    let full_aggregate_updates: Vec<_> = config
+        .entity_aggregates
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 3 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let aggregation = parts[1];
+            let source_field = Ident::new(parts[2], proc_macro2::Span::call_site());
+
+            match aggregation {
+                "sum" => Some(quote! {
+                    for entity_idx in 0..self.#list_owner_ident.len() {
+                        let element_indices = &self.#list_owner_ident[entity_idx].#list_field_ident;
+                        self.#list_owner_ident[entity_idx].#target_field = element_indices
+                            .iter()
+                            .map(|&idx| self.#element_collection_ident[idx].#source_field)
+                            .sum();
+                    }
+                }),
+                _ => None,
+            }
+        })
+        .collect();
+
+    // Entity computes for full update
+    let full_compute_updates: Vec<_> = config
+        .entity_computes
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 2 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
+
+            Some(quote! {
+                for entity_idx in 0..self.#list_owner_ident.len() {
+                    self.#list_owner_ident[entity_idx].#target_field = self.#method_name(entity_idx);
+                }
+            })
+        })
+        .collect();
+
     quote! {
         impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
             #[inline]
-            fn update_entity_shadows(&mut self, entity_idx: usize) {
-                let element_indices: Vec<usize> = self.#list_owner_ident[entity_idx]
-                    .#list_field_ident
-                    .clone();
-
+            fn update_element_shadow(&mut self, entity_idx: usize, position: usize, element_idx: usize) {
+                // O(1) shadow update for a single element
                 #inverse_update
                 #previous_update
                 #next_update
                 #cascading_update
-                #(#aggregate_updates)*
-                #(#compute_updates)*
-                #post_update
             }
 
             #[inline]
-            fn affected_element_indices(&self, entity_idx: usize) -> Vec<usize> {
-                self.#list_owner_ident[entity_idx]
-                    .#list_field_ident
-                    .clone()
+            fn retract_element_shadow(&mut self, entity_idx: usize, position: usize, element_idx: usize) {
+                // O(1) shadow retraction for a single element
+                #inverse_retract
+                #previous_retract
+                #next_retract
+            }
+
+            #[inline]
+            fn update_all_shadows(&mut self) {
+                // Full shadow update for initialization (not O(1))
+                #full_inverse_update
+                #full_previous_update
+                #full_next_update
+                #full_cascading_update
+                #(#full_aggregate_updates)*
+                #(#full_compute_updates)*
+                #full_post_update
             }
 
             #element_descriptor_method

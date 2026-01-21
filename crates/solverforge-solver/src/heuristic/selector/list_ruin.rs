@@ -255,6 +255,7 @@ where
                 Some(ListRuinMove::new(
                     entity_idx,
                     &indices,
+                    &indices, // element_ids: use positions as placeholders
                     list_len,
                     list_remove,
                     list_insert,

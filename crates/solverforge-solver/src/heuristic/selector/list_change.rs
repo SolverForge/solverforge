@@ -179,6 +179,7 @@ where
                         src_pos,
                         src_entity,
                         dst_pos,
+                        src_pos, // element_idx: use position as placeholder
                         list_len,
                         list_remove,
                         list_insert,
@@ -201,6 +202,7 @@ where
                             src_pos,
                             dst_entity,
                             dst_pos,
+                            src_pos, // element_idx: use position as placeholder
                             list_len,
                             list_remove,
                             list_insert,

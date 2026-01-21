@@ -320,9 +320,9 @@ where
             }
 
             let director = phase_scope.score_director_mut();
-            director.before_entity_changed(entity_idx);
+            director.before_variable_changed(0, entity_idx, "value");
             (self.set_variable)(director.working_solution_mut(), entity_idx, new_value);
-            director.after_entity_changed(entity_idx);
+            director.after_variable_changed(0, entity_idx, "value");
             let new_score = director.calculate_score();
 
             self.acceptor.step_started();
@@ -357,9 +357,9 @@ where
                     accepted = false,
                 );
                 let director = phase_scope.score_director_mut();
-                director.before_entity_changed(entity_idx);
+                director.before_variable_changed(0, entity_idx, "value");
                 (self.set_variable)(director.working_solution_mut(), entity_idx, old_value);
-                director.after_entity_changed(entity_idx);
+                director.after_variable_changed(0, entity_idx, "value");
                 director.calculate_score();
             }
         }

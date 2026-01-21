@@ -72,9 +72,9 @@ pub struct RecordingScoreDirector<'a, S: PlanningSolution, D: ScoreDirector<S>> 
     inner: &'a mut D,
     /// Typed undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
-    /// Entities modified during this step that need shadow refresh after undo.
-    /// Stores (descriptor_index, entity_index) pairs.
-    modified_entities: Vec<(usize, usize)>,
+    /// Elements modified during this step that need shadow refresh after undo.
+    /// Stores (descriptor_index, entity_index, position, element_idx) tuples.
+    modified_elements: Vec<(usize, usize, usize, usize)>,
     /// Phantom data for solution type (fn pointer pattern per CLAUDE.md)
     _phantom: PhantomData<fn() -> S>,
 }
@@ -85,7 +85,7 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
         Self {
             inner,
             undo_stack: Vec::with_capacity(16),
-            modified_entities: Vec::with_capacity(8),
+            modified_elements: Vec::with_capacity(8),
             _phantom: PhantomData,
         }
     }
@@ -93,14 +93,19 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
     /// Undoes all recorded changes in reverse order.
     ///
     /// For incremental scoring correctness:
-    /// 1. Retract current (post-move) contributions from each modified entity
+    /// 1. Retract current (post-move) contributions from each modified element
     /// 2. Run undo closures to restore planning variable values
     /// 3. Update shadows and insert restored contributions
     pub fn undo_changes(&mut self) {
         // Step 1: Retract current contributions before restoring values
-        for &(descriptor_idx, entity_idx) in &self.modified_entities {
-            self.inner
-                .before_variable_changed(descriptor_idx, entity_idx, "");
+        for &(descriptor_idx, entity_idx, position, element_idx) in &self.modified_elements {
+            self.inner.before_list_variable_changed(
+                descriptor_idx,
+                entity_idx,
+                position,
+                element_idx,
+                "",
+            );
         }
 
         // Step 2: Process undo closures in reverse order
@@ -109,9 +114,15 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
         }
 
         // Step 3: Update shadows and insert restored contributions
-        for (descriptor_idx, entity_idx) in self.modified_entities.drain(..) {
-            self.inner
-                .after_variable_changed(descriptor_idx, entity_idx, "");
+        for (descriptor_idx, entity_idx, position, element_idx) in self.modified_elements.drain(..)
+        {
+            self.inner.after_list_variable_changed(
+                descriptor_idx,
+                entity_idx,
+                position,
+                element_idx,
+                "",
+            );
         }
     }
 
@@ -120,7 +131,7 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
     /// Call this at the start of each step to reuse the Vec allocations.
     pub fn reset(&mut self) {
         self.undo_stack.clear();
-        self.modified_entities.clear();
+        self.modified_elements.clear();
     }
 
     /// Returns the number of recorded undo closures.
@@ -174,14 +185,50 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
         entity_index: usize,
         variable_name: &str,
     ) {
-        // Forward to inner for shadow updates and incremental scoring
+        // Forward to inner for incremental scoring
         self.inner
             .after_variable_changed(descriptor_index, entity_index, variable_name);
+    }
 
-        // Track entity for post-undo shadow refresh (avoid duplicates)
-        let key = (descriptor_index, entity_index);
-        if !self.modified_entities.contains(&key) {
-            self.modified_entities.push(key);
+    fn before_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // Forward to inner for incremental scoring
+        self.inner.before_list_variable_changed(
+            descriptor_index,
+            entity_index,
+            position,
+            element_idx,
+            variable_name,
+        );
+    }
+
+    fn after_list_variable_changed(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+        variable_name: &str,
+    ) {
+        // Forward to inner for shadow updates and incremental scoring
+        self.inner.after_list_variable_changed(
+            descriptor_index,
+            entity_index,
+            position,
+            element_idx,
+            variable_name,
+        );
+
+        // Track element for post-undo shadow refresh (avoid duplicates)
+        let key = (descriptor_index, entity_index, position, element_idx);
+        if !self.modified_elements.contains(&key) {
+            self.modified_elements.push(key);
         }
     }
 
@@ -210,7 +257,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
         self.inner.reset();
         // Also clear our recording state
         self.undo_stack.clear();
-        self.modified_entities.clear();
+        self.modified_elements.clear();
     }
 
     fn register_undo(&mut self, undo: Box<dyn FnOnce(&mut S) + Send>) {

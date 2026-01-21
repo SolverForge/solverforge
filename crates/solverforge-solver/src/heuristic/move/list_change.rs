@@ -53,8 +53,9 @@ use super::Move;
 /// }
 ///
 /// // Move element from vehicle 0 position 2 to vehicle 1 position 0
+/// // element_idx 2 indicates the global index of the element being moved
 /// let m = ListChangeMove::<Solution, i32>::new(
-///     0, 2, 1, 0,
+///     0, 2, 1, 0, 2,  // src_entity, src_pos, dst_entity, dst_pos, element_idx
 ///     list_len, list_remove, list_insert,
 ///     "visits", 0,
 /// );
@@ -68,6 +69,8 @@ pub struct ListChangeMove<S, V> {
     dest_entity_index: usize,
     /// Position in destination list to insert at
     dest_position: usize,
+    /// The element index being moved (for O(1) shadow updates)
+    element_idx: usize,
     /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
     /// Remove element at position, returns removed value
@@ -82,7 +85,19 @@ pub struct ListChangeMove<S, V> {
 
 impl<S, V> Clone for ListChangeMove<S, V> {
     fn clone(&self) -> Self {
-        *self
+        Self {
+            source_entity_index: self.source_entity_index,
+            source_position: self.source_position,
+            dest_entity_index: self.dest_entity_index,
+            dest_position: self.dest_position,
+            element_idx: self.element_idx,
+            list_len: self.list_len,
+            list_remove: self.list_remove,
+            list_insert: self.list_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            indices: self.indices,
+        }
     }
 }
 
@@ -108,6 +123,7 @@ impl<S, V> ListChangeMove<S, V> {
     /// * `source_position` - Position in source list
     /// * `dest_entity_index` - Entity index to insert into
     /// * `dest_position` - Position in destination list
+    /// * `element_idx` - The index of the element being moved (for O(1) shadow updates)
     /// * `list_len` - Function to get list length
     /// * `list_remove` - Function to remove element at position
     /// * `list_insert` - Function to insert element at position
@@ -119,6 +135,7 @@ impl<S, V> ListChangeMove<S, V> {
         source_position: usize,
         dest_entity_index: usize,
         dest_position: usize,
+        element_idx: usize,
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
@@ -130,6 +147,7 @@ impl<S, V> ListChangeMove<S, V> {
             source_position,
             dest_entity_index,
             dest_position,
+            element_idx,
             list_len,
             list_remove,
             list_insert,
@@ -137,6 +155,11 @@ impl<S, V> ListChangeMove<S, V> {
             descriptor_index,
             indices: [source_entity_index, dest_entity_index],
         }
+    }
+
+    /// Returns the element index being moved.
+    pub fn element_idx(&self) -> usize {
+        self.element_idx
     }
 
     /// Returns the source entity index.
@@ -211,19 +234,21 @@ where
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
-        // Notify before changes
-        score_director.before_variable_changed(
+        // For intra-list moves, adjust dest position if it was after source
+        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
+            self.dest_position - 1
+        } else {
+            self.dest_position
+        };
+
+        // Notify before removal from source
+        score_director.before_list_variable_changed(
             self.descriptor_index,
             self.source_entity_index,
+            self.source_position,
+            self.element_idx,
             self.variable_name,
         );
-        if !self.is_intra_list() {
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                self.dest_entity_index,
-                self.variable_name,
-            );
-        }
 
         // Remove from source
         let value = (self.list_remove)(
@@ -233,12 +258,23 @@ where
         )
         .expect("source position should be valid");
 
-        // For intra-list moves, adjust dest position if it was after source
-        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
-            self.dest_position - 1
-        } else {
-            self.dest_position
-        };
+        // Notify after removal (element is now detached)
+        score_director.after_list_variable_changed(
+            self.descriptor_index,
+            self.source_entity_index,
+            self.source_position,
+            self.element_idx,
+            self.variable_name,
+        );
+
+        // Notify before insertion at destination
+        score_director.before_list_variable_changed(
+            self.descriptor_index,
+            self.dest_entity_index,
+            adjusted_dest,
+            self.element_idx,
+            self.variable_name,
+        );
 
         // Insert at destination
         (self.list_insert)(
@@ -248,19 +284,14 @@ where
             value.clone(),
         );
 
-        // Notify after changes
-        score_director.after_variable_changed(
+        // Notify after insertion
+        score_director.after_list_variable_changed(
             self.descriptor_index,
-            self.source_entity_index,
+            self.dest_entity_index,
+            adjusted_dest,
+            self.element_idx,
             self.variable_name,
         );
-        if !self.is_intra_list() {
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                self.dest_entity_index,
-                self.variable_name,
-            );
-        }
 
         // Register undo - reverse the operation
         let list_remove = self.list_remove;
@@ -371,11 +402,13 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 1 (value=2) to position 3
+        // element_idx=2 because the value at position 1 is 2
         let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             0,
             3,
+            2, // element_idx
             list_len,
             list_remove,
             list_insert,
@@ -409,11 +442,13 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element at position 3 (value=4) to position 1
+        // element_idx=4 because the value at position 3 is 4
         let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             3,
             0,
             1,
+            4, // element_idx
             list_len,
             list_remove,
             list_insert,
@@ -451,11 +486,13 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Move element from vehicle 0 position 1 (value=2) to vehicle 1 position 1
+        // element_idx=2 because the value at position 1 is 2
         let m = ListChangeMove::<RoutingSolution, i32>::new(
             0,
             1,
             1,
             1,
+            2, // element_idx
             list_len,
             list_remove,
             list_insert,
@@ -494,6 +531,7 @@ mod tests {
             1,
             0,
             1,
+            2, // element_idx
             list_len,
             list_remove,
             list_insert,
@@ -516,6 +554,7 @@ mod tests {
             10,
             0,
             0,
+            99, // element_idx (doesn't matter, position is invalid)
             list_len,
             list_remove,
             list_insert,

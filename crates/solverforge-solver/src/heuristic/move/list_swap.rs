@@ -53,13 +53,15 @@ use super::Move;
 ///         if let Some(elem) = v.visits.get_mut(pos) { *elem = val; }
 ///     }
 /// }
+/// fn list_get_element_idx(s: &Solution, entity_idx: usize, pos: usize) -> usize {
+///     s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos)).copied().unwrap_or(0) as usize
+/// }
 ///
 /// // Swap elements at positions 1 and 3 in vehicle 0
-/// // Element indices 1 and 3 are the global indices of elements being swapped
 /// let m = ListSwapMove::<Solution, i32>::new(
-///     0, 1, 1,  // first: entity 0, position 1, element_idx 1
-///     0, 3, 3,  // second: entity 0, position 3, element_idx 3
-///     list_len, list_get, list_set,
+///     0, 1,  // first: entity 0, position 1
+///     0, 3,  // second: entity 0, position 3
+///     list_len, list_get, list_set, list_get_element_idx,
 ///     "visits", 0,
 /// );
 /// ```
@@ -68,20 +70,18 @@ pub struct ListSwapMove<S, V> {
     first_entity_index: usize,
     /// Position in first entity's list
     first_position: usize,
-    /// Element index at first position (for O(1) shadow updates)
-    first_element_idx: usize,
     /// Second entity index
     second_entity_index: usize,
     /// Position in second entity's list
     second_position: usize,
-    /// Element index at second position (for O(1) shadow updates)
-    second_element_idx: usize,
     /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
     /// Get element at position
     list_get: fn(&S, usize, usize) -> Option<V>,
     /// Set element at position
     list_set: fn(&mut S, usize, usize, V),
+    /// Get element index at position (for O(1) shadow updates)
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices for entity_indices()
@@ -93,13 +93,12 @@ impl<S, V> Clone for ListSwapMove<S, V> {
         Self {
             first_entity_index: self.first_entity_index,
             first_position: self.first_position,
-            first_element_idx: self.first_element_idx,
             second_entity_index: self.second_entity_index,
             second_position: self.second_position,
-            second_element_idx: self.second_element_idx,
             list_len: self.list_len,
             list_get: self.list_get,
             list_set: self.list_set,
+            list_get_element_idx: self.list_get_element_idx,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             indices: self.indices,
@@ -127,53 +126,40 @@ impl<S, V> ListSwapMove<S, V> {
     /// # Arguments
     /// * `first_entity_index` - First entity index
     /// * `first_position` - Position in first entity's list
-    /// * `first_element_idx` - Element index at first position (for O(1) shadow updates)
     /// * `second_entity_index` - Second entity index
     /// * `second_position` - Position in second entity's list
-    /// * `second_element_idx` - Element index at second position (for O(1) shadow updates)
     /// * `list_len` - Function to get list length
     /// * `list_get` - Function to get element at position
     /// * `list_set` - Function to set element at position
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         first_entity_index: usize,
         first_position: usize,
-        first_element_idx: usize,
         second_entity_index: usize,
         second_position: usize,
-        second_element_idx: usize,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_set: fn(&mut S, usize, usize, V),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
             first_entity_index,
             first_position,
-            first_element_idx,
             second_entity_index,
             second_position,
-            second_element_idx,
             list_len,
             list_get,
             list_set,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             indices: [first_entity_index, second_entity_index],
         }
-    }
-
-    /// Returns the first element index.
-    pub fn first_element_idx(&self) -> usize {
-        self.first_element_idx
-    }
-
-    /// Returns the second element index.
-    pub fn second_element_idx(&self) -> usize {
-        self.second_element_idx
     }
 
     /// Returns the first entity index.
@@ -235,6 +221,18 @@ where
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+        // Look up actual element indices at runtime for correct shadow updates
+        let first_element_idx = (self.list_get_element_idx)(
+            score_director.working_solution(),
+            self.first_entity_index,
+            self.first_position,
+        );
+        let second_element_idx = (self.list_get_element_idx)(
+            score_director.working_solution(),
+            self.second_entity_index,
+            self.second_position,
+        );
+
         // Get both values
         let first_val = (self.list_get)(
             score_director.working_solution(),
@@ -255,7 +253,7 @@ where
             self.descriptor_index,
             self.first_entity_index,
             self.first_position,
-            self.first_element_idx,
+            first_element_idx,
             self.variable_name,
         );
         // Notify before changes for second element
@@ -263,7 +261,7 @@ where
             self.descriptor_index,
             self.second_entity_index,
             self.second_position,
-            self.second_element_idx,
+            second_element_idx,
             self.variable_name,
         );
 
@@ -287,7 +285,7 @@ where
             self.descriptor_index,
             self.first_entity_index,
             self.first_position,
-            self.second_element_idx,
+            second_element_idx,
             self.variable_name,
         );
         // Second position now has first_element_idx
@@ -295,7 +293,7 @@ where
             self.descriptor_index,
             self.second_entity_index,
             self.second_position,
-            self.first_element_idx,
+            first_element_idx,
             self.variable_name,
         );
 
@@ -381,6 +379,14 @@ mod tests {
             }
         }
     }
+    fn list_get_element_idx(s: &RoutingSolution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.vehicles
+            .get(entity_idx)
+            .and_then(|v| v.visits.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         vehicles: Vec<Vehicle>,
@@ -395,7 +401,7 @@ mod tests {
             get_vehicles,
             get_vehicles_mut,
         ));
-        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles")
+        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "visits")
             .with_extractor(extractor);
         let descriptor =
             SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
@@ -411,9 +417,17 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap positions 1 and 3 (values 2 and 4)
-        // first_element_idx=2 (value at pos 1), second_element_idx=4 (value at pos 3)
         let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 2, 0, 3, 4, list_len, list_get, list_set, "visits", 0,
+            0,
+            1,
+            0,
+            3,
+            list_len,
+            list_get,
+            list_set,
+            list_get_element_idx,
+            "visits",
+            0,
         );
 
         assert!(m.is_doable(&director));
@@ -445,9 +459,17 @@ mod tests {
         let mut director = create_director(vehicles);
 
         // Swap vehicle 0 position 1 (value=2) with vehicle 1 position 2 (value=30)
-        // first_element_idx=2, second_element_idx=30
         let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 2, 1, 2, 30, list_len, list_get, list_set, "visits", 0,
+            0,
+            1,
+            1,
+            2,
+            list_len,
+            list_get,
+            list_set,
+            list_get_element_idx,
+            "visits",
+            0,
         );
 
         assert!(m.is_doable(&director));
@@ -476,7 +498,16 @@ mod tests {
         let director = create_director(vehicles);
 
         let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 2, 0, 1, 2, list_len, list_get, list_set, "visits", 0,
+            0,
+            1,
+            0,
+            1,
+            list_len,
+            list_get,
+            list_set,
+            list_get_element_idx,
+            "visits",
+            0,
         );
 
         assert!(!m.is_doable(&director));
@@ -490,7 +521,16 @@ mod tests {
         let director = create_director(vehicles);
 
         let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 0, 5, 0, 2, 5, list_len, list_get, list_set, "visits", 0,
+            0,
+            0,
+            0,
+            2,
+            list_len,
+            list_get,
+            list_set,
+            list_get_element_idx,
+            "visits",
+            0,
         );
 
         assert!(!m.is_doable(&director));
@@ -504,7 +544,16 @@ mod tests {
         let director = create_director(vehicles);
 
         let m = ListSwapMove::<RoutingSolution, i32>::new(
-            0, 1, 2, 0, 10, 99, list_len, list_get, list_set, "visits", 0,
+            0,
+            1,
+            0,
+            10,
+            list_len,
+            list_get,
+            list_set,
+            list_get_element_idx,
+            "visits",
+            0,
         );
 
         assert!(!m.is_doable(&director));

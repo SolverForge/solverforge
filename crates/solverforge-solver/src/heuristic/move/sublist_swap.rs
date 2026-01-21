@@ -58,13 +58,15 @@ use super::Move;
 ///         }
 ///     }
 /// }
+/// fn list_get_element_idx(s: &Solution, entity_idx: usize, pos: usize) -> usize {
+///     s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos)).copied().unwrap_or(0) as usize
+/// }
 ///
 /// // Swap [1..3) from vehicle 0 with [0..2) from vehicle 1
-/// // Element indices are the global indices of elements in each range
 /// let m = SubListSwapMove::<Solution, i32>::new(
-///     0, 1, 3, vec![1, 2],  // first: entity 0, range [1, 3), element_indices
-///     1, 0, 2, vec![4, 5],  // second: entity 1, range [0, 2), element_indices
-///     list_len, sublist_remove, sublist_insert,
+///     0, 1, 3,  // first: entity 0, range [1, 3)
+///     1, 0, 2,  // second: entity 1, range [0, 2)
+///     list_len, sublist_remove, sublist_insert, list_get_element_idx,
 ///     "visits", 0,
 /// );
 /// ```
@@ -75,22 +77,20 @@ pub struct SubListSwapMove<S, V> {
     first_start: usize,
     /// End of first range (exclusive)
     first_end: usize,
-    /// Element indices in the first range (for O(1) shadow updates)
-    first_element_indices: Vec<usize>,
     /// Second entity index
     second_entity_index: usize,
     /// Start of second range (inclusive)
     second_start: usize,
     /// End of second range (exclusive)
     second_end: usize,
-    /// Element indices in the second range (for O(1) shadow updates)
-    second_element_indices: Vec<usize>,
     /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
     /// Remove sublist [start, end), returns removed elements
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     /// Insert elements at position
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    /// Get element index at position (for O(1) shadow updates)
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     variable_name: &'static str,
     descriptor_index: usize,
     /// Store indices for entity_indices()
@@ -104,14 +104,13 @@ impl<S, V> Clone for SubListSwapMove<S, V> {
             first_entity_index: self.first_entity_index,
             first_start: self.first_start,
             first_end: self.first_end,
-            first_element_indices: self.first_element_indices.clone(),
             second_entity_index: self.second_entity_index,
             second_start: self.second_start,
             second_end: self.second_end,
-            second_element_indices: self.second_element_indices.clone(),
             list_len: self.list_len,
             sublist_remove: self.sublist_remove,
             sublist_insert: self.sublist_insert,
+            list_get_element_idx: self.list_get_element_idx,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             indices: self.indices,
@@ -119,6 +118,8 @@ impl<S, V> Clone for SubListSwapMove<S, V> {
         }
     }
 }
+
+impl<S, V> Copy for SubListSwapMove<S, V> {}
 
 impl<S, V: Debug> Debug for SubListSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -139,14 +140,13 @@ impl<S, V> SubListSwapMove<S, V> {
     /// * `first_entity_index` - First entity index
     /// * `first_start` - Start of first range (inclusive)
     /// * `first_end` - End of first range (exclusive)
-    /// * `first_element_indices` - Element indices in the first range (for O(1) shadow updates)
     /// * `second_entity_index` - Second entity index
     /// * `second_start` - Start of second range (inclusive)
     /// * `second_end` - End of second range (exclusive)
-    /// * `second_element_indices` - Element indices in the second range (for O(1) shadow updates)
     /// * `list_len` - Function to get list length
     /// * `sublist_remove` - Function to remove range [start, end)
     /// * `sublist_insert` - Function to insert elements at position
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
@@ -154,14 +154,13 @@ impl<S, V> SubListSwapMove<S, V> {
         first_entity_index: usize,
         first_start: usize,
         first_end: usize,
-        first_element_indices: Vec<usize>,
         second_entity_index: usize,
         second_start: usize,
         second_end: usize,
-        second_element_indices: Vec<usize>,
         list_len: fn(&S, usize) -> usize,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -169,29 +168,18 @@ impl<S, V> SubListSwapMove<S, V> {
             first_entity_index,
             first_start,
             first_end,
-            first_element_indices,
             second_entity_index,
             second_start,
             second_end,
-            second_element_indices,
             list_len,
             sublist_remove,
             sublist_insert,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             indices: [first_entity_index, second_entity_index],
             _phantom: PhantomData,
         }
-    }
-
-    /// Returns the first element indices.
-    pub fn first_element_indices(&self) -> &[usize] {
-        &self.first_element_indices
-    }
-
-    /// Returns the second element indices.
-    pub fn second_element_indices(&self) -> &[usize] {
-        &self.second_element_indices
     }
 
     /// Returns the first entity index.
@@ -278,8 +266,28 @@ where
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+        // Look up element indices at runtime for correct shadow updates
+        let first_element_indices: Vec<usize> = (self.first_start..self.first_end)
+            .map(|pos| {
+                (self.list_get_element_idx)(
+                    score_director.working_solution(),
+                    self.first_entity_index,
+                    pos,
+                )
+            })
+            .collect();
+        let second_element_indices: Vec<usize> = (self.second_start..self.second_end)
+            .map(|pos| {
+                (self.list_get_element_idx)(
+                    score_director.working_solution(),
+                    self.second_entity_index,
+                    pos,
+                )
+            })
+            .collect();
+
         // Notify before changes for first range elements
-        for (i, &element_idx) in self.first_element_indices.iter().enumerate() {
+        for (i, &element_idx) in first_element_indices.iter().enumerate() {
             let position = self.first_start + i;
             score_director.before_list_variable_changed(
                 self.descriptor_index,
@@ -290,7 +298,7 @@ where
             );
         }
         // Notify before changes for second range elements
-        for (i, &element_idx) in self.second_element_indices.iter().enumerate() {
+        for (i, &element_idx) in second_element_indices.iter().enumerate() {
             let position = self.second_start + i;
             score_director.before_list_variable_changed(
                 self.descriptor_index,
@@ -434,7 +442,7 @@ where
 
         // Notify after changes - elements have been swapped
         // First position range now contains second's elements
-        for (i, &element_idx) in self.second_element_indices.iter().enumerate() {
+        for (i, &element_idx) in second_element_indices.iter().enumerate() {
             let position = self.first_start + i;
             score_director.after_list_variable_changed(
                 self.descriptor_index,
@@ -445,7 +453,7 @@ where
             );
         }
         // Second position range now contains first's elements
-        for (i, &element_idx) in self.first_element_indices.iter().enumerate() {
+        for (i, &element_idx) in first_element_indices.iter().enumerate() {
             let position = self.second_start + i;
             score_director.after_list_variable_changed(
                 self.descriptor_index,
@@ -531,6 +539,14 @@ mod tests {
             }
         }
     }
+    fn list_get_element_idx(s: &RoutingSolution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.vehicles
+            .get(entity_idx)
+            .and_then(|v| v.visits.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         vehicles: Vec<Vehicle>,
@@ -545,7 +561,7 @@ mod tests {
             get_vehicles,
             get_vehicles_mut,
         ));
-        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles")
+        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "visits")
             .with_extractor(extractor);
         let descriptor =
             SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
@@ -567,19 +583,17 @@ mod tests {
 
         // Swap [1..3) from vehicle 0 with [0..2) from vehicle 1
         // [1, 2, 3, 4] swapping [2, 3] with [10, 20] from [10, 20, 30]
-        // first_element_indices=[2, 3], second_element_indices=[10, 20]
         let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             1,
             3,
-            vec![2, 3], // first_element_indices
             1,
             0,
             2,
-            vec![10, 20], // second_element_indices
             list_len,
             sublist_remove,
             sublist_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -611,19 +625,17 @@ mod tests {
 
         // Swap [1..3) with [5..7) in same list
         // [1, 2, 3, 4, 5, 6, 7, 8] -> swap [2, 3] with [6, 7]
-        // first_element_indices=[2, 3], second_element_indices=[6, 7]
         let m = SubListSwapMove::<RoutingSolution, i32>::new(
             0,
             1,
             3,
-            vec![2, 3], // first_element_indices
             0,
             5,
             7,
-            vec![6, 7], // second_element_indices
             list_len,
             sublist_remove,
             sublist_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -657,14 +669,13 @@ mod tests {
             0,
             1,
             4,
-            vec![2, 3, 4], // first_element_indices
             0,
             2,
             5,
-            vec![3, 4, 5], // second_element_indices
             list_len,
             sublist_remove,
             sublist_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -683,14 +694,13 @@ mod tests {
             0,
             1,
             1,
-            vec![], // empty
             0,
             2,
             3,
-            vec![3], // second_element_indices
             list_len,
             sublist_remove,
             sublist_insert,
+            list_get_element_idx,
             "visits",
             0,
         );
@@ -709,14 +719,13 @@ mod tests {
             0,
             0,
             2,
-            vec![1, 2], // first_element_indices
             0,
             2,
             10,
-            vec![], // invalid range
             list_len,
             sublist_remove,
             sublist_insert,
+            list_get_element_idx,
             "visits",
             0,
         );

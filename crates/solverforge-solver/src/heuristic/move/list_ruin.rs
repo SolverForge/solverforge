@@ -44,14 +44,15 @@ use super::Move;
 /// fn list_len(s: &Route, _: usize) -> usize { s.stops.len() }
 /// fn list_remove(s: &mut Route, _: usize, idx: usize) -> i32 { s.stops.remove(idx) }
 /// fn list_insert(s: &mut Route, _: usize, idx: usize, v: i32) { s.stops.insert(idx, v); }
+/// fn list_get_element_idx(s: &Route, _: usize, pos: usize) -> usize {
+///     s.stops.get(pos).copied().unwrap_or(0) as usize
+/// }
 ///
 /// // Remove elements at positions 1 and 3 from the route
-/// // Element IDs [1, 3] are the global indices of elements at those positions
 /// let m = ListRuinMove::<Route, i32>::new(
 ///     0,
 ///     &[1, 3],    // positions
-///     &[1, 3],    // element_ids (global indices)
-///     list_len, list_remove, list_insert,
+///     list_len, list_remove, list_insert, list_get_element_idx,
 ///     "stops", 0,
 /// );
 /// ```
@@ -60,14 +61,14 @@ pub struct ListRuinMove<S, V> {
     entity_index: usize,
     /// Positions of elements to remove (in ascending order for correct removal)
     positions: SmallVec<[usize; 8]>,
-    /// Element indices (IDs) at each position (for O(1) shadow updates)
-    element_ids: SmallVec<[usize; 8]>,
     /// Get list length
     list_len: fn(&S, usize) -> usize,
     /// Remove element at index, returning it
     list_remove: fn(&mut S, usize, usize) -> V,
     /// Insert element at index
     list_insert: fn(&mut S, usize, usize, V),
+    /// Get element index at position (for O(1) shadow updates)
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<V>,
@@ -78,10 +79,10 @@ impl<S, V> Clone for ListRuinMove<S, V> {
         Self {
             entity_index: self.entity_index,
             positions: self.positions.clone(),
-            element_ids: self.element_ids.clone(),
             list_len: self.list_len,
             list_remove: self.list_remove,
             list_insert: self.list_insert,
+            list_get_element_idx: self.list_get_element_idx,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _phantom: PhantomData,
@@ -94,7 +95,6 @@ impl<S, V: Debug> Debug for ListRuinMove<S, V> {
         f.debug_struct("ListRuinMove")
             .field("entity", &self.entity_index)
             .field("positions", &self.positions.as_slice())
-            .field("element_ids", &self.element_ids.as_slice())
             .field("variable_name", &self.variable_name)
             .finish()
     }
@@ -106,45 +106,37 @@ impl<S, V> ListRuinMove<S, V> {
     /// # Arguments
     /// * `entity_index` - Entity index
     /// * `positions` - Positions of elements to remove
-    /// * `element_ids` - Element indices (IDs) at each position (for O(1) shadow updates)
     /// * `list_len` - Function to get list length
     /// * `list_remove` - Function to remove element at index
     /// * `list_insert` - Function to insert element at index
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     ///
     /// # Note
     /// Positions are sorted internally for correct removal order.
-    /// Element IDs must correspond to the same order as positions after sorting.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_index: usize,
         positions: &[usize],
-        element_ids: &[usize],
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> V,
         list_insert: fn(&mut S, usize, usize, V),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
-        // Sort positions and element_ids together
-        let mut pairs: SmallVec<[(usize, usize); 8]> = positions
-            .iter()
-            .zip(element_ids.iter())
-            .map(|(&p, &e)| (p, e))
-            .collect();
-        pairs.sort_unstable_by_key(|(p, _)| *p);
-
-        let sorted_positions: SmallVec<[usize; 8]> = pairs.iter().map(|(p, _)| *p).collect();
-        let sorted_element_ids: SmallVec<[usize; 8]> = pairs.iter().map(|(_, e)| *e).collect();
+        // Sort positions for correct removal order
+        let mut sorted_positions: SmallVec<[usize; 8]> = positions.iter().copied().collect();
+        sorted_positions.sort_unstable();
 
         Self {
             entity_index,
             positions: sorted_positions,
-            element_ids: sorted_element_ids,
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -159,11 +151,6 @@ impl<S, V> ListRuinMove<S, V> {
     /// Returns the positions of elements being removed.
     pub fn positions(&self) -> &[usize] {
         &self.positions
-    }
-
-    /// Returns the element IDs being removed.
-    pub fn element_ids(&self) -> &[usize] {
-        &self.element_ids
     }
 
     /// Returns the number of elements being removed.
@@ -196,15 +183,15 @@ where
         let descriptor = self.descriptor_index;
         let variable_name = self.variable_name;
 
-        // Notify before removal for each element
-        for (i, (&pos, &element_id)) in self
+        // Look up element indices at runtime for correct shadow updates
+        let element_ids: SmallVec<[usize; 8]> = self
             .positions
             .iter()
-            .zip(self.element_ids.iter())
-            .enumerate()
-        {
-            // Note: we use original positions here since we haven't removed anything yet
-            let _ = i; // Position tracking for multi-element removal is complex
+            .map(|&pos| (self.list_get_element_idx)(score_director.working_solution(), entity, pos))
+            .collect();
+
+        // Notify before removal for each element
+        for (&pos, &element_id) in self.positions.iter().zip(element_ids.iter()) {
             score_director.before_list_variable_changed(
                 descriptor,
                 entity,
@@ -216,19 +203,13 @@ where
 
         // Remove elements in reverse order (highest position first) to preserve positions
         let mut removed: SmallVec<[(usize, usize, V); 8]> = SmallVec::new();
-        for (&pos, &element_id) in self.positions.iter().zip(self.element_ids.iter()).rev() {
+        for (&pos, &element_id) in self.positions.iter().zip(element_ids.iter()).rev() {
             let value = list_remove(score_director.working_solution_mut(), entity, pos);
             removed.push((pos, element_id, value));
         }
 
         // Notify after removal for each element
-        for (i, (&pos, &element_id)) in self
-            .positions
-            .iter()
-            .zip(self.element_ids.iter())
-            .enumerate()
-        {
-            let _ = i;
+        for (&pos, &element_id) in self.positions.iter().zip(element_ids.iter()) {
             score_director.after_list_variable_changed(
                 descriptor,
                 entity,
@@ -309,6 +290,14 @@ mod tests {
             r.stops.insert(idx, v);
         }
     }
+    fn list_get_element_idx(s: &VrpSolution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.routes
+            .get(entity_idx)
+            .and_then(|r| r.stops.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         stops: Vec<i32>,
@@ -324,7 +313,7 @@ mod tests {
             get_routes,
             get_routes_mut,
         ));
-        let entity_desc = EntityDescriptor::new("Route", TypeId::of::<Route>(), "routes")
+        let entity_desc = EntityDescriptor::new("Route", TypeId::of::<Route>(), "stops")
             .with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>())
             .with_entity(entity_desc);
@@ -335,14 +324,13 @@ mod tests {
     fn ruin_single_element() {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
-        // Position 2 has value 3 (element_id)
         let m = ListRuinMove::<VrpSolution, i32>::new(
             0,
             &[2], // positions
-            &[3], // element_ids (value at position 2)
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );
@@ -372,10 +360,10 @@ mod tests {
         let m = ListRuinMove::<VrpSolution, i32>::new(
             0,
             &[1, 3], // positions
-            &[2, 4], // element_ids (values at those positions)
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );
@@ -402,14 +390,13 @@ mod tests {
         let mut director = create_director(vec![1, 2, 3, 4, 5]);
 
         // Positions provided in reverse order - should still work
-        // positions [3, 1] have values [4, 2]
         let m = ListRuinMove::<VrpSolution, i32>::new(
             0,
             &[3, 1], // positions (will be sorted to [1, 3])
-            &[4, 2], // element_ids (will be sorted to [2, 4])
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );
@@ -435,10 +422,10 @@ mod tests {
         let m = ListRuinMove::<VrpSolution, i32>::new(
             0,
             &[], // empty positions
-            &[], // empty element_ids
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );
@@ -453,10 +440,10 @@ mod tests {
         let m = ListRuinMove::<VrpSolution, i32>::new(
             0,
             &[0, 10], // positions (10 is out of bounds)
-            &[1, 99], // element_ids
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );

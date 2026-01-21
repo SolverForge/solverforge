@@ -41,12 +41,15 @@
 //! fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
 //!     if let Some(r) = s.routes.get_mut(entity_idx) { r.stops.insert(idx, v); }
 //! }
+//! fn list_get_element_idx(s: &VrpSolution, entity_idx: usize, pos: usize) -> usize {
+//!     s.routes.get(entity_idx).and_then(|r| r.stops.get(pos)).copied().unwrap_or(0) as usize
+//! }
 //!
 //! // Create selector that removes 2-3 elements at a time
 //! let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
 //!     2, 3,
 //!     entity_count,
-//!     list_len, list_remove, list_insert,
+//!     list_len, list_remove, list_insert, list_get_element_idx,
 //!     "stops", 0,
 //! );
 //!
@@ -92,6 +95,7 @@ use super::MoveSelector;
 /// - `list_len: fn(&S, usize) -> usize` - gets list length
 /// - `list_remove: fn(&mut S, usize, usize) -> V` - removes element
 /// - `list_insert: fn(&mut S, usize, usize, V)` - inserts element
+/// - `list_get_element_idx: fn(&S, usize, usize) -> usize` - gets element index
 /// - `entity_count: fn(&S) -> usize` - counts entities
 pub struct ListRuinMoveSelector<S, V> {
     /// Minimum elements to remove per move.
@@ -108,6 +112,8 @@ pub struct ListRuinMoveSelector<S, V> {
     list_remove: fn(&mut S, usize, usize) -> V,
     /// Function to insert element at index.
     list_insert: fn(&mut S, usize, usize, V),
+    /// Function to get element index at position.
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     /// Variable name.
     variable_name: &'static str,
     /// Entity descriptor index.
@@ -139,6 +145,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
     /// * `list_len` - Function to get list length for an entity
     /// * `list_remove` - Function to remove element at index
     /// * `list_insert` - Function to insert element at index
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     ///
@@ -152,6 +159,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> V,
         list_insert: fn(&mut S, usize, usize, V),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -169,6 +177,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             moves_per_step: 10,
@@ -213,6 +222,7 @@ where
         let list_len = self.list_len;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
+        let list_get_element_idx = self.list_get_element_idx;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let min_ruin = self.min_ruin_count;
@@ -255,10 +265,10 @@ where
                 Some(ListRuinMove::new(
                     entity_idx,
                     &indices,
-                    &indices, // element_ids: use positions as placeholders
                     list_len,
                     list_remove,
                     list_insert,
+                    list_get_element_idx,
                     variable_name,
                     descriptor_index,
                 ))
@@ -327,6 +337,14 @@ mod tests {
             r.stops.insert(idx, v);
         }
     }
+    fn list_get_element_idx(s: &VrpSolution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.routes
+            .get(entity_idx)
+            .and_then(|r| r.stops.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         routes: Vec<Vec<i32>>,
@@ -351,6 +369,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         )
@@ -377,6 +396,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         )
@@ -401,6 +421,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );
@@ -420,6 +441,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         )
@@ -446,6 +468,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         )
@@ -464,6 +487,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );
@@ -479,6 +503,7 @@ mod tests {
             list_len,
             list_remove,
             list_insert,
+            list_get_element_idx,
             "stops",
             0,
         );

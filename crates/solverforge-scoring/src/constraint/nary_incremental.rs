@@ -60,6 +60,7 @@ macro_rules! impl_incremental_nary_constraint {
             W: Fn(&A, &A) -> Sc,
             Sc: Score,
         {
+            #[allow(clippy::too_many_arguments)]
             pub fn new(
                 constraint_ref: ConstraintRef,
                 impact_type: ImpactType,
@@ -355,6 +356,7 @@ macro_rules! impl_incremental_nary_constraint {
             W: Fn(&A, &A, &A) -> Sc,
             Sc: Score,
         {
+            #[allow(clippy::too_many_arguments)]
             pub fn new(
                 constraint_ref: ConstraintRef,
                 impact_type: ImpactType,
@@ -675,6 +677,7 @@ macro_rules! impl_incremental_nary_constraint {
             W: Fn(&A, &A, &A, &A) -> Sc,
             Sc: Score,
         {
+            #[allow(clippy::too_many_arguments)]
             pub fn new(
                 constraint_ref: ConstraintRef,
                 impact_type: ImpactType,
@@ -1018,6 +1021,7 @@ macro_rules! impl_incremental_nary_constraint {
             W: Fn(&A, &A, &A, &A, &A) -> Sc,
             Sc: Score,
         {
+            #[allow(clippy::too_many_arguments)]
             pub fn new(
                 constraint_ref: ConstraintRef,
                 impact_type: ImpactType,

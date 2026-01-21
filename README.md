@@ -2,13 +2,17 @@
 
 <div align="center">
 
-[![CI](https://github.com/solverforge/solverforge-rs/workflows/CI/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml)
-[![Release](https://github.com/solverforge/solverforge-rs/workflows/Release/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml)
-[![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)
-[![Documentation](https://docs.rs/solverforge/badge.svg)](https://docs.rs/solverforge)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Rust Version](https://img.shields.io/badge/rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
-[![Downloads](https://img.shields.io/crates/d/solverforge.svg)](https://crates.io/crates/solverforge)
+[![CI](https://img.shields.io/github/actions/workflow/status/SolverForge/solverforge/ci.yml?branch=main&style=flat-square&logo=github&label=CI)](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/SolverForge/solverforge/ci.yml?branch=main&style=flat-square&logo=rust&label=tests)](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml)
+[![Clippy](https://img.shields.io/badge/clippy-passing-green?style=flat-square&logo=rust)](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml)
+
+[![Crates.io](https://img.shields.io/crates/v/solverforge?style=flat-square&logo=rust&color=orange)](https://crates.io/crates/solverforge)
+[![docs.rs](https://img.shields.io/docsrs/solverforge?style=flat-square&logo=docs.rs&label=docs.rs)](https://docs.rs/solverforge)
+[![Downloads](https://img.shields.io/crates/d/solverforge?style=flat-square&logo=rust&color=blue)](https://crates.io/crates/solverforge)
+
+[![MSRV](https://img.shields.io/badge/MSRV-1.80-blue?style=flat-square&logo=rust)](https://www.rust-lang.org)
+[![License](https://img.shields.io/crates/l/solverforge?style=flat-square)](LICENSE)
+[![dependency status](https://deps.rs/repo/github/SolverForge/solverforge/status.svg?style=flat-square)](https://deps.rs/repo/github/SolverForge/solverforge)
 
 </div>
 

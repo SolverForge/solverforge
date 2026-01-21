@@ -128,6 +128,7 @@ where
     /// * `base_score` - Score per unit of standard deviation
     /// * `is_hard` - Whether this is a hard constraint
     /// * `descriptor_index` - Index of the entity descriptor this constraint operates on
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,

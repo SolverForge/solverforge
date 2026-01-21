@@ -177,7 +177,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let score_field_str = score_field_name.to_string();
 
     let shadow_config = parse_shadow_config(&input.attrs);
-    let shadow_support_impl = generate_shadow_support(&shadow_config, name, &fields);
+    let shadow_support_impl = generate_shadow_support(&shadow_config, name, fields);
     let constraints_path = parse_constraints_path(&input.attrs);
     let basic_config = parse_basic_variable_config(&input.attrs);
 
@@ -778,12 +778,7 @@ fn generate_shadow_support(
         .collect();
 
     let element_descriptor_index = entity_fields.iter().position(|f| {
-        f.ident
-            .as_ref()
-            .map(|i| i.to_string())
-            .as_ref()
-            .map(|s| s.as_str())
-            == Some(element_collection.as_str())
+        f.ident.as_ref().map(|i| i.to_string()).as_deref() == Some(element_collection.as_str())
     });
 
     let element_descriptor_method = match element_descriptor_index {

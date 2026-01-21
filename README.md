@@ -12,7 +12,6 @@
 
 [![MSRV](https://img.shields.io/badge/MSRV-1.80-blue?style=flat-square&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/crates/l/solverforge?style=flat-square)](LICENSE)
-[![dependency status](https://deps.rs/repo/github/SolverForge/solverforge/status.svg?style=flat-square)](https://deps.rs/repo/github/SolverForge/solverforge)
 
 </div>
 

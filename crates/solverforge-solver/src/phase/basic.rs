@@ -289,7 +289,7 @@ where
         }
 
         loop {
-            if phase_scope.solver_scope().should_terminate() {
+            if phase_scope.solver_scope().should_terminate() || self.sender.is_closed() {
                 break;
             }
 

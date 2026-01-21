@@ -18,7 +18,10 @@ use rand::Rng;
 use solverforge_config::{PhaseConfig, SolverConfig};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::{ConstraintSet, ScoreDirector, TypedScoreDirector};
+use solverforge_scoring::{
+    ConstraintSet, ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport,
+    TypedScoreDirector,
+};
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace};
 
@@ -53,7 +56,6 @@ pub fn run_list_solver<S, C, E>(
     get_assigned: fn(&S) -> Vec<E>,
     entity_count: fn(&S) -> usize,
     list_len: fn(&S, usize) -> usize,
-    list_get: fn(&S, usize, usize) -> E,
     list_insert: fn(&mut S, usize, usize, E),
     list_remove: fn(&mut S, usize, usize) -> E,
     index_to_element: fn(usize) -> E,
@@ -61,7 +63,7 @@ pub fn run_list_solver<S, C, E>(
     variable_name: &'static str,
 ) -> S
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
     E: Copy + Eq + Hash + Send + Sync + 'static,
@@ -75,7 +77,6 @@ where
         get_assigned,
         entity_count,
         list_len,
-        list_get,
         list_insert,
         list_remove,
         index_to_element,
@@ -99,7 +100,6 @@ pub fn run_list_solver_with_channel<S, C, E>(
     get_assigned: fn(&S) -> Vec<E>,
     entity_count: fn(&S) -> usize,
     list_len: fn(&S, usize) -> usize,
-    list_get: fn(&S, usize, usize) -> E,
     list_insert: fn(&mut S, usize, usize, E),
     list_remove: fn(&mut S, usize, usize) -> E,
     index_to_element: fn(usize) -> E,
@@ -109,7 +109,7 @@ pub fn run_list_solver_with_channel<S, C, E>(
     sender: mpsc::UnboundedSender<(S, S::Score)>,
 ) -> S
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
     E: Copy + Eq + Hash + Send + Sync + 'static,
@@ -127,7 +127,8 @@ where
     );
 
     let constraints = constraints_fn();
-    let director = TypedScoreDirector::new(solution, constraints);
+    let typed_director = TypedScoreDirector::new(solution, constraints);
+    let director = ShadowAwareScoreDirector::new(typed_director);
 
     if n_entities == 0 || n_elements == 0 {
         let mut solver_scope = SolverScope::new(director);
@@ -152,7 +153,6 @@ where
     let local_search = ListLocalSearchPhase::new(
         entity_count,
         list_len,
-        list_get,
         list_insert,
         list_remove,
         descriptor_index,
@@ -455,7 +455,6 @@ where
 {
     entity_count: fn(&S) -> usize,
     list_len: fn(&S, usize) -> usize,
-    list_get: fn(&S, usize, usize) -> E,
     list_insert: fn(&mut S, usize, usize, E),
     list_remove: fn(&mut S, usize, usize) -> E,
     descriptor_index: usize,
@@ -489,7 +488,6 @@ where
     pub fn new(
         entity_count: fn(&S) -> usize,
         list_len: fn(&S, usize) -> usize,
-        list_get: fn(&S, usize, usize) -> E,
         list_insert: fn(&mut S, usize, usize, E),
         list_remove: fn(&mut S, usize, usize) -> E,
         descriptor_index: usize,
@@ -500,7 +498,6 @@ where
         Self {
             entity_count,
             list_len,
-            list_get,
             list_insert,
             list_remove,
             descriptor_index,
@@ -561,7 +558,7 @@ where
         }
 
         loop {
-            if phase_scope.solver_scope().should_terminate() {
+            if phase_scope.solver_scope().should_terminate() || self.sender.is_closed() {
                 break;
             }
 

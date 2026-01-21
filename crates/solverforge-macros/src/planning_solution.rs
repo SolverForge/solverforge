@@ -701,15 +701,18 @@ fn generate_shadow_support(
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
             // Set previous pointer: look at position-1 if exists
+            // Copy indices first to avoid simultaneous borrows
             let prev_element = if position > 0 {
                 self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
             } else {
                 None
             };
+            let next_elem = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
+
             self.#element_collection_ident[element_idx].#field_ident = prev_element;
 
             // Fix next element's previous pointer to point to us
-            if let Some(&next_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1) {
+            if let Some(next_elem) = next_elem {
                 self.#element_collection_ident[next_elem].#field_ident = Some(element_idx);
             }
         }
@@ -718,16 +721,19 @@ fn generate_shadow_support(
     let previous_retract = config.previous_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
+            // Copy indices first to avoid simultaneous borrows
+            let next_elem = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
+            let prev_element = if position > 0 {
+                self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
+            } else {
+                None
+            };
+
             // Clear previous pointer
             self.#element_collection_ident[element_idx].#field_ident = None;
 
             // Fix next element's previous pointer to skip us
-            if let Some(&next_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1) {
-                let prev_element = if position > 0 {
-                    self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
-                } else {
-                    None
-                };
+            if let Some(next_elem) = next_elem {
                 self.#element_collection_ident[next_elem].#field_ident = prev_element;
             }
         }
@@ -737,15 +743,20 @@ fn generate_shadow_support(
     let next_update = config.next_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            // Set next pointer: look at position+1 if exists
+            // Copy indices first to avoid simultaneous borrows
             let next_element = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
+            let prev_elem = if position > 0 {
+                self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
+            } else {
+                None
+            };
+
+            // Set next pointer
             self.#element_collection_ident[element_idx].#field_ident = next_element;
 
             // Fix previous element's next pointer to point to us
-            if position > 0 {
-                if let Some(&prev_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1) {
-                    self.#element_collection_ident[prev_elem].#field_ident = Some(element_idx);
-                }
+            if let Some(prev_elem) = prev_elem {
+                self.#element_collection_ident[prev_elem].#field_ident = Some(element_idx);
             }
         }
     });
@@ -753,15 +764,20 @@ fn generate_shadow_support(
     let next_retract = config.next_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
+            // Copy indices first to avoid simultaneous borrows
+            let next_element = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
+            let prev_elem = if position > 0 {
+                self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1).copied()
+            } else {
+                None
+            };
+
             // Clear next pointer
             self.#element_collection_ident[element_idx].#field_ident = None;
 
             // Fix previous element's next pointer to skip us
-            if position > 0 {
-                if let Some(&prev_elem) = self.#list_owner_ident[entity_idx].#list_field_ident.get(position - 1) {
-                    let next_element = self.#list_owner_ident[entity_idx].#list_field_ident.get(position + 1).copied();
-                    self.#element_collection_ident[prev_elem].#field_ident = next_element;
-                }
+            if let Some(prev_elem) = prev_elem {
+                self.#element_collection_ident[prev_elem].#field_ident = next_element;
             }
         }
     });
@@ -809,11 +825,19 @@ fn generate_shadow_support(
     };
 
     // Generate update_all_shadows for initialization (not O(1), but only called once)
+    // Note: We collect indices first to avoid borrow conflicts - can't hold &self.vehicles
+    // while mutating self.visits
     let full_inverse_update = config.inverse_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            for (entity_idx, entity) in self.#list_owner_ident.iter().enumerate() {
-                for &element_idx in &entity.#list_field_ident {
+            // Collect (entity_idx, element_indices) pairs to avoid borrow conflicts
+            let entity_elements: Vec<(usize, Vec<usize>)> = self.#list_owner_ident
+                .iter()
+                .enumerate()
+                .map(|(entity_idx, entity)| (entity_idx, entity.#list_field_ident.clone()))
+                .collect();
+            for (entity_idx, element_indices) in entity_elements {
+                for element_idx in element_indices {
                     self.#element_collection_ident[element_idx].#field_ident = Some(entity_idx);
                 }
             }
@@ -823,9 +847,14 @@ fn generate_shadow_support(
     let full_previous_update = config.previous_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            for entity in &self.#list_owner_ident {
+            // Collect element indices per entity to avoid borrow conflicts
+            let all_visits: Vec<Vec<usize>> = self.#list_owner_ident
+                .iter()
+                .map(|entity| entity.#list_field_ident.clone())
+                .collect();
+            for visits in all_visits {
                 let mut prev_idx: Option<usize> = None;
-                for &element_idx in &entity.#list_field_ident {
+                for element_idx in visits {
                     self.#element_collection_ident[element_idx].#field_ident = prev_idx;
                     prev_idx = Some(element_idx);
                 }
@@ -836,11 +865,16 @@ fn generate_shadow_support(
     let full_next_update = config.next_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
-            for entity in &self.#list_owner_ident {
-                let len = entity.#list_field_ident.len();
-                for (i, &element_idx) in entity.#list_field_ident.iter().enumerate() {
-                    let next_idx = if i + 1 < len { Some(entity.#list_field_ident[i + 1]) } else { None };
-                    self.#element_collection_ident[element_idx].#field_ident = next_idx;
+            // Collect element indices per entity to avoid borrow conflicts
+            let all_visits: Vec<Vec<usize>> = self.#list_owner_ident
+                .iter()
+                .map(|entity| entity.#list_field_ident.clone())
+                .collect();
+            for visits in all_visits {
+                let len = visits.len();
+                for (i, element_idx) in visits.iter().enumerate() {
+                    let next_idx = if i + 1 < len { Some(visits[i + 1]) } else { None };
+                    self.#element_collection_ident[*element_idx].#field_ident = next_idx;
                 }
             }
         }
@@ -849,10 +883,13 @@ fn generate_shadow_support(
     let full_cascading_update = config.cascading_listener.as_ref().map(|method| {
         let method_ident = Ident::new(method, proc_macro2::Span::call_site());
         quote! {
-            for entity in &self.#list_owner_ident {
-                for &element_idx in &entity.#list_field_ident {
-                    self.#method_ident(element_idx);
-                }
+            // Collect all element indices first to avoid borrow conflicts
+            let all_elements: Vec<usize> = self.#list_owner_ident
+                .iter()
+                .flat_map(|entity| entity.#list_field_ident.clone())
+                .collect();
+            for element_idx in all_elements {
+                self.#method_ident(element_idx);
             }
         }
     });
@@ -882,11 +919,13 @@ fn generate_shadow_support(
             match aggregation {
                 "sum" => Some(quote! {
                     for entity_idx in 0..self.#list_owner_ident.len() {
-                        let element_indices = &self.#list_owner_ident[entity_idx].#list_field_ident;
-                        self.#list_owner_ident[entity_idx].#target_field = element_indices
+                        // Copy indices first to avoid simultaneous borrows
+                        let element_indices: Vec<usize> = self.#list_owner_ident[entity_idx].#list_field_ident.clone();
+                        let sum = element_indices
                             .iter()
                             .map(|&idx| self.#element_collection_ident[idx].#source_field)
                             .sum();
+                        self.#list_owner_ident[entity_idx].#target_field = sum;
                     }
                 }),
                 _ => None,

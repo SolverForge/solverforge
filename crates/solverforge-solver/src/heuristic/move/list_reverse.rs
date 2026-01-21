@@ -44,12 +44,14 @@ use super::Move;
 /// fn list_reverse(s: &mut Tour, _: usize, start: usize, end: usize) {
 ///     s.cities[start..end].reverse();
 /// }
+/// fn list_get_element_idx(s: &Tour, _: usize, pos: usize) -> usize {
+///     s.cities.get(pos).copied().unwrap_or(0) as usize
+/// }
 ///
 /// // Reverse segment [1..4) in tour: [A, B, C, D, E] -> [A, D, C, B, E]
-/// // Element indices [1, 2, 3] are the global indices of elements in the range
 /// let m = ListReverseMove::<Tour, i32>::new(
-///     0, 1, 4, vec![1, 2, 3],  // entity, start, end, element_indices
-///     list_len, list_reverse,
+///     0, 1, 4,  // entity, start, end
+///     list_len, list_reverse, list_get_element_idx,
 ///     "cities", 0,
 /// );
 /// ```
@@ -60,12 +62,12 @@ pub struct ListReverseMove<S, V> {
     start: usize,
     /// End of range to reverse (exclusive)
     end: usize,
-    /// Element indices in the range being reversed (for O(1) shadow updates)
-    element_indices: Vec<usize>,
     /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
     /// Reverse elements in range [start, end)
     list_reverse: fn(&mut S, usize, usize, usize),
+    /// Get element index at position (for O(1) shadow updates)
+    list_get_element_idx: fn(&S, usize, usize) -> usize,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<V>,
@@ -77,15 +79,17 @@ impl<S, V> Clone for ListReverseMove<S, V> {
             entity_index: self.entity_index,
             start: self.start,
             end: self.end,
-            element_indices: self.element_indices.clone(),
             list_len: self.list_len,
             list_reverse: self.list_reverse,
+            list_get_element_idx: self.list_get_element_idx,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _phantom: PhantomData,
         }
     }
 }
+
+impl<S, V> Copy for ListReverseMove<S, V> {}
 
 impl<S, V: Debug> Debug for ListReverseMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -104,9 +108,9 @@ impl<S, V> ListReverseMove<S, V> {
     /// * `entity_index` - Entity index
     /// * `start` - Start of range (inclusive)
     /// * `end` - End of range (exclusive)
-    /// * `element_indices` - Element indices in the range being reversed (for O(1) shadow updates)
     /// * `list_len` - Function to get list length
     /// * `list_reverse` - Function to reverse elements in range
+    /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
@@ -114,9 +118,9 @@ impl<S, V> ListReverseMove<S, V> {
         entity_index: usize,
         start: usize,
         end: usize,
-        element_indices: Vec<usize>,
         list_len: fn(&S, usize) -> usize,
         list_reverse: fn(&mut S, usize, usize, usize),
+        list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -124,18 +128,13 @@ impl<S, V> ListReverseMove<S, V> {
             entity_index,
             start,
             end,
-            element_indices,
             list_len,
             list_reverse,
+            list_get_element_idx,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
-    }
-
-    /// Returns the element indices in the reversed range.
-    pub fn element_indices(&self) -> &[usize] {
-        &self.element_indices
     }
 
     /// Returns the entity index.
@@ -182,8 +181,21 @@ where
     }
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+        let n = self.end - self.start;
+
+        // Look up element indices at runtime for correct shadow updates
+        let element_indices: Vec<usize> = (self.start..self.end)
+            .map(|pos| {
+                (self.list_get_element_idx)(
+                    score_director.working_solution(),
+                    self.entity_index,
+                    pos,
+                )
+            })
+            .collect();
+
         // Notify before change for each element in the range
-        for (i, &element_idx) in self.element_indices.iter().enumerate() {
+        for (i, &element_idx) in element_indices.iter().enumerate() {
             let position = self.start + i;
             score_director.before_list_variable_changed(
                 self.descriptor_index,
@@ -204,8 +216,7 @@ where
 
         // Notify after change for each element (now in reversed positions)
         // After reversal, element_indices[0] is at position end-1, element_indices[n-1] is at start
-        let n = self.element_indices.len();
-        for (i, &element_idx) in self.element_indices.iter().enumerate() {
+        for (i, &element_idx) in element_indices.iter().enumerate() {
             // After reversal, element at original position start+i is now at start+(n-1-i)
             let new_position = self.start + (n - 1 - i);
             score_director.after_list_variable_changed(
@@ -285,6 +296,14 @@ mod tests {
             t.cities[start..end].reverse();
         }
     }
+    fn list_get_element_idx(s: &TspSolution, entity_idx: usize, pos: usize) -> usize {
+        // In this test, element values ARE the element indices
+        s.tours
+            .get(entity_idx)
+            .and_then(|t| t.cities.get(pos))
+            .copied()
+            .unwrap_or(0) as usize
+    }
 
     fn create_director(
         tours: Vec<Tour>,
@@ -297,7 +316,7 @@ mod tests {
             get_tours_mut,
         ));
         let entity_desc =
-            EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "tours").with_extractor(extractor);
+            EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "cities").with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
             .with_entity(entity_desc);
         SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
@@ -311,14 +330,13 @@ mod tests {
         let mut director = create_director(tours);
 
         // Reverse [1..4): [1, 2, 3, 4, 5] -> [1, 4, 3, 2, 5]
-        // Element indices at positions 1,2,3 are values 2,3,4
         let m = ListReverseMove::<TspSolution, i32>::new(
             0,
             1,
             4,
-            vec![2, 3, 4],
             list_len,
             list_reverse,
+            list_get_element_idx,
             "cities",
             0,
         );
@@ -346,14 +364,13 @@ mod tests {
         }];
         let mut director = create_director(tours);
 
-        // Element indices at positions 0,1,2,3 are values 1,2,3,4
         let m = ListReverseMove::<TspSolution, i32>::new(
             0,
             0,
             4,
-            vec![1, 2, 3, 4],
             list_len,
             list_reverse,
+            list_get_element_idx,
             "cities",
             0,
         );
@@ -386,9 +403,9 @@ mod tests {
             0,
             1,
             2,
-            vec![2],
             list_len,
             list_reverse,
+            list_get_element_idx,
             "cities",
             0,
         );
@@ -407,9 +424,9 @@ mod tests {
             0,
             1,
             10,
-            vec![],
             list_len,
             list_reverse,
+            list_get_element_idx,
             "cities",
             0,
         );

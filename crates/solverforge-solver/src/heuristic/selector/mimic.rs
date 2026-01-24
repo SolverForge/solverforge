@@ -14,6 +14,8 @@ use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::entity::{EntityReference, EntitySelector};
@@ -144,12 +146,16 @@ impl<S: PlanningSolution, ES: Debug> Debug for MimicRecordingEntitySelector<S, E
 impl<S, ES> EntitySelector<S> for MimicRecordingEntitySelector<S, ES>
 where
     S: PlanningSolution,
+    S::Score: Score,
     ES: EntitySelector<S>,
 {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         // Reset for new iteration
         self.recorder.reset();
 
@@ -160,7 +166,10 @@ where
         })
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         self.child.size(score_director)
     }
 
@@ -217,18 +226,28 @@ impl Debug for MimicReplayingEntitySelector {
     }
 }
 
-impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
-    fn iter<'a, D: ScoreDirector<S>>(
+impl<S> EntitySelector<S> for MimicReplayingEntitySelector
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
+    fn iter<'a, C>(
         &'a self,
-        _score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+        _score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         Box::new(ReplayingIterator {
             recorder: &self.recorder,
             returned: false,
         })
     }
 
-    fn size<D: ScoreDirector<S>>(&self, _score_director: &D) -> usize {
+    fn size<C>(&self, _score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         // At most one entity is returned
         if self.recorder.get_recorded_entity().is_some() {
             1
@@ -285,10 +304,8 @@ impl<'a> Iterator for ReplayingIterator<'a> {
 mod tests {
     use super::*;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Queen {
@@ -321,9 +338,7 @@ mod tests {
         &mut s.queens
     }
 
-    fn create_test_director(
-        n: usize,
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(n: usize) -> ScoreDirector<NQueensSolution, ()> {
         let queens: Vec<_> = (0..n).map(|i| Queen { id: i as i64 }).collect();
 
         let solution = NQueensSolution {
@@ -331,20 +346,7 @@ mod tests {
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

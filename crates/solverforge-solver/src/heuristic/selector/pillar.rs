@@ -10,6 +10,8 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::entity::{EntityReference, EntitySelector};
@@ -58,18 +60,26 @@ impl Pillar {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-pub trait PillarSelector<S: PlanningSolution>: Send + Debug {
+pub trait PillarSelector<S>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
     /// Returns an iterator over pillars.
     ///
     /// Each pillar contains entity references for entities that share
     /// the same variable value.
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = Pillar> + 'a>;
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = Pillar> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns the approximate number of pillars.
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns true if this selector may return the same pillar multiple times.
     fn is_never_ending(&self) -> bool {
@@ -139,14 +149,14 @@ impl SubPillarConfig {
 /// Both the entity selector `ES` and the extractor function `E` are stored as
 /// concrete generic type parameters, eliminating all virtual dispatch overhead.
 ///
-/// **Note**: The value extractor closure uses `&dyn ScoreDirector<S>` intentionally.
-/// This is a scorer-agnostic boundary - the closure doesn't need the concrete `D` type.
+/// The value extractor takes `(&S, usize, usize)` - the solution and entity indices.
 pub struct DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S>,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&S, usize, usize) -> Option<V> + Send + Sync,
 {
     /// The underlying entity selector (zero-erasure).
     entity_selector: ES,
@@ -165,9 +175,10 @@ where
 impl<S, V, ES, E> Debug for DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S> + Debug,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&S, usize, usize) -> Option<V> + Send + Sync,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultPillarSelector")
@@ -182,9 +193,10 @@ where
 impl<S, V, ES, E> DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S>,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&S, usize, usize) -> Option<V> + Send + Sync,
 {
     /// Creates a new default pillar selector.
     ///
@@ -222,14 +234,17 @@ where
     }
 
     /// Builds the pillar list from the current solution state.
-    fn build_pillars<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Pillar> {
+    fn build_pillars<C>(&self, score_director: &ScoreDirector<S, C>) -> Vec<Pillar>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         // Group entities by their value
         let mut value_to_entities: HashMap<Option<V>, Vec<EntityReference>> = HashMap::new();
 
         for entity_ref in self.entity_selector.iter(score_director) {
-            // Use dyn ScoreDirector for the extractor (intentional type-erasure boundary)
+            // Extract value directly from solution
             let value = (self.value_extractor)(
-                score_director,
+                score_director.working_solution(),
                 entity_ref.descriptor_index,
                 entity_ref.entity_index,
             );
@@ -249,19 +264,26 @@ where
 impl<S, V, ES, E> PillarSelector<S> for DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S>,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&S, usize, usize) -> Option<V> + Send + Sync,
 {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = Pillar> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = Pillar> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let pillars = self.build_pillars(score_director);
         Box::new(pillars.into_iter())
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         self.build_pillars(score_director).len()
     }
 
@@ -274,10 +296,8 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Employee {
@@ -311,28 +331,13 @@ mod tests {
         &mut s.employees
     }
 
-    fn create_test_director(
-        employees: Vec<Employee>,
-    ) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
+    fn create_test_director(employees: Vec<Employee>) -> ScoreDirector<ScheduleSolution, ()> {
         let solution = ScheduleSolution {
             employees,
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Employee",
-            "employees",
-            get_employees,
-            get_employees_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("ScheduleSolution", TypeId::of::<ScheduleSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]
@@ -393,8 +398,7 @@ mod tests {
             entity_selector,
             0,
             "shift",
-            |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
-                let solution = sd.working_solution();
+            |solution: &ScheduleSolution, _desc_idx, entity_idx| {
                 solution.employees.get(entity_idx).and_then(|e| e.shift)
             },
         );
@@ -454,8 +458,7 @@ mod tests {
             entity_selector,
             0,
             "shift",
-            |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
-                let solution = sd.working_solution();
+            |solution: &ScheduleSolution, _desc_idx, entity_idx| {
                 solution.employees.get(entity_idx).and_then(|e| e.shift)
             },
         )
@@ -496,8 +499,7 @@ mod tests {
             entity_selector,
             0,
             "shift",
-            |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
-                let solution = sd.working_solution();
+            |solution: &ScheduleSolution, _desc_idx, entity_idx| {
                 solution.employees.get(entity_idx).and_then(|e| e.shift)
             },
         );
@@ -517,8 +519,7 @@ mod tests {
             entity_selector,
             0,
             "shift",
-            |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
-                let solution = sd.working_solution();
+            |solution: &ScheduleSolution, _desc_idx, entity_idx| {
                 solution.employees.get(entity_idx).and_then(|e| e.shift)
             },
         );

@@ -15,6 +15,8 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::entity::{EntityReference, EntitySelector};
@@ -118,12 +120,15 @@ impl NearbySelectionConfig {
     }
 }
 
-/// Type-erased distance meter for dynamic dispatch.
-pub trait DynDistanceMeter: Send + Sync + Debug {
+/// Distance meter that measures distance between entity references.
+///
+/// This trait is generic over the solution type `S` to allow typed access
+/// to the working solution for distance calculations.
+pub trait DynDistanceMeter<S: PlanningSolution>: Send + Sync + Debug {
     /// Measures distance between two entity references.
-    fn distance_between<S: PlanningSolution>(
+    fn distance_between(
         &self,
-        score_director: &dyn ScoreDirector<S>,
+        solution: &S,
         origin: EntityReference,
         destination: EntityReference,
     ) -> f64;
@@ -169,7 +174,9 @@ impl<S, M, ES> NearbyEntitySelector<S, M, ES> {
     }
 }
 
-impl<S: PlanningSolution, M: DynDistanceMeter, ES: Debug> Debug for NearbyEntitySelector<S, M, ES> {
+impl<S: PlanningSolution, M: DynDistanceMeter<S>, ES: Debug> Debug
+    for NearbyEntitySelector<S, M, ES>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyEntitySelector")
             .field("child", &self.child)
@@ -183,13 +190,17 @@ impl<S: PlanningSolution, M: DynDistanceMeter, ES: Debug> Debug for NearbyEntity
 impl<S, M, ES> EntitySelector<S> for NearbyEntitySelector<S, M, ES>
 where
     S: PlanningSolution,
-    M: DynDistanceMeter + 'static,
+    S::Score: Score,
+    M: DynDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         // Get the origin entity from the recorder
         let origin = match self.origin_recorder.get_recorded_entity() {
             Some(e) => e,
@@ -205,9 +216,11 @@ where
             .iter(score_director)
             .filter(|&dest| dest != origin) // Exclude the origin itself
             .map(|dest| {
-                let dist = self
-                    .distance_meter
-                    .distance_between(score_director, origin, dest);
+                let dist = self.distance_meter.distance_between(
+                    score_director.working_solution(),
+                    origin,
+                    dest,
+                );
                 (dest, dist)
             })
             .filter(|(_, dist)| *dist >= self.config.min_distance)
@@ -224,7 +237,10 @@ where
         Box::new(candidates.into_iter().map(|(entity, _)| entity))
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         // This is an estimate; the actual size depends on the origin
         let child_size = self.child.size(score_director);
         match self.config.max_nearby_size {
@@ -239,10 +255,8 @@ mod tests {
     use super::*;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
     use crate::heuristic::selector::mimic::{MimicRecorder, MimicRecordingEntitySelector};
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Location {
@@ -269,14 +283,6 @@ mod tests {
         }
     }
 
-    fn get_locations(s: &RoutingSolution) -> &Vec<Location> {
-        &s.locations
-    }
-
-    fn get_locations_mut(s: &mut RoutingSolution) -> &mut Vec<Location> {
-        &mut s.locations
-    }
-
     /// Distance meter that uses Euclidean distance.
     #[derive(Debug)]
     struct EuclideanDistanceMeter {
@@ -292,10 +298,10 @@ mod tests {
         }
     }
 
-    impl DynDistanceMeter for EuclideanDistanceMeter {
-        fn distance_between<S: PlanningSolution>(
+    impl DynDistanceMeter<RoutingSolution> for EuclideanDistanceMeter {
+        fn distance_between(
             &self,
-            _score_director: &dyn ScoreDirector<S>,
+            _solution: &RoutingSolution,
             origin: EntityReference,
             destination: EntityReference,
         ) -> f64 {
@@ -307,8 +313,7 @@ mod tests {
         }
     }
 
-    fn create_test_director(
-    ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
+    fn create_test_director() -> ScoreDirector<RoutingSolution, ()> {
         // Create a grid of locations: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
         let locations = vec![
             Location {
@@ -348,20 +353,7 @@ mod tests {
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Location",
-            "locations",
-            get_locations,
-            get_locations_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Location", TypeId::of::<Location>(), "locations")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

@@ -3,6 +3,8 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 /// A reference to an entity within a solution.
@@ -31,18 +33,26 @@ impl EntityReference {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
+pub trait EntitySelector<S>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
     /// Returns an iterator over entity references.
     ///
     /// The iterator yields `EntityReference` values that identify entities
     /// within the solution.
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>;
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns the approximate number of entities.
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns true if this selector may return the same entity multiple times.
     fn is_never_ending(&self) -> bool {
@@ -75,24 +85,30 @@ impl FromSolutionEntitySelector {
     }
 }
 
-impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
-    fn iter<'a, D: ScoreDirector<S>>(
+impl<S> EntitySelector<S> for FromSolutionEntitySelector
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
-        let count = score_director
-            .entity_count(self.descriptor_index)
-            .unwrap_or(0);
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
+        let count = score_director.entity_count(self.descriptor_index);
 
         let desc_idx = self.descriptor_index;
 
         Box::new((0..count).map(move |i| EntityReference::new(desc_idx, i)))
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
-        score_director
-            .entity_count(self.descriptor_index)
-            .unwrap_or(0)
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
+        score_director.entity_count(self.descriptor_index)
     }
 }
 
@@ -107,17 +123,24 @@ impl AllEntitiesSelector {
     }
 }
 
-impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
-    fn iter<'a, D: ScoreDirector<S>>(
+impl<S> EntitySelector<S> for AllEntitiesSelector
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
+    fn iter<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let desc = score_director.solution_descriptor();
         let descriptor_count = desc.entity_descriptors.len();
 
         let mut refs = Vec::new();
         for desc_idx in 0..descriptor_count {
-            let count = score_director.entity_count(desc_idx).unwrap_or(0);
+            let count = score_director.entity_count(desc_idx);
             for entity_idx in 0..count {
                 refs.push(EntityReference::new(desc_idx, entity_idx));
             }
@@ -126,18 +149,19 @@ impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
         Box::new(refs.into_iter())
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
-        score_director.total_entity_count().unwrap_or(0)
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
+        score_director.total_entity_count()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Queen {
@@ -170,9 +194,7 @@ mod tests {
         &mut s.queens
     }
 
-    fn create_test_director(
-        n: usize,
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(n: usize) -> ScoreDirector<NQueensSolution, ()> {
         let queens: Vec<_> = (0..n).map(|i| Queen { id: i as i64 }).collect();
 
         let solution = NQueensSolution {
@@ -180,20 +202,7 @@ mod tests {
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

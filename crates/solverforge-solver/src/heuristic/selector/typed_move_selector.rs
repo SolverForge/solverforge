@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::{ChangeMove, Move, SwapMove};
@@ -22,15 +24,24 @@ use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
+pub trait MoveSelector<S, M>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    M: Move<S>,
+{
     /// Returns an iterator over typed moves.
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a>;
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = M> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns the approximate number of moves.
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {
@@ -118,14 +129,18 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
 impl<S, V, ES, VS> MoveSelector<S, ChangeMove<S, V>> for ChangeMoveSelector<S, V, ES, VS>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ChangeMove<S, V>> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = ChangeMove<S, V>> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -158,7 +173,10 @@ where
         Box::new(iter)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let entity_count = self.entity_selector.size(score_director);
         if entity_count == 0 {
             return 0;
@@ -256,14 +274,18 @@ impl<S: PlanningSolution, V>
 impl<S, V, LES, RES> MoveSelector<S, SwapMove<S, V>> for SwapMoveSelector<S, V, LES, RES>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = SwapMove<S, V>> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = SwapMove<S, V>> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -304,7 +326,10 @@ where
         Box::new(iter)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let left_count = self.left_entity_selector.size(score_director);
         let right_count = self.right_entity_selector.size(score_director);
 
@@ -319,10 +344,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -366,24 +389,10 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         let solution = TaskSolution { tasks, score: None };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-
-        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
-            .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

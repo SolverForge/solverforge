@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 /// A typed value selector that yields values of type `V` directly.
@@ -17,22 +19,30 @@ use solverforge_scoring::ScoreDirector;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The value type
-pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
+pub trait TypedValueSelector<S, V>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
     /// Returns an iterator over typed values for the given entity.
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, C>(
         &'a self,
-        score_director: &'a D,
+        score_director: &'a ScoreDirector<S, C>,
         descriptor_index: usize,
         entity_index: usize,
-    ) -> Box<dyn Iterator<Item = V> + 'a>;
+    ) -> Box<dyn Iterator<Item = V> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns the number of values.
-    fn size<D: ScoreDirector<S>>(
+    fn size<C>(
         &self,
-        score_director: &D,
+        score_director: &ScoreDirector<S, C>,
         descriptor_index: usize,
         entity_index: usize,
-    ) -> usize;
+    ) -> usize
+    where
+        C: ConstraintSet<S, S::Score>;
 
     /// Returns true if this selector may return the same value multiple times.
     fn is_never_ending(&self) -> bool {
@@ -73,23 +83,30 @@ impl<S, V: Clone> StaticTypedValueSelector<S, V> {
 impl<S, V> TypedValueSelector<S, V> for StaticTypedValueSelector<S, V>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, C>(
         &'a self,
-        _score_director: &'a D,
+        _score_director: &'a ScoreDirector<S, C>,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> Box<dyn Iterator<Item = V> + 'a> {
+    ) -> Box<dyn Iterator<Item = V> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         Box::new(self.values.iter().cloned())
     }
 
-    fn size<D: ScoreDirector<S>>(
+    fn size<C>(
         &self,
-        _score_director: &D,
+        _score_director: &ScoreDirector<S, C>,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> usize {
+    ) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         self.values.len()
     }
 }
@@ -119,24 +136,31 @@ impl<S, V> FromSolutionTypedValueSelector<S, V> {
 impl<S, V> TypedValueSelector<S, V> for FromSolutionTypedValueSelector<S, V>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, C>(
         &'a self,
-        score_director: &'a D,
+        score_director: &'a ScoreDirector<S, C>,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> Box<dyn Iterator<Item = V> + 'a> {
+    ) -> Box<dyn Iterator<Item = V> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let values = (self.extractor)(score_director.working_solution());
         Box::new(values.into_iter())
     }
 
-    fn size<D: ScoreDirector<S>>(
+    fn size<C>(
         &self,
-        score_director: &D,
+        score_director: &ScoreDirector<S, C>,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> usize {
+    ) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         (self.extractor)(score_director.working_solution()).len()
     }
 }
@@ -168,23 +192,30 @@ impl<S> RangeValueSelector<S> {
 impl<S> TypedValueSelector<S, usize> for RangeValueSelector<S>
 where
     S: PlanningSolution,
+    S::Score: Score,
 {
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, C>(
         &'a self,
-        score_director: &'a D,
+        score_director: &'a ScoreDirector<S, C>,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> Box<dyn Iterator<Item = usize> + 'a> {
+    ) -> Box<dyn Iterator<Item = usize> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let count = (self.count_fn)(score_director.working_solution());
         Box::new(0..count)
     }
 
-    fn size<D: ScoreDirector<S>>(
+    fn size<C>(
         &self,
-        score_director: &D,
+        score_director: &ScoreDirector<S, C>,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> usize {
+    ) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         (self.count_fn)(score_director.working_solution())
     }
 }
@@ -192,10 +223,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -219,21 +248,9 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         let solution = TaskSolution { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            |s: &TaskSolution| &s.tasks,
-            |s: &mut TaskSolution| &mut s.tasks,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

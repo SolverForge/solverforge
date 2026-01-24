@@ -1,11 +1,14 @@
 //! Solver handle for submitting problem changes during solving.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::Arc;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use super::problem_change::BoxedProblemChange;
 use super::ProblemChange;
@@ -27,13 +30,19 @@ pub enum ProblemChangeResult {
 /// while it is running. Changes are queued and processed at step
 /// boundaries.
 ///
+/// # Type Parameters
+///
+/// * `S` - The planning solution type
+/// * `C` - The constraint set type
+///
 /// # Example
 ///
 /// ```
 /// use solverforge_solver::realtime::{SolverHandle, ProblemChange, ProblemChangeResult};
 /// use solverforge_scoring::ScoreDirector;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::{Score, SimpleScore};
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { id: usize }
@@ -53,15 +62,18 @@ pub enum ProblemChangeResult {
 /// #[derive(Debug)]
 /// struct AddTask { id: usize }
 ///
-/// impl ProblemChange<Solution> for AddTask {
-///     fn apply(&self, sd: &mut dyn ScoreDirector<Solution>) {
+/// impl<C> ProblemChange<Solution, C> for AddTask
+/// where
+///     C: ConstraintSet<Solution, SimpleScore>,
+/// {
+///     fn apply(&self, sd: &mut ScoreDirector<Solution, C>) {
 ///         sd.working_solution_mut().tasks.push(Task { id: self.id });
-///         sd.trigger_variable_listeners();
+///         sd.reset();
 ///     }
 /// }
 ///
 /// // Create a handle (normally obtained from RealtimeSolver)
-/// let (handle, _rx) = SolverHandle::<Solution>::new();
+/// let (handle, _rx) = SolverHandle::<Solution, ()>::new();
 ///
 /// // Submit a change while solver is "running"
 /// handle.set_solving(true);
@@ -73,20 +85,32 @@ pub enum ProblemChangeResult {
 /// let result = handle.add_problem_change(AddTask { id: 43 });
 /// assert_eq!(result, ProblemChangeResult::SolverNotRunning);
 /// ```
-pub struct SolverHandle<S: PlanningSolution> {
+pub struct SolverHandle<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Channel for sending problem changes to the solver.
-    change_tx: Sender<BoxedProblemChange<S>>,
+    change_tx: Sender<BoxedProblemChange<S, C>>,
     /// Flag indicating whether solver is currently running.
     solving: Arc<AtomicBool>,
     /// Flag to request early termination.
     terminate_early: Arc<AtomicBool>,
+    /// Phantom data for constraint set type.
+    _phantom: PhantomData<C>,
 }
 
-impl<S: PlanningSolution> SolverHandle<S> {
+impl<S, C> SolverHandle<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Creates a new solver handle and its corresponding receiver.
     ///
     /// The receiver should be passed to the solver to receive changes.
-    pub fn new() -> (Self, ProblemChangeReceiver<S>) {
+    pub fn new() -> (Self, ProblemChangeReceiver<S, C>) {
         let (tx, rx) = mpsc::channel();
         let solving = Arc::new(AtomicBool::new(false));
         let terminate_early = Arc::new(AtomicBool::new(false));
@@ -95,12 +119,14 @@ impl<S: PlanningSolution> SolverHandle<S> {
             change_tx: tx,
             solving: Arc::clone(&solving),
             terminate_early: Arc::clone(&terminate_early),
+            _phantom: PhantomData,
         };
 
         let receiver = ProblemChangeReceiver {
             change_rx: rx,
             solving,
             terminate_early,
+            _phantom: PhantomData,
         };
 
         (handle, receiver)
@@ -110,7 +136,7 @@ impl<S: PlanningSolution> SolverHandle<S> {
     ///
     /// The change is queued and will be processed at the next step boundary.
     /// Returns the result of the submission.
-    pub fn add_problem_change<P: ProblemChange<S> + 'static>(
+    pub fn add_problem_change<P: ProblemChange<S, C> + 'static>(
         &self,
         change: P,
     ) -> ProblemChangeResult {
@@ -125,7 +151,10 @@ impl<S: PlanningSolution> SolverHandle<S> {
     }
 
     /// Submits a boxed problem change to the solver.
-    pub fn add_problem_change_boxed(&self, change: BoxedProblemChange<S>) -> ProblemChangeResult {
+    pub fn add_problem_change_boxed(
+        &self,
+        change: BoxedProblemChange<S, C>,
+    ) -> ProblemChangeResult {
         if !self.solving.load(Ordering::SeqCst) {
             return ProblemChangeResult::SolverNotRunning;
         }
@@ -154,17 +183,28 @@ impl<S: PlanningSolution> SolverHandle<S> {
     }
 }
 
-impl<S: PlanningSolution> Clone for SolverHandle<S> {
+impl<S, C> Clone for SolverHandle<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     fn clone(&self) -> Self {
         Self {
             change_tx: self.change_tx.clone(),
             solving: Arc::clone(&self.solving),
             terminate_early: Arc::clone(&self.terminate_early),
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<S: PlanningSolution> Debug for SolverHandle<S> {
+impl<S, C> Debug for SolverHandle<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SolverHandle")
             .field("solving", &self.solving.load(Ordering::SeqCst))
@@ -177,20 +217,32 @@ impl<S: PlanningSolution> Debug for SolverHandle<S> {
 }
 
 /// Receiver for problem changes, used by the solver.
-pub struct ProblemChangeReceiver<S: PlanningSolution> {
+pub struct ProblemChangeReceiver<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Channel for receiving problem changes.
-    change_rx: Receiver<BoxedProblemChange<S>>,
+    change_rx: Receiver<BoxedProblemChange<S, C>>,
     /// Shared solving flag.
     solving: Arc<AtomicBool>,
     /// Shared terminate early flag.
     terminate_early: Arc<AtomicBool>,
+    /// Phantom data for constraint set type.
+    _phantom: PhantomData<C>,
 }
 
-impl<S: PlanningSolution> ProblemChangeReceiver<S> {
+impl<S, C> ProblemChangeReceiver<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Tries to receive a pending problem change without blocking.
     ///
     /// Returns `Some(change)` if a change is available, `None` otherwise.
-    pub fn try_recv(&self) -> Option<BoxedProblemChange<S>> {
+    pub fn try_recv(&self) -> Option<BoxedProblemChange<S, C>> {
         match self.change_rx.try_recv() {
             Ok(change) => Some(change),
             Err(TryRecvError::Empty) => None,
@@ -201,7 +253,7 @@ impl<S: PlanningSolution> ProblemChangeReceiver<S> {
     /// Receives all pending problem changes without blocking.
     ///
     /// Returns a vector of all queued changes.
-    pub fn drain_pending(&self) -> Vec<BoxedProblemChange<S>> {
+    pub fn drain_pending(&self) -> Vec<BoxedProblemChange<S, C>> {
         let mut changes = Vec::new();
         while let Some(change) = self.try_recv() {
             changes.push(change);
@@ -225,7 +277,12 @@ impl<S: PlanningSolution> ProblemChangeReceiver<S> {
     }
 }
 
-impl<S: PlanningSolution> Debug for ProblemChangeReceiver<S> {
+impl<S, C> Debug for ProblemChangeReceiver<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProblemChangeReceiver")
             .field("solving", &self.solving.load(Ordering::SeqCst))
@@ -258,21 +315,24 @@ mod tests {
     #[derive(Debug)]
     struct IncrementValue;
 
-    impl ProblemChange<TestSolution> for IncrementValue {
-        fn apply(&self, score_director: &mut dyn ScoreDirector<TestSolution>) {
+    impl<C> ProblemChange<TestSolution, C> for IncrementValue
+    where
+        C: ConstraintSet<TestSolution, SimpleScore>,
+    {
+        fn apply(&self, score_director: &mut ScoreDirector<TestSolution, C>) {
             score_director.working_solution_mut().value += 1;
         }
     }
 
     #[test]
     fn handle_creation() {
-        let (handle, _rx) = SolverHandle::<TestSolution>::new();
+        let (handle, _rx) = SolverHandle::<TestSolution, ()>::new();
         assert!(!handle.is_solving());
     }
 
     #[test]
     fn submit_change_when_solving() {
-        let (handle, rx) = SolverHandle::<TestSolution>::new();
+        let (handle, rx) = SolverHandle::<TestSolution, ()>::new();
         handle.set_solving(true);
 
         let result = handle.add_problem_change(IncrementValue);
@@ -285,7 +345,7 @@ mod tests {
 
     #[test]
     fn submit_change_when_not_solving() {
-        let (handle, _rx) = SolverHandle::<TestSolution>::new();
+        let (handle, _rx) = SolverHandle::<TestSolution, ()>::new();
 
         let result = handle.add_problem_change(IncrementValue);
         assert_eq!(result, ProblemChangeResult::SolverNotRunning);
@@ -293,7 +353,7 @@ mod tests {
 
     #[test]
     fn multiple_changes() {
-        let (handle, rx) = SolverHandle::<TestSolution>::new();
+        let (handle, rx) = SolverHandle::<TestSolution, ()>::new();
         handle.set_solving(true);
 
         handle.add_problem_change(IncrementValue);
@@ -306,7 +366,7 @@ mod tests {
 
     #[test]
     fn terminate_early() {
-        let (handle, rx) = SolverHandle::<TestSolution>::new();
+        let (handle, rx) = SolverHandle::<TestSolution, ()>::new();
 
         assert!(!rx.is_terminate_early_requested());
         handle.terminate_early();
@@ -318,7 +378,7 @@ mod tests {
 
     #[test]
     fn handle_clone() {
-        let (handle1, rx) = SolverHandle::<TestSolution>::new();
+        let (handle1, rx) = SolverHandle::<TestSolution, ()>::new();
         let handle2 = handle1.clone();
 
         handle1.set_solving(true);

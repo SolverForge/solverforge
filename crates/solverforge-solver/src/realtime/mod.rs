@@ -16,8 +16,9 @@
 //! ```
 //! use solverforge_solver::realtime::ProblemChange;
 //! use solverforge_scoring::ScoreDirector;
+//! use solverforge_scoring::api::constraint_set::ConstraintSet;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::{Score, SimpleScore};
 //!
 //! #[derive(Clone, Debug)]
 //! struct Task { id: usize, priority: Option<i32> }
@@ -38,11 +39,14 @@
 //! #[derive(Debug)]
 //! struct AddTask { id: usize }
 //!
-//! impl ProblemChange<Schedule> for AddTask {
-//!     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
+//! impl<C> ProblemChange<Schedule, C> for AddTask
+//! where
+//!     C: ConstraintSet<Schedule, SimpleScore>,
+//! {
+//!     fn apply(&self, score_director: &mut ScoreDirector<Schedule, C>) {
 //!         let task = Task { id: self.id, priority: None };
 //!         score_director.working_solution_mut().tasks.push(task);
-//!         score_director.trigger_variable_listeners();
+//!         score_director.reset();
 //!     }
 //! }
 //! ```

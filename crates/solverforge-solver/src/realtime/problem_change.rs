@@ -3,6 +3,8 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 /// A change to the problem that can be applied during solving.
@@ -10,11 +12,16 @@ use solverforge_scoring::ScoreDirector;
 /// Problem changes allow modifying the solution while the solver is running.
 /// Changes are queued and processed at step boundaries to maintain consistency.
 ///
+/// # Type Parameters
+///
+/// * `S` - The planning solution type
+/// * `C` - The constraint set type
+///
 /// # Implementation Notes
 ///
 /// When implementing `ProblemChange`:
 /// - Use `score_director.working_solution_mut()` to access and modify the solution
-/// - Call `score_director.trigger_variable_listeners()` after modifications
+/// - Call `score_director.reset()` after major modifications to recalculate scores
 /// - Changes should be idempotent when possible
 /// - Avoid holding references to entities across changes
 ///
@@ -23,8 +30,9 @@ use solverforge_scoring::ScoreDirector;
 /// ```
 /// use solverforge_solver::realtime::ProblemChange;
 /// use solverforge_scoring::ScoreDirector;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::{Score, SimpleScore};
 ///
 /// #[derive(Clone, Debug)]
 /// struct Employee { id: usize, shift: Option<i32> }
@@ -47,16 +55,19 @@ use solverforge_scoring::ScoreDirector;
 ///     employee_id: usize,
 /// }
 ///
-/// impl ProblemChange<Schedule> for AddEmployee {
-///     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
+/// impl<C> ProblemChange<Schedule, C> for AddEmployee
+/// where
+///     C: ConstraintSet<Schedule, SimpleScore>,
+/// {
+///     fn apply(&self, score_director: &mut ScoreDirector<Schedule, C>) {
 ///         // Add the new employee
 ///         score_director.working_solution_mut().employees.push(Employee {
 ///             id: self.employee_id,
 ///             shift: None,
 ///         });
 ///
-///         // Notify the solver of the change
-///         score_director.trigger_variable_listeners();
+///         // Reset to recalculate score
+///         score_director.reset();
 ///     }
 /// }
 ///
@@ -66,43 +77,58 @@ use solverforge_scoring::ScoreDirector;
 ///     employee_id: usize,
 /// }
 ///
-/// impl ProblemChange<Schedule> for RemoveEmployee {
-///     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
+/// impl<C> ProblemChange<Schedule, C> for RemoveEmployee
+/// where
+///     C: ConstraintSet<Schedule, SimpleScore>,
+/// {
+///     fn apply(&self, score_director: &mut ScoreDirector<Schedule, C>) {
 ///         // Remove the employee
 ///         let id = self.employee_id;
 ///         score_director.working_solution_mut().employees.retain(|e| e.id != id);
 ///
-///         // Notify the solver of the change
-///         score_director.trigger_variable_listeners();
+///         // Reset to recalculate score
+///         score_director.reset();
 ///     }
 /// }
 /// ```
-pub trait ProblemChange<S: PlanningSolution>: Send + Debug {
+pub trait ProblemChange<S, C>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Applies this change to the working solution.
     ///
     /// This method is called by the solver at a safe point (between steps).
     /// Access the working solution via `score_director.working_solution_mut()`.
     ///
-    /// After making changes, call `score_director.trigger_variable_listeners()`
-    /// to ensure shadow variables and constraints are updated.
-    fn apply(&self, score_director: &mut dyn ScoreDirector<S>);
+    /// After making changes, call `score_director.reset()` to recalculate
+    /// scores from scratch.
+    fn apply(&self, score_director: &mut ScoreDirector<S, C>);
 }
 
 /// A boxed problem change for type-erased storage.
-pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
+pub type BoxedProblemChange<S, C> = Box<dyn ProblemChange<S, C>>;
 
 /// A problem change implemented as a closure.
 ///
 /// This is a convenience wrapper for simple changes that don't need
 /// a dedicated struct.
 ///
+/// # Type Parameters
+///
+/// * `S` - The planning solution type
+/// * `C` - The constraint set type
+/// * `F` - The closure type
+///
 /// # Example
 ///
 /// ```
 /// use solverforge_solver::realtime::ClosureProblemChange;
 /// use solverforge_scoring::ScoreDirector;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::{Score, SimpleScore};
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { id: usize, done: bool }
@@ -119,27 +145,37 @@ pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// // Mark task 0 as done
-/// let change = ClosureProblemChange::<Solution, _>::new("mark_task_done", |sd| {
-///     if let Some(task) = sd.working_solution_mut().tasks.get_mut(0) {
-///         task.done = true;
-///     }
-///     sd.trigger_variable_listeners();
-/// });
+/// // Mark task 0 as done (with explicit constraint set type)
+/// fn create_change<C>() -> ClosureProblemChange<Solution, C, impl Fn(&mut ScoreDirector<Solution, C>) + Send>
+/// where
+///     C: ConstraintSet<Solution, SimpleScore>,
+/// {
+///     ClosureProblemChange::new("mark_task_done", |sd: &mut ScoreDirector<Solution, C>| {
+///         if let Some(task) = sd.working_solution_mut().tasks.get_mut(0) {
+///             task.done = true;
+///         }
+///         sd.reset();
+///     })
+/// }
 /// ```
-pub struct ClosureProblemChange<S: PlanningSolution, F>
+pub struct ClosureProblemChange<S, C, F>
 where
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    F: Fn(&mut ScoreDirector<S, C>) + Send,
 {
     name: &'static str,
     change_fn: F,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<(S, C)>,
 }
 
-impl<S, F> ClosureProblemChange<S, F>
+impl<S, C, F> ClosureProblemChange<S, C, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    F: Fn(&mut ScoreDirector<S, C>) + Send,
 {
     /// Creates a new closure-based problem change.
     ///
@@ -155,10 +191,12 @@ where
     }
 }
 
-impl<S, F> Debug for ClosureProblemChange<S, F>
+impl<S, C, F> Debug for ClosureProblemChange<S, C, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    F: Fn(&mut ScoreDirector<S, C>) + Send,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClosureProblemChange")
@@ -167,12 +205,14 @@ where
     }
 }
 
-impl<S, F> ProblemChange<S> for ClosureProblemChange<S, F>
+impl<S, C, F> ProblemChange<S, C> for ClosureProblemChange<S, C, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    F: Fn(&mut ScoreDirector<S, C>) + Send,
 {
-    fn apply(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn apply(&self, score_director: &mut ScoreDirector<S, C>) {
         (self.change_fn)(score_director);
     }
 }
@@ -180,10 +220,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -206,28 +243,9 @@ mod tests {
         }
     }
 
-    fn get_tasks(s: &TaskSchedule) -> &Vec<Task> {
-        &s.tasks
-    }
-    fn get_tasks_mut(s: &mut TaskSchedule) -> &mut Vec<Task> {
-        &mut s.tasks
-    }
-
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSchedule, impl Fn(&TaskSchedule) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSchedule, ()> {
         let solution = TaskSchedule { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TaskSchedule", TypeId::of::<TaskSchedule>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[derive(Debug)]
@@ -235,13 +253,16 @@ mod tests {
         id: usize,
     }
 
-    impl ProblemChange<TaskSchedule> for AddTask {
-        fn apply(&self, score_director: &mut dyn ScoreDirector<TaskSchedule>) {
+    impl<C> ProblemChange<TaskSchedule, C> for AddTask
+    where
+        C: ConstraintSet<TaskSchedule, SimpleScore>,
+    {
+        fn apply(&self, score_director: &mut ScoreDirector<TaskSchedule, C>) {
             score_director
                 .working_solution_mut()
                 .tasks
                 .push(Task { id: self.id });
-            score_director.trigger_variable_listeners();
+            score_director.reset();
         }
     }
 
@@ -260,10 +281,11 @@ mod tests {
     fn closure_problem_change() {
         let mut director = create_director(vec![Task { id: 0 }]);
 
-        let change = ClosureProblemChange::<TaskSchedule, _>::new("remove_all", |sd| {
-            sd.working_solution_mut().tasks.clear();
-            sd.trigger_variable_listeners();
-        });
+        let change: ClosureProblemChange<TaskSchedule, (), _> =
+            ClosureProblemChange::new("remove_all", |sd| {
+                sd.working_solution_mut().tasks.clear();
+                sd.reset();
+            });
 
         change.apply(&mut director);
 

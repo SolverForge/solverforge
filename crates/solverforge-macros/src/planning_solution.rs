@@ -300,28 +300,59 @@ fn generate_list_operations(
         quote! {
             /// Internal solve implementation called by the Solvable trait.
             fn solve_internal(
-                self,
+                mut self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
                 sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
             ) -> Self {
                 ::solverforge::__internal::init_console();
 
-                ::solverforge::run_list_solver_with_channel(
-                    self,
-                    Self::list_finalize_all,
-                    #constraints_fn,
+                Self::list_finalize_all(&mut self);
+
+                let config = ::solverforge::__internal::SolverConfig::load("solver.toml").unwrap_or_default();
+                let constraints = #constraints_fn();
+                let director = ::solverforge::__internal::ScoreDirector::new(self, constraints);
+
+                let construction = ::solverforge::__internal::ListConstructionPhaseBuilder::<Self, #element_type_ident>::new(
                     Self::element_count,
                     Self::assigned_elements,
                     Self::n_entities,
-                    Self::list_len,
-                    Self::list_insert_fn,
-                    Self::list_remove_fn,
+                    Self::assign_element,
                     Self::index_to_element,
-                    Self::list_variable_descriptor_index(),
+                    #descriptor_index_lit,
+                ).create_phase();
+
+                let local_search = ::solverforge::__internal::KOptPhaseBuilder::<Self, #element_type_ident, _, _>::new(
+                    ::solverforge::__internal::DefaultDistanceMeter,
+                    || ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
+                    Self::list_len,
+                    Self::sublist_remove,
+                    Self::sublist_insert,
                     #list_field_str,
-                    terminate,
-                    sender,
-                )
+                    #descriptor_index_lit,
+                ).create_phase();
+
+                let time_limit = config.termination.as_ref()
+                    .and_then(|t| t.time_limit())
+                    .unwrap_or(std::time::Duration::from_secs(30));
+
+                let mut solver = ::solverforge::__internal::Solver::new((construction, local_search))
+                    .with_time_limit(time_limit);
+
+                if let Some(flag) = terminate {
+                    solver = solver.with_terminate(flag);
+                }
+
+                let result = solver.solve(director);
+
+                // Send final solution through channel
+                {
+                    use ::solverforge::__internal::PlanningSolution;
+                    if let Some(score) = result.score() {
+                        let _ = sender.send((result.clone(), score));
+                    }
+                }
+
+                result
             }
         }
     });

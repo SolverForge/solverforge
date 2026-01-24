@@ -145,6 +145,7 @@ pub mod __internal {
     pub use solverforge_solver::manager::{
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
+    pub use solverforge_solver::Solver;
 
     pub use solverforge_config::SolverConfig;
 }

@@ -140,6 +140,20 @@ where
         self.step_limit = None;
         self
     }
+
+    /// Creates the k-opt phase directly without requiring constraint type parameter.
+    pub fn create_phase(&self) -> KOptPhase<S, V> {
+        KOptPhase {
+            config: KOptConfig::new(self.k),
+            list_len: self.list_len,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+            step_limit: self.step_limit,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<S, V, DM, ESF> Debug for KOptPhaseBuilder<S, V, DM, ESF>

@@ -15,7 +15,7 @@ use std::time::Duration;
 use solverforge_config::{PhaseConfig, SolverConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
-use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
+use solverforge_scoring::{ConstraintSet, ScoreDirector};
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -122,7 +122,7 @@ where
     );
 
     let constraints = constraints_fn();
-    let director = TypedScoreDirector::new(solution, constraints);
+    let director = ScoreDirector::new(solution, constraints);
 
     if n_entities == 0 || n_values == 0 {
         let mut solver_scope = SolverScope::new(director);
@@ -170,8 +170,8 @@ fn extract_acceptor_from_config<S: PlanningSolution>(config: &SolverConfig) -> A
     AcceptorImpl::late_acceptance()
 }
 
-fn solve_with_termination<S, D, G, T, E, V, A>(
-    director: D,
+fn solve_with_termination<S, C, G, T, E, V, A>(
+    director: ScoreDirector<S, C>,
     construction: BasicConstructionPhase<S, G, T, E, V>,
     local_search: BasicLocalSearchPhase<S, G, T, E, V, A>,
     terminate: Option<&AtomicBool>,
@@ -180,7 +180,7 @@ fn solve_with_termination<S, D, G, T, E, V, A>(
 where
     S: PlanningSolution,
     S::Score: Score,
-    D: solverforge_scoring::ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score> + Send,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
@@ -195,7 +195,7 @@ where
     // Build termination based on config
     if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
         let step = StepCountTermination::new(step_limit);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, step));
+        let termination: OrTermination<_, S, C> = OrTermination::new((time, step));
         build_and_solve(
             construction,
             local_search,
@@ -208,7 +208,7 @@ where
         term_config.and_then(|c| c.unimproved_step_count_limit)
     {
         let unimproved = UnimprovedStepCountTermination::<S>::new(unimproved_step_limit);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
+        let termination: OrTermination<_, S, C> = OrTermination::new((time, unimproved));
         build_and_solve(
             construction,
             local_search,
@@ -219,7 +219,7 @@ where
         )
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
         let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
+        let termination: OrTermination<_, S, C> = OrTermination::new((time, unimproved));
         build_and_solve(
             construction,
             local_search,
@@ -229,7 +229,7 @@ where
             time_limit,
         )
     } else {
-        let termination: OrTermination<_, S, D> = OrTermination::new((time,));
+        let termination: OrTermination<_, S, C> = OrTermination::new((time,));
         build_and_solve(
             construction,
             local_search,
@@ -241,24 +241,24 @@ where
     }
 }
 
-fn build_and_solve<S, D, G, T, E, V, A, Term>(
+fn build_and_solve<S, C, G, T, E, V, A, Term>(
     construction: BasicConstructionPhase<S, G, T, E, V>,
     local_search: BasicLocalSearchPhase<S, G, T, E, V, A>,
     termination: Term,
     terminate: Option<&AtomicBool>,
-    director: D,
+    director: ScoreDirector<S, C>,
     time_limit: Duration,
 ) -> S
 where
     S: PlanningSolution,
     S::Score: Score,
-    D: solverforge_scoring::ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score> + Send,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
     A: crate::phase::localsearch::Acceptor<S> + Send,
-    Term: crate::termination::Termination<S, D>,
+    Term: crate::termination::Termination<S, C>,
 {
     match terminate {
         Some(flag) => Solver::new((construction, local_search))

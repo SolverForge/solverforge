@@ -7,6 +7,8 @@ use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
@@ -23,17 +25,17 @@ use crate::termination::Termination;
 /// * `P` - Tuple of phases to execute
 /// * `T` - Termination condition (use `Option<ConcreteTermination>`)
 /// * `S` - Solution type
-/// * `D` - Score director type
-pub struct Solver<'t, P, T, S, D> {
+/// * `C` - Constraint set type
+pub struct Solver<'t, P, T, S, C> {
     phases: P,
     termination: T,
     terminate: Option<&'t AtomicBool>,
     config: Option<SolverConfig>,
     time_limit: Option<Duration>,
-    _phantom: PhantomData<fn(S, D)>,
+    _phantom: PhantomData<fn(S, C)>,
 }
 
-impl<P: Debug, T: Debug, S, D> Debug for Solver<'_, P, T, S, D> {
+impl<P: Debug, T: Debug, S, C> Debug for Solver<'_, P, T, S, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solver")
             .field("phases", &self.phases)
@@ -42,7 +44,7 @@ impl<P: Debug, T: Debug, S, D> Debug for Solver<'_, P, T, S, D> {
     }
 }
 
-impl<P, S, D> Solver<'static, P, NoTermination, S, D>
+impl<P, S, C> Solver<'static, P, NoTermination, S, C>
 where
     S: PlanningSolution,
 {
@@ -59,7 +61,7 @@ where
     }
 
     /// Sets the termination condition.
-    pub fn with_termination<T>(self, termination: T) -> Solver<'static, P, Option<T>, S, D> {
+    pub fn with_termination<T>(self, termination: T) -> Solver<'static, P, Option<T>, S, C> {
         Solver {
             phases: self.phases,
             termination: Some(termination),
@@ -71,14 +73,14 @@ where
     }
 }
 
-impl<'t, P, T, S, D> Solver<'t, P, T, S, D>
+impl<'t, P, T, S, C> Solver<'t, P, T, S, C>
 where
     S: PlanningSolution,
 {
     /// Sets the external termination flag.
     ///
     /// The solver will check this flag periodically and terminate early if set.
-    pub fn with_terminate(self, terminate: &AtomicBool) -> Solver<'_, P, T, S, D> {
+    pub fn with_terminate(self, terminate: &AtomicBool) -> Solver<'_, P, T, S, C> {
         Solver {
             phases: self.phases,
             termination: self.termination,
@@ -112,15 +114,24 @@ where
 pub struct NoTermination;
 
 /// Marker trait for termination types that can be used in Solver.
-pub trait MaybeTermination<S: PlanningSolution, D: ScoreDirector<S>>: Send {
+pub trait MaybeTermination<S, C>: Send
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Checks if the solver should terminate.
-    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D>) -> bool;
+    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, C>) -> bool;
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, T: Termination<S, D>> MaybeTermination<S, D>
-    for Option<T>
+impl<S, C, T> MaybeTermination<S, C> for Option<T>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    T: Termination<S, C>,
 {
-    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
+    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, C>) -> bool {
         match self {
             Some(t) => t.is_terminated(solver_scope),
             None => false,
@@ -128,29 +139,40 @@ impl<S: PlanningSolution, D: ScoreDirector<S>, T: Termination<S, D>> MaybeTermin
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> MaybeTermination<S, D> for NoTermination {
-    fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, D>) -> bool {
+impl<S, C> MaybeTermination<S, C> for NoTermination
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, C>) -> bool {
         false
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for NoTermination {
-    fn is_terminated(&self, _solver_scope: &SolverScope<'_, S, D>) -> bool {
+impl<S, C> Termination<S, C> for NoTermination
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    fn is_terminated(&self, _solver_scope: &SolverScope<'_, S, C>) -> bool {
         false
     }
 }
 
 macro_rules! impl_solver {
     ($($idx:tt: $P:ident),+) => {
-        impl<'t, S, D, T, $($P),+> Solver<'t, ($($P,)+), T, S, D>
+        impl<'t, S, C, T, $($P),+> Solver<'t, ($($P,)+), T, S, C>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
-            T: MaybeTermination<S, D>,
-            $($P: Phase<S, D>,)+
+            S::Score: Score,
+            C: ConstraintSet<S, S::Score>,
+            T: MaybeTermination<S, C>,
+            $($P: Phase<S, C>,)+
         {
             /// Solves using the provided score director.
-            pub fn solve(&mut self, score_director: D) -> S {
+            pub fn solve(&mut self, score_director: ScoreDirector<S, C>) -> S {
                 let mut solver_scope = SolverScope::with_terminate(score_director, self.terminate);
                 if let Some(limit) = self.time_limit {
                     solver_scope.set_time_limit(limit);
@@ -178,7 +200,7 @@ macro_rules! impl_solver {
                 solver_scope.take_best_or_working_solution()
             }
 
-            fn check_termination(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
+            fn check_termination(&self, solver_scope: &SolverScope<'_, S, C>) -> bool {
                 // Check external termination flag first
                 if solver_scope.is_terminate_early() {
                     return true;
@@ -195,16 +217,17 @@ macro_rules! impl_solver_with_director {
         impl<'t, S, T, $($P),+> Solver<'t, ($($P,)+), T, S, ()>
         where
             S: PlanningSolution,
+            S::Score: Score,
             T: Send,
         {
             /// Solves using a provided score director.
-            pub fn solve_with_director<D>(self, director: D) -> S
+            pub fn solve_with_director<C>(self, director: ScoreDirector<S, C>) -> S
             where
-                D: ScoreDirector<S>,
-                T: MaybeTermination<S, D>,
-                $($P: Phase<S, D>,)+
+                C: ConstraintSet<S, S::Score>,
+                T: MaybeTermination<S, C>,
+                $($P: Phase<S, C>,)+
             {
-                let mut solver: Solver<'t, ($($P,)+), T, S, D> = Solver {
+                let mut solver: Solver<'t, ($($P,)+), T, S, C> = Solver {
                     phases: self.phases,
                     termination: self.termination,
                     terminate: self.terminate,

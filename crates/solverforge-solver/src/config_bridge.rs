@@ -9,7 +9,7 @@ use solverforge_config::{
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::ConstraintSet;
 
 use crate::heuristic::{Move, MoveSelector};
 use crate::phase::construction::{
@@ -58,7 +58,7 @@ pub fn construction_phase_from_config<S, M, EP>(
     entity_placer: EP,
 ) -> ConstructionHeuristicPhase<S, M, EP, ConstructionForagerImpl<S, M>>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     M: Move<S>,
     EP: EntityPlacer<S, M>,
 {
@@ -114,13 +114,13 @@ impl<S: PlanningSolution> std::fmt::Debug for TerminationImpl<S> {
 
 unsafe impl<S: PlanningSolution> Send for TerminationImpl<S> {}
 
-impl<S, D> Termination<S, D> for TerminationImpl<S>
+impl<S, C> Termination<S, C> for TerminationImpl<S>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
     S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
         match self {
             Self::Time(t) => t.is_terminated(solver_scope),
             Self::StepCount(t) => t.is_terminated(solver_scope),

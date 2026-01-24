@@ -17,11 +17,15 @@
 //! Phase factories work with the zero-erasure architecture where all types
 //! flow through generics. See the individual factory types for usage details.
 
+mod change_construction;
+mod change_local_search;
 mod construction;
 mod k_opt;
 mod list_construction;
 mod local_search;
 
+pub use change_construction::{ChangeConstructionPhase, ChangeConstructionPhaseBuilder};
+pub use change_local_search::{ChangeLocalSearchPhase, ChangeLocalSearchPhaseBuilder};
 pub use construction::ConstructionPhaseFactory;
 pub use k_opt::{KOptPhase, KOptPhaseBuilder};
 pub use list_construction::{ListConstructionPhase, ListConstructionPhaseBuilder};

@@ -1,6 +1,6 @@
-//! Basic construction phase for assigning values to planning variables.
+//! Change construction phase for assigning values to planning variables.
 //!
-//! Provides first-fit construction for basic variables (e.g., assigning employees to shifts).
+//! Provides first-fit construction for change variables (e.g., assigning employees to shifts).
 
 use std::marker::PhantomData;
 
@@ -13,9 +13,9 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 use super::super::PhaseFactory;
 
-/// Builder for creating basic variable construction phases.
+/// Builder for creating change variable construction phases.
 ///
-/// This builder creates phases that assign values to uninitialized basic
+/// This builder creates phases that assign values to uninitialized
 /// planning variables (e.g., `Option<usize>`). Uses round-robin assignment.
 ///
 /// # Type Parameters
@@ -26,7 +26,7 @@ use super::super::PhaseFactory;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::BasicConstructionPhaseBuilder;
+/// use solverforge_solver::manager::{ChangeConstructionPhaseBuilder, ChangeConstructionPhase};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
@@ -55,7 +55,7 @@ use super::super::PhaseFactory;
 /// fn value_count(s: &Schedule) -> usize { s.employees.len() }
 /// fn entity_count(s: &Schedule) -> usize { s.shifts.len() }
 ///
-/// let builder = BasicConstructionPhaseBuilder::<Schedule, usize>::new(
+/// let builder = ChangeConstructionPhaseBuilder::<Schedule, usize>::new(
 ///     get_employee,
 ///     set_employee,
 ///     value_count,
@@ -65,9 +65,9 @@ use super::super::PhaseFactory;
 /// );
 ///
 /// // Create a concrete phase:
-/// let phase: BasicConstructionPhase<Schedule, usize> = builder.create_phase();
+/// let phase: ChangeConstructionPhase<Schedule, usize> = builder.create_phase();
 /// ```
-pub struct BasicConstructionPhaseBuilder<S, V>
+pub struct ChangeConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Send + Sync + 'static,
@@ -81,12 +81,12 @@ where
     _marker: PhantomData<(S, V)>,
 }
 
-impl<S, V> BasicConstructionPhaseBuilder<S, V>
+impl<S, V> ChangeConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Send + Sync + 'static,
 {
-    /// Creates a new basic construction phase builder.
+    /// Creates a new change construction phase builder.
     pub fn new(
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
@@ -106,9 +106,9 @@ where
         }
     }
 
-    /// Creates a basic construction phase.
-    pub fn create_phase(&self) -> BasicConstructionPhase<S, V> {
-        BasicConstructionPhase {
+    /// Creates a change construction phase.
+    pub fn create_phase(&self) -> ChangeConstructionPhase<S, V> {
+        ChangeConstructionPhase {
             getter: self.getter,
             setter: self.setter,
             value_count: self.value_count,
@@ -120,22 +120,22 @@ where
     }
 }
 
-impl<S, V, C> PhaseFactory<S, C> for BasicConstructionPhaseBuilder<S, V>
+impl<S, V, C> PhaseFactory<S, C> for ChangeConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     S::Score: Score,
     V: Copy + PartialEq + Send + Sync + From<usize> + 'static,
     C: ConstraintSet<S, S::Score>,
 {
-    type Phase = BasicConstructionPhase<S, V>;
+    type Phase = ChangeConstructionPhase<S, V>;
 
     fn create(&self) -> Self::Phase {
-        BasicConstructionPhaseBuilder::create_phase(self)
+        ChangeConstructionPhaseBuilder::create_phase(self)
     }
 }
 
-/// Basic construction phase that assigns values to uninitialized entities.
-pub struct BasicConstructionPhase<S, V>
+/// Change construction phase that assigns values to uninitialized entities.
+pub struct ChangeConstructionPhase<S, V>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Send + Sync + 'static,
@@ -149,19 +149,19 @@ where
     _marker: PhantomData<(S, V)>,
 }
 
-impl<S, V> std::fmt::Debug for BasicConstructionPhase<S, V>
+impl<S, V> std::fmt::Debug for ChangeConstructionPhase<S, V>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Send + Sync + 'static,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BasicConstructionPhase")
+        f.debug_struct("ChangeConstructionPhase")
             .field("variable_name", &self.variable_name)
             .finish()
     }
 }
 
-impl<S, V, C> Phase<S, C> for BasicConstructionPhase<S, V>
+impl<S, V, C> Phase<S, C> for ChangeConstructionPhase<S, V>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -197,13 +197,13 @@ where
 
             {
                 let sd = step_scope.score_director_mut();
-                sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
+                sd.before_variable_changed(self.descriptor_index, entity_idx);
                 (self.setter)(
                     sd.working_solution_mut(),
                     entity_idx,
                     Some(V::from(value_idx)),
                 );
-                sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
+                sd.after_variable_changed(self.descriptor_index, entity_idx);
             }
 
             let step_score = step_scope.calculate_score();
@@ -216,11 +216,11 @@ where
         phase_scope.update_best_solution();
         tracing::info!(
             best_score = ?phase_scope.solver_scope().best_score(),
-            "BasicConstruction complete"
+            "ChangeConstruction complete"
         );
     }
 
     fn phase_type_name(&self) -> &'static str {
-        "BasicConstruction"
+        "ChangeConstruction"
     }
 }

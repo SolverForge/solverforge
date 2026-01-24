@@ -8,7 +8,6 @@
 //! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
-pub mod basic;
 pub mod config_bridge;
 pub mod heuristic;
 pub mod manager;
@@ -66,12 +65,12 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
-    KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
-    SolverFactoryBuilder, SolverManager, SolverStatus,
+    Analyzable, ChangeConstructionPhase, ChangeConstructionPhaseBuilder, ChangeLocalSearchPhase,
+    ChangeLocalSearchPhaseBuilder, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType,
+    KOptPhase, KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder,
+    LocalSearchPhaseFactory, LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager,
+    Solvable, SolverFactory, SolverFactoryBuilder, SolverManager, SolverStatus,
 };
-pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionForagerImpl, ConstructionHeuristicPhase,
@@ -106,5 +105,3 @@ pub use termination::{
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
-
-pub use basic::run_solver;

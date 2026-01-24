@@ -1,6 +1,6 @@
-//! Basic local search phase for improving assignments.
+//! Change local search phase for improving assignments.
 //!
-//! Provides late acceptance local search for basic variables.
+//! Provides late acceptance local search using change moves.
 
 use std::marker::PhantomData;
 
@@ -16,22 +16,22 @@ use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, Lo
 
 use super::super::PhaseFactory;
 
-/// Type alias for the move selector used by BasicLocalSearchPhase.
-type BasicMoveSelector<S> =
+/// Type alias for the move selector used by ChangeLocalSearchPhase.
+type ChangeMoveSelector_<S> =
     ChangeMoveSelector<S, usize, FromSolutionEntitySelector, RangeValueSelector<S>>;
 
 /// Type alias for the concrete local search phase with late acceptance.
-pub type BasicLocalSearchPhase<S> = LocalSearchPhase<
+pub type ChangeLocalSearchPhase<S> = LocalSearchPhase<
     S,
     ChangeMove<S, usize>,
-    BasicMoveSelector<S>,
+    ChangeMoveSelector_<S>,
     LateAcceptanceAcceptor<S>,
-    AcceptedCountForager<S, ChangeMove<S, usize>>,
+    AcceptedCountForager<S>,
 >;
 
-/// Builder for creating basic variable local search phases.
+/// Builder for creating change local search phases.
 ///
-/// This builder creates phases that improve solutions by changing basic
+/// This builder creates phases that improve solutions by changing
 /// planning variable values using late acceptance.
 ///
 /// # Type Parameters
@@ -41,7 +41,7 @@ pub type BasicLocalSearchPhase<S> = LocalSearchPhase<
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::manager::BasicLocalSearchPhaseBuilder;
+/// use solverforge_solver::manager::ChangeLocalSearchPhaseBuilder;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 ///
@@ -69,7 +69,7 @@ pub type BasicLocalSearchPhase<S> = LocalSearchPhase<
 ///
 /// fn value_count(s: &Schedule) -> usize { s.employees.len() }
 ///
-/// let builder = BasicLocalSearchPhaseBuilder::<Schedule>::new(
+/// let builder = ChangeLocalSearchPhaseBuilder::<Schedule>::new(
 ///     get_employee,
 ///     set_employee,
 ///     value_count,
@@ -78,7 +78,7 @@ pub type BasicLocalSearchPhase<S> = LocalSearchPhase<
 ///     400, // late acceptance size
 /// );
 /// ```
-pub struct BasicLocalSearchPhaseBuilder<S>
+pub struct ChangeLocalSearchPhaseBuilder<S>
 where
     S: PlanningSolution,
 {
@@ -91,11 +91,11 @@ where
     _marker: PhantomData<S>,
 }
 
-impl<S> BasicLocalSearchPhaseBuilder<S>
+impl<S> ChangeLocalSearchPhaseBuilder<S>
 where
     S: PlanningSolution,
 {
-    /// Creates a new basic local search phase builder.
+    /// Creates a new change local search phase builder.
     pub fn new(
         getter: fn(&S, usize) -> Option<usize>,
         setter: fn(&mut S, usize, Option<usize>),
@@ -116,7 +116,7 @@ where
     }
 
     /// Creates the local search phase.
-    pub fn create_phase(&self) -> BasicLocalSearchPhase<S> {
+    pub fn create_phase(&self) -> ChangeLocalSearchPhase<S> {
         let entity_selector = FromSolutionEntitySelector::new(self.descriptor_index);
         let value_selector = RangeValueSelector::new(self.value_count);
 
@@ -136,15 +136,15 @@ where
     }
 }
 
-impl<S, C> PhaseFactory<S, C> for BasicLocalSearchPhaseBuilder<S>
+impl<S, C> PhaseFactory<S, C> for ChangeLocalSearchPhaseBuilder<S>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    type Phase = BasicLocalSearchPhase<S>;
+    type Phase = ChangeLocalSearchPhase<S>;
 
     fn create(&self) -> Self::Phase {
-        BasicLocalSearchPhaseBuilder::create_phase(self)
+        ChangeLocalSearchPhaseBuilder::create_phase(self)
     }
 }

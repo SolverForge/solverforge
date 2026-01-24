@@ -19,8 +19,9 @@ mod mod_tests;
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
-    ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
-    ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+    ChangeConstructionPhase, ChangeConstructionPhaseBuilder, ChangeLocalSearchPhase,
+    ChangeLocalSearchPhaseBuilder, ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder,
+    ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
 };
 pub use solution_manager::{Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager};
 pub use solver_factory::{solver_factory_builder, SolverFactory};

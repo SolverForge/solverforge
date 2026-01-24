@@ -531,23 +531,60 @@ fn generate_basic_variable_operations(
         quote! {
             /// Internal solve implementation called by the Solvable trait.
             fn solve_internal(
-                self,
+                mut self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
                 sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
             ) -> Self {
                 ::solverforge::__internal::init_console();
 
-                ::solverforge::run_solver(
-                    self,
-                    Self::finalize_all,
-                    #constraints_fn,
+                Self::finalize_all(&mut self);
+
+                let config = ::solverforge::__internal::SolverConfig::load("solver.toml").unwrap_or_default();
+                let constraints = #constraints_fn();
+                let director = ::solverforge::__internal::ScoreDirector::new(self, constraints);
+
+                let construction = ::solverforge::__internal::ChangeConstructionPhaseBuilder::<Self, #variable_type_ident>::new(
                     Self::basic_get_variable,
                     Self::basic_set_variable,
                     Self::basic_value_count,
                     Self::basic_entity_count,
-                    terminate,
-                    sender,
-                )
+                    #variable_field_str,
+                    #descriptor_index_lit,
+                ).create_phase();
+
+                let local_search = ::solverforge::__internal::ChangeLocalSearchPhaseBuilder::<Self>::new(
+                    Self::basic_get_variable,
+                    Self::basic_set_variable,
+                    Self::basic_value_count,
+                    #variable_field_str,
+                    #descriptor_index_lit,
+                    config.local_search.as_ref()
+                        .and_then(|ls| ls.late_acceptance.as_ref())
+                        .map(|la| la.late_acceptance_size)
+                        .unwrap_or(400),
+                ).create_phase();
+
+                let time_limit = config.termination.as_ref()
+                    .and_then(|t| t.time_limit())
+                    .unwrap_or(std::time::Duration::from_secs(30));
+
+                let mut solver = ::solverforge::__internal::Solver::new((construction, local_search))
+                    .with_time_limit(time_limit);
+
+                if let Some(flag) = terminate {
+                    solver = solver.with_terminate(flag);
+                }
+
+                let result = solver.solve(director);
+
+                {
+                    use ::solverforge::__internal::PlanningSolution;
+                    if let Some(score) = result.score() {
+                        let _ = sender.send((result.clone(), score));
+                    }
+                }
+
+                result
             }
         }
     });

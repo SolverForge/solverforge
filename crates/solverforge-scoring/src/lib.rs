@@ -2,7 +2,7 @@
 //!
 //! This crate provides fully-typed incremental scoring infrastructure:
 //! - Zero-erasure incremental constraints (`IncrementalUniConstraint`, `IncrementalBiConstraint`, etc.)
-//! - Typed score directors (`TypedScoreDirector`)
+//! - Score director with O(1) shadow variable support (`ScoreDirector`)
 //! - Tuple-based constraint sets (zero virtual dispatch)
 //!
 //! # Architecture
@@ -40,10 +40,8 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 // Score Directors
 // ============================================================================
 
-pub use director::typed::TypedScoreDirector;
 pub use director::{
-    RecordingScoreDirector, ScoreDirector, ScoreDirectorFactory, ShadowAwareScoreDirector,
-    ShadowVariableSupport, SimpleScoreDirector, SolvableSolution,
+    RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SolvableSolution,
 };
 
 // ============================================================================

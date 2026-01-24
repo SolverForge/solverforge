@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::phase::Phase;
 use crate::solver::NoTermination;
@@ -17,23 +18,23 @@ use super::{PhaseFactory, SolverFactory};
 ///
 /// Accumulates configuration and produces a fully typed SolverFactory.
 /// Type bounds are only checked at `build()` time.
-pub struct SolverFactoryBuilder<S, D, C, P, T>
+pub struct SolverFactoryBuilder<S, C, Calc, P, T>
 where
     S: PlanningSolution,
 {
-    score_calculator: C,
+    score_calculator: Calc,
     phases: P,
     termination: T,
-    _marker: PhantomData<fn(S, D)>,
+    _marker: PhantomData<fn(S, C)>,
 }
 
-impl<S, D, C> SolverFactoryBuilder<S, D, C, (), NoTermination>
+impl<S, C, Calc> SolverFactoryBuilder<S, C, Calc, (), NoTermination>
 where
     S: PlanningSolution,
-    C: Fn(&S) -> S::Score + Send + Sync,
+    Calc: Fn(&S) -> S::Score + Send + Sync,
 {
     /// Creates a new builder with a score calculator.
-    pub fn new(score_calculator: C) -> Self {
+    pub fn new(score_calculator: Calc) -> Self {
         Self {
             score_calculator,
             phases: (),
@@ -43,12 +44,12 @@ where
     }
 }
 
-impl<S, D, C, P, T> SolverFactoryBuilder<S, D, C, P, T>
+impl<S, C, Calc, P, T> SolverFactoryBuilder<S, C, Calc, P, T>
 where
     S: PlanningSolution,
 {
     /// Adds a phase, returning a new builder with updated phase tuple.
-    pub fn with_phase<P2>(self, phase: P2) -> SolverFactoryBuilder<S, D, C, (P, P2), T> {
+    pub fn with_phase<P2>(self, phase: P2) -> SolverFactoryBuilder<S, C, Calc, (P, P2), T> {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: (self.phases, phase),
@@ -63,10 +64,11 @@ where
     pub fn with_phase_factory<F>(
         self,
         factory: F,
-    ) -> SolverFactoryBuilder<S, D, C, (P, F::Phase), T>
+    ) -> SolverFactoryBuilder<S, C, Calc, (P, F::Phase), T>
     where
-        D: ScoreDirector<S>,
-        F: PhaseFactory<S, D>,
+        S::Score: Score,
+        C: ConstraintSet<S, S::Score>,
+        F: PhaseFactory<S, C>,
     {
         let phase = factory.create();
         SolverFactoryBuilder {
@@ -83,7 +85,7 @@ where
     pub fn with_config(
         self,
         config: SolverConfig,
-    ) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
+    ) -> SolverFactoryBuilder<S, C, Calc, P, TimeTermination> {
         let term = config.termination.unwrap_or_default();
         let duration = term.time_limit().unwrap_or(Duration::from_secs(30));
         SolverFactoryBuilder {
@@ -98,7 +100,7 @@ where
     pub fn with_time_limit(
         self,
         duration: Duration,
-    ) -> SolverFactoryBuilder<S, D, C, P, TimeTermination> {
+    ) -> SolverFactoryBuilder<S, C, Calc, P, TimeTermination> {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
@@ -111,7 +113,7 @@ where
     pub fn with_step_limit(
         self,
         steps: u64,
-    ) -> SolverFactoryBuilder<S, D, C, P, StepCountTermination> {
+    ) -> SolverFactoryBuilder<S, C, Calc, P, StepCountTermination> {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: self.phases,
@@ -125,9 +127,10 @@ where
     pub fn with_time_limit_or(
         self,
         duration: Duration,
-    ) -> SolverFactoryBuilder<S, D, C, P, OrTermination<(T, TimeTermination), S, D>>
+    ) -> SolverFactoryBuilder<S, C, Calc, P, OrTermination<(T, TimeTermination), S, C>>
     where
-        D: ScoreDirector<S>,
+        S::Score: Score,
+        C: ConstraintSet<S, S::Score>,
     {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
@@ -138,19 +141,20 @@ where
     }
 }
 
-impl<S, D, C, P, T> SolverFactoryBuilder<S, D, C, P, T>
+impl<S, C, Calc, P, T> SolverFactoryBuilder<S, C, Calc, P, T>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    C: Fn(&S) -> S::Score + Send + Sync,
-    P: Phase<S, D>,
-    T: Termination<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    Calc: Fn(&S) -> S::Score + Send + Sync,
+    P: Phase<S, C>,
+    T: Termination<S, C>,
 {
     /// Builds the SolverFactory.
     ///
     /// Returns `Ok(SolverFactory)` on success, or `Err` if configuration is invalid.
     /// Currently always succeeds as validation happens at compile time via type bounds.
-    pub fn build(self) -> Result<SolverFactory<S, D, C, P, T>, SolverBuildError> {
+    pub fn build(self) -> Result<SolverFactory<S, C, Calc, P, T>, SolverBuildError> {
         Ok(SolverFactory::new(
             self.score_calculator,
             self.phases,

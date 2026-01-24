@@ -7,7 +7,9 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
+use solverforge_scoring::RecordingScoreDirector;
 
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
 use crate::phase::Phase;
@@ -186,13 +188,14 @@ where
     }
 }
 
-impl<S, V, D> Phase<S, D> for KOptPhase<S, V>
+impl<S, V, C> Phase<S, C> for KOptPhase<S, V>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+    S::Score: Score,
     V: Clone + Send + Sync + Debug + 'static,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         use crate::heuristic::r#move::Move;
         use crate::heuristic::selector::entity::FromSolutionEntitySelector;
         use crate::heuristic::selector::typed_move_selector::MoveSelector;
@@ -238,7 +241,7 @@ where
                 {
                     let mut recording =
                         RecordingScoreDirector::new(step_scope.score_director_mut());
-                    mv.do_move(&mut recording);
+                    mv.do_move(recording.inner_mut());
                     let move_score = recording.calculate_score();
 
                     // Accept if improving over last step
@@ -280,13 +283,14 @@ where
     }
 }
 
-impl<S, V, DM, ESF, D> PhaseFactory<S, D> for KOptPhaseBuilder<S, V, DM, ESF>
+impl<S, V, DM, ESF, C> PhaseFactory<S, C> for KOptPhaseBuilder<S, V, DM, ESF>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+    S::Score: Score,
     V: Clone + Send + Sync + Debug + 'static,
     DM: Send + Sync,
     ESF: Send + Sync,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
 {
     type Phase = KOptPhase<S, V>;
 

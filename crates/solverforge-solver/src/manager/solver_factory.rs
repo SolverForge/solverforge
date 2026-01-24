@@ -6,7 +6,8 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
@@ -17,33 +18,34 @@ use super::builder::SolverFactoryBuilder;
 
 /// Zero-erasure solver factory.
 ///
-/// Stores phases as a concrete tuple type `P`, score calculator as `C`,
+/// Stores phases as a concrete tuple type `P`, score calculator as `Calc`,
 /// and termination as `T`. No dynamic dispatch anywhere.
 ///
 /// # Type Parameters
 ///
 /// * `S` - The solution type
-/// * `D` - The score director type
-/// * `C` - The score calculator type
+/// * `C` - The constraint set type
+/// * `Calc` - The score calculator type
 /// * `P` - The phases tuple type
 /// * `T` - The termination type
-pub struct SolverFactory<S, D, C, P, T> {
-    score_calculator: C,
+pub struct SolverFactory<S, C, Calc, P, T> {
+    score_calculator: Calc,
     phases: P,
     termination: T,
-    _marker: PhantomData<fn(S, D, P, T)>,
+    _marker: PhantomData<fn(S, C, P, T)>,
 }
 
-impl<S, D, C, P, T> SolverFactory<S, D, C, P, T>
+impl<S, C, Calc, P, T> SolverFactory<S, C, Calc, P, T>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    C: Fn(&S) -> S::Score + Send + Sync,
-    P: Phase<S, D>,
-    T: Termination<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    Calc: Fn(&S) -> S::Score + Send + Sync,
+    P: Phase<S, C>,
+    T: Termination<S, C>,
 {
     /// Creates a new SolverFactory with concrete types.
-    pub fn new(score_calculator: C, phases: P, termination: T) -> Self {
+    pub fn new(score_calculator: Calc, phases: P, termination: T) -> Self {
         Self {
             score_calculator,
             phases,
@@ -53,7 +55,7 @@ where
     }
 
     /// Returns a reference to the score calculator.
-    pub fn score_calculator(&self) -> &C {
+    pub fn score_calculator(&self) -> &Calc {
         &self.score_calculator
     }
 
@@ -78,7 +80,7 @@ where
     }
 
     /// Solves using the configured phases and termination.
-    pub fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    pub fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         solver_scope.start_solving();
         self.phases.solve(solver_scope);
     }
@@ -95,12 +97,12 @@ where
 /// Creates a builder for SolverFactory.
 ///
 /// Use `SolverFactoryBuilder::new()` directly for full type control.
-pub fn solver_factory_builder<S, D, C>(
-    score_calculator: C,
-) -> SolverFactoryBuilder<S, D, C, (), NoTermination>
+pub fn solver_factory_builder<S, C, Calc>(
+    score_calculator: Calc,
+) -> SolverFactoryBuilder<S, C, Calc, (), NoTermination>
 where
     S: PlanningSolution,
-    C: Fn(&S) -> S::Score + Send + Sync,
+    Calc: Fn(&S) -> S::Score + Send + Sync,
 {
     SolverFactoryBuilder::new(score_calculator)
 }
@@ -131,9 +133,11 @@ impl<S: PlanningSolution> SolverFactory<S, (), (), (), ()> {
     ///
     /// let builder = solver_factory_builder::<MySolution, (), _>(|_s| SimpleScore::of(0));
     /// ```
-    pub fn builder<D, C>(score_calculator: C) -> SolverFactoryBuilder<S, D, C, (), NoTermination>
+    pub fn builder<C, Calc>(
+        score_calculator: Calc,
+    ) -> SolverFactoryBuilder<S, C, Calc, (), NoTermination>
     where
-        C: Fn(&S) -> S::Score + Send + Sync,
+        Calc: Fn(&S) -> S::Score + Send + Sync,
     {
         SolverFactoryBuilder::new(score_calculator)
     }

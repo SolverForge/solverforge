@@ -5,17 +5,16 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use crate::heuristic::selector::typed_value::RangeValueSelector;
 use crate::heuristic::selector::ChangeMoveSelector;
-use crate::phase::localsearch::{
-    AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase,
-};
+use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase};
 
-use super::super::SolverPhaseFactory;
+use super::super::PhaseFactory;
 
 /// Type alias for the move selector used by BasicLocalSearchPhase.
 type BasicMoveSelector<S> =
@@ -137,12 +136,15 @@ where
     }
 }
 
-impl<S, D> SolverPhaseFactory<S, D, BasicLocalSearchPhase<S>> for BasicLocalSearchPhaseBuilder<S>
+impl<S, C> PhaseFactory<S, C> for BasicLocalSearchPhaseBuilder<S>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn create_phase(&self) -> BasicLocalSearchPhase<S> {
+    type Phase = BasicLocalSearchPhase<S>;
+
+    fn create(&self) -> Self::Phase {
         BasicLocalSearchPhaseBuilder::create_phase(self)
     }
 }

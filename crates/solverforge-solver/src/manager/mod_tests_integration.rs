@@ -4,7 +4,7 @@ use super::*;
 use std::time::Duration;
 
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;
 
@@ -13,11 +13,10 @@ use crate::scope::SolverScope;
 // ============================================================================
 
 /// Score director type for TestSolution
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+type TestDirector = ScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
 
 /// Score director type for EntityTestSolution
-type EntityTestDirector =
-    SimpleScoreDirector<EntityTestSolution, fn(&EntityTestSolution) -> SimpleScore>;
+type EntityTestDirector = ScoreDirector<EntityTestSolution, fn(&EntityTestSolution) -> SimpleScore>;
 
 // ============================================================================
 // Test Solution Types
@@ -77,10 +76,13 @@ fn calculate_entity_score(solution: &EntityTestSolution) -> SimpleScore {
 #[derive(Debug, Clone)]
 struct NoOpPhase;
 
-impl<S: PlanningSolution, D: solverforge_scoring::ScoreDirector<S>> crate::phase::Phase<S, D>
-    for NoOpPhase
+impl<S, C> crate::phase::Phase<S, C> for NoOpPhase
+where
+    S: PlanningSolution,
+    S::Score: solverforge_core::score::Score,
+    C: solverforge_scoring::ConstraintSet<S, S::Score>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         solver_scope.update_best_solution();
     }
 

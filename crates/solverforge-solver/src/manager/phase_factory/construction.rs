@@ -3,7 +3,8 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::heuristic::Move;
 use crate::phase::construction::{
@@ -65,7 +66,7 @@ where
 
 impl<S, M, P> ConstructionPhaseFactory<S, M, P, BestFitForager<S, M>>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     M: Move<S>,
     P: EntityPlacer<S, M>,
 {
@@ -75,10 +76,11 @@ where
     }
 }
 
-impl<S, D, M, P, Fo> PhaseFactory<S, D> for ConstructionPhaseFactory<S, M, P, Fo>
+impl<S, C, M, P, Fo> PhaseFactory<S, C> for ConstructionPhaseFactory<S, M, P, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
     M: Move<S> + Clone + Send + Sync + 'static,
     P: EntityPlacer<S, M> + Clone + Send + Sync + 'static,
     Fo: ConstructionForager<S, M> + Clone + Send + Sync + 'static,

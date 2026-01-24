@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_scoring::ScoreDirector;
 
 use super::{ConstructionType, LocalSearchType, SolverFactoryBuilder};
 
@@ -25,7 +25,7 @@ impl PlanningSolution for TestSolution {
 }
 
 /// Type alias for the score director used in tests.
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+type TestDirector = ScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
 
 #[test]
 fn test_builder_with_time_limit() {

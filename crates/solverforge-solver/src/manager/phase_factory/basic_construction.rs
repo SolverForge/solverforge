@@ -5,12 +5,13 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
-use super::super::SolverPhaseFactory;
+use super::super::PhaseFactory;
 
 /// Builder for creating basic variable construction phases.
 ///
@@ -119,14 +120,16 @@ where
     }
 }
 
-impl<S, V, D> SolverPhaseFactory<S, D, BasicConstructionPhase<S, V>>
-    for BasicConstructionPhaseBuilder<S, V>
+impl<S, V, C> PhaseFactory<S, C> for BasicConstructionPhaseBuilder<S, V>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Copy + PartialEq + Send + Sync + From<usize> + 'static,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn create_phase(&self) -> BasicConstructionPhase<S, V> {
+    type Phase = BasicConstructionPhase<S, V>;
+
+    fn create(&self) -> Self::Phase {
         BasicConstructionPhaseBuilder::create_phase(self)
     }
 }
@@ -158,13 +161,14 @@ where
     }
 }
 
-impl<S, V, D> Phase<S, D> for BasicConstructionPhase<S, V>
+impl<S, V, C> Phase<S, C> for BasicConstructionPhase<S, V>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Copy + PartialEq + Send + Sync + From<usize> + 'static,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         let solution = phase_scope.score_director().working_solution();
@@ -194,7 +198,11 @@ where
             {
                 let sd = step_scope.score_director_mut();
                 sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
-                (self.setter)(sd.working_solution_mut(), entity_idx, Some(V::from(value_idx)));
+                (self.setter)(
+                    sd.working_solution_mut(),
+                    entity_idx,
+                    Some(V::from(value_idx)),
+                );
                 sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
             }
 

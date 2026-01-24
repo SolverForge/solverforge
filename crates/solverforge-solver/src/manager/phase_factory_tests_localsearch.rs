@@ -8,10 +8,8 @@ use crate::heuristic::selector::{
 use crate::heuristic::MoveSelector;
 use crate::phase::construction::{EntityPlacer, QueuedEntityPlacer};
 use crate::scope::SolverScope;
-use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-use std::any::TypeId;
+use solverforge_scoring::ScoreDirector;
 
 // ==================== Test Domain ====================
 
@@ -69,24 +67,10 @@ fn calculate_score(solution: &TestSolution) -> SimpleScore {
     SimpleScore::of(score)
 }
 
-fn create_test_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore> {
+fn create_test_director(tasks: Vec<Task>) -> ScoreDirector<TestSolution, ()> {
     let solution = TestSolution { tasks, score: None };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Task",
-        "tasks",
-        get_tasks,
-        get_tasks_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-
-    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
-        .with_entity(entity_desc);
-
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score)
+    ScoreDirector::new(solution, ())
 }
 
 fn create_unassigned_solver_scope(

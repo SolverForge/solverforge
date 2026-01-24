@@ -31,7 +31,8 @@ pub use solver_factory::{solver_factory_builder, SolverFactory};
 pub use solver_manager::{Solvable, SolverManager, SolverStatus};
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::phase::Phase;
 
@@ -43,14 +44,15 @@ use crate::phase::Phase;
 /// # Type Parameters
 ///
 /// * `S` - The solution type
-/// * `D` - The score director type
-pub trait PhaseFactory<S, D>: Send + Sync
+/// * `C` - The constraint set type
+pub trait PhaseFactory<S, C>: Send + Sync
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
     /// The concrete phase type produced by this factory.
-    type Phase: Phase<S, D>;
+    type Phase: Phase<S, C>;
 
     /// Creates a new phase instance with concrete type.
     fn create(&self) -> Self::Phase;

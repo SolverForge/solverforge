@@ -5,7 +5,8 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -112,11 +113,12 @@ where
     }
 }
 
-impl<S, E, D> PhaseFactory<S, D> for ListConstructionPhaseBuilder<S, E>
+impl<S, E, C> PhaseFactory<S, C> for ListConstructionPhaseBuilder<S, E>
 where
     S: PlanningSolution,
+    S::Score: Score,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
 {
     type Phase = ListConstructionPhase<S, E>;
 
@@ -151,13 +153,14 @@ where
     }
 }
 
-impl<S, E, D> Phase<S, D> for ListConstructionPhase<S, E>
+impl<S, E, C> Phase<S, C> for ListConstructionPhase<S, E>
 where
     S: PlanningSolution,
+    S::Score: Score,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         let solution = phase_scope.score_director().working_solution();
@@ -196,9 +199,9 @@ where
 
             {
                 let sd = step_scope.score_director_mut();
-                sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
+                sd.before_variable_changed(self.descriptor_index, entity_idx);
                 (self.assign_element)(sd.working_solution_mut(), entity_idx, element);
-                sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
+                sd.after_variable_changed(self.descriptor_index, entity_idx);
             }
 
             let step_score = step_scope.calculate_score();

@@ -13,7 +13,8 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::{Move, MoveArena};
+use super::traits::Move;
+use super::MoveArena;
 
 /// A move that applies two moves in sequence via arena indices.
 ///
@@ -61,12 +62,15 @@ where
     }
 
     /// Checks if this composite move is doable given both arenas.
-    pub fn is_doable_with_arenas<D: ScoreDirector<S>>(
+    pub fn is_doable_with_arenas<C>(
         &self,
         arena_1: &MoveArena<M1>,
         arena_2: &MoveArena<M2>,
-        score_director: &D,
-    ) -> bool {
+        score_director: &ScoreDirector<S, C>,
+    ) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let m1 = arena_1.get(self.index_1);
         let m2 = arena_2.get(self.index_2);
 
@@ -77,12 +81,14 @@ where
     }
 
     /// Executes both moves using the arenas.
-    pub fn do_move_with_arenas<D: ScoreDirector<S>>(
+    pub fn do_move_with_arenas<C>(
         &self,
         arena_1: &MoveArena<M1>,
         arena_2: &MoveArena<M2>,
-        score_director: &mut D,
-    ) {
+        score_director: &mut ScoreDirector<S, C>,
+    ) where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         if let Some(m1) = arena_1.get(self.index_1) {
             m1.do_move(score_director);
         }

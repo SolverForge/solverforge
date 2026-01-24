@@ -13,7 +13,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that swaps values between two entities.
 ///
@@ -123,7 +123,10 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Can't swap with self
         if self.left_entity_index == self.right_entity_index {
             return false;
@@ -137,22 +140,17 @@ where
         left_val != right_val
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Get both values using typed getter - zero erasure
         let left_value = (self.getter)(score_director.working_solution(), self.left_entity_index);
         let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);
 
         // Notify before changes
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.left_entity_index,
-            self.variable_name,
-        );
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.right_entity_index,
-            self.variable_name,
-        );
+        score_director.before_variable_changed(self.descriptor_index, self.left_entity_index);
+        score_director.before_variable_changed(self.descriptor_index, self.right_entity_index);
 
         // Swap: left gets right's value, right gets left's value
         (self.setter)(
@@ -167,16 +165,8 @@ where
         );
 
         // Notify after changes
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.left_entity_index,
-            self.variable_name,
-        );
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.right_entity_index,
-            self.variable_name,
-        );
+        score_director.after_variable_changed(self.descriptor_index, self.left_entity_index);
+        score_director.after_variable_changed(self.descriptor_index, self.right_entity_index);
 
         // Register typed undo closure - swap back
         let setter = self.setter;
@@ -205,10 +195,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -252,24 +240,10 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         let solution = TaskSolution { tasks, score: None };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-
-        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
-            .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

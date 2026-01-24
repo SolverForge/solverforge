@@ -13,7 +13,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that assigns a value to an entity's variable.
 ///
@@ -112,7 +112,10 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Get current value using typed getter - no boxing, no downcast
         let current = (self.getter)(score_director.working_solution(), self.entity_index);
 
@@ -124,16 +127,15 @@ where
         }
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Capture old value using typed getter - zero erasure
         let old_value = (self.getter)(score_director.working_solution(), self.entity_index);
 
         // Notify before change
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.entity_index,
-            self.variable_name,
-        );
+        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
 
         // Set value using typed setter - no boxing
         (self.setter)(
@@ -143,11 +145,7 @@ where
         );
 
         // Notify after change
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.entity_index,
-            self.variable_name,
-        );
+        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
 
         // Register typed undo closure - zero erasure
         let setter = self.setter;
@@ -173,10 +171,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::SolutionDescriptor;
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Task {
@@ -212,12 +208,9 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         let solution = TaskSolution { tasks, score: None };
-        let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>());
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

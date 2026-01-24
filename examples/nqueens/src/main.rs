@@ -3,7 +3,7 @@
 //! Place N queens on an N×N board so no two threaten each other.
 
 use rand::Rng;
-use solverforge::__internal::TypedScoreDirector;
+use solverforge::__internal::ScoreDirector;
 use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
 
@@ -93,7 +93,7 @@ fn define_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
 
 fn solve(solution: NQueensSolution) -> NQueensSolution {
     let n = solution.n;
-    let mut director = TypedScoreDirector::new(solution, define_constraints());
+    let mut director = ScoreDirector::new(solution, define_constraints());
     let mut rng = rand::thread_rng();
 
     // Construction: assign each queen to row i % n
@@ -114,18 +114,18 @@ fn solve(solution: NQueensSolution) -> NQueensSolution {
         let old = director.working_solution().queens[idx].row;
         let new = Some(rng.gen_range(0..n));
 
-        director.before_variable_changed(0, idx, "row");
+        director.before_variable_changed(0, idx);
         director.working_solution_mut().queens[idx].row = new;
-        director.after_variable_changed(0, idx, "row");
+        director.after_variable_changed(0, idx);
 
         let new_score = director.calculate_score();
         if new_score >= score {
             score = new_score;
         } else {
             // Revert the change
-            director.before_variable_changed(0, idx, "row");
+            director.before_variable_changed(0, idx);
             director.working_solution_mut().queens[idx].row = old;
-            director.after_variable_changed(0, idx, "row");
+            director.after_variable_changed(0, idx);
         }
     }
 

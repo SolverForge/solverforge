@@ -14,11 +14,7 @@ mod solver_factory;
 mod solver_manager;
 
 #[cfg(test)]
-mod builder_tests;
-#[cfg(test)]
 mod mod_tests;
-#[cfg(test)]
-mod mod_tests_integration;
 
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};

@@ -3,6 +3,8 @@
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::SolverScope;
@@ -14,10 +16,15 @@ use crate::stats::PhaseStats;
 /// * `'t` - Lifetime of the termination flag
 /// * `'a` - Lifetime of the solver scope reference
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> {
+/// * `C` - The constraint set type
+pub struct PhaseScope<'t, 'a, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Reference to the parent solver scope.
-    solver_scope: &'a mut SolverScope<'t, S, D>,
+    solver_scope: &'a mut SolverScope<'t, S, C>,
     /// Index of this phase (0-based).
     phase_index: usize,
     /// Score at the start of this phase.
@@ -30,9 +37,14 @@ pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> {
     stats: PhaseStats,
 }
 
-impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> {
+impl<'t, 'a, S, C> PhaseScope<'t, 'a, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Creates a new phase scope.
-    pub fn new(solver_scope: &'a mut SolverScope<'t, S, D>, phase_index: usize) -> Self {
+    pub fn new(solver_scope: &'a mut SolverScope<'t, S, C>, phase_index: usize) -> Self {
         let starting_score = solver_scope.best_score().cloned();
         Self {
             solver_scope,
@@ -46,7 +58,7 @@ impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> 
 
     /// Creates a new phase scope with a specific phase type name.
     pub fn with_phase_type(
-        solver_scope: &'a mut SolverScope<'t, S, D>,
+        solver_scope: &'a mut SolverScope<'t, S, C>,
         phase_index: usize,
         phase_type: &'static str,
     ) -> Self {
@@ -89,22 +101,22 @@ impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>> PhaseScope<'t, 'a, S, D> 
     }
 
     /// Returns a reference to the solver scope.
-    pub fn solver_scope(&self) -> &SolverScope<'t, S, D> {
+    pub fn solver_scope(&self) -> &SolverScope<'t, S, C> {
         self.solver_scope
     }
 
     /// Returns a mutable reference to the solver scope.
-    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<'t, S, D> {
+    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<'t, S, C> {
         self.solver_scope
     }
 
     /// Returns a reference to the score director.
-    pub fn score_director(&self) -> &D {
+    pub fn score_director(&self) -> &ScoreDirector<S, C> {
         self.solver_scope.score_director()
     }
 
     /// Returns a mutable reference to the score director.
-    pub fn score_director_mut(&mut self) -> &mut D {
+    pub fn score_director_mut(&mut self) -> &mut ScoreDirector<S, C> {
         self.solver_scope.score_director_mut()
     }
 

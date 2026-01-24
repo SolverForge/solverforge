@@ -7,6 +7,8 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::stats::SolverStats;
@@ -18,10 +20,15 @@ use crate::stats::SolverStats;
 /// # Type Parameters
 /// * `'t` - Lifetime of the termination flag reference
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
+/// * `C` - The constraint set type
+pub struct SolverScope<'t, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// The score director managing the working solution.
-    score_director: D,
+    score_director: ScoreDirector<S, C>,
     /// The best solution found so far.
     best_solution: Option<S>,
     /// The score of the best solution.
@@ -40,9 +47,14 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     time_limit: Option<Duration>,
 }
 
-impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
+impl<'t, S, C> SolverScope<'t, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Creates a new solver scope with the given score director.
-    pub fn new(score_director: D) -> Self {
+    pub fn new(score_director: ScoreDirector<S, C>) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -57,7 +69,10 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     }
 
     /// Creates a solver scope with a termination flag.
-    pub fn with_terminate(score_director: D, terminate: Option<&'t AtomicBool>) -> Self {
+    pub fn with_terminate(
+        score_director: ScoreDirector<S, C>,
+        terminate: Option<&'t AtomicBool>,
+    ) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -72,7 +87,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     }
 
     /// Creates a solver scope with a specific random seed.
-    pub fn with_seed(score_director: D, seed: u64) -> Self {
+    pub fn with_seed(score_director: ScoreDirector<S, C>, seed: u64) -> Self {
         Self {
             score_director,
             best_solution: None,
@@ -99,12 +114,12 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     }
 
     /// Returns a reference to the score director.
-    pub fn score_director(&self) -> &D {
+    pub fn score_director(&self) -> &ScoreDirector<S, C> {
         &self.score_director
     }
 
     /// Returns a mutable reference to the score director.
-    pub fn score_director_mut(&mut self) -> &mut D {
+    pub fn score_director_mut(&mut self) -> &mut ScoreDirector<S, C> {
         &mut self.score_director
     }
 

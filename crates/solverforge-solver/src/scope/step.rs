@@ -1,6 +1,8 @@
 //! Step-level scope.
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::PhaseScope;
@@ -12,19 +14,29 @@ use super::PhaseScope;
 /// * `'a` - Lifetime of the phase scope reference
 /// * `'b` - Lifetime of the solver scope reference
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> {
+/// * `C` - The constraint set type
+pub struct StepScope<'t, 'a, 'b, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Reference to the parent phase scope.
-    phase_scope: &'a mut PhaseScope<'t, 'b, S, D>,
+    phase_scope: &'a mut PhaseScope<'t, 'b, S, C>,
     /// Index of this step within the phase (0-based).
     step_index: u64,
     /// Score after this step.
     step_score: Option<S::Score>,
 }
 
-impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'t, 'a, 'b, S, D> {
+impl<'t, 'a, 'b, S, C> StepScope<'t, 'a, 'b, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Creates a new step scope.
-    pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D>) -> Self {
+    pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, C>) -> Self {
         let step_index = phase_scope.step_count();
         Self {
             phase_scope,
@@ -54,22 +66,22 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'t, 'a, 'b,
     }
 
     /// Returns a reference to the phase scope.
-    pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D> {
+    pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, C> {
         self.phase_scope
     }
 
     /// Returns a mutable reference to the phase scope.
-    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D> {
+    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, C> {
         self.phase_scope
     }
 
     /// Returns a reference to the score director.
-    pub fn score_director(&self) -> &D {
+    pub fn score_director(&self) -> &ScoreDirector<S, C> {
         self.phase_scope.score_director()
     }
 
     /// Returns a mutable reference to the score director.
-    pub fn score_director_mut(&mut self) -> &mut D {
+    pub fn score_director_mut(&mut self) -> &mut ScoreDirector<S, C> {
         self.phase_scope.score_director_mut()
     }
 

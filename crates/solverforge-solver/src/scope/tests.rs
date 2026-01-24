@@ -1,12 +1,9 @@
 //! Tests for scope types.
 
 use super::*;
-use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
-};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
-use std::any::TypeId;
+use solverforge_scoring::ScoreDirector;
 
 #[derive(Clone, Debug)]
 struct Queen;
@@ -29,34 +26,12 @@ impl PlanningSolution for NQueensSolution {
     }
 }
 
-fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-    &s.queens
-}
-
-fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-    &mut s.queens
-}
-
-fn create_test_director(
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+fn create_test_director() -> ScoreDirector<NQueensSolution, ()> {
     let solution = NQueensSolution {
         queens: vec![Queen, Queen],
         score: None,
     };
-
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Queen",
-        "queens",
-        get_queens,
-        get_queens_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
-
-    let descriptor = SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc);
-
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::new(solution, ())
 }
 
 #[test]

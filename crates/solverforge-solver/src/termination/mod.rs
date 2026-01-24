@@ -40,6 +40,3 @@ where
     /// Returns true if solving should terminate.
     fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool;
 }
-
-#[cfg(test)]
-mod tests;

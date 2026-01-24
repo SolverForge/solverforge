@@ -3,7 +3,8 @@
 use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -39,8 +40,13 @@ impl TimeTermination {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for TimeTermination {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+impl<S, C> Termination<S, C> for TimeTermination
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
         solver_scope.elapsed().is_some_and(|e| e >= self.limit)
     }
 }

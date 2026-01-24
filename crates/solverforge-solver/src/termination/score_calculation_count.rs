@@ -4,7 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -56,10 +57,13 @@ impl<S: PlanningSolution> ScoreCalculationCountTermination<S> {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
-    for ScoreCalculationCountTermination<S>
+impl<S, C> Termination<S, C> for ScoreCalculationCountTermination<S>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<'_, S, C>) -> bool {
         solver_scope.stats().score_calculations >= self.limit
     }
 }

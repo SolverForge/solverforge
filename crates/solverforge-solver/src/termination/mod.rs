@@ -12,7 +12,8 @@ mod unimproved;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use crate::scope::SolverScope;
 
@@ -29,10 +30,15 @@ pub use unimproved::{UnimprovedStepCountTermination, UnimprovedTimeTermination};
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-pub trait Termination<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+/// * `C` - The constraint set type
+pub trait Termination<S, C>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Returns true if solving should terminate.
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool;
+    fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool;
 }
 
 #[cfg(test)]

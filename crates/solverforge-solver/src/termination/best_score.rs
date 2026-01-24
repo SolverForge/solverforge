@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -35,13 +35,13 @@ impl<Sc: Score> BestScoreTermination<Sc> {
     }
 }
 
-impl<S, D, Sc> Termination<S, D> for BestScoreTermination<Sc>
+impl<S, C, Sc> Termination<S, C> for BestScoreTermination<Sc>
 where
     S: PlanningSolution<Score = Sc>,
-    D: ScoreDirector<S>,
     Sc: Score,
+    C: ConstraintSet<S, Sc>,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
         solver_scope
             .best_score()
             .map(|score| *score >= self.target_score)
@@ -101,13 +101,14 @@ impl<S: PlanningSolution> BestScoreFeasibleTermination<S, fn(&S::Score) -> bool>
     }
 }
 
-impl<S, D, F> Termination<S, D> for BestScoreFeasibleTermination<S, F>
+impl<S, C, F> Termination<S, C> for BestScoreFeasibleTermination<S, F>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
         solver_scope
             .best_score()
             .map(|score| (self.feasibility_check)(score))

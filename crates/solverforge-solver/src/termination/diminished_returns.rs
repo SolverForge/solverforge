@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -103,10 +103,13 @@ impl<S: PlanningSolution> DiminishedReturnsTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for DiminishedReturnsTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
-    for DiminishedReturnsTermination<S>
+impl<S, C> Termination<S, C> for DiminishedReturnsTermination<S>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
         let Some(current_score) = solver_scope.best_score() else {
             return false; // No score yet
         };
@@ -175,10 +178,8 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::SolutionDescriptor;
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
     use std::thread::sleep;
 
     #[derive(Clone, Debug)]
@@ -196,36 +197,13 @@ mod tests {
         }
     }
 
-    type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
-
-    fn calc(_: &TestSolution) -> SimpleScore {
-        SimpleScore::of(0)
-    }
-
-    fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
-        let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
-        let director = SimpleScoreDirector::with_calculator(
-            TestSolution { score: None },
-            descriptor,
-            calc as fn(&TestSolution) -> SimpleScore,
-        );
+    fn create_scope() -> SolverScope<'static, TestSolution, ()> {
+        let director = ScoreDirector::new(TestSolution { score: None }, ());
         SolverScope::new(director)
     }
 
-    fn create_scope_with_score(
-        score: SimpleScore,
-    ) -> SolverScope<
-        'static,
-        TestSolution,
-        SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
-    > {
-        let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
-        let score_clone = score;
-        let director = SimpleScoreDirector::with_calculator(
-            TestSolution { score: Some(score) },
-            descriptor,
-            move |_| score_clone,
-        );
+    fn create_scope_with_score(score: SimpleScore) -> SolverScope<'static, TestSolution, ()> {
+        let director = ScoreDirector::new(TestSolution { score: Some(score) }, ());
         let mut scope = SolverScope::new(director);
         scope.update_best_solution();
         scope

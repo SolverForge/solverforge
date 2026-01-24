@@ -6,7 +6,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 
 use super::Termination;
 use crate::scope::SolverScope;
@@ -19,7 +20,7 @@ use crate::scope::SolverScope;
 ///
 /// ```
 /// use solverforge_solver::termination::{OrTermination, TimeTermination, StepCountTermination};
-/// use solverforge_scoring::SimpleScoreDirector;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
 /// use std::time::Duration;
@@ -32,24 +33,22 @@ use crate::scope::SolverScope;
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
 ///
-/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
-///
 /// // Terminate after 30 seconds OR 1000 steps
-/// let term: OrTermination<_, MySolution, MyDirector> = OrTermination::new((
+/// let term: OrTermination<_, MySolution, ()> = OrTermination::new((
 ///     TimeTermination::seconds(30),
 ///     StepCountTermination::new(1000),
 /// ));
 /// ```
 #[derive(Clone)]
-pub struct OrTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
+pub struct OrTermination<T, S, C>(pub T, PhantomData<fn(S, C)>);
 
-impl<T: Debug, S, D> Debug for OrTermination<T, S, D> {
+impl<T: Debug, S, C> Debug for OrTermination<T, S, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("OrTermination").field(&self.0).finish()
     }
 }
 
-impl<T, S, D> OrTermination<T, S, D> {
+impl<T, S, C> OrTermination<T, S, C> {
     pub fn new(terminations: T) -> Self {
         Self(terminations, PhantomData)
     }
@@ -63,7 +62,7 @@ impl<T, S, D> OrTermination<T, S, D> {
 ///
 /// ```
 /// use solverforge_solver::termination::{AndTermination, TimeTermination, StepCountTermination};
-/// use solverforge_scoring::SimpleScoreDirector;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
 /// use solverforge_core::score::SimpleScore;
 /// use solverforge_core::domain::PlanningSolution;
 /// use std::time::Duration;
@@ -76,24 +75,22 @@ impl<T, S, D> OrTermination<T, S, D> {
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
 ///
-/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
-///
 /// // Terminate when both conditions are met
-/// let term: AndTermination<_, MySolution, MyDirector> = AndTermination::new((
+/// let term: AndTermination<_, MySolution, ()> = AndTermination::new((
 ///     TimeTermination::seconds(10),
 ///     StepCountTermination::new(100),
 /// ));
 /// ```
 #[derive(Clone)]
-pub struct AndTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
+pub struct AndTermination<T, S, C>(pub T, PhantomData<fn(S, C)>);
 
-impl<T: Debug, S, D> Debug for AndTermination<T, S, D> {
+impl<T: Debug, S, C> Debug for AndTermination<T, S, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("AndTermination").field(&self.0).finish()
     }
 }
 
-impl<T, S, D> AndTermination<T, S, D> {
+impl<T, S, C> AndTermination<T, S, C> {
     pub fn new(terminations: T) -> Self {
         Self(terminations, PhantomData)
     }
@@ -101,13 +98,14 @@ impl<T, S, D> AndTermination<T, S, D> {
 
 macro_rules! impl_composite_termination {
     ($($idx:tt: $T:ident),+) => {
-        impl<S, D, $($T),+> Termination<S, D> for OrTermination<($($T,)+), S, D>
+        impl<S, C, $($T),+> Termination<S, C> for OrTermination<($($T,)+), S, C>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
-            $($T: Termination<S, D>,)+
+            S::Score: Score,
+            C: ConstraintSet<S, S::Score>,
+            $($T: Termination<S, C>,)+
         {
-            fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+            fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
                 $(
                     if self.0.$idx.is_terminated(solver_scope) {
                         return true;
@@ -117,13 +115,14 @@ macro_rules! impl_composite_termination {
             }
         }
 
-        impl<S, D, $($T),+> Termination<S, D> for AndTermination<($($T,)+), S, D>
+        impl<S, C, $($T),+> Termination<S, C> for AndTermination<($($T,)+), S, C>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
-            $($T: Termination<S, D>,)+
+            S::Score: Score,
+            C: ConstraintSet<S, S::Score>,
+            $($T: Termination<S, C>,)+
         {
-            fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+            fn is_terminated(&self, solver_scope: &SolverScope<S, C>) -> bool {
                 $(
                     if !self.0.$idx.is_terminated(solver_scope) {
                         return false;

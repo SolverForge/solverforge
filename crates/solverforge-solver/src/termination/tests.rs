@@ -1,10 +1,9 @@
 //! Integration tests for termination conditions.
 
 use super::*;
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
-use std::any::TypeId;
+use solverforge_scoring::ScoreDirector;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -21,36 +20,13 @@ impl PlanningSolution for TestSolution {
     }
 }
 
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
-
-fn calc(_: &TestSolution) -> SimpleScore {
-    SimpleScore::of(0)
-}
-
-fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
-    let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    let director = SimpleScoreDirector::with_calculator(
-        TestSolution { score: None },
-        desc,
-        calc as fn(&TestSolution) -> SimpleScore,
-    );
+fn create_scope() -> SolverScope<'static, TestSolution, ()> {
+    let director = ScoreDirector::new(TestSolution { score: None }, ());
     SolverScope::new(director)
 }
 
-fn create_scope_with_score(
-    score: SimpleScore,
-) -> SolverScope<
-    'static,
-    TestSolution,
-    SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
-> {
-    let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    let score_clone = score;
-    let director = SimpleScoreDirector::with_calculator(
-        TestSolution { score: Some(score) },
-        desc,
-        move |_| score_clone,
-    );
+fn create_scope_with_score(score: SimpleScore) -> SolverScope<'static, TestSolution, ()> {
+    let director = ScoreDirector::new(TestSolution { score: Some(score) }, ());
     let mut scope = SolverScope::new(director);
     scope.update_best_solution();
     scope
@@ -151,19 +127,7 @@ fn test_unimproved_step_count_termination() {
 
 #[test]
 fn test_unimproved_step_count_termination_with_improvement() {
-    let desc = SolutionDescriptor::new("Test", TypeId::of::<TestSolution>());
-    fn calc(_: &TestSolution) -> SimpleScore {
-        SimpleScore::of(-10)
-    }
-    let director = SimpleScoreDirector::with_calculator(
-        TestSolution {
-            score: Some(SimpleScore::of(-10)),
-        },
-        desc,
-        calc,
-    );
-    let mut scope = SolverScope::new(director);
-    scope.update_best_solution();
+    let mut scope = create_scope_with_score(SimpleScore::of(-10));
 
     let term = UnimprovedStepCountTermination::<TestSolution>::new(3);
 

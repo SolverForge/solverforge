@@ -14,12 +14,13 @@
 //! Moves capture old values using typed getters and register undo closures
 //! via `register_undo()`. No BoxedValue, no type erasure on the undo path.
 
-use std::any::Any;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::score::Score;
 
-use super::ScoreDirector;
+use crate::api::constraint_set::ConstraintSet;
+use crate::director::score_director::ScoreDirector;
 
 /// A score director wrapper that stores typed undo closures.
 ///
@@ -29,59 +30,31 @@ use super::ScoreDirector;
 /// # Type Parameters
 /// * `'a` - Lifetime of the inner score director reference
 /// * `S` - The planning solution type
-/// * `D` - The concrete score director type (zero-erasure)
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::director::{RecordingScoreDirector, SimpleScoreDirector, ScoreDirector};
-/// use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-/// use solverforge_core::score::SimpleScore;
-/// use std::any::TypeId;
-///
-/// #[derive(Clone)]
-/// struct Solution { value: i32, score: Option<SimpleScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// let mut sd = SimpleScoreDirector::new(
-///     Solution { value: 10, score: None },
-///     SolutionDescriptor::new("Solution", TypeId::of::<Solution>()),
-///     |s: &Solution| SimpleScore::of(s.value as i64),
-/// );
-///
-/// // Wrap in recording director
-/// let mut recording = RecordingScoreDirector::new(&mut sd);
-///
-/// // Make a change and register undo
-/// let old_value = recording.working_solution().value;
-/// recording.working_solution_mut().value = 20;
-/// recording.register_undo(Box::new(move |s| s.value = old_value));
-///
-/// assert_eq!(recording.working_solution().value, 20);
-///
-/// // Undo restores the original value
-/// recording.undo_changes();
-/// assert_eq!(recording.working_solution().value, 10);
-/// ```
-pub struct RecordingScoreDirector<'a, S: PlanningSolution, D: ScoreDirector<S>> {
-    inner: &'a mut D,
+/// * `C` - The constraint set type
+pub struct RecordingScoreDirector<'a, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score> + Send,
+{
+    inner: &'a mut ScoreDirector<S, C>,
     /// Typed undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
     /// Elements modified during this step that need shadow refresh after undo.
     /// Stores (descriptor_index, entity_index, position, element_idx) tuples.
     modified_elements: Vec<(usize, usize, usize, usize)>,
-    /// Phantom data for solution type (fn pointer pattern per CLAUDE.md)
+    /// Phantom data for solution type
     _phantom: PhantomData<fn() -> S>,
 }
 
-impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S, D> {
+impl<'a, S, C> RecordingScoreDirector<'a, S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score> + Send,
+{
     /// Creates a new recording score director wrapping the inner director.
-    pub fn new(inner: &'a mut D) -> Self {
+    pub fn new(inner: &'a mut ScoreDirector<S, C>) -> Self {
         Self {
             inner,
             undo_stack: Vec::with_capacity(16),
@@ -90,22 +63,103 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
         }
     }
 
+    /// Returns a reference to the working solution.
+    pub fn working_solution(&self) -> &S {
+        self.inner.working_solution()
+    }
+
+    /// Returns a mutable reference to the working solution.
+    pub fn working_solution_mut(&mut self) -> &mut S {
+        self.inner.working_solution_mut()
+    }
+
+    /// Calculates and returns the current score.
+    pub fn calculate_score(&mut self) -> S::Score {
+        self.inner.calculate_score()
+    }
+
+    /// Returns the solution descriptor.
+    pub fn solution_descriptor(&self) -> &SolutionDescriptor {
+        self.inner.solution_descriptor()
+    }
+
+    /// Clones the working solution.
+    pub fn clone_working_solution(&self) -> S {
+        self.inner.clone_working_solution()
+    }
+
+    /// Called before a basic variable is changed.
+    pub fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
+        self.inner
+            .before_variable_changed(descriptor_index, entity_index);
+    }
+
+    /// Called after a basic variable is changed.
+    pub fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
+        self.inner
+            .after_variable_changed(descriptor_index, entity_index);
+    }
+
+    /// Retracts an element from constraint scoring.
+    ///
+    /// This is a low-level primitive - does NOT handle shadow variables.
+    pub fn retract_element(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        element_idx: usize,
+    ) {
+        self.inner
+            .retract_element(descriptor_index, entity_index, element_idx);
+    }
+
+    /// Inserts an element into constraint scoring.
+    ///
+    /// This is a low-level primitive - does NOT handle shadow variables.
+    pub fn insert_element(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        element_idx: usize,
+    ) {
+        self.inner
+            .insert_element(descriptor_index, entity_index, element_idx);
+    }
+
+    /// Tracks an element modification for undo.
+    ///
+    /// Call this after modifying an element so undo_changes knows what to restore.
+    pub fn track_element_change(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        position: usize,
+        element_idx: usize,
+    ) {
+        let key = (descriptor_index, entity_index, position, element_idx);
+        if !self.modified_elements.contains(&key) {
+            self.modified_elements.push(key);
+        }
+    }
+
+    /// Registers an undo closure.
+    pub fn register_undo(&mut self, undo: Box<dyn FnOnce(&mut S) + Send>) {
+        self.undo_stack.push(undo);
+    }
+
     /// Undoes all recorded changes in reverse order.
     ///
     /// For incremental scoring correctness:
     /// 1. Retract current (post-move) contributions from each modified element
     /// 2. Run undo closures to restore planning variable values
-    /// 3. Update shadows and insert restored contributions
+    /// 3. Insert restored contributions
+    ///
+    /// Note: Shadow variable handling is done by the caller (proc-macro-generated code).
     pub fn undo_changes(&mut self) {
         // Step 1: Retract current contributions before restoring values
-        for &(descriptor_idx, entity_idx, position, element_idx) in &self.modified_elements {
-            self.inner.before_list_variable_changed(
-                descriptor_idx,
-                entity_idx,
-                position,
-                element_idx,
-                "",
-            );
+        for &(descriptor_idx, entity_idx, _position, element_idx) in &self.modified_elements {
+            self.inner
+                .retract_element(descriptor_idx, entity_idx, element_idx);
         }
 
         // Step 2: Process undo closures in reverse order
@@ -113,16 +167,11 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
             undo(self.inner.working_solution_mut());
         }
 
-        // Step 3: Update shadows and insert restored contributions
-        for (descriptor_idx, entity_idx, position, element_idx) in self.modified_elements.drain(..)
+        // Step 3: Insert restored contributions
+        for (descriptor_idx, entity_idx, _position, element_idx) in self.modified_elements.drain(..)
         {
-            self.inner.after_list_variable_changed(
-                descriptor_idx,
-                entity_idx,
-                position,
-                element_idx,
-                "",
-            );
+            self.inner
+                .insert_element(descriptor_idx, entity_idx, element_idx);
         }
     }
 
@@ -143,124 +192,31 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
     pub fn is_empty(&self) -> bool {
         self.undo_stack.is_empty()
     }
-}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
-    for RecordingScoreDirector<'_, S, D>
-{
-    fn working_solution(&self) -> &S {
-        self.inner.working_solution()
-    }
-
-    fn working_solution_mut(&mut self) -> &mut S {
-        self.inner.working_solution_mut()
-    }
-
-    fn calculate_score(&mut self) -> S::Score {
-        self.inner.calculate_score()
-    }
-
-    fn solution_descriptor(&self) -> &SolutionDescriptor {
-        self.inner.solution_descriptor()
-    }
-
-    fn clone_working_solution(&self) -> S {
-        self.inner.clone_working_solution()
-    }
-
-    fn before_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        variable_name: &str,
-    ) {
-        // Forward to inner for incremental scoring
-        self.inner
-            .before_variable_changed(descriptor_index, entity_index, variable_name);
-    }
-
-    fn after_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        variable_name: &str,
-    ) {
-        // Forward to inner for incremental scoring
-        self.inner
-            .after_variable_changed(descriptor_index, entity_index, variable_name);
-    }
-
-    fn before_list_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        position: usize,
-        element_idx: usize,
-        variable_name: &str,
-    ) {
-        // Forward to inner for incremental scoring
-        self.inner.before_list_variable_changed(
-            descriptor_index,
-            entity_index,
-            position,
-            element_idx,
-            variable_name,
-        );
-    }
-
-    fn after_list_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        position: usize,
-        element_idx: usize,
-        variable_name: &str,
-    ) {
-        // Forward to inner for shadow updates and incremental scoring
-        self.inner.after_list_variable_changed(
-            descriptor_index,
-            entity_index,
-            position,
-            element_idx,
-            variable_name,
-        );
-
-        // Track element for post-undo shadow refresh (avoid duplicates)
-        let key = (descriptor_index, entity_index, position, element_idx);
-        if !self.modified_elements.contains(&key) {
-            self.modified_elements.push(key);
-        }
-    }
-
-    fn trigger_variable_listeners(&mut self) {
-        self.inner.trigger_variable_listeners();
-    }
-
-    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+    /// Returns the number of entities for a given descriptor index.
+    pub fn entity_count(&self, descriptor_index: usize) -> usize {
         self.inner.entity_count(descriptor_index)
     }
 
-    fn total_entity_count(&self) -> Option<usize> {
-        self.inner.total_entity_count()
-    }
-
-    fn get_entity(&self, descriptor_index: usize, entity_index: usize) -> Option<&dyn Any> {
-        self.inner.get_entity(descriptor_index, entity_index)
-    }
-
-    fn is_incremental(&self) -> bool {
+    /// Returns true - incremental scoring is supported.
+    pub fn is_incremental(&self) -> bool {
         self.inner.is_incremental()
     }
 
-    fn reset(&mut self) {
-        // Forward to inner
-        self.inner.reset();
-        // Also clear our recording state
-        self.undo_stack.clear();
-        self.modified_elements.clear();
+    /// Returns the cached score.
+    pub fn get_score(&self) -> S::Score {
+        self.inner.get_score()
     }
 
-    fn register_undo(&mut self, undo: Box<dyn FnOnce(&mut S) + Send>) {
-        self.undo_stack.push(undo);
+    /// Returns a mutable reference to the inner score director.
+    ///
+    /// Use this to pass the score director to move's `do_move` method.
+    pub fn inner_mut(&mut self) -> &mut ScoreDirector<S, C> {
+        self.inner
+    }
+
+    /// Returns a reference to the inner score director.
+    pub fn inner(&self) -> &ScoreDirector<S, C> {
+        self.inner
     }
 }

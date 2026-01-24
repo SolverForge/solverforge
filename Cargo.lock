@@ -647,15 +647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solverforge-benchmark"
-version = "0.5.1"
-dependencies = [
- "solverforge-core",
- "solverforge-scoring",
- "solverforge-solver",
-]
-
-[[package]]
 name = "solverforge-config"
 version = "0.5.1"
 dependencies = [

@@ -6,7 +6,6 @@ members = [
     "crates/solverforge-scoring",
     "crates/solverforge-solver",
     "crates/solverforge-config",
-    "crates/solverforge-benchmark",
     "crates/solverforge",
     "examples/nqueens",
 ]

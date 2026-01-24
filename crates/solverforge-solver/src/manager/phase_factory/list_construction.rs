@@ -49,7 +49,6 @@ use super::super::PhaseFactory;
 ///     |plan| plan.vehicles.len(),
 ///     |plan, entity_idx, element| { plan.vehicles[entity_idx].visits.push(element); },
 ///     |idx| idx,
-///     "visits",
 ///     1,
 /// );
 ///
@@ -66,7 +65,6 @@ where
     entity_count: fn(&S) -> usize,
     assign_element: fn(&mut S, usize, E),
     index_to_element: fn(usize) -> E,
-    variable_name: &'static str,
     descriptor_index: usize,
     _marker: PhantomData<(S, E)>,
 }
@@ -83,7 +81,6 @@ where
         entity_count: fn(&S) -> usize,
         assign_element: fn(&mut S, usize, E),
         index_to_element: fn(usize) -> E,
-        variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -92,7 +89,6 @@ where
             entity_count,
             assign_element,
             index_to_element,
-            variable_name,
             descriptor_index,
             _marker: PhantomData,
         }
@@ -106,7 +102,6 @@ where
             entity_count: self.entity_count,
             assign_element: self.assign_element,
             index_to_element: self.index_to_element,
-            variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _marker: PhantomData,
         }
@@ -138,7 +133,6 @@ where
     entity_count: fn(&S) -> usize,
     assign_element: fn(&mut S, usize, E),
     index_to_element: fn(usize) -> E,
-    variable_name: &'static str,
     descriptor_index: usize,
     _marker: PhantomData<(S, E)>,
 }

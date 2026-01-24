@@ -53,6 +53,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::k_opt_reconnection::{
@@ -177,13 +179,17 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
 impl<S, V, ES> MoveSelector<S, KOptMove<S, V>> for KOptMoveSelector<S, V, ES>
 where
     S: PlanningSolution,
+    S::Score: Score,
     ES: EntitySelector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
@@ -223,7 +229,10 @@ where
         Box::new(iter)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let pattern_count = self.patterns.len();
@@ -500,14 +509,18 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
 impl<S, V, DM, ES> MoveSelector<S, KOptMove<S, V>> for NearbyKOptMoveSelector<S, V, DM, ES>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Send + Sync + Debug + 'static,
     DM: ListPositionDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a SD,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
@@ -550,7 +563,10 @@ where
         Box::new(iter)
     }
 
-    fn size<SD: ScoreDirector<S>>(&self, score_director: &SD) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         // Approximate size: n * m^(k-1) * patterns
         let k = self.config.k;
         let m = self.max_nearby;
@@ -754,10 +770,8 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::Move;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Tour {
@@ -808,21 +822,9 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tours: Vec<Tour>,
-    ) -> SimpleScoreDirector<TspSolution, impl Fn(&TspSolution) -> SimpleScore> {
+    fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
         let solution = TspSolution { tours, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Tour",
-            "tours",
-            get_tours,
-            get_tours_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "tours").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

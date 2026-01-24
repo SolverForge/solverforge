@@ -15,9 +15,7 @@
 //! use solverforge_solver::heuristic::r#move::RuinMove;
 //! use solverforge_core::domain::PlanningSolution;
 //! use solverforge_core::score::SimpleScore;
-//! use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-//! use solverforge_core::domain::SolutionDescriptor;
-//! use std::any::TypeId;
+//! use solverforge_scoring::ScoreDirector;
 //!
 //! #[derive(Clone, Debug)]
 //! struct Task { assigned_to: Option<i32> }
@@ -56,10 +54,7 @@
 //!     ],
 //!     score: None,
 //! };
-//! let descriptor = SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>());
-//! let director = SimpleScoreDirector::with_calculator(
-//!     solution, descriptor, |_| SimpleScore::of(0)
-//! );
+//! let director = ScoreDirector::new(solution, ());
 //!
 //! let moves: Vec<_> = selector.iter_moves(&director).collect();
 //! assert!(!moves.is_empty());
@@ -72,6 +67,8 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::RuinMove;
@@ -196,12 +193,16 @@ impl<S, V> RuinMoveSelector<S, V> {
 impl<S, V> MoveSelector<S, RuinMove<S, V>> for RuinMoveSelector<S, V>
 where
     S: PlanningSolution,
+    S::Score: Score,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = RuinMove<S, V>> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = RuinMove<S, V>> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let total_entities = (self.entity_count)(score_director.working_solution());
         let getter = self.getter;
         let setter = self.setter;
@@ -239,7 +240,10 @@ where
         }))
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let total = (self.entity_count)(score_director.working_solution());
         if total == 0 {
             return 0;
@@ -257,10 +261,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::SolutionDescriptor;
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -295,16 +297,13 @@ mod tests {
         }
     }
 
-    fn create_director(
-        assignments: &[Option<i32>],
-    ) -> SimpleScoreDirector<Schedule, impl Fn(&Schedule) -> SimpleScore> {
+    fn create_director(assignments: &[Option<i32>]) -> ScoreDirector<Schedule, ()> {
         let tasks: Vec<Task> = assignments
             .iter()
             .map(|&a| Task { assigned_to: a })
             .collect();
         let solution = Schedule { tasks, score: None };
-        let descriptor = SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>());
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

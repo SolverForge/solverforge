@@ -52,6 +52,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::ListChangeMove;
@@ -139,14 +141,18 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
 
 impl<S, V, ES> MoveSelector<S, ListChangeMove<S, V>> for ListChangeMoveSelector<S, V, ES>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+    S::Score: Score,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ListChangeMove<S, V>> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = ListChangeMove<S, V>> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_remove = self.list_remove;
@@ -227,7 +233,10 @@ where
         Box::new(moves.into_iter())
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
 
@@ -260,10 +269,8 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::Move;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Vehicle {
@@ -286,13 +293,6 @@ mod tests {
         }
     }
 
-    fn get_vehicles(s: &Solution) -> &Vec<Vehicle> {
-        &s.vehicles
-    }
-    fn get_vehicles_mut(s: &mut Solution) -> &mut Vec<Vehicle> {
-        &mut s.vehicles
-    }
-
     fn list_len(s: &Solution, entity_idx: usize) -> usize {
         s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
     }
@@ -313,24 +313,12 @@ mod tests {
             .unwrap_or(0) as usize
     }
 
-    fn create_director(
-        vehicles: Vec<Vehicle>,
-    ) -> SimpleScoreDirector<Solution, impl Fn(&Solution) -> SimpleScore> {
+    fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<Solution, ()> {
         let solution = Solution {
             vehicles,
             score: None,
         };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Vehicle",
-            "vehicles",
-            get_vehicles,
-            get_vehicles_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles")
-            .with_extractor(extractor);
-        let descriptor =
-            SolutionDescriptor::new("Solution", TypeId::of::<Solution>()).with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

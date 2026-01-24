@@ -3,7 +3,8 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::Score;
+use solverforge_scoring::{ConstraintSet, ScoreDirector};
 use solverforge_solver::stats::SolverStats;
 
 use crate::config::BenchmarkConfig;
@@ -60,48 +61,20 @@ impl<S: PlanningSolution> SolveResult<S> {
 /// This enables benchmarking any solver implementation. The solve method
 /// returns both the solution and statistics to support zero-erasure benchmarking.
 ///
-/// # Example
+/// # Type Parameters
 ///
-/// ```
-/// use solverforge_benchmark::{Solvable, SolveResult};
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-/// use solverforge_scoring::ScoreDirector;
-/// use solverforge_solver::stats::SolverStats;
-///
-/// #[derive(Clone)]
-/// struct MySolution {
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// struct MySolver;
-///
-/// impl<D: ScoreDirector<MySolution>> Solvable<MySolution, D> for MySolver {
-///     fn solve(&mut self, mut director: D) -> SolveResult<MySolution> {
-///         let mut solution = director.working_solution().clone();
-///         let score = director.calculate_score();
-///         solution.set_score(Some(score));
-///
-///         let mut stats = SolverStats::default();
-///         stats.moves_evaluated = 100;
-///         stats.moves_accepted = 50;
-///         stats.score_calculations = 100;
-///
-///         SolveResult::new(solution, stats)
-///     }
-/// }
-/// ```
-pub trait Solvable<S: PlanningSolution, Dir: ScoreDirector<S>> {
+/// * `S` - The planning solution type
+/// * `C` - The constraint set type
+pub trait Solvable<S, C>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Solves the problem using the provided score director.
     ///
     /// Returns the final solution along with statistics collected during solving.
-    fn solve(&mut self, score_director: Dir) -> SolveResult<S>;
+    fn solve(&mut self, score_director: ScoreDirector<S, C>) -> SolveResult<S>;
 }
 
 /// Zero-erasure benchmark runner.
@@ -113,76 +86,19 @@ pub trait Solvable<S: PlanningSolution, Dir: ScoreDirector<S>> {
 /// # Type Parameters
 ///
 /// * `S` - The planning solution type
-/// * `Dir` - The score director type
+/// * `C` - The constraint set type
 /// * `Slv` - The solver type
 /// * `P` - Problem factory: `Fn() -> S`
-/// * `D` - Score director factory: `Fn(S) -> Dir`
+/// * `D` - Score director factory: `Fn(S) -> ScoreDirector<S, C>`
 /// * `F` - Solver factory: `Fn() -> Slv`
-///
-/// # Example
-///
-/// ```
-/// use solverforge_benchmark::{Benchmark, BenchmarkConfig, Solvable, SolveResult};
-/// use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-/// use solverforge_core::score::SimpleScore;
-/// use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-/// use solverforge_solver::stats::SolverStats;
-/// use std::any::TypeId;
-///
-/// #[derive(Clone)]
-/// struct MySolution {
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
-///
-/// fn calc(_: &MySolution) -> SimpleScore { SimpleScore::of(0) }
-///
-/// struct MySolver;
-///
-/// impl Solvable<MySolution, MyDirector> for MySolver {
-///     fn solve(&mut self, mut director: MyDirector) -> SolveResult<MySolution> {
-///         let mut solution = director.working_solution().clone();
-///         solution.set_score(Some(director.calculate_score()));
-///         let mut stats = SolverStats::default();
-///         stats.start();
-///         stats.moves_evaluated = 100;
-///         SolveResult::new(solution, stats)
-///     }
-/// }
-///
-/// let config = BenchmarkConfig::new("Test")
-///     .with_warmup_count(0)
-///     .with_run_count(2);
-///
-/// let benchmark = Benchmark::new(
-///     config,
-///     "HC",
-///     "Problem",
-///     || MySolution { score: None },
-///     |s| {
-///         let desc = SolutionDescriptor::new("MySolution", TypeId::of::<MySolution>());
-///         SimpleScoreDirector::with_calculator(s, desc, calc as fn(&MySolution) -> SimpleScore)
-///     },
-///     || MySolver,
-/// );
-///
-/// let result = benchmark.run();
-/// assert_eq!(result.run_count(), 2);
-/// ```
-pub struct Benchmark<S, Dir, Slv, P, D, F>
+pub struct Benchmark<S, C, Slv, P, D, F>
 where
     S: PlanningSolution,
-    Dir: ScoreDirector<S>,
-    Slv: Solvable<S, Dir>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    Slv: Solvable<S, C>,
     P: Fn() -> S,
-    D: Fn(S) -> Dir,
+    D: Fn(S) -> ScoreDirector<S, C>,
     F: Fn() -> Slv,
 {
     config: BenchmarkConfig,
@@ -191,16 +107,17 @@ where
     problem_factory: P,
     director_factory: D,
     solver_factory: F,
-    _phantom: PhantomData<(S, Dir, Slv)>,
+    _phantom: PhantomData<(S, C, Slv)>,
 }
 
-impl<S, Dir, Slv, P, D, F> Benchmark<S, Dir, Slv, P, D, F>
+impl<S, C, Slv, P, D, F> Benchmark<S, C, Slv, P, D, F>
 where
     S: PlanningSolution,
-    Dir: ScoreDirector<S>,
-    Slv: Solvable<S, Dir>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    Slv: Solvable<S, C>,
     P: Fn() -> S,
-    D: Fn(S) -> Dir,
+    D: Fn(S) -> ScoreDirector<S, C>,
     F: Fn() -> Slv,
 {
     /// Creates a new benchmark.
@@ -281,70 +198,27 @@ where
 
 /// Builder for creating benchmarks with fluent API.
 ///
-/// # Example
+/// # Type Parameters
 ///
-/// ```
-/// use solverforge_benchmark::{BenchmarkBuilder, Solvable, SolveResult};
-/// use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-/// use solverforge_core::score::SimpleScore;
-/// use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
-/// use solverforge_solver::stats::SolverStats;
-/// use std::any::TypeId;
-///
-/// #[derive(Clone)]
-/// struct MySolution {
-///     score: Option<SimpleScore>,
-/// }
-///
-/// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
-///
-/// fn calc(_: &MySolution) -> SimpleScore { SimpleScore::of(0) }
-///
-/// struct MySolver;
-///
-/// impl Solvable<MySolution, MyDirector> for MySolver {
-///     fn solve(&mut self, mut director: MyDirector) -> SolveResult<MySolution> {
-///         let mut solution = director.working_solution().clone();
-///         solution.set_score(Some(director.calculate_score()));
-///         SolveResult::new(solution, SolverStats::default())
-///     }
-/// }
-///
-/// let benchmark = BenchmarkBuilder::<MySolution, MyDirector>::new("Test")
-///     .with_solver_name("HC")
-///     .with_problem_name("Problem1")
-///     .with_warmup_count(0)
-///     .with_run_count(1)
-///     .build(
-///         || MySolution { score: None },
-///         |s| {
-///             let desc = SolutionDescriptor::new("MySolution", TypeId::of::<MySolution>());
-///             SimpleScoreDirector::with_calculator(s, desc, calc as fn(&MySolution) -> SimpleScore)
-///         },
-///         || MySolver,
-///     );
-/// ```
-pub struct BenchmarkBuilder<S, Dir>
+/// * `S` - The planning solution type
+/// * `C` - The constraint set type
+pub struct BenchmarkBuilder<S, C>
 where
     S: PlanningSolution,
-    Dir: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
     config: BenchmarkConfig,
     solver_name: String,
     problem_name: String,
-    _phantom: PhantomData<(S, Dir)>,
+    _phantom: PhantomData<(S, C)>,
 }
 
-impl<S, Dir> BenchmarkBuilder<S, Dir>
+impl<S, C> BenchmarkBuilder<S, C>
 where
     S: PlanningSolution,
-    Dir: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
 {
     /// Creates a new benchmark builder.
     pub fn new(name: impl Into<String>) -> Self {
@@ -386,11 +260,11 @@ where
         problem_factory: P,
         director_factory: D,
         solver_factory: F,
-    ) -> Benchmark<S, Dir, Slv, P, D, F>
+    ) -> Benchmark<S, C, Slv, P, D, F>
     where
-        Slv: Solvable<S, Dir>,
+        Slv: Solvable<S, C>,
         P: Fn() -> S,
-        D: Fn(S) -> Dir,
+        D: Fn(S) -> ScoreDirector<S, C>,
         F: Fn() -> Slv,
     {
         Benchmark::new(

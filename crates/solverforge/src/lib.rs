@@ -68,15 +68,15 @@ pub mod stream {
 // Score Director
 // ============================================================================
 
-pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
+pub use solverforge_scoring::ScoreDirector;
 
 // ============================================================================
 // Solver
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_list_solver, run_list_solver_with_channel, run_solver, run_solver_with_channel, Analyzable,
-    ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable, SolverManager, SolverStatus,
+    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis,
+    SolutionManager, Solvable, SolverManager, SolverStatus,
 };
 
 // ============================================================================
@@ -112,7 +112,6 @@ pub mod prelude {
         acceptors, planning_entity, planning_solution, problem_fact, AcceptorConfig, BendableScore,
         ConstraintSet, ConstructionHeuristicType, HardMediumSoftScore, HardSoftDecimalScore,
         HardSoftScore, Score, ScoreDirector, SimpleScore, Solvable, SolverBuilder,
-        TypedScoreDirector,
     };
 }
 
@@ -137,8 +136,7 @@ pub mod __internal {
     };
 
     pub use solverforge_scoring::{
-        ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
-        SolvableSolution, TypedScoreDirector,
+        RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SolvableSolution,
     };
 
     pub use solverforge_solver::heuristic::selector::{

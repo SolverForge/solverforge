@@ -20,8 +20,13 @@ struct ShadowConfig {
     /// Aggregate shadow fields on the list owner entity.
     /// Format: "field_name:aggregation:source_field" (e.g., "total_demand:sum:demand")
     entity_aggregates: Vec<String>,
+    /// O(1) incremental delta shadow fields on the list owner entity.
+    /// Format: "field_name:delta_method" (e.g., "total_driving_time_seconds:compute_driving_time_delta")
+    /// Method signature: fn(&self, entity_idx: usize, position: usize, element_idx: usize, is_insert: bool) -> T
+    entity_deltas: Vec<String>,
     /// Computed shadow fields on the list owner entity.
-    /// Format: "field_name:method_name" (e.g., "total_driving_time:compute_driving_time")
+    /// Format: "field_name:compute_method" (e.g., "total_driving_time_seconds:compute_vehicle_driving_time")
+    /// Method signature: fn(&self, entity_idx: usize) -> T
     entity_computes: Vec<String>,
 }
 
@@ -74,6 +79,7 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.post_update_listener = parse_attribute_string(attr, "post_update_listener");
         config.element_type = parse_attribute_string(attr, "element_type");
         config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
+        config.entity_deltas = parse_attribute_list(attr, "entity_delta");
         config.entity_computes = parse_attribute_list(attr, "entity_compute");
     }
 
@@ -933,8 +939,43 @@ fn generate_shadow_support(
         })
         .collect();
 
-    // Entity computes for full update
-    let full_compute_updates: Vec<_> = config
+    // Entity deltas for O(1) incremental update
+    let delta_insert_updates: Vec<_> = config
+        .entity_deltas
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 2 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
+
+            Some(quote! {
+                self.#list_owner_ident[entity_idx].#target_field += self.#method_name(entity_idx, position, element_idx, true);
+            })
+        })
+        .collect();
+
+    let delta_retract_updates: Vec<_> = config
+        .entity_deltas
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 2 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
+
+            Some(quote! {
+                self.#list_owner_ident[entity_idx].#target_field += self.#method_name(entity_idx, position, element_idx, false);
+            })
+        })
+        .collect();
+
+    // Entity compute incremental: recompute the field after each change
+    let compute_incremental_updates: Vec<_> = config
         .entity_computes
         .iter()
         .filter_map(|spec| {
@@ -946,8 +987,30 @@ fn generate_shadow_support(
             let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
 
             Some(quote! {
+                self.#list_owner_ident[entity_idx].#target_field = self.#method_name(entity_idx);
+            })
+        })
+        .collect();
+
+    // Full delta initialization: reset to 0 then insert all elements
+    let full_delta_updates: Vec<_> = config
+        .entity_deltas
+        .iter()
+        .filter_map(|spec| {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() != 2 {
+                return None;
+            }
+            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
+
+            Some(quote! {
                 for entity_idx in 0..self.#list_owner_ident.len() {
-                    self.#list_owner_ident[entity_idx].#target_field = self.#method_name(entity_idx);
+                    self.#list_owner_ident[entity_idx].#target_field = Default::default();
+                    for position in 0..self.#list_owner_ident[entity_idx].#list_field_ident.len() {
+                        let element_idx = self.#list_owner_ident[entity_idx].#list_field_ident[position];
+                        self.#list_owner_ident[entity_idx].#target_field += self.#method_name(entity_idx, position, element_idx, true);
+                    }
                 }
             })
         })
@@ -962,6 +1025,8 @@ fn generate_shadow_support(
                 #previous_update
                 #next_update
                 #cascading_update
+                #(#delta_insert_updates)*
+                #(#compute_incremental_updates)*
             }
 
             #[inline]
@@ -970,6 +1035,8 @@ fn generate_shadow_support(
                 #inverse_retract
                 #previous_retract
                 #next_retract
+                #(#delta_retract_updates)*
+                #(#compute_incremental_updates)*
             }
 
             #[inline]
@@ -980,7 +1047,11 @@ fn generate_shadow_support(
                 #full_next_update
                 #full_cascading_update
                 #(#full_aggregate_updates)*
-                #(#full_compute_updates)*
+                #(#full_delta_updates)*
+                // Compute entity-level shadow fields for all entities
+                for entity_idx in 0..self.#list_owner_ident.len() {
+                    #(#compute_incremental_updates)*
+                }
                 #full_post_update
             }
 

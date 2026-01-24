@@ -6,6 +6,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::Move;
@@ -80,18 +82,25 @@ impl<S, M, Inner: Debug> Debug for FilteringMoveSelector<S, M, Inner> {
 impl<S, M, Inner> MoveSelector<S, M> for FilteringMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
+    S::Score: Score,
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = M> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         let predicate = self.predicate;
         Box::new(self.inner.iter_moves(score_director).filter(predicate))
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         self.inner.size(score_director)
     }
 

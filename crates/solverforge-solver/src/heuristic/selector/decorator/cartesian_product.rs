@@ -13,6 +13,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::{Move, MoveArena};
@@ -41,6 +43,7 @@ where
 impl<S, M1, M2> CartesianProductArena<S, M1, M2>
 where
     S: PlanningSolution,
+    S::Score: Score,
     M1: Move<S>,
     M2: Move<S>,
 {
@@ -60,18 +63,18 @@ where
     }
 
     /// Populates arena 1 from a move selector.
-    pub fn populate_first<D, MS>(&mut self, selector: &MS, score_director: &D)
+    pub fn populate_first<C, MS>(&mut self, selector: &MS, score_director: &ScoreDirector<S, C>)
     where
-        D: ScoreDirector<S>,
+        C: ConstraintSet<S, S::Score>,
         MS: MoveSelector<S, M1>,
     {
         self.arena_1.extend(selector.iter_moves(score_director));
     }
 
     /// Populates arena 2 from a move selector.
-    pub fn populate_second<D, MS>(&mut self, selector: &MS, score_director: &D)
+    pub fn populate_second<C, MS>(&mut self, selector: &MS, score_director: &ScoreDirector<S, C>)
     where
-        D: ScoreDirector<S>,
+        C: ConstraintSet<S, S::Score>,
         MS: MoveSelector<S, M2>,
     {
         self.arena_2.extend(selector.iter_moves(score_director));
@@ -117,6 +120,7 @@ where
 impl<S, M1, M2> Default for CartesianProductArena<S, M1, M2>
 where
     S: PlanningSolution,
+    S::Score: Score,
     M1: Move<S>,
     M2: Move<S>,
 {
@@ -144,10 +148,8 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -194,19 +196,9 @@ mod tests {
         }
     }
 
-    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<Sol, impl Fn(&Sol) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<Sol, ()> {
         let solution = Sol { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor =
-            SolutionDescriptor::new("Sol", TypeId::of::<Sol>()).with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

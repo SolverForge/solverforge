@@ -6,6 +6,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::Move;
@@ -79,14 +81,18 @@ impl<S, M, A: Debug, B: Debug> Debug for UnionMoveSelector<S, M, A, B> {
 impl<S, M, A, B> MoveSelector<S, M> for UnionMoveSelector<S, M, A, B>
 where
     S: PlanningSolution,
+    S::Score: Score,
     M: Move<S>,
     A: MoveSelector<S, M>,
     B: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, C>(
         &'a self,
-        score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a> {
+        score_director: &'a ScoreDirector<S, C>,
+    ) -> Box<dyn Iterator<Item = M> + 'a>
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         Box::new(
             self.first
                 .iter_moves(score_director)
@@ -94,7 +100,10 @@ where
         )
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize
+    where
+        C: ConstraintSet<S, S::Score>,
+    {
         self.first.size(score_director) + self.second.size(score_director)
     }
 

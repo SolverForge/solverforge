@@ -1,11 +1,8 @@
 //! Shared test infrastructure for decorator tests.
 
-use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
-};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
-use std::any::TypeId;
+use solverforge_scoring::ScoreDirector;
 
 #[derive(Clone, Debug)]
 pub struct Task {
@@ -46,19 +43,7 @@ pub fn set_priority(s: &mut TaskSolution, i: usize, v: Option<i32>) {
     }
 }
 
-pub fn create_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+pub fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     let solution = TaskSolution { tasks, score: None };
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Task",
-        "tasks",
-        get_tasks,
-        get_tasks_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-    let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
-        .with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::new(solution, ())
 }

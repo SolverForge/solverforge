@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that removes elements from a list for Large Neighborhood Search.
 ///
@@ -164,7 +164,10 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         if self.positions.is_empty() {
             return false;
         }
@@ -176,12 +179,13 @@ where
         self.positions.iter().all(|&pos| pos < len)
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let entity = self.entity_index;
-        let descriptor = self.descriptor_index;
-        let variable_name = self.variable_name;
 
         // Look up element indices at runtime for correct shadow updates
         let element_ids: SmallVec<[usize; 8]> = self
@@ -192,13 +196,7 @@ where
 
         // Notify before removal for each element
         for (&pos, &element_id) in self.positions.iter().zip(element_ids.iter()) {
-            score_director.before_list_variable_changed(
-                descriptor,
-                entity,
-                pos,
-                element_id,
-                variable_name,
-            );
+            score_director.before_list_element_changed(entity, pos, element_id);
         }
 
         // Remove elements in reverse order (highest position first) to preserve positions
@@ -210,13 +208,7 @@ where
 
         // Notify after removal for each element
         for (&pos, &element_id) in self.positions.iter().zip(element_ids.iter()) {
-            score_director.after_list_variable_changed(
-                descriptor,
-                entity,
-                pos,
-                element_id,
-                variable_name,
-            );
+            score_director.after_list_element_changed(entity, pos, element_id);
         }
 
         // Register undo - reinsert in original order (lowest position first)
@@ -243,10 +235,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Route {
@@ -299,25 +289,13 @@ mod tests {
             .unwrap_or(0) as usize
     }
 
-    fn create_director(
-        stops: Vec<i32>,
-    ) -> SimpleScoreDirector<VrpSolution, impl Fn(&VrpSolution) -> SimpleScore> {
+    fn create_director(stops: Vec<i32>) -> ScoreDirector<VrpSolution, ()> {
         let routes = vec![Route { stops }];
         let solution = VrpSolution {
             routes,
             score: None,
         };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Route",
-            "routes",
-            get_routes,
-            get_routes_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Route", TypeId::of::<Route>(), "stops")
-            .with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

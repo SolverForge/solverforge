@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that reverses a segment within a list.
 ///
@@ -163,7 +163,10 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let solution = score_director.working_solution();
 
         // Range must have at least 2 elements to be meaningful
@@ -180,7 +183,10 @@ where
         true
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let n = self.end - self.start;
 
         // Look up element indices at runtime for correct shadow updates
@@ -195,15 +201,8 @@ where
             .collect();
 
         // Notify before change for each element in the range
-        for (i, &element_idx) in element_indices.iter().enumerate() {
-            let position = self.start + i;
-            score_director.before_list_variable_changed(
-                self.descriptor_index,
-                self.entity_index,
-                position,
-                element_idx,
-                self.variable_name,
-            );
+        for &element_idx in element_indices.iter() {
+            score_director.before_list_element_changed(self.entity_index, self.start, element_idx);
         }
 
         // Reverse the segment
@@ -219,13 +218,7 @@ where
         for (i, &element_idx) in element_indices.iter().enumerate() {
             // After reversal, element at original position start+i is now at start+(n-1-i)
             let new_position = self.start + (n - 1 - i);
-            score_director.after_list_variable_changed(
-                self.descriptor_index,
-                self.entity_index,
-                new_position,
-                element_idx,
-                self.variable_name,
-            );
+            score_director.after_list_element_changed(self.entity_index, new_position, element_idx);
         }
 
         // Register undo - reversing twice restores original
@@ -255,10 +248,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Tour {
@@ -305,21 +296,9 @@ mod tests {
             .unwrap_or(0) as usize
     }
 
-    fn create_director(
-        tours: Vec<Tour>,
-    ) -> SimpleScoreDirector<TspSolution, impl Fn(&TspSolution) -> SimpleScore> {
+    fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
         let solution = TspSolution { tours, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Tour",
-            "tours",
-            get_tours,
-            get_tours_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "cities").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

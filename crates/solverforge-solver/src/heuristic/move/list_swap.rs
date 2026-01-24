@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that swaps two elements in list variables.
 ///
@@ -193,7 +193,10 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let solution = score_director.working_solution();
 
         // Check first position is valid
@@ -220,7 +223,10 @@ where
         first_val != second_val
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Look up actual element indices at runtime for correct shadow updates
         let first_element_idx = (self.list_get_element_idx)(
             score_director.working_solution(),
@@ -249,20 +255,16 @@ where
         .expect("second position should be valid");
 
         // Notify before changes for first element
-        score_director.before_list_variable_changed(
-            self.descriptor_index,
+        score_director.before_list_element_changed(
             self.first_entity_index,
             self.first_position,
             first_element_idx,
-            self.variable_name,
         );
         // Notify before changes for second element
-        score_director.before_list_variable_changed(
-            self.descriptor_index,
+        score_director.before_list_element_changed(
             self.second_entity_index,
             self.second_position,
             second_element_idx,
-            self.variable_name,
         );
 
         // Swap: first gets second's value, second gets first's value
@@ -281,20 +283,16 @@ where
 
         // Notify after changes - note: elements swapped positions
         // First position now has second_element_idx
-        score_director.after_list_variable_changed(
-            self.descriptor_index,
+        score_director.after_list_element_changed(
             self.first_entity_index,
             self.first_position,
             second_element_idx,
-            self.variable_name,
         );
         // Second position now has first_element_idx
-        score_director.after_list_variable_changed(
-            self.descriptor_index,
+        score_director.after_list_element_changed(
             self.second_entity_index,
             self.second_position,
             first_element_idx,
-            self.variable_name,
         );
 
         // Register undo - swap back
@@ -331,10 +329,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Vehicle {
@@ -388,25 +384,12 @@ mod tests {
             .unwrap_or(0) as usize
     }
 
-    fn create_director(
-        vehicles: Vec<Vehicle>,
-    ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
+    fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<RoutingSolution, ()> {
         let solution = RoutingSolution {
             vehicles,
             score: None,
         };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Vehicle",
-            "vehicles",
-            get_vehicles,
-            get_vehicles_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "visits")
-            .with_extractor(extractor);
-        let descriptor =
-            SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
-                .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

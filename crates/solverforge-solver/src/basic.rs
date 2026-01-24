@@ -13,7 +13,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use solverforge_config::{PhaseConfig, SolverConfig};
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::{ConstraintSet, ScoreDirector};
 use tokio::sync::mpsc;
@@ -36,6 +36,9 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 /// This function is called by macro-generated `solve()` methods for solutions
 /// using `#[basic_variable_config]`.
 ///
+/// Logs solver progress via `tracing`. Optionally accepts a termination flag.
+/// Solutions are sent through the channel as they improve.
+///
 /// # Type Parameters
 ///
 /// * `S` - The solution type (must implement `PlanningSolution`)
@@ -50,50 +53,10 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 /// * `set_variable` - Sets the planning variable value for an entity
 /// * `value_count` - Returns the number of valid values
 /// * `entity_count_fn` - Returns the number of entities
-/// * `_descriptor` - Solution descriptor (unused, for future extensions)
-/// * `_entity_count` - Entity count function (unused, for future extensions)
-/// * `_variable_field` - Variable field name (unused, for future extensions)
-/// * `_descriptor_index` - Descriptor index (unused, for future extensions)
+/// * `terminate` - Optional termination flag
+/// * `sender` - Channel for streaming improved solutions
 #[allow(clippy::too_many_arguments)]
 pub fn run_solver<S, C>(
-    solution: S,
-    finalize_fn: fn(&mut S),
-    constraints_fn: fn() -> C,
-    get_variable: fn(&S, usize) -> Option<usize>,
-    set_variable: fn(&mut S, usize, Option<usize>),
-    value_count: fn(&S) -> usize,
-    entity_count_fn: fn(&S) -> usize,
-    _descriptor: fn() -> SolutionDescriptor,
-    _entity_count: fn(&S, usize) -> usize,
-    _variable_field: &'static str,
-    _descriptor_index: usize,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score,
-    C: ConstraintSet<S, S::Score>,
-{
-    // Create a channel but ignore the receiver - no streaming needed
-    let (sender, _receiver) = mpsc::unbounded_channel();
-    run_solver_with_channel(
-        solution,
-        finalize_fn,
-        constraints_fn,
-        get_variable,
-        set_variable,
-        value_count,
-        entity_count_fn,
-        None,
-        sender,
-    )
-}
-
-/// Solves a basic variable problem with channel-based solution streaming.
-///
-/// Logs solver progress via `tracing`. Optionally accepts a termination flag.
-/// Solutions are sent through the channel as they improve.
-#[allow(clippy::too_many_arguments)]
-pub fn run_solver_with_channel<S, C>(
     mut solution: S,
     finalize_fn: fn(&mut S),
     constraints_fn: fn() -> C,

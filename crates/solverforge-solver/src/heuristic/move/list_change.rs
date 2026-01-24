@@ -49,19 +49,7 @@ pub struct ListChangeMove<S, V> {
 
 impl<S, V> Clone for ListChangeMove<S, V> {
     fn clone(&self) -> Self {
-        Self {
-            source_entity_index: self.source_entity_index,
-            source_position: self.source_position,
-            dest_entity_index: self.dest_entity_index,
-            dest_position: self.dest_position,
-            list_len: self.list_len,
-            list_remove: self.list_remove,
-            list_insert: self.list_insert,
-            list_get_element_idx: self.list_get_element_idx,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            indices: self.indices,
-        }
+        *self
     }
 }
 

@@ -75,17 +75,7 @@ pub struct ListReverseMove<S, V> {
 
 impl<S, V> Clone for ListReverseMove<S, V> {
     fn clone(&self) -> Self {
-        Self {
-            entity_index: self.entity_index,
-            start: self.start,
-            end: self.end,
-            list_len: self.list_len,
-            list_reverse: self.list_reverse,
-            list_get_element_idx: self.list_get_element_idx,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            _phantom: PhantomData,
-        }
+        *self
     }
 }
 

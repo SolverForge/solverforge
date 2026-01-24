@@ -183,7 +183,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let score_field_str = score_field_name.to_string();
 
     let shadow_config = parse_shadow_config(&input.attrs);
-    let shadow_support_impl = generate_shadow_support(&shadow_config, name, &fields);
+    let shadow_support_impl = generate_shadow_support(&shadow_config, name, fields);
     let constraints_path = parse_constraints_path(&input.attrs);
     let basic_config = parse_basic_variable_config(&input.attrs);
 
@@ -506,7 +506,7 @@ fn generate_basic_variable_operations(
             ) -> Self {
                 ::solverforge::__internal::init_console();
 
-                ::solverforge::run_solver_with_channel(
+                ::solverforge::run_solver(
                     self,
                     Self::finalize_all,
                     #constraints_fn,
@@ -617,18 +617,17 @@ fn generate_solvable_solution(
 
             impl ::solverforge::Analyzable for #solution_name {
                 fn analyze(&self) -> ::solverforge::ScoreAnalysis<<Self as ::solverforge::__internal::PlanningSolution>::Score> {
-                    use ::solverforge::__internal::{
-                        TypedScoreDirector, ScoreDirector, ShadowAwareScoreDirector,
-                    };
+                    use ::solverforge::__internal::{ScoreDirector, ShadowVariableSupport};
+
+                    let mut solution = self.clone();
+                    solution.update_all_shadows();
 
                     let constraints = #constraints_fn();
-                    let mut director = ShadowAwareScoreDirector::new(
-                        TypedScoreDirector::with_descriptor(
-                            self.clone(),
-                            constraints,
-                            Self::descriptor(),
-                            Self::entity_count,
-                        ),
+                    let mut director = ScoreDirector::with_descriptor(
+                        solution,
+                        constraints,
+                        Self::descriptor(),
+                        Self::entity_count,
                     );
 
                     let score = director.calculate_score();
@@ -810,12 +809,7 @@ fn generate_shadow_support(
         .collect();
 
     let element_descriptor_index = entity_fields.iter().position(|f| {
-        f.ident
-            .as_ref()
-            .map(|i| i.to_string())
-            .as_ref()
-            .map(|s| s.as_str())
-            == Some(element_collection.as_str())
+        f.ident.as_ref().map(|i| i.to_string()).as_deref() == Some(element_collection.as_str())
     });
 
     let element_descriptor_method = match element_descriptor_index {

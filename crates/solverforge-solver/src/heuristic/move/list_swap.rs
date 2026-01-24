@@ -90,19 +90,7 @@ pub struct ListSwapMove<S, V> {
 
 impl<S, V> Clone for ListSwapMove<S, V> {
     fn clone(&self) -> Self {
-        Self {
-            first_entity_index: self.first_entity_index,
-            first_position: self.first_position,
-            second_entity_index: self.second_entity_index,
-            second_position: self.second_position,
-            list_len: self.list_len,
-            list_get: self.list_get,
-            list_set: self.list_set,
-            list_get_element_idx: self.list_get_element_idx,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            indices: self.indices,
-        }
+        *self
     }
 }
 

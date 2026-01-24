@@ -98,21 +98,7 @@ pub struct SubListChangeMove<S, V> {
 
 impl<S, V> Clone for SubListChangeMove<S, V> {
     fn clone(&self) -> Self {
-        Self {
-            source_entity_index: self.source_entity_index,
-            source_start: self.source_start,
-            source_end: self.source_end,
-            dest_entity_index: self.dest_entity_index,
-            dest_position: self.dest_position,
-            list_len: self.list_len,
-            sublist_remove: self.sublist_remove,
-            sublist_insert: self.sublist_insert,
-            list_get_element_idx: self.list_get_element_idx,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            indices: self.indices,
-            _phantom: PhantomData,
-        }
+        *self
     }
 }
 

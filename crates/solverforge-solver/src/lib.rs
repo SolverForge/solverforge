@@ -107,4 +107,4 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use basic::{run_solver, run_solver_with_channel};
+pub use basic::run_solver;

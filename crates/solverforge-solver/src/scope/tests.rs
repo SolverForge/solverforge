@@ -6,15 +6,11 @@ use solverforge_core::score::SimpleScore;
 use solverforge_scoring::ScoreDirector;
 
 #[derive(Clone, Debug)]
-struct Queen;
-
-#[derive(Clone, Debug)]
-struct NQueensSolution {
-    queens: Vec<Queen>,
+struct TestSolution {
     score: Option<SimpleScore>,
 }
 
-impl PlanningSolution for NQueensSolution {
+impl PlanningSolution for TestSolution {
     type Score = SimpleScore;
 
     fn score(&self) -> Option<Self::Score> {
@@ -26,11 +22,8 @@ impl PlanningSolution for NQueensSolution {
     }
 }
 
-fn create_test_director() -> ScoreDirector<NQueensSolution, ()> {
-    let solution = NQueensSolution {
-        queens: vec![Queen, Queen],
-        score: None,
-    };
+fn create_test_director() -> ScoreDirector<TestSolution, ()> {
+    let solution = TestSolution { score: None };
     ScoreDirector::new(solution, ())
 }
 

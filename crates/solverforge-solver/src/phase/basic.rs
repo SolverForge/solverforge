@@ -11,7 +11,6 @@ use rand::Rng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
-use solverforge_scoring::ScoreDirector;
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace};
 

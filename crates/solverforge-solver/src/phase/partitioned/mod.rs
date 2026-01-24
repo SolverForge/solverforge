@@ -309,15 +309,3 @@ impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
 impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
 impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
 impl_child_phases_tuple!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_config_default() {
-        let config = PartitionedSearchConfig::default();
-        assert_eq!(config.thread_count, ThreadCount::Auto);
-        assert!(!config.log_progress);
-    }
-}

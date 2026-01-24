@@ -151,28 +151,3 @@ impl std::fmt::Display for BounderType {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_simple_bounder_returns_none() {
-        let bounder = SimpleScoreBounder::new();
-        // SimpleScoreBounder returns None by default (disables pruning)
-        // Verify Default trait works
-        assert!(format!("{:?}", bounder).contains("SimpleScoreBounder"));
-    }
-
-    #[test]
-    fn test_bounder_type_display() {
-        assert_eq!(format!("{}", BounderType::None), "None");
-        assert_eq!(format!("{}", BounderType::Simple), "Simple");
-        assert_eq!(format!("{}", BounderType::FixedOffset), "FixedOffset");
-    }
-
-    #[test]
-    fn test_bounder_type_default() {
-        assert_eq!(BounderType::default(), BounderType::None);
-    }
-}

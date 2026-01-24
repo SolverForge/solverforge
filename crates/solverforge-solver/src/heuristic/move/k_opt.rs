@@ -64,7 +64,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use super::k_opt_reconnection::KOptReconnection;
-use super::Move;
+use super::traits::Move;
 
 /// A cut point in a route, defining where an edge is removed.
 ///
@@ -258,7 +258,10 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let solution = score_director.working_solution();
         let k = self.cut_count as usize;
 
@@ -296,12 +299,15 @@ where
         true
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let k = self.cut_count as usize;
         let entity = self.entity_index;
 
         // Notify before change
-        score_director.before_variable_changed(self.descriptor_index, entity, self.variable_name);
+        score_director.before_variable_changed(self.descriptor_index, entity);
 
         // For intra-route k-opt, we need to:
         // 1. Extract all segments
@@ -358,7 +364,7 @@ where
         );
 
         // Notify after change
-        score_director.after_variable_changed(self.descriptor_index, entity, self.variable_name);
+        score_director.after_variable_changed(self.descriptor_index, entity);
 
         // Register undo - need to restore original order
         let sublist_remove = self.sublist_remove;
@@ -390,10 +396,8 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Tour {
@@ -414,13 +418,6 @@ mod tests {
         fn set_score(&mut self, score: Option<Self::Score>) {
             self.score = score;
         }
-    }
-
-    fn get_tours(s: &TspSolution) -> &Vec<Tour> {
-        &s.tours
-    }
-    fn get_tours_mut(s: &mut TspSolution) -> &mut Vec<Tour> {
-        &mut s.tours
     }
 
     fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
@@ -445,21 +442,9 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tours: Vec<Tour>,
-    ) -> SimpleScoreDirector<TspSolution, impl Fn(&TspSolution) -> SimpleScore> {
+    fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
         let solution = TspSolution { tours, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Tour",
-            "tours",
-            get_tours,
-            get_tours_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "tours").with_extractor(extractor);
-        let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
-            .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]
@@ -500,7 +485,7 @@ mod tests {
 
         {
             let mut recording = RecordingScoreDirector::new(&mut director);
-            m.do_move(&mut recording);
+            m.do_move(recording.inner_mut());
 
             let cities = &recording.working_solution().tours[0].cities;
             assert_eq!(cities, &[1, 2, 5, 6, 3, 4, 7, 8]);
@@ -550,7 +535,7 @@ mod tests {
 
         {
             let mut recording = RecordingScoreDirector::new(&mut director);
-            m.do_move(&mut recording);
+            m.do_move(recording.inner_mut());
 
             let cities = &recording.working_solution().tours[0].cities;
             assert_eq!(cities, &[1, 2, 4, 3, 5, 6, 7, 8]);

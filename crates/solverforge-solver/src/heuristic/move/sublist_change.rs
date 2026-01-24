@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that relocates a contiguous sublist from one position to another.
 ///
@@ -217,7 +217,10 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let solution = score_director.working_solution();
 
         // Check range is valid (start < end)
@@ -257,7 +260,10 @@ where
         true
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Look up element indices at runtime for correct shadow updates
         let element_indices: Vec<usize> = (self.source_start..self.source_end)
             .map(|pos| {
@@ -270,14 +276,11 @@ where
             .collect();
 
         // Notify before removal for each element in the source range
-        for (i, &element_idx) in element_indices.iter().enumerate() {
-            let position = self.source_start + i;
-            score_director.before_list_variable_changed(
-                self.descriptor_index,
+        for &element_idx in element_indices.iter() {
+            score_director.before_list_element_changed(
                 self.source_entity_index,
-                position,
+                self.source_start,
                 element_idx,
-                self.variable_name,
             );
         }
 
@@ -290,14 +293,11 @@ where
         );
 
         // Notify after removal (elements detached from source)
-        for (i, &element_idx) in element_indices.iter().enumerate() {
-            let position = self.source_start + i;
-            score_director.after_list_variable_changed(
-                self.descriptor_index,
+        for &element_idx in element_indices.iter() {
+            score_director.after_list_element_changed(
                 self.source_entity_index,
-                position,
+                self.source_start,
                 element_idx,
-                self.variable_name,
             );
         }
 
@@ -305,14 +305,11 @@ where
         let dest_pos = self.dest_position;
 
         // Notify before insertion at destination
-        for (i, &element_idx) in element_indices.iter().enumerate() {
-            let position = dest_pos + i;
-            score_director.before_list_variable_changed(
-                self.descriptor_index,
+        for &element_idx in element_indices.iter() {
+            score_director.before_list_element_changed(
                 self.dest_entity_index,
-                position,
+                dest_pos,
                 element_idx,
-                self.variable_name,
             );
         }
 
@@ -327,12 +324,10 @@ where
         // Notify after insertion
         for (i, &element_idx) in element_indices.iter().enumerate() {
             let position = dest_pos + i;
-            score_director.after_list_variable_changed(
-                self.descriptor_index,
+            score_director.after_list_element_changed(
                 self.dest_entity_index,
                 position,
                 element_idx,
-                self.variable_name,
             );
         }
 
@@ -372,10 +367,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Vehicle {
@@ -435,25 +428,12 @@ mod tests {
             .unwrap_or(0) as usize
     }
 
-    fn create_director(
-        vehicles: Vec<Vehicle>,
-    ) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
+    fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<RoutingSolution, ()> {
         let solution = RoutingSolution {
             vehicles,
             score: None,
         };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Vehicle",
-            "vehicles",
-            get_vehicles,
-            get_vehicles_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "visits")
-            .with_extractor(extractor);
-        let descriptor =
-            SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
-                .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

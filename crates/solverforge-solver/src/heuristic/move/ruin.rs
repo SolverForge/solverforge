@@ -14,7 +14,7 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that unassigns multiple entities for Large Neighborhood Search.
 ///
@@ -131,7 +131,10 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
         self.entity_indices
@@ -139,11 +142,13 @@ where
             .any(|&idx| (self.getter)(solution, idx).is_some())
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;
-        let variable_name = self.variable_name;
 
         // Collect old values for undo
         let old_values: SmallVec<[(usize, Option<V>); 8]> = self
@@ -157,9 +162,9 @@ where
 
         // Unassign all entities
         for &idx in &self.entity_indices {
-            score_director.before_variable_changed(descriptor, idx, variable_name);
+            score_director.before_variable_changed(descriptor, idx);
             setter(score_director.working_solution_mut(), idx, None);
-            score_director.after_variable_changed(descriptor, idx, variable_name);
+            score_director.after_variable_changed(descriptor, idx);
         }
 
         // Register undo to restore old values
@@ -186,10 +191,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Task {
@@ -228,25 +231,13 @@ mod tests {
         }
     }
 
-    fn create_director(
-        assignments: &[Option<i32>],
-    ) -> SimpleScoreDirector<Schedule, impl Fn(&Schedule) -> SimpleScore> {
+    fn create_director(assignments: &[Option<i32>]) -> ScoreDirector<Schedule, ()> {
         let tasks: Vec<Task> = assignments
             .iter()
             .map(|&a| Task { assigned_to: a })
             .collect();
         let solution = Schedule { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Task",
-            "tasks",
-            get_tasks,
-            get_tasks_mut,
-        ));
-        let entity_desc =
-            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
-        let descriptor =
-            SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>()).with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

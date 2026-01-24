@@ -13,7 +13,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use super::Move;
+use super::traits::Move;
 
 /// A move that assigns a value to all entities in a pillar.
 ///
@@ -102,7 +102,10 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<C>(&self, score_director: &ScoreDirector<S, C>) -> bool
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         if self.entity_indices.is_empty() {
             return false;
         }
@@ -110,7 +113,7 @@ where
         // Check first entity exists
         let count = score_director.entity_count(self.descriptor_index);
         if let Some(&first_idx) = self.entity_indices.first() {
-            if count.is_none_or(|c| first_idx >= c) {
+            if first_idx >= count {
                 return false;
             }
 
@@ -127,7 +130,10 @@ where
         }
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<C>(&self, score_director: &mut ScoreDirector<S, C>)
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
         // Capture old values using typed getter - zero erasure
         let old_values: Vec<(usize, Option<V>)> = self
             .entity_indices
@@ -137,7 +143,7 @@ where
 
         // Notify before changes for all entities
         for &idx in &self.entity_indices {
-            score_director.before_variable_changed(self.descriptor_index, idx, self.variable_name);
+            score_director.before_variable_changed(self.descriptor_index, idx);
         }
 
         // Apply new value to all entities using typed setter - zero erasure
@@ -151,7 +157,7 @@ where
 
         // Notify after changes
         for &idx in &self.entity_indices {
-            score_director.after_variable_changed(self.descriptor_index, idx, self.variable_name);
+            score_director.after_variable_changed(self.descriptor_index, idx);
         }
 
         // Register typed undo closure
@@ -179,10 +185,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::{RecordingScoreDirector, SimpleScoreDirector};
-    use std::any::TypeId;
+    use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
     #[derive(Clone, Debug)]
     struct Employee {
@@ -218,28 +222,13 @@ mod tests {
         }
     }
 
-    fn create_director(
-        employees: Vec<Employee>,
-    ) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
+    fn create_director(employees: Vec<Employee>) -> ScoreDirector<ScheduleSolution, ()> {
         let solution = ScheduleSolution {
             employees,
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Employee",
-            "employees",
-            |s: &ScheduleSolution| &s.employees,
-            |s: &mut ScheduleSolution| &mut s.employees,
-        ));
-        let entity_desc = EntityDescriptor::new("Employee", TypeId::of::<Employee>(), "employees")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("ScheduleSolution", TypeId::of::<ScheduleSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

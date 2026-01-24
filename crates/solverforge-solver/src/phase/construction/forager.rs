@@ -13,6 +13,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
 use crate::heuristic::r#move::Move;
@@ -35,11 +36,14 @@ where
     /// Picks a move index from the placement's candidates.
     ///
     /// Returns None if no suitable move is found.
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize>;
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score;
 }
 
 /// First Fit forager - picks the first feasible move.
@@ -84,11 +88,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize> {
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         for (idx, m) in placement.moves.iter().enumerate() {
             if m.is_doable(score_director) {
                 return Some(idx);
@@ -138,14 +146,18 @@ impl<S, M> BestFitForager<S, M> {
 
 impl<S, M> ConstructionForager<S, M> for BestFitForager<S, M>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize> {
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         let mut best_idx: Option<usize> = None;
         let mut best_score: Option<S::Score> = None;
 
@@ -159,7 +171,7 @@ where
                 let mut recording = RecordingScoreDirector::new(score_director);
 
                 // Execute move
-                m.do_move(&mut recording);
+                m.do_move(recording.inner_mut());
 
                 // Evaluate
                 let score = recording.calculate_score();
@@ -225,14 +237,18 @@ impl<S, M> FirstFeasibleForager<S, M> {
 
 impl<S, M> ConstructionForager<S, M> for FirstFeasibleForager<S, M>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize> {
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         let mut fallback_idx: Option<usize> = None;
         let mut fallback_score: Option<S::Score> = None;
 
@@ -246,7 +262,7 @@ where
                 let mut recording = RecordingScoreDirector::new(score_director);
 
                 // Execute move
-                m.do_move(&mut recording);
+                m.do_move(recording.inner_mut());
 
                 // Evaluate
                 let score = recording.calculate_score();
@@ -323,11 +339,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize> {
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         let mut best_idx: Option<usize> = None;
         let mut min_strength: Option<i64> = None;
 
@@ -396,11 +416,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize> {
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         let mut best_idx: Option<usize> = None;
         let mut max_strength: Option<i64> = None;
 
@@ -431,10 +455,8 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::EntityReference;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Queen {
@@ -477,30 +499,13 @@ mod tests {
         }
     }
 
-    fn create_test_director(
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director() -> ScoreDirector<NQueensSolution, ()> {
         let solution = NQueensSolution {
             queens: vec![Queen { row: None }],
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |sol| {
-            let sum: i64 = sol.queens.iter().filter_map(|q| q.row).sum();
-            SimpleScore::of(sum)
-        })
+        ScoreDirector::new(solution, ())
     }
 
     type TestMove = ChangeMove<NQueensSolution, i64>;

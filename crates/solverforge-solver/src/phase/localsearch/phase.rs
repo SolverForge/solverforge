@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
 use crate::heuristic::r#move::{Move, MoveArena};
@@ -88,16 +90,17 @@ where
     }
 }
 
-impl<S, D, M, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, M, MS, A, Fo>
+impl<S, C, M, MS, A, Fo> Phase<S, C> for LocalSearchPhase<S, M, MS, A, Fo>
 where
-    S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
     M: Move<S>,
     MS: MoveSelector<S, M>,
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         // Calculate initial score
@@ -143,7 +146,7 @@ where
                         RecordingScoreDirector::new(step_scope.score_director_mut());
 
                     // Execute move
-                    m.do_move(&mut recording);
+                    m.do_move(recording.inner_mut());
 
                     // Calculate resulting score
                     let score = recording.calculate_score();
@@ -204,10 +207,8 @@ mod tests {
     use super::*;
     use crate::heuristic::selector::ChangeMoveSelector;
     use crate::phase::localsearch::{AcceptedCountForager, HillClimbingAcceptor};
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Queen {
@@ -274,9 +275,7 @@ mod tests {
         SimpleScore::of(-conflicts)
     }
 
-    fn create_test_director(
-        rows: &[i32],
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(rows: &[i32]) -> ScoreDirector<NQueensSolution, ()> {
         let queens: Vec<_> = rows
             .iter()
             .enumerate()
@@ -291,20 +290,7 @@ mod tests {
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
+        ScoreDirector::new(solution, ())
     }
 
     type NQueensMove = crate::heuristic::r#move::ChangeMove<NQueensSolution, i32>;

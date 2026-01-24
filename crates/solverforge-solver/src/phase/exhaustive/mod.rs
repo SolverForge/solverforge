@@ -19,6 +19,8 @@ use std::collections::BinaryHeap;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
@@ -243,13 +245,14 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
     }
 }
 
-impl<S, D, Dec> Phase<S, D> for ExhaustiveSearchPhase<Dec>
+impl<S, C, Dec> Phase<S, C> for ExhaustiveSearchPhase<Dec>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    Dec: ExhaustiveSearchDecider<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    Dec: ExhaustiveSearchDecider<S, C>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         // Get total entities

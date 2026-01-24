@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use rand::Rng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace};
@@ -76,17 +77,17 @@ where
     }
 }
 
-impl<S, D, G, T, E, V> Phase<S, D> for BasicConstructionPhase<S, G, T, E, V>
+impl<S, C, G, T, E, V> Phase<S, C> for BasicConstructionPhase<S, G, T, E, V>
 where
     S: PlanningSolution,
     S::Score: Score,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
         let mut rng = rand::rng();
 
@@ -236,18 +237,18 @@ where
     }
 }
 
-impl<S, D, G, T, E, V, A> Phase<S, D> for BasicLocalSearchPhase<S, G, T, E, V, A>
+impl<S, C, G, T, E, V, A> Phase<S, C> for BasicLocalSearchPhase<S, G, T, E, V, A>
 where
     S: PlanningSolution,
     S::Score: Score,
-    D: ScoreDirector<S>,
+    C: ConstraintSet<S, S::Score>,
     G: Fn(&S, usize) -> Option<usize> + Send,
     T: Fn(&mut S, usize, Option<usize>) + Send,
     E: Fn(&S) -> usize + Send,
     V: Fn(&S) -> usize + Send,
     A: Acceptor<S> + Send,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 1);
         let mut rng = rand::rng();
 
@@ -320,9 +321,9 @@ where
             }
 
             let director = phase_scope.score_director_mut();
-            director.before_variable_changed(0, entity_idx, "value");
+            director.before_variable_changed(0, entity_idx);
             (self.set_variable)(director.working_solution_mut(), entity_idx, new_value);
-            director.after_variable_changed(0, entity_idx, "value");
+            director.after_variable_changed(0, entity_idx);
             let new_score = director.calculate_score();
 
             self.acceptor.step_started();
@@ -357,9 +358,9 @@ where
                     accepted = false,
                 );
                 let director = phase_scope.score_director_mut();
-                director.before_variable_changed(0, entity_idx, "value");
+                director.before_variable_changed(0, entity_idx);
                 (self.set_variable)(director.working_solution_mut(), entity_idx, old_value);
-                director.after_variable_changed(0, entity_idx, "value");
+                director.after_variable_changed(0, entity_idx);
                 director.calculate_score();
             }
         }

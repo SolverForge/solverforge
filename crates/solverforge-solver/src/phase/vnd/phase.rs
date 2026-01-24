@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 
 use crate::heuristic::r#move::{Move, MoveArena};
@@ -78,14 +80,15 @@ impl<T, M> VndPhase<T, M> {
 macro_rules! impl_vnd_phase {
     // Single neighborhood
     ($idx:tt: $MS:ident) => {
-        impl<S, D, M, $MS> Phase<S, D> for VndPhase<($MS,), M>
+        impl<S, C, M, $MS> Phase<S, C> for VndPhase<($MS,), M>
         where
-            S: PlanningSolution,
-            D: ScoreDirector<S>,
+            S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+            S::Score: Score,
+            C: ConstraintSet<S, S::Score>,
             M: Move<S>,
             $MS: MoveSelector<S, M>,
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
                 let mut current_score = phase_scope.calculate_score();
@@ -119,14 +122,15 @@ macro_rules! impl_vnd_phase {
 
     // Multiple neighborhoods
     ($($idx:tt: $MS:ident),+) => {
-        impl<S, D, M, $($MS),+> Phase<S, D> for VndPhase<($($MS,)+), M>
+        impl<S, C, M, $($MS),+> Phase<S, C> for VndPhase<($($MS,)+), M>
         where
-            S: PlanningSolution,
-            D: ScoreDirector<S>,
+            S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+            S::Score: Score,
+            C: ConstraintSet<S, S::Score>,
             M: Move<S>,
             $($MS: MoveSelector<S, M>,)+
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -175,14 +179,15 @@ macro_rules! impl_vnd_phase {
 /// Finds the index of the best improving move in the arena.
 ///
 /// Returns `Some((index, score))` if an improving move is found, `None` otherwise.
-fn find_best_improving_move_index<S, D, M>(
+fn find_best_improving_move_index<S, C, M>(
     arena: &MoveArena<M>,
-    step_scope: &mut StepScope<'_, '_, '_, S, D>,
+    step_scope: &mut StepScope<'_, '_, '_, S, C>,
     current_score: &S::Score,
 ) -> Option<(usize, S::Score)>
 where
-    S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
     M: Move<S>,
 {
     let mut best: Option<(usize, S::Score)> = None;
@@ -195,7 +200,7 @@ where
         }
 
         let mut recording = RecordingScoreDirector::new(step_scope.score_director_mut());
-        m.do_move(&mut recording);
+        m.do_move(recording.inner_mut());
         let move_score = recording.calculate_score();
         recording.undo_changes();
 
@@ -229,10 +234,8 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Queen {
@@ -298,9 +301,7 @@ mod tests {
         SimpleScore::of(-conflicts)
     }
 
-    fn create_director(
-        rows: &[i32],
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_director(rows: &[i32]) -> ScoreDirector<NQueensSolution, ()> {
         let queens: Vec<_> = rows
             .iter()
             .enumerate()
@@ -315,20 +316,7 @@ mod tests {
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
+        ScoreDirector::new(solution, ())
     }
 
     type NQueensMove = ChangeMove<NQueensSolution, i32>;

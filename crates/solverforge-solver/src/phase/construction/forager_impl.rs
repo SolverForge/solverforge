@@ -7,6 +7,8 @@ use std::marker::PhantomData;
 
 use solverforge_config::ConstructionHeuristicType;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::forager::{BestFitForager, ConstructionForager, FirstFeasibleForager, FirstFitForager};
@@ -78,14 +80,18 @@ impl<S, M> Debug for ConstructionForagerImpl<S, M> {
 
 impl<S, M> ConstructionForager<S, M> for ConstructionForagerImpl<S, M>
 where
-    S: PlanningSolution,
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<C>(
         &self,
         placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> Option<usize> {
+        score_director: &mut ScoreDirector<S, C>,
+    ) -> Option<usize>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         match self {
             Self::FirstFit(f) => f.pick_move_index(placement, score_director),
             Self::BestFit(f) => f.pick_move_index(placement, score_director),

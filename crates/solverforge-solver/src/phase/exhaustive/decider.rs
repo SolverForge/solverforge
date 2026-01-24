@@ -6,6 +6,8 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use super::bounder::ScoreBounder;
@@ -20,8 +22,13 @@ use super::node::ExhaustiveSearchNode;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The concrete score director type (zero-erasure)
-pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+/// * `C` - The constraint set type
+pub trait ExhaustiveSearchDecider<S, C>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Expands a node by generating all child nodes.
     ///
     /// Returns a vector of child nodes, one for each possible assignment.
@@ -29,11 +36,11 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: ScoreDirector<S>>: Sen
         &self,
         parent_index: usize,
         parent: &ExhaustiveSearchNode<S>,
-        score_director: &mut D,
+        score_director: &mut ScoreDirector<S, C>,
     ) -> Vec<ExhaustiveSearchNode<S>>;
 
     /// Returns the total number of entities to assign.
-    fn total_entities(&self, score_director: &D) -> usize;
+    fn total_entities(&self, score_director: &ScoreDirector<S, C>) -> usize;
 }
 
 /// A simple value-based decider that works with any value type.
@@ -106,18 +113,19 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static, B: Debug> De
     }
 }
 
-impl<S, D, V, B> ExhaustiveSearchDecider<S, D> for SimpleDecider<S, V, B>
+impl<S, C, V, B> ExhaustiveSearchDecider<S, C> for SimpleDecider<S, V, B>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
     V: Clone + Send + Sync + Debug + 'static,
-    B: ScoreBounder<S, D>,
+    B: ScoreBounder<S, C>,
 {
     fn expand(
         &self,
         parent_index: usize,
         parent: &ExhaustiveSearchNode<S>,
-        score_director: &mut D,
+        score_director: &mut ScoreDirector<S, C>,
     ) -> Vec<ExhaustiveSearchNode<S>> {
         let entity_index = parent.depth();
         let new_depth = parent.depth() + 1;
@@ -132,11 +140,7 @@ where
 
         for (value_index, value) in self.values.iter().enumerate() {
             // Apply assignment using typed setter
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, entity_index);
 
             (self.setter)(
                 score_director.working_solution_mut(),
@@ -144,11 +148,7 @@ where
                 Some(value.clone()),
             );
 
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
 
             // Calculate score for this assignment
             let score = score_director.calculate_score();
@@ -172,34 +172,32 @@ where
             children.push(child);
 
             // Undo the assignment for the next iteration
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, entity_index);
 
             (self.setter)(score_director.working_solution_mut(), entity_index, None);
 
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
         }
 
         children
     }
 
-    fn total_entities(&self, score_director: &D) -> usize {
-        score_director
-            .entity_count(self.descriptor_index)
-            .unwrap_or(0)
+    fn total_entities(&self, score_director: &ScoreDirector<S, C>) -> usize {
+        score_director.entity_count(self.descriptor_index)
     }
 }
 
 // Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for () {
-    fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
+impl<S, C> ScoreBounder<S, C> for ()
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    fn calculate_optimistic_bound(
+        &self,
+        _score_director: &ScoreDirector<S, C>,
+    ) -> Option<S::Score> {
         None
     }
 }

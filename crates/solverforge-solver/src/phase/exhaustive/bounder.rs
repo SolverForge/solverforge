@@ -6,6 +6,8 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 /// Calculates score bounds for exhaustive search pruning.
@@ -16,8 +18,13 @@ use solverforge_scoring::ScoreDirector;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The concrete score director type (zero-erasure)
-pub trait ScoreBounder<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+/// * `C` - The constraint set type
+pub trait ScoreBounder<S, C>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Calculates the optimistic bound for the current solution state.
     ///
     /// The optimistic bound is an upper bound on the score achievable
@@ -26,7 +33,7 @@ pub trait ScoreBounder<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// - Greater than or equal to any actual achievable score
     ///
     /// Returns `None` if no bound can be computed.
-    fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score>;
+    fn calculate_optimistic_bound(&self, score_director: &ScoreDirector<S, C>) -> Option<S::Score>;
 
     /// Calculates the pessimistic bound for the current solution state.
     ///
@@ -35,7 +42,10 @@ pub trait ScoreBounder<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// help with certain heuristics.
     ///
     /// Returns `None` if no bound can be computed.
-    fn calculate_pessimistic_bound(&self, score_director: &D) -> Option<S::Score> {
+    fn calculate_pessimistic_bound(
+        &self,
+        score_director: &ScoreDirector<S, C>,
+    ) -> Option<S::Score> {
         // Default: no pessimistic bound
         let _ = score_director;
         None
@@ -56,8 +66,16 @@ impl SimpleScoreBounder {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for SimpleScoreBounder {
-    fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
+impl<S, C> ScoreBounder<S, C> for SimpleScoreBounder
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    fn calculate_optimistic_bound(
+        &self,
+        _score_director: &ScoreDirector<S, C>,
+    ) -> Option<S::Score> {
         // The simple bounder doesn't compute bounds
         // This effectively disables pruning
         None
@@ -89,13 +107,16 @@ impl<S: PlanningSolution> FixedOffsetBounder<S> {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for FixedOffsetBounder<S>
+impl<S, C> ScoreBounder<S, C> for FixedOffsetBounder<S>
 where
-    S::Score: Clone + std::ops::Add<Output = S::Score> + std::ops::Mul<i32, Output = S::Score>,
+    S: PlanningSolution,
+    S::Score:
+        Score + Clone + std::ops::Add<Output = S::Score> + std::ops::Mul<i32, Output = S::Score>,
+    C: ConstraintSet<S, S::Score>,
 {
-    fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score> {
+    fn calculate_optimistic_bound(&self, score_director: &ScoreDirector<S, C>) -> Option<S::Score> {
         // Count unassigned entities
-        let total = score_director.total_entity_count()?;
+        let total = score_director.total_entity_count();
 
         // For now, we can't easily count assigned entities
         // so we use a simple heuristic
@@ -103,7 +124,7 @@ where
 
         // Optimistic bound = current score + max_improvement * remaining_entities
         // Since we don't know remaining entities, we assume all could improve
-        let bound = current_score + self.max_improvement_per_entity * (total as i32);
+        let bound = current_score + self.max_improvement_per_entity.clone() * (total as i32);
 
         Some(bound)
     }

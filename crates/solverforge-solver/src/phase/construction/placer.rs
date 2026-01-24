@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::{ChangeMove, Move};
@@ -84,7 +86,10 @@ where
     M: Move<S>,
 {
     /// Returns all placements (entities + their candidate moves).
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
+    fn get_placements<C>(&self, score_director: &ScoreDirector<S, C>) -> Vec<Placement<S, M>>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score;
 }
 
 /// A queued entity placer that processes entities in order.
@@ -167,10 +172,14 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn get_placements<D: ScoreDirector<S>>(
+    fn get_placements<C>(
         &self,
-        score_director: &D,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
+        score_director: &ScoreDirector<S, C>,
+    ) -> Vec<Placement<S, ChangeMove<S, V>>>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;
@@ -231,7 +240,7 @@ where
 /// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
-/// use solverforge_scoring::SimpleScoreDirector;
+/// use solverforge_scoring::ScoreDirector;
 /// use std::cmp::Ordering;
 ///
 /// #[derive(Clone, Debug)]
@@ -311,7 +320,11 @@ where
     M: Move<S>,
     Inner: EntityPlacer<S, M>,
 {
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>> {
+    fn get_placements<C>(&self, score_director: &ScoreDirector<S, C>) -> Vec<Placement<S, M>>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
         let mut placements = self.inner.get_placements(score_director);
         let solution = score_director.working_solution();
         let cmp = self.comparator;
@@ -332,10 +345,8 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
+    use solverforge_scoring::ScoreDirector;
 
     #[derive(Clone, Debug)]
     struct Queen {
@@ -380,9 +391,7 @@ mod tests {
         }
     }
 
-    fn create_test_director(
-        initialized: &[bool],
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    fn create_test_director(initialized: &[bool]) -> ScoreDirector<NQueensSolution, ()> {
         let queens: Vec<_> = initialized
             .iter()
             .enumerate()
@@ -396,20 +405,7 @@ mod tests {
             score: None,
         };
 
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::new(solution, ())
     }
 
     #[test]

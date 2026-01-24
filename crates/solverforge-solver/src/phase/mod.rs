@@ -18,6 +18,8 @@ pub mod vnd;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;
@@ -29,21 +31,31 @@ use crate::scope::SolverScope;
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-/// * `D` - The score director type
-pub trait Phase<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+/// * `C` - The constraint set type
+pub trait Phase<S, C>: Send + Debug
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
     /// Executes this phase.
     ///
     /// The phase should modify the working solution in the solver scope
     /// and update the best solution when improvements are found.
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>);
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>);
 
     /// Returns the name of this phase type.
     fn phase_type_name(&self) -> &'static str;
 }
 
 /// Unit type implements Phase as a no-op (empty phase list).
-impl<S: PlanningSolution, D: ScoreDirector<S>> Phase<S, D> for () {
-    fn solve(&mut self, _solver_scope: &mut SolverScope<'_, S, D>) {
+impl<S, C> Phase<S, C> for ()
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+{
+    fn solve(&mut self, _solver_scope: &mut SolverScope<'_, S, C>) {
         // No-op: empty phase list does nothing
     }
 
@@ -53,13 +65,14 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Phase<S, D> for () {
 }
 
 // ((), P1)
-impl<S, D, P1> Phase<S, D> for ((), P1)
+impl<S, C, P1> Phase<S, C> for ((), P1)
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    P1: Phase<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    P1: Phase<S, C>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         self.1.solve(solver_scope);
     }
 
@@ -69,14 +82,15 @@ where
 }
 
 // (((), P1), P2)
-impl<S, D, P1, P2> Phase<S, D> for (((), P1), P2)
+impl<S, C, P1, P2> Phase<S, C> for (((), P1), P2)
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    P1: Phase<S, D>,
-    P2: Phase<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    P1: Phase<S, C>,
+    P2: Phase<S, C>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         (self.0).1.solve(solver_scope);
         self.1.solve(solver_scope);
     }
@@ -87,15 +101,16 @@ where
 }
 
 // ((((), P1), P2), P3)
-impl<S, D, P1, P2, P3> Phase<S, D> for ((((), P1), P2), P3)
+impl<S, C, P1, P2, P3> Phase<S, C> for ((((), P1), P2), P3)
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    P1: Phase<S, D>,
-    P2: Phase<S, D>,
-    P3: Phase<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    P1: Phase<S, C>,
+    P2: Phase<S, C>,
+    P3: Phase<S, C>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         ((self.0).0).1.solve(solver_scope);
         (self.0).1.solve(solver_scope);
         self.1.solve(solver_scope);
@@ -107,16 +122,17 @@ where
 }
 
 // (((((), P1), P2), P3), P4)
-impl<S, D, P1, P2, P3, P4> Phase<S, D> for (((((), P1), P2), P3), P4)
+impl<S, C, P1, P2, P3, P4> Phase<S, C> for (((((), P1), P2), P3), P4)
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    P1: Phase<S, D>,
-    P2: Phase<S, D>,
-    P3: Phase<S, D>,
-    P4: Phase<S, D>,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    P1: Phase<S, C>,
+    P2: Phase<S, C>,
+    P3: Phase<S, C>,
+    P4: Phase<S, C>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         (((self.0).0).0).1.solve(solver_scope);
         ((self.0).0).1.solve(solver_scope);
         (self.0).1.solve(solver_scope);

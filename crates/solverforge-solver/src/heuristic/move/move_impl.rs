@@ -7,6 +7,26 @@
 //!
 //! Each variant delegates to its underlying move type which uses typed
 //! function pointers. No `Arc<dyn>`, no `Box<dyn Any>`, no downcasting.
+//!
+//! # Example
+//!
+//! ```
+//! use solverforge_solver::heuristic::r#move::{MoveImpl, ChangeMove};
+//!
+//! // MoveImpl wraps concrete move types
+//! fn setter(_: &mut (), _: usize, _: Option<i32>) {}
+//! fn getter(_: &(), _: usize) -> Option<i32> { None }
+//!
+//! let change = ChangeMove::new(0, Some(42), getter, setter, "var", 0);
+//! let m: MoveImpl<(), i32> = MoveImpl::Change(change);
+//!
+//! // Pattern matching for variant-specific handling
+//! match &m {
+//!     MoveImpl::Change(c) => println!("Change move to entity {}", c.entity_index()),
+//!     MoveImpl::Swap(_) => println!("Swap move"),
+//!     _ => println!("Other move type"),
+//! }
+//! ```
 
 use std::fmt::Debug;
 

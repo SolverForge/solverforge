@@ -124,3 +124,13 @@ impl SelectionOrder {
         }
     }
 }
+
+impl From<solverforge_config::SelectionOrder> for SelectionOrder {
+    fn from(config: solverforge_config::SelectionOrder) -> Self {
+        match config {
+            solverforge_config::SelectionOrder::Original => SelectionOrder::Original,
+            solverforge_config::SelectionOrder::Shuffled => SelectionOrder::Shuffled,
+            solverforge_config::SelectionOrder::Random => SelectionOrder::Random,
+        }
+    }
+}

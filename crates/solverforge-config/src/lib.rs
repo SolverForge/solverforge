@@ -428,6 +428,27 @@ pub enum PickEarlyType {
     FirstLastStepScoreImproving,
 }
 
+/// Selection order for move selectors.
+///
+/// Controls how entities are ordered when iterating through moves.
+/// Default is `Original` for deterministic, complete coverage.
+/// Use `Shuffled` when you need randomization with guaranteed coverage.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SelectionOrder {
+    /// Sequential order (0, 1, 2...) - deterministic, complete coverage.
+    #[default]
+    Original,
+
+    /// Shuffle entity list once per step, then iterate sequentially.
+    /// Complete coverage with randomization.
+    Shuffled,
+
+    /// Random picks on each iteration - incomplete coverage, probabilistic.
+    /// Never-ending iterator; forager must enforce termination.
+    Random,
+}
+
 /// Move selector configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -490,6 +511,10 @@ pub enum MoveSelectorConfig {
 pub struct ChangeMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// Swap move configuration.
@@ -498,6 +523,10 @@ pub struct ChangeMoveConfig {
 pub struct SwapMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// Pillar change move configuration (change all entities with same value).
@@ -506,6 +535,10 @@ pub struct SwapMoveConfig {
 pub struct PillarChangeMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+
+    /// Selection order for pillar iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// Pillar swap move configuration (swap between entity groups).
@@ -514,6 +547,10 @@ pub struct PillarChangeMoveConfig {
 pub struct PillarSwapMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+
+    /// Selection order for pillar iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// Ruin move configuration (unassign multiple entities for LNS).
@@ -523,6 +560,10 @@ pub struct RuinMoveConfig {
     /// Number of entities to unassign per move.
     #[serde(default = "default_ruin_count")]
     pub ruin_count: usize,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 fn default_ruin_count() -> usize {
@@ -535,6 +576,10 @@ fn default_ruin_count() -> usize {
 pub struct ListChangeMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// List swap move configuration (swap two elements in lists).
@@ -543,6 +588,10 @@ pub struct ListChangeMoveConfig {
 pub struct ListSwapMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// List reverse move configuration (reverse segment, 2-opt style).
@@ -553,6 +602,10 @@ pub struct ListReverseMoveConfig {
     pub minimum_segment_length: Option<usize>,
     /// Maximum segment length to reverse (None = entire list).
     pub maximum_segment_length: Option<usize>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// K-opt move configuration (tour improvement for list variables).
@@ -562,6 +615,10 @@ pub struct KOptMoveConfig {
     /// K value for k-opt (2 = 2-opt, 3 = 3-opt, etc.).
     #[serde(default = "default_k_value")]
     pub k_value: usize,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 fn default_k_value() -> usize {
@@ -576,6 +633,10 @@ pub struct SubListChangeMoveConfig {
     pub minimum_sub_list_size: Option<usize>,
     /// Maximum sub-list size.
     pub maximum_sub_list_size: Option<usize>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// Sub-list swap move configuration (swap two contiguous segments).
@@ -588,6 +649,10 @@ pub struct SubListSwapMoveConfig {
     pub maximum_sub_list_size: Option<usize>,
     /// Whether segments can be from the same list.
     pub select_reverse_movement: Option<bool>,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// List ruin move configuration (remove elements from lists for LNS).
@@ -597,6 +662,10 @@ pub struct ListRuinMoveConfig {
     /// Number of elements to remove per move.
     #[serde(default = "default_ruin_count")]
     pub ruin_count: usize,
+
+    /// Selection order for entity iteration.
+    #[serde(default)]
+    pub selection_order: SelectionOrder,
 }
 
 /// Union move selector configuration.

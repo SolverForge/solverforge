@@ -9,6 +9,9 @@ mod forager;
 mod forager_impl;
 mod phase;
 
+#[cfg(test)]
+mod tests;
+
 pub use acceptor::{
     Acceptor, DiversifiedLateAcceptanceAcceptor, EntityTabuAcceptor, GreatDelugeAcceptor,
     HillClimbingAcceptor, LateAcceptanceAcceptor, MoveTabuAcceptor, SimulatedAnnealingAcceptor,

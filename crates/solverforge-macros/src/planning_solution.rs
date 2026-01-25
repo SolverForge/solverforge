@@ -676,7 +676,7 @@ fn generate_basic_variable_operations(
                     ),
                 );
 
-                // Direct construction - MoveSelectorImpl::Change for basic variable local search
+                // Direct construction - MoveSelectorImpl::union of Change + Swap for basic variable local search
                 let fn_ptrs = ::solverforge::__internal::BasicVariableFnPtrs {
                     entity_count: Self::basic_entity_count,
                     value_range: |s| (0..Self::basic_value_count(s)).collect(),
@@ -685,9 +685,12 @@ fn generate_basic_variable_operations(
                     variable_name: #variable_field_str,
                     descriptor_index: #descriptor_index_lit,
                 };
-                let move_selector = ::solverforge::__internal::MoveSelectorImpl::change(fn_ptrs);
+                let move_selector = ::solverforge::__internal::MoveSelectorImpl::union(vec![
+                    ::solverforge::__internal::MoveSelectorImpl::change(fn_ptrs.clone()),
+                    ::solverforge::__internal::MoveSelectorImpl::swap(fn_ptrs),
+                ]);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
-                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1000);
+                let forager = ::solverforge::__internal::LocalSearchForagerImpl::first_accepted();
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
                     move_selector,
                     acceptor,

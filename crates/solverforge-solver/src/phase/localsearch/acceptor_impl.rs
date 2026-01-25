@@ -56,6 +56,10 @@ impl<S: PlanningSolution> AcceptorImpl<S> {
     pub fn late_acceptance() -> Self {
         AcceptorImpl::LateAcceptance(LateAcceptanceAcceptor::new(400))
     }
+
+    pub fn hill_climbing() -> Self {
+        AcceptorImpl::HillClimbing(HillClimbingAcceptor::new())
+    }
 }
 
 fn parse_temperature(s: &Option<String>) -> f64 {

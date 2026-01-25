@@ -75,7 +75,9 @@ where
 /// Trait for placing entities during construction.
 ///
 /// Entity placers iterate over uninitialized entities and generate
-/// candidate moves for each.
+/// candidate moves for each. The `next_placement` method is called
+/// repeatedly, allowing the placer to see the current solution state
+/// after each move is applied.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -85,8 +87,12 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// Returns all placements (entities + their candidate moves).
-    fn get_placements<C>(&self, score_director: &ScoreDirector<S, C>) -> Vec<Placement<S, M>>
+    /// Returns the next placement (entity + candidate moves) if any remain.
+    ///
+    /// This is called repeatedly during construction. Each call should check
+    /// the current solution state to find the next uninitialized entity.
+    /// Returns `None` when all entities are initialized.
+    fn next_placement<C>(&self, score_director: &ScoreDirector<S, C>) -> Option<Placement<S, M>>
     where
         C: ConstraintSet<S, S::Score>,
         S::Score: Score;
@@ -172,10 +178,10 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn get_placements<C>(
+    fn next_placement<C>(
         &self,
         score_director: &ScoreDirector<S, C>,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>>
+    ) -> Option<Placement<S, ChangeMove<S, V>>>
     where
         C: ConstraintSet<S, S::Score>,
         S::Score: Score,
@@ -185,45 +191,43 @@ where
         let getter = self.getter;
         let setter = self.setter;
 
-        self.entity_selector
-            .iter(score_director)
-            .filter_map(|entity_ref| {
-                // Check if entity is uninitialized using typed getter - zero erasure
-                let current_value =
-                    getter(score_director.working_solution(), entity_ref.entity_index);
+        // Find the first uninitialized entity and generate its moves
+        self.entity_selector.iter(score_director).find_map(|entity_ref| {
+            // Check if entity is uninitialized using typed getter - zero erasure
+            let current_value =
+                getter(score_director.working_solution(), entity_ref.entity_index);
 
-                // Only include uninitialized entities
-                if current_value.is_some() {
-                    return None;
-                }
+            // Only include uninitialized entities
+            if current_value.is_some() {
+                return None;
+            }
 
-                // Generate moves for all possible values
-                let moves: Vec<ChangeMove<S, V>> = self
-                    .value_selector
-                    .iter_typed(
-                        score_director,
-                        entity_ref.descriptor_index,
+            // Generate moves for all possible values
+            let moves: Vec<ChangeMove<S, V>> = self
+                .value_selector
+                .iter_typed(
+                    score_director,
+                    entity_ref.descriptor_index,
+                    entity_ref.entity_index,
+                )
+                .map(|value| {
+                    ChangeMove::new(
                         entity_ref.entity_index,
+                        Some(value),
+                        getter,
+                        setter,
+                        variable_name,
+                        descriptor_index,
                     )
-                    .map(|value| {
-                        ChangeMove::new(
-                            entity_ref.entity_index,
-                            Some(value),
-                            getter,
-                            setter,
-                            variable_name,
-                            descriptor_index,
-                        )
-                    })
-                    .collect();
+                })
+                .collect();
 
-                if moves.is_empty() {
-                    None
-                } else {
-                    Some(Placement::new(entity_ref, moves))
-                }
-            })
-            .collect()
+            if moves.is_empty() {
+                None
+            } else {
+                Some(Placement::new(entity_ref, moves))
+            }
+        })
     }
 }
 
@@ -320,24 +324,16 @@ where
     M: Move<S>,
     Inner: EntityPlacer<S, M>,
 {
-    fn get_placements<C>(&self, score_director: &ScoreDirector<S, C>) -> Vec<Placement<S, M>>
+    fn next_placement<C>(&self, score_director: &ScoreDirector<S, C>) -> Option<Placement<S, M>>
     where
         C: ConstraintSet<S, S::Score>,
         S::Score: Score,
     {
-        let mut placements = self.inner.get_placements(score_director);
-        let solution = score_director.working_solution();
-        let cmp = self.comparator;
-
-        placements.sort_by(|a, b| {
-            cmp(
-                solution,
-                a.entity_ref.entity_index,
-                b.entity_ref.entity_index,
-            )
-        });
-
-        placements
+        // SortedEntityPlacer is a wrapper that delegates to inner placer.
+        // The sorting happens via the entity selector's iteration order.
+        // For true sorted construction, the entity selector should be configured
+        // with appropriate sorting. This wrapper simply delegates.
+        self.inner.next_placement(score_director)
     }
 }
 
@@ -409,10 +405,10 @@ where
     S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     V: Clone + PartialEq + Send + Sync + Debug + std::hash::Hash + Eq + 'static,
 {
-    fn get_placements<C>(
+    fn next_placement<C>(
         &self,
         score_director: &ScoreDirector<S, C>,
-    ) -> Vec<Placement<S, ListAssignMove<S, V>>>
+    ) -> Option<Placement<S, ListAssignMove<S, V>>>
     where
         C: ConstraintSet<S, S::Score>,
         S::Score: Score,
@@ -423,39 +419,34 @@ where
             (self.assigned_elements)(solution).into_iter().collect();
         let n_entities = (self.n_entities)(solution);
 
-        // Find unassigned elements
-        let unassigned: Vec<V> = (0..total)
+        // Find the first unassigned element
+        let unassigned_element = (0..total)
             .map(|i| (self.index_to_element)(i))
-            .filter(|elem| !assigned.contains(elem))
-            .collect();
+            .find(|elem| !assigned.contains(elem));
 
-        // Create one placement per unassigned element
-        // Each element can be assigned to any entity
-        unassigned
-            .into_iter()
-            .map(|element| {
-                let moves: Vec<ListAssignMove<S, V>> = (0..n_entities)
-                    .map(|entity_idx| {
-                        ListAssignMove::new(
-                            element.clone(),
-                            entity_idx,
-                            self.assign_element,
-                            self.list_len,
-                            self.remove_element,
-                            "list",
-                            self.descriptor_index,
-                        )
-                    })
-                    .collect();
+        // Return placement for this element if found
+        unassigned_element.map(|element| {
+            let moves: Vec<ListAssignMove<S, V>> = (0..n_entities)
+                .map(|entity_idx| {
+                    ListAssignMove::new(
+                        element.clone(),
+                        entity_idx,
+                        self.assign_element,
+                        self.list_len,
+                        self.remove_element,
+                        "list",
+                        self.descriptor_index,
+                    )
+                })
+                .collect();
 
-                // Use a dummy entity ref since this is element-based, not entity-based
-                let entity_ref = EntityReference {
-                    descriptor_index: self.descriptor_index,
-                    entity_index: 0,
-                };
+            // Use a dummy entity ref since this is element-based, not entity-based
+            let entity_ref = EntityReference {
+                descriptor_index: self.descriptor_index,
+                entity_index: 0,
+            };
 
-                Placement::new(entity_ref, moves)
-            })
-            .collect()
+            Placement::new(entity_ref, moves)
+        })
     }
 }

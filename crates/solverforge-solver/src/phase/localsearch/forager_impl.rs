@@ -216,6 +216,10 @@ where
         LocalSearchForagerImpl::AcceptedCount(AcceptedCountForager::new(limit), PhantomData)
     }
 
+    pub fn first_accepted() -> Self {
+        LocalSearchForagerImpl::FirstAccepted(FirstAcceptedForager::new(), PhantomData)
+    }
+
     pub fn set_best_score(&mut self, score: S::Score) {
         if let LocalSearchForagerImpl::FirstBestScoreImproving(ref mut f, _) = self {
             f.set_best_score(score);

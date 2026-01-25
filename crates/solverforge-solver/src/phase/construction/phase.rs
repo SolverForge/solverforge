@@ -83,17 +83,21 @@ where
 
         info!(event = "phase_start", phase = "ConstructionHeuristic");
 
-        // Get all placements (entities that need values assigned)
-        let placements = self.placer.get_placements(phase_scope.score_director());
-
         let mut steps = 0u64;
         let mut last_score = None;
 
-        for mut placement in placements {
+        // Regenerate placements per step to see current solution state
+        loop {
             // Check early termination
             if phase_scope.solver_scope().is_terminate_early() {
                 break;
             }
+
+            // Get next placement (regenerated each step to see current state)
+            let Some(mut placement) = self.placer.next_placement(phase_scope.score_director())
+            else {
+                break;
+            };
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 

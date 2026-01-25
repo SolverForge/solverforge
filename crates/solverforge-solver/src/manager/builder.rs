@@ -12,7 +12,7 @@ use crate::phase::Phase;
 use crate::solver::NoTermination;
 use crate::termination::{OrTermination, StepCountTermination, Termination, TimeTermination};
 
-use super::{PhaseFactory, SolverFactory};
+use super::SolverFactory;
 
 /// Builder for SolverFactory with zero type erasure.
 ///
@@ -50,27 +50,6 @@ where
 {
     /// Adds a phase, returning a new builder with updated phase tuple.
     pub fn with_phase<P2>(self, phase: P2) -> SolverFactoryBuilder<S, C, Calc, (P, P2), T> {
-        SolverFactoryBuilder {
-            score_calculator: self.score_calculator,
-            phases: (self.phases, phase),
-            termination: self.termination,
-            _marker: PhantomData,
-        }
-    }
-
-    /// Adds a phase from a factory, returning a new builder with updated phase tuple.
-    ///
-    /// The factory's `create()` method is called to produce the phase.
-    pub fn with_phase_factory<F>(
-        self,
-        factory: F,
-    ) -> SolverFactoryBuilder<S, C, Calc, (P, F::Phase), T>
-    where
-        S::Score: Score,
-        C: ConstraintSet<S, S::Score>,
-        F: PhaseFactory<S, C>,
-    {
-        let phase = factory.create();
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
             phases: (self.phases, phase),

@@ -354,9 +354,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             MoveSelectorConfig::SwapMoveSelector(_) => Some(Self::swap(fn_ptrs)),
             MoveSelectorConfig::PillarChangeMoveSelector(_) => Some(Self::pillar_change(fn_ptrs)),
             MoveSelectorConfig::PillarSwapMoveSelector(_) => Some(Self::pillar_swap(fn_ptrs)),
-            MoveSelectorConfig::RuinMoveSelector(cfg) => {
-                Some(Self::ruin(fn_ptrs, cfg.ruin_count))
-            }
+            MoveSelectorConfig::RuinMoveSelector(cfg) => Some(Self::ruin(fn_ptrs, cfg.ruin_count)),
             _ => None, // List variable configs not applicable
         }
     }
@@ -375,9 +373,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
                 cfg.minimum_segment_length.unwrap_or(2),
                 cfg.maximum_segment_length,
             )),
-            MoveSelectorConfig::KOptMoveSelector(cfg) => {
-                Some(Self::k_opt(fn_ptrs, cfg.k_value, 1))
-            }
+            MoveSelectorConfig::KOptMoveSelector(cfg) => Some(Self::k_opt(fn_ptrs, cfg.k_value, 1)),
             MoveSelectorConfig::SubListChangeMoveSelector(cfg) => Some(Self::sublist_change(
                 fn_ptrs,
                 cfg.minimum_sub_list_size.unwrap_or(1),

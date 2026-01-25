@@ -28,6 +28,10 @@ pub struct ListAssignMove<S, V> {
     entity_index: usize,
     /// Function to assign element to entity (appends to list)
     assign_fn: fn(&mut S, usize, V),
+    /// Function to get list length for an entity
+    list_len_fn: fn(&S, usize) -> usize,
+    /// Function to remove element at position from entity
+    remove_fn: fn(&mut S, usize, usize) -> V,
     /// Variable name for logging
     variable_name: &'static str,
     /// Descriptor index for the entity type
@@ -41,6 +45,8 @@ impl<S, V: Clone> Clone for ListAssignMove<S, V> {
             element: self.element.clone(),
             entity_index: self.entity_index,
             assign_fn: self.assign_fn,
+            list_len_fn: self.list_len_fn,
+            remove_fn: self.remove_fn,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _phantom: PhantomData,
@@ -66,6 +72,8 @@ impl<S, V> ListAssignMove<S, V> {
         element: V,
         entity_index: usize,
         assign_fn: fn(&mut S, usize, V),
+        list_len_fn: fn(&S, usize) -> usize,
+        remove_fn: fn(&mut S, usize, usize) -> V,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -73,6 +81,8 @@ impl<S, V> ListAssignMove<S, V> {
             element,
             entity_index,
             assign_fn,
+            list_len_fn,
+            remove_fn,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -108,12 +118,28 @@ where
     where
         C: ConstraintSet<S, S::Score>,
     {
+        // Get insertion position (end of list) BEFORE modification
+        let insert_pos = (self.list_len_fn)(score_director.working_solution(), self.entity_index);
+
+        // Notify before change
+        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
+
         // Assign element to entity (appends to list)
         (self.assign_fn)(
             score_director.working_solution_mut(),
             self.entity_index,
             self.element.clone(),
         );
+
+        // Notify after change
+        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
+
+        // Register undo - remove the element we just added
+        let remove_fn = self.remove_fn;
+        let entity_idx = self.entity_index;
+        score_director.register_undo(Box::new(move |s: &mut S| {
+            let _ = remove_fn(s, entity_idx, insert_pos);
+        }));
     }
 
     fn descriptor_index(&self) -> usize {
@@ -121,8 +147,7 @@ where
     }
 
     fn entity_indices(&self) -> &[usize] {
-        // Return empty slice - construction moves don't track entities the same way
-        &[]
+        std::slice::from_ref(&self.entity_index)
     }
 
     fn variable_name(&self) -> &str {

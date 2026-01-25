@@ -1,11 +1,10 @@
 //! Solution descriptor.
 
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt;
 
 use super::{EntityDescriptor, ProblemFactDescriptor, VariableDescriptor};
-use crate::domain::entity_ref::EntityRef;
 
 /// Describes a planning solution at runtime.
 ///
@@ -13,6 +12,9 @@ use crate::domain::entity_ref::EntityRef;
 /// - Entity types and their descriptors
 /// - Problem fact types
 /// - Score type
+///
+/// This is metadata-only - entity/fact access is done through generated methods
+/// on the solution type itself (zero-erasure architecture).
 pub struct SolutionDescriptor {
     /// Name of the solution type.
     pub type_name: &'static str,
@@ -95,70 +97,6 @@ impl SolutionDescriptor {
             .collect()
     }
 
-    /// Returns the total number of entities across all entity collections.
-    ///
-    /// Returns `None` if any entity descriptor lacks an extractor or the solution
-    /// type doesn't match.
-    pub fn total_entity_count(&self, solution: &dyn Any) -> Option<usize> {
-        let mut total = 0;
-        for desc in &self.entity_descriptors {
-            total += desc.entity_count(solution)?;
-        }
-        Some(total)
-    }
-
-    /// Returns all entity references across all entity collections.
-    pub fn all_entity_refs(&self, solution: &dyn Any) -> Vec<(usize, EntityRef)> {
-        let mut refs = Vec::new();
-        for (desc_idx, desc) in self.entity_descriptors.iter().enumerate() {
-            for entity_ref in desc.entity_refs(solution) {
-                refs.push((desc_idx, entity_ref));
-            }
-        }
-        refs
-    }
-
-    /// Iterates over all entities in all collections.
-    ///
-    /// The callback receives:
-    /// - The entity descriptor index
-    /// - The entity index within its collection
-    /// - A reference to the entity
-    pub fn for_each_entity<F>(&self, solution: &dyn Any, mut f: F)
-    where
-        F: FnMut(usize, usize, &dyn Any),
-    {
-        for (desc_idx, desc) in self.entity_descriptors.iter().enumerate() {
-            desc.for_each_entity(solution, |entity_idx, entity| {
-                f(desc_idx, entity_idx, entity);
-            });
-        }
-    }
-
-    /// Gets an entity by descriptor index and entity index.
-    pub fn get_entity<'a>(
-        &self,
-        solution: &'a dyn Any,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> Option<&'a dyn Any> {
-        self.entity_descriptors
-            .get(descriptor_index)?
-            .get_entity(solution, entity_index)
-    }
-
-    /// Gets a mutable entity by descriptor index and entity index.
-    pub fn get_entity_mut<'a>(
-        &self,
-        solution: &'a mut dyn Any,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> Option<&'a mut dyn Any> {
-        self.entity_descriptors
-            .get(descriptor_index)?
-            .get_entity_mut(solution, entity_index)
-    }
-
     /// Returns the number of entity descriptors.
     pub fn entity_descriptor_count(&self) -> usize {
         self.entity_descriptors.len()
@@ -167,11 +105,6 @@ impl SolutionDescriptor {
     /// Returns the number of problem fact descriptors.
     pub fn problem_fact_descriptor_count(&self) -> usize {
         self.problem_fact_descriptors.len()
-    }
-
-    /// Returns whether all entity descriptors have extractors configured.
-    pub fn all_extractors_configured(&self) -> bool {
-        self.entity_descriptors.iter().all(|d| d.has_extractor())
     }
 }
 

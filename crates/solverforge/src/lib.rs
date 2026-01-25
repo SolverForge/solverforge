@@ -131,8 +131,7 @@ pub mod __internal {
 
     pub use solverforge_core::domain::{
         EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFact,
-        ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor,
-        VariableDescriptor,
+        ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, VariableDescriptor,
     };
 
     pub use solverforge_scoring::{

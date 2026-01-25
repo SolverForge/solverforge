@@ -135,6 +135,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let score_field_name = score_field.ident.as_ref().unwrap();
     let score_type = extract_option_inner_type(&score_field.ty)?;
 
+    // Entity descriptors are metadata-only (zero-erasure architecture)
+    // Entity access is done through generated methods on the solution type
     let entity_descriptors: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -147,16 +149,12 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
-                    stringify!(#element_type),
-                    #field_name_str,
-                    |s: &#name| &s.#field_name,
-                    |s: &mut #name| &mut s.#field_name,
-                ))))
+                ))
             })
         })
         .collect();
 
+    // Problem fact descriptors are metadata-only (zero-erasure architecture)
     let fact_descriptors: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
@@ -169,12 +167,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
-                    stringify!(#element_type),
-                    #field_name_str,
-                    |s: &#name| &s.#field_name,
-                    |s: &mut #name| &mut s.#field_name,
-                ))))
+                ))
             })
         })
         .collect();

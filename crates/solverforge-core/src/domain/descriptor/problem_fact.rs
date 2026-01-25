@@ -3,9 +3,10 @@
 use std::any::TypeId;
 use std::fmt;
 
-use crate::domain::entity_ref::EntityExtractor;
-
 /// Describes a problem fact type at runtime.
+///
+/// This is metadata-only - fact access is done through generated methods
+/// on the solution type itself (zero-erasure architecture).
 pub struct ProblemFactDescriptor {
     /// Name of the problem fact type.
     pub type_name: &'static str,
@@ -17,8 +18,6 @@ pub struct ProblemFactDescriptor {
     pub is_collection: bool,
     /// The ID field name, if any (for value range provider lookups).
     pub id_field: Option<&'static str>,
-    /// Extractor for getting facts from a solution.
-    pub extractor: Option<Box<dyn EntityExtractor>>,
 }
 
 impl ProblemFactDescriptor {
@@ -30,14 +29,7 @@ impl ProblemFactDescriptor {
             solution_field,
             is_collection: true,
             id_field: None,
-            extractor: None,
         }
-    }
-
-    /// Sets the entity extractor for this descriptor.
-    pub fn with_extractor(mut self, extractor: Box<dyn EntityExtractor>) -> Self {
-        self.extractor = Some(extractor);
-        self
     }
 
     /// Sets whether this is a single fact (not a collection).
@@ -61,7 +53,6 @@ impl Clone for ProblemFactDescriptor {
             solution_field: self.solution_field,
             is_collection: self.is_collection,
             id_field: self.id_field,
-            extractor: self.extractor.clone(),
         }
     }
 }

@@ -1,8 +1,11 @@
 //! Tests for descriptor types.
+//!
+//! Note: Entity extraction is now done through generated methods on solution types
+//! (zero-erasure architecture). These tests cover descriptor metadata only.
 
 use super::*;
-use crate::domain::{TypedEntityExtractor, VariableType};
-use std::any::{Any, TypeId};
+use crate::domain::{ShadowVariableKind, VariableType};
+use std::any::TypeId;
 
 #[derive(Clone, Debug)]
 struct TestEntity {
@@ -10,371 +13,264 @@ struct TestEntity {
     row: Option<i32>,
 }
 
-// Entity extraction tests
-
 #[derive(Clone, Debug)]
 struct TestSolution {
     entities: Vec<TestEntity>,
 }
 
-fn get_entities(s: &TestSolution) -> &Vec<TestEntity> {
-    &s.entities
-}
-
-fn get_entities_mut(s: &mut TestSolution) -> &mut Vec<TestEntity> {
-    &mut s.entities
-}
+// EntityDescriptor metadata tests
 
 #[test]
-fn test_entity_descriptor_with_extractor() {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-
-    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    assert!(descriptor.has_extractor());
-}
-
-#[test]
-fn test_entity_descriptor_entity_count() {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-
-    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(1),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(2),
-            },
-            TestEntity { id: 3, row: None },
-        ],
-    };
-
-    assert_eq!(descriptor.entity_count(&solution as &dyn Any), Some(3));
-}
-
-#[test]
-fn test_entity_descriptor_get_entity() {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-
-    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(10),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(20),
-            },
-        ],
-    };
-
-    let entity = descriptor.get_entity(&solution as &dyn Any, 0);
-    assert!(entity.is_some());
-    let entity = entity.unwrap().downcast_ref::<TestEntity>().unwrap();
-    assert_eq!(entity.id, 1);
-    assert_eq!(entity.row, Some(10));
-
-    let entity = descriptor.get_entity(&solution as &dyn Any, 1);
-    assert!(entity.is_some());
-    let entity = entity.unwrap().downcast_ref::<TestEntity>().unwrap();
-    assert_eq!(entity.id, 2);
-}
-
-#[test]
-fn test_entity_descriptor_get_entity_mut() {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-
-    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    let mut solution = TestSolution {
-        entities: vec![TestEntity {
-            id: 1,
-            row: Some(10),
-        }],
-    };
-
-    let entity = descriptor.get_entity_mut(&mut solution as &mut dyn Any, 0);
-    assert!(entity.is_some());
-    let entity = entity.unwrap().downcast_mut::<TestEntity>().unwrap();
-    entity.row = Some(100);
-
-    assert_eq!(solution.entities[0].row, Some(100));
-}
-
-#[test]
-fn test_entity_descriptor_entity_refs() {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-
-    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(10),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(20),
-            },
-        ],
-    };
-
-    let refs = descriptor.entity_refs(&solution as &dyn Any);
-    assert_eq!(refs.len(), 2);
-    assert_eq!(refs[0].index, 0);
-    assert_eq!(refs[1].index, 1);
-}
-
-#[test]
-fn test_entity_descriptor_for_each_entity() {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
-
-    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor);
-
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(10),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(20),
-            },
-        ],
-    };
-
-    let mut count = 0;
-    let mut sum = 0i32;
-    descriptor.for_each_entity(&solution as &dyn Any, |_, entity| {
-        let e = entity.downcast_ref::<TestEntity>().unwrap();
-        count += 1;
-        sum += e.row.unwrap_or(0);
-    });
-
-    assert_eq!(count, 2);
-    assert_eq!(sum, 30);
-}
-
-#[test]
-fn test_entity_descriptor_no_extractor() {
+fn test_entity_descriptor_basic() {
     let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
 
-    assert!(!descriptor.has_extractor());
+    assert_eq!(descriptor.type_name, "TestEntity");
+    assert_eq!(descriptor.solution_field, "entities");
+    assert!(descriptor.is_collection);
+    assert!(descriptor.variable_descriptors.is_empty());
+}
 
-    let solution = TestSolution {
-        entities: vec![TestEntity {
-            id: 1,
-            row: Some(10),
-        }],
-    };
+#[test]
+fn test_entity_descriptor_with_variable() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"));
 
-    assert!(descriptor.entity_count(&solution as &dyn Any).is_none());
-    assert!(descriptor.get_entity(&solution as &dyn Any, 0).is_none());
-    assert!(descriptor.entity_refs(&solution as &dyn Any).is_empty());
+    assert_eq!(descriptor.variable_descriptors.len(), 1);
+    assert_eq!(descriptor.variable_descriptors[0].name, "row");
+}
+
+#[test]
+fn test_entity_descriptor_with_id_field() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_id_field("id");
+
+    assert_eq!(descriptor.id_field, Some("id"));
+}
+
+#[test]
+fn test_entity_descriptor_with_pin_field() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_pin_field("pinned");
+
+    assert_eq!(descriptor.pin_field, Some("pinned"));
+}
+
+#[test]
+fn test_entity_descriptor_find_variable() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"))
+        .with_variable(VariableDescriptor::genuine("column"));
+
+    let found = descriptor.find_variable("row");
+    assert!(found.is_some());
+    assert_eq!(found.unwrap().name, "row");
+
+    let not_found = descriptor.find_variable("nonexistent");
+    assert!(not_found.is_none());
+}
+
+#[test]
+fn test_entity_descriptor_genuine_variables() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"))
+        .with_variable(VariableDescriptor::shadow(
+            "computed",
+            ShadowVariableKind::Custom,
+        ));
+
+    let genuine: Vec<_> = descriptor.genuine_variable_descriptors().collect();
+    assert_eq!(genuine.len(), 1);
+    assert_eq!(genuine[0].name, "row");
+}
+
+#[test]
+fn test_entity_descriptor_shadow_variables() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"))
+        .with_variable(VariableDescriptor::shadow(
+            "computed",
+            ShadowVariableKind::Custom,
+        ));
+
+    let shadows: Vec<_> = descriptor.shadow_variable_descriptors().collect();
+    assert_eq!(shadows.len(), 1);
+    assert_eq!(shadows[0].name, "computed");
+}
+
+#[test]
+fn test_entity_descriptor_has_genuine_variables() {
+    let desc_with_genuine =
+        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+            .with_variable(VariableDescriptor::genuine("row"));
+    assert!(desc_with_genuine.has_genuine_variables());
+
+    let desc_shadow_only =
+        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities").with_variable(
+            VariableDescriptor::shadow("computed", ShadowVariableKind::Custom),
+        );
+    assert!(!desc_shadow_only.has_genuine_variables());
+
+    let desc_empty = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
+    assert!(!desc_empty.has_genuine_variables());
+}
+
+#[test]
+fn test_entity_descriptor_clone() {
+    let descriptor = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"))
+        .with_id_field("id");
+
+    let cloned = descriptor.clone();
+    assert_eq!(cloned.type_name, descriptor.type_name);
+    assert_eq!(cloned.variable_descriptors.len(), 1);
+    assert_eq!(cloned.id_field, Some("id"));
+}
+
+// ProblemFactDescriptor tests
+
+#[test]
+fn test_problem_fact_descriptor_basic() {
+    let descriptor = ProblemFactDescriptor::new("SomeFact", TypeId::of::<i32>(), "facts");
+
+    assert_eq!(descriptor.type_name, "SomeFact");
+    assert_eq!(descriptor.solution_field, "facts");
+    assert!(descriptor.is_collection);
+}
+
+#[test]
+fn test_problem_fact_descriptor_single() {
+    let descriptor = ProblemFactDescriptor::new("SomeFact", TypeId::of::<i32>(), "fact").single();
+
+    assert!(!descriptor.is_collection);
+}
+
+#[test]
+fn test_problem_fact_descriptor_with_id_field() {
+    let descriptor =
+        ProblemFactDescriptor::new("SomeFact", TypeId::of::<i32>(), "facts").with_id_field("id");
+
+    assert_eq!(descriptor.id_field, Some("id"));
+}
+
+#[test]
+fn test_problem_fact_descriptor_clone() {
+    let descriptor = ProblemFactDescriptor::new("SomeFact", TypeId::of::<i32>(), "facts")
+        .with_id_field("id")
+        .single();
+
+    let cloned = descriptor.clone();
+    assert_eq!(cloned.type_name, descriptor.type_name);
+    assert_eq!(cloned.id_field, Some("id"));
+    assert!(!cloned.is_collection);
 }
 
 // SolutionDescriptor tests
 
-fn create_test_entity_descriptor() -> EntityDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "TestEntity",
-        "entities",
-        get_entities,
-        get_entities_mut,
-    ));
+#[test]
+fn test_solution_descriptor_basic() {
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
 
-    EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
-        .with_extractor(extractor)
+    assert_eq!(solution_desc.type_name, "TestSolution");
+    assert_eq!(solution_desc.score_field, "score");
+    assert!(solution_desc.entity_descriptors.is_empty());
+    assert!(solution_desc.problem_fact_descriptors.is_empty());
 }
 
 #[test]
-fn test_solution_descriptor_total_entity_count() {
-    let entity_desc = create_test_entity_descriptor();
+fn test_solution_descriptor_with_entity() {
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
 
     let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(1),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(2),
-            },
-            TestEntity {
-                id: 3,
-                row: Some(3),
-            },
-        ],
-    };
-
-    assert_eq!(
-        solution_desc.total_entity_count(&solution as &dyn Any),
-        Some(3)
-    );
+    assert_eq!(solution_desc.entity_descriptor_count(), 1);
 }
 
 #[test]
-fn test_solution_descriptor_all_entity_refs() {
-    let entity_desc = create_test_entity_descriptor();
+fn test_solution_descriptor_with_problem_fact() {
+    let fact_desc = ProblemFactDescriptor::new("SomeFact", TypeId::of::<i32>(), "facts");
+
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_problem_fact(fact_desc);
+
+    assert_eq!(solution_desc.problem_fact_descriptor_count(), 1);
+}
+
+#[test]
+fn test_solution_descriptor_with_score_field() {
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_score_field("custom_score");
+
+    assert_eq!(solution_desc.score_field, "custom_score");
+}
+
+#[test]
+fn test_solution_descriptor_find_entity_descriptor() {
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
 
     let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(1),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(2),
-            },
-        ],
-    };
+    let found = solution_desc.find_entity_descriptor("TestEntity");
+    assert!(found.is_some());
+    assert_eq!(found.unwrap().type_name, "TestEntity");
 
-    let refs = solution_desc.all_entity_refs(&solution as &dyn Any);
-    assert_eq!(refs.len(), 2);
-    assert_eq!(refs[0].0, 0); // descriptor index
-    assert_eq!(refs[0].1.index, 0); // entity index
-    assert_eq!(refs[1].0, 0);
-    assert_eq!(refs[1].1.index, 1);
+    let not_found = solution_desc.find_entity_descriptor("NonExistent");
+    assert!(not_found.is_none());
 }
 
 #[test]
-fn test_solution_descriptor_for_each_entity() {
-    let entity_desc = create_test_entity_descriptor();
+fn test_solution_descriptor_find_entity_descriptor_by_type() {
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
 
     let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(10),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(20),
-            },
-        ],
-    };
+    let found = solution_desc.find_entity_descriptor_by_type(TypeId::of::<TestEntity>());
+    assert!(found.is_some());
+    assert_eq!(found.unwrap().type_name, "TestEntity");
 
-    let mut collected = Vec::new();
-    solution_desc.for_each_entity(&solution as &dyn Any, |desc_idx, entity_idx, entity| {
-        let e = entity.downcast_ref::<TestEntity>().unwrap();
-        collected.push((desc_idx, entity_idx, e.id));
-    });
-
-    assert_eq!(collected, vec![(0, 0, 1), (0, 1, 2)]);
+    let not_found = solution_desc.find_entity_descriptor_by_type(TypeId::of::<i32>());
+    assert!(not_found.is_none());
 }
 
 #[test]
-fn test_solution_descriptor_get_entity() {
-    let entity_desc = create_test_entity_descriptor();
+fn test_solution_descriptor_genuine_variable_descriptors() {
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"))
+        .with_variable(VariableDescriptor::shadow(
+            "computed",
+            ShadowVariableKind::Custom,
+        ));
 
     let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    let solution = TestSolution {
-        entities: vec![
-            TestEntity {
-                id: 1,
-                row: Some(10),
-            },
-            TestEntity {
-                id: 2,
-                row: Some(20),
-            },
-        ],
-    };
-
-    let entity = solution_desc.get_entity(&solution as &dyn Any, 0, 1);
-    assert!(entity.is_some());
-    let entity = entity.unwrap().downcast_ref::<TestEntity>().unwrap();
-    assert_eq!(entity.id, 2);
-    assert_eq!(entity.row, Some(20));
-
-    // Invalid descriptor index
-    assert!(solution_desc
-        .get_entity(&solution as &dyn Any, 99, 0)
-        .is_none());
-    // Invalid entity index
-    assert!(solution_desc
-        .get_entity(&solution as &dyn Any, 0, 99)
-        .is_none());
+    let genuine = solution_desc.genuine_variable_descriptors();
+    assert_eq!(genuine.len(), 1);
+    assert_eq!(genuine[0].name, "row");
 }
 
 #[test]
-fn test_solution_descriptor_all_extractors_configured() {
-    // With extractor
-    let entity_desc = create_test_entity_descriptor();
+fn test_solution_descriptor_shadow_variable_descriptors() {
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_variable(VariableDescriptor::genuine("row"))
+        .with_variable(VariableDescriptor::shadow(
+            "computed",
+            ShadowVariableKind::Custom,
+        ));
+
     let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
-    assert!(solution_desc.all_extractors_configured());
 
-    // Without extractor
-    let entity_desc_no_extractor =
-        EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
-    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
-        .with_entity(entity_desc_no_extractor);
-    assert!(!solution_desc.all_extractors_configured());
+    let shadows = solution_desc.shadow_variable_descriptors();
+    assert_eq!(shadows.len(), 1);
+    assert_eq!(shadows[0].name, "computed");
 }
 
 #[test]
 fn test_solution_descriptor_counts() {
-    let entity_desc = create_test_entity_descriptor();
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
     let fact_desc = ProblemFactDescriptor::new("SomeFact", TypeId::of::<i32>(), "facts");
 
     let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
@@ -383,6 +279,19 @@ fn test_solution_descriptor_counts() {
 
     assert_eq!(solution_desc.entity_descriptor_count(), 1);
     assert_eq!(solution_desc.problem_fact_descriptor_count(), 1);
+}
+
+#[test]
+fn test_solution_descriptor_clone() {
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities");
+
+    let solution_desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(entity_desc)
+        .with_score_field("score");
+
+    let cloned = solution_desc.clone();
+    assert_eq!(cloned.type_name, solution_desc.type_name);
+    assert_eq!(cloned.entity_descriptor_count(), 1);
 }
 
 // ============ VariableDescriptor Tests ============

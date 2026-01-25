@@ -29,12 +29,10 @@ impl PlanningSolution for NQueensSolution {
     }
 }
 
-// Typed getter - zero erasure
 fn get_row(s: &NQueensSolution, idx: usize) -> Option<i32> {
     s.queens.get(idx).and_then(|q| q.row)
 }
 
-// Typed setter - zero erasure
 fn set_row(s: &mut NQueensSolution, idx: usize, v: Option<i32>) {
     if let Some(q) = s.queens.get_mut(idx) {
         q.row = v;
@@ -63,13 +61,10 @@ fn test_recording_register_undo() {
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
 
-        // Capture old value using typed getter
         let old_value = get_row(recording.working_solution(), 0);
 
-        // Apply change using typed setter
         set_row(recording.working_solution_mut(), 0, Some(5));
 
-        // Register typed undo closure
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
             set_row(s, 0, old_value);
         }));
@@ -113,7 +108,6 @@ fn test_recording_multiple_undo() {
     {
         let mut recording = RecordingScoreDirector::new(&mut inner);
 
-        // Change multiple entities, registering typed undo for each
         for i in 0..3 {
             let old = get_row(recording.working_solution(), i);
             set_row(recording.working_solution_mut(), i, Some(10 + i as i32));

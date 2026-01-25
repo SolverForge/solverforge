@@ -324,16 +324,22 @@ fn generate_list_operations(
                     },
                 );
 
-                let construction = ::solverforge::__internal::ListConstructionPhaseBuilder::<Self, #element_type_ident>::new(
+                // Direct construction - no factory
+                let placer = ::solverforge::__internal::ListEntityPlacer::<Self, #element_type_ident>::new(
                     Self::element_count,
                     Self::assigned_elements,
                     Self::n_entities,
                     Self::assign_element,
                     Self::index_to_element,
                     #descriptor_index_lit,
-                ).create_phase();
+                );
+                let construction = ::solverforge::__internal::ConstructionHeuristicPhase::new(
+                    placer,
+                    ::solverforge::__internal::ConstructionForagerImpl::first_fit(),
+                );
 
-                let local_search = ::solverforge::__internal::KOptPhaseBuilder::<Self, #element_type_ident, _, _>::new(
+                // Direct construction - KOptMoveSelector for list local search
+                let move_selector = ::solverforge::__internal::KOptMoveSelector::new(
                     ::solverforge::__internal::DefaultDistanceMeter,
                     || ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
                     Self::list_len,
@@ -341,9 +347,15 @@ fn generate_list_operations(
                     Self::sublist_insert,
                     #list_field_str,
                     #descriptor_index_lit,
-                )
-                .with_sender(sender.clone())
-                .create_phase();
+                );
+                let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance(400);
+                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
+                let local_search = ::solverforge::__internal::LocalSearchPhase::new(
+                    move_selector,
+                    acceptor,
+                    forager,
+                    None,
+                ).with_sender(sender.clone());
 
                 let time_limit = config.termination.as_ref()
                     .and_then(|t| t.time_limit())
@@ -584,35 +596,50 @@ fn generate_basic_variable_operations(
                     },
                 );
 
-                let construction = ::solverforge::__internal::ChangeConstructionPhaseBuilder::<Self, #variable_type_ident>::new(
+                // Direct construction - no factory
+                let entity_selector = ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit);
+                let value_selector = ::solverforge::__internal::RangeValueSelector::new(Self::basic_value_count);
+                let placer = ::solverforge::__internal::QueuedEntityPlacer::new(
+                    entity_selector,
+                    value_selector,
                     Self::basic_get_variable,
                     Self::basic_set_variable,
-                    Self::basic_value_count,
-                    Self::basic_entity_count,
-                    #variable_field_str,
                     #descriptor_index_lit,
-                ).create_phase();
+                    #variable_field_str,
+                );
+                let construction = ::solverforge::__internal::ConstructionHeuristicPhase::new(
+                    placer,
+                    ::solverforge::__internal::ConstructionForagerImpl::first_fit(),
+                );
 
-                let local_search = ::solverforge::__internal::ChangeLocalSearchPhaseBuilder::<Self>::new(
+                // Direct construction - ChangeMoveSelector for basic local search
+                let move_selector = ::solverforge::__internal::ChangeMoveSelector::new(
+                    ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
+                    ::solverforge::__internal::RangeValueSelector::new(Self::basic_value_count),
                     Self::basic_get_variable,
                     Self::basic_set_variable,
-                    Self::basic_value_count,
                     #variable_field_str,
                     #descriptor_index_lit,
-                    config.phases.iter()
-                        .find_map(|phase| match phase {
-                            ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => Some(ls),
-                            _ => None,
-                        })
-                        .and_then(|ls| ls.acceptor.as_ref())
-                        .and_then(|acceptor| match acceptor {
-                            ::solverforge::__internal::AcceptorConfig::LateAcceptance(la) => la.late_acceptance_size,
-                            _ => None,
-                        })
-                        .unwrap_or(400),
-                )
-                .with_sender(sender.clone())
-                .create_phase();
+                );
+                let late_acceptance_size = config.phases.iter()
+                    .find_map(|phase| match phase {
+                        ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => Some(ls),
+                        _ => None,
+                    })
+                    .and_then(|ls| ls.acceptor.as_ref())
+                    .and_then(|acceptor| match acceptor {
+                        ::solverforge::__internal::AcceptorConfig::LateAcceptance(la) => la.late_acceptance_size,
+                        _ => None,
+                    })
+                    .unwrap_or(400);
+                let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance(late_acceptance_size);
+                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
+                let local_search = ::solverforge::__internal::LocalSearchPhase::new(
+                    move_selector,
+                    acceptor,
+                    forager,
+                    None,
+                ).with_sender(sender.clone());
 
                 let time_limit = config.termination.as_ref()
                     .and_then(|t| t.time_limit())

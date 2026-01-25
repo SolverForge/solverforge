@@ -18,7 +18,7 @@ use super::traits::Move;
 /// A move that swaps values between two pillars.
 ///
 /// Stores pillar indices and typed function pointers for zero-erasure access.
-/// Undo is handled by `RecordingScoreDirector`, not by this move.
+/// Undo is handled by `ScoreDirector`'s undo stack and score snapshot.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type

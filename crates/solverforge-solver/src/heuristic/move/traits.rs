@@ -9,14 +9,14 @@ use solverforge_scoring::ScoreDirector;
 /// A move that modifies one or more planning variables.
 ///
 /// Moves are fully typed for maximum performance - no boxing, no virtual dispatch.
-/// Undo is handled by `RecordingScoreDirector`, not by move return values.
+/// Undo is handled by `ScoreDirector`'s undo stack and score snapshot, not by move return values.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
 ///
 /// # Implementation Notes
 /// - Moves should be lightweight
-/// - Use `RecordingScoreDirector` to wrap the score director for automatic undo
+/// - Use `save_score_snapshot()` + `undo_changes()` for move evaluation
 /// - Moves are NEVER cloned - ownership transfers via arena indices
 pub trait Move<S>: Send + Sync + Debug
 where

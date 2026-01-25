@@ -20,7 +20,7 @@
 //! - `RuinMove<S, V>` - unassigns multiple entities (for Large Neighborhood Search)
 //! - `ListRuinMove<S, V>` - removes elements from a list (for LNS on list variables)
 //!
-//! Undo is handled by `RecordingScoreDirector`, not by moves returning undo data.
+//! Undo is handled by `ScoreDirector`'s undo stack and score snapshot.
 //!
 //! # Arena Allocation
 //!

@@ -342,8 +342,8 @@ fn generate_list_operations(
 
                 // Direct construction - KOptMoveSelector for list local search
                 let move_selector = ::solverforge::__internal::KOptMoveSelector::new(
-                    ::solverforge::__internal::DefaultDistanceMeter,
-                    || ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
+                    ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
+                    ::solverforge::__internal::KOptConfig::new(3),
                     Self::list_len,
                     Self::sublist_remove,
                     Self::sublist_insert,

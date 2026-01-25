@@ -143,7 +143,7 @@ pub mod __internal {
     };
     pub use solverforge_solver::heuristic::ListAssignMove;
     pub use solverforge_solver::heuristic::{
-        ChangeMoveSelector, KOptMoveSelector, SwapMoveSelector,
+        ChangeMoveSelector, KOptConfig, KOptMoveSelector, SwapMoveSelector,
     };
     pub use solverforge_solver::manager::SolverFactory;
     pub use solverforge_solver::phase::construction::{

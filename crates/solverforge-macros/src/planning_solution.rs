@@ -330,6 +330,8 @@ fn generate_list_operations(
                     Self::assigned_elements,
                     Self::n_entities,
                     Self::assign_element,
+                    Self::list_len_fn,
+                    Self::list_remove_fn,
                     Self::index_to_element,
                     #descriptor_index_lit,
                 );
@@ -486,8 +488,56 @@ fn generate_list_operations(
 
         /// Remove element at position (function pointer version for solver).
         #[inline]
-        pub fn list_remove_fn(s: &mut Self, entity_idx: usize, pos: usize) -> #element_type_ident {
-            s.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+        pub fn list_remove_fn(s: &mut Self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
+            s.#list_owner_ident
+                .get_mut(entity_idx)
+                .map(|e| e.#list_field_ident.remove(pos))
+        }
+
+        /// Get list length (function pointer version for solver).
+        #[inline]
+        pub fn list_len_fn(s: &Self, entity_idx: usize) -> usize {
+            s.#list_owner_ident
+                .get(entity_idx)
+                .map_or(0, |e| e.#list_field_ident.len())
+        }
+
+        /// Get element at position (function pointer version for solver).
+        #[inline]
+        pub fn list_get_fn(s: &Self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
+            s.#list_owner_ident
+                .get(entity_idx)
+                .and_then(|e| e.#list_field_ident.get(pos).copied())
+        }
+
+        /// Set element at position (function pointer version for solver).
+        #[inline]
+        pub fn list_set_fn(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+                if let Some(slot) = e.#list_field_ident.get_mut(pos) {
+                    *slot = val;
+                }
+            }
+        }
+
+        /// Reverse elements in range [start, end) (function pointer version for solver).
+        #[inline]
+        pub fn list_reverse_fn(s: &mut Self, entity_idx: usize, start: usize, end: usize) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+                if end <= e.#list_field_ident.len() && start < end {
+                    e.#list_field_ident[start..end].reverse();
+                }
+            }
+        }
+
+        /// Get element index at position (function pointer version for solver).
+        /// For usize elements, the element IS the index.
+        #[inline]
+        pub fn list_get_element_idx_fn(s: &Self, entity_idx: usize, pos: usize) -> usize {
+            s.#list_owner_ident
+                .get(entity_idx)
+                .and_then(|e| e.#list_field_ident.get(pos).copied())
+                .unwrap_or(0) as usize
         }
 
         /// Convert index to element (identity for usize elements).
@@ -616,8 +666,8 @@ fn generate_basic_variable_operations(
                     ),
                 );
 
-                // Direct construction - ChangeMoveSelector for basic local search
-                let move_selector = ::solverforge::__internal::ChangeMoveSelector::new(
+                // Direct construction - BasicVariableMoveSelector generates both Change and Swap moves
+                let move_selector = ::solverforge::__internal::BasicVariableMoveSelector::new(
                     ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
                     ::solverforge::__internal::RangeValueSelector::new(Self::basic_value_count),
                     Self::basic_get_variable,
@@ -626,7 +676,7 @@ fn generate_basic_variable_operations(
                     #variable_field_str,
                 );
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
-                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
+                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1000);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
                     move_selector,
                     acceptor,

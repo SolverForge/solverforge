@@ -162,8 +162,6 @@ where
             self.arena
                 .extend(self.move_selector.iter_moves(step_scope.score_director()));
 
-            total_moves += self.arena.len() as u64;
-
             // Progress event every 1 second
             let now = Instant::now();
             if now.duration_since(last_progress_time).as_secs() >= 1 {
@@ -187,6 +185,9 @@ where
                 if !m.is_doable(step_scope.score_director()) {
                     continue;
                 }
+
+                // Count moves actually evaluated (after doable check)
+                total_moves += 1;
 
                 // Use RecordingScoreDirector for automatic undo
                 let move_score = {
@@ -258,12 +259,15 @@ where
                         }
                     }
                 }
-            } else {
-                // No accepted moves - we're stuck
-                break;
             }
+            // No else branch - continue searching even when no accepted move this step
+            // Move selectors regenerate moves, termination conditions decide when to stop
 
             step_scope.complete();
+
+            // Notify acceptor that step is complete - CRITICAL for stateful acceptors
+            // (Late Acceptance, Simulated Annealing, Great Deluge, etc.)
+            self.acceptor.step_ended(&last_step_score);
         }
 
         // Notify acceptor of phase end

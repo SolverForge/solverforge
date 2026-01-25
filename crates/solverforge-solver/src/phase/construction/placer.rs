@@ -358,6 +358,10 @@ pub struct ListEntityPlacer<S, V> {
     n_entities: fn(&S) -> usize,
     /// Assign element to entity (appends to list)
     assign_element: fn(&mut S, usize, V),
+    /// Get list length for an entity
+    list_len: fn(&S, usize) -> usize,
+    /// Remove element at position from entity
+    remove_element: fn(&mut S, usize, usize) -> V,
     /// Convert index to element value
     index_to_element: fn(usize) -> V,
     /// Descriptor index for entity type
@@ -367,11 +371,14 @@ pub struct ListEntityPlacer<S, V> {
 
 impl<S, V> ListEntityPlacer<S, V> {
     /// Creates a new list entity placer.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         element_count: fn(&S) -> usize,
         assigned_elements: fn(&S) -> Vec<V>,
         n_entities: fn(&S) -> usize,
         assign_element: fn(&mut S, usize, V),
+        list_len: fn(&S, usize) -> usize,
+        remove_element: fn(&mut S, usize, usize) -> V,
         index_to_element: fn(usize) -> V,
         descriptor_index: usize,
     ) -> Self {
@@ -380,6 +387,8 @@ impl<S, V> ListEntityPlacer<S, V> {
             assigned_elements,
             n_entities,
             assign_element,
+            list_len,
+            remove_element,
             index_to_element,
             descriptor_index,
             _phantom: PhantomData,
@@ -431,6 +440,8 @@ where
                             element.clone(),
                             entity_idx,
                             self.assign_element,
+                            self.list_len,
+                            self.remove_element,
                             "list",
                             self.descriptor_index,
                         )

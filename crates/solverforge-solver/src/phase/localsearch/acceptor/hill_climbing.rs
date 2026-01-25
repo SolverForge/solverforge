@@ -7,10 +7,11 @@ use solverforge_core::domain::PlanningSolution;
 
 use super::Acceptor;
 
-/// Hill climbing acceptor - accepts only improving moves.
+/// Hill climbing acceptor - accepts improving or equal-score moves.
 ///
-/// This is the simplest acceptor. It only accepts moves that result
-/// in a strictly better score. This can get stuck in local optima.
+/// Accepts moves that result in a score equal to or better than the current score.
+/// This enables plateau exploration, allowing the search to move sideways through
+/// regions of equal score to eventually find paths to better solutions.
 pub struct HillClimbingAcceptor<S> {
     _phantom: PhantomData<fn() -> S>,
 }
@@ -45,6 +46,6 @@ impl<S> Debug for HillClimbingAcceptor<S> {
 
 impl<S: PlanningSolution> Acceptor<S> for HillClimbingAcceptor<S> {
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
-        move_score > last_step_score
+        move_score >= last_step_score
     }
 }

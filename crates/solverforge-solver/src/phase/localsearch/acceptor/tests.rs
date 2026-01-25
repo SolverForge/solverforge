@@ -34,9 +34,10 @@ fn test_hill_climbing_rejects_worsening() {
 }
 
 #[test]
-fn test_hill_climbing_rejects_equal() {
+fn test_hill_climbing_accepts_equal() {
+    // Hill climbing accepts equal scores for plateau exploration
     let acceptor = HillClimbingAcceptor::<DummySolution>::new();
-    assert!(!acceptor.is_accepted(&SimpleScore::of(-5), &SimpleScore::of(-5)));
+    assert!(acceptor.is_accepted(&SimpleScore::of(-5), &SimpleScore::of(-5)));
 }
 
 #[test]

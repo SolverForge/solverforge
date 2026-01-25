@@ -34,15 +34,19 @@ pub fn init() {
     INIT.get_or_init(|| {
         print_banner();
 
-        let default_level = if cfg!(feature = "verbose-logging") {
-            "solverforge_solver=debug"
+        // Allow info-level events from any crate (for solve_start/solve_end from user crates)
+        // and debug/info from solverforge_solver for progress events
+        let filter = if cfg!(feature = "verbose-logging") {
+            EnvFilter::builder()
+                .with_default_directive("info".parse().unwrap())
+                .from_env_lossy()
+                .add_directive("solverforge_solver=debug".parse().unwrap())
         } else {
-            "solverforge_solver=info"
+            EnvFilter::builder()
+                .with_default_directive("info".parse().unwrap())
+                .from_env_lossy()
+                .add_directive("solverforge_solver=info".parse().unwrap())
         };
-
-        let filter = EnvFilter::builder()
-            .with_default_directive(default_level.parse().unwrap())
-            .from_env_lossy();
 
         tracing_subscriber::registry()
             .with(filter)
@@ -97,12 +101,20 @@ impl<S: Subscriber> Layer<S> for SolverConsoleLayer {
         let metadata = event.metadata();
         let target = metadata.target();
 
-        if !target.starts_with("solverforge_solver") {
-            return;
-        }
-
+        // Accept events from solverforge_solver crate
+        // Also peek at event field for solve_start/solve_end which come from user crates via macros
         let mut visitor = EventVisitor::default();
         event.record(&mut visitor);
+
+        let is_solver_event = target.starts_with("solverforge_solver")
+            || matches!(
+                visitor.event.as_deref(),
+                Some("solve_start") | Some("solve_end")
+            );
+
+        if !is_solver_event {
+            return;
+        }
 
         let level = *metadata.level();
         let output = format_event(&visitor, level);

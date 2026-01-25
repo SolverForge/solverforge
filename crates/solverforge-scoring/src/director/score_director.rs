@@ -86,6 +86,22 @@ where
     /// This is a typed function pointer that preserves full type information
     /// throughout the solver pipeline.
     entity_counter: fn(&S, usize) -> usize,
+    /// Undo stack for move reversal.
+    ///
+    /// Moves register undo closures via `register_undo()`. These closures
+    /// are executed in reverse order by `undo_changes()` to restore the
+    /// solution to its pre-move state.
+    undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
+    /// Entities modified during the current move evaluation.
+    ///
+    /// Tracks (descriptor_index, entity_index) pairs. During undo, we need to
+    /// properly retract/insert these entities to keep constraint tracking in sync.
+    modified_entities: Vec<(usize, usize)>,
+    /// Pre-move score for debug assertions.
+    ///
+    /// Used to verify that undo_changes() correctly restores the score.
+    #[cfg(debug_assertions)]
+    pre_move_score: Option<S::Score>,
     /// Phantom for score type.
     _phantom: PhantomData<S::Score>,
 }
@@ -136,6 +152,10 @@ where
             initialized: false,
             solution_descriptor,
             entity_counter,
+            undo_stack: Vec::with_capacity(16),
+            modified_entities: Vec::with_capacity(8),
+            #[cfg(debug_assertions)]
+            pre_move_score: None,
             _phantom: PhantomData,
         }
     }
@@ -191,6 +211,13 @@ where
         let _ = position;
         if !self.initialized {
             return;
+        }
+
+        // Track element for proper undo
+        self.modified_entities.push((0, element_idx));
+        // Track entity if different from element
+        if entity_index != element_idx {
+            self.modified_entities.push((0, entity_index));
         }
 
         let delta = self
@@ -400,6 +427,10 @@ where
         if !self.initialized {
             return;
         }
+        // Track this entity for proper undo (retract/insert during undo_changes)
+        self.modified_entities
+            .push((descriptor_index, entity_index));
+
         let delta =
             self.constraints
                 .on_retract_all(&self.working_solution, descriptor_index, entity_index);
@@ -484,9 +515,122 @@ where
     }
 
     /// Registers an undo closure for move reversal.
+    ///
+    /// Moves call this method to register closures that restore the solution
+    /// to its pre-move state. The closures are stored on a stack and executed
+    /// in reverse order by `undo_changes()`.
+    ///
+    /// # Arguments
+    /// * `undo` - A closure that restores the solution state
     #[inline]
-    pub fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>) {
-        // Default: no-op - RecordingScoreDirector overrides this
+    pub fn register_undo(&mut self, undo: Box<dyn FnOnce(&mut S) + Send>) {
+        self.undo_stack.push(undo);
+    }
+
+    /// Prepares for move evaluation by saving the current score for debug verification.
+    ///
+    /// Call this BEFORE evaluating a move. The actual undo mechanism tracks
+    /// modified entities automatically via `before_variable_changed()`.
+    ///
+    /// In debug builds, this saves the current score so that `undo_changes()`
+    /// can verify the score was correctly restored.
+    #[inline]
+    pub fn save_score_snapshot(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            self.pre_move_score = Some(self.cached_score);
+        }
+    }
+
+    /// Undoes all registered changes with proper constraint tracking restoration.
+    ///
+    /// This method properly restores both the solution state AND the constraint
+    /// tracking by:
+    /// 1. Retracting current (post-move) values from constraints (reverse order)
+    /// 2. Running undo closures to restore old values (reverse order)
+    /// 3. Inserting restored (pre-move) values into constraints (reverse order)
+    ///
+    /// The net effect is that both the solution and cached_score return to
+    /// their pre-move state.
+    ///
+    /// # Why Reverse Order for Insert?
+    ///
+    /// For bi-constraints that track entity pairs (e.g., same-employee conflicts),
+    /// the order of inserts matters. When A and B have the same join key, the
+    /// match (A,B) should be found exactly once during insert. Using reverse
+    /// order mirrors the forward move's sequence, ensuring consistent behavior.
+    #[inline]
+    pub fn undo_changes(&mut self) {
+        if !self.initialized {
+            // Just clear the stacks if not initialized
+            self.undo_stack.clear();
+            self.modified_entities.clear();
+            #[cfg(debug_assertions)]
+            {
+                self.pre_move_score = None;
+            }
+            return;
+        }
+
+        // Step 1: Retract current (post-move) values from constraints
+        // This undoes the after_variable_changed inserts
+        for &(descriptor_index, entity_index) in self.modified_entities.iter().rev() {
+            let delta = self.constraints.on_retract_all(
+                &self.working_solution,
+                descriptor_index,
+                entity_index,
+            );
+            self.cached_score = self.cached_score + delta;
+        }
+
+        // Step 2: Run undo closures in reverse order to restore old values
+        while let Some(undo) = self.undo_stack.pop() {
+            undo(&mut self.working_solution);
+        }
+
+        // Step 3: Insert restored (pre-move) values into constraints
+        // This undoes the before_variable_changed retracts
+        // Must collect first and iterate in REVERSE order to mirror forward sequence
+        let entities: Vec<_> = self.modified_entities.drain(..).collect();
+        for (descriptor_index, entity_index) in entities.into_iter().rev() {
+            let delta = self.constraints.on_insert_all(
+                &self.working_solution,
+                descriptor_index,
+                entity_index,
+            );
+            self.cached_score = self.cached_score + delta;
+        }
+
+        // Debug assertion: verify score was correctly restored
+        #[cfg(debug_assertions)]
+        if let Some(expected) = self.pre_move_score.take() {
+            debug_assert_eq!(
+                self.cached_score, expected,
+                "Undo score mismatch: expected {:?}, got {:?}",
+                expected, self.cached_score
+            );
+        }
+    }
+
+    /// Clears the undo stack without executing the closures.
+    ///
+    /// Call this after a move has been permanently applied (i.e., accepted
+    /// and executed "for real"). This discards the undo closures since the
+    /// move is now part of the committed solution state.
+    #[inline]
+    pub fn clear_undo_stack(&mut self) {
+        self.undo_stack.clear();
+        self.modified_entities.clear();
+        #[cfg(debug_assertions)]
+        {
+            self.pre_move_score = None;
+        }
+    }
+
+    /// Returns the number of undo closures on the stack.
+    #[inline]
+    pub fn undo_stack_len(&self) -> usize {
+        self.undo_stack.len()
     }
 
     /// Consumes the director and returns the working solution.
@@ -534,5 +678,363 @@ where
             .field("cached_score", &self.cached_score)
             .field("constraint_count", &self.constraints.constraint_count())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constraint::incremental::IncrementalUniConstraint;
+    use crate::constraint::IncrementalBiConstraint;
+    use solverforge_core::score::SimpleScore;
+    use solverforge_core::{ConstraintRef, ImpactType};
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+    struct Shift {
+        id: usize,
+        employee: Option<usize>,
+    }
+
+    #[derive(Clone)]
+    struct TestSolution {
+        shifts: Vec<Shift>,
+        score: Option<SimpleScore>,
+    }
+
+    impl PlanningSolution for TestSolution {
+        type Score = SimpleScore;
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    fn create_unassigned_constraint() -> IncrementalUniConstraint<
+        TestSolution,
+        Shift,
+        impl Fn(&TestSolution) -> &[Shift],
+        impl Fn(&TestSolution, &Shift) -> bool,
+        impl Fn(&Shift) -> SimpleScore,
+        SimpleScore,
+    > {
+        IncrementalUniConstraint::new(
+            ConstraintRef::new("", "Unassigned"),
+            ImpactType::Penalty,
+            |s: &TestSolution| s.shifts.as_slice(),
+            |_s: &TestSolution, shift: &Shift| shift.employee.is_none(),
+            |_: &Shift| SimpleScore::of(1),
+            true,
+            0,
+        )
+    }
+
+    fn create_conflict_constraint() -> IncrementalBiConstraint<
+        TestSolution,
+        Shift,
+        Option<usize>,
+        impl Fn(&TestSolution) -> &[Shift],
+        impl Fn(&Shift) -> Option<usize>,
+        impl Fn(&TestSolution, &Shift, &Shift) -> bool,
+        impl Fn(&Shift, &Shift) -> SimpleScore,
+        SimpleScore,
+    > {
+        IncrementalBiConstraint::new(
+            ConstraintRef::new("", "Employee conflict"),
+            ImpactType::Penalty,
+            |s: &TestSolution| s.shifts.as_slice(),
+            |shift: &Shift| shift.employee,
+            |_s: &TestSolution, a: &Shift, b: &Shift| {
+                // Only count pairs where both are assigned to same employee
+                a.employee.is_some() && a.id < b.id
+            },
+            |_: &Shift, _: &Shift| SimpleScore::of(1),
+            true,
+            0,
+        )
+    }
+
+    /// Test 1: Single entity undo (simulates ChangeMove)
+    #[test]
+    fn test_change_move_undo_restores_score() {
+        let solution = TestSolution {
+            shifts: vec![
+                Shift {
+                    id: 0,
+                    employee: None,
+                },
+                Shift {
+                    id: 1,
+                    employee: Some(1),
+                },
+            ],
+            score: None,
+        };
+
+        let constraint = create_unassigned_constraint();
+        let mut director = ScoreDirector::new(solution, (constraint,));
+
+        // Initialize and get initial score
+        let initial_score = director.calculate_score();
+        assert_eq!(initial_score, SimpleScore::of(-1)); // One unassigned
+
+        // Simulate ChangeMove: assign employee to shift 0
+        director.save_score_snapshot();
+        director.before_variable_changed(0, 0);
+        director.working_solution_mut().shifts[0].employee = Some(1);
+        // Register undo closure
+        director.register_undo(Box::new(|s: &mut TestSolution| {
+            s.shifts[0].employee = None;
+        }));
+        director.after_variable_changed(0, 0);
+
+        // Score should be 0 (no unassigned shifts)
+        let post_move_score = director.get_score();
+        assert_eq!(post_move_score, SimpleScore::of(0));
+
+        // Undo the move
+        director.undo_changes();
+
+        // Score should be restored to initial
+        let restored_score = director.get_score();
+        assert_eq!(restored_score, initial_score);
+
+        // Solution should be restored
+        assert_eq!(director.working_solution().shifts[0].employee, None);
+    }
+
+    /// Test 2: Multi-entity undo (simulates SwapMove)
+    #[test]
+    fn test_swap_move_undo_restores_score() {
+        let solution = TestSolution {
+            shifts: vec![
+                Shift {
+                    id: 0,
+                    employee: Some(1),
+                },
+                Shift {
+                    id: 1,
+                    employee: None,
+                },
+            ],
+            score: None,
+        };
+
+        let constraint = create_unassigned_constraint();
+        let mut director = ScoreDirector::new(solution, (constraint,));
+
+        let initial_score = director.calculate_score();
+        assert_eq!(initial_score, SimpleScore::of(-1)); // One unassigned (shift 1)
+
+        // Simulate SwapMove: swap employees between shift 0 and shift 1
+        director.save_score_snapshot();
+
+        // SwapMove modifies both entities
+        director.before_variable_changed(0, 0);
+        director.before_variable_changed(0, 1);
+
+        let old_emp_0 = director.working_solution().shifts[0].employee;
+        let old_emp_1 = director.working_solution().shifts[1].employee;
+
+        director.working_solution_mut().shifts[0].employee = old_emp_1; // None
+        director.working_solution_mut().shifts[1].employee = old_emp_0; // Some(1)
+
+        // Register undo closures
+        director.register_undo(Box::new(move |s: &mut TestSolution| {
+            s.shifts[0].employee = old_emp_0;
+        }));
+        director.register_undo(Box::new(move |s: &mut TestSolution| {
+            s.shifts[1].employee = old_emp_1;
+        }));
+
+        director.after_variable_changed(0, 0);
+        director.after_variable_changed(0, 1);
+
+        // Score should still be -1 (still one unassigned, but different one)
+        let post_move_score = director.get_score();
+        assert_eq!(post_move_score, SimpleScore::of(-1));
+
+        // Undo the move
+        director.undo_changes();
+
+        // Score should be restored
+        assert_eq!(director.get_score(), initial_score);
+
+        // Solution should be restored
+        assert_eq!(director.working_solution().shifts[0].employee, Some(1));
+        assert_eq!(director.working_solution().shifts[1].employee, None);
+    }
+
+    /// Test 3: Bi-constraint tracking restoration
+    #[test]
+    fn test_bi_constraint_tracking_restored_after_undo() {
+        let solution = TestSolution {
+            shifts: vec![
+                Shift {
+                    id: 0,
+                    employee: Some(1),
+                }, // Same employee
+                Shift {
+                    id: 1,
+                    employee: Some(1),
+                }, // Same employee - conflict!
+                Shift {
+                    id: 2,
+                    employee: Some(2),
+                }, // Different employee
+            ],
+            score: None,
+        };
+
+        let constraint = create_conflict_constraint();
+        let mut director = ScoreDirector::new(solution, (constraint,));
+
+        // Initialize: should have 1 conflict (shifts 0 and 1 have same employee)
+        let initial_score = director.calculate_score();
+        assert_eq!(initial_score, SimpleScore::of(-1)); // One conflict
+
+        // Change shift 1 to different employee (removes conflict)
+        director.save_score_snapshot();
+        director.before_variable_changed(0, 1);
+        director.working_solution_mut().shifts[1].employee = Some(3);
+        director.register_undo(Box::new(|s: &mut TestSolution| {
+            s.shifts[1].employee = Some(1);
+        }));
+        director.after_variable_changed(0, 1);
+
+        // Should have no conflicts now
+        let post_move_score = director.get_score();
+        assert_eq!(post_move_score, SimpleScore::of(0));
+
+        // Undo the move
+        director.undo_changes();
+
+        // Score and tracking should be restored
+        let restored_score = director.get_score();
+        assert_eq!(restored_score, initial_score);
+    }
+
+    /// Test 4: Multiple sequential move evaluations
+    #[test]
+    fn test_multiple_move_evaluations() {
+        let solution = TestSolution {
+            shifts: vec![
+                Shift {
+                    id: 0,
+                    employee: None,
+                },
+                Shift {
+                    id: 1,
+                    employee: None,
+                },
+                Shift {
+                    id: 2,
+                    employee: None,
+                },
+            ],
+            score: None,
+        };
+
+        let constraint = create_unassigned_constraint();
+        let mut director = ScoreDirector::new(solution, (constraint,));
+
+        let initial_score = director.calculate_score();
+        assert_eq!(initial_score, SimpleScore::of(-3)); // Three unassigned
+
+        // Evaluate multiple moves (like local search does)
+        // Each iteration: try assigning one shift, then undo
+        for i in 0..3 {
+            director.save_score_snapshot();
+            director.before_variable_changed(0, i);
+            director.working_solution_mut().shifts[i].employee = Some(1);
+            director.register_undo(Box::new(move |s: &mut TestSolution| {
+                s.shifts[i].employee = None;
+            }));
+            director.after_variable_changed(0, i);
+
+            // Each move assigns one shift (from 3 unassigned to 2 unassigned)
+            assert_eq!(
+                director.get_score(),
+                SimpleScore::of(-2),
+                "Move {} should result in score -2 (2 unassigned)",
+                i
+            );
+
+            // Undo
+            director.undo_changes();
+
+            // Score should be back to initial
+            assert_eq!(
+                director.get_score(),
+                initial_score,
+                "After undo of move {}, score should be restored to initial",
+                i
+            );
+        }
+
+        // Final score should still be initial
+        assert_eq!(director.get_score(), initial_score);
+
+        // Solution should be unchanged
+        for shift in director.working_solution().shifts.iter() {
+            assert_eq!(shift.employee, None);
+        }
+    }
+
+    /// Test 5: Undo with uninitialized director (edge case)
+    #[test]
+    fn test_undo_uninitialized() {
+        let solution = TestSolution {
+            shifts: vec![Shift {
+                id: 0,
+                employee: None,
+            }],
+            score: None,
+        };
+
+        let constraint = create_unassigned_constraint();
+        let mut director = ScoreDirector::new(solution, (constraint,));
+
+        // Don't initialize, just register some undo closures
+        director.register_undo(Box::new(|_: &mut TestSolution| {}));
+
+        // Undo should just clear stacks without panic
+        director.undo_changes();
+
+        assert_eq!(director.undo_stack_len(), 0);
+    }
+
+    /// Test 6: Clear undo stack
+    #[test]
+    fn test_clear_undo_stack() {
+        let solution = TestSolution {
+            shifts: vec![Shift {
+                id: 0,
+                employee: None,
+            }],
+            score: None,
+        };
+
+        let constraint = create_unassigned_constraint();
+        let mut director = ScoreDirector::new(solution, (constraint,));
+
+        director.calculate_score();
+
+        // Simulate move
+        director.save_score_snapshot();
+        director.before_variable_changed(0, 0);
+        director.working_solution_mut().shifts[0].employee = Some(1);
+        director.register_undo(Box::new(|s: &mut TestSolution| {
+            s.shifts[0].employee = None;
+        }));
+        director.after_variable_changed(0, 0);
+
+        // Clear undo stack (move is accepted)
+        director.clear_undo_stack();
+
+        assert_eq!(director.undo_stack_len(), 0);
+        // Score should remain at post-move value
+        assert_eq!(director.get_score(), SimpleScore::of(0));
     }
 }

@@ -42,7 +42,9 @@ use super::traits::Move;
 /// }
 ///
 /// fn list_len(s: &Route, _: usize) -> usize { s.stops.len() }
-/// fn list_remove(s: &mut Route, _: usize, idx: usize) -> i32 { s.stops.remove(idx) }
+/// fn list_remove(s: &mut Route, _: usize, idx: usize) -> Option<i32> {
+///     if idx < s.stops.len() { Some(s.stops.remove(idx)) } else { None }
+/// }
 /// fn list_insert(s: &mut Route, _: usize, idx: usize, v: i32) { s.stops.insert(idx, v); }
 /// fn list_get_element_idx(s: &Route, _: usize, pos: usize) -> usize {
 ///     s.stops.get(pos).copied().unwrap_or(0) as usize
@@ -63,8 +65,8 @@ pub struct ListRuinMove<S, V> {
     positions: SmallVec<[usize; 8]>,
     /// Get list length
     list_len: fn(&S, usize) -> usize,
-    /// Remove element at index, returning it
-    list_remove: fn(&mut S, usize, usize) -> V,
+    /// Remove element at index, returning it (Option for bounds safety)
+    list_remove: fn(&mut S, usize, usize) -> Option<V>,
     /// Insert element at index
     list_insert: fn(&mut S, usize, usize, V),
     /// Get element index at position (for O(1) shadow updates)
@@ -107,7 +109,7 @@ impl<S, V> ListRuinMove<S, V> {
     /// * `entity_index` - Entity index
     /// * `positions` - Positions of elements to remove
     /// * `list_len` - Function to get list length
-    /// * `list_remove` - Function to remove element at index
+    /// * `list_remove` - Function to remove element at index (returns Option for bounds safety)
     /// * `list_insert` - Function to insert element at index
     /// * `list_get_element_idx` - Function to get element index at position
     /// * `variable_name` - Name of the list variable
@@ -120,7 +122,7 @@ impl<S, V> ListRuinMove<S, V> {
         entity_index: usize,
         positions: &[usize],
         list_len: fn(&S, usize) -> usize,
-        list_remove: fn(&mut S, usize, usize) -> V,
+        list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
         list_get_element_idx: fn(&S, usize, usize) -> usize,
         variable_name: &'static str,
@@ -202,7 +204,8 @@ where
         // Remove elements in reverse order (highest position first) to preserve positions
         let mut removed: SmallVec<[(usize, usize, V); 8]> = SmallVec::new();
         for (&pos, &element_id) in self.positions.iter().zip(element_ids.iter()).rev() {
-            let value = list_remove(score_director.working_solution_mut(), entity, pos);
+            let value = list_remove(score_director.working_solution_mut(), entity, pos)
+                .expect("position validated by is_doable");
             removed.push((pos, element_id, value));
         }
 

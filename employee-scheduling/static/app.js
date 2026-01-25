@@ -1,4 +1,4 @@
-let autoRefreshIntervalId = null;
+let eventSource = null;
 const zoomMin = 2 * 1000 * 60 * 60 * 24 // 2 day in milliseconds
 const zoomMax = 4 * 7 * 1000 * 60 * 60 * 24 // 4 weeks in milliseconds
 
@@ -179,6 +179,23 @@ function refreshSchedule() {
         });
 }
 
+function subscribeToUpdates(id) {
+    if (eventSource) {
+        eventSource.close();
+    }
+    eventSource = new EventSource(`/schedules/${id}/events`);
+    eventSource.onmessage = function(event) {
+        const schedule = JSON.parse(event.data);
+        loadedSchedule = schedule;
+        renderSchedule(schedule);
+    };
+    eventSource.onerror = function() {
+        eventSource.close();
+        eventSource = null;
+        refreshSolvingButtons(false);
+    };
+}
+
 function renderSchedule(schedule) {
     console.log('Rendering schedule:', schedule);
     
@@ -340,11 +357,12 @@ function solve() {
         showError("No schedule data loaded. Please wait for the data to load or refresh the page.");
         return;
     }
-    
+
     console.log('Sending schedule data for solving:', loadedSchedule);
     $.post("/schedules", JSON.stringify(loadedSchedule), function (data) {
         scheduleId = data;
         refreshSolvingButtons(true);
+        subscribeToUpdates(scheduleId);
     }).fail(function (xhr, ajaxOptions, thrownError) {
             showError("Start solving failed.", xhr);
             refreshSolvingButtons(false);
@@ -441,21 +459,18 @@ function refreshSolvingButtons(solving) {
         $("#solveButton").hide();
         $("#stopSolvingButton").show();
         $("#solvingSpinner").addClass("active");
-        if (autoRefreshIntervalId == null) {
-            autoRefreshIntervalId = setInterval(refreshSchedule, 2000);
-        }
     } else {
         $("#solveButton").show();
         $("#stopSolvingButton").hide();
         $("#solvingSpinner").removeClass("active");
-        if (autoRefreshIntervalId != null) {
-            clearInterval(autoRefreshIntervalId);
-            autoRefreshIntervalId = null;
-        }
     }
 }
 
 function stopSolving() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
     $.delete(`/schedules/${scheduleId}`, function () {
         refreshSolvingButtons(false);
         refreshSchedule();

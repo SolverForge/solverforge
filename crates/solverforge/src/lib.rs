@@ -139,13 +139,18 @@ pub mod __internal {
     };
 
     pub use solverforge_solver::heuristic::selector::{
-        DefaultDistanceMeter, FromSolutionEntitySelector,
+        DefaultDistanceMeter, FromSolutionEntitySelector, RangeValueSelector,
     };
-    pub use solverforge_solver::manager::{
-        ChangeConstructionPhaseBuilder, ChangeLocalSearchPhaseBuilder, KOptPhaseBuilder,
-        ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
+    pub use solverforge_solver::heuristic::{
+        ChangeMoveSelector, KOptMoveSelector, SwapMoveSelector,
     };
-    pub use solverforge_solver::phase::localsearch::AcceptorImpl;
+    pub use solverforge_solver::manager::SolverFactory;
+    pub use solverforge_solver::phase::construction::{
+        ConstructionForagerImpl, ConstructionHeuristicPhase, QueuedEntityPlacer,
+    };
+    pub use solverforge_solver::phase::localsearch::{
+        AcceptorImpl, LocalSearchForagerImpl, LocalSearchPhase,
+    };
     pub use solverforge_solver::Solver;
 
     pub use solverforge_config::{

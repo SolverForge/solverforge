@@ -32,5 +32,6 @@ pub use ruin::RuinMoveSelector;
 pub use selection_order::SelectionOrder;
 pub use typed_move_selector::{ChangeMoveSelector, MoveSelector, SwapMoveSelector};
 pub use typed_value::{
-    FromSolutionTypedValueSelector, StaticTypedValueSelector, TypedValueSelector,
+    FromSolutionTypedValueSelector, RangeValueSelector, StaticTypedValueSelector,
+    TypedValueSelector,
 };

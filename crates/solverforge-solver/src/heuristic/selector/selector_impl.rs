@@ -207,6 +207,8 @@ pub enum MoveSelectorImpl<S, V> {
         fn_ptrs: ListVariableFnPtrs<S, V>,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     /// Generates ListSwapMove: swaps two elements.
@@ -214,6 +216,8 @@ pub enum MoveSelectorImpl<S, V> {
         fn_ptrs: ListVariableFnPtrs<S, V>,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     /// Generates ListReverseMove: reverses segment (2-opt style).
@@ -225,6 +229,8 @@ pub enum MoveSelectorImpl<S, V> {
         max_segment_len: Option<usize>,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     /// Generates SubListChangeMove: relocates contiguous sublist.
@@ -236,6 +242,8 @@ pub enum MoveSelectorImpl<S, V> {
         max_sublist_len: Option<usize>,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     /// Generates SubListSwapMove: swaps two sublists.
@@ -247,6 +255,8 @@ pub enum MoveSelectorImpl<S, V> {
         max_sublist_len: Option<usize>,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     /// Generates KOptMove: k-opt tour optimization for any k (2-5).
@@ -258,6 +268,8 @@ pub enum MoveSelectorImpl<S, V> {
         min_segment_len: usize,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     /// Generates ListRuinMove: removes elements from lists (LNS).
@@ -267,6 +279,8 @@ pub enum MoveSelectorImpl<S, V> {
         ruin_count: usize,
         selection_order: SelectionOrder,
         rng: RefCell<StdRng>,
+        /// Cached list lengths to avoid reallocation each step.
+        list_lens_cache: RefCell<Vec<usize>>,
     },
 
     // ========================================================================
@@ -392,6 +406,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             fn_ptrs,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -409,6 +424,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             fn_ptrs,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -439,6 +455,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             max_segment_len,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -469,6 +486,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             max_sublist_len,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -499,6 +517,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             max_sublist_len,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -520,6 +539,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             min_segment_len,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -539,6 +559,7 @@ impl<S, V> MoveSelectorImpl<S, V> {
             ruin_count,
             selection_order,
             rng: default_rng(),
+            list_lens_cache: RefCell::new(Vec::new()),
         }
     }
 
@@ -884,12 +905,11 @@ where
                 fn_ptrs,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListChangeMoveIterator::new(
                     *fn_ptrs,
@@ -901,12 +921,11 @@ where
                 fn_ptrs,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListSwapMoveIterator::new(*fn_ptrs, entity_order, list_lens))
             }
@@ -916,12 +935,11 @@ where
                 max_segment_len,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListReverseMoveIterator::new(
                     *fn_ptrs,
@@ -937,12 +955,11 @@ where
                 max_sublist_len,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(SubListChangeMoveIterator::new(
                     *fn_ptrs,
@@ -958,12 +975,11 @@ where
                 max_sublist_len,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(SubListSwapMoveIterator::new(
                     *fn_ptrs,
@@ -979,12 +995,11 @@ where
                 min_segment_len,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 // Generate reconnection patterns for this k value
                 let reconnections = enumerate_reconnections(*k);
@@ -1002,12 +1017,11 @@ where
                 ruin_count,
                 selection_order,
                 rng,
+                list_lens_cache,
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens: Vec<_> = (0..entity_count)
-                    .map(|e| (fn_ptrs.list_len)(solution, e))
-                    .collect();
+                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListRuinMoveIterator::new(
                     *fn_ptrs,
@@ -1227,6 +1241,22 @@ fn shuffle_pillars<V>(
     ) {
         pillars.shuffle(&mut *rng.borrow_mut());
     }
+}
+
+/// Updates the cached list_lens and returns a clone for the iterator.
+///
+/// This avoids reallocating the Vec each step by reusing the cached buffer.
+/// The cache is cleared, filled with new values, then cloned.
+fn update_list_lens_cache<S, V>(
+    cache: &RefCell<Vec<usize>>,
+    fn_ptrs: &ListVariableFnPtrs<S, V>,
+    solution: &S,
+    entity_count: usize,
+) -> Vec<usize> {
+    let mut cache_ref = cache.borrow_mut();
+    cache_ref.clear();
+    cache_ref.extend((0..entity_count).map(|e| (fn_ptrs.list_len)(solution, e)));
+    cache_ref.clone()
 }
 
 // ============================================================================

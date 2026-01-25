@@ -29,9 +29,11 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 /// ```
 /// use solverforge_solver::phase::vnd::VndPhase;
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_solver::heuristic::selector::ChangeMoveSelector;
+/// use solverforge_solver::heuristic::selector::MoveSelector;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
+/// use solverforge_scoring::ScoreDirector;
 ///
 /// #[derive(Clone, Debug)]
 /// struct MySolution {
@@ -45,21 +47,22 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_value(s: &MySolution, idx: usize) -> Option<i32> {
-///     s.values.get(idx).copied().flatten()
-/// }
-/// fn set_value(s: &mut MySolution, idx: usize, v: Option<i32>) {
-///     if let Some(slot) = s.values.get_mut(idx) { *slot = v; }
-/// }
-///
 /// type MyMove = ChangeMove<MySolution, i32>;
 ///
-/// let selector = ChangeMoveSelector::simple(
-///     get_value, set_value, 0, "value", vec![1, 2, 3]
-/// );
+/// // Simple mock selector for demonstration
+/// #[derive(Debug)]
+/// struct MockSelector;
+/// impl MoveSelector<MySolution, MyMove> for MockSelector {
+///     fn iter_moves<'a, C>(&'a self, _: &'a ScoreDirector<MySolution, C>)
+///         -> Box<dyn Iterator<Item = MyMove> + 'a>
+///         where C: ConstraintSet<MySolution, SimpleScore> { Box::new(std::iter::empty()) }
+///     fn size<C>(&self, _: &ScoreDirector<MySolution, C>) -> usize
+///         where C: ConstraintSet<MySolution, SimpleScore> { 3 }
+///     fn is_never_ending(&self) -> bool { false }
+/// }
 ///
 /// // Single neighborhood VND
-/// let vnd: VndPhase<_, MyMove> = VndPhase::new((selector,));
+/// let vnd: VndPhase<_, MyMove> = VndPhase::new((MockSelector,));
 /// ```
 pub struct VndPhase<T, M>(pub T, PhantomData<M>);
 

@@ -134,9 +134,7 @@ pub mod __internal {
         ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, VariableDescriptor,
     };
 
-    pub use solverforge_scoring::{
-        RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SolvableSolution,
-    };
+    pub use solverforge_scoring::{ScoreDirector, ShadowVariableSupport, SolvableSolution};
 
     pub use solverforge_solver::heuristic::r#move::{BasicVariableMove, MoveImpl};
     pub use solverforge_solver::heuristic::selector::{

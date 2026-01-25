@@ -40,9 +40,7 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 // Score Directors
 // ============================================================================
 
-pub use director::{
-    RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SolvableSolution,
-};
+pub use director::{ScoreDirector, ShadowVariableSupport, SolvableSolution};
 
 // ============================================================================
 // Analysis (for score explanation)

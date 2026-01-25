@@ -5,15 +5,9 @@
 //! # Score Director
 //!
 //! - [`ScoreDirector`] - Zero-erasure incremental scoring with shadow variable support
-//! - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
 
-pub mod recording;
 pub mod score_director;
 pub mod shadow;
 
-#[cfg(test)]
-mod recording_tests;
-
-pub use recording::RecordingScoreDirector;
 pub use score_director::ScoreDirector;
 pub use shadow::{ShadowVariableSupport, SolvableSolution};

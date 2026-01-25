@@ -99,6 +99,7 @@ impl<S> Default for MoveTabuAcceptor<S> {
 
 impl<S: PlanningSolution> Acceptor<S> for MoveTabuAcceptor<S> {
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+        // Check aspiration first: accept new best even if tabu
         if self.aspiration_enabled {
             if let Some(best) = self.best_score {
                 let move_value = Self::score_to_i64(move_score);
@@ -107,13 +108,16 @@ impl<S: PlanningSolution> Acceptor<S> for MoveTabuAcceptor<S> {
                 }
             }
         }
-        if move_score > last_step_score {
-            return true;
+
+        // Check if current move is tabu - reject if so
+        if let Some(move_hash) = self.current_step_move {
+            if self.is_move_tabu(move_hash) {
+                return false;
+            }
         }
-        if move_score >= last_step_score {
-            return true;
-        }
-        false
+
+        // Normal acceptance: accept improving or equal moves
+        move_score >= last_step_score
     }
 
     fn phase_started(&mut self, initial_score: &S::Score) {

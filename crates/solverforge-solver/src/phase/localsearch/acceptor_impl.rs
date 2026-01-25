@@ -33,8 +33,8 @@ impl<S: PlanningSolution> AcceptorImpl<S> {
             AcceptorConfig::HillClimbing => AcceptorImpl::HillClimbing(HillClimbingAcceptor::new()),
             AcceptorConfig::SimulatedAnnealing(sa) => {
                 let temp = parse_temperature(&sa.starting_temperature);
-                let decay = sa.decay_rate.unwrap_or(0.99);
-                AcceptorImpl::SimulatedAnnealing(SimulatedAnnealingAcceptor::new(temp, decay))
+                // Note: decay_rate is ignored; temperature is controlled via time_gradient
+                AcceptorImpl::SimulatedAnnealing(SimulatedAnnealingAcceptor::new(temp))
             }
             AcceptorConfig::LateAcceptance(la) => AcceptorImpl::LateAcceptance(
                 LateAcceptanceAcceptor::new(la.late_acceptance_size.unwrap_or(400)),
@@ -59,6 +59,16 @@ impl<S: PlanningSolution> AcceptorImpl<S> {
 
     pub fn hill_climbing() -> Self {
         AcceptorImpl::HillClimbing(HillClimbingAcceptor::new())
+    }
+
+    /// Sets the time gradient for acceptors that support it (e.g., SimulatedAnnealing).
+    ///
+    /// # Arguments
+    /// * `time_gradient` - Progress ratio from 0.0 (start) to 1.0 (end)
+    pub fn set_time_gradient(&mut self, time_gradient: f64) {
+        if let Self::SimulatedAnnealing(a) = self {
+            a.set_time_gradient(time_gradient);
+        }
     }
 }
 

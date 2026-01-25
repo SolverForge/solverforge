@@ -312,8 +312,11 @@ pub enum ConstructionHeuristicType {
     /// Strongest fit decreasing.
     StrongestFitDecreasing,
 
-    /// Cheapest insertion (greedy).
+    /// Cheapest insertion (greedy with early-pick).
     CheapestInsertion,
+
+    /// Regret insertion (picks move with maximum regret).
+    RegretInsertion,
 
     /// Allocate entity from queue.
     AllocateEntityFromQueue,

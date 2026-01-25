@@ -192,42 +192,44 @@ where
         let setter = self.setter;
 
         // Find the first uninitialized entity and generate its moves
-        self.entity_selector.iter(score_director).find_map(|entity_ref| {
-            // Check if entity is uninitialized using typed getter - zero erasure
-            let current_value =
-                getter(score_director.working_solution(), entity_ref.entity_index);
+        self.entity_selector
+            .iter(score_director)
+            .find_map(|entity_ref| {
+                // Check if entity is uninitialized using typed getter - zero erasure
+                let current_value =
+                    getter(score_director.working_solution(), entity_ref.entity_index);
 
-            // Only include uninitialized entities
-            if current_value.is_some() {
-                return None;
-            }
+                // Only include uninitialized entities
+                if current_value.is_some() {
+                    return None;
+                }
 
-            // Generate moves for all possible values
-            let moves: Vec<ChangeMove<S, V>> = self
-                .value_selector
-                .iter_typed(
-                    score_director,
-                    entity_ref.descriptor_index,
-                    entity_ref.entity_index,
-                )
-                .map(|value| {
-                    ChangeMove::new(
+                // Generate moves for all possible values
+                let moves: Vec<ChangeMove<S, V>> = self
+                    .value_selector
+                    .iter_typed(
+                        score_director,
+                        entity_ref.descriptor_index,
                         entity_ref.entity_index,
-                        Some(value),
-                        getter,
-                        setter,
-                        variable_name,
-                        descriptor_index,
                     )
-                })
-                .collect();
+                    .map(|value| {
+                        ChangeMove::new(
+                            entity_ref.entity_index,
+                            Some(value),
+                            getter,
+                            setter,
+                            variable_name,
+                            descriptor_index,
+                        )
+                    })
+                    .collect();
 
-            if moves.is_empty() {
-                None
-            } else {
-                Some(Placement::new(entity_ref, moves))
-            }
-        })
+                if moves.is_empty() {
+                    None
+                } else {
+                    Some(Placement::new(entity_ref, moves))
+                }
+            })
     }
 }
 
@@ -281,6 +283,7 @@ where
 {
     inner: Inner,
     /// Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
+    #[allow(dead_code)] // May be used in future for dynamic sorting
     comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
     _phantom: PhantomData<fn() -> (S, M)>,
 }

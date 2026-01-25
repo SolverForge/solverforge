@@ -14,6 +14,7 @@
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock};
 
@@ -217,10 +218,26 @@ where
         rayon::spawn(move || {
             let terminate_ref = &slot.terminate;
 
-            // solve sends all solutions (including final) through the channel
-            solution.solve(Some(terminate_ref), sender);
+            // Wrap in catch_unwind to ensure slot state is updated even if solver panics
+            let result = panic::catch_unwind(AssertUnwindSafe(|| {
+                // solve sends all solutions (including final) through the channel
+                solution.solve(Some(terminate_ref), sender);
+            }));
 
+            // Always update slot state, even if solver panicked
             slot.state.store(SLOT_DONE, Ordering::Release);
+
+            // Log panic info if one occurred
+            if let Err(panic_info) = result {
+                let msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic_info.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic".to_string()
+                };
+                eprintln!("Solver thread panicked in slot {slot_idx}: {msg}");
+            }
         });
 
         (slot_idx, receiver)

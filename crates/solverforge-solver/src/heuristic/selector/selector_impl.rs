@@ -339,6 +339,37 @@ impl<S, V> MoveSelectorImpl<S, V> {
     }
 
     /// Creates a Union selector from multiple selectors.
+    ///
+    /// Union selectors combine moves from multiple sources, enabling mixed
+    /// move neighborhoods (e.g., Change + Swap, or ListChange + ListSwap + KOpt).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_solver::heuristic::selector::{BasicVariableFnPtrs, MoveSelectorImpl};
+    ///
+    /// // Create function pointers for a basic variable
+    /// let fn_ptrs: BasicVariableFnPtrs<(), i32> = BasicVariableFnPtrs {
+    ///     entity_count: |_| 3,
+    ///     value_range: |_| vec![1, 2],
+    ///     getter: |_, _| None,
+    ///     setter: |_, _, _| {},
+    ///     variable_name: "x",
+    ///     descriptor_index: 0,
+    /// };
+    ///
+    /// // Create a union of Change and Swap selectors
+    /// let union_selector = MoveSelectorImpl::union(vec![
+    ///     MoveSelectorImpl::change(fn_ptrs),
+    ///     MoveSelectorImpl::swap(fn_ptrs),
+    /// ]);
+    ///
+    /// // Union combines moves from both selectors
+    /// match &union_selector {
+    ///     MoveSelectorImpl::Union(selectors) => assert_eq!(selectors.len(), 2),
+    ///     _ => panic!("Expected Union variant"),
+    /// }
+    /// ```
     pub fn union(selectors: Vec<MoveSelectorImpl<S, V>>) -> Self {
         Self::Union(selectors)
     }

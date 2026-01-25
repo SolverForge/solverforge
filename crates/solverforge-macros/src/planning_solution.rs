@@ -368,6 +368,7 @@ fn generate_list_operations(
                     acceptor,
                     forager,
                     None,
+                    100, // default stagnation threshold
                 ).with_sender(sender.clone());
 
                 let time_limit = config.termination.as_ref()
@@ -692,6 +693,7 @@ fn generate_basic_variable_operations(
                     acceptor,
                     forager,
                     None,
+                    100, // default stagnation threshold
                 ).with_sender(sender.clone());
 
                 let time_limit = config.termination.as_ref()

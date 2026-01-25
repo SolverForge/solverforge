@@ -91,6 +91,7 @@ impl SolverBuilder {
                 forager: None,
                 move_selector: None,
                 termination: None,
+                stagnation_threshold: None, // use default (100)
             }));
         self
     }

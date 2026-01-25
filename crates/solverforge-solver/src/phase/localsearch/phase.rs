@@ -4,11 +4,12 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::Instant;
 
+use rand::prelude::IndexedRandom;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -36,6 +37,13 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 /// Uses index-based foraging. The forager stores `(usize, Score)` pairs.
 /// When a move is selected, ownership transfers via `arena.take(index)`.
 /// Moves are NEVER cloned.
+///
+/// # Stagnation Detection
+///
+/// Tracks consecutive steps without accepted moves. When the counter exceeds
+/// `stagnation_threshold`, the phase force-accepts a random doable move to
+/// escape local optima. This works with any acceptor (Late Acceptance, Hill
+/// Climbing, Simulated Annealing, etc.).
 pub struct LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
@@ -50,6 +58,10 @@ where
     arena: MoveArena<M>,
     step_limit: Option<u64>,
     sender: Option<UnboundedSender<(S, S::Score)>>,
+    /// Number of consecutive steps without accepted moves before forcing a random move.
+    stagnation_threshold: u64,
+    /// Counter for consecutive steps without accepted moves.
+    steps_without_accepted_move: u64,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
@@ -62,7 +74,21 @@ where
     Fo: LocalSearchForager<S, M>,
 {
     /// Creates a new local search phase.
-    pub fn new(move_selector: MS, acceptor: A, forager: Fo, step_limit: Option<u64>) -> Self {
+    ///
+    /// # Arguments
+    /// * `move_selector` - Selector that generates candidate moves
+    /// * `acceptor` - Acceptor that decides whether to accept moves
+    /// * `forager` - Forager that picks the best accepted move
+    /// * `step_limit` - Optional maximum number of steps
+    /// * `stagnation_threshold` - Number of consecutive steps without accepted moves
+    ///   before forcing a random move (0 disables stagnation detection)
+    pub fn new(
+        move_selector: MS,
+        acceptor: A,
+        forager: Fo,
+        step_limit: Option<u64>,
+        stagnation_threshold: u64,
+    ) -> Self {
         Self {
             move_selector,
             acceptor,
@@ -70,6 +96,8 @@ where
             arena: MoveArena::new(),
             step_limit,
             sender: None,
+            stagnation_threshold,
+            steps_without_accepted_move: 0,
             _phantom: PhantomData,
         }
     }
@@ -78,6 +106,23 @@ where
     pub fn with_sender(mut self, sender: UnboundedSender<(S, S::Score)>) -> Self {
         self.sender = Some(sender);
         self
+    }
+
+    /// Returns indices of all doable moves in the arena.
+    fn collect_doable_move_indices<C>(
+        &self,
+        score_director: &solverforge_scoring::ScoreDirector<S, C>,
+    ) -> Vec<usize>
+    where
+        C: solverforge_scoring::ConstraintSet<S, S::Score>,
+    {
+        (0..self.arena.len())
+            .filter(|&i| {
+                self.arena
+                    .get(i)
+                    .is_some_and(|m| m.is_doable(score_director))
+            })
+            .collect()
     }
 }
 
@@ -105,7 +150,7 @@ where
     S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
-    M: Move<S>,
+    M: Move<S> + 'static,
     MS: MoveSelector<S, M>,
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
@@ -239,8 +284,76 @@ where
                 last_step_score = %last_step_score,
             );
 
-            // Pick the best accepted move index
-            if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
+            // Pick the best accepted move index, or force-accept a random move if stagnating
+            let maybe_move = if let Some((idx, score)) = self.forager.pick_move_index() {
+                // Normal case: forager picked a move
+                self.steps_without_accepted_move = 0;
+                Some((idx, score, false))
+            } else {
+                // No accepted move this step
+                self.steps_without_accepted_move += 1;
+
+                debug!(
+                    event = "no_move_selected",
+                    step = step_scope.phase_scope().step_count(),
+                    moves_generated = moves_generated,
+                    moves_accepted = moves_accepted,
+                    steps_without_accepted_move = self.steps_without_accepted_move,
+                    stagnation_threshold = self.stagnation_threshold,
+                    last_step_score = %last_step_score,
+                );
+
+                // Check for stagnation and force-accept a random doable move
+                if self.stagnation_threshold > 0
+                    && self.steps_without_accepted_move >= self.stagnation_threshold
+                {
+                    // Collect indices of doable moves
+                    let doable_indices =
+                        self.collect_doable_move_indices(step_scope.score_director());
+
+                    if !doable_indices.is_empty() {
+                        // Pick a random doable move
+                        let rng = step_scope.phase_scope_mut().solver_scope_mut().rng();
+                        let &random_idx = doable_indices.choose(rng).unwrap();
+
+                        // Evaluate the move to get its score
+                        let m = self.arena.get(random_idx).unwrap();
+                        let move_score = {
+                            let sd = step_scope.score_director_mut();
+                            sd.save_score_snapshot();
+                            m.do_move(sd);
+                            let score = sd.calculate_score();
+                            sd.undo_changes();
+                            score
+                        };
+
+                        warn!(
+                            event = "stagnation_escape",
+                            step = step_scope.phase_scope().step_count(),
+                            steps_without_accepted_move = self.steps_without_accepted_move,
+                            force_accepted_index = random_idx,
+                            force_accepted_score = %move_score,
+                            last_step_score = %last_step_score,
+                        );
+
+                        // Reset stagnation counter
+                        self.steps_without_accepted_move = 0;
+
+                        Some((random_idx, move_score, true))
+                    } else {
+                        warn!(
+                            event = "stagnation_no_doable_moves",
+                            step = step_scope.phase_scope().step_count(),
+                            steps_without_accepted_move = self.steps_without_accepted_move,
+                        );
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+
+            if let Some((selected_index, selected_score, _was_forced)) = maybe_move {
                 // Take ownership of the move from arena
                 let selected_move = self.arena.take(selected_index);
 
@@ -291,16 +404,6 @@ where
                         }
                     }
                 }
-            } else {
-                // No accepted move this step
-                debug!(
-                    event = "no_move_selected",
-                    step = step_scope.phase_scope().step_count(),
-                    moves_generated = moves_generated,
-                    moves_accepted = moves_accepted,
-                    last_step_score = %last_step_score,
-                );
-                // Continue searching - move selectors regenerate moves, termination conditions decide when to stop
             }
 
             step_scope.complete();

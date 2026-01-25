@@ -66,6 +66,9 @@ where
     ConstructionHeuristicPhase::new(entity_placer, forager)
 }
 
+/// Default stagnation threshold (steps without accepted moves before forcing a random move).
+const DEFAULT_STAGNATION_THRESHOLD: u64 = 100;
+
 /// Creates a local search phase from config.
 pub fn local_search_phase_from_config<S, M, MS>(
     config: &LocalSearchConfig,
@@ -88,7 +91,11 @@ where
         .map(|c| LocalSearchForagerImpl::from_config(c))
         .unwrap_or_else(|| LocalSearchForagerImpl::accepted_count(1000));
 
-    LocalSearchPhase::new(move_selector, acceptor, forager, None)
+    let stagnation_threshold = config
+        .stagnation_threshold
+        .unwrap_or(DEFAULT_STAGNATION_THRESHOLD);
+
+    LocalSearchPhase::new(move_selector, acceptor, forager, None, stagnation_threshold)
 }
 
 /// Termination enum for config-driven termination.

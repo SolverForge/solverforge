@@ -283,7 +283,7 @@ fn test_local_search_score_improves() {
     let acceptor = HillClimbingAcceptor::new();
     let forager = AcceptedCountForager::new(100);
 
-    let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(10));
+    let mut phase = LocalSearchPhase::new(move_selector, acceptor, forager, Some(10), 100);
 
     // Create solver scope
     let mut solver_scope = SolverScope::new(director);

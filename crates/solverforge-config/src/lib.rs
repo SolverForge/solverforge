@@ -337,6 +337,12 @@ pub struct LocalSearchConfig {
 
     /// Phase termination configuration.
     pub termination: Option<TerminationConfig>,
+
+    /// Number of consecutive steps without accepted moves before forcing a random move.
+    /// When the solver gets stuck with no accepted moves for this many steps,
+    /// it will force-accept a random doable move to escape the local optimum.
+    /// Default: 100 steps.
+    pub stagnation_threshold: Option<u64>,
 }
 
 /// Acceptor configuration.

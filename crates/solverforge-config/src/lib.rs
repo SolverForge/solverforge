@@ -432,17 +432,35 @@ pub enum PickEarlyType {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MoveSelectorConfig {
+    // ========================================================================
+    // Basic Variable Selectors
+    // ========================================================================
     /// Change move selector (basic variables).
     ChangeMoveSelector(ChangeMoveConfig),
 
     /// Swap move selector (basic variables).
     SwapMoveSelector(SwapMoveConfig),
 
+    /// Pillar change move selector (change all entities with same value).
+    PillarChangeMoveSelector(PillarChangeMoveConfig),
+
+    /// Pillar swap move selector (swap between entity groups).
+    PillarSwapMoveSelector(PillarSwapMoveConfig),
+
+    /// Ruin move selector (unassign multiple entities for LNS).
+    RuinMoveSelector(RuinMoveConfig),
+
+    // ========================================================================
+    // List Variable Selectors
+    // ========================================================================
     /// List change move selector (list variables - relocate element).
     ListChangeMoveSelector(ListChangeMoveConfig),
 
     /// List swap move selector (list variables - swap two elements).
     ListSwapMoveSelector(ListSwapMoveConfig),
+
+    /// List reverse move selector (list variables - reverse segment, 2-opt style).
+    ListReverseMoveSelector(ListReverseMoveConfig),
 
     /// K-opt move selector (list variables - tour improvement).
     KOptMoveSelector(KOptMoveConfig),
@@ -453,6 +471,12 @@ pub enum MoveSelectorConfig {
     /// Sub-list swap move selector (list variables - swap segments).
     SubListSwapMoveSelector(SubListSwapMoveConfig),
 
+    /// List ruin move selector (remove elements from lists for LNS).
+    ListRuinMoveSelector(ListRuinMoveConfig),
+
+    // ========================================================================
+    // Composite Selectors
+    // ========================================================================
     /// Union of multiple selectors.
     UnionMoveSelector(UnionMoveSelectorConfig),
 
@@ -476,6 +500,35 @@ pub struct SwapMoveConfig {
     pub entity_class: Option<String>,
 }
 
+/// Pillar change move configuration (change all entities with same value).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PillarChangeMoveConfig {
+    /// Entity class filter.
+    pub entity_class: Option<String>,
+}
+
+/// Pillar swap move configuration (swap between entity groups).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PillarSwapMoveConfig {
+    /// Entity class filter.
+    pub entity_class: Option<String>,
+}
+
+/// Ruin move configuration (unassign multiple entities for LNS).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RuinMoveConfig {
+    /// Number of entities to unassign per move.
+    #[serde(default = "default_ruin_count")]
+    pub ruin_count: usize,
+}
+
+fn default_ruin_count() -> usize {
+    3
+}
+
 /// List change move configuration (relocate element within/between lists).
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -490,6 +543,16 @@ pub struct ListChangeMoveConfig {
 pub struct ListSwapMoveConfig {
     /// Entity class filter.
     pub entity_class: Option<String>,
+}
+
+/// List reverse move configuration (reverse segment, 2-opt style).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListReverseMoveConfig {
+    /// Minimum segment length to reverse (default: 2).
+    pub minimum_segment_length: Option<usize>,
+    /// Maximum segment length to reverse (None = entire list).
+    pub maximum_segment_length: Option<usize>,
 }
 
 /// K-opt move configuration (tour improvement for list variables).
@@ -525,6 +588,15 @@ pub struct SubListSwapMoveConfig {
     pub maximum_sub_list_size: Option<usize>,
     /// Whether segments can be from the same list.
     pub select_reverse_movement: Option<bool>,
+}
+
+/// List ruin move configuration (remove elements from lists for LNS).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListRuinMoveConfig {
+    /// Number of elements to remove per move.
+    #[serde(default = "default_ruin_count")]
+    pub ruin_count: usize,
 }
 
 /// Union move selector configuration.

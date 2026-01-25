@@ -342,16 +342,29 @@ fn generate_list_operations(
                     ),
                 );
 
-                // Direct construction - KOptMoveSelector for list local search
-                let move_selector = ::solverforge::__internal::KOptMoveSelector::new(
-                    ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
-                    ::solverforge::__internal::KOptConfig::new(3),
-                    Self::list_len,
-                    Self::sublist_remove,
-                    Self::sublist_insert,
-                    #list_field_str,
-                    #descriptor_index_lit,
-                );
+                // Direct construction - MoveSelectorImpl::KOpt for list local search
+                let fn_ptrs = ::solverforge::__internal::ListVariableFnPtrs {
+                    entity_count: Self::n_entities,
+                    element_count: Self::element_count,
+                    assigned_elements: Self::assigned_elements,
+                    list_len: Self::list_len_fn,
+                    list_get: Self::list_get_fn,
+                    list_set: Self::list_set_fn,
+                    list_remove: Self::list_remove_fn,
+                    list_insert: Self::list_insert_fn,
+                    sublist_remove: |s, e, start, end| Self::sublist_remove(s, e, start, end),
+                    sublist_insert: |s, e, pos, items| Self::sublist_insert(s, e, pos, items),
+                    list_reverse: Self::list_reverse_fn,
+                    list_get_element_idx: Self::list_get_element_idx_fn,
+                    assign: Self::assign_element,
+                    variable_name: #list_field_str,
+                    descriptor_index: #descriptor_index_lit,
+                };
+                let move_selector = ::solverforge::__internal::MoveSelectorImpl::KOpt {
+                    fn_ptrs,
+                    k: 3,
+                    min_segment_len: 1,
+                };
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
@@ -666,15 +679,16 @@ fn generate_basic_variable_operations(
                     ),
                 );
 
-                // Direct construction - BasicVariableMoveSelector generates both Change and Swap moves
-                let move_selector = ::solverforge::__internal::BasicVariableMoveSelector::new(
-                    ::solverforge::__internal::FromSolutionEntitySelector::new(#descriptor_index_lit),
-                    ::solverforge::__internal::RangeValueSelector::new(Self::basic_value_count),
-                    Self::basic_get_variable,
-                    Self::basic_set_variable,
-                    #descriptor_index_lit,
-                    #variable_field_str,
-                );
+                // Direct construction - MoveSelectorImpl::Change for basic variable local search
+                let fn_ptrs = ::solverforge::__internal::BasicVariableFnPtrs {
+                    entity_count: Self::basic_entity_count,
+                    value_range: |s| (0..Self::basic_value_count(s)).collect(),
+                    getter: Self::basic_get_variable,
+                    setter: Self::basic_set_variable,
+                    variable_name: #variable_field_str,
+                    descriptor_index: #descriptor_index_lit,
+                };
+                let move_selector = ::solverforge::__internal::MoveSelectorImpl::Change(fn_ptrs);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1000);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(

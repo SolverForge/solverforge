@@ -317,6 +317,58 @@ impl<S, V> MoveSelectorImpl<S, V> {
     pub fn union(selectors: Vec<MoveSelectorImpl<S, V>>) -> Self {
         Self::Union(selectors)
     }
+
+    /// Creates a selector from config for basic variables.
+    pub fn from_basic_config(
+        config: &solverforge_config::MoveSelectorConfig,
+        fn_ptrs: BasicVariableFnPtrs<S, V>,
+    ) -> Option<Self> {
+        use solverforge_config::MoveSelectorConfig;
+        match config {
+            MoveSelectorConfig::ChangeMoveSelector(_) => Some(Self::change(fn_ptrs)),
+            MoveSelectorConfig::SwapMoveSelector(_) => Some(Self::swap(fn_ptrs)),
+            MoveSelectorConfig::PillarChangeMoveSelector(_) => Some(Self::pillar_change(fn_ptrs)),
+            MoveSelectorConfig::PillarSwapMoveSelector(_) => Some(Self::pillar_swap(fn_ptrs)),
+            MoveSelectorConfig::RuinMoveSelector(cfg) => {
+                Some(Self::ruin(fn_ptrs, cfg.ruin_count))
+            }
+            _ => None, // List variable configs not applicable
+        }
+    }
+
+    /// Creates a selector from config for list variables.
+    pub fn from_list_config(
+        config: &solverforge_config::MoveSelectorConfig,
+        fn_ptrs: ListVariableFnPtrs<S, V>,
+    ) -> Option<Self> {
+        use solverforge_config::MoveSelectorConfig;
+        match config {
+            MoveSelectorConfig::ListChangeMoveSelector(_) => Some(Self::list_change(fn_ptrs)),
+            MoveSelectorConfig::ListSwapMoveSelector(_) => Some(Self::list_swap(fn_ptrs)),
+            MoveSelectorConfig::ListReverseMoveSelector(cfg) => Some(Self::list_reverse(
+                fn_ptrs,
+                cfg.minimum_segment_length.unwrap_or(2),
+                cfg.maximum_segment_length,
+            )),
+            MoveSelectorConfig::KOptMoveSelector(cfg) => {
+                Some(Self::k_opt(fn_ptrs, cfg.k_value, 1))
+            }
+            MoveSelectorConfig::SubListChangeMoveSelector(cfg) => Some(Self::sublist_change(
+                fn_ptrs,
+                cfg.minimum_sub_list_size.unwrap_or(1),
+                cfg.maximum_sub_list_size,
+            )),
+            MoveSelectorConfig::SubListSwapMoveSelector(cfg) => Some(Self::sublist_swap(
+                fn_ptrs,
+                cfg.minimum_sub_list_size.unwrap_or(1),
+                cfg.maximum_sub_list_size,
+            )),
+            MoveSelectorConfig::ListRuinMoveSelector(cfg) => {
+                Some(Self::list_ruin(fn_ptrs, cfg.ruin_count))
+            }
+            _ => None, // Basic variable configs not applicable
+        }
+    }
 }
 
 impl<S, V> Debug for MoveSelectorImpl<S, V>

@@ -155,7 +155,8 @@ pub mod __internal {
     pub use solverforge_solver::Solver;
 
     pub use solverforge_config::{
-        AcceptorConfig, LateAcceptanceConfig, LocalSearchConfig, PhaseConfig, SolverConfig,
+        AcceptorConfig, ConstructionHeuristicType, LateAcceptanceConfig, LocalSearchConfig,
+        PhaseConfig, SolverConfig,
     };
 
     #[cfg(feature = "console")]

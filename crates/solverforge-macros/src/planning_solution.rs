@@ -335,7 +335,9 @@ fn generate_list_operations(
                 );
                 let construction = ::solverforge::__internal::ConstructionHeuristicPhase::new(
                     placer,
-                    ::solverforge::__internal::ConstructionForagerImpl::first_fit(),
+                    ::solverforge::__internal::ConstructionForagerImpl::from_config(
+                        ::solverforge::__internal::ConstructionHeuristicType::FirstFit
+                    ),
                 );
 
                 // Direct construction - KOptMoveSelector for list local search
@@ -348,7 +350,7 @@ fn generate_list_operations(
                     #list_field_str,
                     #descriptor_index_lit,
                 );
-                let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance(400);
+                let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
                     move_selector,
@@ -609,7 +611,9 @@ fn generate_basic_variable_operations(
                 );
                 let construction = ::solverforge::__internal::ConstructionHeuristicPhase::new(
                     placer,
-                    ::solverforge::__internal::ConstructionForagerImpl::first_fit(),
+                    ::solverforge::__internal::ConstructionForagerImpl::from_config(
+                        ::solverforge::__internal::ConstructionHeuristicType::FirstFit
+                    ),
                 );
 
                 // Direct construction - ChangeMoveSelector for basic local search
@@ -618,21 +622,10 @@ fn generate_basic_variable_operations(
                     ::solverforge::__internal::RangeValueSelector::new(Self::basic_value_count),
                     Self::basic_get_variable,
                     Self::basic_set_variable,
-                    #variable_field_str,
                     #descriptor_index_lit,
+                    #variable_field_str,
                 );
-                let late_acceptance_size = config.phases.iter()
-                    .find_map(|phase| match phase {
-                        ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => Some(ls),
-                        _ => None,
-                    })
-                    .and_then(|ls| ls.acceptor.as_ref())
-                    .and_then(|acceptor| match acceptor {
-                        ::solverforge::__internal::AcceptorConfig::LateAcceptance(la) => la.late_acceptance_size,
-                        _ => None,
-                    })
-                    .unwrap_or(400);
-                let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance(late_acceptance_size);
+                let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
                     move_selector,

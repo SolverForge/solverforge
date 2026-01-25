@@ -1161,24 +1161,58 @@ fn build_pillars<S, V: Clone + Eq + Hash>(
     value_map.into_iter().collect()
 }
 
+/// Entity order representation: either a sequential range (zero allocation) or shuffled Vec.
+///
+/// For `Original` selection order, we use `Range` to avoid allocating a Vec.
+/// For `Shuffled`/`Random`, we allocate and shuffle once.
+#[derive(Clone)]
+enum EntityOrder {
+    /// Sequential order: 0, 1, 2, ..., n-1 (no allocation)
+    Range(std::ops::Range<usize>),
+    /// Shuffled order: pre-shuffled indices
+    Shuffled(Vec<usize>),
+}
+
+impl EntityOrder {
+    /// Returns the number of entities.
+    #[inline]
+    fn len(&self) -> usize {
+        match self {
+            EntityOrder::Range(r) => r.len(),
+            EntityOrder::Shuffled(v) => v.len(),
+        }
+    }
+
+    /// Gets entity at logical index.
+    #[inline]
+    fn get(&self, idx: usize) -> usize {
+        match self {
+            EntityOrder::Range(r) => r.start + idx,
+            EntityOrder::Shuffled(v) => v[idx],
+        }
+    }
+}
+
 /// Creates an entity order based on selection order.
 ///
-/// - `Original`: sequential order (0, 1, 2, ...)
+/// - `Original`: sequential range (0, 1, 2, ...) - no allocation
 /// - `Shuffled`: shuffled once, then iterate sequentially
 /// - `Random`: same as Shuffled for finite iterators
 fn create_entity_order(
     entity_count: usize,
     selection_order: SelectionOrder,
     rng: &RefCell<StdRng>,
-) -> Vec<usize> {
-    let mut order: Vec<usize> = (0..entity_count).collect();
+) -> EntityOrder {
     if matches!(
         selection_order,
         SelectionOrder::Shuffled | SelectionOrder::Random
     ) {
+        let mut order: Vec<usize> = (0..entity_count).collect();
         order.shuffle(&mut *rng.borrow_mut());
+        EntityOrder::Shuffled(order)
+    } else {
+        EntityOrder::Range(0..entity_count)
     }
-    order
 }
 
 /// Shuffles pillars based on selection order.
@@ -1202,14 +1236,14 @@ fn shuffle_pillars<V>(
 /// Iterator for ChangeMove generation.
 struct ChangeMoveIterator<S, V> {
     fp: BasicVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     values: Vec<V>,
     entity_order_idx: usize,
     value_idx: usize,
 }
 
 impl<S, V> ChangeMoveIterator<S, V> {
-    fn new(fp: BasicVariableFnPtrs<S, V>, entity_order: Vec<usize>, values: Vec<V>) -> Self {
+    fn new(fp: BasicVariableFnPtrs<S, V>, entity_order: EntityOrder, values: Vec<V>) -> Self {
         Self {
             fp,
             entity_order,
@@ -1231,7 +1265,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         while self.entity_order_idx < self.entity_order.len() {
             if self.value_idx < self.values.len() {
-                let entity_idx = self.entity_order[self.entity_order_idx];
+                let entity_idx = self.entity_order.get(self.entity_order_idx);
                 let value = self.values[self.value_idx];
                 self.value_idx += 1;
 
@@ -1255,13 +1289,13 @@ where
 /// Iterator for SwapMove generation.
 struct SwapMoveIterator<S, V> {
     fp: BasicVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     left_order_idx: usize,
     right_order_idx: usize,
 }
 
 impl<S, V> SwapMoveIterator<S, V> {
-    fn new(fp: BasicVariableFnPtrs<S, V>, entity_order: Vec<usize>) -> Self {
+    fn new(fp: BasicVariableFnPtrs<S, V>, entity_order: EntityOrder) -> Self {
         Self {
             fp,
             entity_order,
@@ -1283,8 +1317,8 @@ where
         let entity_count = self.entity_order.len();
         while self.left_order_idx < entity_count {
             if self.right_order_idx < entity_count {
-                let left = self.entity_order[self.left_order_idx];
-                let right = self.entity_order[self.right_order_idx];
+                let left = self.entity_order.get(self.left_order_idx);
+                let right = self.entity_order.get(self.right_order_idx);
                 self.right_order_idx += 1;
 
                 let m = SwapMove::new(
@@ -1423,14 +1457,14 @@ where
 /// Iterator for RuinMove generation.
 struct RuinMoveIterator<S, V> {
     fp: BasicVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     ruin_count: usize,
     combination_indices: Vec<usize>,
     done: bool,
 }
 
 impl<S, V> RuinMoveIterator<S, V> {
-    fn new(fp: BasicVariableFnPtrs<S, V>, entity_order: Vec<usize>, ruin_count: usize) -> Self {
+    fn new(fp: BasicVariableFnPtrs<S, V>, entity_order: EntityOrder, ruin_count: usize) -> Self {
         let entity_count = entity_order.len();
         let done = ruin_count > entity_count || ruin_count == 0;
         let combination_indices = if done {
@@ -1485,7 +1519,7 @@ where
         let entity_indices: Vec<usize> = self
             .combination_indices
             .iter()
-            .map(|&i| self.entity_order[i])
+            .map(|&i| self.entity_order.get(i))
             .collect();
 
         let m = RuinMove::new(
@@ -1504,7 +1538,7 @@ where
 /// Iterator for ListChangeMove generation.
 struct ListChangeMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     src_order_idx: usize,
     src_pos: usize,
@@ -1514,7 +1548,7 @@ struct ListChangeMoveIterator<S, V> {
 }
 
 impl<S, V> ListChangeMoveIterator<S, V> {
-    fn new(fp: ListVariableFnPtrs<S, V>, entity_order: Vec<usize>, list_lens: Vec<usize>) -> Self {
+    fn new(fp: ListVariableFnPtrs<S, V>, entity_order: EntityOrder, list_lens: Vec<usize>) -> Self {
         Self {
             fp,
             entity_order,
@@ -1528,11 +1562,11 @@ impl<S, V> ListChangeMoveIterator<S, V> {
     }
 
     fn src_entity(&self) -> usize {
-        self.entity_order[self.src_order_idx]
+        self.entity_order.get(self.src_order_idx)
     }
 
     fn dst_entity(&self) -> usize {
-        self.entity_order[self.dst_order_idx]
+        self.entity_order.get(self.dst_order_idx)
     }
 
     fn advance(&mut self) {
@@ -1622,7 +1656,7 @@ where
 /// Iterator for ListSwapMove generation.
 struct ListSwapMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     first_order_idx: usize,
     first_pos: usize,
@@ -1632,7 +1666,7 @@ struct ListSwapMoveIterator<S, V> {
 }
 
 impl<S, V> ListSwapMoveIterator<S, V> {
-    fn new(fp: ListVariableFnPtrs<S, V>, entity_order: Vec<usize>, list_lens: Vec<usize>) -> Self {
+    fn new(fp: ListVariableFnPtrs<S, V>, entity_order: EntityOrder, list_lens: Vec<usize>) -> Self {
         Self {
             fp,
             entity_order,
@@ -1646,11 +1680,11 @@ impl<S, V> ListSwapMoveIterator<S, V> {
     }
 
     fn first_entity(&self) -> usize {
-        self.entity_order[self.first_order_idx]
+        self.entity_order.get(self.first_order_idx)
     }
 
     fn second_entity(&self) -> usize {
-        self.entity_order[self.second_order_idx]
+        self.entity_order.get(self.second_order_idx)
     }
 
     fn advance(&mut self) {
@@ -1749,7 +1783,7 @@ where
 /// Iterator for ListReverseMove generation.
 struct ListReverseMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     min_segment_len: usize,
     max_segment_len: Option<usize>,
@@ -1762,7 +1796,7 @@ struct ListReverseMoveIterator<S, V> {
 impl<S, V> ListReverseMoveIterator<S, V> {
     fn new(
         fp: ListVariableFnPtrs<S, V>,
-        entity_order: Vec<usize>,
+        entity_order: EntityOrder,
         list_lens: Vec<usize>,
         min_segment_len: usize,
         max_segment_len: Option<usize>,
@@ -1782,7 +1816,7 @@ impl<S, V> ListReverseMoveIterator<S, V> {
     }
 
     fn entity(&self) -> usize {
-        self.entity_order[self.entity_order_idx]
+        self.entity_order.get(self.entity_order_idx)
     }
 }
 
@@ -1846,7 +1880,7 @@ where
 /// Iterator for SubListChangeMove generation.
 struct SubListChangeMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     min_sublist_len: usize,
     max_sublist_len: Option<usize>,
@@ -1861,7 +1895,7 @@ struct SubListChangeMoveIterator<S, V> {
 impl<S, V> SubListChangeMoveIterator<S, V> {
     fn new(
         fp: ListVariableFnPtrs<S, V>,
-        entity_order: Vec<usize>,
+        entity_order: EntityOrder,
         list_lens: Vec<usize>,
         min_sublist_len: usize,
         max_sublist_len: Option<usize>,
@@ -1883,11 +1917,11 @@ impl<S, V> SubListChangeMoveIterator<S, V> {
     }
 
     fn src_entity(&self) -> usize {
-        self.entity_order[self.src_order_idx]
+        self.entity_order.get(self.src_order_idx)
     }
 
     fn dst_entity(&self) -> usize {
-        self.entity_order[self.dst_order_idx]
+        self.entity_order.get(self.dst_order_idx)
     }
 }
 
@@ -1982,7 +2016,7 @@ where
 /// Iterator for SubListSwapMove generation.
 struct SubListSwapMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     min_sublist_len: usize,
     max_sublist_len: Option<usize>,
@@ -1998,7 +2032,7 @@ struct SubListSwapMoveIterator<S, V> {
 impl<S, V> SubListSwapMoveIterator<S, V> {
     fn new(
         fp: ListVariableFnPtrs<S, V>,
-        entity_order: Vec<usize>,
+        entity_order: EntityOrder,
         list_lens: Vec<usize>,
         min_sublist_len: usize,
         max_sublist_len: Option<usize>,
@@ -2021,11 +2055,11 @@ impl<S, V> SubListSwapMoveIterator<S, V> {
     }
 
     fn first_entity(&self) -> usize {
-        self.entity_order[self.first_order_idx]
+        self.entity_order.get(self.first_order_idx)
     }
 
     fn second_entity(&self) -> usize {
-        self.entity_order[self.second_order_idx]
+        self.entity_order.get(self.second_order_idx)
     }
 }
 
@@ -2135,7 +2169,7 @@ where
 /// Iterator for KOptMove generation - supports any k value (2-5).
 struct KOptMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     k: usize,
     min_segment_len: usize,
@@ -2150,7 +2184,7 @@ struct KOptMoveIterator<S, V> {
 impl<S, V> KOptMoveIterator<S, V> {
     fn new(
         fp: ListVariableFnPtrs<S, V>,
-        entity_order: Vec<usize>,
+        entity_order: EntityOrder,
         list_lens: Vec<usize>,
         k: usize,
         min_segment_len: usize,
@@ -2175,7 +2209,7 @@ impl<S, V> KOptMoveIterator<S, V> {
     }
 
     fn entity(&self) -> usize {
-        self.entity_order[self.entity_order_idx]
+        self.entity_order.get(self.entity_order_idx)
     }
 
     fn advance_cuts(&mut self, list_len: usize) -> bool {
@@ -2294,7 +2328,7 @@ where
 /// Iterator for ListRuinMove generation.
 struct ListRuinMoveIterator<S, V> {
     fp: ListVariableFnPtrs<S, V>,
-    entity_order: Vec<usize>,
+    entity_order: EntityOrder,
     list_lens: Vec<usize>,
     ruin_count: usize,
     entity_order_idx: usize,
@@ -2306,7 +2340,7 @@ struct ListRuinMoveIterator<S, V> {
 impl<S, V> ListRuinMoveIterator<S, V> {
     fn new(
         fp: ListVariableFnPtrs<S, V>,
-        entity_order: Vec<usize>,
+        entity_order: EntityOrder,
         list_lens: Vec<usize>,
         ruin_count: usize,
     ) -> Self {
@@ -2325,7 +2359,7 @@ impl<S, V> ListRuinMoveIterator<S, V> {
     }
 
     fn entity(&self) -> usize {
-        self.entity_order[self.entity_order_idx]
+        self.entity_order.get(self.entity_order_idx)
     }
 
     fn advance_combination(&mut self) {

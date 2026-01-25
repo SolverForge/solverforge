@@ -24,7 +24,6 @@ solverforge-macros = { path = "crates/solverforge-macros" }
 solverforge-scoring = { path = "crates/solverforge-scoring" }
 solverforge-solver = { path = "crates/solverforge-solver" }
 solverforge-config = { path = "crates/solverforge-config" }
-solverforge-benchmark = { path = "crates/solverforge-benchmark" }
 solverforge = { path = "crates/solverforge" }
 
 # External dependencies

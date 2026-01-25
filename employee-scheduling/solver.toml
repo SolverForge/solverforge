@@ -1,0 +1,5 @@
+# SolverForge Configuration for Employee Scheduling
+
+[termination]
+seconds_spent_limit = 30
+unimproved_seconds_spent_limit = 5

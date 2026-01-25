@@ -1,0 +1,12 @@
+apiVersion: v2
+name: employee-scheduling
+description: Employee Scheduling optimization using SolverForge (Rust/Axum)
+type: application
+version: 0.5.0
+appVersion: "0.5.0"
+keywords:
+  - solverforge
+  - optimization
+  - scheduling
+  - rust
+  - axum

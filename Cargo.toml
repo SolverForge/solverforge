@@ -9,6 +9,9 @@ members = [
     "crates/solverforge",
     "examples/nqueens",
 ]
+exclude = [
+    "employee-scheduling",
+]
 
 [workspace.package]
 version = "0.5.1"

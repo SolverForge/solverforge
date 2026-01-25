@@ -342,8 +342,8 @@ fn generate_list_operations(
                     ),
                 );
 
-                // Direct construction - MoveSelectorImpl::KOpt for list local search
-                let fn_ptrs = ::solverforge::__internal::ListVariableFnPtrs {
+                // Direct construction - MoveSelectorImpl for list local search
+                let list_fn_ptrs = ::solverforge::__internal::ListVariableFnPtrs {
                     entity_count: Self::n_entities,
                     element_count: Self::element_count,
                     assigned_elements: Self::assigned_elements,
@@ -360,11 +360,7 @@ fn generate_list_operations(
                     variable_name: #list_field_str,
                     descriptor_index: #descriptor_index_lit,
                 };
-                let move_selector = ::solverforge::__internal::MoveSelectorImpl::KOpt {
-                    fn_ptrs,
-                    k: 3,
-                    min_segment_len: 1,
-                };
+                let move_selector = ::solverforge::__internal::MoveSelectorImpl::k_opt(list_fn_ptrs, 3, 1);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
@@ -688,7 +684,7 @@ fn generate_basic_variable_operations(
                     variable_name: #variable_field_str,
                     descriptor_index: #descriptor_index_lit,
                 };
-                let move_selector = ::solverforge::__internal::MoveSelectorImpl::Change(fn_ptrs);
+                let move_selector = ::solverforge::__internal::MoveSelectorImpl::change(fn_ptrs);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1000);
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(

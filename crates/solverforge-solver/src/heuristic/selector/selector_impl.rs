@@ -8,6 +8,31 @@
 //!
 //! Function pointers are resolved at construction time from config strings.
 //! Move generation happens inline via match dispatch - no virtual calls.
+//!
+//! # Example
+//!
+//! ```
+//! use solverforge_solver::heuristic::selector::{BasicVariableFnPtrs, MoveSelectorImpl};
+//!
+//! // Create function pointers for a basic variable
+//! let fn_ptrs: BasicVariableFnPtrs<(), i32> = BasicVariableFnPtrs {
+//!     entity_count: |_| 5,
+//!     value_range: |_| vec![1, 2, 3],
+//!     getter: |_, _| None,
+//!     setter: |_, _, _| {},
+//!     variable_name: "x",
+//!     descriptor_index: 0,
+//! };
+//!
+//! // Create a Change selector using constructor
+//! let selector = MoveSelectorImpl::change(fn_ptrs);
+//!
+//! // Or create directly from config
+//! use solverforge_config::{MoveSelectorConfig, ChangeMoveConfig};
+//! let config = MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig::default());
+//! let selector = MoveSelectorImpl::from_basic_config(&config, fn_ptrs);
+//! assert!(selector.is_some());
+//! ```
 
 use std::fmt::Debug;
 use std::hash::Hash;

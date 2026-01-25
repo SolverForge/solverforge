@@ -209,6 +209,110 @@ pub enum MoveSelectorImpl<S, V> {
     Union(Vec<MoveSelectorImpl<S, V>>),
 }
 
+// ============================================================================
+// Constructors
+// ============================================================================
+
+impl<S, V> MoveSelectorImpl<S, V> {
+    /// Creates a Change selector from function pointers.
+    pub fn change(fn_ptrs: BasicVariableFnPtrs<S, V>) -> Self {
+        Self::Change(fn_ptrs)
+    }
+
+    /// Creates a Swap selector from function pointers.
+    pub fn swap(fn_ptrs: BasicVariableFnPtrs<S, V>) -> Self {
+        Self::Swap(fn_ptrs)
+    }
+
+    /// Creates a PillarChange selector from function pointers.
+    pub fn pillar_change(fn_ptrs: BasicVariableFnPtrs<S, V>) -> Self {
+        Self::PillarChange(fn_ptrs)
+    }
+
+    /// Creates a PillarSwap selector from function pointers.
+    pub fn pillar_swap(fn_ptrs: BasicVariableFnPtrs<S, V>) -> Self {
+        Self::PillarSwap(fn_ptrs)
+    }
+
+    /// Creates a Ruin selector from function pointers.
+    pub fn ruin(fn_ptrs: BasicVariableFnPtrs<S, V>, ruin_count: usize) -> Self {
+        Self::Ruin { fn_ptrs, ruin_count }
+    }
+
+    /// Creates a ListAssign selector from function pointers.
+    pub fn list_assign(fn_ptrs: ListVariableFnPtrs<S, V>) -> Self {
+        Self::ListAssign(fn_ptrs)
+    }
+
+    /// Creates a ListChange selector from function pointers.
+    pub fn list_change(fn_ptrs: ListVariableFnPtrs<S, V>) -> Self {
+        Self::ListChange(fn_ptrs)
+    }
+
+    /// Creates a ListSwap selector from function pointers.
+    pub fn list_swap(fn_ptrs: ListVariableFnPtrs<S, V>) -> Self {
+        Self::ListSwap(fn_ptrs)
+    }
+
+    /// Creates a ListReverse selector from function pointers.
+    pub fn list_reverse(
+        fn_ptrs: ListVariableFnPtrs<S, V>,
+        min_segment_len: usize,
+        max_segment_len: Option<usize>,
+    ) -> Self {
+        Self::ListReverse {
+            fn_ptrs,
+            min_segment_len,
+            max_segment_len,
+        }
+    }
+
+    /// Creates a SubListChange selector from function pointers.
+    pub fn sublist_change(
+        fn_ptrs: ListVariableFnPtrs<S, V>,
+        min_sublist_len: usize,
+        max_sublist_len: Option<usize>,
+    ) -> Self {
+        Self::SubListChange {
+            fn_ptrs,
+            min_sublist_len,
+            max_sublist_len,
+        }
+    }
+
+    /// Creates a SubListSwap selector from function pointers.
+    pub fn sublist_swap(
+        fn_ptrs: ListVariableFnPtrs<S, V>,
+        min_sublist_len: usize,
+        max_sublist_len: Option<usize>,
+    ) -> Self {
+        Self::SubListSwap {
+            fn_ptrs,
+            min_sublist_len,
+            max_sublist_len,
+        }
+    }
+
+    /// Creates a KOpt selector from function pointers.
+    pub fn k_opt(fn_ptrs: ListVariableFnPtrs<S, V>, k: usize, min_segment_len: usize) -> Self {
+        Self::KOpt {
+            fn_ptrs,
+            k,
+            min_segment_len,
+        }
+    }
+
+    /// Creates a ListRuin selector from function pointers.
+    pub fn list_ruin(fn_ptrs: ListVariableFnPtrs<S, V>, ruin_count: usize) -> Self {
+        Self::ListRuin { fn_ptrs, ruin_count }
+    }
+
+    /// Creates a Union selector from multiple selectors.
+    pub fn union(selectors: Vec<MoveSelectorImpl<S, V>>) -> Self {
+        Self::Union(selectors)
+    }
+}
+
 impl<S, V> Debug for MoveSelectorImpl<S, V>
 where
     V: Debug,

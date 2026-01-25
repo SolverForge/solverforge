@@ -161,6 +161,11 @@ where
             self.arena
                 .extend(self.move_selector.iter_moves(step_scope.score_director()));
 
+            let moves_generated = self.arena.len();
+            let mut moves_evaluated = 0u64;
+            let mut moves_accepted = 0u64;
+            let mut moves_not_doable = 0u64;
+
             // Progress event every 1 second
             let now = Instant::now();
             if now.duration_since(last_progress_time).as_secs() >= 1 {
@@ -182,11 +187,13 @@ where
                 let m = self.arena.get(i).unwrap();
 
                 if !m.is_doable(step_scope.score_director()) {
+                    moves_not_doable += 1;
                     continue;
                 }
 
                 // Count moves actually evaluated (after doable check)
                 total_moves += 1;
+                moves_evaluated += 1;
 
                 // Evaluate move: save score, execute, calculate, undo
                 let move_score = {
@@ -201,8 +208,17 @@ where
                 // Check if accepted
                 let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
 
+                debug!(
+                    event = "move_evaluated",
+                    move_idx = i,
+                    move_score = %move_score,
+                    last_step_score = %last_step_score,
+                    accepted = accepted,
+                );
+
                 // Add index to forager if accepted (not the move itself)
                 if accepted {
+                    moves_accepted += 1;
                     self.forager.add_move_index(i, move_score);
                 }
 
@@ -212,10 +228,30 @@ where
                 }
             }
 
+            // Log step evaluation summary
+            debug!(
+                event = "step_evaluation",
+                step = step_scope.phase_scope().step_count(),
+                moves_generated = moves_generated,
+                moves_not_doable = moves_not_doable,
+                moves_evaluated = moves_evaluated,
+                moves_accepted = moves_accepted,
+                last_step_score = %last_step_score,
+            );
+
             // Pick the best accepted move index
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
                 // Take ownership of the move from arena
                 let selected_move = self.arena.take(selected_index);
+
+                debug!(
+                    event = "move_selected",
+                    step = step_scope.phase_scope().step_count(),
+                    selected_index = selected_index,
+                    selected_score = %selected_score,
+                    last_step_score = %last_step_score,
+                    move_type = ?selected_move,
+                );
 
                 // Execute the selected move (for real this time)
                 selected_move.do_move(step_scope.score_director_mut());
@@ -255,9 +291,17 @@ where
                         }
                     }
                 }
+            } else {
+                // No accepted move this step
+                debug!(
+                    event = "no_move_selected",
+                    step = step_scope.phase_scope().step_count(),
+                    moves_generated = moves_generated,
+                    moves_accepted = moves_accepted,
+                    last_step_score = %last_step_score,
+                );
+                // Continue searching - move selectors regenerate moves, termination conditions decide when to stop
             }
-            // No else branch - continue searching even when no accepted move this step
-            // Move selectors regenerate moves, termination conditions decide when to stop
 
             step_scope.complete();
 

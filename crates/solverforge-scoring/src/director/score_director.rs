@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
+use tracing::debug;
 
 use crate::api::constraint_set::ConstraintSet;
 
@@ -580,6 +581,8 @@ where
             return;
         }
 
+        let pre_undo_score = self.cached_score;
+
         // Step 1: Retract current (post-move) values from constraints
         // This undoes the after_variable_changed inserts
         for &(descriptor_index, entity_index) in self.modified_entities.iter().rev() {
@@ -590,6 +593,8 @@ where
             );
             self.cached_score = self.cached_score + delta;
         }
+
+        let after_retract_score = self.cached_score;
 
         // Step 2: Run undo closures in reverse order to restore old values
         while let Some(undo) = self.undo_stack.pop() {
@@ -608,6 +613,16 @@ where
             );
             self.cached_score = self.cached_score + delta;
         }
+
+        let after_insert_score = self.cached_score;
+
+        debug!(
+            event = "undo_changes",
+            pre_undo_score = %pre_undo_score,
+            after_retract_score = %after_retract_score,
+            after_insert_score = %after_insert_score,
+            restored_score = %self.cached_score,
+        );
 
         // Debug assertion: verify score was correctly restored
         #[cfg(debug_assertions)]

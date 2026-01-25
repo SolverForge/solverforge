@@ -113,6 +113,9 @@ where
                 // Execute the move
                 m.do_move(step_scope.score_director_mut());
 
+                // Clear undo stack - move is committed, not speculative
+                step_scope.score_director_mut().clear_undo_stack();
+
                 // Calculate and record the step score
                 let step_score = step_scope.calculate_score();
                 last_score = Some(step_score);

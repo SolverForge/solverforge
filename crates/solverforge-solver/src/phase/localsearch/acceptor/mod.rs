@@ -34,6 +34,16 @@ pub use value_tabu::ValueTabuAcceptor;
 /// Acceptors implement different strategies for escaping local optima,
 /// such as hill climbing, simulated annealing, or tabu search.
 pub trait Acceptor<S: PlanningSolution>: Send + Debug {
+    /// Records context about the move being evaluated.
+    ///
+    /// This MUST be called before `is_accepted()` for each move.
+    /// Tabu-based acceptors use this to track which entities/moves are forbidden.
+    ///
+    /// # Arguments
+    /// * `entity_indices` - Indices of entities affected by the move
+    /// * `move_hash` - Hash identifying the specific move (for move tabu)
+    fn record_move_context(&mut self, entity_indices: &[usize], move_hash: u64);
+
     /// Returns true if a move resulting in `move_score` should be accepted,
     /// given the previous step's score.
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool;
@@ -49,6 +59,14 @@ pub trait Acceptor<S: PlanningSolution>: Send + Debug {
 
     /// Called when a step ends with an accepted move.
     fn step_ended(&mut self, _step_score: &S::Score) {}
+
+    /// Sets the time gradient for temperature-based acceptors (e.g., SimulatedAnnealing).
+    ///
+    /// # Arguments
+    /// * `time_gradient` - Progress ratio from 0.0 (start) to 1.0 (end)
+    ///
+    /// Default implementation is a no-op for acceptors that don't use time gradient.
+    fn set_time_gradient(&mut self, _time_gradient: f64) {}
 }
 
 #[cfg(test)]

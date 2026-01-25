@@ -62,6 +62,8 @@ where
     stagnation_threshold: u64,
     /// Counter for consecutive steps without accepted moves.
     steps_without_accepted_move: u64,
+    /// Time limit in seconds for this phase (used for SimulatedAnnealing time gradient).
+    time_limit_seconds: Option<f64>,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
@@ -98,31 +100,21 @@ where
             sender: None,
             stagnation_threshold,
             steps_without_accepted_move: 0,
+            time_limit_seconds: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Sets the time limit for this phase (used for SimulatedAnnealing time gradient).
+    pub fn with_time_limit_seconds(mut self, seconds: f64) -> Self {
+        self.time_limit_seconds = Some(seconds);
+        self
     }
 
     /// Sets the sender for streaming improved solutions.
     pub fn with_sender(mut self, sender: UnboundedSender<(S, S::Score)>) -> Self {
         self.sender = Some(sender);
         self
-    }
-
-    /// Returns indices of all doable moves in the arena.
-    fn collect_doable_move_indices<C>(
-        &self,
-        score_director: &solverforge_scoring::ScoreDirector<S, C>,
-    ) -> Vec<usize>
-    where
-        C: solverforge_scoring::ConstraintSet<S, S::Score>,
-    {
-        (0..self.arena.len())
-            .filter(|&i| {
-                self.arena
-                    .get(i)
-                    .is_some_and(|m| m.is_doable(score_director))
-            })
-            .collect()
     }
 }
 
@@ -167,6 +159,9 @@ where
         // Notify acceptor of phase start
         self.acceptor.phase_started(&last_step_score);
 
+        // Track phase start time for time gradient calculation
+        let phase_start_time = Instant::now();
+
         // Send initial solution
         if let Some(ref sender) = self.sender {
             let solution = phase_scope.solver_scope().working_solution().clone();
@@ -198,6 +193,13 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
+            // Update time gradient for time-based acceptors (SimulatedAnnealing)
+            if let Some(time_limit) = self.time_limit_seconds {
+                let elapsed = phase_start_time.elapsed().as_secs_f64();
+                let time_gradient = (elapsed / time_limit).min(1.0);
+                self.acceptor.set_time_gradient(time_gradient);
+            }
+
             // Reset forager for this step
             self.forager.step_started();
 
@@ -210,6 +212,8 @@ where
             let mut moves_evaluated = 0u64;
             let mut moves_accepted = 0u64;
             let mut moves_not_doable = 0u64;
+            // Cache doable indices and their scores for potential stagnation escape reuse
+            let mut doable_indices_with_scores: Vec<(usize, S::Score)> = Vec::new();
 
             // Progress event every 1 second
             let now = Instant::now();
@@ -250,6 +254,11 @@ where
                     score
                 };
 
+                // Record move context for tabu acceptors before checking acceptance
+                // Use arena index as move hash (unique within this step's arena)
+                self.acceptor
+                    .record_move_context(m.entity_indices(), i as u64);
+
                 // Check if accepted
                 let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
 
@@ -260,6 +269,9 @@ where
                     last_step_score = %last_step_score,
                     accepted = accepted,
                 );
+
+                // Cache doable move with its score for potential stagnation escape
+                doable_indices_with_scores.push((i, move_score));
 
                 // Add index to forager if accepted (not the move itself)
                 if accepted {
@@ -307,25 +319,12 @@ where
                 if self.stagnation_threshold > 0
                     && self.steps_without_accepted_move >= self.stagnation_threshold
                 {
-                    // Collect indices of doable moves
-                    let doable_indices =
-                        self.collect_doable_move_indices(step_scope.score_director());
-
-                    if !doable_indices.is_empty() {
-                        // Pick a random doable move
+                    // Reuse cached doable indices from main evaluation loop
+                    if !doable_indices_with_scores.is_empty() {
+                        // Pick a random doable move (score already evaluated)
                         let rng = step_scope.phase_scope_mut().solver_scope_mut().rng();
-                        let &random_idx = doable_indices.choose(rng).unwrap();
-
-                        // Evaluate the move to get its score
-                        let m = self.arena.get(random_idx).unwrap();
-                        let move_score = {
-                            let sd = step_scope.score_director_mut();
-                            sd.save_score_snapshot();
-                            m.do_move(sd);
-                            let score = sd.calculate_score();
-                            sd.undo_changes();
-                            score
-                        };
+                        let &(random_idx, move_score) =
+                            doable_indices_with_scores.choose(rng).unwrap();
 
                         warn!(
                             event = "stagnation_escape",

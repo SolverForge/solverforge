@@ -170,6 +170,10 @@ impl<S: PlanningSolution> Default for TabuSearchAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
+    fn record_move_context(&mut self, entity_indices: &[usize], _move_hash: u64) {
+        self.record_move_entities(entity_indices);
+    }
+
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         let mut rng = rand::rng();
 

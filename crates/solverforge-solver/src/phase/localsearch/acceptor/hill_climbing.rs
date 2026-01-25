@@ -45,6 +45,10 @@ impl<S> Debug for HillClimbingAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for HillClimbingAcceptor<S> {
+    fn record_move_context(&mut self, _entity_indices: &[usize], _move_hash: u64) {
+        // Hill climbing doesn't track move context
+    }
+
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         move_score >= last_step_score
     }

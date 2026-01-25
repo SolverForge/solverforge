@@ -185,18 +185,29 @@ async fn subscribe_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    let rx = {
+    let (rx, initial_json) = {
         let jobs = state.jobs.read();
         match jobs.get(&id) {
-            Some(job) => job.broadcast_tx.subscribe(),
+            Some(job) => {
+                // Get the current state to send immediately
+                let dto =
+                    ScheduleDto::from_schedule(&job.solution, Some(job.solver_status.clone()));
+                let json = serde_json::to_string(&dto).unwrap_or_default();
+                (job.broadcast_tx.subscribe(), json)
+            }
             None => return Err(StatusCode::NOT_FOUND),
         }
     };
 
-    let stream = BroadcastStream::new(rx).filter_map(|result| match result {
+    // Send current state immediately, then stream updates
+    let initial = futures::stream::once(async move { Ok(Event::default().data(initial_json)) });
+
+    let updates = BroadcastStream::new(rx).filter_map(|result| match result {
         Ok(json) => Some(Ok(Event::default().data(json))),
         Err(_) => None,
     });
+
+    let stream = initial.chain(updates);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }

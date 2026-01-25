@@ -90,6 +90,10 @@ impl<S> Debug for SimulatedAnnealingAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for SimulatedAnnealingAcceptor<S> {
+    fn record_move_context(&mut self, _entity_indices: &[usize], _move_hash: u64) {
+        // Simulated annealing doesn't track move context
+    }
+
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Always accept improving or equal moves
         if move_score >= last_step_score {
@@ -133,5 +137,10 @@ impl<S: PlanningSolution> Acceptor<S> for SimulatedAnnealingAcceptor<S> {
     fn step_ended(&mut self, _step_score: &S::Score) {
         // Temperature is updated via set_time_gradient() called by the phase
         // This method is a no-op for time-gradient based cooling
+    }
+
+    fn set_time_gradient(&mut self, time_gradient: f64) {
+        // Delegate to the inherent method
+        SimulatedAnnealingAcceptor::set_time_gradient(self, time_gradient);
     }
 }

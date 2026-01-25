@@ -98,6 +98,10 @@ impl<S> Default for MoveTabuAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for MoveTabuAcceptor<S> {
+    fn record_move_context(&mut self, _entity_indices: &[usize], move_hash: u64) {
+        self.record_move(move_hash);
+    }
+
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Check aspiration first: accept new best even if tabu
         if self.aspiration_enabled {

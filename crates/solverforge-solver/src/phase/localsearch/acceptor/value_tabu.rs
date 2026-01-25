@@ -82,6 +82,11 @@ impl<S: PlanningSolution> Default for ValueTabuAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for ValueTabuAcceptor<S> {
+    fn record_move_context(&mut self, _entity_indices: &[usize], move_hash: u64) {
+        // Use move_hash as value hash - value tabu tracks the move/value combination
+        self.record_value_assignment(move_hash);
+    }
+
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Check aspiration first: accept new best even if tabu
         if self.aspiration_enabled {

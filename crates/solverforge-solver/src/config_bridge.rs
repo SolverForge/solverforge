@@ -95,7 +95,21 @@ where
         .stagnation_threshold
         .unwrap_or(DEFAULT_STAGNATION_THRESHOLD);
 
-    LocalSearchPhase::new(move_selector, acceptor, forager, None, stagnation_threshold)
+    // Get time limit from phase termination config for SimulatedAnnealing time gradient
+    let time_limit_seconds = config
+        .termination
+        .as_ref()
+        .and_then(|t| t.time_limit())
+        .map(|d| d.as_secs_f64());
+
+    let phase = LocalSearchPhase::new(move_selector, acceptor, forager, None, stagnation_threshold);
+
+    // Wire time limit if configured
+    if let Some(seconds) = time_limit_seconds {
+        phase.with_time_limit_seconds(seconds)
+    } else {
+        phase
+    }
 }
 
 /// Termination enum for config-driven termination.

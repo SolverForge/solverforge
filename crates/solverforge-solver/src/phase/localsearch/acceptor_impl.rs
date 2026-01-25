@@ -96,6 +96,21 @@ impl<S: PlanningSolution> Debug for AcceptorImpl<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for AcceptorImpl<S> {
+    fn record_move_context(&mut self, entity_indices: &[usize], move_hash: u64) {
+        match self {
+            Self::HillClimbing(a) => a.record_move_context(entity_indices, move_hash),
+            Self::SimulatedAnnealing(a) => a.record_move_context(entity_indices, move_hash),
+            Self::LateAcceptance(a) => a.record_move_context(entity_indices, move_hash),
+            Self::TabuSearch(a) => a.record_move_context(entity_indices, move_hash),
+            Self::GreatDeluge(a) => a.record_move_context(entity_indices, move_hash),
+            Self::DiversifiedLateAcceptance(a) => a.record_move_context(entity_indices, move_hash),
+            Self::StepCountingHillClimbing(a) => a.record_move_context(entity_indices, move_hash),
+            Self::EntityTabu(a) => a.record_move_context(entity_indices, move_hash),
+            Self::MoveTabu(a) => a.record_move_context(entity_indices, move_hash),
+            Self::ValueTabu(a) => a.record_move_context(entity_indices, move_hash),
+        }
+    }
+
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         match self {
             Self::HillClimbing(a) => a.is_accepted(last_step_score, move_score),
@@ -168,6 +183,21 @@ impl<S: PlanningSolution> Acceptor<S> for AcceptorImpl<S> {
             Self::EntityTabu(a) => a.step_ended(step_score),
             Self::MoveTabu(a) => a.step_ended(step_score),
             Self::ValueTabu(a) => a.step_ended(step_score),
+        }
+    }
+
+    fn set_time_gradient(&mut self, time_gradient: f64) {
+        match self {
+            Self::HillClimbing(a) => a.set_time_gradient(time_gradient),
+            Self::SimulatedAnnealing(a) => a.set_time_gradient(time_gradient),
+            Self::LateAcceptance(a) => a.set_time_gradient(time_gradient),
+            Self::TabuSearch(a) => a.set_time_gradient(time_gradient),
+            Self::GreatDeluge(a) => a.set_time_gradient(time_gradient),
+            Self::DiversifiedLateAcceptance(a) => a.set_time_gradient(time_gradient),
+            Self::StepCountingHillClimbing(a) => a.set_time_gradient(time_gradient),
+            Self::EntityTabu(a) => a.set_time_gradient(time_gradient),
+            Self::MoveTabu(a) => a.set_time_gradient(time_gradient),
+            Self::ValueTabu(a) => a.set_time_gradient(time_gradient),
         }
     }
 }

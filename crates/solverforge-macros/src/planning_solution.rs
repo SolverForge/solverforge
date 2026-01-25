@@ -311,7 +311,18 @@ fn generate_list_operations(
 
                 let config = ::solverforge::__internal::SolverConfig::load("solver.toml").unwrap_or_default();
                 let constraints = #constraints_fn();
-                let director = ::solverforge::__internal::ScoreDirector::new(self, constraints);
+                let director = ::solverforge::__internal::ScoreDirector::with_descriptor(
+                    self,
+                    constraints,
+                    Self::descriptor(),
+                    |s, descriptor_idx| {
+                        if descriptor_idx == #descriptor_index_lit {
+                            Self::n_entities(s)
+                        } else {
+                            0
+                        }
+                    },
+                );
 
                 let construction = ::solverforge::__internal::ListConstructionPhaseBuilder::<Self, #element_type_ident>::new(
                     Self::element_count,
@@ -560,7 +571,18 @@ fn generate_basic_variable_operations(
 
                 let config = ::solverforge::__internal::SolverConfig::load("solver.toml").unwrap_or_default();
                 let constraints = #constraints_fn();
-                let director = ::solverforge::__internal::ScoreDirector::new(self, constraints);
+                let director = ::solverforge::__internal::ScoreDirector::with_descriptor(
+                    self,
+                    constraints,
+                    Self::descriptor(),
+                    |s, descriptor_idx| {
+                        if descriptor_idx == #descriptor_index_lit {
+                            Self::basic_entity_count(s)
+                        } else {
+                            0
+                        }
+                    },
+                );
 
                 let construction = ::solverforge::__internal::ChangeConstructionPhaseBuilder::<Self, #variable_type_ident>::new(
                     Self::basic_get_variable,

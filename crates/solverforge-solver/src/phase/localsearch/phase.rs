@@ -221,11 +221,19 @@ where
                 let delta = total_moves - moves_at_last_progress;
                 let elapsed = now.duration_since(last_progress_time).as_secs_f64();
                 let speed = (delta as f64 / elapsed) as u64;
+                // Show best score (monotonically improving) rather than current step score
+                // (which can oscillate with Late Acceptance, Simulated Annealing, etc.)
+                let best_score = step_scope
+                    .phase_scope()
+                    .solver_scope()
+                    .best_score()
+                    .copied()
+                    .unwrap_or(last_step_score);
                 debug!(
                     event = "progress",
                     steps = step_scope.phase_scope().step_count(),
                     speed = speed,
-                    score = %last_step_score,
+                    score = %best_score,
                 );
                 last_progress_time = now;
                 moves_at_last_progress = total_moves;

@@ -10,18 +10,17 @@ pub mod selector;
 // Re-export move types
 pub use r#move::k_opt_reconnection;
 pub use r#move::{
-    ChangeMove, CompositeMove, CutPoint, KOptMove, ListAssignMove, ListChangeMove, ListRuinMove,
-    Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinMove, SwapMove,
+    BasicVariableMove, ChangeMove, CompositeMove, CutPoint, KOptMove, ListAssignMove,
+    ListChangeMove, ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveArena, MoveImpl,
+    PillarChangeMove, PillarSwapMove, RuinMove, SubListChangeMove, SubListSwapMove, SwapMove,
 };
 
 // Re-export selector types
 pub use selector::{
-    AllEntitiesSelector, ChangeMoveSelector, DefaultDistanceMeter, DefaultPillarSelector,
-    EntityReference, EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
-    KOptConfig, KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter,
-    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
+    AllEntitiesSelector, DefaultDistanceMeter, DefaultPillarSelector, EntityReference,
+    EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector, KOptConfig,
+    ListPositionDistanceMeter, MimicRecorder, MimicRecordingEntitySelector,
     MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
-    NearbyKOptMoveSelector, NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector,
-    SelectionOrder, StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector,
-    TypedValueSelector,
+    NearbySelectionConfig, Pillar, PillarSelector, SelectionOrder, StaticTypedValueSelector,
+    SubPillarConfig, TypedValueSelector,
 };

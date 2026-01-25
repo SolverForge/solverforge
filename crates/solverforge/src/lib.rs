@@ -138,13 +138,12 @@ pub mod __internal {
         RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SolvableSolution,
     };
 
+    pub use solverforge_solver::heuristic::r#move::{BasicVariableMove, MoveImpl};
     pub use solverforge_solver::heuristic::selector::{
-        DefaultDistanceMeter, FromSolutionEntitySelector, RangeValueSelector,
+        BasicVariableFnPtrs, DefaultDistanceMeter, FromSolutionEntitySelector,
+        ListVariableFnPtrs, MoveSelectorImpl, RangeValueSelector,
     };
-    pub use solverforge_solver::heuristic::ListAssignMove;
-    pub use solverforge_solver::heuristic::{
-        ChangeMoveSelector, KOptConfig, KOptMoveSelector, SwapMoveSelector,
-    };
+    pub use solverforge_solver::heuristic::{KOptConfig, ListAssignMove};
     pub use solverforge_solver::manager::SolverFactory;
     pub use solverforge_solver::phase::construction::{
         ConstructionForagerImpl, ConstructionHeuristicPhase, ListEntityPlacer, QueuedEntityPlacer,

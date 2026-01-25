@@ -52,6 +52,7 @@
 //! ```
 
 mod arena;
+mod basic_variable;
 mod change;
 mod composite;
 mod k_opt;
@@ -61,6 +62,7 @@ mod list_change;
 mod list_reverse;
 mod list_ruin;
 mod list_swap;
+mod move_impl;
 mod pillar_change;
 mod pillar_swap;
 mod ruin;
@@ -70,6 +72,7 @@ mod swap;
 mod traits;
 
 pub use arena::MoveArena;
+pub use basic_variable::BasicVariableMove;
 pub use change::ChangeMove;
 pub use composite::CompositeMove;
 pub use k_opt::{CutPoint, KOptMove};
@@ -78,6 +81,7 @@ pub use list_change::ListChangeMove;
 pub use list_reverse::ListReverseMove;
 pub use list_ruin::ListRuinMove;
 pub use list_swap::ListSwapMove;
+pub use move_impl::MoveImpl;
 pub use pillar_change::PillarChangeMove;
 pub use pillar_swap::PillarSwapMove;
 pub use ruin::RuinMove;

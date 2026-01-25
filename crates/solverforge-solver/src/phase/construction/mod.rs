@@ -14,4 +14,6 @@ pub use forager::{
 };
 pub use forager_impl::ConstructionForagerImpl;
 pub use phase::ConstructionHeuristicPhase;
-pub use placer::{EntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer};
+pub use placer::{
+    EntityPlacer, ListEntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer,
+};

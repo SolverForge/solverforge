@@ -11,7 +11,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::{ChangeMove, Move};
+use crate::heuristic::r#move::{ChangeMove, ListAssignMove, Move};
 use crate::heuristic::selector::{EntityReference, EntitySelector, TypedValueSelector};
 
 /// A placement represents an entity that needs a value assigned,
@@ -338,5 +338,113 @@ where
         });
 
         placements
+    }
+}
+
+/// Entity placer for list variables during construction.
+///
+/// Generates `ListAssignMove`s to assign unassigned elements to entities.
+/// Each element can be assigned to any entity.
+///
+/// # Type Parameters
+/// * `S` - The planning solution type
+/// * `V` - The element type (typically `usize` for index-based lists)
+pub struct ListEntityPlacer<S, V> {
+    /// Get total number of elements to assign
+    element_count: fn(&S) -> usize,
+    /// Get elements already assigned
+    assigned_elements: fn(&S) -> Vec<V>,
+    /// Get number of entities
+    n_entities: fn(&S) -> usize,
+    /// Assign element to entity (appends to list)
+    assign_element: fn(&mut S, usize, V),
+    /// Convert index to element value
+    index_to_element: fn(usize) -> V,
+    /// Descriptor index for entity type
+    descriptor_index: usize,
+    _phantom: PhantomData<fn() -> (S, V)>,
+}
+
+impl<S, V> ListEntityPlacer<S, V> {
+    /// Creates a new list entity placer.
+    pub fn new(
+        element_count: fn(&S) -> usize,
+        assigned_elements: fn(&S) -> Vec<V>,
+        n_entities: fn(&S) -> usize,
+        assign_element: fn(&mut S, usize, V),
+        index_to_element: fn(usize) -> V,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            element_count,
+            assigned_elements,
+            n_entities,
+            assign_element,
+            index_to_element,
+            descriptor_index,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, V> Debug for ListEntityPlacer<S, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ListEntityPlacer")
+            .field("descriptor_index", &self.descriptor_index)
+            .finish()
+    }
+}
+
+impl<S, V> EntityPlacer<S, ListAssignMove<S, V>> for ListEntityPlacer<S, V>
+where
+    S: PlanningSolution + solverforge_scoring::ShadowVariableSupport,
+    V: Clone + PartialEq + Send + Sync + Debug + std::hash::Hash + Eq + 'static,
+{
+    fn get_placements<C>(
+        &self,
+        score_director: &ScoreDirector<S, C>,
+    ) -> Vec<Placement<S, ListAssignMove<S, V>>>
+    where
+        C: ConstraintSet<S, S::Score>,
+        S::Score: Score,
+    {
+        let solution = score_director.working_solution();
+        let total = (self.element_count)(solution);
+        let assigned: std::collections::HashSet<V> =
+            (self.assigned_elements)(solution).into_iter().collect();
+        let n_entities = (self.n_entities)(solution);
+
+        // Find unassigned elements
+        let unassigned: Vec<V> = (0..total)
+            .map(|i| (self.index_to_element)(i))
+            .filter(|elem| !assigned.contains(elem))
+            .collect();
+
+        // Create one placement per unassigned element
+        // Each element can be assigned to any entity
+        unassigned
+            .into_iter()
+            .map(|element| {
+                let moves: Vec<ListAssignMove<S, V>> = (0..n_entities)
+                    .map(|entity_idx| {
+                        ListAssignMove::new(
+                            element.clone(),
+                            entity_idx,
+                            self.assign_element,
+                            "list",
+                            self.descriptor_index,
+                        )
+                    })
+                    .collect();
+
+                // Use a dummy entity ref since this is element-based, not entity-based
+                let entity_ref = EntityReference {
+                    descriptor_index: self.descriptor_index,
+                    entity_index: 0,
+                };
+
+                Placement::new(entity_ref, moves)
+            })
+            .collect()
     }
 }

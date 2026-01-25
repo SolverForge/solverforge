@@ -6,7 +6,6 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
-use solverforge_scoring::RecordingScoreDirector;
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -106,6 +105,7 @@ macro_rules! impl_vnd_phase {
                     if let Some((selected_index, selected_score)) = best_index {
                         let selected_move = arena.take(selected_index);
                         selected_move.do_move(step_scope.score_director_mut());
+                        step_scope.score_director_mut().clear_undo_stack();
                         step_scope.set_step_score(selected_score);
                         current_score = selected_score;
                         step_scope.phase_scope_mut().update_best_solution();
@@ -155,6 +155,7 @@ macro_rules! impl_vnd_phase {
                     if let Some((selected_index, selected_score)) = best_index {
                         let selected_move = arena.take(selected_index);
                         selected_move.do_move(step_scope.score_director_mut());
+                        step_scope.score_director_mut().clear_undo_stack();
                         step_scope.set_step_score(selected_score);
                         current_score = selected_score;
                         step_scope.phase_scope_mut().update_best_solution();
@@ -202,10 +203,12 @@ where
             continue;
         }
 
-        let mut recording = RecordingScoreDirector::new(step_scope.score_director_mut());
-        m.do_move(recording.inner_mut());
-        let move_score = recording.calculate_score();
-        recording.undo_changes();
+        // Evaluate move: save score, execute, calculate, undo
+        let sd = step_scope.score_director_mut();
+        sd.save_score_snapshot();
+        m.do_move(sd);
+        let move_score = sd.calculate_score();
+        sd.undo_changes();
 
         if move_score > *current_score {
             match &best {

@@ -7,7 +7,6 @@ use std::time::Instant;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
-use solverforge_scoring::RecordingScoreDirector;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info};
 
@@ -189,20 +188,13 @@ where
                 // Count moves actually evaluated (after doable check)
                 total_moves += 1;
 
-                // Use RecordingScoreDirector for automatic undo
+                // Evaluate move: save score, execute, calculate, undo
                 let move_score = {
-                    let mut recording =
-                        RecordingScoreDirector::new(step_scope.score_director_mut());
-
-                    // Execute move
-                    m.do_move(recording.inner_mut());
-
-                    // Calculate resulting score
-                    let score = recording.calculate_score();
-
-                    // Undo the move
-                    recording.undo_changes();
-
+                    let sd = step_scope.score_director_mut();
+                    sd.save_score_snapshot(); // Save score before move
+                    m.do_move(sd); // Execute move
+                    let score = sd.calculate_score(); // Calculate resulting score
+                    sd.undo_changes(); // Restore solution AND score
                     score
                 };
 
@@ -227,6 +219,10 @@ where
 
                 // Execute the selected move (for real this time)
                 selected_move.do_move(step_scope.score_director_mut());
+
+                // Clear the undo stack - this move is now permanently applied
+                step_scope.score_director_mut().clear_undo_stack();
+
                 step_scope.set_step_score(selected_score);
 
                 // Update last step score

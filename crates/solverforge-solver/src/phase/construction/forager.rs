@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::Move;
 
@@ -166,21 +166,11 @@ where
                 continue;
             }
 
-            // Use RecordingScoreDirector for automatic undo
-            let score = {
-                let mut recording = RecordingScoreDirector::new(score_director);
-
-                // Execute move
-                m.do_move(recording.inner_mut());
-
-                // Evaluate
-                let score = recording.calculate_score();
-
-                // Undo move
-                recording.undo_changes();
-
-                score
-            };
+            // Evaluate move: save score, execute, calculate, undo
+            score_director.save_score_snapshot();
+            m.do_move(score_director);
+            let score = score_director.calculate_score();
+            score_director.undo_changes();
 
             // Check if this is the best so far
             let is_better = match &best_score {
@@ -257,27 +247,19 @@ where
                 continue;
             }
 
-            // Use RecordingScoreDirector for automatic undo
-            let score = {
-                let mut recording = RecordingScoreDirector::new(score_director);
+            // Evaluate move: save score, execute, calculate, undo
+            score_director.save_score_snapshot();
+            m.do_move(score_director);
+            let score = score_director.calculate_score();
 
-                // Execute move
-                m.do_move(recording.inner_mut());
+            // If feasible, undo and return this move index immediately
+            if score.is_feasible() {
+                score_director.undo_changes();
+                return Some(idx);
+            }
 
-                // Evaluate
-                let score = recording.calculate_score();
-
-                // If feasible, return this move index immediately
-                if score.is_feasible() {
-                    recording.undo_changes();
-                    return Some(idx);
-                }
-
-                // Undo move
-                recording.undo_changes();
-
-                score
-            };
+            // Undo move
+            score_director.undo_changes();
 
             // Track best infeasible as fallback
             let is_better = match &fallback_score {

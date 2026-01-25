@@ -236,7 +236,10 @@ impl<S, V> MoveSelectorImpl<S, V> {
 
     /// Creates a Ruin selector from function pointers.
     pub fn ruin(fn_ptrs: BasicVariableFnPtrs<S, V>, ruin_count: usize) -> Self {
-        Self::Ruin { fn_ptrs, ruin_count }
+        Self::Ruin {
+            fn_ptrs,
+            ruin_count,
+        }
     }
 
     /// Creates a ListAssign selector from function pointers.
@@ -304,7 +307,10 @@ impl<S, V> MoveSelectorImpl<S, V> {
 
     /// Creates a ListRuin selector from function pointers.
     pub fn list_ruin(fn_ptrs: ListVariableFnPtrs<S, V>, ruin_count: usize) -> Self {
-        Self::ListRuin { fn_ptrs, ruin_count }
+        Self::ListRuin {
+            fn_ptrs,
+            ruin_count,
+        }
     }
 
     /// Creates a Union selector from multiple selectors.

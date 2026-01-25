@@ -357,8 +357,16 @@ where
     }
 
     /// Clones the working solution.
+    ///
+    /// If the director is initialized, the clone will have its score field
+    /// set to the cached score. This ensures solutions sent through channels
+    /// have their score accessible via `solution.score()`.
     pub fn clone_working_solution(&self) -> S {
-        self.working_solution.clone()
+        let mut clone = self.working_solution.clone();
+        if self.initialized {
+            clone.set_score(Some(self.cached_score));
+        }
+        clone
     }
 
     /// Returns a reference to the constraint set.

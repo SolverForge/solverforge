@@ -138,15 +138,11 @@ where
         let desc = score_director.solution_descriptor();
         let descriptor_count = desc.entity_descriptors.len();
 
-        let mut refs = Vec::new();
-        for desc_idx in 0..descriptor_count {
+        // Lazy iteration - no Vec allocation
+        Box::new((0..descriptor_count).flat_map(move |desc_idx| {
             let count = score_director.entity_count(desc_idx);
-            for entity_idx in 0..count {
-                refs.push(EntityReference::new(desc_idx, entity_idx));
-            }
-        }
-
-        Box::new(refs.into_iter())
+            (0..count).map(move |entity_idx| EntityReference::new(desc_idx, entity_idx))
+        }))
     }
 
     fn size<C>(&self, score_director: &ScoreDirector<S, C>) -> usize

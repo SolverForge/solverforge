@@ -22,16 +22,15 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 ///
 /// ```
 /// use solverforge_solver::heuristic::selector::decorator::FilteringMoveSelector;
-/// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
+/// use solverforge_solver::heuristic::selector::MoveSelector;
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::api::constraint_set::ConstraintSet;
+/// use solverforge_scoring::ScoreDirector;
 ///
 /// #[derive(Clone, Debug)]
-/// struct Task { id: usize, priority: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
+/// struct Solution { value: i32, score: Option<SimpleScore> }
 ///
 /// impl PlanningSolution for Solution {
 ///     type Score = SimpleScore;
@@ -39,17 +38,24 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
+/// // Simple mock selector
+/// #[derive(Debug)]
+/// struct MockSelector;
+/// impl MoveSelector<Solution, ChangeMove<Solution, i32>> for MockSelector {
+///     fn iter_moves<'a, C>(&'a self, _: &'a ScoreDirector<Solution, C>)
+///         -> Box<dyn Iterator<Item = ChangeMove<Solution, i32>> + 'a>
+///         where C: ConstraintSet<Solution, SimpleScore> { Box::new(std::iter::empty()) }
+///     fn size<C>(&self, _: &ScoreDirector<Solution, C>) -> usize
+///         where C: ConstraintSet<Solution, SimpleScore> { 3 }
+///     fn is_never_ending(&self) -> bool { false }
+/// }
 ///
 /// // Filter to only high-priority moves (value > 50)
 /// fn high_priority_filter(m: &ChangeMove<Solution, i32>) -> bool {
 ///     m.to_value().map_or(false, |v| *v > 50)
 /// }
 ///
-/// let inner = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![10, 60, 80],
-/// );
+/// let inner = MockSelector;
 /// let filtered: FilteringMoveSelector<Solution, _, _> =
 ///     FilteringMoveSelector::new(inner, high_priority_filter);
 /// assert!(!filtered.is_never_ending());

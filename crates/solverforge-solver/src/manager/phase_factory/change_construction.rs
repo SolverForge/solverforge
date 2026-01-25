@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
+use tracing::info;
 
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -171,6 +172,9 @@ where
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
+        // Phase start event
+        info!(event = "phase_start", phase = "ConstructionHeuristic");
+
         let solution = phase_scope.score_director().working_solution();
         let n_values = (self.value_count)(solution);
         let n_entities = (self.entity_count)(solution);
@@ -178,10 +182,19 @@ where
         if n_values == 0 || n_entities == 0 {
             let _score = phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
+            info!(
+                event = "phase_end",
+                phase = "ConstructionHeuristic",
+                duration_ms = phase_scope.elapsed().as_millis() as u64,
+                steps = 0u64,
+                speed = 0u64,
+                score = ?phase_scope.solver_scope().best_score(),
+            );
             return;
         }
 
         let mut value_idx = 0usize;
+        let mut steps = 0u64;
         for entity_idx in 0..n_entities {
             if phase_scope.solver_scope().is_terminate_early() {
                 break;
@@ -209,14 +222,27 @@ where
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();
+            steps += 1;
 
             value_idx = (value_idx + 1) % n_values;
         }
 
         phase_scope.update_best_solution();
-        tracing::info!(
-            best_score = ?phase_scope.solver_scope().best_score(),
-            "ChangeConstruction complete"
+
+        // Phase end event
+        let duration = phase_scope.elapsed();
+        let speed = if duration.as_secs_f64() > 0.0 {
+            (steps as f64 / duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+        info!(
+            event = "phase_end",
+            phase = "ConstructionHeuristic",
+            duration_ms = duration.as_millis() as u64,
+            steps = steps,
+            speed = speed,
+            score = ?phase_scope.solver_scope().best_score(),
         );
     }
 

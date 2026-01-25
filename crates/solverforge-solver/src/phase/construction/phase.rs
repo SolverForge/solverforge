@@ -2,10 +2,12 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
+use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::{ConstructionForager, EntityPlacer};
@@ -76,10 +78,16 @@ where
     Fo: ConstructionForager<S, M>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
+        let phase_start = Instant::now();
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
+
+        info!(event = "phase_start", phase = "ConstructionHeuristic");
 
         // Get all placements (entities that need values assigned)
         let placements = self.placer.get_placements(phase_scope.score_director());
+
+        let mut steps = 0u64;
+        let mut last_score = None;
 
         for mut placement in placements {
             // Check early termination
@@ -103,14 +111,35 @@ where
 
                 // Calculate and record the step score
                 let step_score = step_scope.calculate_score();
+                last_score = Some(step_score);
                 step_scope.set_step_score(step_score);
             }
 
             step_scope.complete();
+            steps += 1;
         }
 
         // Update best solution at end of phase
         phase_scope.update_best_solution();
+
+        let duration = phase_start.elapsed();
+        let speed = if duration.as_secs_f64() > 0.0 {
+            (steps as f64 / duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+        let final_score = last_score
+            .or_else(|| phase_scope.solver_scope().best_score().copied())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "N/A".to_string());
+        info!(
+            event = "phase_end",
+            phase = "ConstructionHeuristic",
+            duration_ms = duration.as_millis() as u64,
+            steps = steps,
+            speed = speed,
+            score = %final_score,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
@@ -88,6 +89,7 @@ where
     variable_name: &'static str,
     descriptor_index: usize,
     late_acceptance_size: usize,
+    sender: Option<UnboundedSender<(S, S::Score)>>,
     _marker: PhantomData<S>,
 }
 
@@ -111,8 +113,15 @@ where
             variable_name,
             descriptor_index,
             late_acceptance_size,
+            sender: None,
             _marker: PhantomData,
         }
+    }
+
+    /// Sets the sender for streaming improved solutions.
+    pub fn with_sender(mut self, sender: UnboundedSender<(S, S::Score)>) -> Self {
+        self.sender = Some(sender);
+        self
     }
 
     /// Creates the local search phase.
@@ -132,7 +141,12 @@ where
         let acceptor = LateAcceptanceAcceptor::new(self.late_acceptance_size);
         let forager = AcceptedCountForager::new(1);
 
-        LocalSearchPhase::new(move_selector, acceptor, forager, None)
+        let phase = LocalSearchPhase::new(move_selector, acceptor, forager, None);
+        if let Some(ref sender) = self.sender {
+            phase.with_sender(sender.clone())
+        } else {
+            phase
+        }
     }
 }
 

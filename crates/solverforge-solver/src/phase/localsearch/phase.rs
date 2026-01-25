@@ -2,11 +2,14 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::RecordingScoreDirector;
+use tokio::sync::mpsc::UnboundedSender;
+use tracing::{debug, info};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -47,6 +50,7 @@ where
     forager: Fo,
     arena: MoveArena<M>,
     step_limit: Option<u64>,
+    sender: Option<UnboundedSender<(S, S::Score)>>,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
@@ -66,8 +70,15 @@ where
             forager,
             arena: MoveArena::new(),
             step_limit,
+            sender: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Sets the sender for streaming improved solutions.
+    pub fn with_sender(mut self, sender: UnboundedSender<(S, S::Score)>) -> Self {
+        self.sender = Some(sender);
+        self
     }
 }
 
@@ -103,15 +114,34 @@ where
     fn solve(&mut self, solver_scope: &mut SolverScope<S, C>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
+        // Phase start event
+        info!(event = "phase_start", phase = "LocalSearch");
+
         // Calculate initial score
         let mut last_step_score = phase_scope.calculate_score();
 
         // Notify acceptor of phase start
         self.acceptor.phase_started(&last_step_score);
 
+        // Send initial solution
+        if let Some(ref sender) = self.sender {
+            let solution = phase_scope.solver_scope().working_solution().clone();
+            let _ = sender.send((solution, last_step_score));
+        }
+
+        // Progress tracking
+        let mut last_progress_time = Instant::now();
+        let mut moves_at_last_progress = 0u64;
+        let mut total_moves = 0u64;
+
         loop {
             // Check early termination
             if phase_scope.solver_scope().is_terminate_early() {
+                break;
+            }
+
+            // Check if receiver dropped
+            if self.sender.as_ref().is_some_and(|s| s.is_closed()) {
                 break;
             }
 
@@ -131,6 +161,24 @@ where
             self.arena.reset();
             self.arena
                 .extend(self.move_selector.iter_moves(step_scope.score_director()));
+
+            total_moves += self.arena.len() as u64;
+
+            // Progress event every 1 second
+            let now = Instant::now();
+            if now.duration_since(last_progress_time).as_secs() >= 1 {
+                let delta = total_moves - moves_at_last_progress;
+                let elapsed = now.duration_since(last_progress_time).as_secs_f64();
+                let speed = (delta as f64 / elapsed) as u64;
+                debug!(
+                    event = "progress",
+                    steps = step_scope.phase_scope().step_count(),
+                    speed = speed,
+                    score = %last_step_score,
+                );
+                last_progress_time = now;
+                moves_at_last_progress = total_moves;
+            }
 
             // Evaluate moves by index
             for i in 0..self.arena.len() {
@@ -183,8 +231,33 @@ where
                 // Update last step score
                 last_step_score = selected_score;
 
+                // Track previous best score to detect improvement
+                let prev_best = step_scope
+                    .phase_scope()
+                    .solver_scope()
+                    .best_score()
+                    .cloned();
+
                 // Update best solution if improved
                 step_scope.phase_scope_mut().update_best_solution();
+
+                // Stream solution if best improved and sender is configured
+                if let Some(ref sender) = self.sender {
+                    let new_best = step_scope.phase_scope().solver_scope().best_score();
+                    let improved = match (&prev_best, new_best) {
+                        (None, Some(_)) => true,
+                        (Some(prev), Some(curr)) => curr > prev,
+                        _ => false,
+                    };
+                    if improved {
+                        if let (Some(sol), Some(score)) = (
+                            step_scope.phase_scope().solver_scope().best_solution(),
+                            new_best,
+                        ) {
+                            let _ = sender.send((sol.clone(), *score));
+                        }
+                    }
+                }
             } else {
                 // No accepted moves - we're stuck
                 break;
@@ -195,6 +268,23 @@ where
 
         // Notify acceptor of phase end
         self.acceptor.phase_ended();
+
+        // Phase end event
+        let duration = phase_scope.elapsed();
+        let steps = phase_scope.step_count();
+        let speed = if duration.as_secs_f64() > 0.0 {
+            (total_moves as f64 / duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+        info!(
+            event = "phase_end",
+            phase = "LocalSearch",
+            duration_ms = duration.as_millis() as u64,
+            steps = steps,
+            speed = speed,
+            score = %last_step_score,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

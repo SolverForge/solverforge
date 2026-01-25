@@ -301,6 +301,14 @@ fn generate_list_operations(
 
                 Self::list_finalize_all(&mut self);
 
+                let entity_count = Self::n_entities(&self);
+                let value_count = Self::element_count(&self);
+                ::solverforge::__internal::tracing::info!(
+                    event = "solve_start",
+                    entity_count = entity_count,
+                    value_count = value_count,
+                );
+
                 let config = ::solverforge::__internal::SolverConfig::load("solver.toml").unwrap_or_default();
                 let constraints = #constraints_fn();
                 let director = ::solverforge::__internal::ScoreDirector::new(self, constraints);
@@ -322,7 +330,9 @@ fn generate_list_operations(
                     Self::sublist_insert,
                     #list_field_str,
                     #descriptor_index_lit,
-                ).create_phase();
+                )
+                .with_sender(sender.clone())
+                .create_phase();
 
                 let time_limit = config.termination.as_ref()
                     .and_then(|t| t.time_limit())
@@ -337,9 +347,17 @@ fn generate_list_operations(
 
                 let result = solver.solve(director);
 
-                // Send final solution through channel
                 {
                     use ::solverforge::__internal::PlanningSolution;
+                    let final_score = result.score()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "N/A".to_string());
+                    ::solverforge::__internal::tracing::info!(
+                        event = "solve_end",
+                        score = %final_score,
+                    );
+
+                    // Send final solution through channel
                     if let Some(score) = result.score() {
                         let _ = sender.send((result.clone(), score));
                     }
@@ -532,6 +550,14 @@ fn generate_basic_variable_operations(
 
                 Self::finalize_all(&mut self);
 
+                let entity_count = Self::basic_entity_count(&self);
+                let value_count = Self::basic_value_count(&self);
+                ::solverforge::__internal::tracing::info!(
+                    event = "solve_start",
+                    entity_count = entity_count,
+                    value_count = value_count,
+                );
+
                 let config = ::solverforge::__internal::SolverConfig::load("solver.toml").unwrap_or_default();
                 let constraints = #constraints_fn();
                 let director = ::solverforge::__internal::ScoreDirector::new(self, constraints);
@@ -551,11 +577,20 @@ fn generate_basic_variable_operations(
                     Self::basic_value_count,
                     #variable_field_str,
                     #descriptor_index_lit,
-                    config.local_search.as_ref()
-                        .and_then(|ls| ls.late_acceptance.as_ref())
-                        .map(|la| la.late_acceptance_size)
+                    config.phases.iter()
+                        .find_map(|phase| match phase {
+                            ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => Some(ls),
+                            _ => None,
+                        })
+                        .and_then(|ls| ls.acceptor.as_ref())
+                        .and_then(|acceptor| match acceptor {
+                            ::solverforge::__internal::AcceptorConfig::LateAcceptance(la) => la.late_acceptance_size,
+                            _ => None,
+                        })
                         .unwrap_or(400),
-                ).create_phase();
+                )
+                .with_sender(sender.clone())
+                .create_phase();
 
                 let time_limit = config.termination.as_ref()
                     .and_then(|t| t.time_limit())
@@ -572,6 +607,15 @@ fn generate_basic_variable_operations(
 
                 {
                     use ::solverforge::__internal::PlanningSolution;
+                    let final_score = result.score()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "N/A".to_string());
+                    ::solverforge::__internal::tracing::info!(
+                        event = "solve_end",
+                        score = %final_score,
+                    );
+
+                    // Send final solution through channel
                     if let Some(score) = result.score() {
                         let _ = sender.send((result.clone(), score));
                     }

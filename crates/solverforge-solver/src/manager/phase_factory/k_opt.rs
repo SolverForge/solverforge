@@ -5,11 +5,14 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
 use solverforge_scoring::RecordingScoreDirector;
+use tokio::sync::mpsc::UnboundedSender;
+use tracing::{debug, info};
 
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
 use crate::phase::Phase;
@@ -89,6 +92,7 @@ where
     descriptor_index: usize,
     k: usize,
     step_limit: Option<u64>,
+    sender: Option<UnboundedSender<(S, S::Score)>>,
     _marker: PhantomData<(S, V, DM, ESF)>,
 }
 
@@ -118,8 +122,15 @@ where
             descriptor_index,
             k: 3, // Default to 3-opt
             step_limit: Some(1000),
+            sender: None,
             _marker: PhantomData,
         }
+    }
+
+    /// Sets the sender for streaming improved solutions.
+    pub fn with_sender(mut self, sender: UnboundedSender<(S, S::Score)>) -> Self {
+        self.sender = Some(sender);
+        self
     }
 
     /// Sets the k value for k-opt (2-5).
@@ -151,6 +162,7 @@ where
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             step_limit: self.step_limit,
+            sender: self.sender.clone(),
             _marker: PhantomData,
         }
     }
@@ -186,6 +198,7 @@ where
     variable_name: &'static str,
     descriptor_index: usize,
     step_limit: Option<u64>,
+    sender: Option<UnboundedSender<(S, S::Score)>>,
     _marker: PhantomData<(S, V)>,
 }
 
@@ -216,8 +229,17 @@ where
 
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
+        // Phase start event
+        info!(event = "phase_start", phase = "LocalSearch");
+
         // Calculate initial score
         let mut last_step_score = phase_scope.calculate_score();
+
+        // Send initial solution
+        if let Some(ref sender) = self.sender {
+            let solution = phase_scope.solver_scope().working_solution().clone();
+            let _ = sender.send((solution, last_step_score));
+        }
 
         // Create move selector
         let entity_selector = FromSolutionEntitySelector::new(self.descriptor_index);
@@ -234,13 +256,41 @@ where
         let step_limit = self.step_limit.unwrap_or(u64::MAX);
         let mut steps = 0u64;
 
+        // Progress tracking
+        let mut last_progress_time = Instant::now();
+        let mut moves_at_last_progress = 0u64;
+        let mut total_moves = 0u64;
+
         while steps < step_limit && !phase_scope.solver_scope().is_terminate_early() {
+            // Check if receiver dropped
+            if self.sender.as_ref().is_some_and(|s| s.is_closed()) {
+                break;
+            }
+
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Collect moves first to avoid borrow conflicts
             let moves: Vec<_> = move_selector
                 .iter_moves(step_scope.score_director())
                 .collect();
+
+            total_moves += moves.len() as u64;
+
+            // Progress event every 1 second
+            let now = Instant::now();
+            if now.duration_since(last_progress_time).as_secs() >= 1 {
+                let delta = total_moves - moves_at_last_progress;
+                let elapsed = now.duration_since(last_progress_time).as_secs_f64();
+                let speed = (delta as f64 / elapsed) as u64;
+                debug!(
+                    event = "progress",
+                    steps = step_scope.phase_scope().step_count(),
+                    speed = speed,
+                    score = %last_step_score,
+                );
+                last_progress_time = now;
+                moves_at_last_progress = total_moves;
+            }
 
             let mut best_move_idx = None;
             let mut best_score = None;
@@ -276,7 +326,33 @@ where
                 moves[idx].do_move(step_scope.score_director_mut());
                 step_scope.set_step_score(score);
                 last_step_score = score;
+
+                // Track previous best score to detect improvement
+                let prev_best = step_scope
+                    .phase_scope()
+                    .solver_scope()
+                    .best_score()
+                    .cloned();
+
                 step_scope.phase_scope_mut().update_best_solution();
+
+                // Stream solution if best improved and sender is configured
+                if let Some(ref sender) = self.sender {
+                    let new_best = step_scope.phase_scope().solver_scope().best_score();
+                    let improved = match (&prev_best, new_best) {
+                        (None, Some(_)) => true,
+                        (Some(prev), Some(curr)) => curr > prev,
+                        _ => false,
+                    };
+                    if improved {
+                        if let (Some(sol), Some(score)) = (
+                            step_scope.phase_scope().solver_scope().best_solution(),
+                            new_best,
+                        ) {
+                            let _ = sender.send((sol.clone(), *score));
+                        }
+                    }
+                }
             } else {
                 // No improving moves found - phase is done
                 break;
@@ -290,6 +366,23 @@ where
         if phase_scope.solver_scope().best_solution().is_none() {
             phase_scope.update_best_solution();
         }
+
+        // Phase end event
+        let duration = phase_scope.elapsed();
+        let step_count = phase_scope.step_count();
+        let speed = if duration.as_secs_f64() > 0.0 {
+            (total_moves as f64 / duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+        info!(
+            event = "phase_end",
+            phase = "LocalSearch",
+            duration_ms = duration.as_millis() as u64,
+            steps = step_count,
+            speed = speed,
+            score = %last_step_score,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {
@@ -317,6 +410,7 @@ where
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             step_limit: self.step_limit,
+            sender: self.sender.clone(),
             _marker: PhantomData,
         }
     }

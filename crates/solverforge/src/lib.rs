@@ -148,5 +148,10 @@ pub mod __internal {
     pub use solverforge_solver::phase::localsearch::AcceptorImpl;
     pub use solverforge_solver::Solver;
 
-    pub use solverforge_config::SolverConfig;
+    pub use solverforge_config::{
+        AcceptorConfig, LateAcceptanceConfig, LocalSearchConfig, PhaseConfig, SolverConfig,
+    };
+
+    #[cfg(feature = "console")]
+    pub use tracing;
 }

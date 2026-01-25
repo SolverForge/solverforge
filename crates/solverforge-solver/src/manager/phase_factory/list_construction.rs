@@ -3,10 +3,12 @@
 //! Provides round-robin construction for list variables (e.g., assigning visits to vehicles).
 
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::api::constraint_set::ConstraintSet;
+use tracing::info;
 
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -155,15 +157,27 @@ where
     C: ConstraintSet<S, S::Score>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, C>) {
+        let phase_start = Instant::now();
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
+
+        info!(event = "phase_start", phase = "ConstructionHeuristic");
 
         let solution = phase_scope.score_director().working_solution();
         let n_elements = (self.element_count)(solution);
         let n_entities = (self.entity_count)(solution);
 
         if n_entities == 0 || n_elements == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
+            let score = phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
+            let duration = phase_start.elapsed();
+            info!(
+                event = "phase_end",
+                phase = "ConstructionHeuristic",
+                duration_ms = duration.as_millis() as u64,
+                steps = 0u64,
+                speed = 0u64,
+                score = %score,
+            );
             return;
         }
 
@@ -171,14 +185,25 @@ where
 
         if assigned.len() >= n_elements {
             tracing::info!("All elements already assigned, skipping construction");
-            let _score = phase_scope.score_director_mut().calculate_score();
+            let score = phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
+            let duration = phase_start.elapsed();
+            info!(
+                event = "phase_end",
+                phase = "ConstructionHeuristic",
+                duration_ms = duration.as_millis() as u64,
+                steps = 0u64,
+                speed = 0u64,
+                score = %score,
+            );
             return;
         }
 
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
 
         let mut entity_idx = 0;
+        let mut steps = 0u64;
+        let mut last_score = None;
         for elem_idx in 0..n_elements {
             if phase_scope.solver_scope().is_terminate_early() {
                 break;
@@ -199,13 +224,34 @@ where
             }
 
             let step_score = step_scope.calculate_score();
+            last_score = Some(step_score);
             step_scope.set_step_score(step_score);
             step_scope.complete();
 
             entity_idx = (entity_idx + 1) % n_entities;
+            steps += 1;
         }
 
         phase_scope.update_best_solution();
+
+        let duration = phase_start.elapsed();
+        let speed = if duration.as_secs_f64() > 0.0 {
+            (steps as f64 / duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+        let final_score = last_score
+            .or_else(|| phase_scope.solver_scope().best_score().copied())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "N/A".to_string());
+        info!(
+            event = "phase_end",
+            phase = "ConstructionHeuristic",
+            duration_ms = duration.as_millis() as u64,
+            steps = steps,
+            speed = speed,
+            score = %final_score,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

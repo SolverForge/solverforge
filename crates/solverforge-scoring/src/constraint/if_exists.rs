@@ -164,8 +164,7 @@ where
         }
     }
 
-    fn build_b_keys(&self, solution: &S) -> HashSet<K> {
-        let entities_b = (self.extractor_b)(solution);
+    fn build_b_keys(&self, entities_b: &[B]) -> HashSet<K> {
         entities_b.iter().map(|b| (self.key_b)(b)).collect()
     }
 
@@ -196,7 +195,8 @@ where
 {
     fn evaluate(&self, solution: &S) -> Sc {
         let entities_a = (self.extractor_a)(solution);
-        let b_keys = self.build_b_keys(solution);
+        let entities_b = (self.extractor_b)(solution);
+        let b_keys = self.build_b_keys(entities_b);
 
         let mut total = Sc::zero();
         for a in entities_a {
@@ -209,7 +209,8 @@ where
 
     fn match_count(&self, solution: &S) -> usize {
         let entities_a = (self.extractor_a)(solution);
-        let b_keys = self.build_b_keys(solution);
+        let entities_b = (self.extractor_b)(solution);
+        let b_keys = self.build_b_keys(entities_b);
 
         entities_a
             .iter()
@@ -218,7 +219,8 @@ where
     }
 
     fn initialize(&mut self, solution: &S) -> Sc {
-        self.b_keys = self.build_b_keys(solution);
+        let entities_b = (self.extractor_b)(solution);
+        self.b_keys = self.build_b_keys(entities_b);
 
         let entities_a = (self.extractor_a)(solution);
         let mut total = Sc::zero();

@@ -248,17 +248,20 @@ where
     /// struct Shift { id: usize, employee_idx: Option<usize> }
     ///
     /// #[derive(Clone)]
-    /// struct Employee { id: usize, on_vacation: bool }
+    /// struct Employee { id: usize }
     ///
     /// #[derive(Clone)]
-    /// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
+    /// struct Schedule {
+    ///     shifts: Vec<Shift>,
+    ///     vacationing: Vec<Employee>,  // pre-filtered: only employees on vacation
+    /// }
     ///
     /// // Penalize shifts assigned to employees who are on vacation
     /// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
     ///     .for_each(|s: &Schedule| s.shifts.as_slice())
     ///     .filter(|shift: &Shift| shift.employee_idx.is_some())
     ///     .if_exists_filtered(
-    ///         |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect(),
+    ///         |s: &Schedule| s.vacationing.as_slice(),
     ///         equal_bi(
     ///             |shift: &Shift| shift.employee_idx,
     ///             |emp: &Employee| Some(emp.id),
@@ -270,12 +273,11 @@ where
     /// let schedule = Schedule {
     ///     shifts: vec![
     ///         Shift { id: 0, employee_idx: Some(0) },  // assigned to vacationing emp
-    ///         Shift { id: 1, employee_idx: Some(1) },  // assigned to working emp
+    ///         Shift { id: 1, employee_idx: Some(1) },  // assigned to non-vacationing emp
     ///         Shift { id: 2, employee_idx: None },     // unassigned (filtered out)
     ///     ],
-    ///     employees: vec![
-    ///         Employee { id: 0, on_vacation: true },
-    ///         Employee { id: 1, on_vacation: false },
+    ///     vacationing: vec![
+    ///         Employee { id: 0 },  // only vacationing employees
     ///     ],
     /// };
     ///

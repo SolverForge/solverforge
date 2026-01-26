@@ -362,7 +362,7 @@ fn generate_list_operations(
                 };
                 let move_selector = ::solverforge::__internal::MoveSelectorImpl::k_opt(list_fn_ptrs, 3, 1);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
-                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1000);
+                let forager = ::solverforge::__internal::LocalSearchForagerImpl::first_accepted();
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
                     move_selector,
                     acceptor,

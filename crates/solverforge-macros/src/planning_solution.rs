@@ -690,7 +690,7 @@ fn generate_basic_variable_operations(
                     ::solverforge::__internal::MoveSelectorImpl::swap(fn_ptrs),
                 ]);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
-                let forager = ::solverforge::__internal::LocalSearchForagerImpl::accepted_count(1000);
+                let forager = ::solverforge::__internal::LocalSearchForagerImpl::first_accepted();
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(
                     move_selector,
                     acceptor,

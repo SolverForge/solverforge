@@ -687,7 +687,7 @@ fn generate_basic_variable_operations(
                 };
                 let move_selector = ::solverforge::__internal::MoveSelectorImpl::union(vec![
                     ::solverforge::__internal::MoveSelectorImpl::change_with_order(fn_ptrs.clone(), ::solverforge::__internal::SelectionOrder::Random),
-                    ::solverforge::__internal::MoveSelectorImpl::swap(fn_ptrs),
+                    ::solverforge::__internal::MoveSelectorImpl::swap_with_order(fn_ptrs, ::solverforge::__internal::SelectionOrder::Random),
                 ]);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::first_accepted();

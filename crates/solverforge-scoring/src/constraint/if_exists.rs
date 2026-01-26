@@ -218,7 +218,16 @@ where
     }
 
     fn initialize(&mut self, solution: &S) -> Sc {
-        self.evaluate(solution)
+        self.b_keys = self.build_b_keys(solution);
+
+        let entities_a = (self.extractor_a)(solution);
+        let mut total = Sc::zero();
+        for a in entities_a {
+            if (self.filter_a)(solution, a) && self.matches_existence(a, &self.b_keys) {
+                total = total + self.compute_score(a);
+            }
+        }
+        total
     }
 
     fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {

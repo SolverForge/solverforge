@@ -212,8 +212,13 @@ where
             let mut moves_evaluated = 0u64;
             let mut moves_accepted = 0u64;
             let mut moves_not_doable = 0u64;
-            // Cache doable indices and their scores for potential stagnation escape reuse
-            let mut doable_indices_with_scores: Vec<(usize, S::Score)> = Vec::new();
+            // Only collect doable indices when stagnation escape is imminent.
+            // After the loop, if no move is accepted, steps_without_accepted_move will be
+            // incremented by 1, so we check +1 here to predict whether we'll need the cache.
+            let collect_doable = self.stagnation_threshold > 0
+                && self.steps_without_accepted_move + 1 >= self.stagnation_threshold;
+            let mut doable_indices_with_scores: Option<Vec<(usize, S::Score)>> =
+                if collect_doable { Some(Vec::new()) } else { None };
 
             // Progress event every 1 second
             let now = Instant::now();
@@ -279,7 +284,9 @@ where
                 );
 
                 // Cache doable move with its score for potential stagnation escape
-                doable_indices_with_scores.push((i, move_score));
+                if let Some(ref mut cache) = doable_indices_with_scores {
+                    cache.push((i, move_score));
+                }
 
                 // Add index to forager if accepted (not the move itself)
                 if accepted {
@@ -328,11 +335,11 @@ where
                     && self.steps_without_accepted_move >= self.stagnation_threshold
                 {
                     // Reuse cached doable indices from main evaluation loop
-                    if !doable_indices_with_scores.is_empty() {
+                    let cache = doable_indices_with_scores.as_deref().unwrap_or(&[]);
+                    if !cache.is_empty() {
                         // Pick a random doable move (score already evaluated)
                         let rng = step_scope.phase_scope_mut().solver_scope_mut().rng();
-                        let &(random_idx, move_score) =
-                            doable_indices_with_scores.choose(rng).unwrap();
+                        let &(random_idx, move_score) = cache.choose(rng).unwrap();
 
                         warn!(
                             event = "stagnation_escape",

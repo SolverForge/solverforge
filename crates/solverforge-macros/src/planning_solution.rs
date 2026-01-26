@@ -360,7 +360,7 @@ fn generate_list_operations(
                     variable_name: #list_field_str,
                     descriptor_index: #descriptor_index_lit,
                 };
-                let move_selector = ::solverforge::__internal::MoveSelectorImpl::k_opt(list_fn_ptrs, 3, 1);
+                let move_selector = ::solverforge::__internal::MoveSelectorImpl::k_opt_with_order(list_fn_ptrs, 3, 1, ::solverforge::__internal::SelectionOrder::Random);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();
                 let forager = ::solverforge::__internal::LocalSearchForagerImpl::first_accepted();
                 let local_search = ::solverforge::__internal::LocalSearchPhase::new(

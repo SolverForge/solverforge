@@ -52,10 +52,13 @@ pub enum ExistenceMode {
 /// struct Shift { id: usize, employee_idx: Option<usize> }
 ///
 /// #[derive(Clone)]
-/// struct Employee { id: usize, on_vacation: bool }
+/// struct Employee { id: usize }
 ///
 /// #[derive(Clone)]
-/// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
+/// struct Schedule {
+///     shifts: Vec<Shift>,
+///     vacationing: Vec<Employee>,  // pre-filtered: only employees on vacation
+/// }
 ///
 /// // Penalize shifts assigned to employees who are on vacation
 /// let constraint = IfExistsUniConstraint::new(
@@ -63,7 +66,7 @@ pub enum ExistenceMode {
 ///     ImpactType::Penalty,
 ///     ExistenceMode::Exists,
 ///     |s: &Schedule| s.shifts.as_slice(),
-///     |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect::<Vec<_>>(),
+///     |s: &Schedule| s.vacationing.as_slice(),
 ///     |shift: &Shift| shift.employee_idx,
 ///     |emp: &Employee| Some(emp.id),
 ///     |_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
@@ -75,12 +78,11 @@ pub enum ExistenceMode {
 /// let schedule = Schedule {
 ///     shifts: vec![
 ///         Shift { id: 0, employee_idx: Some(0) },  // assigned to vacationing emp
-///         Shift { id: 1, employee_idx: Some(1) },  // assigned to working emp
+///         Shift { id: 1, employee_idx: Some(1) },  // assigned to non-vacationing emp
 ///         Shift { id: 2, employee_idx: None },     // unassigned
 ///     ],
-///     employees: vec![
-///         Employee { id: 0, on_vacation: true },
-///         Employee { id: 1, on_vacation: false },
+///     vacationing: vec![
+///         Employee { id: 0 },  // employee 0 is on vacation
 ///     ],
 /// };
 ///
@@ -114,7 +116,7 @@ where
     B: Clone + 'static,
     K: Eq + Hash + Clone,
     EA: Fn(&S) -> &[A],
-    EB: Fn(&S) -> Vec<B>,
+    EB: Fn(&S) -> &[B],
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
     FA: Fn(&S, &A) -> bool,
@@ -185,7 +187,7 @@ where
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> Vec<B> + Send + Sync,
+    EB: Fn(&S) -> &[B] + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     FA: Fn(&S, &A) -> bool + Send + Sync,

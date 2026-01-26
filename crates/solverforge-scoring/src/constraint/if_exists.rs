@@ -244,8 +244,7 @@ where
             return Sc::zero();
         }
 
-        let b_keys = self.build_b_keys(solution);
-        if self.matches_existence(a, &b_keys) {
+        if self.matches_existence(a, &self.b_keys) {
             self.compute_score(a)
         } else {
             Sc::zero()
@@ -266,8 +265,7 @@ where
             return Sc::zero();
         }
 
-        let b_keys = self.build_b_keys(solution);
-        if self.matches_existence(a, &b_keys) {
+        if self.matches_existence(a, &self.b_keys) {
             -self.compute_score(a)
         } else {
             Sc::zero()

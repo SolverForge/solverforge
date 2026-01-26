@@ -326,17 +326,20 @@ where
     /// struct Task { id: usize, assignee: Option<usize> }
     ///
     /// #[derive(Clone)]
-    /// struct Worker { id: usize, available: bool }
+    /// struct Worker { id: usize }
     ///
     /// #[derive(Clone)]
-    /// struct Schedule { tasks: Vec<Task>, workers: Vec<Worker> }
+    /// struct Schedule {
+    ///     tasks: Vec<Task>,
+    ///     available_workers: Vec<Worker>,  // pre-filtered: only available workers
+    /// }
     ///
     /// // Penalize tasks assigned to workers who are not available
     /// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
     ///     .for_each(|s: &Schedule| s.tasks.as_slice())
     ///     .filter(|task: &Task| task.assignee.is_some())
     ///     .if_not_exists_filtered(
-    ///         |s: &Schedule| s.workers.iter().filter(|w| w.available).cloned().collect(),
+    ///         |s: &Schedule| s.available_workers.as_slice(),
     ///         equal_bi(
     ///             |task: &Task| task.assignee,
     ///             |worker: &Worker| Some(worker.id),
@@ -351,9 +354,8 @@ where
     ///         Task { id: 1, assignee: Some(1) },  // worker 1 is available
     ///         Task { id: 2, assignee: None },     // unassigned (filtered out)
     ///     ],
-    ///     workers: vec![
-    ///         Worker { id: 0, available: false },
-    ///         Worker { id: 1, available: true },
+    ///     available_workers: vec![
+    ///         Worker { id: 1 },  // only available workers
     ///     ],
     /// };
     ///

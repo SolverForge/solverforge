@@ -277,7 +277,7 @@ where
     }
 
     fn reset(&mut self) {
-        // No cached state to clear - we rebuild b_keys on each evaluation
+        self.b_keys.clear();
     }
 
     fn name(&self) -> &str {

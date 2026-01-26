@@ -236,8 +236,8 @@ impl<S, V> ListChangeMove<S, V> {
 
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Remove element from destination
-            let value = list_remove(s, dst_entity, dst_pos)
-                .expect("undo: dest position should be valid");
+            let value =
+                list_remove(s, dst_entity, dst_pos).expect("undo: dest position should be valid");
             // Insert back at source
             list_insert(s, src_entity, src_pos, value);
         }));

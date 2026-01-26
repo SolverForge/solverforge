@@ -25,7 +25,7 @@ use super::filter::UniFilter;
 /// - `B` - Secondary entity type (checked for existence)
 /// - `K` - Join key type
 /// - `EA` - Extractor for A entities
-/// - `EB` - Extractor for B entities (returns Vec for filtering)
+/// - `EB` - Extractor for B entities (returns `&[B]`)
 /// - `KA` - Key extractor for A
 /// - `KB` - Key extractor for B
 /// - `FA` - Filter on A entities
@@ -43,17 +43,20 @@ use super::filter::UniFilter;
 /// struct Shift { id: usize, employee_idx: Option<usize> }
 ///
 /// #[derive(Clone)]
-/// struct Employee { id: usize, on_vacation: bool }
+/// struct Employee { id: usize }
 ///
 /// #[derive(Clone)]
-/// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
+/// struct Schedule {
+///     shifts: Vec<Shift>,
+///     vacationing: Vec<Employee>,
+/// }
 ///
 /// // Penalize shifts assigned to employees who are on vacation
 /// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
 ///     .for_each(|s: &Schedule| s.shifts.as_slice())
 ///     .filter(|shift: &Shift| shift.employee_idx.is_some())
 ///     .if_exists_filtered(
-///         |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect(),
+///         |s: &Schedule| s.vacationing.as_slice(),
 ///         equal_bi(
 ///             |shift: &Shift| shift.employee_idx,
 ///             |emp: &Employee| Some(emp.id),
@@ -68,9 +71,8 @@ use super::filter::UniFilter;
 ///         Shift { id: 1, employee_idx: Some(1) },
 ///         Shift { id: 2, employee_idx: None },
 ///     ],
-///     employees: vec![
-///         Employee { id: 0, on_vacation: true },
-///         Employee { id: 1, on_vacation: false },
+///     vacationing: vec![
+///         Employee { id: 0 },
 ///     ],
 /// };
 ///

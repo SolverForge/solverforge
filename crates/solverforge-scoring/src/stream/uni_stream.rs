@@ -289,7 +289,7 @@ where
     ) -> IfExistsStream<S, A, B, K, E, EB, KA, KB, F, Sc>
     where
         B: Clone + Send + Sync + 'static,
-        EB: Fn(&S) -> Vec<B> + Send + Sync,
+        EB: Fn(&S) -> &[B] + Send + Sync,
         K: Eq + Hash + Clone + Send + Sync,
         KA: Fn(&A) -> K + Send + Sync,
         KB: Fn(&B) -> K + Send + Sync,

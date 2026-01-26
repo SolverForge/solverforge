@@ -603,9 +603,9 @@ where
 
         // Step 3: Insert restored (pre-move) values into constraints
         // This undoes the before_variable_changed retracts
-        // Must collect first and iterate in REVERSE order to mirror forward sequence
-        let entities: Vec<_> = self.modified_entities.drain(..).collect();
-        for (descriptor_index, entity_index) in entities.into_iter().rev() {
+        // Iterate in REVERSE order to mirror forward sequence (zero-allocation)
+        for i in (0..self.modified_entities.len()).rev() {
+            let (descriptor_index, entity_index) = self.modified_entities[i];
             let delta = self.constraints.on_insert_all(
                 &self.working_solution,
                 descriptor_index,
@@ -613,6 +613,7 @@ where
             );
             self.cached_score = self.cached_score + delta;
         }
+        self.modified_entities.clear();
 
         let after_insert_score = self.cached_score;
 

@@ -909,7 +909,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListChangeMoveIterator::new(
                     *fn_ptrs,
@@ -925,7 +926,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListSwapMoveIterator::new(*fn_ptrs, entity_order, list_lens))
             }
@@ -939,7 +941,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListReverseMoveIterator::new(
                     *fn_ptrs,
@@ -959,7 +962,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(SubListChangeMoveIterator::new(
                     *fn_ptrs,
@@ -979,7 +983,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(SubListSwapMoveIterator::new(
                     *fn_ptrs,
@@ -999,7 +1004,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 // Generate reconnection patterns for this k value
                 let reconnections = enumerate_reconnections(*k);
@@ -1021,7 +1027,8 @@ where
             } => {
                 let solution = score_director.working_solution();
                 let entity_count = (fn_ptrs.entity_count)(solution);
-                let list_lens = update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
+                let list_lens =
+                    update_list_lens_cache(list_lens_cache, fn_ptrs, solution, entity_count);
                 let entity_order = create_entity_order(entity_count, *selection_order, rng);
                 Box::new(ListRuinMoveIterator::new(
                     *fn_ptrs,

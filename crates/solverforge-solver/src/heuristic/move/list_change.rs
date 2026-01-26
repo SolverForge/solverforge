@@ -168,7 +168,7 @@ impl<S, V> ListChangeMove<S, V> {
         S: PlanningSolution + ShadowVariableSupport,
         S::Score: Score,
         C: ConstraintSet<S, S::Score>,
-        V: Clone,
+        V: Clone + 'static,
     {
         let element_idx = (self.list_get_element_idx)(
             score_director.working_solution(),
@@ -225,6 +225,22 @@ impl<S, V> ListChangeMove<S, V> {
             adjusted_dest,
             element_idx,
         );
+
+        // Register undo - remove from dest and insert back at source
+        let src_entity = self.source_entity_index;
+        let src_pos = self.source_position;
+        let dst_entity = self.dest_entity_index;
+        let dst_pos = adjusted_dest;
+        let list_remove = self.list_remove;
+        let list_insert = self.list_insert;
+
+        score_director.register_undo(Box::new(move |s: &mut S| {
+            // Remove element from destination
+            let value = list_remove(s, dst_entity, dst_pos)
+                .expect("undo: dest position should be valid");
+            // Insert back at source
+            list_insert(s, src_entity, src_pos, value);
+        }));
     }
 }
 

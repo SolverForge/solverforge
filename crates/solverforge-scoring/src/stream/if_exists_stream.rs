@@ -300,7 +300,7 @@ where
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> Vec<B> + Send + Sync,
+    EB: Fn(&S) -> &[B] + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     FA: UniFilter<S, A>,

@@ -102,6 +102,7 @@ where
     weight: W,
     is_hard: bool,
     descriptor_index: usize,
+    b_keys: HashSet<K>,
     _phantom: PhantomData<(S, A, B, K, Sc)>,
 }
 
@@ -147,6 +148,7 @@ where
             weight,
             is_hard,
             descriptor_index,
+            b_keys: HashSet::new(),
             _phantom: PhantomData,
         }
     }

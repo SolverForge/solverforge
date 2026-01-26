@@ -686,7 +686,7 @@ fn generate_basic_variable_operations(
                     descriptor_index: #descriptor_index_lit,
                 };
                 let move_selector = ::solverforge::__internal::MoveSelectorImpl::union(vec![
-                    ::solverforge::__internal::MoveSelectorImpl::change(fn_ptrs.clone()),
+                    ::solverforge::__internal::MoveSelectorImpl::change_with_order(fn_ptrs.clone(), ::solverforge::__internal::SelectionOrder::Random),
                     ::solverforge::__internal::MoveSelectorImpl::swap(fn_ptrs),
                 ]);
                 let acceptor = ::solverforge::__internal::AcceptorImpl::late_acceptance();

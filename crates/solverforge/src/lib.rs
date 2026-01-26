@@ -139,7 +139,7 @@ pub mod __internal {
     pub use solverforge_solver::heuristic::r#move::{BasicVariableMove, MoveImpl};
     pub use solverforge_solver::heuristic::selector::{
         BasicVariableFnPtrs, DefaultDistanceMeter, FromSolutionEntitySelector, ListVariableFnPtrs,
-        MoveSelectorImpl, RangeValueSelector,
+        MoveSelectorImpl, RangeValueSelector, SelectionOrder,
     };
     pub use solverforge_solver::heuristic::{KOptConfig, ListAssignMove};
     pub use solverforge_solver::manager::SolverFactory;

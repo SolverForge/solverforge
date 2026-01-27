@@ -217,8 +217,11 @@ where
             // incremented by 1, so we check +1 here to predict whether we'll need the cache.
             let collect_doable = self.stagnation_threshold > 0
                 && self.steps_without_accepted_move + 1 >= self.stagnation_threshold;
-            let mut doable_indices_with_scores: Option<Vec<(usize, S::Score)>> =
-                if collect_doable { Some(Vec::new()) } else { None };
+            let mut doable_indices_with_scores: Option<Vec<(usize, S::Score)>> = if collect_doable {
+                Some(Vec::new())
+            } else {
+                None
+            };
 
             // Progress event every 1 second
             let now = Instant::now();

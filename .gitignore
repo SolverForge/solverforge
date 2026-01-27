@@ -24,3 +24,5 @@ CLAUDE.md
 
 # OSM routing cache
 .osm_cache/
+
+zoyd.toml

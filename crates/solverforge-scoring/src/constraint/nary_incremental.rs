@@ -258,12 +258,12 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
             }
@@ -565,12 +565,12 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
             }
@@ -895,12 +895,12 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
             }
@@ -1242,12 +1242,12 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
-            fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
                 self.retract_entity(entities, entity_index)
             }

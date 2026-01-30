@@ -230,13 +230,13 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
         self.insert_a(solution, entities_a, entities_b, entity_index)
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
         self.retract_a(entities_a, entities_b, entity_index)

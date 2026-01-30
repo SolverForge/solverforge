@@ -261,7 +261,7 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
 
@@ -273,7 +273,7 @@ where
         self.insert_entity(entities_b, entity_index, entity)
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         let entities_b = (self.extractor_b)(solution);
 

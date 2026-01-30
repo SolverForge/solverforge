@@ -422,7 +422,7 @@ where
 
     fn before_variable_changed(
         &mut self,
-        _descriptor_index: usize,
+        descriptor_index: usize,
         entity_index: usize,
         _variable_name: &str,
     ) {
@@ -431,13 +431,13 @@ where
         }
         let delta = self
             .constraints
-            .on_retract_all(&self.working_solution, entity_index);
+            .on_retract_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
     fn after_variable_changed(
         &mut self,
-        _descriptor_index: usize,
+        descriptor_index: usize,
         entity_index: usize,
         _variable_name: &str,
     ) {
@@ -446,7 +446,7 @@ where
         }
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, entity_index);
+            .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 

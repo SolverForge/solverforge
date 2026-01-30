@@ -63,12 +63,22 @@ pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
     /// Called when an entity is inserted or its variable changes.
     ///
     /// Returns the score delta from this insertion.
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc;
+    ///
+    /// # Arguments
+    /// * `solution` - The planning solution
+    /// * `entity_index` - Index of the entity within its class
+    /// * `descriptor_index` - Index of the entity class (descriptor) being modified
+    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     /// Called when an entity is retracted or before its variable changes.
     ///
     /// Returns the score delta (negative) from this retraction.
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc;
+    ///
+    /// # Arguments
+    /// * `solution` - The planning solution
+    /// * `entity_index` - Index of the entity within its class
+    /// * `descriptor_index` - Index of the entity class (descriptor) being modified
+    fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     /// Resets internal state for a new solving session.
     fn reset(&mut self);
@@ -166,12 +176,22 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     /// Called when an entity is inserted.
     ///
     /// Returns the total score delta from all constraints.
-    fn on_insert_all(&mut self, solution: &S, entity_index: usize) -> Sc;
+    ///
+    /// # Arguments
+    /// * `solution` - The planning solution
+    /// * `entity_index` - Index of the entity within its class
+    /// * `descriptor_index` - Index of the entity class (descriptor) being modified
+    fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     /// Called when an entity is retracted.
     ///
     /// Returns the total score delta from all constraints.
-    fn on_retract_all(&mut self, solution: &S, entity_index: usize) -> Sc;
+    ///
+    /// # Arguments
+    /// * `solution` - The planning solution
+    /// * `entity_index` - Index of the entity within its class
+    /// * `descriptor_index` - Index of the entity class (descriptor) being modified
+    fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     /// Resets all constraints for a new solving session.
     fn reset_all(&mut self);
@@ -209,12 +229,12 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     }
 
     #[inline]
-    fn on_insert_all(&mut self, _solution: &S, _entity_index: usize) -> Sc {
+    fn on_insert_all(&mut self, _solution: &S, _entity_index: usize, _descriptor_index: usize) -> Sc {
         Sc::zero()
     }
 
     #[inline]
-    fn on_retract_all(&mut self, _solution: &S, _entity_index: usize) -> Sc {
+    fn on_retract_all(&mut self, _solution: &S, _entity_index: usize, _descriptor_index: usize) -> Sc {
         Sc::zero()
     }
 
@@ -272,16 +292,16 @@ macro_rules! impl_constraint_set_for_tuple {
             }
 
             #[inline]
-            fn on_insert_all(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.on_insert(solution, entity_index);)+
+                $(total = total + self.$idx.on_insert(solution, entity_index, descriptor_index);)+
                 total
             }
 
             #[inline]
-            fn on_retract_all(&mut self, solution: &S, entity_index: usize) -> Sc {
+            fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.on_retract(solution, entity_index);)+
+                $(total = total + self.$idx.on_retract(solution, entity_index, descriptor_index);)+
                 total
             }
 

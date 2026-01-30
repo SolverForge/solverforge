@@ -213,7 +213,7 @@ where
         self.evaluate(solution)
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         if entity_index >= entities_a.len() {
             return Sc::zero();
@@ -232,7 +232,7 @@ where
         }
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         if entity_index >= entities_a.len() {
             return Sc::zero();

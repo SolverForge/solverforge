@@ -284,7 +284,7 @@ where
         self.compute_score()
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -316,7 +316,7 @@ where
         new_score - old_score
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();

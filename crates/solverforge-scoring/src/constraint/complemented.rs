@@ -583,12 +583,12 @@ mod tests {
         assert_eq!(total, SimpleScore::of(-3));
 
         // Retract shift at index 0 (employee 0)
-        let delta = constraint.on_retract(&schedule, 0);
+        let delta = constraint.on_retract(&schedule, 0, 0);
         // Employee 0 now has 1 shift -> score goes from -2 to -1, delta = +1
         assert_eq!(delta, SimpleScore::of(1));
 
         // Insert shift at index 0 (employee 0)
-        let delta = constraint.on_insert(&schedule, 0);
+        let delta = constraint.on_insert(&schedule, 0, 0);
         // Employee 0 now has 2 shifts -> score goes from -1 to -2, delta = -1
         assert_eq!(delta, SimpleScore::of(-1));
     }
@@ -628,11 +628,11 @@ mod tests {
         assert_eq!(total, SimpleScore::of(-2));
 
         // Retract unassigned shift at index 1 - should be no-op
-        let delta = constraint.on_retract(&schedule, 1);
+        let delta = constraint.on_retract(&schedule, 1, 0);
         assert_eq!(delta, SimpleScore::of(0));
 
         // Insert unassigned shift at index 1 - should be no-op
-        let delta = constraint.on_insert(&schedule, 1);
+        let delta = constraint.on_insert(&schedule, 1, 0);
         assert_eq!(delta, SimpleScore::of(0));
     }
 
@@ -716,12 +716,12 @@ mod tests {
         let mut running_total = init_total;
 
         // Retract shift 2 (employee 1)
-        running_total = running_total + constraint.on_retract(&schedule, 2);
+        running_total = running_total + constraint.on_retract(&schedule, 2, 0);
         // Now: Employee 0: 2->4, Employee 1: 0->0, Total: -4
         assert_eq!(running_total, SimpleScore::of(-4));
 
         // Insert shift 2 back (employee 1)
-        running_total = running_total + constraint.on_insert(&schedule, 2);
+        running_total = running_total + constraint.on_insert(&schedule, 2, 0);
         // Back to: Employee 0: 2->4, Employee 1: 1->1, Total: -5
         assert_eq!(running_total, SimpleScore::of(-5));
     }

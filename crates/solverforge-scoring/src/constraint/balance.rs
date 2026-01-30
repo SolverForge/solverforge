@@ -536,14 +536,14 @@ mod tests {
         assert_eq!(initial, SimpleScore::of(0));
 
         // Retract one shift from employee 0
-        let delta = constraint.on_retract(&solution, 0);
+        let delta = constraint.on_retract(&solution, 0, 0);
         // Now: employee 0 has 1, employee 1 has 2
         // Mean = 1.5, variance = (0.25 + 0.25) / 2 = 0.25, std_dev = 0.5
         // Score = -1000 * 0.5 = -500
         assert_eq!(delta, SimpleScore::of(-500));
 
         // Insert it back
-        let delta = constraint.on_insert(&solution, 0);
+        let delta = constraint.on_insert(&solution, 0, 0);
         // Back to balanced: delta = +500
         assert_eq!(delta, SimpleScore::of(500));
     }

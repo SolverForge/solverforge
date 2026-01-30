@@ -96,12 +96,12 @@ fn test_penta_constraint_incremental() {
     assert_eq!(total, SimpleScore::of(-1));
 
     // Retract one task
-    let delta = constraint.on_retract(&solution, 0);
+    let delta = constraint.on_retract(&solution, 0, 0);
     // Removes the quintuple = +1
     assert_eq!(delta, SimpleScore::of(1));
 
     // Re-insert the task
-    let delta = constraint.on_insert(&solution, 0);
+    let delta = constraint.on_insert(&solution, 0, 0);
     // Re-adds the quintuple = -1
     assert_eq!(delta, SimpleScore::of(-1));
 }

@@ -93,12 +93,12 @@ fn test_quad_constraint_incremental() {
     assert_eq!(total, SimpleScore::of(-1));
 
     // Retract one task
-    let delta = constraint.on_retract(&solution, 0);
+    let delta = constraint.on_retract(&solution, 0, 0);
     // Removes the quadruple = +1
     assert_eq!(delta, SimpleScore::of(1));
 
     // Re-insert the task
-    let delta = constraint.on_insert(&solution, 0);
+    let delta = constraint.on_insert(&solution, 0, 0);
     // Re-adds the quadruple = -1
     assert_eq!(delta, SimpleScore::of(-1));
 }

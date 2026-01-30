@@ -90,15 +90,15 @@ fn test_incremental_insert() {
     constraint.reset();
 
     // Insert first queen - no matches yet
-    let delta = constraint.on_insert(&solution, 0);
+    let delta = constraint.on_insert(&solution, 0, 0);
     assert_eq!(delta, SimpleScore::of(0));
 
     // Insert second queen - matches with first (same row)
-    let delta = constraint.on_insert(&solution, 1);
+    let delta = constraint.on_insert(&solution, 1, 0);
     assert_eq!(delta, SimpleScore::of(-1));
 
     // Insert third queen - no new matches (different row)
-    let delta = constraint.on_insert(&solution, 2);
+    let delta = constraint.on_insert(&solution, 2, 0);
     assert_eq!(delta, SimpleScore::of(0));
 }
 
@@ -121,11 +121,11 @@ fn test_incremental_retract() {
     // Initialize and insert both queens
     constraint.initialize(&solution);
     constraint.reset();
-    constraint.on_insert(&solution, 0);
-    constraint.on_insert(&solution, 1);
+    constraint.on_insert(&solution, 0, 0);
+    constraint.on_insert(&solution, 1, 0);
 
     // Retract first queen - removes the match
-    let delta = constraint.on_retract(&solution, 0);
+    let delta = constraint.on_retract(&solution, 0, 0);
     assert_eq!(delta, SimpleScore::of(1)); // Reverses penalty
 }
 
@@ -216,13 +216,13 @@ fn test_reset() {
 
     constraint.initialize(&solution);
     constraint.reset();
-    constraint.on_insert(&solution, 0);
-    constraint.on_insert(&solution, 1);
+    constraint.on_insert(&solution, 0, 0);
+    constraint.on_insert(&solution, 1, 0);
 
     constraint.reset();
 
     // After reset, inserting should produce no delta (no prior state)
-    let delta = constraint.on_insert(&solution, 0);
+    let delta = constraint.on_insert(&solution, 0, 0);
     assert_eq!(delta, SimpleScore::of(0));
 }
 
@@ -269,6 +269,6 @@ fn test_out_of_bounds() {
     constraint.initialize(&solution);
 
     // Out of bounds returns zero
-    assert_eq!(constraint.on_insert(&solution, 100), SimpleScore::of(0));
-    assert_eq!(constraint.on_retract(&solution, 100), SimpleScore::of(0));
+    assert_eq!(constraint.on_insert(&solution, 100, 0), SimpleScore::of(0));
+    assert_eq!(constraint.on_retract(&solution, 100, 0), SimpleScore::of(0));
 }

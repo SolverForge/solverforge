@@ -523,11 +523,11 @@ mod tests {
         assert_eq!(initial, SimpleScore::of(-1));
 
         // Retract conflicting shift
-        let delta = constraint.on_retract(&schedule, 0);
+        let delta = constraint.on_retract(&schedule, 0, 0);
         assert_eq!(delta, SimpleScore::of(1)); // Removing penalty
 
         // Re-insert it
-        let delta = constraint.on_insert(&schedule, 0);
+        let delta = constraint.on_insert(&schedule, 0, 0);
         assert_eq!(delta, SimpleScore::of(-1)); // Adding penalty back
     }
 

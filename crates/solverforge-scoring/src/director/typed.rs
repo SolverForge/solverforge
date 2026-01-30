@@ -183,9 +183,10 @@ where
     ///
     /// # Arguments
     ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
     /// * `entity_index` - Index of the entity being changed
     #[inline]
-    pub fn before_variable_changed(&mut self, entity_index: usize) {
+    pub fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         if !self.initialized {
             // If not initialized, full calculation will happen on next calculate_score
             return;
@@ -193,7 +194,7 @@ where
 
         let delta = self
             .constraints
-            .on_retract_all(&self.working_solution, entity_index);
+            .on_retract_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -204,16 +205,17 @@ where
     ///
     /// # Arguments
     ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
     /// * `entity_index` - Index of the entity that was changed
     #[inline]
-    pub fn after_variable_changed(&mut self, entity_index: usize) {
+    pub fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         if !self.initialized {
             return;
         }
 
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, entity_index);
+            .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -224,9 +226,10 @@ where
     ///
     /// # Arguments
     ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
     /// * `entity_index` - Index of the entity that was changed
     #[inline]
-    pub fn after_variable_changed_with_shadows(&mut self, entity_index: usize)
+    pub fn after_variable_changed_with_shadows(&mut self, descriptor_index: usize, entity_index: usize)
     where
         S: crate::director::ShadowVariableSupport,
     {
@@ -239,43 +242,55 @@ where
 
         let delta = self
             .constraints
-            .on_insert_all(&self.working_solution, entity_index);
+            .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
     /// Convenience method for a complete variable change cycle.
     ///
     /// Equivalent to:
-    /// 1. `before_variable_changed(entity_index)`
+    /// 1. `before_variable_changed(descriptor_index, entity_index)`
     /// 2. Apply the change via `change_fn`
-    /// 3. `after_variable_changed(entity_index)`
+    /// 3. `after_variable_changed(descriptor_index, entity_index)`
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
+    /// * `entity_index` - Index of the entity being changed
+    /// * `change_fn` - Closure that applies the change to the solution
     #[inline]
-    pub fn do_change<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
+    pub fn do_change<F>(&mut self, descriptor_index: usize, entity_index: usize, change_fn: F) -> S::Score
     where
         F: FnOnce(&mut S),
     {
-        self.before_variable_changed(entity_index);
+        self.before_variable_changed(descriptor_index, entity_index);
         change_fn(&mut self.working_solution);
-        self.after_variable_changed(entity_index);
+        self.after_variable_changed(descriptor_index, entity_index);
         self.cached_score
     }
 
     /// Variable change cycle with automatic shadow updates.
     ///
     /// Equivalent to:
-    /// 1. `before_variable_changed(entity_index)`
+    /// 1. `before_variable_changed(descriptor_index, entity_index)`
     /// 2. Apply the change via `change_fn`
     /// 3. Update shadow variables for entity
     /// 4. Insert into constraints
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
+    /// * `entity_index` - Index of the entity being changed
+    /// * `change_fn` - Closure that applies the change to the solution
     #[inline]
-    pub fn do_change_with_shadows<F>(&mut self, entity_index: usize, change_fn: F) -> S::Score
+    pub fn do_change_with_shadows<F>(&mut self, descriptor_index: usize, entity_index: usize, change_fn: F) -> S::Score
     where
         S: crate::director::ShadowVariableSupport,
         F: FnOnce(&mut S),
     {
-        self.before_variable_changed(entity_index);
+        self.before_variable_changed(descriptor_index, entity_index);
         change_fn(&mut self.working_solution);
-        self.after_variable_changed_with_shadows(entity_index);
+        self.after_variable_changed_with_shadows(descriptor_index, entity_index);
         self.cached_score
     }
 
@@ -569,9 +584,10 @@ mod tests {
         assert_eq!(score, SimpleScore::of(-1)); // One None at index 1
 
         // Change: None -> Some(3) at index 1
-        director.before_variable_changed(1);
+        // descriptor_index=0 since TestSolution has a single entity class
+        director.before_variable_changed(0, 1);
         director.working_solution_mut().values[1] = Some(3);
-        director.after_variable_changed(1);
+        director.after_variable_changed(0, 1);
 
         // Score should improve (no more unassigned)
         let new_score = director.get_score();
@@ -590,7 +606,8 @@ mod tests {
 
         director.calculate_score();
 
-        let new_score = director.do_change(1, |s| {
+        // descriptor_index=0 since TestSolution has a single entity class
+        let new_score = director.do_change(0, 1, |s| {
             s.values[1] = Some(5);
         });
 
@@ -697,8 +714,9 @@ mod tests {
         let mut director = TypedScoreDirector::new(solution, (c1,));
 
         // Call before/after without initialization - should not panic
-        director.before_variable_changed(0);
-        director.after_variable_changed(0);
+        // descriptor_index=0 since TestSolution has a single entity class
+        director.before_variable_changed(0, 0);
+        director.after_variable_changed(0, 0);
 
         // Score should be calculated correctly on first call
         let score = director.calculate_score();
@@ -720,11 +738,12 @@ mod tests {
         assert_eq!(score, SimpleScore::of(-2));
 
         // Assign first value: 1 None = -1
-        director.do_change(0, |s| s.values[0] = Some(1));
+        // descriptor_index=0 since TestSolution has a single entity class
+        director.do_change(0, 0, |s| s.values[0] = Some(1));
         assert_eq!(director.get_score(), SimpleScore::of(-1));
 
         // Unassign first value: back to 2 Nones = -2
-        director.do_change(0, |s| s.values[0] = None);
+        director.do_change(0, 0, |s| s.values[0] = None);
         assert_eq!(director.get_score(), SimpleScore::of(-2));
     }
 }

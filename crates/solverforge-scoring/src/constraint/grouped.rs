@@ -58,7 +58,6 @@ use crate::stream::collector::{Accumulator, UniCollector};
 ///     count::<Shift>(),
 ///     |count: &usize| SimpleScore::of((*count * *count) as i64),
 ///     false,
-///     0, // descriptor_index
 /// );
 ///
 /// let solution = Solution {
@@ -87,7 +86,6 @@ where
     collector: C,
     weight_fn: W,
     is_hard: bool,
-    descriptor_index: usize,
     /// Group key -> accumulator (scores computed on-the-fly, no cloning)
     groups: HashMap<K, C::Accumulator>,
     /// Entity index -> group key (for tracking which group an entity belongs to)
@@ -121,8 +119,6 @@ where
     /// * `collector` - Collector to aggregate entities per group
     /// * `weight_fn` - Function to compute score from collector result
     /// * `is_hard` - Whether this is a hard constraint
-    /// * `descriptor_index` - Index of the entity descriptor this constraint operates on
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,
@@ -131,7 +127,6 @@ where
         collector: C,
         weight_fn: W,
         is_hard: bool,
-        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -141,7 +136,6 @@ where
             collector,
             weight_fn,
             is_hard,
-            descriptor_index,
             groups: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
@@ -225,10 +219,7 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
-        if descriptor_index != self.descriptor_index {
-            return Sc::zero();
-        }
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -238,16 +229,9 @@ where
         self.insert_entity(entities, entity_index, entity)
     }
 
-    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
-        if descriptor_index != self.descriptor_index {
-            return Sc::zero();
-        }
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
         self.retract_entity(entities, entity_index)
-    }
-
-    fn descriptor_index(&self) -> usize {
-        self.descriptor_index
     }
 
     fn reset(&mut self) {
@@ -394,7 +378,6 @@ mod tests {
             count::<Shift>(),
             |count: &usize| SimpleScore::of((*count * *count) as i64),
             false,
-            0,
         );
 
         let solution = Solution {
@@ -422,7 +405,6 @@ mod tests {
             count::<Shift>(),
             |count: &usize| SimpleScore::of(*count as i64),
             false,
-            0,
         );
 
         let solution = Solution {
@@ -461,7 +443,6 @@ mod tests {
             count::<Shift>(),
             |count: &usize| SimpleScore::of(*count as i64),
             false,
-            0,
         );
 
         let solution = Solution {

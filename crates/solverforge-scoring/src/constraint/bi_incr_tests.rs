@@ -26,7 +26,6 @@ fn test_evaluate_no_conflicts() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -52,7 +51,6 @@ fn test_evaluate_with_conflicts() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -77,7 +75,6 @@ fn test_incremental_insert() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -97,11 +94,11 @@ fn test_incremental_insert() {
     assert_eq!(delta, SimpleScore::of(0));
 
     // Insert second queen - matches with first (same row)
-    let delta = constraint.on_insert(&solution, 0, 1);
+    let delta = constraint.on_insert(&solution, 1, 0);
     assert_eq!(delta, SimpleScore::of(-1));
 
     // Insert third queen - no new matches (different row)
-    let delta = constraint.on_insert(&solution, 0, 2);
+    let delta = constraint.on_insert(&solution, 2, 0);
     assert_eq!(delta, SimpleScore::of(0));
 }
 
@@ -115,7 +112,6 @@ fn test_incremental_retract() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -126,7 +122,7 @@ fn test_incremental_retract() {
     constraint.initialize(&solution);
     constraint.reset();
     constraint.on_insert(&solution, 0, 0);
-    constraint.on_insert(&solution, 0, 1);
+    constraint.on_insert(&solution, 1, 0);
 
     // Retract first queen - removes the match
     let delta = constraint.on_retract(&solution, 0, 0);
@@ -143,7 +139,6 @@ fn test_reward_type() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col && (a.col - b.col).abs() == 1,
         |_a: &Queen, _b: &Queen| SimpleScore::of(2),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -166,7 +161,6 @@ fn test_dynamic_weight() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |a: &Queen, b: &Queen| SimpleScore::of((b.col - a.col).abs()),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -189,7 +183,6 @@ fn test_multiple_conflicts() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -215,7 +208,6 @@ fn test_reset() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -225,7 +217,7 @@ fn test_reset() {
     constraint.initialize(&solution);
     constraint.reset();
     constraint.on_insert(&solution, 0, 0);
-    constraint.on_insert(&solution, 0, 1);
+    constraint.on_insert(&solution, 1, 0);
 
     constraint.reset();
 
@@ -244,7 +236,6 @@ fn test_in_constraint_set() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let constraints = (c1,);
@@ -269,7 +260,6 @@ fn test_out_of_bounds() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
         |_a: &Queen, _b: &Queen| SimpleScore::of(1),
         false,
-        0,
     );
 
     let solution = NQueensSolution {
@@ -279,6 +269,6 @@ fn test_out_of_bounds() {
     constraint.initialize(&solution);
 
     // Out of bounds returns zero
-    assert_eq!(constraint.on_insert(&solution, 0, 100), SimpleScore::of(0));
-    assert_eq!(constraint.on_retract(&solution, 0, 100), SimpleScore::of(0));
+    assert_eq!(constraint.on_insert(&solution, 100, 0), SimpleScore::of(0));
+    assert_eq!(constraint.on_retract(&solution, 100, 0), SimpleScore::of(0));
 }

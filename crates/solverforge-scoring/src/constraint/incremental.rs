@@ -24,9 +24,6 @@ where
     filter: F,
     weight: W,
     is_hard: bool,
-    /// The descriptor index this constraint operates on.
-    /// Only responds to on_insert/on_retract calls with matching descriptor.
-    descriptor_index: usize,
     _phantom: PhantomData<(S, A, Sc)>,
 }
 
@@ -40,10 +37,6 @@ where
     Sc: Score,
 {
     /// Creates a new zero-erasure incremental uni-constraint.
-    ///
-    /// # Arguments
-    /// * `descriptor_index` - The entity descriptor this constraint operates on.
-    ///   Only responds to on_insert/on_retract calls with matching descriptor.
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,
@@ -51,7 +44,6 @@ where
         filter: F,
         weight: W,
         is_hard: bool,
-        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -60,7 +52,6 @@ where
             filter,
             weight,
             is_hard,
-            descriptor_index,
             _phantom: PhantomData,
         }
     }
@@ -121,11 +112,7 @@ where
         self.evaluate(solution)
     }
 
-    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
-        // Ignore updates for wrong descriptor
-        if descriptor_index != self.descriptor_index {
-            return Sc::zero();
-        }
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -138,11 +125,7 @@ where
         }
     }
 
-    fn on_retract(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
-        // Ignore updates for wrong descriptor
-        if descriptor_index != self.descriptor_index {
-            return Sc::zero();
-        }
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -153,10 +136,6 @@ where
         } else {
             Sc::zero()
         }
-    }
-
-    fn descriptor_index(&self) -> usize {
-        self.descriptor_index
     }
 
     fn reset(&mut self) {

@@ -49,12 +49,7 @@ where
         self.evaluate(solution)
     }
 
-    fn on_insert(
-        &mut self,
-        solution: &S,
-        _descriptor_index: usize,
-        entity_index: usize,
-    ) -> SimpleScore {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> SimpleScore {
         if (self.predicate)(solution, entity_index) {
             SimpleScore::of(-self.weight)
         } else {
@@ -62,12 +57,7 @@ where
         }
     }
 
-    fn on_retract(
-        &mut self,
-        solution: &S,
-        _descriptor_index: usize,
-        entity_index: usize,
-    ) -> SimpleScore {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> SimpleScore {
         if (self.predicate)(solution, entity_index) {
             SimpleScore::of(self.weight)
         } else {
@@ -173,7 +163,7 @@ fn test_incremental_insert() {
     assert_eq!(delta, SimpleScore::of(-1));
 
     // Entity 1 is assigned -> delta = 0
-    let delta = constraints.on_insert_all(&solution, 0, 1);
+    let delta = constraints.on_insert_all(&solution, 1, 0);
     assert_eq!(delta, SimpleScore::of(0));
 }
 
@@ -196,7 +186,7 @@ fn test_incremental_retract() {
     assert_eq!(delta, SimpleScore::of(1));
 
     // Retract assigned entity -> delta = 0
-    let delta = constraints.on_retract_all(&solution, 0, 1);
+    let delta = constraints.on_retract_all(&solution, 1, 0);
     assert_eq!(delta, SimpleScore::of(0));
 }
 

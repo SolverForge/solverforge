@@ -76,7 +76,6 @@ use crate::api::constraint_set::IncrementalConstraint;
 ///     |_s: &Schedule, shift: &Shift, day: &u32| shift.day == *day,
 ///     |_shift: &Shift, _day: &u32| SimpleScore::of(1),
 ///     false,
-///     0, // descriptor_index
 /// );
 ///
 /// let schedule = Schedule {
@@ -124,7 +123,6 @@ pub struct FlattenedBiConstraint<
     filter: F,
     weight: W,
     is_hard: bool,
-    descriptor_index: usize,
     /// (join_key, c_key) → list of (b_idx, c_value) for O(1) lookup
     c_index: HashMap<(K, CK), Vec<(usize, C)>>,
     /// A index → cached score for this entity's matches
@@ -167,7 +165,6 @@ where
         filter: F,
         weight: W,
         is_hard: bool,
-        descriptor_index: usize,
     ) -> Self {
         Self {
             constraint_ref,
@@ -182,7 +179,6 @@ where
             filter,
             weight,
             is_hard,
-            descriptor_index,
             c_index: HashMap::new(),
             a_scores: HashMap::new(),
             _phantom: PhantomData,
@@ -362,23 +358,13 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
-        if descriptor_index != self.descriptor_index {
-            return Sc::zero();
-        }
+    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         let entities_a = (self.extractor_a)(solution);
         self.insert_a(solution, entities_a, entity_index)
     }
 
-    fn on_retract(&mut self, _solution: &S, descriptor_index: usize, entity_index: usize) -> Sc {
-        if descriptor_index != self.descriptor_index {
-            return Sc::zero();
-        }
+    fn on_retract(&mut self, _solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         self.retract_a(entity_index)
-    }
-
-    fn descriptor_index(&self) -> usize {
-        self.descriptor_index
     }
 
     fn reset(&mut self) {
@@ -467,7 +453,6 @@ mod tests {
             },
             |_shift: &Shift, _day: &u32| SimpleScore::of(1),
             false,
-            0,
         )
     }
 

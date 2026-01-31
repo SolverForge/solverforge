@@ -1,4 +1,4 @@
-//! #[planning_entity] derive macro implementation
+// #[planning_entity] derive macro implementation
 
 use proc_macro2::TokenStream;
 use quote::quote;

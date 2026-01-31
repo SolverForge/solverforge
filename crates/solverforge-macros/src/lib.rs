@@ -1,4 +1,4 @@
-//! Macros for SolverForge domain models.
+// Macros for SolverForge domain models.
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -9,7 +9,7 @@ mod planning_entity;
 mod planning_solution;
 mod problem_fact;
 
-/// Checks if attribute stream contains the `serde` flag.
+// Checks if attribute stream contains the `serde` flag.
 fn has_serde_flag(attr: TokenStream) -> bool {
     if attr.is_empty() {
         return false;

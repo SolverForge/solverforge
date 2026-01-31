@@ -1,4 +1,4 @@
-//! #[planning_solution] derive macro implementation
+// #[planning_solution] derive macro implementation
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -17,34 +17,41 @@ struct ShadowConfig {
     cascading_listener: Option<String>,
     post_update_listener: Option<String>,
     element_type: Option<String>,
-    /// Aggregate shadow fields on the list owner entity.
-    /// Format: "field_name:aggregation:source_field" (e.g., "total_demand:sum:demand")
+
+    // Aggregate shadow fields on the list owner entity.
+    // Format: "field_name:aggregation:source_field" (e.g., "total_demand:sum:demand")
     entity_aggregates: Vec<String>,
-    /// Computed shadow fields on the list owner entity.
-    /// Format: "field_name:method_name" (e.g., "total_driving_time:compute_driving_time")
+
+    // Computed shadow fields on the list owner entity.
+    // Format: "field_name:method_name" (e.g., "total_driving_time:compute_driving_time")
     entity_computes: Vec<String>,
 }
 
-/// Configuration for basic (non-list) planning variables.
-///
-/// Used with `#[basic_variable_config(...)]` attribute to specify:
-/// - Which entity collection contains planning entities
-/// - Which field is the planning variable
-/// - The type of the variable
-/// - Where to get valid values from
+/*
+Configuration for basic (non-list) planning variables.
+
+Used with `#[basic_variable_config(...)]` attribute to specify:
+- Which entity collection contains planning entities
+- Which field is the planning variable
+- The type of the variable
+- Where to get valid values from
+*/
 #[derive(Default)]
 struct BasicVariableConfig {
-    /// Entity collection field name (e.g., "shifts")
+    // Entity collection field name (e.g., "shifts")
     entity_collection: Option<String>,
-    /// Planning variable field name (e.g., "employee_idx")
+
+    // Planning variable field name (e.g., "employee_idx")
     variable_field: Option<String>,
-    /// Variable type (e.g., "usize")
+
+    // Variable type (e.g., "usize")
     variable_type: Option<String>,
-    /// Value range source - either a field name or "0..entity_count"
+
+    // Value range source - either a field name or "0..entity_count"
     value_range: Option<String>,
 }
 
-/// Parse the constraints path from #[solverforge_constraints_path = "path"]
+// Parse the constraints path from #[solverforge_constraints_path = "path"]
 fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
     for attr in attrs {
         if attr.path().is_ident("solverforge_constraints_path") {
@@ -324,13 +331,11 @@ fn generate_list_operations(
             #descriptor_index_lit
         }
 
-        /// Total number of elements to assign.
         #[inline]
         pub fn element_count(s: &Self) -> usize {
             s.#element_collection_ident2.len()
         }
 
-        /// Elements already assigned to entities.
         #[inline]
         pub fn assigned_elements(s: &Self) -> Vec<#element_type_ident> {
             s.#list_owner_ident
@@ -339,13 +344,11 @@ fn generate_list_operations(
                 .collect()
         }
 
-        /// Number of entities (for construction).
         #[inline]
         pub fn n_entities(s: &Self) -> usize {
             s.#list_owner_ident.len()
         }
 
-        /// Assign element to entity (appends to list).
         #[inline]
         pub fn assign_element(s: &mut Self, entity_idx: usize, elem: #element_type_ident) {
             if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
@@ -361,7 +364,7 @@ fn generate_basic_variable_operations(
     constraints_path: &Option<String>,
     _solution_name: &Ident,
 ) -> TokenStream {
-    // All four fields required for basic variable support
+    // ALL FOUR FIELDS REQUIRED FOR BASIC VARIABLE SUPPORT
     let (entity_collection, variable_field, variable_type, value_range) = match (
         &config.entity_collection,
         &config.variable_field,
@@ -438,7 +441,6 @@ fn generate_basic_variable_operations(
     });
 
     quote! {
-        /// Get the planning variable value for an entity.
         #[inline]
         pub fn basic_get_variable(s: &Self, entity_idx: usize) -> Option<#variable_type_ident> {
             s.#entity_collection_ident
@@ -446,7 +448,6 @@ fn generate_basic_variable_operations(
                 .and_then(|e| e.#variable_field_ident)
         }
 
-        /// Set the planning variable value for an entity.
         #[inline]
         pub fn basic_set_variable(s: &mut Self, entity_idx: usize, v: Option<#variable_type_ident>) {
             if let Some(e) = s.#entity_collection_ident.get_mut(entity_idx) {
@@ -454,32 +455,28 @@ fn generate_basic_variable_operations(
             }
         }
 
-        /// Get valid values for the planning variable.
         #[inline]
         pub fn basic_value_count(s: &Self) -> usize {
             s.#value_range_ident.len()
         }
 
-        /// Get the number of planning entities.
         #[inline]
         pub fn basic_entity_count(s: &Self) -> usize {
             s.#entity_collection_ident.len()
         }
 
-        /// Get the descriptor index for the basic variable entity.
         #[inline]
         pub const fn basic_variable_descriptor_index() -> usize {
             #descriptor_index_lit
         }
 
-        /// Get the variable field name.
         #[inline]
         pub const fn basic_variable_field_name() -> &'static str {
             #variable_field_str
         }
 
-        /// Finalize all problem facts before solving.
-        /// Called automatically by solve() to prepare derived fields.
+        // Finalize all problem facts before solving.
+        // Called automatically by solve() to prepare derived fields.
         #[inline]
         pub fn finalize_all(s: &mut Self) {
             #(#finalize_calls)*

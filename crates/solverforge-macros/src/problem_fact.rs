@@ -1,4 +1,4 @@
-//! #[problem_fact] derive macro implementation
+// #[problem_fact] derive macro implementation
 
 use proc_macro2::TokenStream;
 use quote::quote;

@@ -89,6 +89,7 @@ where
             terminate: Some(terminate),
             config: self.config,
             time_limit: self.time_limit,
+            best_solution_callback: self.best_solution_callback,
             _phantom: PhantomData,
         }
     }

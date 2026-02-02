@@ -82,7 +82,7 @@ where
     /// Sets the external termination flag.
     ///
     /// The solver will check this flag periodically and terminate early if set.
-    pub fn with_terminate(self, terminate: &AtomicBool) -> Solver<'_, P, T, S, D> {
+    pub fn with_terminate(self, terminate: &'t AtomicBool) -> Solver<'t, P, T, S, D> {
         Solver {
             phases: self.phases,
             termination: self.termination,

@@ -30,6 +30,8 @@ pub struct Solver<'t, P, T, S, D> {
     terminate: Option<&'t AtomicBool>,
     config: Option<SolverConfig>,
     time_limit: Option<Duration>,
+    /// Callback invoked when a better solution is found during solving.
+    best_solution_callback: Option<Box<dyn Fn(&S) + Send + Sync + 't>>,
     _phantom: PhantomData<fn(S, D)>,
 }
 

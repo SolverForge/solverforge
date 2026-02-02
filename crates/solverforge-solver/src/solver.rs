@@ -227,6 +227,7 @@ macro_rules! impl_solver_with_director {
                     terminate: self.terminate,
                     config: self.config,
                     time_limit: self.time_limit,
+                    best_solution_callback: self.best_solution_callback,
                     _phantom: PhantomData,
                 };
                 solver.solve(director)

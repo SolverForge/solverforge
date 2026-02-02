@@ -165,10 +165,18 @@ pub fn solve_with_controls(
         "[DEBUG] Creating solver with time_limit={:?}",
         config.time_limit
     );
-    // Note: snapshot updates not implemented yet - solver runs to completion
+
+    // Create callback to update snapshot mutex when better solutions are found
+    let snapshot_callback = Box::new(|solution: &DynamicSolution| {
+        if let Ok(mut guard) = snapshot.lock() {
+            *guard = Some(solution.clone());
+        }
+    });
+
     let mut solver = Solver::new(((), construction, local_search))
         .with_time_limit(config.time_limit)
-        .with_terminate(terminate);
+        .with_terminate(terminate)
+        .with_best_solution_callback(snapshot_callback);
 
     eprintln!("[DEBUG] Starting solver.solve()");
     let start_solve = Instant::now();

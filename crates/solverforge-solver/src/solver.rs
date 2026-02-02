@@ -56,6 +56,7 @@ where
             terminate: None,
             config: None,
             time_limit: None,
+            best_solution_callback: None,
             _phantom: PhantomData,
         }
     }

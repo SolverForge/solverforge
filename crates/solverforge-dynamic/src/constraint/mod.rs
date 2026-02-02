@@ -110,6 +110,26 @@ pub type DynFlattenedFilter =
 pub type DynFlattenedWeight =
     Box<dyn Fn(&DynamicEntity, &DynamicValue) -> HardSoftScore + Send + Sync>;
 
+// =============================================================================
+// Closure builder functions for self-joins
+// =============================================================================
+
+/// Creates an extractor that retrieves the entity slice for a specific class.
+///
+/// # Arguments
+/// * `class_idx` - The entity class index to extract from the solution
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicSolution` and returns a slice of entities
+/// for the specified class.
+pub fn make_extractor(class_idx: usize) -> DynExtractor {
+    Box::new(move |solution: &DynamicSolution| {
+        solution.entities.get(class_idx)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    })
+}
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

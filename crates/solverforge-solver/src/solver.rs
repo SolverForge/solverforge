@@ -169,6 +169,9 @@ macro_rules! impl_solver {
                 if let Some(limit) = self.time_limit {
                     solver_scope.set_time_limit(limit);
                 }
+                if let Some(callback) = self.best_solution_callback.take() {
+                    solver_scope = solver_scope.with_best_solution_callback(callback);
+                }
                 solver_scope.start_solving();
 
                 // Execute phases with termination checking

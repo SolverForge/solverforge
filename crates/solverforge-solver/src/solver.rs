@@ -106,6 +106,15 @@ where
         self
     }
 
+    /// Sets a callback to be invoked when a better solution is found during solving.
+    pub fn with_best_solution_callback(
+        mut self,
+        callback: Box<dyn Fn(&S) + Send + Sync + 't>,
+    ) -> Self {
+        self.best_solution_callback = Some(callback);
+        self
+    }
+
     /// Returns the configuration if set.
     pub fn config(&self) -> Option<&SolverConfig> {
         self.config.as_ref()

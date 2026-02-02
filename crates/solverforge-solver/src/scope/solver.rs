@@ -91,6 +91,17 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
         }
     }
 
+    /// Sets the best solution callback.
+    ///
+    /// The callback is invoked whenever the best solution improves during solving.
+    pub fn with_best_solution_callback(
+        mut self,
+        callback: Box<dyn Fn(&S) + Send + Sync + 't>,
+    ) -> Self {
+        self.best_solution_callback = Some(callback);
+        self
+    }
+
     /// Marks the start of solving.
     pub fn start_solving(&mut self) {
         self.start_time = Some(Instant::now());

@@ -166,7 +166,6 @@ pub fn solve_with_controls(
         config.time_limit
     );
     // Note: snapshot updates not implemented yet - solver runs to completion
-    let _ = snapshot; // silence unused warning
     let mut solver = Solver::new(((), construction, local_search))
         .with_time_limit(config.time_limit)
         .with_terminate(terminate);

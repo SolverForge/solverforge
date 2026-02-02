@@ -165,6 +165,60 @@ pub fn make_key_extractor(key_expr: Expr, descriptor: DynamicDescriptor) -> DynK
     })
 }
 
+/// Creates a bi-constraint filter that evaluates an expression against a pair of entities.
+///
+/// # Arguments
+/// * `filter_expr` - The expression to evaluate against the entity pair (returns bool)
+/// * `class_idx` - The entity class index (for self-join constraints, both entities are from this class)
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicSolution` reference and two `DynamicEntity` references,
+/// evaluates the filter expression in a bi-entity context, and returns whether the pair matches.
+///
+/// # Expression Context
+/// The filter expression is evaluated in a tuple context where:
+/// - `Param(0)` refers to the first entity (parameter `a`)
+/// - `Param(1)` refers to the second entity (parameter `b`)
+/// - `Field { param_idx: 0, field_idx }` accesses fields from the first entity
+/// - `Field { param_idx: 1, field_idx }` accesses fields from the second entity
+/// - The full solution is available for fact lookups and other operations
+///
+/// The expression should return a boolean value. Non-boolean results are treated as `false`.
+///
+/// # Implementation Note
+/// The filter searches the entity slice to find entity indices, which is O(n) per call.
+/// This is acceptable because filtering is done on already-matched entities (by join key),
+/// not on the full entity set.
+pub fn make_bi_filter(filter_expr: Expr, class_idx: usize) -> DynBiFilter {
+    Box::new(move |solution: &DynamicSolution, a: &DynamicEntity, b: &DynamicEntity| {
+        // Find entity indices by searching the entity slice.
+        // For self-join constraints, both entities are from class_idx.
+        // We search by entity ID which is unique.
+        let entities = solution.entities.get(class_idx).map(|v| v.as_slice()).unwrap_or(&[]);
+
+        let a_idx = entities.iter().position(|e| e.id == a.id);
+        let b_idx = entities.iter().position(|e| e.id == b.id);
+
+        let (Some(a_idx), Some(b_idx)) = (a_idx, b_idx) else {
+            // Entities not found in solution - shouldn't happen, but return false defensively
+            return false;
+        };
+
+        // Build entity tuple for evaluation context
+        let tuple = vec![
+            EntityRef::new(class_idx, a_idx),
+            EntityRef::new(class_idx, b_idx),
+        ];
+
+        // Evaluate expression in bi-entity context
+        let ctx = EvalContext::new(solution, &tuple);
+        let result = eval_expr(&filter_expr, &ctx);
+
+        // Convert result to bool (default to false if not a bool)
+        result.as_bool().unwrap_or(false)
+    })
+}
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

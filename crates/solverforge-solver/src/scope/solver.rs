@@ -160,6 +160,13 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
         if is_better {
             self.best_solution = Some(self.score_director.clone_working_solution());
             self.best_score = Some(current_score);
+
+            // Invoke callback if registered
+            if let Some(ref callback) = self.best_solution_callback {
+                if let Some(ref solution) = self.best_solution {
+                    callback(solution);
+                }
+            }
         }
     }
 

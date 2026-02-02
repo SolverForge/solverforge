@@ -55,6 +55,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             terminate: None,
             stats: SolverStats::default(),
             time_limit: None,
+            best_solution_callback: None,
         }
     }
 

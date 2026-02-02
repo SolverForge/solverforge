@@ -88,6 +88,28 @@ pub type DynCrossFilter =
 pub type DynCrossWeight =
     Box<dyn Fn(&DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
 
+// Flattened constraint closures (for constraints that expand entities into collections)
+
+/// Flatten function: expands entity B into a slice of C items.
+pub type DynFlatten =
+    Box<dyn Fn(&DynamicEntity) -> &[DynamicValue] + Send + Sync>;
+
+/// C key function: extracts index key from flattened item C.
+pub type DynCKeyFn =
+    Box<dyn Fn(&DynamicValue) -> DynamicValue + Send + Sync>;
+
+/// A lookup function: extracts lookup key from entity A for O(1) index access.
+pub type DynALookup =
+    Box<dyn Fn(&DynamicEntity) -> DynamicValue + Send + Sync>;
+
+/// Flattened filter: checks if pair of (A entity, C item) matches.
+pub type DynFlattenedFilter =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicValue) -> bool + Send + Sync>;
+
+/// Flattened weight: computes score for (A entity, C item) pair.
+pub type DynFlattenedWeight =
+    Box<dyn Fn(&DynamicEntity, &DynamicValue) -> HardSoftScore + Send + Sync>;
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

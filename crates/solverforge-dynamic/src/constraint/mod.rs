@@ -219,6 +219,81 @@ pub fn make_bi_filter(filter_expr: Expr, class_idx: usize) -> DynBiFilter {
     })
 }
 
+/// Creates a bi-constraint weight function that evaluates an expression against a pair of entities.
+///
+/// # Arguments
+/// * `weight_expr` - The expression to evaluate against the entity pair (returns numeric weight)
+/// * `class_idx` - The entity class index (both entities are from this class for self-join)
+/// * `descriptor` - The schema descriptor for building evaluation context
+/// * `is_hard` - Whether this is a hard constraint (weight applied to hard score component)
+///
+/// # Returns
+/// A boxed closure that takes two `DynamicEntity` references, evaluates the weight expression
+/// in a bi-entity context, and returns a `HardSoftScore`.
+///
+/// # Expression Evaluation
+/// The weight expression is evaluated in a tuple context where:
+/// - `Param(0)` refers to the first entity (parameter `a`)
+/// - `Param(1)` refers to the second entity (parameter `b`)
+/// - `Field { param_idx: 0, field_idx }` accesses fields from the first entity
+/// - `Field { param_idx: 1, field_idx }` accesses fields from the second entity
+///
+/// The expression should return a numeric value (i64). Non-numeric results default to 0.
+///
+/// **Design constraint**: Weight expressions should only reference entity fields and perform
+/// arithmetic/comparisons. References to facts or other solution state will NOT work correctly
+/// because the evaluation uses a temporary solution context with only the two entities.
+///
+/// # Weight Application
+/// The resulting numeric value is applied to either the hard or soft score component based on
+/// the `is_hard` parameter. The constraint's impact type (penalty vs reward) is NOT applied
+/// here - that's handled by the monomorphized constraint wrapper's `compute_score` method.
+pub fn make_bi_weight(
+    weight_expr: Expr,
+    class_idx: usize,
+    descriptor: DynamicDescriptor,
+    is_hard: bool,
+) -> DynBiWeight {
+    Box::new(move |a: &DynamicEntity, b: &DynamicEntity| {
+        // Create a temporary solution context with just these two entities
+        // This allows us to use EvalContext with proper entity indices
+        let mut temp_solution = DynamicSolution {
+            descriptor: descriptor.clone(),
+            entities: Vec::new(),
+            facts: Vec::new(),
+            score: None,
+        };
+
+        // Ensure the entities vec is large enough
+        while temp_solution.entities.len() <= class_idx {
+            temp_solution.entities.push(Vec::new());
+        }
+
+        // Add the two entities at indices 0 and 1
+        temp_solution.entities[class_idx] = vec![a.clone(), b.clone()];
+
+        // Build entity tuple for evaluation context (indices 0 and 1)
+        let tuple = vec![
+            EntityRef::new(class_idx, 0),
+            EntityRef::new(class_idx, 1),
+        ];
+
+        // Evaluate expression in bi-entity context
+        let ctx = EvalContext::new(&temp_solution, &tuple);
+        let result = eval_expr(&weight_expr, &ctx);
+
+        // Convert to numeric value (default to 0 if not numeric)
+        let weight_num = result.as_i64().unwrap_or(0) as f64;
+
+        // Apply to hard or soft component
+        if is_hard {
+            HardSoftScore::hard(weight_num)
+        } else {
+            HardSoftScore::soft(weight_num)
+        }
+    })
+}
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

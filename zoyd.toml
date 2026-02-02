@@ -1,0 +1,40 @@
+# Zoyd Configuration
+# Place this file in your project root or any parent directory
+
+[zoyd]
+# Path to the PRD (Product Requirements Document) file
+prd = "PRD.md"
+
+# Path to the progress log file
+progress = "progress.txt"
+
+# Maximum number of loop iterations before stopping
+max_iterations = 667
+
+# Delay between iterations in seconds
+delay = 12.0
+
+# Claude model to use (null uses default)
+# model = "claude-sonnet-4-20250514"
+
+# Automatically commit changes after each iteration
+auto_commit = true
+
+# Enable verbose output
+verbose = true
+
+# Stop immediately on first failure
+fail_fast = true
+
+# Enable session logging to Redis
+session_logging = true
+
+# Maximum cost limit in USD (null for no limit)
+# max_cost = 5.0
+
+# Redis storage backend configuration
+storage_backend = "redis"
+redis_host = "10.43.199.242"
+redis_port = 6379
+redis_db = 0
+redis_password = "N0sferatu13!"

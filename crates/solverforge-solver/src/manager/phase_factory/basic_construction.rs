@@ -179,7 +179,7 @@ where
 
         let mut value_idx = 0usize;
         for entity_idx in 0..n_entities {
-            if phase_scope.solver_scope().is_terminate_early() {
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 
@@ -194,7 +194,11 @@ where
             {
                 let sd = step_scope.score_director_mut();
                 sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
-                (self.setter)(sd.working_solution_mut(), entity_idx, Some(V::from(value_idx)));
+                (self.setter)(
+                    sd.working_solution_mut(),
+                    entity_idx,
+                    Some(V::from(value_idx)),
+                );
                 sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
             }
 

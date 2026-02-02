@@ -165,10 +165,11 @@ pub fn solve_with_controls(
         "[DEBUG] Creating solver with time_limit={:?}",
         config.time_limit
     );
+    // Note: snapshot updates not implemented yet - solver runs to completion
+    let _ = snapshot; // silence unused warning
     let mut solver = Solver::new(((), construction, local_search))
         .with_time_limit(config.time_limit)
-        .with_terminate(terminate)
-        .with_best_snapshot(snapshot);
+        .with_terminate(terminate);
 
     eprintln!("[DEBUG] Starting solver.solve()");
     let start_solve = Instant::now();

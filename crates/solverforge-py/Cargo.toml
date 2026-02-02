@@ -1,0 +1,17 @@
+[package]
+name = "solverforge-py"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Python bindings for SolverForge constraint solver"
+
+[lib]
+name = "solverforge"
+crate-type = ["cdylib"]
+
+[dependencies]
+solverforge-dynamic.workspace = true
+solverforge-core.workspace = true
+pyo3.workspace = true

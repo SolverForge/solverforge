@@ -38,6 +38,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     stats: SolverStats,
     /// Time limit for solving (checked by phases).
     time_limit: Option<Duration>,
+    /// Callback invoked when the best solution improves.
+    best_solution_callback: Option<Box<dyn Fn(&S) + Send + Sync + 't>>,
 }
 
 impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {

@@ -313,8 +313,12 @@ where
     }
 
     /// Clones the working solution.
+    ///
+    /// The cloned solution includes the current cached score.
     pub fn clone_working_solution(&self) -> S {
-        self.working_solution.clone()
+        let mut cloned = self.working_solution.clone();
+        cloned.set_score(Some(self.cached_score));
+        cloned
     }
 
     /// Returns a reference to the constraint set.
@@ -432,7 +436,9 @@ where
     }
 
     fn clone_working_solution(&self) -> S {
-        self.working_solution.clone()
+        let mut cloned = self.working_solution.clone();
+        cloned.set_score(Some(self.cached_score));
+        cloned
     }
 
     fn before_variable_changed(
@@ -635,16 +641,22 @@ mod tests {
     #[test]
     fn test_clone_working_solution() {
         let solution = TestSolution {
-            values: vec![Some(1), Some(2)],
+            values: vec![Some(1), None], // One unassigned = penalty of -1
             score: None,
         };
 
         let c1 = make_unassigned_constraint();
-        let director = TypedScoreDirector::new(solution, (c1,));
+        let mut director = TypedScoreDirector::new(solution, (c1,));
 
+        // Calculate score first
+        let score = director.calculate_score();
+        assert_eq!(score, SimpleScore::of(-1));
+
+        // Clone and verify score is propagated
         let cloned = director.clone_working_solution();
         assert_eq!(cloned.values.len(), 2);
         assert_eq!(cloned.values[0], Some(1));
+        assert_eq!(cloned.score, Some(SimpleScore::of(-1)));
     }
 
     #[test]

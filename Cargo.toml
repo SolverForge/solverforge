@@ -6,8 +6,9 @@ members = [
     "crates/solverforge-scoring",
     "crates/solverforge-solver",
     "crates/solverforge-config",
-    "crates/solverforge-benchmark",
     "crates/solverforge",
+    "crates/solverforge-dynamic",
+    "crates/solverforge-py",
     "examples/nqueens",
 ]
 
@@ -25,10 +26,11 @@ solverforge-macros = { path = "crates/solverforge-macros" }
 solverforge-scoring = { path = "crates/solverforge-scoring" }
 solverforge-solver = { path = "crates/solverforge-solver" }
 solverforge-config = { path = "crates/solverforge-config" }
-solverforge-benchmark = { path = "crates/solverforge-benchmark" }
 solverforge = { path = "crates/solverforge" }
+solverforge-dynamic = { path = "crates/solverforge-dynamic" }
 
 # External dependencies
+pyo3 = { version = "0.27", features = ["extension-module"] }
 thiserror = "2.0"  # Updated from 1.0
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"

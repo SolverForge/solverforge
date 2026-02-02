@@ -183,7 +183,7 @@ where
 
         let mut entity_idx = 0;
         for elem_idx in 0..n_elements {
-            if phase_scope.solver_scope().is_terminate_early() {
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 

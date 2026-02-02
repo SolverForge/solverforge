@@ -108,7 +108,7 @@ where
 
         loop {
             // Check early termination
-            if phase_scope.solver_scope().is_terminate_early() {
+            if phase_scope.solver_scope().should_terminate() {
                 break;
             }
 

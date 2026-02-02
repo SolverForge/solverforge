@@ -62,6 +62,32 @@ pub type DynQuadWeight =
 pub type DynPentaWeight =
     Box<dyn Fn(&DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
 
+// Cross-join constraint closures (for joining two different entity classes)
+
+/// Cross-join extractor A: extracts first entity class slice from solution.
+pub type DynCrossExtractorA =
+    Box<dyn Fn(&DynamicSolution) -> &[DynamicEntity] + Send + Sync>;
+
+/// Cross-join extractor B: extracts second entity class slice from solution.
+pub type DynCrossExtractorB =
+    Box<dyn Fn(&DynamicSolution) -> &[DynamicEntity] + Send + Sync>;
+
+/// Cross-join key extractor A: extracts join key from entity of class A.
+pub type DynCrossKeyA =
+    Box<dyn Fn(&DynamicEntity) -> DynamicValue + Send + Sync>;
+
+/// Cross-join key extractor B: extracts join key from entity of class B.
+pub type DynCrossKeyB =
+    Box<dyn Fn(&DynamicEntity) -> DynamicValue + Send + Sync>;
+
+/// Cross-join filter: checks if pair of entities from different classes matches.
+pub type DynCrossFilter =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
+
+/// Cross-join weight: computes score for cross-join pair.
+pub type DynCrossWeight =
+    Box<dyn Fn(&DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

@@ -13,10 +13,54 @@ use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 
 use crate::eval::{eval_expr, EntityRef, EvalContext};
 use crate::expr::Expr;
-use crate::solution::DynamicSolution;
+use crate::solution::{DynamicEntity, DynamicSolution, DynamicValue};
 
 /// Match tuple type: (class_a, idx_a, class_b, idx_b) - indices only, no cloning.
 type MatchTuple = (usize, usize, usize, usize);
+
+// =============================================================================
+// Type aliases for boxed closures used with monomorphized constraints
+// =============================================================================
+
+/// Extractor: retrieves entity slice from solution.
+pub type DynExtractor =
+    Box<dyn Fn(&DynamicSolution) -> &[DynamicEntity] + Send + Sync>;
+
+/// Key extractor: extracts join key from entity.
+pub type DynKeyExtractor =
+    Box<dyn Fn(&DynamicEntity) -> DynamicValue + Send + Sync>;
+
+/// Bi-constraint filter: checks if pair of entities matches.
+pub type DynBiFilter =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
+
+/// Tri-constraint filter: checks if triple of entities matches.
+pub type DynTriFilter =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
+
+/// Quad-constraint filter: checks if quadruple of entities matches.
+pub type DynQuadFilter =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
+
+/// Penta-constraint filter: checks if quintuple of entities matches.
+pub type DynPentaFilter =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
+
+/// Bi-constraint weight: computes score for pair.
+pub type DynBiWeight =
+    Box<dyn Fn(&DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
+
+/// Tri-constraint weight: computes score for triple.
+pub type DynTriWeight =
+    Box<dyn Fn(&DynamicEntity, &DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
+
+/// Quad-constraint weight: computes score for quadruple.
+pub type DynQuadWeight =
+    Box<dyn Fn(&DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
+
+/// Penta-constraint weight: computes score for quintuple.
+pub type DynPentaWeight =
+    Box<dyn Fn(&DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
 
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]

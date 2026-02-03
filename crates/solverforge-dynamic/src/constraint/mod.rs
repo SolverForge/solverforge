@@ -695,6 +695,50 @@ pub fn make_penta_weight(
     )
 }
 
+// ============================================================================
+// Closure builder functions for cross-joins
+// ============================================================================
+
+/// Creates an extractor for the first entity class in a cross-join.
+///
+/// Returns a closure that extracts the entity slice for class A from the solution.
+/// This is used by `IncrementalCrossBiConstraint` to access entities of the first class.
+///
+/// # Parameters
+/// - `class_idx_a`: Index of the first entity class to extract
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicSolution` and returns a slice of entities for class A.
+pub fn make_cross_extractor_a(class_idx_a: usize) -> DynCrossExtractorA {
+    Box::new(move |solution: &DynamicSolution| {
+        solution
+            .entities
+            .get(class_idx_a)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    })
+}
+
+/// Creates an extractor for the second entity class in a cross-join.
+///
+/// Returns a closure that extracts the entity slice for class B from the solution.
+/// This is used by `IncrementalCrossBiConstraint` to access entities of the second class.
+///
+/// # Parameters
+/// - `class_idx_b`: Index of the second entity class to extract
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicSolution` and returns a slice of entities for class B.
+pub fn make_cross_extractor_b(class_idx_b: usize) -> DynCrossExtractorB {
+    Box::new(move |solution: &DynamicSolution| {
+        solution
+            .entities
+            .get(class_idx_b)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    })
+}
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

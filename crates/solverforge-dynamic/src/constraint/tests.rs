@@ -314,3 +314,144 @@ fn test_tri_self_join_incremental() {
     let full_score3 = constraint.evaluate(&solution);
     assert_eq!(full_score3, HardSoftScore::of_hard(-8));
 }
+
+#[test]
+fn test_cross_bi_constraint() {
+    // Test cross-join constraint between two different entity classes
+    // Scenario: penalize shifts assigned to unavailable employees
+    // Shift(employee_id) joins with Employee(id) where Employee.available = false
+
+    let mut descriptor = DynamicDescriptor::new();
+
+    // Define Shift entity class: [shift_id, employee_id]
+    let shift_class = descriptor.add_entity_class(
+        "Shift".to_string(),
+        vec!["shift_id".to_string(), "employee_id".to_string()],
+    );
+
+    // Define Employee entity class: [employee_id, available]
+    let employee_class = descriptor.add_entity_class(
+        "Employee".to_string(),
+        vec!["employee_id".to_string(), "available".to_string()],
+    );
+
+    // Create solution
+    let mut solution = DynamicSolution::new(descriptor.clone());
+
+    // Add employees: [employee_id, available]
+    // Employee 1: available = true
+    // Employee 2: available = false
+    // Employee 3: available = true
+    solution.add_entity(
+        employee_class,
+        DynamicEntity::new(
+            0,
+            vec![DynamicValue::I64(1), DynamicValue::Bool(true)],
+        ),
+    );
+    solution.add_entity(
+        employee_class,
+        DynamicEntity::new(
+            1,
+            vec![DynamicValue::I64(2), DynamicValue::Bool(false)],
+        ),
+    );
+    solution.add_entity(
+        employee_class,
+        DynamicEntity::new(
+            2,
+            vec![DynamicValue::I64(3), DynamicValue::Bool(true)],
+        ),
+    );
+
+    // Add shifts: [shift_id, employee_id]
+    // Shift 0 assigned to employee 1 (available) → no penalty
+    // Shift 1 assigned to employee 2 (unavailable) → penalty
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            0,
+            vec![DynamicValue::I64(100), DynamicValue::I64(1)],
+        ),
+    );
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            1,
+            vec![DynamicValue::I64(101), DynamicValue::I64(2)],
+        ),
+    );
+
+    // Build constraint: penalize shifts assigned to unavailable employees
+    // ForEach Shift → Join Employee on shift.employee_id = employee.employee_id
+    // → Filter employee.available = false → Penalize
+    let ops = vec![
+        StreamOp::ForEach {
+            class_idx: shift_class,
+        },
+        StreamOp::Join {
+            class_idx: employee_class,
+            conditions: vec![Expr::eq(
+                Expr::field(0, 1), // shift.employee_id (field index 1)
+                Expr::field(1, 0), // employee.employee_id (field index 0)
+            )],
+        },
+        StreamOp::Filter {
+            predicate: Expr::eq(
+                Expr::field(1, 1), // employee.available (field index 1)
+                Expr::literal(DynamicValue::Bool(false)),
+            ),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(10),
+        },
+    ];
+
+    let mut constraint = build_from_stream_ops(
+        ConstraintRef::new("unavailable_employee"),
+        ImpactType::Penalty,
+        &ops,
+        solution.descriptor().clone(),
+    );
+
+    // Initialize
+    let init_score = constraint.initialize(&solution);
+    // Shift 1 assigned to employee 2 (unavailable) → 1 match → -10
+    assert_eq!(init_score, HardSoftScore::of_hard(-10));
+
+    // Verify full evaluation matches
+    let eval_score = constraint.evaluate(&solution);
+    assert_eq!(eval_score, HardSoftScore::of_hard(-10));
+
+    // Insert a new shift assigned to employee 2 (unavailable)
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            2,
+            vec![DynamicValue::I64(102), DynamicValue::I64(2)],
+        ),
+    );
+    let delta = constraint.on_insert(&solution, 2, shift_class);
+    // New shift assigned to unavailable employee → delta = -10
+    assert_eq!(delta, HardSoftScore::of_hard(-10));
+
+    // Full evaluation: 2 shifts assigned to unavailable employee → -20
+    let full_score = constraint.evaluate(&solution);
+    assert_eq!(full_score, HardSoftScore::of_hard(-20));
+
+    // Insert a new shift assigned to employee 3 (available)
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            3,
+            vec![DynamicValue::I64(103), DynamicValue::I64(3)],
+        ),
+    );
+    let delta2 = constraint.on_insert(&solution, 3, shift_class);
+    // New shift assigned to available employee → no penalty → delta = 0
+    assert_eq!(delta2, HardSoftScore::ZERO);
+
+    // Full evaluation: still 2 shifts assigned to unavailable employee → -20
+    let full_score2 = constraint.evaluate(&solution);
+    assert_eq!(full_score2, HardSoftScore::of_hard(-20));
+}

@@ -11,6 +11,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use solverforge_scoring::api::analysis::DetailedConstraintMatch;
 use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
+use solverforge_scoring::constraint::cross_bi_incremental::IncrementalCrossBiConstraint;
 use solverforge_scoring::constraint::nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,
@@ -1763,6 +1764,113 @@ pub fn build_penta_self_constraint(
         impact_type,
         extractor,
         key_extractor,
+        filter,
+        weight,
+        is_hard,
+    ))
+}
+
+/// Factory function for cross-bi-constraints (cross-join between two different entity classes).
+///
+/// This creates an `IncrementalCrossBiConstraint` that evaluates pairs of entities from
+/// **two different classes** (A and B), joined by matching key values. This is distinct
+/// from self-join bi-constraints where both entities come from the same class.
+///
+/// # Arguments
+///
+/// * `constraint_ref` - Unique identifier for the constraint
+/// * `impact_type` - Whether this constraint is a penalty or reward
+/// * `class_idx_a` - Index of the first entity class (class A)
+/// * `class_idx_b` - Index of the second entity class (class B)
+/// * `key_expr_a` - Expression to extract join key from entities of class A
+/// * `key_expr_b` - Expression to extract join key from entities of class B
+/// * `filter_expr` - Expression to evaluate whether a pair (A, B) matches
+/// * `weight_expr` - Expression to compute the score for a matched pair
+/// * `descriptor` - The dynamic descriptor (for expression evaluation context)
+/// * `is_hard` - Whether to apply the weight to hard or soft score component
+///
+/// # Expression Context
+///
+/// All expressions are evaluated in a cross-bi-entity context:
+/// - `Param(0)` refers to the entity from class A
+/// - `Param(1)` refers to the entity from class B
+/// - `Field { param_idx: 0, field_idx }` accesses fields from the A entity
+/// - `Field { param_idx: 1, field_idx }` accesses fields from the B entity
+/// - Arithmetic, comparisons, and logical operations work across both entities
+///
+/// # Example Use Case
+///
+/// ```ignore
+/// // Penalize shifts assigned to employees without required skills
+/// // Cross-join: Shift (class A) x Employee (class B)
+/// // Join condition: shift.assigned_employee_id == employee.id
+/// let constraint = build_cross_bi_constraint(
+///     ConstraintRef::new("shift_employee_skill_mismatch"),
+///     ImpactType::Penalty,
+///     shift_class_idx,     // class A
+///     employee_class_idx,  // class B
+///     Expr::Field { param_idx: 0, field_idx: assigned_employee_field }, // key from shift
+///     Expr::Field { param_idx: 0, field_idx: employee_id_field },       // key from employee
+///     Expr::Not(Box::new(Expr::Call {
+///         func: "has_skill",
+///         args: vec![
+///             Expr::Field { param_idx: 1, field_idx: employee_skills_field },
+///             Expr::Field { param_idx: 0, field_idx: shift_required_skill_field },
+///         ],
+///     })),
+///     Expr::Literal(DynamicValue::I64(10)), // penalty weight
+///     descriptor.clone(),
+///     true, // hard constraint
+/// );
+/// ```
+///
+/// # Returns
+///
+/// A boxed `IncrementalConstraint<DynamicSolution, HardSoftScore>` that can be stored
+/// in `DynamicConstraintSet`.
+///
+/// # Performance Note
+///
+/// The join key enables efficient O(k_a * k_b) lookups where k_a and k_b are the average
+/// numbers of entities per join key value in classes A and B respectively. This avoids
+/// O(n_a * n_b) nested loops over all entities from both classes. For example, if employees
+/// are joined by team_id with an average of 10 employees per team and 50 shifts per team,
+/// this evaluates 500 pairs per team instead of all possible shift-employee combinations.
+#[allow(clippy::too_many_arguments)]
+pub fn build_cross_bi_constraint(
+    constraint_ref: ConstraintRef,
+    impact_type: ImpactType,
+    class_idx_a: usize,
+    class_idx_b: usize,
+    key_expr_a: Expr,
+    key_expr_b: Expr,
+    filter_expr: Expr,
+    weight_expr: Expr,
+    descriptor: DynamicDescriptor,
+    is_hard: bool,
+) -> Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync> {
+    // Create extractors for both entity classes
+    let extractor_a = make_cross_extractor_a(class_idx_a);
+    let extractor_b = make_cross_extractor_b(class_idx_b);
+
+    // Create key extractors for both classes
+    let key_a = make_cross_key_a(key_expr_a, descriptor.clone());
+    let key_b = make_cross_key_b(key_expr_b, descriptor.clone());
+
+    // Create filter closure
+    let filter = make_cross_filter(filter_expr, class_idx_a, class_idx_b);
+
+    // Create weight closure
+    let weight = make_cross_weight(weight_expr, class_idx_a, class_idx_b, descriptor, is_hard);
+
+    // Create and box the IncrementalCrossBiConstraint
+    Box::new(IncrementalCrossBiConstraint::new(
+        constraint_ref,
+        impact_type,
+        extractor_a,
+        extractor_b,
+        key_a,
+        key_b,
         filter,
         weight,
         is_hard,

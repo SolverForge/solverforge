@@ -7,43 +7,64 @@ use solverforge_scoring::api::constraint_set::{
     ConstraintResult, ConstraintSet, IncrementalConstraint,
 };
 
-use crate::constraint::DynamicConstraint;
 use crate::solution::DynamicSolution;
 
 /// A set of dynamic constraints.
-#[derive(Debug, Clone, Default)]
+///
+/// This wraps monomorphized `IncrementalConstraint` implementations from `solverforge-scoring`
+/// and delegates all scoring operations to them.
 pub struct DynamicConstraintSet {
-    constraints: Vec<DynamicConstraint>,
+    constraints: Vec<Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync>>,
+}
+
+impl Default for DynamicConstraintSet {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DynamicConstraintSet {
     /// Creates a new empty constraint set.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            constraints: Vec::new(),
+        }
     }
 
-    /// Creates a constraint set from a vector of constraints.
-    pub fn from_vec(constraints: Vec<DynamicConstraint>) -> Self {
+    /// Creates a constraint set from a vector of boxed constraints.
+    pub fn from_vec(
+        constraints: Vec<
+            Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync>,
+        >,
+    ) -> Self {
         Self { constraints }
     }
 
-    /// Adds a constraint to the set.
-    pub fn add(&mut self, constraint: DynamicConstraint) {
+    /// Adds a boxed constraint to the set.
+    pub fn add(
+        &mut self,
+        constraint: Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync>,
+    ) {
         self.constraints.push(constraint);
     }
 
-    /// Returns an iterator over the constraints.
-    pub fn iter(&self) -> impl Iterator<Item = &DynamicConstraint> {
-        self.constraints.iter()
+    /// Returns the number of constraints in the set.
+    pub fn len(&self) -> usize {
+        self.constraints.len()
+    }
+
+    /// Returns true if the constraint set is empty.
+    pub fn is_empty(&self) -> bool {
+        self.constraints.is_empty()
     }
 }
 
 impl ConstraintSet<DynamicSolution, HardSoftScore> for DynamicConstraintSet {
-    fn evaluate_all(&self, _solution: &DynamicSolution) -> HardSoftScore {
-        // Use cached scores from incremental state - O(c) where c = constraint count
+    fn evaluate_all(&self, solution: &DynamicSolution) -> HardSoftScore {
+        // Delegate to each boxed constraint's evaluate method
         let mut total = HardSoftScore::ZERO;
         for constraint in &self.constraints {
-            total = total + constraint.cached_score();
+            total = total + constraint.evaluate(solution);
         }
         total
     }
@@ -52,33 +73,33 @@ impl ConstraintSet<DynamicSolution, HardSoftScore> for DynamicConstraintSet {
         self.constraints.len()
     }
 
-    fn evaluate_each(&self, _solution: &DynamicSolution) -> Vec<ConstraintResult<HardSoftScore>> {
-        // Use cached scores from incremental state
+    fn evaluate_each(&self, solution: &DynamicSolution) -> Vec<ConstraintResult<HardSoftScore>> {
+        // Delegate to each boxed constraint
         self.constraints
             .iter()
             .map(|c| ConstraintResult {
-                name: c.name.to_string(),
-                score: c.cached_score(),
-                match_count: c.match_count(),
-                is_hard: c.is_hard,
+                name: c.name().to_string(),
+                score: c.evaluate(solution),
+                match_count: c.match_count(solution),
+                is_hard: c.is_hard(),
             })
             .collect()
     }
 
     fn evaluate_detailed(
         &self,
-        _solution: &DynamicSolution,
+        solution: &DynamicSolution,
     ) -> Vec<ConstraintAnalysis<HardSoftScore>> {
-        // Use cached scores from incremental state
+        // Delegate to each boxed constraint
         self.constraints
             .iter()
             .map(|c| {
                 ConstraintAnalysis::new(
-                    ConstraintRef::new("", &*c.name),
-                    c.weight,
-                    c.cached_score(),
-                    Vec::new(), // No detailed matches for now
-                    c.is_hard,
+                    c.constraint_ref(),
+                    c.weight(),
+                    c.evaluate(solution),
+                    c.get_matches(solution),
+                    c.is_hard(),
                 )
             })
             .collect()

@@ -975,6 +975,141 @@ pub fn make_cross_weight(
     })
 }
 
+// ============================================================================
+// Closure builder functions for flattened constraints
+// ============================================================================
+
+/// Creates a flatten function that expands entity B into a slice of C items.
+///
+/// This function creates a `DynFlatten` closure that extracts a collection (slice)
+/// of items from entity B, which will be flattened for flattened bi-constraints.
+///
+/// # Arguments
+/// * `flatten_expr` - Expression to evaluate against entity B that produces a collection
+/// * `descriptor` - The schema descriptor for creating evaluation context
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicEntity` reference (entity B) and returns a slice
+/// of `DynamicValue` items (the flattened C items).
+///
+/// # Expression Context
+/// - `Param(0)` refers to entity B itself (returns entity ID)
+/// - `Field { param_idx: 0, field_idx }` accesses fields from entity B
+///
+/// # Example Use Case
+/// For an `Employee` entity with an `unavailable_dates` field:
+/// - `flatten_expr` might be `Field { param_idx: 0, field_idx: 3 }` to access the unavailable_dates field
+/// - The field would contain a `DynamicValue::List` of date values
+/// - The flatten function extracts this list as a slice for flattened constraint processing
+///
+/// # Implementation Note
+/// The expression should evaluate to a `DynamicValue::List`. If it doesn't, the field is
+/// expected to be in the entity directly. This implementation returns a reference to the
+/// field value from the entity's fields vector, which has the correct lifetime.
+///
+/// **Design decision**: For flattened constraints in the dynamic system, the flattened field
+/// must be stored directly in the entity's fields vector. This allows returning a reference
+/// with the correct lifetime tied to the entity, not to a temporary evaluation result.
+pub fn make_flatten(flatten_expr: Expr, _descriptor: DynamicDescriptor) -> DynFlatten {
+    // For the dynamic system, the flatten expression should directly reference a field
+    // that contains a List value. We extract the field index from the expression.
+    // This is simpler than full expression evaluation and has correct lifetimes.
+
+    // Extract field index from expression (expected to be Field { param_idx: 0, field_idx })
+    let field_idx = match flatten_expr {
+        Expr::Field { param_idx: 0, field_idx } => field_idx,
+        _ => {
+            // If not a simple field reference, we can't safely return a slice with correct lifetime
+            // This is a design constraint - flatten must reference a field directly
+            panic!("Flatten expression must be a direct field reference (Field {{ param_idx: 0, field_idx }})")
+        }
+    };
+
+    Box::new(move |entity: &DynamicEntity| {
+        // Access the field directly from the entity
+        match entity.fields.get(field_idx) {
+            Some(DynamicValue::List(items)) => items.as_slice(),
+            _ => &[], // Not a list or field not found - return empty slice
+        }
+    })
+}
+
+/// Creates a C key function that extracts an index key from a flattened item C.
+///
+/// This function creates a `DynCKeyFn` closure that extracts a key from a flattened item
+/// for use in the O(1) index lookup in flattened bi-constraints.
+///
+/// # Arguments
+/// * `c_key_expr` - Expression to evaluate against the flattened item C to produce the index key
+/// * `descriptor` - The schema descriptor for creating evaluation context (unused for simple value extraction)
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicValue` reference (the flattened item C) and returns
+/// a `DynamicValue` representing the index key.
+///
+/// # Expression Context
+/// The expression is evaluated against the C item itself. For simple cases where C is already
+/// the key value (e.g., dates, IDs), the expression might just return the item as-is.
+///
+/// # Example Use Case
+/// For an `Employee` with `unavailable_dates` field containing date values:
+/// - If C items are already date values, `c_key_expr` might just return the date itself
+/// - The key function would return each date as the index key
+/// - This enables O(1) lookup of (join_key, date) pairs in the flattened constraint
+///
+/// # Implementation Note
+/// For most dynamic use cases, the C item IS the key, so this function typically
+/// returns the input value directly. More complex key extraction is possible if needed.
+pub fn make_c_key_fn(_c_key_expr: Expr, _descriptor: DynamicDescriptor) -> DynCKeyFn {
+    // For dynamic constraints, C items are typically DynamicValues that are already
+    // the key values (e.g., dates, IDs). So we just return the item as-is.
+    // More complex key extraction could be implemented if needed.
+    Box::new(|c_item: &DynamicValue| c_item.clone())
+}
+
+/// Creates an A lookup function that extracts a lookup key from entity A.
+///
+/// This function creates a `DynALookup` closure that extracts a key from entity A
+/// for O(1) index lookup in flattened bi-constraints.
+///
+/// # Arguments
+/// * `lookup_expr` - Expression to evaluate against entity A to produce the lookup key
+/// * `descriptor` - The schema descriptor for creating evaluation context
+///
+/// # Returns
+/// A boxed closure that takes a `DynamicEntity` reference (entity A) and returns
+/// a `DynamicValue` representing the lookup key.
+///
+/// # Expression Context
+/// - `Param(0)` refers to entity A itself (returns entity ID)
+/// - `Field { param_idx: 0, field_idx }` accesses fields from entity A
+///
+/// # Example Use Case
+/// For a `Shift` entity with a `day` field:
+/// - `lookup_expr` might be `Field { param_idx: 0, field_idx: 2 }` to access the day field
+/// - When checking if shift conflicts with employee unavailable dates, the lookup key
+///   is the shift's day value
+/// - The flattened constraint uses this to do O(1) lookup of (employee_id, day) in the index
+///
+/// # Design Constraint
+/// Lookup key expressions should only reference entity fields, not facts or solution state.
+/// This is enforced by the minimal solution context which has empty entities and facts vectors.
+/// This is intentional - lookup keys should be stable entity attributes.
+pub fn make_a_lookup(lookup_expr: Expr, descriptor: DynamicDescriptor) -> DynALookup {
+    // Create minimal solution with only descriptor (no entities/facts).
+    // This is intentional - lookup keys should be stable entity attributes.
+    let minimal_solution = DynamicSolution {
+        descriptor,
+        entities: Vec::new(),
+        facts: Vec::new(),
+        score: None,
+    };
+
+    Box::new(move |entity: &DynamicEntity| {
+        crate::eval::eval_entity_expr(&lookup_expr, &minimal_solution, entity)
+    })
+}
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

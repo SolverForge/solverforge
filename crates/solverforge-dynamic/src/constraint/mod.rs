@@ -12,6 +12,7 @@ use solverforge_scoring::api::analysis::DetailedConstraintMatch;
 use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
 use solverforge_scoring::constraint::cross_bi_incremental::IncrementalCrossBiConstraint;
+use solverforge_scoring::constraint::flattened_bi::FlattenedBiConstraint;
 use solverforge_scoring::constraint::nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,
@@ -1871,6 +1872,131 @@ pub fn build_cross_bi_constraint(
         extractor_b,
         key_a,
         key_b,
+        filter,
+        weight,
+        is_hard,
+    ))
+}
+
+/// Builds a flattened bi-constraint for O(1) lookups on entity-to-collection joins.
+///
+/// Flattened constraints optimize scenarios where:
+/// - Entity A joins with entity B by key
+/// - Entity B contains a collection field that's expanded (flattened) into individual C items
+/// - We need to check if any C item matches some criterion based on entity A
+///
+/// Instead of O(|B| * |C_avg|) nested loops on each A entity change, this:
+/// 1. Pre-indexes all C items by (join_key, c_key) during initialize
+/// 2. On A entity change, looks up matching C items in O(1) using A's lookup key
+///
+/// # Parameters
+///
+/// * `constraint_ref` - Unique constraint identifier
+/// * `impact_type` - Whether this is a penalty or reward
+/// * `class_idx_a` - Index of entity class A (the planning entity, e.g., Shift)
+/// * `class_idx_b` - Index of entity class B (the entity with collection field, e.g., Employee)
+/// * `key_expr_a` - Expression to extract join key from A entity (e.g., `assigned_employee_id`)
+/// * `key_expr_b` - Expression to extract join key from B entity (e.g., `employee_id`)
+/// * `flatten_expr` - Expression to extract collection field from B (returns list of C items)
+/// * `c_key_expr` - Expression to extract index key from flattened item C (for O(1) lookup)
+/// * `a_lookup_expr` - Expression to extract lookup key from A entity (for O(1) index access)
+/// * `filter_expr` - Filter predicate on (A entity, C item) pairs
+/// * `weight_expr` - Weight expression on (A entity, C item) pairs
+/// * `descriptor` - Dynamic descriptor for expression evaluation
+/// * `is_hard` - Whether this is a hard constraint
+///
+/// # Returns
+///
+/// A boxed `IncrementalConstraint` wrapping `FlattenedBiConstraint`
+///
+/// # Expression Context
+///
+/// - `Param(0)` refers to entity A
+/// - `Param(1)` refers to entity B (only in flatten_expr, c_key_expr context)
+/// - Filter and weight expressions receive (A entity, C item) context
+/// - Full solution available for filter evaluation (for fact lookups)
+///
+/// # Example Use Case
+///
+/// "Penalize shifts assigned to employees on their unavailable days":
+/// ```ignore
+/// // A = Shift, B = Employee, C = NaiveDate (from unavailable_days list)
+/// let constraint = build_flattened_bi_constraint(
+///     ConstraintRef::new("shift_on_unavailable_day"),
+///     ImpactType::Penalty,
+///     shift_class_idx,    // class A
+///     employee_class_idx, // class B
+///     Expr::Field { param_idx: 0, field_idx: assigned_employee_field }, // A join key
+///     Expr::Field { param_idx: 0, field_idx: employee_id_field },       // B join key
+///     Expr::Field { param_idx: 0, field_idx: unavailable_days_field },  // B → [C] flatten
+///     Expr::Param(0),                                                   // C → c_key (identity)
+///     Expr::Field { param_idx: 0, field_idx: shift_day_field },        // A → lookup key
+///     Expr::Literal(DynamicValue::Bool(true)),                          // filter (always match)
+///     Expr::Literal(DynamicValue::I64(10)),                             // weight
+///     descriptor.clone(),
+///     true, // hard constraint
+/// );
+/// ```
+/// This enables O(1) lookup: given a shift on day 5 assigned to employee 7,
+/// instantly check if (7, 5) exists in the pre-indexed unavailable days map.
+///
+/// # Performance
+///
+/// - **Initialize**: O(|B| * |C_avg|) to build the index once
+/// - **on_insert(A)**: O(1) lookup in the index using (join_key, a_lookup_key)
+/// - **on_retract(A)**: O(1) lookup to remove cached score
+/// - **on_insert(B)** or **on_retract(B)**: O(|A_with_key| * |C_avg|) to recompute affected A entities
+///
+/// This is vastly superior to O(|A| * |B| * |C_avg|) full nested loop evaluation.
+pub fn build_flattened_bi_constraint(
+    constraint_ref: ConstraintRef,
+    impact_type: ImpactType,
+    class_idx_a: usize,
+    class_idx_b: usize,
+    key_expr_a: Expr,
+    key_expr_b: Expr,
+    flatten_expr: Expr,
+    c_key_expr: Expr,
+    a_lookup_expr: Expr,
+    filter_expr: Expr,
+    weight_expr: Expr,
+    descriptor: DynamicDescriptor,
+    is_hard: bool,
+) -> Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync> {
+    // Create extractors for both entity classes
+    let extractor_a = make_cross_extractor_a(class_idx_a);
+    let extractor_b = make_cross_extractor_b(class_idx_b);
+
+    // Create key extractors for both classes (for join)
+    let key_a = make_cross_key_a(key_expr_a, descriptor.clone());
+    let key_b = make_cross_key_b(key_expr_b, descriptor.clone());
+
+    // Create flatten function (B entity → slice of C items)
+    let flatten = make_flatten(flatten_expr, descriptor.clone());
+
+    // Create C key function (C item → index key)
+    let c_key_fn = make_c_key_fn(c_key_expr, descriptor.clone());
+
+    // Create A lookup function (A entity → lookup key for index access)
+    let a_lookup_fn = make_a_lookup(a_lookup_expr, descriptor.clone());
+
+    // Create filter closure (solution, A entity, C item → bool)
+    let filter = make_flattened_filter(filter_expr, class_idx_a, class_idx_b, descriptor.clone());
+
+    // Create weight closure (A entity, C item → score)
+    let weight = make_flattened_weight(weight_expr, class_idx_a, class_idx_b, descriptor, is_hard);
+
+    // Create and box the FlattenedBiConstraint
+    Box::new(FlattenedBiConstraint::new(
+        constraint_ref,
+        impact_type,
+        extractor_a,
+        extractor_b,
+        key_a,
+        key_b,
+        flatten,
+        c_key_fn,
+        a_lookup_fn,
         filter,
         weight,
         is_hard,

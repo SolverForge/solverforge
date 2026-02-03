@@ -5,7 +5,11 @@ use crate::constraint_set::DynamicConstraintSet;
 use crate::descriptor::{
     DynamicDescriptor, EntityClassDef, FieldDef, FieldType, ValueRangeDef,
 };
+use crate::expr::Expr;
 use crate::solution::{DynamicEntity, DynamicValue};
+use solverforge_core::score::HardSoftScore;
+use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_scoring::ConstraintSet;
 
 fn make_nqueens_solution(rows: &[i64]) -> DynamicSolution {
@@ -37,14 +41,27 @@ fn test_row_conflict_constraint() {
     // Two queens on the same row
     let solution = make_nqueens_solution(&[0, 0, 1, 2]);
 
-    let mut constraint = DynamicConstraint::new("row_conflict")
-        .for_each(0) // Queen class
-        .join(
-            0,                                                    // Join with Queen
-            vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))], // row == row
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0))) // column < column
-        .penalize(HardSoftScore::of_hard(1));
+    // Build constraint using StreamOp pipeline
+    let ops = vec![
+        StreamOp::ForEach { class_idx: 0 }, // Queen class
+        StreamOp::Join {
+            class_idx: 0, // Join with Queen (self-join)
+            conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))], // row == row
+        },
+        StreamOp::DistinctPair {
+            ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)), // column < column
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+
+    let mut constraint = build_from_stream_ops(
+        ConstraintRef::new("row_conflict"),
+        ImpactType::Penalty,
+        &ops,
+        solution.descriptor().clone(),
+    );
 
     // Initialize to compute matches and score
     let score = constraint.initialize(&solution);
@@ -57,11 +74,27 @@ fn test_no_conflicts() {
     // No queens on the same row
     let solution = make_nqueens_solution(&[0, 1, 2, 3]);
 
-    let mut constraint = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
+    // Build constraint using StreamOp pipeline
+    let ops = vec![
+        StreamOp::ForEach { class_idx: 0 },
+        StreamOp::Join {
+            class_idx: 0,
+            conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))],
+        },
+        StreamOp::DistinctPair {
+            ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+
+    let mut constraint = build_from_stream_ops(
+        ConstraintRef::new("row_conflict"),
+        ImpactType::Penalty,
+        &ops,
+        solution.descriptor().clone(),
+    );
 
     // Initialize to compute matches and score
     let score = constraint.initialize(&solution);
@@ -72,11 +105,27 @@ fn test_no_conflicts() {
 fn test_constraint_set() {
     let solution = make_nqueens_solution(&[0, 0, 2, 2]);
 
-    let constraint = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
+    // Build constraint using StreamOp pipeline
+    let ops = vec![
+        StreamOp::ForEach { class_idx: 0 },
+        StreamOp::Join {
+            class_idx: 0,
+            conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))],
+        },
+        StreamOp::DistinctPair {
+            ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+
+    let constraint = build_from_stream_ops(
+        ConstraintRef::new("row_conflict"),
+        ImpactType::Penalty,
+        &ops,
+        solution.descriptor().clone(),
+    );
 
     let mut constraint_set = DynamicConstraintSet::new();
     constraint_set.add(constraint);

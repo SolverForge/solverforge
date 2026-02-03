@@ -2041,3 +2041,429 @@ pub enum StreamOp {
     },
 }
 
+/// Builds a boxed incremental constraint from a stream operation pipeline.
+///
+/// This function analyzes the pipeline to determine:
+/// - **Arity**: How many entities are involved (uni/bi/tri/quad/penta) based on join count
+/// - **Join type**: Self-join (same class) vs cross-join (different classes)
+/// - **Flattened**: Whether a `FlattenLast` operation is present
+///
+/// Then calls the appropriate factory function from the constraint module.
+///
+/// # Arguments
+///
+/// * `constraint_ref` - Unique identifier for this constraint
+/// * `impact_type` - Whether this is a penalty or reward
+/// * `ops` - Pipeline of stream operations (ForEach, Join, Filter, Penalize, etc.)
+/// * `descriptor` - Solution schema for expression evaluation
+///
+/// # Returns
+///
+/// A boxed `IncrementalConstraint` wrapping a monomorphized implementation from `solverforge-scoring`.
+///
+/// # Example Pipeline Patterns
+///
+/// **Uni-constraint** (1 entity):
+/// ```ignore
+/// [ForEach { class_idx: 0 }, Filter { .. }, Penalize { .. }]
+/// ```
+///
+/// **Bi self-join** (2 entities, same class):
+/// ```ignore
+/// [ForEach { class_idx: 0 }, Join { class_idx: 0, .. }, DistinctPair { .. }, Penalize { .. }]
+/// ```
+///
+/// **Cross-join** (2 entities, different classes):
+/// ```ignore
+/// [ForEach { class_idx: 0 }, Join { class_idx: 1, .. }, Penalize { .. }]
+/// ```
+///
+/// **Flattened** (entity A + collection from entity B):
+/// ```ignore
+/// [ForEach { class_idx: 0 }, Join { class_idx: 1, .. }, FlattenLast { .. }, Penalize { .. }]
+/// ```
+pub fn build_from_stream_ops(
+    constraint_ref: ConstraintRef,
+    impact_type: ImpactType,
+    ops: &[StreamOp],
+    descriptor: DynamicDescriptor,
+) -> Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync> {
+    // Parse the pipeline to extract constraint pattern
+    let pattern = parse_stream_ops(ops);
+
+    // Determine if hard or soft score based on impact type
+    let is_hard = matches!(impact_type, ImpactType::Penalty | ImpactType::Reward);
+
+    // Call the appropriate factory based on detected pattern
+    match pattern {
+        ConstraintPattern::Uni { class_idx, filter_expr, weight_expr } => {
+            build_uni_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+
+        ConstraintPattern::BiSelfJoin { class_idx, key_expr, filter_expr, weight_expr } => {
+            build_bi_self_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+
+        ConstraintPattern::TriSelfJoin { class_idx, key_expr, filter_expr, weight_expr } => {
+            build_tri_self_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+
+        ConstraintPattern::QuadSelfJoin { class_idx, key_expr, filter_expr, weight_expr } => {
+            build_quad_self_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+
+        ConstraintPattern::PentaSelfJoin { class_idx, key_expr, filter_expr, weight_expr } => {
+            build_penta_self_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+
+        ConstraintPattern::CrossBi {
+            class_idx_a,
+            class_idx_b,
+            key_expr_a,
+            key_expr_b,
+            filter_expr,
+            weight_expr
+        } => {
+            build_cross_bi_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx_a,
+                class_idx_b,
+                key_expr_a,
+                key_expr_b,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+
+        ConstraintPattern::FlattenedBi {
+            class_idx_a,
+            class_idx_b,
+            key_expr_a,
+            key_expr_b,
+            flatten_expr,
+            c_key_expr,
+            a_lookup_expr,
+            filter_expr,
+            weight_expr
+        } => {
+            build_flattened_bi_constraint(
+                constraint_ref,
+                impact_type,
+                class_idx_a,
+                class_idx_b,
+                key_expr_a,
+                key_expr_b,
+                flatten_expr,
+                c_key_expr,
+                a_lookup_expr,
+                filter_expr,
+                weight_expr,
+                descriptor,
+                is_hard,
+            )
+        }
+    }
+}
+
+/// Internal representation of a constraint pattern parsed from StreamOps.
+#[derive(Debug)]
+enum ConstraintPattern {
+    /// Single entity constraint (ForEach + Filter + Penalize/Reward)
+    Uni {
+        class_idx: usize,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+
+    /// Two entities from same class (ForEach + Join(same) + DistinctPair + ...)
+    BiSelfJoin {
+        class_idx: usize,
+        key_expr: Expr,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+
+    /// Three entities from same class
+    TriSelfJoin {
+        class_idx: usize,
+        key_expr: Expr,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+
+    /// Four entities from same class
+    QuadSelfJoin {
+        class_idx: usize,
+        key_expr: Expr,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+
+    /// Five entities from same class
+    PentaSelfJoin {
+        class_idx: usize,
+        key_expr: Expr,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+
+    /// Two entities from different classes (ForEach(A) + Join(B) + ...)
+    CrossBi {
+        class_idx_a: usize,
+        class_idx_b: usize,
+        key_expr_a: Expr,
+        key_expr_b: Expr,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+
+    /// Flattened collection join (ForEach(A) + Join(B) + FlattenLast + ...)
+    FlattenedBi {
+        class_idx_a: usize,
+        class_idx_b: usize,
+        key_expr_a: Expr,
+        key_expr_b: Expr,
+        flatten_expr: Expr,
+        c_key_expr: Expr,
+        a_lookup_expr: Expr,
+        filter_expr: Expr,
+        weight_expr: Expr,
+    },
+}
+
+/// Parses a StreamOp pipeline to extract the constraint pattern.
+///
+/// This function:
+/// 1. Counts joins to determine arity
+/// 2. Compares class indices to detect self-join vs cross-join
+/// 3. Detects `FlattenLast` for flattened constraints
+/// 4. Extracts filter and weight expressions
+fn parse_stream_ops(ops: &[StreamOp]) -> ConstraintPattern {
+    // Extract key information from the pipeline
+    let mut class_indices = Vec::new();
+    let mut join_conditions = Vec::new();
+    let mut filters = Vec::new();
+    let mut weight_expr = None;
+    let mut flatten_expr = None;
+    let mut is_distinct_pair = false;
+
+    // Scan through operations
+    for op in ops {
+        match op {
+            StreamOp::ForEach { class_idx } => {
+                class_indices.push(*class_idx);
+            }
+            StreamOp::Join { class_idx, conditions } => {
+                class_indices.push(*class_idx);
+                join_conditions.extend(conditions.clone());
+            }
+            StreamOp::Filter { predicate } => {
+                filters.push(predicate.clone());
+            }
+            StreamOp::DistinctPair { .. } => {
+                is_distinct_pair = true;
+            }
+            StreamOp::Penalize { weight } | StreamOp::Reward { weight } => {
+                // Convert HardSoftScore to weight expression
+                weight_expr = Some(if weight.hard_score() != 0 {
+                    Expr::Literal(DynamicValue::I64(weight.hard_score()))
+                } else {
+                    Expr::Literal(DynamicValue::I64(weight.soft_score()))
+                });
+            }
+            StreamOp::PenalizeConfigurable { match_weight } |
+            StreamOp::RewardConfigurable { match_weight } => {
+                weight_expr = Some(match_weight.clone());
+            }
+            StreamOp::FlattenLast { set_expr } => {
+                flatten_expr = Some(set_expr.clone());
+            }
+        }
+    }
+
+    let arity = class_indices.len();
+    let weight_expr = weight_expr.unwrap_or(Expr::Literal(DynamicValue::I64(1)));
+    let filter_expr = if filters.is_empty() {
+        Expr::Literal(DynamicValue::Bool(true))
+    } else {
+        combine_filters(&filters)
+    };
+
+    // Detect pattern based on arity, class indices, and flatten operation
+    match (arity, class_indices.as_slice(), flatten_expr) {
+        // Uni-constraint: 1 entity
+        (1, [class_idx], None) => {
+            ConstraintPattern::Uni {
+                class_idx: *class_idx,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        // Flattened bi-constraint: 2 entities + FlattenLast
+        (2, [class_idx_a, class_idx_b], Some(flatten_expr)) => {
+            // Extract join key expressions from conditions
+            let (key_expr_a, key_expr_b) = extract_join_keys(&join_conditions);
+
+            // For flattened constraints, we need additional expressions:
+            // - c_key_expr: How to extract key from flattened item C
+            // - a_lookup_expr: How to extract lookup key from entity A
+            // For now, use simple defaults (can be enhanced with more StreamOp variants)
+            let c_key_expr = Expr::Param(0); // C item itself as key
+            let a_lookup_expr = key_expr_a.clone(); // Same as A's join key
+
+            ConstraintPattern::FlattenedBi {
+                class_idx_a: *class_idx_a,
+                class_idx_b: *class_idx_b,
+                key_expr_a,
+                key_expr_b,
+                flatten_expr,
+                c_key_expr,
+                a_lookup_expr,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        // Cross-join bi-constraint: 2 entities from different classes
+        (2, [class_idx_a, class_idx_b], None) if class_idx_a != class_idx_b => {
+            let (key_expr_a, key_expr_b) = extract_join_keys(&join_conditions);
+            ConstraintPattern::CrossBi {
+                class_idx_a: *class_idx_a,
+                class_idx_b: *class_idx_b,
+                key_expr_a,
+                key_expr_b,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        // Self-join bi-constraint: 2 entities from same class
+        (2, [class_idx, _], None) => {
+            let (key_expr, _) = extract_join_keys(&join_conditions);
+            ConstraintPattern::BiSelfJoin {
+                class_idx: *class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        // Tri self-join: 3 entities from same class
+        (3, [class_idx, _, _], None) => {
+            let (key_expr, _) = extract_join_keys(&join_conditions);
+            ConstraintPattern::TriSelfJoin {
+                class_idx: *class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        // Quad self-join: 4 entities from same class
+        (4, [class_idx, _, _, _], None) => {
+            let (key_expr, _) = extract_join_keys(&join_conditions);
+            ConstraintPattern::QuadSelfJoin {
+                class_idx: *class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        // Penta self-join: 5 entities from same class
+        (5, [class_idx, _, _, _, _], None) => {
+            let (key_expr, _) = extract_join_keys(&join_conditions);
+            ConstraintPattern::PentaSelfJoin {
+                class_idx: *class_idx,
+                key_expr,
+                filter_expr,
+                weight_expr,
+            }
+        }
+
+        _ => panic!("Unsupported constraint pattern: arity={}, classes={:?}", arity, class_indices),
+    }
+}
+
+/// Combines multiple filter expressions into a single AND expression.
+fn combine_filters(filters: &[Expr]) -> Expr {
+    if filters.is_empty() {
+        Expr::Literal(DynamicValue::Bool(true))
+    } else if filters.len() == 1 {
+        filters[0].clone()
+    } else {
+        // Combine with AND
+        let mut result = filters[0].clone();
+        for filter in &filters[1..] {
+            result = Expr::And(Box::new(result), Box::new(filter.clone()));
+        }
+        result
+    }
+}
+
+/// Extracts join key expressions from join conditions.
+///
+/// For join conditions like `Param(0).field_x == Param(1).field_y`,
+/// this extracts the left side (key for entity A) and right side (key for entity B).
+///
+/// Returns `(Expr::Param(0), Expr::Param(0))` as a safe default if no conditions are found.
+fn extract_join_keys(conditions: &[Expr]) -> (Expr, Expr) {
+    // Look for equality conditions to extract join keys
+    for condition in conditions {
+        if let Expr::Eq(left, right) = condition {
+            return ((**left).clone(), (**right).clone());
+        }
+    }
+
+    // Default: use Param(0) as join key (identity join)
+    (Expr::Param(0), Expr::Param(0))
+}
+

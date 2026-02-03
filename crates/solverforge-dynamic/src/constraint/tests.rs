@@ -664,3 +664,369 @@ fn test_flattened_bi_constraint() {
     let full_score3 = constraint.evaluate(&solution);
     assert_eq!(full_score3, HardSoftScore::of_hard(-40));
 }
+
+/// Test that incremental deltas match full recalculation across multiple constraint types.
+///
+/// This test creates constraints of different patterns (bi self-join, tri self-join,
+/// cross-bi, flattened-bi) and verifies that:
+/// 1. After initialize(), the incremental score matches evaluate()
+/// 2. After each on_insert(), accumulated delta matches evaluate()
+/// 3. After each on_retract(), accumulated delta matches evaluate()
+///
+/// This provides strong evidence that the incremental indexing is correct and
+/// doesn't drift from the true score over multiple operations.
+#[test]
+fn test_incremental_delta_matches_full_recalculation() {
+    // ======================
+    // Test 1: Bi Self-Join
+    // ======================
+    {
+        let mut solution = make_nqueens_solution(&[0, 1, 2]);
+
+        let ops = vec![
+            StreamOp::ForEach { class_idx: 0 },
+            StreamOp::Join {
+                class_idx: 0,
+                conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))],
+            },
+            StreamOp::DistinctPair {
+                ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
+            },
+            StreamOp::Penalize {
+                weight: HardSoftScore::of_hard(1),
+            },
+        ];
+
+        let mut constraint = build_from_stream_ops(
+            ConstraintRef::new("bi_test"),
+            ImpactType::Penalty,
+            &ops,
+            solution.descriptor().clone(),
+        );
+
+        // Initialize
+        let init_score = constraint.initialize(&solution);
+        let full_score = constraint.evaluate(&solution);
+        assert_eq!(init_score, full_score, "Bi: Initialize delta != evaluate");
+
+        // Insert entity → conflicts
+        solution.add_entity(
+            0,
+            DynamicEntity::new(3, vec![DynamicValue::I64(3), DynamicValue::I64(1)]),
+        );
+        let delta1 = constraint.on_insert(&solution, 3, 0);
+        let accumulated1 = init_score + delta1;
+        let full1 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated1, full1,
+            "Bi: After insert, accumulated score != evaluate"
+        );
+
+        // Retract entity
+        let retracted = solution.entities_by_class(0)[3].clone();
+        solution.retract_entity(0, 3);
+        let delta2 = constraint.on_retract(&retracted, 3, 0);
+        let accumulated2 = accumulated1 + delta2;
+        let full2 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated2, full2,
+            "Bi: After retract, accumulated score != evaluate"
+        );
+    }
+
+    // ======================
+    // Test 2: Tri Self-Join
+    // ======================
+    {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Number",
+            vec![FieldDef::new("value", FieldType::I64)],
+        ));
+
+        let mut solution = DynamicSolution::new(desc);
+        for val in [1, 2, 3, 4] {
+            solution.add_entity(0, DynamicEntity::new(val, vec![DynamicValue::I64(val)]));
+        }
+
+        let ops = vec![
+            StreamOp::ForEach { class_idx: 0 },
+            StreamOp::Join {
+                class_idx: 0,
+                conditions: vec![],
+            },
+            StreamOp::Join {
+                class_idx: 0,
+                conditions: vec![],
+            },
+            StreamOp::Filter {
+                predicate: Expr::eq(
+                    Expr::add(Expr::field(0, 0), Expr::field(1, 0)),
+                    Expr::field(2, 0),
+                ),
+            },
+            StreamOp::Penalize {
+                weight: HardSoftScore::of_hard(1),
+            },
+        ];
+
+        let mut constraint = build_from_stream_ops(
+            ConstraintRef::new("tri_test"),
+            ImpactType::Penalty,
+            &ops,
+            solution.descriptor().clone(),
+        );
+
+        // Initialize
+        let init_score = constraint.initialize(&solution);
+        let full_score = constraint.evaluate(&solution);
+        assert_eq!(init_score, full_score, "Tri: Initialize delta != evaluate");
+
+        // Insert 5 → creates (1,4,5) and (2,3,5)
+        solution.add_entity(0, DynamicEntity::new(5, vec![DynamicValue::I64(5)]));
+        let delta1 = constraint.on_insert(&solution, 4, 0);
+        let accumulated1 = init_score + delta1;
+        let full1 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated1, full1,
+            "Tri: After insert 5, accumulated score != evaluate"
+        );
+
+        // Insert 6 → creates (1,5,6) and (2,4,6)
+        solution.add_entity(0, DynamicEntity::new(6, vec![DynamicValue::I64(6)]));
+        let delta2 = constraint.on_insert(&solution, 5, 0);
+        let accumulated2 = accumulated1 + delta2;
+        let full2 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated2, full2,
+            "Tri: After insert 6, accumulated score != evaluate"
+        );
+    }
+
+    // ======================
+    // Test 3: Cross-Bi
+    // ======================
+    {
+        let mut desc = DynamicDescriptor::new();
+        let shift_class = desc.add_entity_class(EntityClassDef::new(
+            "Shift",
+            vec![
+                FieldDef::new("shift_id", FieldType::I64),
+                FieldDef::planning_variable("employee_id", FieldType::I64, "employees"),
+            ],
+        ));
+        let employee_class = desc.add_entity_class(EntityClassDef::new(
+            "Employee",
+            vec![
+                FieldDef::new("employee_id", FieldType::I64),
+                FieldDef::new("available", FieldType::Bool),
+            ],
+        ));
+        desc.add_value_range("employees", ValueRangeDef::int_range(1, 4));
+
+        let mut solution = DynamicSolution::new(desc);
+
+        // Employees
+        solution.add_entity(
+            employee_class,
+            DynamicEntity::new(0, vec![DynamicValue::I64(1), DynamicValue::Bool(true)]),
+        );
+        solution.add_entity(
+            employee_class,
+            DynamicEntity::new(1, vec![DynamicValue::I64(2), DynamicValue::Bool(false)]),
+        );
+
+        // Shifts
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(0, vec![DynamicValue::I64(100), DynamicValue::I64(1)]),
+        );
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(1, vec![DynamicValue::I64(101), DynamicValue::I64(2)]),
+        );
+
+        let ops = vec![
+            StreamOp::ForEach {
+                class_idx: shift_class,
+            },
+            StreamOp::Join {
+                class_idx: employee_class,
+                conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 0))],
+            },
+            StreamOp::Filter {
+                predicate: Expr::eq(Expr::field(1, 1), Expr::literal(false)),
+            },
+            StreamOp::Penalize {
+                weight: HardSoftScore::of_hard(10),
+            },
+        ];
+
+        let mut constraint = build_from_stream_ops(
+            ConstraintRef::new("cross_test"),
+            ImpactType::Penalty,
+            &ops,
+            solution.descriptor().clone(),
+        );
+
+        // Initialize
+        let init_score = constraint.initialize(&solution);
+        let full_score = constraint.evaluate(&solution);
+        assert_eq!(
+            init_score, full_score,
+            "Cross: Initialize delta != evaluate"
+        );
+
+        // Insert shift assigned to unavailable employee
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(2, vec![DynamicValue::I64(102), DynamicValue::I64(2)]),
+        );
+        let delta1 = constraint.on_insert(&solution, 2, shift_class);
+        let accumulated1 = init_score + delta1;
+        let full1 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated1, full1,
+            "Cross: After insert, accumulated score != evaluate"
+        );
+    }
+
+    // ======================
+    // Test 4: Flattened-Bi
+    // ======================
+    {
+        let mut desc = DynamicDescriptor::new();
+        let shift_class = desc.add_entity_class(EntityClassDef::new(
+            "Shift",
+            vec![
+                FieldDef::new("shift_id", FieldType::I64),
+                FieldDef::planning_variable("employee_id", FieldType::I64, "employees"),
+                FieldDef::new("day", FieldType::I64),
+            ],
+        ));
+        let employee_class = desc.add_entity_class(EntityClassDef::new(
+            "Employee",
+            vec![
+                FieldDef::new("employee_id", FieldType::I64),
+                FieldDef::new("unavailable_days", FieldType::VecI64),
+            ],
+        ));
+        desc.add_value_range("employees", ValueRangeDef::int_range(1, 3));
+
+        let mut solution = DynamicSolution::new(desc);
+
+        // Employees with unavailable days
+        solution.add_entity(
+            employee_class,
+            DynamicEntity::new(
+                0,
+                vec![
+                    DynamicValue::I64(1),
+                    DynamicValue::VecI64(vec![5, 10, 15]),
+                ],
+            ),
+        );
+        solution.add_entity(
+            employee_class,
+            DynamicEntity::new(1, vec![DynamicValue::I64(2), DynamicValue::VecI64(vec![7])]),
+        );
+
+        // Shifts
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(
+                0,
+                vec![
+                    DynamicValue::I64(100),
+                    DynamicValue::I64(1),
+                    DynamicValue::I64(5),
+                ],
+            ),
+        );
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(
+                1,
+                vec![
+                    DynamicValue::I64(101),
+                    DynamicValue::I64(1),
+                    DynamicValue::I64(12),
+                ],
+            ),
+        );
+
+        let ops = vec![
+            StreamOp::ForEach {
+                class_idx: shift_class,
+            },
+            StreamOp::Join {
+                class_idx: employee_class,
+                conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 0))],
+            },
+            StreamOp::FlattenLast {
+                collection_expr: Expr::field(1, 1),
+            },
+            StreamOp::Filter {
+                predicate: Expr::eq(Expr::field(0, 2), Expr::param(2)),
+            },
+            StreamOp::Penalize {
+                weight: HardSoftScore::of_hard(10),
+            },
+        ];
+
+        let mut constraint = build_from_stream_ops(
+            ConstraintRef::new("flattened_test"),
+            ImpactType::Penalty,
+            &ops,
+            solution.descriptor().clone(),
+        );
+
+        // Initialize
+        let init_score = constraint.initialize(&solution);
+        let full_score = constraint.evaluate(&solution);
+        assert_eq!(
+            init_score, full_score,
+            "Flattened: Initialize delta != evaluate"
+        );
+
+        // Insert shift on unavailable day
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(
+                2,
+                vec![
+                    DynamicValue::I64(102),
+                    DynamicValue::I64(1),
+                    DynamicValue::I64(10),
+                ],
+            ),
+        );
+        let delta1 = constraint.on_insert(&solution, 2, shift_class);
+        let accumulated1 = init_score + delta1;
+        let full1 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated1, full1,
+            "Flattened: After insert unavailable day, accumulated score != evaluate"
+        );
+
+        // Insert shift on available day
+        solution.add_entity(
+            shift_class,
+            DynamicEntity::new(
+                3,
+                vec![
+                    DynamicValue::I64(103),
+                    DynamicValue::I64(1),
+                    DynamicValue::I64(20),
+                ],
+            ),
+        );
+        let delta2 = constraint.on_insert(&solution, 3, shift_class);
+        let accumulated2 = accumulated1 + delta2;
+        let full2 = constraint.evaluate(&solution);
+        assert_eq!(
+            accumulated2, full2,
+            "Flattened: After insert available day, accumulated score != evaluate"
+        );
+    }
+}

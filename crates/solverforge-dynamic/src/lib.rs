@@ -14,7 +14,7 @@ mod moves;
 mod solution;
 mod solve;
 
-pub use constraint::{DynamicConstraint, StreamOp};
+pub use constraint::StreamOp;
 pub use constraint_set::DynamicConstraintSet;
 pub use descriptor::{
     DynamicDescriptor, EntityClassDef, FactClassDef, FieldDef, FieldType, ValueRangeDef,

@@ -739,6 +739,74 @@ pub fn make_cross_extractor_b(class_idx_b: usize) -> DynCrossExtractorB {
     })
 }
 
+/// Creates a cross-join key extractor for the first entity class (A).
+///
+/// This function creates a closure that evaluates a join key expression against
+/// an entity from class A to extract a join key value used for cross-join indexing.
+///
+/// # Parameters
+/// - `key_expr`: Expression to evaluate for extracting the join key
+/// - `descriptor`: The solution descriptor (for expression evaluation context)
+///
+/// # Returns
+/// A boxed closure that takes an entity from class A and returns its join key.
+///
+/// # Expression Context
+/// - `Param(0)` refers to the entity itself (returns entity ID)
+/// - `Field { param_idx: 0, field_idx }` accesses fields from the entity
+///
+/// # Design Constraint
+/// Join key expressions should only reference entity fields, not facts or solution state.
+/// The minimal solution context ensures this by having empty entities and facts vectors.
+pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyA {
+    // Create minimal solution with only descriptor (no entities/facts).
+    // This is intentional - join keys should be stable entity attributes.
+    let minimal_solution = DynamicSolution {
+        descriptor,
+        entities: Vec::new(),
+        facts: Vec::new(),
+        score: None,
+    };
+
+    Box::new(move |entity: &DynamicEntity| {
+        crate::eval::eval_entity_expr(&key_expr, &minimal_solution, entity)
+    })
+}
+
+/// Creates a cross-join key extractor for the second entity class (B).
+///
+/// This function creates a closure that evaluates a join key expression against
+/// an entity from class B to extract a join key value used for cross-join indexing.
+///
+/// # Parameters
+/// - `key_expr`: Expression to evaluate for extracting the join key
+/// - `descriptor`: The solution descriptor (for expression evaluation context)
+///
+/// # Returns
+/// A boxed closure that takes an entity from class B and returns its join key.
+///
+/// # Expression Context
+/// - `Param(0)` refers to the entity itself (returns entity ID)
+/// - `Field { param_idx: 0, field_idx }` accesses fields from the entity
+///
+/// # Design Constraint
+/// Join key expressions should only reference entity fields, not facts or solution state.
+/// The minimal solution context ensures this by having empty entities and facts vectors.
+pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyB {
+    // Create minimal solution with only descriptor (no entities/facts).
+    // This is intentional - join keys should be stable entity attributes.
+    let minimal_solution = DynamicSolution {
+        descriptor,
+        entities: Vec::new(),
+        facts: Vec::new(),
+        score: None,
+    };
+
+    Box::new(move |entity: &DynamicEntity| {
+        crate::eval::eval_entity_expr(&key_expr, &minimal_solution, entity)
+    })
+}
+
 /// Operations in a constraint stream pipeline.
 #[derive(Debug, Clone)]
 pub enum StreamOp {

@@ -27,6 +27,8 @@ pub mod shared;
 #[cfg(test)]
 mod bi_incr_tests;
 #[cfg(test)]
+mod complemented_tests;
+#[cfg(test)]
 mod penta_incr_tests;
 #[cfg(test)]
 mod quad_incr_tests;

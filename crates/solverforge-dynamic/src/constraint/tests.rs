@@ -1101,9 +1101,9 @@ fn test_cross_class_same_named_field_constraint() {
         DynamicEntity::new(
             100, // entity id (globally unique)
             vec![
-                DynamicValue::I64(1),                      // id
-                DynamicValue::String("Alice".into()),      // name
-                DynamicValue::I64(100),                    // assigned_shift_id (field 2)
+                DynamicValue::I64(1),                 // id
+                DynamicValue::String("Alice".into()), // name
+                DynamicValue::I64(100),               // assigned_shift_id (field 2)
             ],
         ),
     );
@@ -1146,23 +1146,11 @@ fn test_cross_class_same_named_field_constraint() {
     );
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(
-            201,
-            vec![
-                DynamicValue::I64(200),
-                DynamicValue::I64(14),
-            ],
-        ),
+        DynamicEntity::new(201, vec![DynamicValue::I64(200), DynamicValue::I64(14)]),
     );
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(
-            202,
-            vec![
-                DynamicValue::I64(300),
-                DynamicValue::I64(18),
-            ],
-        ),
+        DynamicEntity::new(202, vec![DynamicValue::I64(300), DynamicValue::I64(18)]),
     );
 
     // Build constraint: penalize each (Employee, Shift) pair where employee is assigned to shift
@@ -1228,7 +1216,10 @@ fn test_key_expr_limitation_warnings() {
     // Simple field access should have no warnings
     let simple_expr = Expr::field(0, 1);
     let warnings = check_key_expr_limitations(&simple_expr);
-    assert!(warnings.is_empty(), "Simple field access should have no warnings");
+    assert!(
+        warnings.is_empty(),
+        "Simple field access should have no warnings"
+    );
 
     // Param(0) should have no warnings (it's the current entity)
     let param0_expr = Expr::param(0);
@@ -1244,40 +1235,57 @@ fn test_key_expr_limitation_warnings() {
     let param1_expr = Expr::param(1);
     let warnings = check_key_expr_limitations(&param1_expr);
     assert_eq!(warnings.len(), 1, "Param(1) should produce one warning");
-    assert!(warnings[0].contains("Param(1)"), "Warning should mention Param(1)");
+    assert!(
+        warnings[0].contains("Param(1)"),
+        "Warning should mention Param(1)"
+    );
 
     // Param(2) should also produce a warning
     let param2_expr = Expr::param(2);
     let warnings = check_key_expr_limitations(&param2_expr);
     assert_eq!(warnings.len(), 1, "Param(2) should produce one warning");
-    assert!(warnings[0].contains("Param(2)"), "Warning should mention Param(2)");
+    assert!(
+        warnings[0].contains("Param(2)"),
+        "Warning should mention Param(2)"
+    );
 
     // RefField should produce a warning
     let ref_field_expr = Expr::ref_field(Expr::field(0, 0), 1);
     let warnings = check_key_expr_limitations(&ref_field_expr);
     assert_eq!(warnings.len(), 1, "RefField should produce one warning");
-    assert!(warnings[0].contains("RefField"), "Warning should mention RefField");
+    assert!(
+        warnings[0].contains("RefField"),
+        "Warning should mention RefField"
+    );
 
     // Nested RefField should produce a warning
-    let nested_expr = Expr::add(
-        Expr::field(0, 1),
-        Expr::ref_field(Expr::field(0, 0), 2),
-    );
+    let nested_expr = Expr::add(Expr::field(0, 1), Expr::ref_field(Expr::field(0, 0), 2));
     let warnings = check_key_expr_limitations(&nested_expr);
-    assert_eq!(warnings.len(), 1, "Nested RefField should produce one warning");
+    assert_eq!(
+        warnings.len(),
+        1,
+        "Nested RefField should produce one warning"
+    );
 
     // Multiple issues should produce multiple warnings
     let multi_issue_expr = Expr::add(
-        Expr::param(1),                        // warning 1
-        Expr::ref_field(Expr::param(2), 0),    // warning 2 (RefField) + warning 3 (Param(2))
+        Expr::param(1),                     // warning 1
+        Expr::ref_field(Expr::param(2), 0), // warning 2 (RefField) + warning 3 (Param(2))
     );
     let warnings = check_key_expr_limitations(&multi_issue_expr);
-    assert_eq!(warnings.len(), 3, "Multiple issues should produce multiple warnings");
+    assert_eq!(
+        warnings.len(),
+        3,
+        "Multiple issues should produce multiple warnings"
+    );
 
     // Arithmetic operations with safe operands should have no warnings
     let arith_expr = Expr::add(Expr::field(0, 0), Expr::field(0, 1));
     let warnings = check_key_expr_limitations(&arith_expr);
-    assert!(warnings.is_empty(), "Safe arithmetic should have no warnings");
+    assert!(
+        warnings.is_empty(),
+        "Safe arithmetic should have no warnings"
+    );
 
     // If expression with safe branches should have no warnings
     let if_expr = Expr::if_then_else(
@@ -1286,7 +1294,10 @@ fn test_key_expr_limitation_warnings() {
         Expr::int(0),
     );
     let warnings = check_key_expr_limitations(&if_expr);
-    assert!(warnings.is_empty(), "Safe If expression should have no warnings");
+    assert!(
+        warnings.is_empty(),
+        "Safe If expression should have no warnings"
+    );
 
     // If expression with unsafe branch should warn
     let if_expr_unsafe = Expr::if_then_else(
@@ -1295,7 +1306,11 @@ fn test_key_expr_limitation_warnings() {
         Expr::int(0),
     );
     let warnings = check_key_expr_limitations(&if_expr_unsafe);
-    assert_eq!(warnings.len(), 1, "Unsafe If condition should produce warning");
+    assert_eq!(
+        warnings.len(),
+        1,
+        "Unsafe If condition should produce warning"
+    );
 }
 
 /// Test that same-named fields at different indices work with filter expressions.
@@ -1312,7 +1327,7 @@ fn test_cross_class_same_named_field_with_filter() {
         "Task",
         vec![
             FieldDef::new("task_id", FieldType::I64),
-            FieldDef::new("priority", FieldType::I64),  // index 1
+            FieldDef::new("priority", FieldType::I64), // index 1
             FieldDef::new("status", FieldType::I64),
         ],
     ));
@@ -1325,7 +1340,7 @@ fn test_cross_class_same_named_field_with_filter() {
         vec![
             FieldDef::new("worker_id", FieldType::I64),
             FieldDef::new("skill", FieldType::I64),
-            FieldDef::new("priority", FieldType::I64),  // index 2
+            FieldDef::new("priority", FieldType::I64), // index 2
         ],
     ));
     let worker_class = 1;
@@ -1423,215 +1438,6 @@ fn test_cross_class_same_named_field_with_filter() {
 /// This benchmark measures the performance improvement from using `id_to_location` HashMap
 /// for entity lookup instead of the previous O(n) `iter().position()` approach.
 ///
-/// The filter closure in bi-constraints must look up entity indices by ID for every
-/// filter evaluation. For N entities with M constraint pairs:
-/// - Old approach: O(N * M) total (linear search per pair)
-/// - New approach: O(M) total (constant-time HashMap lookup per pair)
-///
-/// Results (typical, release mode):
-/// | Entities | Pairs     | O(1) HashMap | O(n) Linear | Speedup   |
-/// |----------|-----------|--------------|-------------|-----------|
-/// | 100      | ~5K       | ~2ms         | ~5ms        | 2.5x      |
-/// | 500      | ~125K     | ~40ms        | ~600ms      | 15x       |
-/// | 1000     | ~500K     | ~160ms       | ~4800ms     | 30x       |
-/// | 2000     | ~2M       | ~640ms       | ~38000ms    | 60x       |
-#[test]
-#[ignore] // Run explicitly with --ignored flag
-fn bench_filter_lookup() {
-    use std::hint::black_box;
-    use std::time::{Duration, Instant};
-
-    /// Creates a solution with the given number of queens for n-queens benchmark.
-    fn create_nqueens_solution(n: usize) -> DynamicSolution {
-        let mut desc = DynamicDescriptor::new();
-        desc.add_entity_class(EntityClassDef::new(
-            "Queen",
-            vec![
-                FieldDef::new("column", FieldType::I64),
-                FieldDef::planning_variable("row", FieldType::I64, "rows"),
-            ],
-        ));
-        desc.add_value_range("rows", ValueRangeDef::int_range(0, n as i64));
-
-        let mut solution = DynamicSolution::new(desc);
-        for col in 0..n {
-            solution.add_entity(
-                0,
-                DynamicEntity::new(
-                    col as i64,
-                    vec![
-                        DynamicValue::I64(col as i64),
-                        DynamicValue::I64((col % n) as i64),
-                    ],
-                ),
-            );
-        }
-        solution
-    }
-
-    /// Simulates the OLD O(n) linear search approach for entity lookup.
-    /// This is what the code did before the id_to_location HashMap optimization.
-    fn old_lookup_linear(
-        entities: &[DynamicEntity],
-        a_id: i64,
-        b_id: i64,
-    ) -> Option<(usize, usize)> {
-        let a_idx = entities.iter().position(|e| e.id == a_id)?;
-        let b_idx = entities.iter().position(|e| e.id == b_id)?;
-        Some((a_idx, b_idx))
-    }
-
-    /// Uses the NEW O(1) HashMap approach for entity lookup.
-    fn new_lookup_hashmap(
-        solution: &DynamicSolution,
-        a_id: i64,
-        b_id: i64,
-    ) -> Option<(usize, usize)> {
-        let (_, a_idx) = solution.get_entity_location(a_id)?;
-        let (_, b_idx) = solution.get_entity_location(b_id)?;
-        Some((a_idx, b_idx))
-    }
-
-    /// Runs a benchmark and returns average duration.
-    fn benchmark<F>(name: &str, iterations: usize, mut f: F) -> Duration
-    where
-        F: FnMut() -> (),
-    {
-        // Warmup
-        for _ in 0..iterations / 10 {
-            f();
-        }
-
-        let start = Instant::now();
-        for _ in 0..iterations {
-            f();
-        }
-        let elapsed = start.elapsed();
-        let avg = elapsed / iterations as u32;
-        println!("  {}: {:?} avg ({} iterations, {:?} total)", name, avg, iterations, elapsed);
-        avg
-    }
-
-    println!("\n=== Filter Entity Lookup Performance Benchmark ===");
-    println!("Comparing O(1) HashMap lookup vs O(n) linear search\n");
-
-    // Test with various entity counts
-    for &n in &[100, 500, 1000, 2000] {
-        println!("--- {} entities ({} bi-constraint pairs) ---", n, n * (n - 1) / 2);
-
-        let solution = create_nqueens_solution(n);
-        let entities = &solution.entities[0];
-
-        // Generate all pairs for bi-constraint (self-join)
-        let pairs: Vec<(i64, i64)> = (0..n)
-            .flat_map(|i| ((i + 1)..n).map(move |j| (i as i64, j as i64)))
-            .collect();
-        let num_pairs = pairs.len();
-
-        // Determine iterations to get meaningful timing
-        let iterations = if n <= 500 { 100 } else if n <= 1000 { 20 } else { 5 };
-
-        // Benchmark O(1) HashMap approach
-        let hashmap_time = benchmark(
-            &format!("O(1) HashMap ({} pairs)", num_pairs),
-            iterations,
-            || {
-                for &(a_id, b_id) in &pairs {
-                    let result = black_box(new_lookup_hashmap(&solution, a_id, b_id));
-                    black_box(result);
-                }
-            },
-        );
-
-        // Benchmark O(n) linear search approach
-        let linear_time = benchmark(
-            &format!("O(n) Linear  ({} pairs)", num_pairs),
-            iterations,
-            || {
-                for &(a_id, b_id) in &pairs {
-                    let result = black_box(old_lookup_linear(entities, a_id, b_id));
-                    black_box(result);
-                }
-            },
-        );
-
-        // Calculate speedup
-        let speedup = linear_time.as_nanos() as f64 / hashmap_time.as_nanos() as f64;
-        println!("  Speedup: {:.1}x faster with HashMap\n", speedup);
-    }
-
-    println!("=== Full Bi-Constraint Filter Benchmark ===");
-    println!("Measuring actual filter closure execution\n");
-
-    // Now benchmark actual filter execution with the constraint system
-    for &n in &[100, 500, 1000] {
-        println!("--- {} entities (row conflict constraint) ---", n);
-
-        let solution = create_nqueens_solution(n);
-
-        // Build a row conflict constraint
-        let ops = vec![
-            StreamOp::ForEach { class_idx: 0 },
-            StreamOp::Join {
-                class_idx: 0,
-                conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))],
-            },
-            StreamOp::DistinctPair {
-                ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
-            },
-            StreamOp::Penalize {
-                weight: HardSoftScore::of_hard(1),
-            },
-        ];
-
-        let mut constraint = build_from_stream_ops(
-            ConstraintRef::new("", "row_conflict"),
-            ImpactType::Penalty,
-            &ops,
-            solution.descriptor.clone(),
-        );
-
-        let iterations = if n <= 500 { 50 } else { 10 };
-
-        // Benchmark initialize (which builds indices and evaluates all pairs)
-        benchmark(
-            &format!("initialize ({} entities)", n),
-            iterations,
-            || {
-                // Reset constraint state
-                let mut c = build_from_stream_ops(
-                    ConstraintRef::new("", "row_conflict"),
-                    ImpactType::Penalty,
-                    &ops,
-                    solution.descriptor.clone(),
-                );
-                let score = black_box(c.initialize(&solution));
-                black_box(score);
-            },
-        );
-
-        // Initialize once for evaluate benchmark
-        constraint.initialize(&solution);
-
-        // Benchmark evaluate (full re-evaluation)
-        benchmark(
-            &format!("evaluate  ({} entities)", n),
-            iterations,
-            || {
-                let score = black_box(constraint.evaluate(&solution));
-                black_box(score);
-            },
-        );
-
-        println!();
-    }
-
-    println!("=== Benchmark Complete ===\n");
-    println!("Note: The speedup increases with entity count because:");
-    println!("- HashMap lookup is O(1) regardless of entity count");
-    println!("- Linear search is O(n) per lookup, O(n²) per pair check\n");
-}
-
 /// Comprehensive test verifying incremental scoring matches full recalculation after all PRD changes.
 ///
 /// This test serves as final validation that all performance optimizations
@@ -1699,8 +1505,16 @@ fn test_comprehensive_incremental_correctness() {
 
         // Initialize
         let mut running_score = constraint.initialize(&solution);
-        assert_eq!(running_score, HardSoftScore::ZERO, "Initial: no conflicts expected");
-        assert_eq!(running_score, constraint.evaluate(&solution), "Init mismatch");
+        assert_eq!(
+            running_score,
+            HardSoftScore::ZERO,
+            "Initial: no conflicts expected"
+        );
+        assert_eq!(
+            running_score,
+            constraint.evaluate(&solution),
+            "Init mismatch"
+        );
 
         // Perform 10 insert operations, checking after each
         let mut entity_id = 4i64;
@@ -1720,7 +1534,10 @@ fn test_comprehensive_incremental_correctness() {
         for (i, (col, row)) in operations.iter().enumerate() {
             solution.add_entity(
                 0,
-                DynamicEntity::new(entity_id, vec![DynamicValue::I64(*col), DynamicValue::I64(*row)]),
+                DynamicEntity::new(
+                    entity_id,
+                    vec![DynamicValue::I64(*col), DynamicValue::I64(*row)],
+                ),
             );
             let delta = constraint.on_insert(&solution, 4 + i, 0);
             running_score = running_score + delta;
@@ -1840,7 +1657,10 @@ fn test_comprehensive_incremental_correctness() {
                 shift_class,
                 DynamicEntity::new(
                     i as i64,
-                    vec![DynamicValue::I64((i + 1000) as i64), DynamicValue::I64(emp_id)],
+                    vec![
+                        DynamicValue::I64((i + 1000) as i64),
+                        DynamicValue::I64(emp_id),
+                    ],
                 ),
             );
             let delta = constraint.on_insert(&solution, i, shift_class);
@@ -1855,7 +1675,11 @@ fn test_comprehensive_incremental_correctness() {
         }
 
         // Expected: shifts to employees 2,4,2,4 = 4 penalties = -40
-        assert_eq!(running_score, HardSoftScore::of_hard(-40), "Final cross-bi score");
+        assert_eq!(
+            running_score,
+            HardSoftScore::of_hard(-40),
+            "Final cross-bi score"
+        );
 
         // Retract some shifts
         for idx in (0..10).rev().take(5) {
@@ -1924,10 +1748,7 @@ fn test_comprehensive_incremental_correctness() {
 
         // Insert values 4 through 10
         for val in 4..=10 {
-            solution.add_entity(
-                0,
-                DynamicEntity::new(val, vec![DynamicValue::I64(val)]),
-            );
+            solution.add_entity(0, DynamicEntity::new(val, vec![DynamicValue::I64(val)]));
             let delta = constraint.on_insert(&solution, (val - 1) as usize, 0);
             running_score = running_score + delta;
 
@@ -2035,7 +1856,11 @@ fn test_comprehensive_incremental_correctness() {
 
         assert_eq!(row_score, HardSoftScore::ZERO, "No row conflicts initially");
         // Diagonal conflicts: (0,0)-(1,1), (0,0)-(2,2), (0,0)-(3,3), (1,1)-(2,2), (1,1)-(3,3), (2,2)-(3,3) = 6
-        assert_eq!(diag_score, HardSoftScore::of_hard(-6), "Diagonal conflicts for linear arrangement");
+        assert_eq!(
+            diag_score,
+            HardSoftScore::of_hard(-6),
+            "Diagonal conflicts for linear arrangement"
+        );
 
         // Insert queen at (4, 0) - conflicts with (0, 0) on row
         solution.add_entity(
@@ -2047,8 +1872,16 @@ fn test_comprehensive_incremental_correctness() {
         row_score = row_score + row_delta;
         diag_score = diag_score + diag_delta;
 
-        assert_eq!(row_score, row_constraint.evaluate(&solution), "Row after insert");
-        assert_eq!(diag_score, diag_constraint.evaluate(&solution), "Diag after insert");
+        assert_eq!(
+            row_score,
+            row_constraint.evaluate(&solution),
+            "Row after insert"
+        );
+        assert_eq!(
+            diag_score,
+            diag_constraint.evaluate(&solution),
+            "Diag after insert"
+        );
 
         // Insert queen at (5, 3) - conflicts with (3, 3) on row, with (0,0) on diagonal
         solution.add_entity(
@@ -2060,8 +1893,16 @@ fn test_comprehensive_incremental_correctness() {
         row_score = row_score + row_delta;
         diag_score = diag_score + diag_delta;
 
-        assert_eq!(row_score, row_constraint.evaluate(&solution), "Row after insert 2");
-        assert_eq!(diag_score, diag_constraint.evaluate(&solution), "Diag after insert 2");
+        assert_eq!(
+            row_score,
+            row_constraint.evaluate(&solution),
+            "Row after insert 2"
+        );
+        assert_eq!(
+            diag_score,
+            diag_constraint.evaluate(&solution),
+            "Diag after insert 2"
+        );
 
         // Verify total score matches
         let total_running = row_score + diag_score;

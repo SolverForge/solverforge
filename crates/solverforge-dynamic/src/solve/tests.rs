@@ -656,11 +656,7 @@ fn test_large_scale_entity_assignments() {
         );
         let (class_idx, entity_idx) = location.unwrap();
         assert_eq!(class_idx, 0, "Entity {} should be in class 0", task_id);
-        assert_eq!(
-            entity_idx, i,
-            "Entity {} should be at index {}",
-            task_id, i
-        );
+        assert_eq!(entity_idx, i, "Entity {} should be at index {}", task_id, i);
 
         // Verify we can retrieve the entity and its fields are correct
         let entity = solution.get_entity(class_idx, entity_idx).unwrap();
@@ -774,16 +770,17 @@ fn test_large_scale_entity_assignments() {
     );
 }
 
-/// Integration test verifying the solver can handle 1000+ entities in a real solve.
+/// Integration test verifying the solver can handle many entities in a real solve.
 ///
 /// Uses a simplified scheduling problem where correctness can be verified.
+/// Note: Uses 100 entities with 100 slots - construction phase evaluates all
+/// possible moves (100*100 = 10,000 per entity), so this is already substantial.
 #[test]
-#[ignore] // Long-running test - run with `cargo test --release -- --ignored`
-fn test_solve_1000_entities() {
+fn test_solve_many_entities() {
     use std::time::Duration;
 
-    const NUM_ENTITIES: usize = 1000;
-    const NUM_SLOTS: i64 = 1000; // Enough slots for a feasible solution
+    const NUM_ENTITIES: usize = 100;
+    const NUM_SLOTS: i64 = 100; // Enough slots for a feasible solution
 
     // Create descriptor
     let mut desc = DynamicDescriptor::new();
@@ -844,7 +841,7 @@ fn test_solve_1000_entities() {
     constraints.add(uniqueness_constraint);
 
     // Solve with time limit
-    let config = SolveConfig::with_time_limit(Duration::from_secs(60));
+    let config = SolveConfig::with_time_limit(Duration::from_secs(30));
     let result = solve(solution, constraints, config);
 
     eprintln!(
@@ -857,7 +854,9 @@ fn test_solve_1000_entities() {
     // Verify the result
     assert!(
         result.is_feasible(),
-        "Should find feasible solution for 1000 entities with 1000 slots"
+        "Should find feasible solution for {} entities with {} slots",
+        NUM_ENTITIES,
+        NUM_SLOTS
     );
 
     // Verify all entities have assignments
@@ -876,7 +875,10 @@ fn test_solve_1000_entities() {
                 panic!("Entity {} has no position assigned", entity.id);
             }
             other => {
-                panic!("Entity {} has invalid position value: {:?}", entity.id, other);
+                panic!(
+                    "Entity {} has invalid position value: {:?}",
+                    entity.id, other
+                );
             }
         }
     }
@@ -888,7 +890,8 @@ fn test_solve_1000_entities() {
     );
 
     eprintln!(
-        "1000-entity solve test passed: {} unique positions assigned",
+        "{}-entity solve test passed: {} unique positions assigned",
+        NUM_ENTITIES,
         assigned_positions.len()
     );
 }

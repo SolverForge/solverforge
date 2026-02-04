@@ -34,17 +34,17 @@ fn test_solve_8_queens() {
     );
 }
 
-/// Integration test with 1000+ entities verifying correct assignments.
-///
-/// This test creates a large-scale scheduling-like problem with:
-/// - 1000 Task entities with slot planning variables
-/// - Simple non-overlap constraints
-///
-/// The test verifies:
-/// 1. All entities are correctly tracked in the solution
-/// 2. Entity IDs are correctly mapped via id_to_location HashMap
-/// 3. Constraint evaluation works correctly at scale
-/// 4. Incremental scoring produces valid results
+// Integration test with 1000+ entities verifying correct assignments.
+//
+// This test creates a large-scale scheduling-like problem with:
+// - 1000 Task entities with slot planning variables
+// - Simple non-overlap constraints
+//
+// The test verifies:
+// 1. All entities are correctly tracked in the solution
+// 2. Entity IDs are correctly mapped via id_to_location HashMap
+// 3. Constraint evaluation works correctly at scale
+// 4. Incremental scoring produces valid results
 #[test]
 fn test_large_scale_entity_assignments() {
     const NUM_ENTITIES: usize = 1000;
@@ -209,11 +209,11 @@ fn test_large_scale_entity_assignments() {
     );
 }
 
-/// Integration test verifying the solver can handle many entities in a real solve.
-///
-/// Uses a simplified scheduling problem where correctness can be verified.
-/// Note: Uses 100 entities with 100 slots - construction phase evaluates all
-/// possible moves (100*100 = 10,000 per entity), so this is already substantial.
+// Integration test verifying the solver can handle many entities in a real solve.
+//
+// Uses a simplified scheduling problem where correctness can be verified.
+// Note: Uses 100 entities with 100 slots - construction phase evaluates all
+// possible moves (100*100 = 10,000 per entity), so this is already substantial.
 #[test]
 fn test_solve_many_entities() {
     use std::time::Duration;

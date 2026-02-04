@@ -276,8 +276,17 @@ impl DynamicSolution {
 
     pub fn add_entity(&mut self, class_idx: usize, entity: DynamicEntity) {
         if class_idx < self.entities.len() {
+            let entity_idx = self.entities[class_idx].len();
+            self.id_to_location.insert(entity.id, (class_idx, entity_idx));
             self.entities[class_idx].push(entity);
         }
+    }
+
+    /// Look up an entity's location by its ID in O(1) time.
+    ///
+    /// Returns `Some((class_idx, entity_idx))` if the entity exists, `None` otherwise.
+    pub fn get_entity_location(&self, id: i64) -> Option<(usize, usize)> {
+        self.id_to_location.get(&id).copied()
     }
 
     pub fn add_fact(&mut self, class_idx: usize, fact: DynamicFact) {
@@ -400,5 +409,45 @@ mod tests {
             .unwrap()
             .set(1, DynamicValue::I64(2));
         assert!(solution.is_initialized());
+    }
+
+    #[test]
+    fn test_id_to_location_lookup() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef {
+            name: "ClassA".into(),
+            fields: vec![FieldDef::new("value", FieldType::I64)],
+            planning_variable_indices: vec![],
+        });
+        desc.add_entity_class(EntityClassDef {
+            name: "ClassB".into(),
+            fields: vec![FieldDef::new("value", FieldType::I64)],
+            planning_variable_indices: vec![],
+        });
+
+        let mut solution = DynamicSolution::new(desc);
+
+        // Add entities with various IDs to different classes
+        solution.add_entity(0, DynamicEntity::new(100, vec![DynamicValue::I64(1)]));
+        solution.add_entity(0, DynamicEntity::new(101, vec![DynamicValue::I64(2)]));
+        solution.add_entity(1, DynamicEntity::new(200, vec![DynamicValue::I64(3)]));
+        solution.add_entity(1, DynamicEntity::new(201, vec![DynamicValue::I64(4)]));
+        solution.add_entity(0, DynamicEntity::new(102, vec![DynamicValue::I64(5)]));
+
+        // Verify O(1) lookup returns correct (class_idx, entity_idx)
+        assert_eq!(solution.get_entity_location(100), Some((0, 0)));
+        assert_eq!(solution.get_entity_location(101), Some((0, 1)));
+        assert_eq!(solution.get_entity_location(102), Some((0, 2)));
+        assert_eq!(solution.get_entity_location(200), Some((1, 0)));
+        assert_eq!(solution.get_entity_location(201), Some((1, 1)));
+
+        // Non-existent ID returns None
+        assert_eq!(solution.get_entity_location(999), None);
+
+        // Verify we can retrieve entity using the location
+        let (class_idx, entity_idx) = solution.get_entity_location(201).unwrap();
+        let entity = solution.get_entity(class_idx, entity_idx).unwrap();
+        assert_eq!(entity.id, 201);
+        assert_eq!(entity.get(0).unwrap().as_i64(), Some(4));
     }
 }

@@ -76,24 +76,39 @@ pub enum StreamOp {
 ///
 /// # Example Pipeline Patterns
 ///
-/// **Uni-constraint** (1 entity):
-/// ```ignore
-/// [ForEach { class_idx: 0 }, Filter { .. }, Penalize { .. }]
 /// ```
+/// use solverforge_dynamic::{StreamOp, Expr};
+/// use solverforge_core::score::HardSoftScore;
 ///
-/// **Bi self-join** (2 entities, same class):
-/// ```ignore
-/// [ForEach { class_idx: 0 }, Join { class_idx: 0, .. }, DistinctPair { .. }, Penalize { .. }]
-/// ```
+/// // Uni-constraint (1 entity): filter and penalize
+/// let uni_ops = vec![
+///     StreamOp::ForEach { class_idx: 0 },
+///     StreamOp::Filter { predicate: Expr::bool(true) },
+///     StreamOp::Penalize { weight: HardSoftScore::of_hard(1) },
+/// ];
 ///
-/// **Cross-join** (2 entities, different classes):
-/// ```ignore
-/// [ForEach { class_idx: 0 }, Join { class_idx: 1, .. }, Penalize { .. }]
-/// ```
+/// // Bi self-join (2 entities, same class): detect conflicts
+/// let bi_self_ops = vec![
+///     StreamOp::ForEach { class_idx: 0 },
+///     StreamOp::Join { class_idx: 0, conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))] },
+///     StreamOp::DistinctPair { ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)) },
+///     StreamOp::Penalize { weight: HardSoftScore::of_hard(1) },
+/// ];
 ///
-/// **Flattened** (entity A + collection from entity B):
-/// ```ignore
-/// [ForEach { class_idx: 0 }, Join { class_idx: 1, .. }, FlattenLast { .. }, Penalize { .. }]
+/// // Cross-join (2 entities, different classes)
+/// let cross_ops = vec![
+///     StreamOp::ForEach { class_idx: 0 },
+///     StreamOp::Join { class_idx: 1, conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 0))] },
+///     StreamOp::Penalize { weight: HardSoftScore::of_soft(1) },
+/// ];
+///
+/// // Flattened (entity A + collection from entity B)
+/// let flattened_ops = vec![
+///     StreamOp::ForEach { class_idx: 0 },
+///     StreamOp::Join { class_idx: 1, conditions: vec![] },
+///     StreamOp::FlattenLast { set_expr: Expr::field(1, 2) },
+///     StreamOp::Penalize { weight: HardSoftScore::of_hard(1) },
+/// ];
 /// ```
 pub fn build_from_stream_ops(
     constraint_ref: ConstraintRef,

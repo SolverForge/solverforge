@@ -289,37 +289,30 @@ impl DynamicMoveSelector {
         }
     }
 
-    pub fn generate_moves(&self, solution: &DynamicSolution) -> Vec<DynamicChangeMove> {
+    /// Returns a lazy iterator over all possible change moves for the solution.
+    ///
+    /// This method generates moves on-demand using `DynamicMoveIterator`, which
+    /// significantly reduces memory usage for large solutions compared to
+    /// pre-computing all moves into a `Vec`.
+    ///
+    /// The moves are generated in deterministic order (by class, entity, variable, value).
+    /// If randomized order is needed (e.g., for `FirstAcceptedForager`), the caller
+    /// should collect and shuffle the moves, or use `generate_moves_shuffled`.
+    pub fn generate_moves<'a>(&self, solution: &'a DynamicSolution) -> DynamicMoveIterator<'a> {
+        DynamicMoveIterator::new(solution)
+    }
+
+    /// Returns all possible change moves as a shuffled Vec.
+    ///
+    /// This method collects all moves and shuffles them for randomized selection,
+    /// which is important for foragers like `FirstAcceptedForager`.
+    ///
+    /// For memory-constrained scenarios with many moves, prefer using
+    /// `generate_moves()` to get a lazy iterator.
+    pub fn generate_moves_shuffled(&self, solution: &DynamicSolution) -> Vec<DynamicChangeMove> {
         use rand::seq::SliceRandom;
 
-        let mut moves = Vec::new();
-
-        for (class_idx, class_def) in solution.descriptor.entity_classes.iter().enumerate() {
-            for entity_idx in 0..solution
-                .entities
-                .get(class_idx)
-                .map(|e| e.len())
-                .unwrap_or(0)
-            {
-                for &field_idx in &class_def.planning_variable_indices {
-                    let field_def = &class_def.fields[field_idx];
-                    if let Some(range_name) = &field_def.value_range {
-                        if let Some(range) = solution.descriptor.value_range(range_name) {
-                            let values = get_range_values(range, solution);
-                            for value in values {
-                                moves.push(DynamicChangeMove::new(
-                                    class_idx,
-                                    entity_idx,
-                                    field_idx,
-                                    field_def.name.clone(),
-                                    value,
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let mut moves: Vec<_> = self.generate_moves(solution).collect();
 
         // Shuffle moves for randomized selection (important for FirstAcceptedForager)
         let mut rng = rand::rng();
@@ -342,12 +335,14 @@ impl MoveSelector<DynamicSolution, DynamicChangeMove> for DynamicMoveSelector {
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = DynamicChangeMove> + 'a> {
         let solution = score_director.working_solution();
-        let moves = self.generate_moves(solution);
+        // Use shuffled version for randomized move selection
+        let moves = self.generate_moves_shuffled(solution);
         Box::new(moves.into_iter())
     }
 
     fn size<D: ScoreDirector<DynamicSolution>>(&self, score_director: &D) -> usize {
-        self.generate_moves(score_director.working_solution()).len()
+        // Use lazy iterator to count without allocating all moves
+        self.generate_moves(score_director.working_solution()).count()
     }
 }
 
@@ -487,10 +482,44 @@ mod tests {
         );
 
         let selector = DynamicMoveSelector::new();
-        let moves = selector.generate_moves(&solution);
+        // generate_moves now returns an iterator; collect to count
+        let moves: Vec<_> = selector.generate_moves(&solution).collect();
 
         // 2 entities * 4 possible row values = 8 moves
         assert_eq!(moves.len(), 8);
+    }
+
+    #[test]
+    fn test_generate_moves_shuffled() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Queen",
+            vec![
+                FieldDef::new("column", FieldType::I64),
+                FieldDef::planning_variable("row", FieldType::I64, "rows"),
+            ],
+        ));
+        desc.add_value_range("rows", ValueRangeDef::int_range(0, 4));
+
+        let mut solution = DynamicSolution::new(desc);
+        solution.add_entity(
+            0,
+            DynamicEntity::new(0, vec![DynamicValue::I64(0), DynamicValue::I64(0)]),
+        );
+        solution.add_entity(
+            0,
+            DynamicEntity::new(1, vec![DynamicValue::I64(1), DynamicValue::I64(1)]),
+        );
+
+        let selector = DynamicMoveSelector::new();
+        let moves = selector.generate_moves_shuffled(&solution);
+
+        // 2 entities * 4 possible row values = 8 moves
+        assert_eq!(moves.len(), 8);
+
+        // All moves should still be present (just in different order)
+        let unshuffled: Vec<_> = selector.generate_moves(&solution).collect();
+        assert_eq!(moves.len(), unshuffled.len());
     }
 
     #[test]

@@ -6,6 +6,8 @@ use pyo3::prelude::*;
 use solverforge_core::score::HardSoftScore;
 use solverforge_dynamic::{DynamicConstraint, DynamicDescriptor, Expr};
 
+use crate::solver::Solver;
+
 /// A constraint builder for defining constraint pipelines.
 #[pyclass]
 #[derive(Clone)]
@@ -64,9 +66,11 @@ impl ConstraintBuilder {
     }
 
     /// Iterate over all entities of a class.
-    fn for_each(&mut self, class_name: &str, descriptor: &DescriptorRef) -> PyResult<Self> {
-        let class_idx = descriptor
-            .0
+    ///
+    /// The second argument can be either a Solver or the solver reference passed to constraint().
+    fn for_each(&mut self, class_name: &str, solver: &Solver) -> PyResult<Self> {
+        let class_idx = solver
+            .descriptor
             .entity_class_index(class_name)
             .ok_or_else(|| PyValueError::new_err(format!("Unknown class: {}", class_name)))?;
         self.class_idx = Some(class_idx);
@@ -75,15 +79,17 @@ impl ConstraintBuilder {
     }
 
     /// Join with another class.
-    #[pyo3(signature = (class_name, *conditions, descriptor))]
+    ///
+    /// Takes the class name, condition strings, and a keyword argument `solver`.
+    #[pyo3(signature = (class_name, *conditions, solver))]
     fn join(
         &mut self,
         class_name: &str,
         conditions: &Bound<'_, pyo3::types::PyTuple>,
-        descriptor: &DescriptorRef,
+        solver: &Solver,
     ) -> PyResult<Self> {
-        let class_idx = descriptor
-            .0
+        let class_idx = solver
+            .descriptor
             .entity_class_index(class_name)
             .ok_or_else(|| PyValueError::new_err(format!("Unknown class: {}", class_name)))?;
         let conds: Vec<String> = conditions
@@ -119,10 +125,6 @@ impl ConstraintBuilder {
         self.clone()
     }
 }
-
-/// Helper struct to pass descriptor reference to constraint builder methods.
-#[pyclass]
-pub struct DescriptorRef(pub DynamicDescriptor);
 
 /// Build a boxed constraint from a ConstraintBuilder.
 ///

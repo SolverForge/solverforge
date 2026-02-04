@@ -67,7 +67,12 @@ fn check_key_expr_limitations_recursive(expr: &Expr, warnings: &mut Vec<String>)
             check_key_expr_limitations_recursive(set_expr, warnings);
             check_key_expr_limitations_recursive(value_expr, warnings);
         }
-        Expr::Not(e) | Expr::Abs(e) | Expr::Neg(e) | Expr::IsNotNone(e) | Expr::IsNone(e) | Expr::DateOf(e) => {
+        Expr::Not(e)
+        | Expr::Abs(e)
+        | Expr::Neg(e)
+        | Expr::IsNotNone(e)
+        | Expr::IsNone(e)
+        | Expr::DateOf(e) => {
             check_key_expr_limitations_recursive(e, warnings);
         }
         Expr::If {

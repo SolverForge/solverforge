@@ -34,20 +34,45 @@ use crate::solution::{DynamicEntity, DynamicSolution};
 /// - Arithmetic, comparisons, and logical operations work as expected
 /// - Access to facts via solution context is available
 ///
-/// # Example Use Case
+/// # Example
 ///
-/// ```ignore
+/// This internal function is called by [`build_from_stream_ops`] when a uni-constraint
+/// pattern is detected. Users should typically use the public API:
+///
+/// ```
+/// use solverforge_dynamic::{
+///     DynamicDescriptor, EntityClassDef, FieldDef, FieldType,
+///     Expr, StreamOp, build_from_stream_ops,
+/// };
+/// use solverforge_core::{ConstraintRef, ImpactType};
+/// use solverforge_core::score::HardSoftScore;
+///
+/// // Define an employee entity with workload and capacity fields
+/// let mut descriptor = DynamicDescriptor::new();
+/// descriptor.add_entity_class(EntityClassDef::new(
+///     "Employee",
+///     vec![
+///         FieldDef::new("id", FieldType::I64),
+///         FieldDef::new("workload", FieldType::I64),
+///         FieldDef::new("capacity", FieldType::I64),
+///     ],
+/// ));
+///
+/// // Build a uni-constraint via the public stream API:
 /// // Penalize each overloaded employee (workload > capacity)
-/// let constraint = build_uni_constraint(
-///     ConstraintRef::new("overloaded_employees"),
+/// let ops = vec![
+///     StreamOp::ForEach { class_idx: 0 },
+///     StreamOp::Filter {
+///         predicate: Expr::gt(Expr::field(0, 1), Expr::field(0, 2)),
+///     },
+///     StreamOp::Penalize { weight: HardSoftScore::of_hard(1) },
+/// ];
+///
+/// let constraint = build_from_stream_ops(
+///     ConstraintRef::new("", "overloaded_employees"),
 ///     ImpactType::Penalty,
-///     employee_class_idx,
-///     Expr::Gt(Box::new(Expr::Field { param_idx: 0, field_idx: workload_field }),
-///              Box::new(Expr::Field { param_idx: 0, field_idx: capacity_field })),
-///     Expr::Sub(Box::new(Expr::Field { param_idx: 0, field_idx: workload_field }),
-///               Box::new(Expr::Field { param_idx: 0, field_idx: capacity_field })),
-///     descriptor.clone(),
-///     true, // hard constraint
+///     &ops,
+///     descriptor,
 /// );
 /// ```
 ///

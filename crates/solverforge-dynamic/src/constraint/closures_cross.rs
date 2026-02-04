@@ -63,13 +63,34 @@ pub fn make_cross_extractor_b(class_idx_b: usize) -> DynCrossExtractorB {
 /// # Returns
 /// A boxed closure that takes an entity from class A and returns its join key.
 ///
-/// # Expression Context
-/// - `Param(0)` refers to the entity itself (returns entity ID)
-/// - `Field { param_idx: 0, field_idx }` accesses fields from the entity
+/// # Supported Expression Types
+/// - `Param(0)` - Returns the entity's ID
+/// - `Field { param_idx: 0, field_idx }` - Accesses direct fields from the entity
+/// - `Literal(...)` - Constant values
+/// - Arithmetic operations (`Add`, `Sub`, `Mul`, `Div`, `Mod`, `Abs`, `Neg`)
+/// - Comparisons (`Eq`, `Ne`, `Lt`, `Le`, `Gt`, `Ge`)
+/// - Logic (`And`, `Or`, `Not`)
+/// - Conditionals (`If`)
+/// - `IsNone`, `IsNotNone` - Null checks
 ///
-/// # Design Constraint
-/// Join key expressions should only reference entity fields, not facts or solution state.
-/// The minimal solution context ensures this by having empty entities and facts vectors.
+/// # Unsupported Expression Types (Runtime Limitations)
+/// The following expression types will produce incorrect results or `DynamicValue::None`
+/// because key extractors use a minimal solution context without entities or facts:
+///
+/// - **`RefField`** - Cannot dereference entity references; the entities vector is empty,
+///   so lookups via `Ref(class_idx, entity_idx)` will fail
+/// - **Fact lookups** - Cannot access problem facts; the facts vector is empty
+/// - **`Param(n)` for n > 0** - Only `Param(0)` (the current entity) is available
+///
+/// # Design Rationale
+/// Join keys are used for incremental index maintenance. They must be:
+/// 1. **Stable** - Computed solely from the entity's own fields
+/// 2. **Self-contained** - No external lookups to other entities or facts
+/// 3. **Deterministic** - Same entity always produces the same key
+///
+/// If your join key needs to reference other entities (via `RefField`) or facts,
+/// consider restructuring your constraint to use a filter expression instead,
+/// where the full solution context is available.
 pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyA {
     // Create minimal solution with only descriptor (no entities/facts).
     // This is intentional - join keys should be stable entity attributes.
@@ -98,13 +119,34 @@ pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
 /// # Returns
 /// A boxed closure that takes an entity from class B and returns its join key.
 ///
-/// # Expression Context
-/// - `Param(0)` refers to the entity itself (returns entity ID)
-/// - `Field { param_idx: 0, field_idx }` accesses fields from the entity
+/// # Supported Expression Types
+/// - `Param(0)` - Returns the entity's ID
+/// - `Field { param_idx: 0, field_idx }` - Accesses direct fields from the entity
+/// - `Literal(...)` - Constant values
+/// - Arithmetic operations (`Add`, `Sub`, `Mul`, `Div`, `Mod`, `Abs`, `Neg`)
+/// - Comparisons (`Eq`, `Ne`, `Lt`, `Le`, `Gt`, `Ge`)
+/// - Logic (`And`, `Or`, `Not`)
+/// - Conditionals (`If`)
+/// - `IsNone`, `IsNotNone` - Null checks
 ///
-/// # Design Constraint
-/// Join key expressions should only reference entity fields, not facts or solution state.
-/// The minimal solution context ensures this by having empty entities and facts vectors.
+/// # Unsupported Expression Types (Runtime Limitations)
+/// The following expression types will produce incorrect results or `DynamicValue::None`
+/// because key extractors use a minimal solution context without entities or facts:
+///
+/// - **`RefField`** - Cannot dereference entity references; the entities vector is empty,
+///   so lookups via `Ref(class_idx, entity_idx)` will fail
+/// - **Fact lookups** - Cannot access problem facts; the facts vector is empty
+/// - **`Param(n)` for n > 0** - Only `Param(0)` (the current entity) is available
+///
+/// # Design Rationale
+/// Join keys are used for incremental index maintenance. They must be:
+/// 1. **Stable** - Computed solely from the entity's own fields
+/// 2. **Self-contained** - No external lookups to other entities or facts
+/// 3. **Deterministic** - Same entity always produces the same key
+///
+/// If your join key needs to reference other entities (via `RefField`) or facts,
+/// consider restructuring your constraint to use a filter expression instead,
+/// where the full solution context is available.
 pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyB {
     // Create minimal solution with only descriptor (no entities/facts).
     // This is intentional - join keys should be stable entity attributes.

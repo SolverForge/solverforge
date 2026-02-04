@@ -278,9 +278,10 @@ pub fn parse_simple_expr(
         })?;
 
         // Get the class definition for this parameter's class
-        let class_def = descriptor.entity_classes.get(*class_idx).ok_or_else(|| {
-            PyValueError::new_err(format!("Invalid class index: {}", class_idx))
-        })?;
+        let class_def = descriptor
+            .entity_classes
+            .get(*class_idx)
+            .ok_or_else(|| PyValueError::new_err(format!("Invalid class index: {}", class_idx)))?;
 
         // Look up field in the correct class (not all classes)
         let field_idx = class_def.field_index(field_name).ok_or_else(|| {

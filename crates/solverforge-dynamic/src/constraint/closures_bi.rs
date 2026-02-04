@@ -69,25 +69,28 @@ pub fn make_bi_filter(filter_expr: Expr, class_idx: usize) -> DynBiFilter {
 /// # Arguments
 /// * `weight_expr` - The expression to evaluate against the entity pair (returns numeric weight)
 /// * `class_idx` - The entity class index (both entities are from this class for self-join)
-/// * `descriptor` - The schema descriptor for building evaluation context
+/// * `_descriptor` - Unused, kept for API compatibility
 /// * `is_hard` - Whether this is a hard constraint (weight applied to hard score component)
 ///
 /// # Returns
-/// A boxed closure that takes two `DynamicEntity` references, evaluates the weight expression
-/// in a bi-entity context, and returns a `HardSoftScore`.
+/// A boxed closure that takes a `DynamicSolution` reference and two entity indices,
+/// evaluates the weight expression in a bi-entity context, and returns a `HardSoftScore`.
+///
+/// # Performance
+/// This function uses indices into the actual solution rather than cloned entities,
+/// eliminating the need for temporary solution construction and entity cloning.
 ///
 /// # Expression Evaluation
 /// The weight expression is evaluated in a tuple context where:
-/// - `Param(0)` refers to the first entity (parameter `a`)
-/// - `Param(1)` refers to the second entity (parameter `b`)
+/// - `Param(0)` refers to the first entity (at index `a_idx`)
+/// - `Param(1)` refers to the second entity (at index `b_idx`)
 /// - `Field { param_idx: 0, field_idx }` accesses fields from the first entity
 /// - `Field { param_idx: 1, field_idx }` accesses fields from the second entity
 ///
 /// The expression should return a numeric value (i64). Non-numeric results default to 0.
 ///
-/// **Design constraint**: Weight expressions should only reference entity fields and perform
-/// arithmetic/comparisons. References to facts or other solution state will NOT work correctly
-/// because the evaluation uses a temporary solution context with only the two entities.
+/// Weight expressions can reference facts and other solution state since the full solution
+/// is available during evaluation.
 ///
 /// # Weight Application
 /// The resulting numeric value is applied to either the hard or soft score component based on
@@ -96,33 +99,19 @@ pub fn make_bi_filter(filter_expr: Expr, class_idx: usize) -> DynBiFilter {
 pub fn make_bi_weight(
     weight_expr: Expr,
     class_idx: usize,
-    descriptor: DynamicDescriptor,
+    _descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> DynBiWeight {
-    Box::new(move |a: &DynamicEntity, b: &DynamicEntity| {
-        // Create a temporary solution context with just these two entities
-        // This allows us to use EvalContext with proper entity indices
-        let mut temp_solution = DynamicSolution {
-            descriptor: descriptor.clone(),
-            entities: Vec::new(),
-            facts: Vec::new(),
-            score: None,
-            id_to_location: std::collections::HashMap::new(),
-        };
+    Box::new(move |solution: &DynamicSolution, a_idx: usize, b_idx: usize| {
+        // Use the actual solution and indices directly - no cloning needed!
+        // Build entity tuple for evaluation context using the actual indices
+        let tuple = vec![
+            EntityRef::new(class_idx, a_idx),
+            EntityRef::new(class_idx, b_idx),
+        ];
 
-        // Ensure the entities vec is large enough
-        while temp_solution.entities.len() <= class_idx {
-            temp_solution.entities.push(Vec::new());
-        }
-
-        // Add the two entities at indices 0 and 1
-        temp_solution.entities[class_idx] = vec![a.clone(), b.clone()];
-
-        // Build entity tuple for evaluation context (indices 0 and 1)
-        let tuple = vec![EntityRef::new(class_idx, 0), EntityRef::new(class_idx, 1)];
-
-        // Evaluate expression in bi-entity context
-        let ctx = EvalContext::new(&temp_solution, &tuple);
+        // Evaluate expression in bi-entity context using the real solution
+        let ctx = EvalContext::new(solution, &tuple);
         let result = eval_expr(&weight_expr, &ctx);
 
         // Convert to numeric value (default to 0 if not numeric)

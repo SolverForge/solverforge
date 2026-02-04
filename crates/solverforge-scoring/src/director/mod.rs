@@ -21,6 +21,8 @@ pub mod typed;
 mod recording_tests;
 #[cfg(test)]
 mod typed_bench;
+#[cfg(test)]
+mod typed_tests;
 
 pub use factory::ScoreDirectorFactory;
 pub use recording::RecordingScoreDirector;

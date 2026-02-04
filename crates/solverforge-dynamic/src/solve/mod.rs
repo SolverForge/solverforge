@@ -5,7 +5,7 @@ mod tests;
 
 use std::any::TypeId;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Mutex, Once};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use solverforge_core::domain::SolutionDescriptor;
@@ -86,24 +86,6 @@ pub fn solve(
     solve_with_controls(solution, constraints, config, &terminate, &snapshot)
 }
 
-/// Initialize tracing once for the process.
-static TRACING_INIT: Once = Once::new();
-
-fn init_tracing() {
-    TRACING_INIT.call_once(|| {
-        use tracing_subscriber::EnvFilter;
-        let subscriber = tracing_subscriber::fmt()
-            .with_target(false)
-            .with_level(true)
-            .with_writer(std::io::stderr)
-            .with_env_filter(
-                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-            )
-            .finish();
-        let _ = tracing::subscriber::set_global_default(subscriber);
-    });
-}
-
 /// Solves with external termination flag and best solution snapshot.
 ///
 /// - `terminate`: Set to true to stop solving early
@@ -115,14 +97,28 @@ pub fn solve_with_controls(
     terminate: &AtomicBool,
     snapshot: &Mutex<Option<DynamicSolution>>,
 ) -> SolveResult {
-    init_tracing();
+    // Initialize console output (identical to native Rust solver)
+    solverforge_console::init();
+
     let start = Instant::now();
 
-    eprintln!(
-        "[DEBUG] solve_start: entity_classes={}, constraint_count={}, time_limit_secs={}",
-        solution.descriptor.entity_classes.len(),
-        constraints.constraint_count(),
-        config.time_limit.as_secs(),
+    // Count total entities across all classes
+    let entity_count: usize = solution.entities.iter().map(|v| v.len()).sum();
+    // Count total values across all value ranges
+    let value_count: usize = solution
+        .descriptor
+        .entity_classes
+        .iter()
+        .flat_map(|c| c.value_ranges.iter())
+        .map(|vr| vr.values.len())
+        .sum();
+
+    info!(
+        event = "solve_start",
+        entity_count = entity_count,
+        value_count = value_count,
+        constraint_count = constraints.constraint_count(),
+        time_limit_secs = config.time_limit.as_secs(),
     );
 
     // Create solution descriptor (required by ScoreDirector)
@@ -160,12 +156,6 @@ pub fn solve_with_controls(
         None,                             // No step limit - rely on time limit
     );
 
-    // Create and run solver with both phases
-    eprintln!(
-        "[DEBUG] Creating solver with time_limit={:?}",
-        config.time_limit
-    );
-
     // Create callback to update snapshot mutex when better solutions are found
     let snapshot_callback = Box::new(|solution: &DynamicSolution| {
         if let Ok(mut guard) = snapshot.lock() {
@@ -178,22 +168,7 @@ pub fn solve_with_controls(
         .with_terminate(terminate)
         .with_best_solution_callback(snapshot_callback);
 
-    eprintln!("[DEBUG] Starting solver.solve()");
-    let start_solve = Instant::now();
     let result_solution = solver.solve(score_director);
-    eprintln!("[DEBUG] Solver finished in {:?}", start_solve.elapsed());
-    eprintln!("[DEBUG] Result solution score: {:?}", result_solution.score);
-
-    // Debug: print final solution
-    eprintln!("[DEBUG] Final solution entities:");
-    for (class_idx, entities) in result_solution.entities.iter().enumerate() {
-        for (entity_idx, entity) in entities.iter().enumerate() {
-            eprintln!(
-                "[DEBUG]   class={} entity={}: {:?}",
-                class_idx, entity_idx, entity.fields
-            );
-        }
-    }
     let duration = start.elapsed();
     let score = result_solution.score.unwrap_or(HardSoftScore::ZERO);
 

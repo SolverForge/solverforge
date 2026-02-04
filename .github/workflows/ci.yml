@@ -36,8 +36,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Set PYO3_PYTHON
-        run: echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> $GITHUB_ENV
+      - name: Set Python environment variables
+        shell: bash
+        run: |
+          echo "PYO3_PYTHON=${{ steps.setup-python.outputs.python-path }}" >> $GITHUB_ENV
+          echo "PYTHON_SYS_EXECUTABLE=${{ steps.setup-python.outputs.python-path }}" >> $GITHUB_ENV
 
       - name: Install Rust
         run: |

@@ -12,7 +12,7 @@ use crate::solution::DynamicEntity;
 use crate::DynamicValue;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-/// Helper to create row conflict constraint
+// Helper to create row conflict constraint
 fn make_row_conflict_constraint(
     desc: &DynamicDescriptor,
 ) -> Box<
@@ -43,7 +43,7 @@ fn make_row_conflict_constraint(
     )
 }
 
-/// Helper to create ascending diagonal conflict constraint
+// Helper to create ascending diagonal conflict constraint
 fn make_asc_diagonal_constraint(
     desc: &DynamicDescriptor,
 ) -> Box<
@@ -77,7 +77,7 @@ fn make_asc_diagonal_constraint(
     )
 }
 
-/// Helper to create descending diagonal conflict constraint
+// Helper to create descending diagonal conflict constraint
 fn make_desc_diagonal_constraint(
     desc: &DynamicDescriptor,
 ) -> Box<

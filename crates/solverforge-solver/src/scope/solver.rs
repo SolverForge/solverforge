@@ -19,6 +19,7 @@ use crate::stats::SolverStats;
 /// * `'t` - Lifetime of the termination flag reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
+#[allow(clippy::type_complexity)]
 pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     /// The score director managing the working solution.
     score_director: D,

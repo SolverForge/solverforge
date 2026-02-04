@@ -1048,12 +1048,17 @@ macro_rules! impl_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: Fn(&S) -> &[A] + Send + Sync + Clone,
             KE: Fn(&A) -> K + Send + Sync,
             F: super::filter::PentaFilter<S, A, A, A, A, A>,
             W: Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
+            /// Builds the constraint with an adapted weight function.
+            ///
+            /// The user-provided weight function `Fn(&A, &A, &A, &A, &A) -> Sc` is adapted to the
+            /// constraint's internal signature `Fn(&S, usize, usize, usize, usize, usize) -> Sc` by extracting
+            /// entities from the solution using the extractor and indices.
             pub fn as_constraint(
                 self,
                 name: &str,
@@ -1064,19 +1069,38 @@ macro_rules! impl_arity_stream {
                 E,
                 KE,
                 impl Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync,
-                W,
+                impl Fn(&S, usize, usize, usize, usize, usize) -> Sc + Send + Sync,
                 Sc,
             > {
                 let filter = self.filter;
                 let combined_filter =
                     move |s: &S, a: &A, b: &A, c: &A, d: &A, e: &A| filter.test(s, a, b, c, d, e);
+
+                // Adapt the user's Fn(&A, &A, &A, &A, &A) -> Sc to Fn(&S, usize, usize, usize, usize, usize) -> Sc
+                let extractor_for_weight = self.extractor.clone();
+                let user_weight = self.weight;
+                let adapted_weight = move |solution: &S,
+                                           a_idx: usize,
+                                           b_idx: usize,
+                                           c_idx: usize,
+                                           d_idx: usize,
+                                           e_idx: usize| {
+                    let entities = extractor_for_weight(solution);
+                    let a = &entities[a_idx];
+                    let b = &entities[b_idx];
+                    let c = &entities[c_idx];
+                    let d = &entities[d_idx];
+                    let e = &entities[e_idx];
+                    user_weight(a, b, c, d, e)
+                };
+
                 $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type,
                     self.extractor,
                     self.key_extractor,
                     combined_filter,
-                    self.weight,
+                    adapted_weight,
                     self.is_hard,
                 )
             }

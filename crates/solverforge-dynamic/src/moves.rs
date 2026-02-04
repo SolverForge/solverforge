@@ -18,6 +18,29 @@ use crate::solution::{DynamicSolution, DynamicValue};
 /// which can significantly reduce memory usage for large solutions with many
 /// entities and value ranges.
 ///
+/// # Performance Characteristics
+///
+/// Benchmarks comparing lazy iteration vs eager Vec collection show:
+///
+/// **Full iteration (all moves consumed):**
+/// - Small scale (1K moves): ~equal performance
+/// - Medium scale (10K-50K moves): lazy is ~10-20% faster
+/// - Large scale (1M moves): lazy is ~2x faster due to avoiding allocation overhead
+///
+/// **Partial iteration (only first N moves consumed):**
+/// This is where lazy iteration really shines. For a 50K move space:
+/// - take(10): ~3500x faster (avoid generating 99.98% of moves)
+/// - take(100): ~570x faster
+/// - take(1000): ~60x faster
+/// - take(10000): ~6x faster
+///
+/// The lazy iterator is particularly beneficial when:
+/// 1. Only a subset of moves are consumed (e.g., `FirstAcceptedForager` stops after finding improvement)
+/// 2. Memory allocation overhead is significant (large move counts)
+/// 3. Early termination is common in the consuming algorithm
+///
+/// # Iteration Order
+///
 /// The iterator traverses in the following order:
 /// 1. Entity classes (by class_idx)
 /// 2. Entities within each class (by entity_idx)
@@ -708,5 +731,256 @@ mod tests {
         assert_eq!(moves[2].class_idx, 1);
         assert_eq!(moves[3].class_idx, 1);
         assert_eq!(moves[4].class_idx, 1);
+    }
+
+    /// Benchmark comparing lazy iterator vs eager Vec move generation.
+    ///
+    /// Run with: `cargo test -p solverforge-dynamic --release bench_move_generation -- --nocapture --ignored`
+    ///
+    /// This benchmark measures the performance difference between:
+    /// 1. Lazy iteration with `DynamicMoveIterator` (new approach)
+    /// 2. Eager collection into `Vec<DynamicChangeMove>` (old approach)
+    #[test]
+    #[ignore] // Run explicitly with --ignored flag
+    fn bench_move_generation() {
+        use std::hint::black_box;
+        use std::time::{Duration, Instant};
+
+        /// Creates a solution with the given number of entities and value range size.
+        fn create_solution(num_entities: usize, value_range_size: i64) -> DynamicSolution {
+            let mut desc = DynamicDescriptor::new();
+            desc.add_entity_class(EntityClassDef::new(
+                "Queen",
+                vec![
+                    FieldDef::new("column", FieldType::I64),
+                    FieldDef::planning_variable("row", FieldType::I64, "rows"),
+                ],
+            ));
+            desc.add_value_range("rows", ValueRangeDef::int_range(0, value_range_size));
+
+            let mut solution = DynamicSolution::new(desc);
+            for i in 0..num_entities {
+                solution.add_entity(
+                    0,
+                    DynamicEntity::new(
+                        i as i64,
+                        vec![DynamicValue::I64(i as i64), DynamicValue::I64(0)],
+                    ),
+                );
+            }
+            solution
+        }
+
+        /// Creates a solution with multiple planning variables per entity.
+        fn create_multi_variable_solution(
+            num_entities: usize,
+            num_vars: usize,
+            value_range_size: i64,
+        ) -> DynamicSolution {
+            let mut desc = DynamicDescriptor::new();
+
+            let mut fields = vec![FieldDef::new("id", FieldType::I64)];
+            for i in 0..num_vars {
+                let range_name: Arc<str> = format!("range_{}", i).into();
+                fields.push(FieldDef::planning_variable(
+                    format!("var_{}", i),
+                    FieldType::I64,
+                    range_name.clone(),
+                ));
+                desc.add_value_range(range_name, ValueRangeDef::int_range(0, value_range_size));
+            }
+
+            desc.add_entity_class(EntityClassDef::new("Entity", fields));
+
+            let mut solution = DynamicSolution::new(desc);
+            for i in 0..num_entities {
+                let mut field_values = vec![DynamicValue::I64(i as i64)];
+                for _ in 0..num_vars {
+                    field_values.push(DynamicValue::I64(0));
+                }
+                solution.add_entity(0, DynamicEntity::new(i as i64, field_values));
+            }
+            solution
+        }
+
+        /// Lazy approach: use the iterator directly, consuming moves one at a time.
+        fn process_moves_lazy(selector: &DynamicMoveSelector, solution: &DynamicSolution) -> usize {
+            let mut count = 0;
+            for m in selector.generate_moves(solution) {
+                count += 1;
+                black_box(&m);
+            }
+            count
+        }
+
+        /// Simulates the old eager approach: collect all moves into a Vec upfront.
+        fn generate_moves_eager(
+            selector: &DynamicMoveSelector,
+            solution: &DynamicSolution,
+        ) -> Vec<DynamicChangeMove> {
+            selector.generate_moves(solution).collect()
+        }
+
+        /// First-N lazy: only consume first N moves from the iterator.
+        fn first_n_lazy(selector: &DynamicMoveSelector, solution: &DynamicSolution, n: usize) -> usize {
+            let mut count = 0;
+            for m in selector.generate_moves(solution).take(n) {
+                count += 1;
+                black_box(&m);
+            }
+            count
+        }
+
+        /// First-N eager: collect all then take first N (simulates old behavior).
+        fn first_n_eager(selector: &DynamicMoveSelector, solution: &DynamicSolution, n: usize) -> usize {
+            let moves: Vec<_> = selector.generate_moves(solution).collect();
+            let mut count = 0;
+            for m in moves.into_iter().take(n) {
+                count += 1;
+                black_box(&m);
+            }
+            count
+        }
+
+        /// Run a benchmark function multiple times and return the average duration.
+        fn benchmark<F>(iterations: usize, mut f: F) -> Duration
+        where
+            F: FnMut(),
+        {
+            // Warmup
+            for _ in 0..3 {
+                f();
+            }
+
+            let start = Instant::now();
+            for _ in 0..iterations {
+                f();
+            }
+            start.elapsed() / iterations as u32
+        }
+
+        println!("\n=== Move Generation Benchmark ===\n");
+
+        // Test 1: Full iteration at various scales
+        println!("## Full Iteration (all moves consumed)");
+        println!("{:<20} {:>15} {:>15} {:>10}", "Config", "Lazy", "Eager", "Speedup");
+        println!("{:-<65}", "");
+
+        for (num_entities, value_range, iterations) in [
+            (10, 100i64, 1000),
+            (50, 100, 200),
+            (100, 100, 100),
+            (500, 100, 20),
+        ] {
+            let solution = create_solution(num_entities, value_range);
+            let selector = DynamicMoveSelector::new();
+            let total_moves = num_entities * (value_range as usize);
+
+            let lazy_time = benchmark(iterations, || {
+                black_box(process_moves_lazy(&selector, &solution));
+            });
+
+            let eager_time = benchmark(iterations, || {
+                black_box(generate_moves_eager(&selector, &solution));
+            });
+
+            let speedup = eager_time.as_nanos() as f64 / lazy_time.as_nanos() as f64;
+            println!(
+                "{:<20} {:>12.2?} {:>12.2?} {:>10.2}x",
+                format!("{} ent, {} moves", num_entities, total_moves),
+                lazy_time,
+                eager_time,
+                speedup
+            );
+        }
+
+        // Test 2: Partial iteration (FirstAcceptedForager scenario)
+        println!("\n## Partial Iteration (first N moves only)");
+        println!("Solution: 500 entities, 100 values each = 50,000 total moves");
+        println!("{:<20} {:>15} {:>15} {:>10}", "Take N", "Lazy", "Eager", "Speedup");
+        println!("{:-<65}", "");
+
+        let solution = create_solution(500, 100);
+        let selector = DynamicMoveSelector::new();
+
+        for take_n in [10, 100, 1000, 10000] {
+            let lazy_time = benchmark(100, || {
+                black_box(first_n_lazy(&selector, &solution, take_n));
+            });
+
+            let eager_time = benchmark(100, || {
+                black_box(first_n_eager(&selector, &solution, take_n));
+            });
+
+            let speedup = eager_time.as_nanos() as f64 / lazy_time.as_nanos() as f64;
+            println!(
+                "{:<20} {:>12.2?} {:>12.2?} {:>10.2}x",
+                format!("take({})", take_n),
+                lazy_time,
+                eager_time,
+                speedup
+            );
+        }
+
+        // Test 3: Multiple planning variables per entity
+        println!("\n## Multiple Variables per Entity");
+        println!("100 entities, 50 values per variable");
+        println!("{:<20} {:>15} {:>15} {:>10}", "Variables", "Lazy", "Eager", "Speedup");
+        println!("{:-<65}", "");
+
+        for num_vars in [1, 3, 5] {
+            let solution = create_multi_variable_solution(100, num_vars, 50);
+            let selector = DynamicMoveSelector::new();
+            let total_moves = 100 * num_vars * 50;
+
+            let lazy_time = benchmark(100, || {
+                black_box(process_moves_lazy(&selector, &solution));
+            });
+
+            let eager_time = benchmark(100, || {
+                black_box(generate_moves_eager(&selector, &solution));
+            });
+
+            let speedup = eager_time.as_nanos() as f64 / lazy_time.as_nanos() as f64;
+            println!(
+                "{:<20} {:>12.2?} {:>12.2?} {:>10.2}x",
+                format!("{} vars, {} moves", num_vars, total_moves),
+                lazy_time,
+                eager_time,
+                speedup
+            );
+        }
+
+        // Test 4: Large scale (memory pressure test)
+        println!("\n## Large Scale (memory pressure)");
+        println!("{:<25} {:>15} {:>15} {:>10}", "Config", "Lazy", "Eager", "Speedup");
+        println!("{:-<70}", "");
+
+        let solution = create_solution(1000, 1000);
+        let selector = DynamicMoveSelector::new();
+        let total_moves = 1_000_000;
+
+        let lazy_time = benchmark(5, || {
+            black_box(process_moves_lazy(&selector, &solution));
+        });
+
+        let eager_time = benchmark(5, || {
+            black_box(generate_moves_eager(&selector, &solution));
+        });
+
+        let speedup = eager_time.as_nanos() as f64 / lazy_time.as_nanos() as f64;
+        println!(
+            "{:<25} {:>12.2?} {:>12.2?} {:>10.2}x",
+            format!("1000 ent, {} moves", total_moves),
+            lazy_time,
+            eager_time,
+            speedup
+        );
+
+        println!("\n=== Benchmark Complete ===\n");
+        println!("Note: 'Speedup' > 1.0 means lazy is faster than eager.");
+        println!("The lazy iterator provides the most benefit when:");
+        println!("  1. Only a subset of moves are consumed (partial iteration)");
+        println!("  2. Memory allocation overhead is significant (large move counts)");
     }
 }

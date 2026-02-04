@@ -1,6 +1,7 @@
 //! Dynamic constraint system using expression trees with true incremental scoring.
 
 #[cfg(test)]
+#[path = "tests/mod.rs"]
 mod tests;
 
 // Module organization: types, closures, factories, and stream operations

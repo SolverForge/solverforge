@@ -726,15 +726,12 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 name = "solverforge"
 version = "0.6.0"
 dependencies = [
- "num-format",
- "owo-colors",
  "solverforge-config",
+ "solverforge-console",
  "solverforge-core",
  "solverforge-macros",
  "solverforge-scoring",
  "solverforge-solver",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -746,6 +743,16 @@ dependencies = [
  "solverforge-core",
  "thiserror",
  "toml",
+]
+
+[[package]]
+name = "solverforge-console"
+version = "0.6.0"
+dependencies = [
+ "num-format",
+ "owo-colors",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

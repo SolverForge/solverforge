@@ -1,7 +1,6 @@
 //! Colorful console output for solver metrics.
 //!
 //! Provides a custom `tracing` layer that formats solver events with colors.
-//! Auto-initialized when the `console` feature is enabled.
 //!
 //! ## Log Levels
 //!
@@ -26,6 +25,9 @@ static INIT: OnceLock<()> = OnceLock::new();
 static EPOCH: OnceLock<Instant> = OnceLock::new();
 static SOLVE_START_NANOS: AtomicU64 = AtomicU64::new(0);
 
+/// Package version for banner display.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Initializes the solver console output.
 ///
 /// Safe to call multiple times - only the first call has effect.
@@ -34,14 +36,8 @@ pub fn init() {
     INIT.get_or_init(|| {
         print_banner();
 
-        let default_level = if cfg!(feature = "verbose-logging") {
-            "solverforge_solver=debug"
-        } else {
-            "solverforge_solver=info"
-        };
-
         let filter = EnvFilter::builder()
-            .with_default_directive(default_level.parse().unwrap())
+            .with_default_directive("solverforge_solver=info".parse().unwrap())
             .from_env_lossy();
 
         tracing_subscriber::registry()
@@ -80,7 +76,7 @@ fn print_banner() {
 
     let version_line = format!(
         "                   v{} - Zero-Erasure Constraint Solver\n",
-        env!("CARGO_PKG_VERSION")
+        VERSION
     );
 
     let mut stdout = io::stdout().lock();
@@ -97,7 +93,12 @@ impl<S: Subscriber> Layer<S> for SolverConsoleLayer {
         let metadata = event.metadata();
         let target = metadata.target();
 
-        if !target.starts_with("solverforge_solver") {
+        // Accept events from solver modules
+        if !target.starts_with("solverforge_solver")
+            && !target.starts_with("solverforge_dynamic")
+            && !target.starts_with("solverforge_py")
+            && !target.starts_with("solverforge::")
+        {
             return;
         }
 
@@ -126,6 +127,9 @@ struct EventVisitor {
     duration_ms: Option<u64>,
     entity_count: Option<u64>,
     value_count: Option<u64>,
+    constraint_count: Option<u64>,
+    time_limit_secs: Option<u64>,
+    feasible: Option<bool>,
 }
 
 impl Visit for EventVisitor {
@@ -149,6 +153,8 @@ impl Visit for EventVisitor {
             "duration_ms" => self.duration_ms = Some(value),
             "entity_count" => self.entity_count = Some(value),
             "value_count" => self.value_count = Some(value),
+            "constraint_count" => self.constraint_count = Some(value),
+            "time_limit_secs" => self.time_limit_secs = Some(value),
             _ => {}
         }
     }
@@ -158,8 +164,10 @@ impl Visit for EventVisitor {
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        if field.name() == "accepted" {
-            self.accepted = Some(value);
+        match field.name() {
+            "accepted" => self.accepted = Some(value),
+            "feasible" => self.feasible = Some(value),
+            _ => {}
         }
     }
 
@@ -197,21 +205,41 @@ fn format_solve_start(v: &EventVisitor) -> String {
     mark_solve_start();
     let entities = v.entity_count.unwrap_or(0);
     let values = v.value_count.unwrap_or(0);
+    let constraints = v.constraint_count.unwrap_or(0);
+    let time_limit = v.time_limit_secs.unwrap_or(0);
     let scale = calculate_problem_scale(entities as usize, values as usize);
 
-    format!(
+    let mut output = format!(
         "{} {} Solving │ {} entities │ {} values │ scale {}",
         format_elapsed(),
         "▶".bright_green().bold(),
         entities.to_formatted_string(&Locale::en).bright_yellow(),
         values.to_formatted_string(&Locale::en).bright_yellow(),
         scale.bright_magenta()
-    )
+    );
+
+    if constraints > 0 {
+        output.push_str(&format!(
+            " │ {} constraints",
+            constraints.to_formatted_string(&Locale::en).bright_yellow()
+        ));
+    }
+
+    if time_limit > 0 {
+        output.push_str(&format!(
+            " │ {}s limit",
+            time_limit.to_formatted_string(&Locale::en).bright_yellow()
+        ));
+    }
+
+    output
 }
 
 fn format_solve_end(v: &EventVisitor) -> String {
     let score = v.score.as_deref().unwrap_or("N/A");
-    let is_feasible = !score.contains('-') || score.starts_with("0hard");
+    let is_feasible = v
+        .feasible
+        .unwrap_or_else(|| !score.contains('-') || score.starts_with("0hard"));
 
     let status = if is_feasible {
         "FEASIBLE".bright_green().bold().to_string()

@@ -44,6 +44,9 @@ mod anchor;
 mod inverse;
 mod list_state;
 
+#[cfg(test)]
+mod tests;
+
 pub use anchor::AnchorSupply;
 pub use inverse::InverseSupply;
 pub use list_state::{ElementPosition, ListStateSupply};

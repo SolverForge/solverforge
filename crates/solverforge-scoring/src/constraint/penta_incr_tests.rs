@@ -23,7 +23,7 @@ fn test_penta_constraint_evaluate() {
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SimpleScore::of(1),
         false,
     );
 
@@ -50,7 +50,7 @@ fn test_penta_constraint_multiple_pentas() {
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SimpleScore::of(1),
         false,
     );
 
@@ -77,7 +77,7 @@ fn test_penta_constraint_incremental() {
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(1),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SimpleScore::of(1),
         false,
     );
 
@@ -114,7 +114,7 @@ fn test_penta_constraint_reward() {
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| SimpleScore::of(5),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SimpleScore::of(5),
         false,
     );
 

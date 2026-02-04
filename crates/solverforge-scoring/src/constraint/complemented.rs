@@ -421,19 +421,13 @@ where
         // Retract value
         acc.retract(&value);
 
-        // Compute new score (use default if accumulator is now empty)
+        // Compute new score
         let new_result = acc.finish();
-        // Check if result is "empty" by comparing with default
-        let default_result = (self.default_fn)(b);
         let new_base = (self.weight_fn)(&new_result);
         let new_score = match impact {
             ImpactType::Penalty => -new_base,
             ImpactType::Reward => new_base,
         };
-
-        // If the accumulator result equals default, we could remove it from the map
-        // but it's not strictly necessary for correctness
-        let _ = default_result; // silence unused warning
 
         // Return delta
         new_score - old

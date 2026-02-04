@@ -71,8 +71,6 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build workspace
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --workspace --all-features
 
       - name: Run tests

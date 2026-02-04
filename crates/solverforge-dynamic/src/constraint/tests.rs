@@ -1216,6 +1216,88 @@ fn test_cross_class_same_named_field_constraint() {
     assert_eq!(init_score, full_score);
 }
 
+/// Test that the key expression limitation checker correctly detects unsupported expressions.
+///
+/// Key expressions in cross-joins use a minimal context without entities/facts,
+/// so RefField and Param(n > 0) won't work correctly. This test verifies the
+/// warning detection logic.
+#[test]
+fn test_key_expr_limitation_warnings() {
+    use super::closures_cross::check_key_expr_limitations;
+
+    // Simple field access should have no warnings
+    let simple_expr = Expr::field(0, 1);
+    let warnings = check_key_expr_limitations(&simple_expr);
+    assert!(warnings.is_empty(), "Simple field access should have no warnings");
+
+    // Param(0) should have no warnings (it's the current entity)
+    let param0_expr = Expr::param(0);
+    let warnings = check_key_expr_limitations(&param0_expr);
+    assert!(warnings.is_empty(), "Param(0) should have no warnings");
+
+    // Literal should have no warnings
+    let literal_expr = Expr::int(42);
+    let warnings = check_key_expr_limitations(&literal_expr);
+    assert!(warnings.is_empty(), "Literal should have no warnings");
+
+    // Param(1) should produce a warning
+    let param1_expr = Expr::param(1);
+    let warnings = check_key_expr_limitations(&param1_expr);
+    assert_eq!(warnings.len(), 1, "Param(1) should produce one warning");
+    assert!(warnings[0].contains("Param(1)"), "Warning should mention Param(1)");
+
+    // Param(2) should also produce a warning
+    let param2_expr = Expr::param(2);
+    let warnings = check_key_expr_limitations(&param2_expr);
+    assert_eq!(warnings.len(), 1, "Param(2) should produce one warning");
+    assert!(warnings[0].contains("Param(2)"), "Warning should mention Param(2)");
+
+    // RefField should produce a warning
+    let ref_field_expr = Expr::ref_field(Expr::field(0, 0), 1);
+    let warnings = check_key_expr_limitations(&ref_field_expr);
+    assert_eq!(warnings.len(), 1, "RefField should produce one warning");
+    assert!(warnings[0].contains("RefField"), "Warning should mention RefField");
+
+    // Nested RefField should produce a warning
+    let nested_expr = Expr::add(
+        Expr::field(0, 1),
+        Expr::ref_field(Expr::field(0, 0), 2),
+    );
+    let warnings = check_key_expr_limitations(&nested_expr);
+    assert_eq!(warnings.len(), 1, "Nested RefField should produce one warning");
+
+    // Multiple issues should produce multiple warnings
+    let multi_issue_expr = Expr::add(
+        Expr::param(1),                        // warning 1
+        Expr::ref_field(Expr::param(2), 0),    // warning 2 (RefField) + warning 3 (Param(2))
+    );
+    let warnings = check_key_expr_limitations(&multi_issue_expr);
+    assert_eq!(warnings.len(), 3, "Multiple issues should produce multiple warnings");
+
+    // Arithmetic operations with safe operands should have no warnings
+    let arith_expr = Expr::add(Expr::field(0, 0), Expr::field(0, 1));
+    let warnings = check_key_expr_limitations(&arith_expr);
+    assert!(warnings.is_empty(), "Safe arithmetic should have no warnings");
+
+    // If expression with safe branches should have no warnings
+    let if_expr = Expr::if_then_else(
+        Expr::gt(Expr::field(0, 0), Expr::int(10)),
+        Expr::field(0, 1),
+        Expr::int(0),
+    );
+    let warnings = check_key_expr_limitations(&if_expr);
+    assert!(warnings.is_empty(), "Safe If expression should have no warnings");
+
+    // If expression with unsafe branch should warn
+    let if_expr_unsafe = Expr::if_then_else(
+        Expr::param(1), // warning
+        Expr::field(0, 1),
+        Expr::int(0),
+    );
+    let warnings = check_key_expr_limitations(&if_expr_unsafe);
+    assert_eq!(warnings.len(), 1, "Unsafe If condition should produce warning");
+}
+
 /// Test that same-named fields at different indices work with filter expressions.
 ///
 /// This test is more thorough: it also includes a filter that uses the same-named

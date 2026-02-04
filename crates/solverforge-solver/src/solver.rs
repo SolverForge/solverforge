@@ -24,6 +24,7 @@ use crate::termination::Termination;
 /// * `T` - Termination condition (use `Option<ConcreteTermination>`)
 /// * `S` - Solution type
 /// * `D` - Score director type
+#[allow(clippy::type_complexity)]
 pub struct Solver<'t, P, T, S, D> {
     phases: P,
     termination: T,

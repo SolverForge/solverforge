@@ -1042,3 +1042,294 @@ fn test_incremental_delta_matches_full_recalculation() {
         );
     }
 }
+
+/// Test cross-class constraint with same-named fields at different indices.
+///
+/// This verifies the fix for the entity assignment bug where expressions like
+/// `A.shift_id == B.shift_id` would incorrectly use the same field index for
+/// both classes when the field had the same name in both classes.
+///
+/// Scenario:
+/// - Employee class (class 0): fields = [id, name, assigned_shift_id]
+///   → assigned_shift_id is at field index 2
+/// - Shift class (class 1): fields = [assigned_shift_id, start_time]
+///   → assigned_shift_id is at field index 0
+///
+/// A constraint joining Employee with Shift on assigned_shift_id should:
+/// - Use Employee's field index 2 for parameter A
+/// - Use Shift's field index 0 for parameter B
+///
+/// Before the fix, both would incorrectly resolve to field index 0 because
+/// the code searched all classes for the first match.
+#[test]
+fn test_cross_class_same_named_field_constraint() {
+    // Build descriptor with two classes having same-named fields at different indices
+    let mut descriptor = DynamicDescriptor::new();
+
+    // Employee class (class 0): [id, name, assigned_shift_id]
+    // assigned_shift_id is at index 2
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Employee",
+        vec![
+            FieldDef::new("id", FieldType::I64),
+            FieldDef::new("name", FieldType::String),
+            FieldDef::new("assigned_shift_id", FieldType::I64), // index 2
+        ],
+    ));
+    let employee_class = 0;
+
+    // Shift class (class 1): [assigned_shift_id, start_time]
+    // assigned_shift_id is at index 0
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Shift",
+        vec![
+            FieldDef::new("assigned_shift_id", FieldType::I64), // index 0
+            FieldDef::new("start_time", FieldType::I64),
+        ],
+    ));
+    let shift_class = 1;
+
+    // Create solution
+    let mut solution = DynamicSolution::new(descriptor.clone());
+
+    // Add employees with assigned_shift_id values
+    // Employee 0: id=1, name="Alice", assigned_shift_id=100
+    // Employee 1: id=2, name="Bob", assigned_shift_id=200
+    // Employee 2: id=3, name="Charlie", assigned_shift_id=100 (same as Alice)
+    solution.add_entity(
+        employee_class,
+        DynamicEntity::new(
+            100, // entity id (globally unique)
+            vec![
+                DynamicValue::I64(1),                      // id
+                DynamicValue::String("Alice".into()),      // name
+                DynamicValue::I64(100),                    // assigned_shift_id (field 2)
+            ],
+        ),
+    );
+    solution.add_entity(
+        employee_class,
+        DynamicEntity::new(
+            101,
+            vec![
+                DynamicValue::I64(2),
+                DynamicValue::String("Bob".into()),
+                DynamicValue::I64(200),
+            ],
+        ),
+    );
+    solution.add_entity(
+        employee_class,
+        DynamicEntity::new(
+            102,
+            vec![
+                DynamicValue::I64(3),
+                DynamicValue::String("Charlie".into()),
+                DynamicValue::I64(100),
+            ],
+        ),
+    );
+
+    // Add shifts with assigned_shift_id values
+    // Shift 0: assigned_shift_id=100, start_time=9
+    // Shift 1: assigned_shift_id=200, start_time=14
+    // Shift 2: assigned_shift_id=300, start_time=18 (no employee assigned)
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            200,
+            vec![
+                DynamicValue::I64(100), // assigned_shift_id (field 0)
+                DynamicValue::I64(9),   // start_time
+            ],
+        ),
+    );
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            201,
+            vec![
+                DynamicValue::I64(200),
+                DynamicValue::I64(14),
+            ],
+        ),
+    );
+    solution.add_entity(
+        shift_class,
+        DynamicEntity::new(
+            202,
+            vec![
+                DynamicValue::I64(300),
+                DynamicValue::I64(18),
+            ],
+        ),
+    );
+
+    // Build constraint: penalize each (Employee, Shift) pair where employee is assigned to shift
+    // ForEach Employee → Join Shift on employee.assigned_shift_id = shift.assigned_shift_id
+    // → Penalize
+    //
+    // CRITICAL: This uses field indices directly. With the bug fix:
+    // - Employee.assigned_shift_id is at field index 2
+    // - Shift.assigned_shift_id is at field index 0
+    // The constraint builder must use the correct field index for each class.
+    let ops = vec![
+        StreamOp::ForEach {
+            class_idx: employee_class,
+        },
+        StreamOp::Join {
+            class_idx: shift_class,
+            conditions: vec![Expr::eq(
+                Expr::field(0, 2), // A.assigned_shift_id: Employee field 2
+                Expr::field(1, 0), // B.assigned_shift_id: Shift field 0
+            )],
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_soft(1),
+        },
+    ];
+
+    let mut constraint = build_from_stream_ops(
+        ConstraintRef::new("", "assignment_constraint"),
+        ImpactType::Penalty,
+        &ops,
+        solution.descriptor.clone(),
+    );
+
+    // Initialize and verify
+    let init_score = constraint.initialize(&solution);
+
+    // Expected matches:
+    // - (Employee 0 "Alice", Shift 0): assigned_shift_id = 100
+    // - (Employee 2 "Charlie", Shift 0): assigned_shift_id = 100
+    // - (Employee 1 "Bob", Shift 1): assigned_shift_id = 200
+    // Total: 3 matches → -3 hard score (Penalize with soft(1) yields hard:-3 soft:0)
+    // Note: HardSoftScore::of_soft(1) as penalty weight produces hard:-penalty_count, soft:0
+    assert_eq!(
+        init_score,
+        HardSoftScore::of(-3, 0),
+        "Expected 3 (employee, shift) matches with same assigned_shift_id"
+    );
+
+    // Verify full evaluation matches
+    let full_score = constraint.evaluate(&solution);
+    assert_eq!(init_score, full_score);
+}
+
+/// Test that same-named fields at different indices work with filter expressions.
+///
+/// This test is more thorough: it also includes a filter that uses the same-named
+/// field, ensuring the filter expression also resolves field indices correctly.
+#[test]
+fn test_cross_class_same_named_field_with_filter() {
+    let mut descriptor = DynamicDescriptor::new();
+
+    // Class A: Task [task_id, priority, status]
+    // priority at index 1
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Task",
+        vec![
+            FieldDef::new("task_id", FieldType::I64),
+            FieldDef::new("priority", FieldType::I64),  // index 1
+            FieldDef::new("status", FieldType::I64),
+        ],
+    ));
+    let task_class = 0;
+
+    // Class B: Worker [worker_id, skill, priority]
+    // priority at index 2
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Worker",
+        vec![
+            FieldDef::new("worker_id", FieldType::I64),
+            FieldDef::new("skill", FieldType::I64),
+            FieldDef::new("priority", FieldType::I64),  // index 2
+        ],
+    ));
+    let worker_class = 1;
+
+    let mut solution = DynamicSolution::new(descriptor.clone());
+
+    // Tasks with different priorities
+    // Task 0: priority=1 (low)
+    // Task 1: priority=2 (medium)
+    // Task 2: priority=3 (high)
+    for (i, priority) in [1i64, 2, 3].iter().enumerate() {
+        solution.add_entity(
+            task_class,
+            DynamicEntity::new(
+                i as i64,
+                vec![
+                    DynamicValue::I64(i as i64 + 100),
+                    DynamicValue::I64(*priority), // priority at index 1
+                    DynamicValue::I64(0),
+                ],
+            ),
+        );
+    }
+
+    // Workers with different priorities
+    // Worker 0: priority=1
+    // Worker 1: priority=2
+    // Worker 2: priority=3
+    for (i, priority) in [1i64, 2, 3].iter().enumerate() {
+        solution.add_entity(
+            worker_class,
+            DynamicEntity::new(
+                (i + 100) as i64,
+                vec![
+                    DynamicValue::I64(i as i64 + 200),
+                    DynamicValue::I64(0),         // skill
+                    DynamicValue::I64(*priority), // priority at index 2
+                ],
+            ),
+        );
+    }
+
+    // Constraint: penalize (task, worker) pairs where task.priority == worker.priority
+    // AND task.priority >= 2 (medium or high priority only)
+    let ops = vec![
+        StreamOp::ForEach {
+            class_idx: task_class,
+        },
+        StreamOp::Join {
+            class_idx: worker_class,
+            conditions: vec![Expr::eq(
+                Expr::field(0, 1), // A.priority: Task field 1
+                Expr::field(1, 2), // B.priority: Worker field 2
+            )],
+        },
+        StreamOp::Filter {
+            predicate: Expr::ge(
+                Expr::field(0, 1), // A.priority: Task field 1
+                Expr::int(2),
+            ),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+
+    let mut constraint = build_from_stream_ops(
+        ConstraintRef::new("", "priority_match"),
+        ImpactType::Penalty,
+        &ops,
+        solution.descriptor.clone(),
+    );
+
+    let init_score = constraint.initialize(&solution);
+
+    // Expected matches after filter (priority >= 2):
+    // - (Task 1 priority=2, Worker 1 priority=2) ✓
+    // - (Task 2 priority=3, Worker 2 priority=3) ✓
+    // Task 0 has priority=1, filtered out
+    // Total: 2 matches → -2 hard score
+    assert_eq!(
+        init_score,
+        HardSoftScore::of_hard(-2),
+        "Expected 2 matching pairs with priority >= 2"
+    );
+
+    let full_score = constraint.evaluate(&solution);
+    assert_eq!(init_score, full_score);
+}

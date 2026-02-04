@@ -8,7 +8,7 @@ use crate::solution::DynamicValue;
 ///
 /// Expressions are evaluated against a tuple of entities (e.g., for join conditions)
 /// and produce a DynamicValue result.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(DynamicValue),
     Param(usize),

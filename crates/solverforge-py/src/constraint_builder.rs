@@ -305,3 +305,11 @@ pub fn parse_simple_expr(
         expr_str
     )))
 }
+
+// Tests for cross-class constraint field resolution are in
+// solverforge-dynamic/src/constraint/tests.rs as the Python bindings
+// cannot run cargo tests directly (pyo3 extension-module requires
+// Python at link time). The functional tests verify that:
+// 1. Same-named fields in different classes resolve to correct field indices
+// 2. Parameter-to-class mapping correctly routes A.field, B.field, C.field
+// 3. Error messages correctly identify the class when fields are unknown

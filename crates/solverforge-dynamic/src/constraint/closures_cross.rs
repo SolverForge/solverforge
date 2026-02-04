@@ -146,9 +146,7 @@ pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
 /// The expression should return a boolean value. Non-boolean results are treated as `false`.
 ///
 /// # Implementation Note
-/// The filter searches both entity slices to find entity indices, which is O(n_a + n_b) per call.
-/// This is acceptable because filtering is done on already-matched entities (by join key),
-/// not on the full entity sets.
+/// Entity index lookup uses the `id_to_location` HashMap for O(1) performance.
 pub fn make_cross_filter(
     filter_expr: Expr,
     class_idx_a: usize,
@@ -156,24 +154,19 @@ pub fn make_cross_filter(
 ) -> DynCrossFilter {
     Box::new(
         move |solution: &DynamicSolution, a: &DynamicEntity, b: &DynamicEntity| {
-            // Find entity indices by searching each class's entity slice.
-            let entities_a = solution
-                .entities
-                .get(class_idx_a)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
-            let entities_b = solution
-                .entities
-                .get(class_idx_b)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
+            // Look up entity indices using O(1) HashMap lookup.
+            let a_loc = solution.get_entity_location(a.id);
+            let b_loc = solution.get_entity_location(b.id);
 
-            let a_idx = entities_a.iter().position(|e| e.id == a.id);
-            let b_idx = entities_b.iter().position(|e| e.id == b.id);
-
-            let (Some(a_idx), Some(b_idx)) = (a_idx, b_idx) else {
+            let (Some((a_class, a_idx)), Some((b_class, b_idx))) = (a_loc, b_loc) else {
+                // Entities not found in solution - shouldn't happen, but return false defensively
                 return false;
             };
+
+            // Verify entities are from the expected classes
+            if a_class != class_idx_a || b_class != class_idx_b {
+                return false;
+            }
 
             // Build entity tuple for evaluation context (different class indices)
             let tuple = vec![

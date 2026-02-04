@@ -352,32 +352,33 @@ fn test_cross_bi_constraint() {
     let mut solution = DynamicSolution::new(descriptor.clone());
 
     // Add employees: [employee_id, available]
-    // Employee 1: available = true
-    // Employee 2: available = false
-    // Employee 3: available = true
+    // Entity IDs must be globally unique across all entity classes for id_to_location lookup
+    // Employee 1: available = true (entity id 100)
+    // Employee 2: available = false (entity id 101)
+    // Employee 3: available = true (entity id 102)
     solution.add_entity(
         employee_class,
-        DynamicEntity::new(0, vec![DynamicValue::I64(1), DynamicValue::Bool(true)]),
+        DynamicEntity::new(100, vec![DynamicValue::I64(1), DynamicValue::Bool(true)]),
     );
     solution.add_entity(
         employee_class,
-        DynamicEntity::new(1, vec![DynamicValue::I64(2), DynamicValue::Bool(false)]),
+        DynamicEntity::new(101, vec![DynamicValue::I64(2), DynamicValue::Bool(false)]),
     );
     solution.add_entity(
         employee_class,
-        DynamicEntity::new(2, vec![DynamicValue::I64(3), DynamicValue::Bool(true)]),
+        DynamicEntity::new(102, vec![DynamicValue::I64(3), DynamicValue::Bool(true)]),
     );
 
     // Add shifts: [shift_id, employee_id]
-    // Shift 0 assigned to employee 1 (available) → no penalty
-    // Shift 1 assigned to employee 2 (unavailable) → penalty
+    // Shift 0 assigned to employee 1 (available) → no penalty (entity id 200)
+    // Shift 1 assigned to employee 2 (unavailable) → penalty (entity id 201)
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(0, vec![DynamicValue::I64(100), DynamicValue::I64(1)]),
+        DynamicEntity::new(200, vec![DynamicValue::I64(100), DynamicValue::I64(1)]),
     );
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(1, vec![DynamicValue::I64(101), DynamicValue::I64(2)]),
+        DynamicEntity::new(201, vec![DynamicValue::I64(101), DynamicValue::I64(2)]),
     );
 
     // Build constraint: penalize shifts assigned to unavailable employees
@@ -421,10 +422,10 @@ fn test_cross_bi_constraint() {
     let eval_score = constraint.evaluate(&solution);
     assert_eq!(eval_score, HardSoftScore::of_hard(-10));
 
-    // Insert a new shift assigned to employee 2 (unavailable)
+    // Insert a new shift assigned to employee 2 (unavailable) (entity id 202, entity index 2)
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(2, vec![DynamicValue::I64(102), DynamicValue::I64(2)]),
+        DynamicEntity::new(202, vec![DynamicValue::I64(102), DynamicValue::I64(2)]),
     );
     let delta = constraint.on_insert(&solution, 2, shift_class);
     // New shift assigned to unavailable employee → delta = -10
@@ -434,10 +435,10 @@ fn test_cross_bi_constraint() {
     let full_score = constraint.evaluate(&solution);
     assert_eq!(full_score, HardSoftScore::of_hard(-20));
 
-    // Insert a new shift assigned to employee 3 (available)
+    // Insert a new shift assigned to employee 3 (available) (entity id 203, entity index 3)
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(3, vec![DynamicValue::I64(103), DynamicValue::I64(3)]),
+        DynamicEntity::new(203, vec![DynamicValue::I64(103), DynamicValue::I64(3)]),
     );
     let delta2 = constraint.on_insert(&solution, 3, shift_class);
     // New shift assigned to available employee → no penalty → delta = 0
@@ -823,24 +824,24 @@ fn test_incremental_delta_matches_full_recalculation() {
 
         let mut solution = DynamicSolution::new(desc);
 
-        // Employees
+        // Employees (entity IDs must be globally unique for id_to_location lookup)
         solution.add_entity(
             employee_class,
-            DynamicEntity::new(0, vec![DynamicValue::I64(1), DynamicValue::Bool(true)]),
+            DynamicEntity::new(100, vec![DynamicValue::I64(1), DynamicValue::Bool(true)]),
         );
         solution.add_entity(
             employee_class,
-            DynamicEntity::new(1, vec![DynamicValue::I64(2), DynamicValue::Bool(false)]),
+            DynamicEntity::new(101, vec![DynamicValue::I64(2), DynamicValue::Bool(false)]),
         );
 
-        // Shifts
+        // Shifts (entity IDs must be globally unique for id_to_location lookup)
         solution.add_entity(
             shift_class,
-            DynamicEntity::new(0, vec![DynamicValue::I64(100), DynamicValue::I64(1)]),
+            DynamicEntity::new(200, vec![DynamicValue::I64(100), DynamicValue::I64(1)]),
         );
         solution.add_entity(
             shift_class,
-            DynamicEntity::new(1, vec![DynamicValue::I64(101), DynamicValue::I64(2)]),
+            DynamicEntity::new(201, vec![DynamicValue::I64(101), DynamicValue::I64(2)]),
         );
 
         let ops = vec![
@@ -874,10 +875,10 @@ fn test_incremental_delta_matches_full_recalculation() {
             "Cross: Initialize delta != evaluate"
         );
 
-        // Insert shift assigned to unavailable employee
+        // Insert shift assigned to unavailable employee (entity id 202, entity index 2)
         solution.add_entity(
             shift_class,
-            DynamicEntity::new(2, vec![DynamicValue::I64(102), DynamicValue::I64(2)]),
+            DynamicEntity::new(202, vec![DynamicValue::I64(102), DynamicValue::I64(2)]),
         );
         let delta1 = constraint.on_insert(&solution, 2, shift_class);
         let accumulated1 = init_score + delta1;

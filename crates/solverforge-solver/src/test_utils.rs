@@ -149,6 +149,15 @@ pub fn create_nqueens_director_from_solution(
     SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
 }
 
+// Creates a simple score director with n uninitialized queens.
+// Useful for tests that just need an entity count without specific values.
+pub fn create_simple_nqueens_director(
+    n: usize,
+) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    let solution = create_uninitialized_nqueens(n);
+    create_nqueens_director_from_solution(solution)
+}
+
 // =============================================================================
 // TestSolution - Minimal solution for simple tests
 // =============================================================================

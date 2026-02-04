@@ -103,6 +103,7 @@ pub fn make_tri_weight(
                 entities: vec![Vec::new(); descriptor.entity_classes.len()],
                 facts: Vec::new(),
                 score: None,
+                id_to_location: std::collections::HashMap::new(),
             };
 
             // Place all three entities at indices 0, 1, 2 in the class entity slice.

@@ -112,6 +112,7 @@ pub fn make_a_lookup(lookup_expr: Expr, descriptor: DynamicDescriptor) -> DynALo
         entities: Vec::new(),
         facts: Vec::new(),
         score: None,
+        id_to_location: std::collections::HashMap::new(),
     };
 
     Box::new(move |entity: &DynamicEntity| {
@@ -232,6 +233,7 @@ pub fn make_flattened_weight(
             entities: vec![Vec::new(); descriptor.entity_classes.len()],
             facts: Vec::new(),
             score: None,
+            id_to_location: std::collections::HashMap::new(),
         };
 
         // Place entity A at index 0 in class_idx_a

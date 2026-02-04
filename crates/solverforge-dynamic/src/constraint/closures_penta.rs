@@ -125,6 +125,7 @@ pub fn make_penta_weight(
                 entities: vec![Vec::new(); descriptor.entity_classes.len()],
                 facts: Vec::new(),
                 score: None,
+                id_to_location: std::collections::HashMap::new(),
             };
 
             // Place all five entities at indices 0, 1, 2, 3, 4 in the class entity slice.

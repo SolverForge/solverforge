@@ -84,6 +84,7 @@ pub fn build_uni_constraint(
             entities: Vec::new(),
             facts: Vec::new(),
             score: None,
+            id_to_location: std::collections::HashMap::new(),
         };
 
         // Evaluate weight expression

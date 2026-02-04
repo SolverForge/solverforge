@@ -111,6 +111,7 @@ pub fn make_bi_weight(
             entities: Vec::new(),
             facts: Vec::new(),
             score: None,
+            id_to_location: std::collections::HashMap::new(),
         };
 
         // Ensure the entities vec is large enough

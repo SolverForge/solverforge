@@ -356,18 +356,35 @@ macro_rules! impl_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: Fn(&S) -> &[A] + Send + Sync + Clone,
             KE: Fn(&A) -> K + Send + Sync,
             F: super::filter::TriFilter<S, A, A, A>,
             W: Fn(&A, &A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
-            pub fn as_constraint(self, name: &str) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A) -> bool + Send + Sync, W, Sc> {
+            /// Builds the constraint with an adapted weight function.
+            ///
+            /// The user-provided weight function `Fn(&A, &A, &A) -> Sc` is adapted to the
+            /// constraint's internal signature `Fn(&S, usize, usize, usize) -> Sc` by extracting
+            /// entities from the solution using the extractor and indices.
+            pub fn as_constraint(self, name: &str) -> $constraint<S, A, K, E, KE, impl Fn(&S, &A, &A, &A) -> bool + Send + Sync, impl Fn(&S, usize, usize, usize) -> Sc + Send + Sync, Sc> {
                 let filter = self.filter;
                 let combined_filter = move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b, c);
+
+                // Adapt the user's Fn(&A, &A, &A) -> Sc to Fn(&S, usize, usize, usize) -> Sc
+                let extractor_for_weight = self.extractor.clone();
+                let user_weight = self.weight;
+                let adapted_weight = move |solution: &S, a_idx: usize, b_idx: usize, c_idx: usize| {
+                    let entities = extractor_for_weight(solution);
+                    let a = &entities[a_idx];
+                    let b = &entities[b_idx];
+                    let c = &entities[c_idx];
+                    user_weight(a, b, c)
+                };
+
                 $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
-                    self.impact_type, self.extractor, self.key_extractor, combined_filter, self.weight,
+                    self.impact_type, self.extractor, self.key_extractor, combined_filter, adapted_weight,
                     self.is_hard,
                 )
             }

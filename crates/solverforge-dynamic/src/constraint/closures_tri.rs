@@ -67,66 +67,64 @@ pub fn make_tri_filter(filter_expr: Expr, class_idx: usize) -> DynTriFilter {
 
 /// Creates a tri-entity weight closure from a weight expression.
 ///
-/// Returns a boxed closure that evaluates the weight expression against three entities
-/// and returns a `HardSoftScore`.
+/// # Arguments
+/// * `weight_expr` - The expression to evaluate against the entity triple (returns numeric weight)
+/// * `class_idx` - The entity class index (all three entities are from this class for self-join)
+/// * `_descriptor` - Unused, kept for API compatibility
+/// * `is_hard` - Whether this is a hard constraint (weight applied to hard score component)
 ///
-/// # Parameters
-/// - `weight_expr`: Expression to evaluate (should return numeric value)
-/// - `class_idx`: Entity class index (all three entities must be from this class)
-/// - `descriptor`: Problem descriptor for creating temporary solution context
-/// - `is_hard`: If true, weight is applied to hard score; otherwise soft score
+/// # Returns
+/// A boxed closure that takes a `DynamicSolution` reference and three entity indices,
+/// evaluates the weight expression in a tri-entity context, and returns a `HardSoftScore`.
 ///
-/// # Expression Context
-/// - `Param(0)` refers to the first entity (parameter `a`)
-/// - `Param(1)` refers to the second entity (parameter `b`)
-/// - `Param(2)` refers to the third entity (parameter `c`)
+/// # Performance
+/// This function uses indices into the actual solution rather than cloned entities,
+/// eliminating the need for temporary solution construction and entity cloning.
+///
+/// # Expression Evaluation
+/// The weight expression is evaluated in a tuple context where:
+/// - `Param(0)` refers to the first entity (at index `a_idx`)
+/// - `Param(1)` refers to the second entity (at index `b_idx`)
+/// - `Param(2)` refers to the third entity (at index `c_idx`)
 /// - `Field { param_idx: 0/1/2, field_idx }` accesses fields from respective entities
-/// - Arithmetic and comparison operations work across all three entities
 ///
-/// # Implementation
-/// Creates a temporary `DynamicSolution` with all three entities for proper evaluation context.
-/// This enables full tri-entity expression evaluation via `EvalContext`.
+/// The expression should return a numeric value (i64). Non-numeric results default to 0.
 ///
-/// Note: This approach clones entities into a temporary solution. While this violates the
-/// zero-clone principle, it's necessary because the `DynTriWeight` signature doesn't provide
-/// access to the solution or entity indices. The clone happens only for matched triples
-/// (bounded by match count, not total entity count).
+/// Weight expressions can reference facts and other solution state since the full solution
+/// is available during evaluation.
+///
+/// # Weight Application
+/// The resulting numeric value is applied to either the hard or soft score component based on
+/// the `is_hard` parameter. The constraint's impact type (penalty vs reward) is NOT applied
+/// here - that's handled by the monomorphized constraint wrapper's `compute_score` method.
 pub fn make_tri_weight(
     weight_expr: Expr,
     class_idx: usize,
-    descriptor: DynamicDescriptor,
+    _descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> DynTriWeight {
     Box::new(
-        move |a: &DynamicEntity, b: &DynamicEntity, c: &DynamicEntity| {
-            // Create a temporary solution with the descriptor and the three entities.
-            let mut temp_solution = DynamicSolution {
-                descriptor: descriptor.clone(),
-                entities: vec![Vec::new(); descriptor.entity_classes.len()],
-                facts: Vec::new(),
-                score: None,
-                id_to_location: std::collections::HashMap::new(),
-            };
-
-            // Place all three entities at indices 0, 1, 2 in the class entity slice.
-            temp_solution.entities[class_idx] = vec![a.clone(), b.clone(), c.clone()];
-
-            // Build EntityRef tuple: all three entities from the same class.
+        move |solution: &DynamicSolution, a_idx: usize, b_idx: usize, c_idx: usize| {
+            // Use the actual solution and indices directly - no cloning needed!
+            // Build entity tuple for evaluation context using the actual indices
             let tuple = vec![
-                EntityRef::new(class_idx, 0),
-                EntityRef::new(class_idx, 1),
-                EntityRef::new(class_idx, 2),
+                EntityRef::new(class_idx, a_idx),
+                EntityRef::new(class_idx, b_idx),
+                EntityRef::new(class_idx, c_idx),
             ];
 
-            let ctx = EvalContext::new(&temp_solution, &tuple);
+            // Evaluate expression in tri-entity context using the real solution
+            let ctx = EvalContext::new(solution, &tuple);
             let result = crate::eval::eval_expr(&weight_expr, &ctx);
 
-            // Convert result to numeric value and apply to hard or soft score.
-            let weight_num = result.as_i64().unwrap_or(0) as i64;
+            // Convert to numeric value (default to 0 if not numeric)
+            let weight_num = result.as_i64().unwrap_or(0) as f64;
+
+            // Apply to hard or soft component
             if is_hard {
-                HardSoftScore::of_hard(weight_num)
+                HardSoftScore::of_hard(weight_num as i64)
             } else {
-                HardSoftScore::of_soft(weight_num)
+                HardSoftScore::of_soft(weight_num as i64)
             }
         },
     )

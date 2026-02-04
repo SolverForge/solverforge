@@ -94,7 +94,7 @@ macro_rules! impl_get_matches_nary {
                                 EntityRef::new(b),
                                 EntityRef::new(c),
                             ]);
-                            let score = $self.compute_score(a, b, c);
+                            let score = $self.compute_score($solution, i, j, k);
                             matches.push(DetailedConstraintMatch::new(
                                 cref.clone(),
                                 score,

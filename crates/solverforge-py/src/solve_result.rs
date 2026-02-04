@@ -30,6 +30,7 @@ pub struct PySolveResult {
 
 impl PySolveResult {
     /// Create a new solve result.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         score: String,
         hard_score: i64,
@@ -56,7 +57,7 @@ impl PySolveResult {
 #[pymethods]
 impl PySolveResult {
     /// Get entities of a specific class.
-    fn get_entities(&self, py: Python<'_>, class_name: &str) -> PyResult<PyObject> {
+    fn get_entities(&self, py: Python<'_>, class_name: &str) -> PyResult<Py<PyAny>> {
         let class_idx = self
             .solution
             .descriptor

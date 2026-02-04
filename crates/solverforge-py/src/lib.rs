@@ -3,6 +3,9 @@
 //! This module provides a Python API for defining and solving constraint
 //! optimization problems using SolverForge's dynamic solution types.
 
+// Allow deprecated pyo3 APIs until we upgrade to a newer version
+#![allow(deprecated)]
+
 mod constraint_builder;
 mod convert;
 mod solve_result;

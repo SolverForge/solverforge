@@ -9,30 +9,18 @@ use solverforge_core::score::HardSoftScore;
 
 use crate::descriptor::DynamicDescriptor;
 
-/// A value in a dynamic solution.
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
-    /// No value assigned (uninitialized planning variable).
     None,
-    /// 64-bit signed integer.
     I64(i64),
-    /// 64-bit floating point.
     F64(f64),
-    /// String value.
     String(Arc<str>),
-    /// Boolean value.
     Bool(bool),
-    /// Reference to another entity or fact: (class_idx, item_idx).
     Ref(usize, usize),
-    /// Reference to a fact: (class_idx, fact_idx).
     FactRef(usize, usize),
-    /// List of values.
     List(Vec<DynamicValue>),
-    /// DateTime as Unix timestamp in milliseconds.
     DateTime(i64),
-    /// Date as days since Unix epoch.
     Date(i32),
-    /// Set of values.
     Set(Vec<DynamicValue>),
 }
 
@@ -98,12 +86,10 @@ impl Hash for DynamicValue {
 }
 
 impl DynamicValue {
-    /// Returns true if this value is None.
     pub fn is_none(&self) -> bool {
         matches!(self, DynamicValue::None)
     }
 
-    /// Attempts to extract an i64 value.
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             DynamicValue::I64(v) => Some(*v),
@@ -111,7 +97,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract an f64 value.
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             DynamicValue::F64(v) => Some(*v),
@@ -120,7 +105,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a bool value.
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             DynamicValue::Bool(v) => Some(*v),
@@ -128,7 +112,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a string value.
     pub fn as_str(&self) -> Option<&str> {
         match self {
             DynamicValue::String(s) => Some(s),
@@ -136,7 +119,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a reference.
     pub fn as_ref(&self) -> Option<(usize, usize)> {
         match self {
             DynamicValue::Ref(class_idx, entity_idx) => Some((*class_idx, *entity_idx)),
@@ -144,7 +126,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a list.
     pub fn as_list(&self) -> Option<&[DynamicValue]> {
         match self {
             DynamicValue::List(v) => Some(v),
@@ -152,7 +133,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a fact reference.
     pub fn as_fact_ref(&self) -> Option<(usize, usize)> {
         match self {
             DynamicValue::FactRef(class_idx, fact_idx) => Some((*class_idx, *fact_idx)),
@@ -160,7 +140,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a datetime (milliseconds since epoch).
     pub fn as_datetime(&self) -> Option<i64> {
         match self {
             DynamicValue::DateTime(v) => Some(*v),
@@ -169,7 +148,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a date (days since epoch).
     pub fn as_date(&self) -> Option<i32> {
         match self {
             DynamicValue::Date(v) => Some(*v),
@@ -178,7 +156,6 @@ impl DynamicValue {
         }
     }
 
-    /// Attempts to extract a set.
     pub fn as_set(&self) -> Option<&[DynamicValue]> {
         match self {
             DynamicValue::Set(v) => Some(v),
@@ -187,7 +164,6 @@ impl DynamicValue {
         }
     }
 
-    /// Checks if this set/list contains the given value.
     pub fn contains(&self, value: &DynamicValue) -> bool {
         match self {
             DynamicValue::Set(items) | DynamicValue::List(items) => items.contains(value),
@@ -196,32 +172,25 @@ impl DynamicValue {
     }
 }
 
-/// A dynamic entity with runtime-defined fields.
 #[derive(Debug, Clone)]
 pub struct DynamicEntity {
-    /// Unique identifier for this entity.
     pub id: i64,
-    /// Field values in order matching the class definition.
     pub fields: Vec<DynamicValue>,
 }
 
 impl DynamicEntity {
-    /// Creates a new dynamic entity with the given ID and fields.
     pub fn new(id: i64, fields: Vec<DynamicValue>) -> Self {
         Self { id, fields }
     }
 
-    /// Gets a field value by index.
     pub fn get(&self, field_idx: usize) -> Option<&DynamicValue> {
         self.fields.get(field_idx)
     }
 
-    /// Gets a mutable field value by index.
     pub fn get_mut(&mut self, field_idx: usize) -> Option<&mut DynamicValue> {
         self.fields.get_mut(field_idx)
     }
 
-    /// Sets a field value by index.
     pub fn set(&mut self, field_idx: usize, value: DynamicValue) {
         if field_idx < self.fields.len() {
             self.fields[field_idx] = value;
@@ -247,22 +216,17 @@ impl PlanningId for DynamicEntity {
     }
 }
 
-/// A dynamic fact with runtime-defined fields.
 #[derive(Debug, Clone)]
 pub struct DynamicFact {
-    /// Unique identifier for this fact.
     pub id: i64,
-    /// Field values in order matching the class definition.
     pub fields: Vec<DynamicValue>,
 }
 
 impl DynamicFact {
-    /// Creates a new dynamic fact with the given ID and fields.
     pub fn new(id: i64, fields: Vec<DynamicValue>) -> Self {
         Self { id, fields }
     }
 
-    /// Gets a field value by index.
     pub fn get(&self, field_idx: usize) -> Option<&DynamicValue> {
         self.fields.get(field_idx)
     }
@@ -288,18 +252,13 @@ impl PlanningId for DynamicFact {
 /// implementing the real `PlanningSolution` trait.
 #[derive(Debug, Clone)]
 pub struct DynamicSolution {
-    /// Schema descriptor.
     pub descriptor: DynamicDescriptor,
-    /// Entities organized by class index: entities[class_idx][entity_idx].
     pub entities: Vec<Vec<DynamicEntity>>,
-    /// Facts organized by class index: facts[class_idx][fact_idx].
     pub facts: Vec<Vec<DynamicFact>>,
-    /// Current score if calculated.
     pub score: Option<HardSoftScore>,
 }
 
 impl DynamicSolution {
-    /// Creates a new dynamic solution with the given descriptor.
     pub fn new(descriptor: DynamicDescriptor) -> Self {
         let entity_count = descriptor.entity_classes.len();
         let fact_count = descriptor.fact_classes.len();
@@ -311,26 +270,22 @@ impl DynamicSolution {
         }
     }
 
-    /// Adds an entity to the specified class.
     pub fn add_entity(&mut self, class_idx: usize, entity: DynamicEntity) {
         if class_idx < self.entities.len() {
             self.entities[class_idx].push(entity);
         }
     }
 
-    /// Adds a fact to the specified class.
     pub fn add_fact(&mut self, class_idx: usize, fact: DynamicFact) {
         if class_idx < self.facts.len() {
             self.facts[class_idx].push(fact);
         }
     }
 
-    /// Gets an entity by class index and entity index.
     pub fn get_entity(&self, class_idx: usize, entity_idx: usize) -> Option<&DynamicEntity> {
         self.entities.get(class_idx)?.get(entity_idx)
     }
 
-    /// Gets a mutable entity by class index and entity index.
     pub fn get_entity_mut(
         &mut self,
         class_idx: usize,
@@ -339,12 +294,10 @@ impl DynamicSolution {
         self.entities.get_mut(class_idx)?.get_mut(entity_idx)
     }
 
-    /// Gets a fact by class index and fact index.
     pub fn get_fact(&self, class_idx: usize, fact_idx: usize) -> Option<&DynamicFact> {
         self.facts.get(class_idx)?.get(fact_idx)
     }
 
-    /// Returns an iterator over all entities in a class.
     pub fn entities_in_class(&self, class_idx: usize) -> impl Iterator<Item = &DynamicEntity> {
         self.entities
             .get(class_idx)
@@ -353,13 +306,11 @@ impl DynamicSolution {
             .flatten()
     }
 
-    /// Returns an iterator over all entity references (class_idx, entity_idx) in a class.
     pub fn entity_refs_in_class(&self, class_idx: usize) -> impl Iterator<Item = (usize, usize)> {
         let count = self.entities.get(class_idx).map(|v| v.len()).unwrap_or(0);
         (0..count).map(move |i| (class_idx, i))
     }
 
-    /// Returns true if the solution is initialized (all planning variables assigned).
     pub fn check_initialized(&self) -> bool {
         for (class_idx, class) in self.descriptor.entity_classes.iter().enumerate() {
             for entity in self.entities.get(class_idx).into_iter().flatten() {

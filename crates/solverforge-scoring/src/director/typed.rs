@@ -192,9 +192,9 @@ where
             return;
         }
 
-        let delta = self
-            .constraints
-            .on_retract_all(&self.working_solution, entity_index, descriptor_index);
+        let delta =
+            self.constraints
+                .on_retract_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -213,9 +213,9 @@ where
             return;
         }
 
-        let delta = self
-            .constraints
-            .on_insert_all(&self.working_solution, entity_index, descriptor_index);
+        let delta =
+            self.constraints
+                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -229,8 +229,11 @@ where
     /// * `descriptor_index` - Index of the entity descriptor (entity class)
     /// * `entity_index` - Index of the entity that was changed
     #[inline]
-    pub fn after_variable_changed_with_shadows(&mut self, descriptor_index: usize, entity_index: usize)
-    where
+    pub fn after_variable_changed_with_shadows(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+    ) where
         S: crate::director::ShadowVariableSupport,
     {
         if !self.initialized {
@@ -240,9 +243,9 @@ where
         // Shadow updates first - O(1) per entity
         self.working_solution.update_entity_shadows(entity_index);
 
-        let delta = self
-            .constraints
-            .on_insert_all(&self.working_solution, entity_index, descriptor_index);
+        let delta =
+            self.constraints
+                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -259,7 +262,12 @@ where
     /// * `entity_index` - Index of the entity being changed
     /// * `change_fn` - Closure that applies the change to the solution
     #[inline]
-    pub fn do_change<F>(&mut self, descriptor_index: usize, entity_index: usize, change_fn: F) -> S::Score
+    pub fn do_change<F>(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        change_fn: F,
+    ) -> S::Score
     where
         F: FnOnce(&mut S),
     {
@@ -283,7 +291,12 @@ where
     /// * `entity_index` - Index of the entity being changed
     /// * `change_fn` - Closure that applies the change to the solution
     #[inline]
-    pub fn do_change_with_shadows<F>(&mut self, descriptor_index: usize, entity_index: usize, change_fn: F) -> S::Score
+    pub fn do_change_with_shadows<F>(
+        &mut self,
+        descriptor_index: usize,
+        entity_index: usize,
+        change_fn: F,
+    ) -> S::Score
     where
         S: crate::director::ShadowVariableSupport,
         F: FnOnce(&mut S),
@@ -450,9 +463,9 @@ where
         if !self.initialized {
             return;
         }
-        let delta = self
-            .constraints
-            .on_retract_all(&self.working_solution, entity_index, descriptor_index);
+        let delta =
+            self.constraints
+                .on_retract_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 
@@ -465,9 +478,9 @@ where
         if !self.initialized {
             return;
         }
-        let delta = self
-            .constraints
-            .on_insert_all(&self.working_solution, entity_index, descriptor_index);
+        let delta =
+            self.constraints
+                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
     }
 

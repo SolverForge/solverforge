@@ -10,14 +10,10 @@ use crate::constraint_set::DynamicConstraintSet;
 use crate::solution::DynamicSolution;
 use crate::solve::{solve_with_controls, SolveConfig, SolveResult};
 
-/// Status of a solve job.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolveStatus {
-    /// Not yet started.
     NotStarted,
-    /// Currently solving.
     Solving,
-    /// Terminated (either completed or stopped).
     Terminated,
 }
 
@@ -32,7 +28,6 @@ pub struct DynamicSolverManager {
 }
 
 impl DynamicSolverManager {
-    /// Creates a new solver manager.
     pub fn new() -> Self {
         Self {
             terminate_flag: Arc::new(AtomicBool::new(false)),
@@ -44,7 +39,6 @@ impl DynamicSolverManager {
         }
     }
 
-    /// Starts solving in a background thread.
     pub fn solve_async(
         &mut self,
         solution: DynamicSolution,
@@ -69,7 +63,7 @@ impl DynamicSolverManager {
                 constraints,
                 config,
                 &terminate_flag, // Deref Arc to get &AtomicBool
-                &*best_solution, // Deref Arc to get &Mutex - solver writes here, Python polls it
+                &best_solution,  // Solver writes here, Python polls it
             );
 
             // Write final solution to best_solution snapshot so get_best_solution() returns it
@@ -81,22 +75,18 @@ impl DynamicSolverManager {
         self.handle = Some(handle);
     }
 
-    /// Returns the current solve status.
     pub fn status(&self) -> SolveStatus {
         *self.status.lock().unwrap()
     }
 
-    /// Returns the best solution found so far, if any.
     pub fn get_best_solution(&self) -> Option<DynamicSolution> {
         self.best_solution.lock().unwrap().clone()
     }
 
-    /// Returns the final result after solving completes.
     pub fn get_result(&self) -> Option<SolveResult> {
         self.result.lock().unwrap().clone()
     }
 
-    /// Requests termination of the solve.
     pub fn terminate(&mut self) {
         self.terminate_flag.store(true, Ordering::SeqCst);
         // Wait for thread to finish
@@ -106,7 +96,6 @@ impl DynamicSolverManager {
         *self.status.lock().unwrap() = SolveStatus::Terminated;
     }
 
-    /// Returns true if termination was requested.
     pub fn is_terminating(&self) -> bool {
         self.terminate_flag.load(Ordering::SeqCst)
     }

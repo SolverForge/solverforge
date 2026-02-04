@@ -4,15 +4,14 @@
 mod tests;
 
 mod compare;
-mod eval;
 mod eval_entity;
+mod evaluator;
 
 use crate::solution::{DynamicFact, DynamicSolution, DynamicValue};
 
 // Re-export evaluation functions
-pub use compare::{compare_values, values_equal};
-pub use eval::eval_expr;
 pub use eval_entity::eval_entity_expr;
+pub use evaluator::eval_expr;
 
 /// Reference to an entity in the tuple being evaluated.
 #[derive(Debug, Clone, Copy)]

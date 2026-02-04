@@ -29,28 +29,24 @@ use crate::solution::{DynamicEntity, DynamicSolution};
 /// The expression should return a boolean value. Non-boolean results are treated as `false`.
 ///
 /// # Implementation Note
-/// The filter searches the entity slice to find entity indices, which is O(n) per call.
-/// This is acceptable because filtering is done on already-matched entities (by join key),
-/// not on the full entity set.
+/// Entity index lookup uses the `id_to_location` HashMap for O(1) performance.
 pub fn make_bi_filter(filter_expr: Expr, class_idx: usize) -> DynBiFilter {
     Box::new(
         move |solution: &DynamicSolution, a: &DynamicEntity, b: &DynamicEntity| {
-            // Find entity indices by searching the entity slice.
+            // Look up entity indices using O(1) HashMap lookup.
             // For self-join constraints, both entities are from class_idx.
-            // We search by entity ID which is unique.
-            let entities = solution
-                .entities
-                .get(class_idx)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
+            let a_loc = solution.get_entity_location(a.id);
+            let b_loc = solution.get_entity_location(b.id);
 
-            let a_idx = entities.iter().position(|e| e.id == a.id);
-            let b_idx = entities.iter().position(|e| e.id == b.id);
-
-            let (Some(a_idx), Some(b_idx)) = (a_idx, b_idx) else {
+            let (Some((a_class, a_idx)), Some((b_class, b_idx))) = (a_loc, b_loc) else {
                 // Entities not found in solution - shouldn't happen, but return false defensively
                 return false;
             };
+
+            // Verify entities are from the expected class
+            if a_class != class_idx || b_class != class_idx {
+                return false;
+            }
 
             // Build entity tuple for evaluation context
             let tuple = vec![

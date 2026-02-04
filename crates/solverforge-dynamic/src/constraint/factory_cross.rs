@@ -77,7 +77,7 @@ pub fn build_cross_bi_constraint(
     let filter = make_cross_filter(filter_expr, class_idx_a, class_idx_b);
 
     // Create weight closure
-    let weight = make_cross_weight(weight_expr, class_idx_a, class_idx_b, descriptor, is_hard);
+    let weight = make_cross_weight(weight_expr, class_idx_a, class_idx_b, is_hard);
 
     // Create and box the IncrementalCrossBiConstraint
     Box::new(IncrementalCrossBiConstraint::new(

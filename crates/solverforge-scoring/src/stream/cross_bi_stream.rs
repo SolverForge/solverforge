@@ -450,8 +450,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: Fn(&S) -> &[A] + Clone + Send + Sync,
+    EB: Fn(&S) -> &[B] + Clone + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     F: BiFilter<S, A, B>,
@@ -475,11 +475,23 @@ where
         KA,
         KB,
         impl Fn(&S, &A, &B) -> bool + Send + Sync,
-        W,
+        impl Fn(&S, usize, usize) -> Sc + Send + Sync,
         Sc,
     > {
         let filter = self.filter;
         let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b);
+
+        // Adapt user's Fn(&A, &B) -> Sc to internal Fn(&S, usize, usize) -> Sc
+        let extractor_a = self.extractor_a.clone();
+        let extractor_b = self.extractor_b.clone();
+        let weight = self.weight;
+        let adapted_weight = move |s: &S, a_idx: usize, b_idx: usize| {
+            let entities_a = extractor_a(s);
+            let entities_b = extractor_b(s);
+            let a = &entities_a[a_idx];
+            let b = &entities_b[b_idx];
+            weight(a, b)
+        };
 
         IncrementalCrossBiConstraint::new(
             ConstraintRef::new("", name),
@@ -489,7 +501,7 @@ where
             self.key_a,
             self.key_b,
             combined_filter,
-            self.weight,
+            adapted_weight,
             self.is_hard,
         )
     }

@@ -54,8 +54,7 @@ pub type DynPentaFilter = Box<
 ///
 /// Takes the full solution and indices into the entity slice, avoiding entity cloning.
 /// The indices are positions within `solution.entities[class_idx]`.
-pub type DynBiWeight =
-    Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftScore + Send + Sync>;
+pub type DynBiWeight = Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftScore + Send + Sync>;
 
 /// Tri-constraint weight: computes score for triple using solution reference and entity indices.
 ///

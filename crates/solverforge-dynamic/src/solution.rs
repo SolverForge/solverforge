@@ -277,7 +277,8 @@ impl DynamicSolution {
     pub fn add_entity(&mut self, class_idx: usize, entity: DynamicEntity) {
         if class_idx < self.entities.len() {
             let entity_idx = self.entities[class_idx].len();
-            self.id_to_location.insert(entity.id, (class_idx, entity_idx));
+            self.id_to_location
+                .insert(entity.id, (class_idx, entity_idx));
             self.entities[class_idx].push(entity);
         }
     }

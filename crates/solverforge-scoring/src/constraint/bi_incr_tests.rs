@@ -24,7 +24,7 @@ fn test_evaluate_no_conflicts() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row, // Key by row for grouping
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -49,7 +49,7 @@ fn test_evaluate_with_conflicts() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -73,7 +73,7 @@ fn test_incremental_insert() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -110,7 +110,7 @@ fn test_incremental_retract() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -137,7 +137,7 @@ fn test_reward_type() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row, // Group by row
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col && (a.col - b.col).abs() == 1,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(2),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(2),
         false,
     );
 
@@ -159,7 +159,11 @@ fn test_dynamic_weight() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |a: &Queen, b: &Queen| SimpleScore::of((b.col - a.col).abs()),
+        |s: &NQueensSolution, a_idx: usize, b_idx: usize| {
+            let a = &s.queens[a_idx];
+            let b = &s.queens[b_idx];
+            SimpleScore::of((b.col - a.col).abs())
+        },
         false,
     );
 
@@ -181,7 +185,7 @@ fn test_multiple_conflicts() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -206,7 +210,7 @@ fn test_reset() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -234,7 +238,7 @@ fn test_in_constraint_set() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -258,7 +262,7 @@ fn test_out_of_bounds() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |q: &Queen| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
-        |_a: &Queen, _b: &Queen| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
 

@@ -11,6 +11,103 @@ use crate::eval::{eval_expr, EntityRef, EvalContext};
 use crate::expr::Expr;
 use crate::solution::{DynamicEntity, DynamicSolution};
 
+/// Checks if an expression contains any constructs that won't work correctly
+/// in a cross-join key context (where entities/facts are not available).
+///
+/// Returns a list of warning messages for unsupported constructs found.
+pub(crate) fn check_key_expr_limitations(expr: &Expr) -> Vec<String> {
+    let mut warnings = Vec::new();
+    check_key_expr_limitations_recursive(expr, &mut warnings);
+    warnings
+}
+
+fn check_key_expr_limitations_recursive(expr: &Expr, warnings: &mut Vec<String>) {
+    match expr {
+        Expr::RefField { ref_expr, .. } => {
+            warnings.push(
+                "Key expression contains RefField which requires entity/fact lookup. \
+                 Join keys use a minimal context without entities/facts, so RefField \
+                 will produce incorrect results (DynamicValue::None). Consider using \
+                 a filter expression instead where the full solution is available."
+                    .to_string(),
+            );
+            check_key_expr_limitations_recursive(ref_expr, warnings);
+        }
+        Expr::Param(n) if *n > 0 => {
+            warnings.push(format!(
+                "Key expression contains Param({}) but only Param(0) (the current entity) \
+                 is available in key context. Other parameter references will fail.",
+                n
+            ));
+        }
+        // Recursively check nested expressions
+        Expr::Eq(a, b)
+        | Expr::Ne(a, b)
+        | Expr::Lt(a, b)
+        | Expr::Le(a, b)
+        | Expr::Gt(a, b)
+        | Expr::Ge(a, b)
+        | Expr::And(a, b)
+        | Expr::Or(a, b)
+        | Expr::Add(a, b)
+        | Expr::Sub(a, b)
+        | Expr::Mul(a, b)
+        | Expr::Div(a, b)
+        | Expr::Mod(a, b)
+        | Expr::Contains(a, b)
+        | Expr::Min(a, b)
+        | Expr::Max(a, b) => {
+            check_key_expr_limitations_recursive(a, warnings);
+            check_key_expr_limitations_recursive(b, warnings);
+        }
+        Expr::SetContains {
+            set_expr,
+            value_expr,
+        } => {
+            check_key_expr_limitations_recursive(set_expr, warnings);
+            check_key_expr_limitations_recursive(value_expr, warnings);
+        }
+        Expr::Not(e) | Expr::Abs(e) | Expr::Neg(e) | Expr::IsNotNone(e) | Expr::IsNone(e) | Expr::DateOf(e) => {
+            check_key_expr_limitations_recursive(e, warnings);
+        }
+        Expr::If {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            check_key_expr_limitations_recursive(cond, warnings);
+            check_key_expr_limitations_recursive(then_expr, warnings);
+            check_key_expr_limitations_recursive(else_expr, warnings);
+        }
+        Expr::Overlaps {
+            start1,
+            end1,
+            start2,
+            end2,
+        }
+        | Expr::OverlapMinutes {
+            start1,
+            end1,
+            start2,
+            end2,
+        } => {
+            check_key_expr_limitations_recursive(start1, warnings);
+            check_key_expr_limitations_recursive(end1, warnings);
+            check_key_expr_limitations_recursive(start2, warnings);
+            check_key_expr_limitations_recursive(end2, warnings);
+        }
+        Expr::OverlapsDate { start, end, date } | Expr::OverlapDateMinutes { start, end, date } => {
+            check_key_expr_limitations_recursive(start, warnings);
+            check_key_expr_limitations_recursive(end, warnings);
+            check_key_expr_limitations_recursive(date, warnings);
+        }
+        // These are safe in key context
+        Expr::Literal(_) | Expr::Param(0) | Expr::Field { .. } | Expr::FlattenedValue => {}
+        // Catch-all for Param(0) which is matched above
+        Expr::Param(_) => {}
+    }
+}
+
 /// Creates an extractor for the first entity class in a cross-join.
 ///
 /// Returns a closure that extracts the entity slice for class A from the solution.
@@ -92,6 +189,15 @@ pub fn make_cross_extractor_b(class_idx_b: usize) -> DynCrossExtractorB {
 /// consider restructuring your constraint to use a filter expression instead,
 /// where the full solution context is available.
 pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyA {
+    // Check for unsupported expressions and emit runtime warnings
+    let warnings = check_key_expr_limitations(&key_expr);
+    for warning in warnings {
+        eprintln!(
+            "[solverforge-dynamic] WARNING in make_cross_key_a: {}",
+            warning
+        );
+    }
+
     // Create minimal solution with only descriptor (no entities/facts).
     // This is intentional - join keys should be stable entity attributes.
     let minimal_solution = DynamicSolution {
@@ -148,6 +254,15 @@ pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
 /// consider restructuring your constraint to use a filter expression instead,
 /// where the full solution context is available.
 pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyB {
+    // Check for unsupported expressions and emit runtime warnings
+    let warnings = check_key_expr_limitations(&key_expr);
+    for warning in warnings {
+        eprintln!(
+            "[solverforge-dynamic] WARNING in make_cross_key_b: {}",
+            warning
+        );
+    }
+
     // Create minimal solution with only descriptor (no entities/facts).
     // This is intentional - join keys should be stable entity attributes.
     let minimal_solution = DynamicSolution {

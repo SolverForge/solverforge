@@ -60,6 +60,7 @@
 //! The final `IncrementalUniConstraint` is fully monomorphized with no
 //! virtual dispatch in the hot path.
 
+#[macro_use]
 mod arity_stream_macros;
 mod balance_stream;
 mod bi_stream;

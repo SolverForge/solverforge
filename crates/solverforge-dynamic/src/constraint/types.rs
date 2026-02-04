@@ -102,9 +102,13 @@ pub type DynCrossKeyB = Box<dyn Fn(&DynamicEntity) -> DynamicValue + Send + Sync
 pub type DynCrossFilter =
     Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
 
-/// Cross-join weight: computes score for cross-join pair.
+/// Cross-join weight: computes score for cross-join pair using solution reference and entity indices.
+///
+/// Takes the full solution and indices into each entity class slice, avoiding entity cloning.
+/// The first index is a position within `solution.entities[class_idx_a]`, the second is within
+/// `solution.entities[class_idx_b]`.
 pub type DynCrossWeight =
-    Box<dyn Fn(&DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
+    Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftScore + Send + Sync>;
 
 // Flattened constraint closures (for constraints that expand entities into collections)
 

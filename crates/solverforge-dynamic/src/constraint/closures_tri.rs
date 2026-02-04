@@ -24,29 +24,31 @@ use crate::solution::{DynamicEntity, DynamicSolution};
 /// - `Field { param_idx: 0/1/2, field_idx }` accesses fields from respective entities
 /// - The full solution is available for fact lookups
 ///
-/// # Implementation
-/// Searches the entity slice by entity ID to find indices (O(n) per entity).
-/// This is acceptable because filtering is performed only on entities already matched
-/// by join key, not on the full entity set.
+/// # Implementation Note
+/// Entity index lookup uses the `id_to_location` HashMap for O(1) performance.
 pub fn make_tri_filter(filter_expr: Expr, class_idx: usize) -> DynTriFilter {
     Box::new(
         move |solution: &DynamicSolution,
               a: &DynamicEntity,
               b: &DynamicEntity,
               c: &DynamicEntity| {
-            // Find entity indices by searching the entity slice using entity IDs.
-            let entities = solution
-                .entities
-                .get(class_idx)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
-            let a_idx = entities.iter().position(|e| e.id == a.id);
-            let b_idx = entities.iter().position(|e| e.id == b.id);
-            let c_idx = entities.iter().position(|e| e.id == c.id);
+            // Look up entity indices using O(1) HashMap lookup.
+            // For self-join constraints, all three entities are from class_idx.
+            let a_loc = solution.get_entity_location(a.id);
+            let b_loc = solution.get_entity_location(b.id);
+            let c_loc = solution.get_entity_location(c.id);
 
-            let (Some(a_idx), Some(b_idx), Some(c_idx)) = (a_idx, b_idx, c_idx) else {
+            let (Some((a_class, a_idx)), Some((b_class, b_idx)), Some((c_class, c_idx))) =
+                (a_loc, b_loc, c_loc)
+            else {
+                // Entities not found in solution - shouldn't happen, but return false defensively
                 return false;
             };
+
+            // Verify entities are from the expected class
+            if a_class != class_idx || b_class != class_idx || c_class != class_idx {
+                return false;
+            }
 
             // Build EntityRef tuple: all three entities from the same class.
             let tuple = vec![

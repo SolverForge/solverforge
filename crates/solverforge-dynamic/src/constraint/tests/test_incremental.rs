@@ -2,16 +2,16 @@
 
 use super::*;
 
-/// Test that incremental deltas match full recalculation across multiple constraint types.
-///
-/// This test creates constraints of different patterns (bi self-join, tri self-join,
-/// cross-bi, flattened-bi) and verifies that:
-/// 1. After initialize(), the incremental score matches evaluate()
-/// 2. After each on_insert(), accumulated delta matches evaluate()
-/// 3. After each on_retract(), accumulated delta matches evaluate()
-///
-/// This provides strong evidence that the incremental indexing is correct and
-/// doesn't drift from the true score over multiple operations.
+// Test that incremental deltas match full recalculation across multiple constraint types.
+//
+// This test creates constraints of different patterns (bi self-join, tri self-join,
+// cross-bi, flattened-bi) and verifies that:
+// 1. After initialize(), the incremental score matches evaluate()
+// 2. After each on_insert(), accumulated delta matches evaluate()
+// 3. After each on_retract(), accumulated delta matches evaluate()
+//
+// This provides strong evidence that the incremental indexing is correct and
+// doesn't drift from the true score over multiple operations.
 #[test]
 fn test_incremental_delta_matches_full_recalculation() {
     // ======================
@@ -385,30 +385,23 @@ fn test_incremental_delta_matches_full_recalculation() {
     }
 }
 
-/// Benchmark comparing O(1) HashMap lookup vs O(n) linear search for entity lookups.
-///
-/// Run with: `cargo test -p solverforge-dynamic --release bench_filter_lookup -- --nocapture --ignored`
-///
-/// This benchmark measures the performance improvement from using `id_to_location` HashMap
-/// for entity lookup instead of the previous O(n) `iter().position()` approach.
-///
-/// Comprehensive test verifying incremental scoring matches full recalculation after all PRD changes.
-///
-/// This test serves as final validation that all performance optimizations
-/// (O(1) id_to_location lookup, weight function signature changes, etc.)
-/// maintain correctness of incremental scoring.
-///
-/// The test performs many insert/retract operations in various orders and
-/// after EVERY operation verifies that:
-/// 1. The accumulated incremental score matches evaluate()
-/// 2. Re-initializing gives the same result as evaluate()
-///
-/// Coverage:
-/// - Bi self-join constraints with O(1) lookup (Phase 1)
-/// - Weight functions using solution reference + indices (Phase 2)
-/// - Cross-class constraints with correct field resolution (Phase 3)
-/// - Multiple constraint types working together
-/// - Sequences of 10+ operations without drift
+// Comprehensive test verifying incremental scoring matches full recalculation after all PRD changes.
+//
+// This test serves as final validation that all performance optimizations
+// (O(1) id_to_location lookup, weight function signature changes, etc.)
+// maintain correctness of incremental scoring.
+//
+// The test performs many insert/retract operations in various orders and
+// after EVERY operation verifies that:
+// 1. The accumulated incremental score matches evaluate()
+// 2. Re-initializing gives the same result as evaluate()
+//
+// Coverage:
+// - Bi self-join constraints with O(1) lookup (Phase 1)
+// - Weight functions using solution reference + indices (Phase 2)
+// - Cross-class constraints with correct field resolution (Phase 3)
+// - Multiple constraint types working together
+// - Sequences of 10+ operations without drift
 #[test]
 fn test_comprehensive_incremental_correctness() {
     // =============================================

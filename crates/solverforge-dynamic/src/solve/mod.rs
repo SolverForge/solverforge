@@ -107,10 +107,9 @@ pub fn solve_with_controls(
     // Count total values across all value ranges
     let value_count: usize = solution
         .descriptor
-        .entity_classes
-        .iter()
-        .flat_map(|c| c.value_ranges.iter())
-        .map(|vr| vr.values.len())
+        .value_ranges
+        .values()
+        .map(|vr| vr.len())
         .sum();
 
     info!(

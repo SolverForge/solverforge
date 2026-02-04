@@ -1,13 +1,111 @@
 //! Tests for dynamic solve functionality.
 
 use super::*;
-use crate::constraint::DynamicConstraint;
-use crate::descriptor::{
-    DynamicDescriptor, EntityClassDef, FieldDef, FieldType, ValueRangeDef,
-};
+use crate::constraint::{build_from_stream_ops, StreamOp};
+use crate::descriptor::{DynamicDescriptor, EntityClassDef, FieldDef, FieldType, ValueRangeDef};
 use crate::expr::Expr;
 use crate::solution::DynamicEntity;
 use crate::DynamicValue;
+use solverforge_core::{ConstraintRef, ImpactType};
+
+/// Helper to create row conflict constraint
+fn make_row_conflict_constraint(
+    desc: &DynamicDescriptor,
+) -> Box<
+    dyn solverforge_scoring::api::constraint_set::IncrementalConstraint<
+            DynamicSolution,
+            HardSoftScore,
+        > + Send
+        + Sync,
+> {
+    let ops = vec![
+        StreamOp::ForEach { class_idx: 0 },
+        StreamOp::Join {
+            class_idx: 0,
+            conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))],
+        },
+        StreamOp::DistinctPair {
+            ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+    build_from_stream_ops(
+        ConstraintRef::new("", "row_conflict"),
+        ImpactType::Penalty,
+        &ops,
+        desc.clone(),
+    )
+}
+
+/// Helper to create ascending diagonal conflict constraint
+fn make_asc_diagonal_constraint(
+    desc: &DynamicDescriptor,
+) -> Box<
+    dyn solverforge_scoring::api::constraint_set::IncrementalConstraint<
+            DynamicSolution,
+            HardSoftScore,
+        > + Send
+        + Sync,
+> {
+    let ops = vec![
+        StreamOp::ForEach { class_idx: 0 },
+        StreamOp::Join {
+            class_idx: 0,
+            conditions: vec![Expr::eq(
+                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
+                Expr::sub(Expr::field(0, 0), Expr::field(1, 0)),
+            )],
+        },
+        StreamOp::DistinctPair {
+            ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+    build_from_stream_ops(
+        ConstraintRef::new("", "ascending_diagonal"),
+        ImpactType::Penalty,
+        &ops,
+        desc.clone(),
+    )
+}
+
+/// Helper to create descending diagonal conflict constraint
+fn make_desc_diagonal_constraint(
+    desc: &DynamicDescriptor,
+) -> Box<
+    dyn solverforge_scoring::api::constraint_set::IncrementalConstraint<
+            DynamicSolution,
+            HardSoftScore,
+        > + Send
+        + Sync,
+> {
+    let ops = vec![
+        StreamOp::ForEach { class_idx: 0 },
+        StreamOp::Join {
+            class_idx: 0,
+            conditions: vec![Expr::eq(
+                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
+                Expr::sub(Expr::field(1, 0), Expr::field(0, 0)),
+            )],
+        },
+        StreamOp::DistinctPair {
+            ordering_expr: Expr::lt(Expr::field(0, 0), Expr::field(1, 0)),
+        },
+        StreamOp::Penalize {
+            weight: HardSoftScore::of_hard(1),
+        },
+    ];
+    build_from_stream_ops(
+        ConstraintRef::new("", "descending_diagonal"),
+        ImpactType::Penalty,
+        &ops,
+        desc.clone(),
+    )
+}
 
 fn make_nqueens_problem(n: usize) -> (DynamicSolution, DynamicConstraintSet) {
     let mut desc = DynamicDescriptor::new();
@@ -20,7 +118,7 @@ fn make_nqueens_problem(n: usize) -> (DynamicSolution, DynamicConstraintSet) {
     ));
     desc.add_value_range("rows", ValueRangeDef::int_range(0, n as i64));
 
-    let mut solution = DynamicSolution::new(desc);
+    let mut solution = DynamicSolution::new(desc.clone());
     for col in 0..n {
         solution.add_entity(
             0,
@@ -31,43 +129,10 @@ fn make_nqueens_problem(n: usize) -> (DynamicSolution, DynamicConstraintSet) {
         );
     }
 
-    // Row conflict constraint
-    let row_conflict = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Ascending diagonal conflict: row1 - row2 == col1 - col2
-    let asc_diagonal = DynamicConstraint::new("ascending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(0, 0), Expr::field(1, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Descending diagonal conflict: row1 - row2 == col2 - col1
-    let desc_diagonal = DynamicConstraint::new("descending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(1, 0), Expr::field(0, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
     let mut constraints = DynamicConstraintSet::new();
-    constraints.add(row_conflict);
-    constraints.add(asc_diagonal);
-    constraints.add(desc_diagonal);
+    constraints.add(make_row_conflict_constraint(&desc));
+    constraints.add(make_asc_diagonal_constraint(&desc));
+    constraints.add(make_desc_diagonal_constraint(&desc));
 
     (solution, constraints)
 }
@@ -109,43 +174,10 @@ fn test_recording_score_director() {
         DynamicEntity::new(3, vec![DynamicValue::I64(3), DynamicValue::I64(1)]),
     );
 
-    // Row conflict constraint
-    let row_conflict = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Ascending diagonal conflict
-    let asc_diagonal = DynamicConstraint::new("ascending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(0, 0), Expr::field(1, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Descending diagonal conflict
-    let desc_diagonal = DynamicConstraint::new("descending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(1, 0), Expr::field(0, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
     let mut constraints = DynamicConstraintSet::new();
-    constraints.add(row_conflict);
-    constraints.add(asc_diagonal);
-    constraints.add(desc_diagonal);
+    constraints.add(make_row_conflict_constraint(&desc));
+    constraints.add(make_asc_diagonal_constraint(&desc));
+    constraints.add(make_desc_diagonal_constraint(&desc));
 
     // Use TypedScoreDirector like the real solver does
     let descriptor = solverforge_core::domain::SolutionDescriptor::new(
@@ -259,50 +291,16 @@ fn test_move_score_changes() {
         DynamicEntity::new(3, vec![DynamicValue::I64(3), DynamicValue::I64(1)]),
     );
 
-    // Row conflict constraint
-    let row_conflict = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Ascending diagonal conflict: row1 - row2 == col1 - col2
-    let asc_diagonal = DynamicConstraint::new("ascending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(0, 0), Expr::field(1, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Descending diagonal conflict: row1 - row2 == col2 - col1
-    let desc_diagonal = DynamicConstraint::new("descending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(1, 0), Expr::field(0, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
     let mut constraints = DynamicConstraintSet::new();
-    constraints.add(row_conflict);
-    constraints.add(asc_diagonal);
-    constraints.add(desc_diagonal);
+    constraints.add(make_row_conflict_constraint(&desc));
+    constraints.add(make_asc_diagonal_constraint(&desc));
+    constraints.add(make_desc_diagonal_constraint(&desc));
 
     // Must initialize for incremental scoring
     let initial_score = constraints.initialize_all(&solution);
     eprintln!("Initial score (rows [0,2,0,1]): {:?}", initial_score);
 
     // Now let's try each possible move using incremental scoring
-    let mut solution = solution;
     for queen_idx in 0..4 {
         let current_row = match &solution.get_entity(0, queen_idx).unwrap().fields[1] {
             DynamicValue::I64(r) => *r,
@@ -315,8 +313,7 @@ fn test_move_score_changes() {
             // Retract old value
             let delta1 = constraints.on_retract_all(&solution, queen_idx, 0);
             // Apply change
-            solution.get_entity_mut(0, queen_idx).unwrap().fields[1] =
-                DynamicValue::I64(new_row);
+            solution.get_entity_mut(0, queen_idx).unwrap().fields[1] = DynamicValue::I64(new_row);
             // Insert new value
             let delta2 = constraints.on_insert_all(&solution, queen_idx, 0);
             let new_score = initial_score + delta1 + delta2;
@@ -404,7 +401,7 @@ fn test_constraint_evaluation() {
     ));
     desc.add_value_range("rows", ValueRangeDef::int_range(0, 4));
 
-    let mut solution = DynamicSolution::new(desc);
+    let mut solution = DynamicSolution::new(desc.clone());
     // Valid 4-queens: rows [1, 3, 0, 2]
     solution.add_entity(
         0,
@@ -423,43 +420,10 @@ fn test_constraint_evaluation() {
         DynamicEntity::new(3, vec![DynamicValue::I64(3), DynamicValue::I64(2)]),
     );
 
-    // Row conflict constraint
-    let row_conflict = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Ascending diagonal conflict: row1 - row2 == col1 - col2
-    let asc_diagonal = DynamicConstraint::new("ascending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(0, 0), Expr::field(1, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    // Descending diagonal conflict: row1 - row2 == col2 - col1
-    let desc_diagonal = DynamicConstraint::new("descending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(1, 0), Expr::field(0, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
     let mut constraints = DynamicConstraintSet::new();
-    constraints.add(row_conflict);
-    constraints.add(asc_diagonal);
-    constraints.add(desc_diagonal);
+    constraints.add(make_row_conflict_constraint(&desc));
+    constraints.add(make_asc_diagonal_constraint(&desc));
+    constraints.add(make_desc_diagonal_constraint(&desc));
 
     // Must initialize for incremental scoring
     let score = constraints.initialize_all(&solution);
@@ -540,41 +504,10 @@ fn test_local_search_simulation() {
         DynamicEntity::new(3, vec![DynamicValue::I64(3), DynamicValue::I64(1)]),
     );
 
-    // Create constraints
-    let row_conflict = DynamicConstraint::new("row_conflict")
-        .for_each(0)
-        .join(0, vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 1))])
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    let asc_diagonal = DynamicConstraint::new("ascending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(0, 0), Expr::field(1, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
-    let desc_diagonal = DynamicConstraint::new("descending_diagonal")
-        .for_each(0)
-        .join(
-            0,
-            vec![Expr::eq(
-                Expr::sub(Expr::field(0, 1), Expr::field(1, 1)),
-                Expr::sub(Expr::field(1, 0), Expr::field(0, 0)),
-            )],
-        )
-        .distinct_pair(Expr::lt(Expr::field(0, 0), Expr::field(1, 0)))
-        .penalize(HardSoftScore::of_hard(1));
-
     let mut constraints = DynamicConstraintSet::new();
-    constraints.add(row_conflict);
-    constraints.add(asc_diagonal);
-    constraints.add(desc_diagonal);
+    constraints.add(make_row_conflict_constraint(&desc));
+    constraints.add(make_asc_diagonal_constraint(&desc));
+    constraints.add(make_desc_diagonal_constraint(&desc));
 
     // Use TypedScoreDirector like the real solver does
     let descriptor = solverforge_core::domain::SolutionDescriptor::new(

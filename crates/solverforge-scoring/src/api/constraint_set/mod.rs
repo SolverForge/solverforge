@@ -229,12 +229,22 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     }
 
     #[inline]
-    fn on_insert_all(&mut self, _solution: &S, _entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_insert_all(
+        &mut self,
+        _solution: &S,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> Sc {
         Sc::zero()
     }
 
     #[inline]
-    fn on_retract_all(&mut self, _solution: &S, _entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_retract_all(
+        &mut self,
+        _solution: &S,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> Sc {
         Sc::zero()
     }
 

@@ -6,8 +6,6 @@ use pyo3::prelude::*;
 use solverforge_core::score::HardSoftScore;
 use solverforge_dynamic::{DynamicConstraint, DynamicDescriptor, Expr};
 
-use crate::convert::parse_weight;
-
 /// A constraint builder for defining constraint pipelines.
 #[pyclass]
 #[derive(Clone)]
@@ -117,11 +115,19 @@ impl ConstraintBuilder {
 #[pyclass]
 pub struct DescriptorRef(pub DynamicDescriptor);
 
-/// Build a DynamicConstraint from a ConstraintBuilder.
+/// Build a boxed constraint from a ConstraintBuilder.
 pub fn build_constraint(
     builder: &ConstraintBuilder,
     descriptor: &DynamicDescriptor,
-) -> PyResult<DynamicConstraint> {
+) -> PyResult<
+    Box<
+        dyn solverforge_scoring::api::constraint_set::IncrementalConstraint<
+                solverforge_dynamic::DynamicSolution,
+                solverforge_core::score::HardSoftScore,
+            > + Send
+            + Sync,
+    >,
+> {
     let mut constraint = DynamicConstraint::new(builder.name.clone());
 
     for op in &builder.operations {
@@ -154,7 +160,8 @@ pub fn build_constraint(
         }
     }
 
-    Ok(constraint)
+    // Build the constraint with the descriptor
+    Ok(constraint.build(descriptor.clone()))
 }
 
 /// Parse a simple expression string.

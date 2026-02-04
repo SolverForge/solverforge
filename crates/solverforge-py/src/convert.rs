@@ -33,7 +33,7 @@ pub fn py_to_dynamic(value: &Bound<'_, PyAny>) -> PyResult<DynamicValue> {
 }
 
 /// Convert a DynamicValue to a Python value.
-pub fn dynamic_to_py(py: Python<'_>, value: &DynamicValue) -> PyObject {
+pub fn dynamic_to_py(py: Python<'_>, value: &DynamicValue) -> Py<PyAny> {
     match value {
         DynamicValue::None => py.None(),
         DynamicValue::I64(v) => v.into_pyobject(py).unwrap().into_any().unbind(),

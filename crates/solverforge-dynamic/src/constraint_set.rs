@@ -1,7 +1,6 @@
 //! Constraint set implementation for dynamic constraints.
 
 use solverforge_core::score::HardSoftScore;
-use solverforge_core::ConstraintRef;
 use solverforge_scoring::api::analysis::ConstraintAnalysis;
 use solverforge_scoring::api::constraint_set::{
     ConstraintResult, ConstraintSet, IncrementalConstraint,
@@ -24,14 +23,12 @@ impl Default for DynamicConstraintSet {
 }
 
 impl DynamicConstraintSet {
-    /// Creates a new empty constraint set.
     pub fn new() -> Self {
         Self {
             constraints: Vec::new(),
         }
     }
 
-    /// Creates a constraint set from a vector of boxed constraints.
     pub fn from_vec(
         constraints: Vec<
             Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync>,
@@ -40,7 +37,6 @@ impl DynamicConstraintSet {
         Self { constraints }
     }
 
-    /// Adds a boxed constraint to the set.
     pub fn add(
         &mut self,
         constraint: Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync>,
@@ -48,12 +44,10 @@ impl DynamicConstraintSet {
         self.constraints.push(constraint);
     }
 
-    /// Returns the number of constraints in the set.
     pub fn len(&self) -> usize {
         self.constraints.len()
     }
 
-    /// Returns true if the constraint set is empty.
     pub fn is_empty(&self) -> bool {
         self.constraints.is_empty()
     }

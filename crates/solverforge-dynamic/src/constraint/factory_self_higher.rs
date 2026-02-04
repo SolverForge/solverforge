@@ -49,6 +49,7 @@ use crate::solution::DynamicSolution;
 ///
 /// A boxed `IncrementalConstraint<DynamicSolution, HardSoftScore>` that can be stored
 /// in `DynamicConstraintSet`.
+#[allow(clippy::too_many_arguments)]
 pub fn build_quad_self_constraint(
     constraint_ref: ConstraintRef,
     impact_type: ImpactType,
@@ -119,6 +120,7 @@ pub fn build_quad_self_constraint(
 ///
 /// A boxed `IncrementalConstraint<DynamicSolution, HardSoftScore>` that can be stored
 /// in `DynamicConstraintSet`.
+#[allow(clippy::too_many_arguments)]
 pub fn build_penta_self_constraint(
     constraint_ref: ConstraintRef,
     impact_type: ImpactType,

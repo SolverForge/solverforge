@@ -13,11 +13,11 @@ console = ["dep:tracing", "dep:tracing-subscriber", "dep:owo-colors", "dep:num-f
 verbose-logging = []
 
 [dependencies]
-solverforge-core = { version = "0.5.1", path = "../solverforge-core" }
-solverforge-macros = { version = "0.5.1", path = "../solverforge-macros" }
-solverforge-scoring = { version = "0.5.1", path = "../solverforge-scoring" }
-solverforge-solver = { version = "0.5.1", path = "../solverforge-solver" }
-solverforge-config = { version = "0.5.1", path = "../solverforge-config" }
+solverforge-core = { version = "0.6.0", path = "../solverforge-core" }
+solverforge-macros = { version = "0.6.0", path = "../solverforge-macros" }
+solverforge-scoring = { version = "0.6.0", path = "../solverforge-scoring" }
+solverforge-solver = { version = "0.6.0", path = "../solverforge-solver" }
+solverforge-config = { version = "0.6.0", path = "../solverforge-config" }
 
 # Console output (optional)
 tracing = { version = "0.1", optional = true }

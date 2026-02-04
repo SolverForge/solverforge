@@ -6,5 +6,5 @@ license.workspace = true
 description = "Incremental constraint scoring for SolverForge"
 
 [dependencies]
-solverforge-core = { version = "0.5.1", path = "../solverforge-core" }
+solverforge-core = { version = "0.6.0", path = "../solverforge-core" }
 thiserror.workspace = true

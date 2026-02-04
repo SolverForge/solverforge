@@ -12,25 +12,17 @@ use solverforge_solver::phase::construction::{EntityPlacer, Placement};
 use crate::descriptor::ValueRangeDef;
 use crate::solution::{DynamicSolution, DynamicValue};
 
-/// A change move that modifies a single planning variable.
 #[derive(Clone)]
 pub struct DynamicChangeMove {
-    /// Entity class index.
     pub class_idx: usize,
-    /// Entity index within the class.
     pub entity_idx: usize,
-    /// Field index of the planning variable.
     pub field_idx: usize,
-    /// Variable name.
     pub variable_name: Arc<str>,
-    /// New value to assign.
     pub new_value: DynamicValue,
-    /// Entity indices cache for the trait method.
     entity_indices: [usize; 1],
 }
 
 impl DynamicChangeMove {
-    /// Creates a new change move.
     pub fn new(
         class_idx: usize,
         entity_idx: usize,
@@ -121,22 +113,18 @@ impl Move<DynamicSolution> for DynamicChangeMove {
     }
 }
 
-/// A move selector that generates change moves for dynamic solutions.
 #[derive(Debug)]
 pub struct DynamicMoveSelector {
-    /// Cached moves generated from the solution.
     _phantom: std::marker::PhantomData<()>,
 }
 
 impl DynamicMoveSelector {
-    /// Creates a new dynamic move selector.
     pub fn new() -> Self {
         Self {
             _phantom: std::marker::PhantomData,
         }
     }
 
-    /// Generates all possible change moves for the solution.
     pub fn generate_moves(&self, solution: &DynamicSolution) -> Vec<DynamicChangeMove> {
         use rand::seq::SliceRandom;
 
@@ -199,12 +187,10 @@ impl MoveSelector<DynamicSolution, DynamicChangeMove> for DynamicMoveSelector {
     }
 }
 
-/// Entity placer for dynamic solutions during construction heuristic.
 #[derive(Debug)]
 pub struct DynamicEntityPlacer;
 
 impl DynamicEntityPlacer {
-    /// Creates a new dynamic entity placer.
     pub fn new() -> Self {
         Self
     }
@@ -283,7 +269,6 @@ impl EntityPlacer<DynamicSolution, DynamicChangeMove> for DynamicEntityPlacer {
     }
 }
 
-/// Gets all values from a value range definition.
 fn get_range_values(range: &ValueRangeDef, solution: &DynamicSolution) -> Vec<DynamicValue> {
     match range {
         ValueRangeDef::Explicit(values) => values.clone(),

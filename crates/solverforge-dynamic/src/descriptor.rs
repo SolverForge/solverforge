@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use crate::solution::DynamicValue;
 
-/// Field type enumeration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldType {
     I64,
@@ -14,29 +13,22 @@ pub enum FieldType {
     Bool,
     Ref,
     List,
-    /// DateTime stored as Unix timestamp in milliseconds.
+    // DateTime stored as Unix timestamp in milliseconds.
     DateTime,
-    /// Date stored as days since Unix epoch.
+    // Date stored as days since Unix epoch.
     Date,
-    /// Set of values (with contains semantics).
     Set,
 }
 
-/// Definition of a field within an entity or fact class.
 #[derive(Debug, Clone)]
 pub struct FieldDef {
-    /// Field name.
     pub name: Arc<str>,
-    /// Field type.
     pub field_type: FieldType,
-    /// If this is a planning variable, the name of its value range.
     pub value_range: Option<Arc<str>>,
-    /// If this is a Ref type, the class name it references.
     pub ref_class: Option<Arc<str>>,
 }
 
 impl FieldDef {
-    /// Creates a new non-planning field.
     pub fn new(name: impl Into<Arc<str>>, field_type: FieldType) -> Self {
         Self {
             name: name.into(),
@@ -46,7 +38,6 @@ impl FieldDef {
         }
     }
 
-    /// Creates a new planning variable field.
     pub fn planning_variable(
         name: impl Into<Arc<str>>,
         field_type: FieldType,
@@ -60,7 +51,6 @@ impl FieldDef {
         }
     }
 
-    /// Creates a reference field pointing to another class.
     pub fn reference(name: impl Into<Arc<str>>, ref_class: impl Into<Arc<str>>) -> Self {
         Self {
             name: name.into(),
@@ -70,7 +60,6 @@ impl FieldDef {
         }
     }
 
-    /// Creates a planning variable that references another class.
     pub fn reference_variable(
         name: impl Into<Arc<str>>,
         ref_class: impl Into<Arc<str>>,
@@ -84,25 +73,19 @@ impl FieldDef {
         }
     }
 
-    /// Returns true if this field is a planning variable.
     pub fn is_planning_variable(&self) -> bool {
         self.value_range.is_some()
     }
 }
 
-/// Definition of an entity class.
 #[derive(Debug, Clone)]
 pub struct EntityClassDef {
-    /// Class name.
     pub name: Arc<str>,
-    /// Field definitions.
     pub fields: Vec<FieldDef>,
-    /// Indices of fields that are planning variables.
     pub planning_variable_indices: Vec<usize>,
 }
 
 impl EntityClassDef {
-    /// Creates a new entity class definition.
     pub fn new(name: impl Into<Arc<str>>, fields: Vec<FieldDef>) -> Self {
         let name = name.into();
         let planning_variable_indices: Vec<usize> = fields
@@ -118,23 +101,18 @@ impl EntityClassDef {
         }
     }
 
-    /// Finds a field index by name.
     pub fn field_index(&self, name: &str) -> Option<usize> {
         self.fields.iter().position(|f| f.name.as_ref() == name)
     }
 }
 
-/// Definition of a fact class.
 #[derive(Debug, Clone)]
 pub struct FactClassDef {
-    /// Class name.
     pub name: Arc<str>,
-    /// Field definitions.
     pub fields: Vec<FieldDef>,
 }
 
 impl FactClassDef {
-    /// Creates a new fact class definition.
     pub fn new(name: impl Into<Arc<str>>, fields: Vec<FieldDef>) -> Self {
         Self {
             name: name.into(),
@@ -142,47 +120,36 @@ impl FactClassDef {
         }
     }
 
-    /// Finds a field index by name.
     pub fn field_index(&self, name: &str) -> Option<usize> {
         self.fields.iter().position(|f| f.name.as_ref() == name)
     }
 }
 
-/// Definition of a value range for planning variables.
 #[derive(Debug, Clone)]
 pub enum ValueRangeDef {
-    /// Explicit list of values.
     Explicit(Vec<DynamicValue>),
-    /// Integer range [start, end).
     IntRange { start: i64, end: i64 },
-    /// Reference to all entities of a class.
     EntityClass(usize),
-    /// Reference to all facts of a class.
     FactClass(usize),
 }
 
 impl ValueRangeDef {
-    /// Creates a value range from explicit integer values.
     pub fn from_ints(values: impl IntoIterator<Item = i64>) -> Self {
         ValueRangeDef::Explicit(values.into_iter().map(DynamicValue::I64).collect())
     }
 
-    /// Creates an integer range [start, end).
     pub fn int_range(start: i64, end: i64) -> Self {
         ValueRangeDef::IntRange { start, end }
     }
 
-    /// Creates a value range referencing all entities of a class.
     pub fn entity_class(class_idx: usize) -> Self {
         ValueRangeDef::EntityClass(class_idx)
     }
 
-    /// Creates a value range referencing all facts of a class.
     pub fn fact_class(class_idx: usize) -> Self {
         ValueRangeDef::FactClass(class_idx)
     }
 
-    /// Returns the values in this range as an iterator.
     pub fn values(&self) -> Vec<DynamicValue> {
         match self {
             ValueRangeDef::Explicit(values) => values.clone(),
@@ -196,7 +163,6 @@ impl ValueRangeDef {
         }
     }
 
-    /// Returns the number of values in this range.
     pub fn len(&self) -> usize {
         match self {
             ValueRangeDef::Explicit(values) => values.len(),
@@ -205,73 +171,57 @@ impl ValueRangeDef {
         }
     }
 
-    /// Returns true if the range is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
-/// Complete schema descriptor for a dynamic solution.
 #[derive(Debug, Clone, Default)]
 pub struct DynamicDescriptor {
-    /// Entity class definitions.
     pub entity_classes: Vec<EntityClassDef>,
-    /// Fact class definitions.
     pub fact_classes: Vec<FactClassDef>,
-    /// Value range definitions by name.
     pub value_ranges: HashMap<Arc<str>, ValueRangeDef>,
-    /// Mapping from entity class name to index.
     entity_class_indices: HashMap<Arc<str>, usize>,
-    /// Mapping from fact class name to index.
     fact_class_indices: HashMap<Arc<str>, usize>,
 }
 
 impl DynamicDescriptor {
-    /// Creates a new empty descriptor.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Adds an entity class definition.
     pub fn add_entity_class(&mut self, class: EntityClassDef) {
         let idx = self.entity_classes.len();
         self.entity_class_indices.insert(class.name.clone(), idx);
         self.entity_classes.push(class);
     }
 
-    /// Adds a fact class definition.
     pub fn add_fact_class(&mut self, class: FactClassDef) {
         let idx = self.fact_classes.len();
         self.fact_class_indices.insert(class.name.clone(), idx);
         self.fact_classes.push(class);
     }
 
-    /// Adds a value range definition.
     pub fn add_value_range(&mut self, name: impl Into<Arc<str>>, range: ValueRangeDef) {
         self.value_ranges.insert(name.into(), range);
     }
 
-    /// Gets an entity class index by name.
     pub fn entity_class_index(&self, name: &str) -> Option<usize> {
         self.entity_class_indices.get(name).copied()
     }
 
-    /// Gets a fact class index by name.
     pub fn fact_class_index(&self, name: &str) -> Option<usize> {
         self.fact_class_indices.get(name).copied()
     }
 
-    /// Gets an entity class by index.
     pub fn entity_class(&self, idx: usize) -> Option<&EntityClassDef> {
         self.entity_classes.get(idx)
     }
 
-    /// Gets a fact class by index.
     pub fn fact_class(&self, idx: usize) -> Option<&FactClassDef> {
         self.fact_classes.get(idx)
     }
 
-    /// Gets a value range by name.
     pub fn value_range(&self, name: &str) -> Option<&ValueRangeDef> {
         self.value_ranges.get(name)
     }

@@ -7,9 +7,6 @@ use crate::expr::Expr;
 use crate::solution::{DynamicEntity, DynamicSolution, DynamicValue};
 use solverforge_core::score::HardSoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
-use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-
-// Note: ConstraintRef::new requires (package, name), so we use empty package for dynamic constraints
 use solverforge_scoring::ConstraintSet;
 
 fn make_nqueens_solution(rows: &[i64]) -> DynamicSolution {

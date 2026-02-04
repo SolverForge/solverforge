@@ -49,7 +49,12 @@ where
         self.evaluate(solution)
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> SimpleScore {
+    fn on_insert(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SimpleScore {
         if (self.predicate)(solution, entity_index) {
             SimpleScore::of(-self.weight)
         } else {
@@ -57,7 +62,12 @@ where
         }
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> SimpleScore {
+    fn on_retract(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SimpleScore {
         if (self.predicate)(solution, entity_index) {
             SimpleScore::of(self.weight)
         } else {

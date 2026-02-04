@@ -212,7 +212,15 @@ impl SolverManager {
     fn build_constraint_internal(
         &self,
         builder: &ConstraintBuilder,
-    ) -> PyResult<solverforge_dynamic::DynamicConstraint> {
+    ) -> PyResult<
+        Box<
+            dyn solverforge_scoring::api::constraint_set::IncrementalConstraint<
+                    solverforge_dynamic::DynamicSolution,
+                    solverforge_core::score::HardSoftScore,
+                > + Send
+                + Sync,
+        >,
+    > {
         use solverforge_dynamic::{DynamicConstraint, Expr};
 
         let mut constraint = DynamicConstraint::new(builder.name.clone());
@@ -246,13 +254,11 @@ impl SolverManager {
             }
         }
 
-        Ok(constraint)
+        // Build the constraint with the descriptor
+        Ok(constraint.build(self.descriptor.clone()))
     }
 
-    fn parse_expr_internal(
-        &self,
-        expr_str: &str,
-    ) -> PyResult<solverforge_dynamic::Expr> {
+    fn parse_expr_internal(&self, expr_str: &str) -> PyResult<solverforge_dynamic::Expr> {
         parse_expr(expr_str, None, &self.descriptor)
     }
 }

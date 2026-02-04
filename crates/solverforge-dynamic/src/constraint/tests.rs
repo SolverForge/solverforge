@@ -2,14 +2,14 @@
 
 use super::*;
 use crate::constraint_set::DynamicConstraintSet;
-use crate::descriptor::{
-    DynamicDescriptor, EntityClassDef, FieldDef, FieldType, ValueRangeDef,
-};
+use crate::descriptor::{DynamicDescriptor, EntityClassDef, FieldDef, FieldType, ValueRangeDef};
 use crate::expr::Expr;
-use crate::solution::{DynamicEntity, DynamicValue};
+use crate::solution::{DynamicEntity, DynamicSolution, DynamicValue};
 use solverforge_core::score::HardSoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+
+// Note: ConstraintRef::new requires (package, name), so we use empty package for dynamic constraints
 use solverforge_scoring::ConstraintSet;
 
 fn make_nqueens_solution(rows: &[i64]) -> DynamicSolution {
@@ -57,10 +57,10 @@ fn test_row_conflict_constraint() {
     ];
 
     let mut constraint = build_from_stream_ops(
-        ConstraintRef::new("row_conflict"),
+        ConstraintRef::new("", "row_conflict"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     // Initialize to compute matches and score
@@ -90,10 +90,10 @@ fn test_no_conflicts() {
     ];
 
     let mut constraint = build_from_stream_ops(
-        ConstraintRef::new("row_conflict"),
+        ConstraintRef::new("", "row_conflict"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     // Initialize to compute matches and score
@@ -121,10 +121,10 @@ fn test_constraint_set() {
     ];
 
     let constraint = build_from_stream_ops(
-        ConstraintRef::new("row_conflict"),
+        ConstraintRef::new("", "row_conflict"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     let mut constraint_set = DynamicConstraintSet::new();
@@ -157,10 +157,10 @@ fn test_bi_self_join_incremental() {
     ];
 
     let mut constraint = build_from_stream_ops(
-        ConstraintRef::new("row_conflict"),
+        ConstraintRef::new("", "row_conflict"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     // Initialize: no conflicts (rows 0, 1, 2)
@@ -170,10 +170,7 @@ fn test_bi_self_join_incremental() {
     // Insert a new queen at column 3, row 1 (conflicts with queen at column 1)
     solution.add_entity(
         0,
-        DynamicEntity::new(
-            3,
-            vec![DynamicValue::I64(3), DynamicValue::I64(1)],
-        ),
+        DynamicEntity::new(3, vec![DynamicValue::I64(3), DynamicValue::I64(1)]),
     );
     let delta = constraint.on_insert(&solution, 3, 0);
     // New queen (col 3, row 1) conflicts with existing queen (col 1, row 1)
@@ -186,10 +183,7 @@ fn test_bi_self_join_incremental() {
     // Insert another queen at column 4, row 1 (conflicts with col 1 and col 3)
     solution.add_entity(
         0,
-        DynamicEntity::new(
-            4,
-            vec![DynamicValue::I64(4), DynamicValue::I64(1)],
-        ),
+        DynamicEntity::new(4, vec![DynamicValue::I64(4), DynamicValue::I64(1)]),
     );
     let delta2 = constraint.on_insert(&solution, 4, 0);
     // New queen (col 4, row 1) conflicts with 2 existing queens (col 1, col 3)
@@ -202,10 +196,7 @@ fn test_bi_self_join_incremental() {
     // Insert queen at column 5, row 0 (conflicts with col 0)
     solution.add_entity(
         0,
-        DynamicEntity::new(
-            5,
-            vec![DynamicValue::I64(5), DynamicValue::I64(0)],
-        ),
+        DynamicEntity::new(5, vec![DynamicValue::I64(5), DynamicValue::I64(0)]),
     );
     let delta3 = constraint.on_insert(&solution, 5, 0);
     // New queen (col 5, row 0) conflicts with 1 existing queen (col 0, row 0)
@@ -223,15 +214,31 @@ fn test_tri_self_join_incremental() {
     // This tests the IncrementalTriConstraint wrapper with 3-entity tuples
 
     let mut descriptor = DynamicDescriptor::new();
-    let number_class = descriptor.add_entity_class("Number".to_string(), vec!["value".to_string()]);
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Number",
+        vec![FieldDef::new("value", FieldType::I64)],
+    ));
+    let number_class = 0; // First entity class index
 
     // Initial solution: [1, 2, 3, 4]
-    // Initial triplets where a + b = c: (1, 2, 3) only → 1 match
+    // Initial triplets where a + b = c: (1, 2, 3) and (1, 3, 4) → 2 matches
     let mut solution = DynamicSolution::new(descriptor.clone());
-    solution.add_entity(number_class, DynamicEntity::new(0, vec![DynamicValue::I64(1)]));
-    solution.add_entity(number_class, DynamicEntity::new(1, vec![DynamicValue::I64(2)]));
-    solution.add_entity(number_class, DynamicEntity::new(2, vec![DynamicValue::I64(3)]));
-    solution.add_entity(number_class, DynamicEntity::new(3, vec![DynamicValue::I64(4)]));
+    solution.add_entity(
+        number_class,
+        DynamicEntity::new(0, vec![DynamicValue::I64(1)]),
+    );
+    solution.add_entity(
+        number_class,
+        DynamicEntity::new(1, vec![DynamicValue::I64(2)]),
+    );
+    solution.add_entity(
+        number_class,
+        DynamicEntity::new(2, vec![DynamicValue::I64(3)]),
+    );
+    solution.add_entity(
+        number_class,
+        DynamicEntity::new(3, vec![DynamicValue::I64(4)]),
+    );
 
     // Build constraint: penalize triplets where a + b = c
     // ForEach → Join → Join → Filter(a + b = c) → Penalize
@@ -259,21 +266,22 @@ fn test_tri_self_join_incremental() {
     ];
 
     let mut constraint = build_from_stream_ops(
-        ConstraintRef::new("sum_triplet"),
+        ConstraintRef::new("", "row_conflict"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     // Initialize
     let init_score = constraint.initialize(&solution);
-    // Initial: (1, 2, 3) is the only triplet where a + b = c
-    assert_eq!(init_score, HardSoftScore::of_hard(-1));
+    // Initial: (1, 2, 3) and (1, 3, 4) are triplets where a + b = c → 2 matches
+    assert_eq!(init_score, HardSoftScore::of_hard(-2));
     let eval_score = constraint.evaluate(&solution);
-    assert_eq!(eval_score, HardSoftScore::of_hard(-1));
+    assert_eq!(eval_score, HardSoftScore::of_hard(-2));
 
     // Insert number 5 at index 4
-    // New triplets: (1, 4, 5), (2, 3, 5)
+    // New triplets involving 5: (1, 4, 5), (2, 3, 5)
+    // Existing: (1, 2, 3), (1, 3, 4)
     solution.add_entity(
         number_class,
         DynamicEntity::new(4, vec![DynamicValue::I64(5)]),
@@ -282,12 +290,12 @@ fn test_tri_self_join_incremental() {
     // Delta should be -2 (two new triplets formed)
     assert_eq!(delta1, HardSoftScore::of_hard(-2));
 
-    // Full evaluation: (1, 2, 3), (1, 4, 5), (2, 3, 5) → 3 triplets
+    // Full evaluation: (1, 2, 3), (1, 3, 4), (1, 4, 5), (2, 3, 5) → 4 triplets
     let full_score1 = constraint.evaluate(&solution);
-    assert_eq!(full_score1, HardSoftScore::of_hard(-3));
+    assert_eq!(full_score1, HardSoftScore::of_hard(-4));
 
     // Insert number 6 at index 5
-    // New triplets: (1, 5, 6), (2, 4, 6)
+    // New triplets involving 6: (1, 5, 6), (2, 4, 6)
     solution.add_entity(
         number_class,
         DynamicEntity::new(5, vec![DynamicValue::I64(6)]),
@@ -296,12 +304,12 @@ fn test_tri_self_join_incremental() {
     // Delta should be -2 (two new triplets formed)
     assert_eq!(delta2, HardSoftScore::of_hard(-2));
 
-    // Full evaluation: (1,2,3), (1,4,5), (2,3,5), (1,5,6), (2,4,6) → 5 triplets
+    // Full evaluation: 4 previous + 2 new → 6 triplets
     let full_score2 = constraint.evaluate(&solution);
-    assert_eq!(full_score2, HardSoftScore::of_hard(-5));
+    assert_eq!(full_score2, HardSoftScore::of_hard(-6));
 
     // Insert number 7 at index 6
-    // New triplets: (1, 6, 7), (2, 5, 7), (3, 4, 7)
+    // New triplets involving 7: (1, 6, 7), (2, 5, 7), (3, 4, 7)
     solution.add_entity(
         number_class,
         DynamicEntity::new(6, vec![DynamicValue::I64(7)]),
@@ -310,9 +318,9 @@ fn test_tri_self_join_incremental() {
     // Delta should be -3 (three new triplets formed)
     assert_eq!(delta3, HardSoftScore::of_hard(-3));
 
-    // Full evaluation: previous 5 + 3 new → 8 triplets total
+    // Full evaluation: 6 previous + 3 new → 9 triplets total
     let full_score3 = constraint.evaluate(&solution);
-    assert_eq!(full_score3, HardSoftScore::of_hard(-8));
+    assert_eq!(full_score3, HardSoftScore::of_hard(-9));
 }
 
 #[test]
@@ -324,16 +332,24 @@ fn test_cross_bi_constraint() {
     let mut descriptor = DynamicDescriptor::new();
 
     // Define Shift entity class: [shift_id, employee_id]
-    let shift_class = descriptor.add_entity_class(
-        "Shift".to_string(),
-        vec!["shift_id".to_string(), "employee_id".to_string()],
-    );
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Shift",
+        vec![
+            FieldDef::new("shift_id", FieldType::I64),
+            FieldDef::new("employee_id", FieldType::I64),
+        ],
+    ));
+    let shift_class = 0;
 
     // Define Employee entity class: [employee_id, available]
-    let employee_class = descriptor.add_entity_class(
-        "Employee".to_string(),
-        vec!["employee_id".to_string(), "available".to_string()],
-    );
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Employee",
+        vec![
+            FieldDef::new("employee_id", FieldType::I64),
+            FieldDef::new("available", FieldType::Bool),
+        ],
+    ));
+    let employee_class = 1;
 
     // Create solution
     let mut solution = DynamicSolution::new(descriptor.clone());
@@ -344,24 +360,15 @@ fn test_cross_bi_constraint() {
     // Employee 3: available = true
     solution.add_entity(
         employee_class,
-        DynamicEntity::new(
-            0,
-            vec![DynamicValue::I64(1), DynamicValue::Bool(true)],
-        ),
+        DynamicEntity::new(0, vec![DynamicValue::I64(1), DynamicValue::Bool(true)]),
     );
     solution.add_entity(
         employee_class,
-        DynamicEntity::new(
-            1,
-            vec![DynamicValue::I64(2), DynamicValue::Bool(false)],
-        ),
+        DynamicEntity::new(1, vec![DynamicValue::I64(2), DynamicValue::Bool(false)]),
     );
     solution.add_entity(
         employee_class,
-        DynamicEntity::new(
-            2,
-            vec![DynamicValue::I64(3), DynamicValue::Bool(true)],
-        ),
+        DynamicEntity::new(2, vec![DynamicValue::I64(3), DynamicValue::Bool(true)]),
     );
 
     // Add shifts: [shift_id, employee_id]
@@ -369,17 +376,11 @@ fn test_cross_bi_constraint() {
     // Shift 1 assigned to employee 2 (unavailable) → penalty
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(
-            0,
-            vec![DynamicValue::I64(100), DynamicValue::I64(1)],
-        ),
+        DynamicEntity::new(0, vec![DynamicValue::I64(100), DynamicValue::I64(1)]),
     );
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(
-            1,
-            vec![DynamicValue::I64(101), DynamicValue::I64(2)],
-        ),
+        DynamicEntity::new(1, vec![DynamicValue::I64(101), DynamicValue::I64(2)]),
     );
 
     // Build constraint: penalize shifts assigned to unavailable employees
@@ -408,10 +409,10 @@ fn test_cross_bi_constraint() {
     ];
 
     let mut constraint = build_from_stream_ops(
-        ConstraintRef::new("unavailable_employee"),
+        ConstraintRef::new("", "unavailable_employee"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     // Initialize
@@ -426,10 +427,7 @@ fn test_cross_bi_constraint() {
     // Insert a new shift assigned to employee 2 (unavailable)
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(
-            2,
-            vec![DynamicValue::I64(102), DynamicValue::I64(2)],
-        ),
+        DynamicEntity::new(2, vec![DynamicValue::I64(102), DynamicValue::I64(2)]),
     );
     let delta = constraint.on_insert(&solution, 2, shift_class);
     // New shift assigned to unavailable employee → delta = -10
@@ -442,10 +440,7 @@ fn test_cross_bi_constraint() {
     // Insert a new shift assigned to employee 3 (available)
     solution.add_entity(
         shift_class,
-        DynamicEntity::new(
-            3,
-            vec![DynamicValue::I64(103), DynamicValue::I64(3)],
-        ),
+        DynamicEntity::new(3, vec![DynamicValue::I64(103), DynamicValue::I64(3)]),
     );
     let delta2 = constraint.on_insert(&solution, 3, shift_class);
     // New shift assigned to available employee → no penalty → delta = 0
@@ -468,23 +463,25 @@ fn test_flattened_bi_constraint() {
     let mut descriptor = DynamicDescriptor::new();
 
     // Define Shift entity class: [shift_id, employee_id, day]
-    let shift_class = descriptor.add_entity_class(
-        "Shift".to_string(),
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Shift",
         vec![
-            "shift_id".to_string(),
-            "employee_id".to_string(),
-            "day".to_string(),
+            FieldDef::new("shift_id", FieldType::I64),
+            FieldDef::new("employee_id", FieldType::I64),
+            FieldDef::new("day", FieldType::I64),
         ],
-    );
+    ));
+    let shift_class = 0;
 
-    // Define Employee entity class: [employee_id, unavailable_days (Vec<i64>)]
-    let employee_class = descriptor.add_entity_class(
-        "Employee".to_string(),
+    // Define Employee entity class: [employee_id, unavailable_days (List)]
+    descriptor.add_entity_class(EntityClassDef::new(
+        "Employee",
         vec![
-            "employee_id".to_string(),
-            "unavailable_days".to_string(),
+            FieldDef::new("employee_id", FieldType::I64),
+            FieldDef::new("unavailable_days", FieldType::List),
         ],
-    );
+    ));
+    let employee_class = 1;
 
     // Create solution
     let mut solution = DynamicSolution::new(descriptor.clone());
@@ -573,7 +570,7 @@ fn test_flattened_bi_constraint() {
             )],
         },
         StreamOp::FlattenLast {
-            collection_expr: Expr::field(1, 1), // employee.unavailable_days (field index 1)
+            set_expr: Expr::field(1, 1), // employee.unavailable_days (field index 1)
         },
         StreamOp::Filter {
             predicate: Expr::eq(
@@ -587,10 +584,10 @@ fn test_flattened_bi_constraint() {
     ];
 
     let mut constraint = build_from_stream_ops(
-        ConstraintRef::new("shift_on_unavailable_day"),
+        ConstraintRef::new("", "shift_on_unavailable_day"),
         ImpactType::Penalty,
         &ops,
-        solution.descriptor().clone(),
+        solution.descriptor.clone(),
     );
 
     // Initialize
@@ -698,10 +695,10 @@ fn test_incremental_delta_matches_full_recalculation() {
         ];
 
         let mut constraint = build_from_stream_ops(
-            ConstraintRef::new("bi_test"),
+            ConstraintRef::new("", "bi_test"),
             ImpactType::Penalty,
             &ops,
-            solution.descriptor().clone(),
+            solution.descriptor.clone(),
         );
 
         // Initialize
@@ -722,10 +719,9 @@ fn test_incremental_delta_matches_full_recalculation() {
             "Bi: After insert, accumulated score != evaluate"
         );
 
-        // Retract entity
-        let retracted = solution.entities_by_class(0)[3].clone();
-        solution.retract_entity(0, 3);
-        let delta2 = constraint.on_retract(&retracted, 3, 0);
+        // Retract entity - call on_retract BEFORE removing from solution
+        let delta2 = constraint.on_retract(&solution, 3, 0);
+        solution.entities[0].remove(3);
         let accumulated2 = accumulated1 + delta2;
         let full2 = constraint.evaluate(&solution);
         assert_eq!(
@@ -771,10 +767,10 @@ fn test_incremental_delta_matches_full_recalculation() {
         ];
 
         let mut constraint = build_from_stream_ops(
-            ConstraintRef::new("tri_test"),
+            ConstraintRef::new("", "tri_test"),
             ImpactType::Penalty,
             &ops,
-            solution.descriptor().clone(),
+            solution.descriptor.clone(),
         );
 
         // Initialize
@@ -808,20 +804,24 @@ fn test_incremental_delta_matches_full_recalculation() {
     // ======================
     {
         let mut desc = DynamicDescriptor::new();
-        let shift_class = desc.add_entity_class(EntityClassDef::new(
+        // Shift is class 0
+        desc.add_entity_class(EntityClassDef::new(
             "Shift",
             vec![
                 FieldDef::new("shift_id", FieldType::I64),
                 FieldDef::planning_variable("employee_id", FieldType::I64, "employees"),
             ],
         ));
-        let employee_class = desc.add_entity_class(EntityClassDef::new(
+        let shift_class: usize = 0;
+        // Employee is class 1
+        desc.add_entity_class(EntityClassDef::new(
             "Employee",
             vec![
                 FieldDef::new("employee_id", FieldType::I64),
                 FieldDef::new("available", FieldType::Bool),
             ],
         ));
+        let employee_class: usize = 1;
         desc.add_value_range("employees", ValueRangeDef::int_range(1, 4));
 
         let mut solution = DynamicSolution::new(desc);
@@ -855,7 +855,7 @@ fn test_incremental_delta_matches_full_recalculation() {
                 conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 0))],
             },
             StreamOp::Filter {
-                predicate: Expr::eq(Expr::field(1, 1), Expr::literal(false)),
+                predicate: Expr::eq(Expr::field(1, 1), Expr::literal(DynamicValue::Bool(false))),
             },
             StreamOp::Penalize {
                 weight: HardSoftScore::of_hard(10),
@@ -863,10 +863,10 @@ fn test_incremental_delta_matches_full_recalculation() {
         ];
 
         let mut constraint = build_from_stream_ops(
-            ConstraintRef::new("cross_test"),
+            ConstraintRef::new("", "cross_test"),
             ImpactType::Penalty,
             &ops,
-            solution.descriptor().clone(),
+            solution.descriptor.clone(),
         );
 
         // Initialize
@@ -896,7 +896,8 @@ fn test_incremental_delta_matches_full_recalculation() {
     // ======================
     {
         let mut desc = DynamicDescriptor::new();
-        let shift_class = desc.add_entity_class(EntityClassDef::new(
+        // Shift is class 0
+        desc.add_entity_class(EntityClassDef::new(
             "Shift",
             vec![
                 FieldDef::new("shift_id", FieldType::I64),
@@ -904,13 +905,16 @@ fn test_incremental_delta_matches_full_recalculation() {
                 FieldDef::new("day", FieldType::I64),
             ],
         ));
-        let employee_class = desc.add_entity_class(EntityClassDef::new(
+        let shift_class: usize = 0;
+        // Employee is class 1
+        desc.add_entity_class(EntityClassDef::new(
             "Employee",
             vec![
                 FieldDef::new("employee_id", FieldType::I64),
-                FieldDef::new("unavailable_days", FieldType::VecI64),
+                FieldDef::new("unavailable_days", FieldType::List),
             ],
         ));
+        let employee_class: usize = 1;
         desc.add_value_range("employees", ValueRangeDef::int_range(1, 3));
 
         let mut solution = DynamicSolution::new(desc);
@@ -922,13 +926,23 @@ fn test_incremental_delta_matches_full_recalculation() {
                 0,
                 vec![
                     DynamicValue::I64(1),
-                    DynamicValue::VecI64(vec![5, 10, 15]),
+                    DynamicValue::List(vec![
+                        DynamicValue::I64(5),
+                        DynamicValue::I64(10),
+                        DynamicValue::I64(15),
+                    ]),
                 ],
             ),
         );
         solution.add_entity(
             employee_class,
-            DynamicEntity::new(1, vec![DynamicValue::I64(2), DynamicValue::VecI64(vec![7])]),
+            DynamicEntity::new(
+                1,
+                vec![
+                    DynamicValue::I64(2),
+                    DynamicValue::List(vec![DynamicValue::I64(7)]),
+                ],
+            ),
         );
 
         // Shifts
@@ -964,7 +978,7 @@ fn test_incremental_delta_matches_full_recalculation() {
                 conditions: vec![Expr::eq(Expr::field(0, 1), Expr::field(1, 0))],
             },
             StreamOp::FlattenLast {
-                collection_expr: Expr::field(1, 1),
+                set_expr: Expr::field(1, 1),
             },
             StreamOp::Filter {
                 predicate: Expr::eq(Expr::field(0, 2), Expr::param(2)),
@@ -975,10 +989,10 @@ fn test_incremental_delta_matches_full_recalculation() {
         ];
 
         let mut constraint = build_from_stream_ops(
-            ConstraintRef::new("flattened_test"),
+            ConstraintRef::new("", "flattened_test"),
             ImpactType::Penalty,
             &ops,
-            solution.descriptor().clone(),
+            solution.descriptor.clone(),
         );
 
         // Initialize

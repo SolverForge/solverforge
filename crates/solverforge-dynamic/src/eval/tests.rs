@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::descriptor::{DynamicDescriptor, EntityClassDef, FieldDef, FieldType};
-use crate::solution::DynamicEntity;
+use crate::expr::Expr;
+use crate::solution::{DynamicEntity, DynamicSolution, DynamicValue};
 
 fn make_test_solution() -> DynamicSolution {
     let mut desc = DynamicDescriptor::new();

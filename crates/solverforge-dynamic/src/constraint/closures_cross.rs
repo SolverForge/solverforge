@@ -78,6 +78,7 @@ pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
         entities: Vec::new(),
         facts: Vec::new(),
         score: None,
+        id_to_location: std::collections::HashMap::new(),
     };
 
     Box::new(move |entity: &DynamicEntity| {
@@ -112,6 +113,7 @@ pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
         entities: Vec::new(),
         facts: Vec::new(),
         score: None,
+        id_to_location: std::collections::HashMap::new(),
     };
 
     Box::new(move |entity: &DynamicEntity| {
@@ -228,6 +230,7 @@ pub fn make_cross_weight(
             entities: Vec::new(),
             facts: Vec::new(),
             score: None,
+            id_to_location: std::collections::HashMap::new(),
         };
 
         // Ensure the entities vec is large enough for both classes

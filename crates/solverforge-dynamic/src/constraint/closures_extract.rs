@@ -50,6 +50,7 @@ pub fn make_key_extractor(key_expr: Expr, descriptor: DynamicDescriptor) -> DynK
         entities: Vec::new(),
         facts: Vec::new(),
         score: None,
+        id_to_location: std::collections::HashMap::new(),
     };
 
     Box::new(move |entity: &DynamicEntity| {

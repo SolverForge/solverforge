@@ -330,12 +330,29 @@ impl Default for DynamicMoveSelector {
 
 // Implement the real MoveSelector trait
 impl MoveSelector<DynamicSolution, DynamicChangeMove> for DynamicMoveSelector {
+    /// Returns an iterator over all possible change moves in randomized order.
+    ///
+    /// This implementation leverages `DynamicMoveIterator` for the initial move generation,
+    /// then collects and shuffles the moves for randomized selection. The shuffling is
+    /// critical for effective local search with `FirstAcceptedForager`, which relies on
+    /// randomized move order to escape local optima and explore the solution space.
+    ///
+    /// **Design decision**: While lazy iteration without shuffling would save memory,
+    /// it causes the solver to get stuck in local optima because moves are always
+    /// evaluated in the same deterministic order. The shuffled approach ensures:
+    /// - Effective exploration with `FirstAcceptedForager`
+    /// - Consistent solver performance across different problem instances
+    /// - Better solution quality within time limits
+    ///
+    /// For memory-constrained scenarios where deterministic order is acceptable,
+    /// use `generate_moves()` directly to get a lazy iterator.
     fn iter_moves<'a, D: ScoreDirector<DynamicSolution>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = DynamicChangeMove> + 'a> {
         let solution = score_director.working_solution();
-        // Use shuffled version for randomized move selection
+        // Collect moves from lazy iterator and shuffle for randomized selection
+        // This is necessary for FirstAcceptedForager to work effectively
         let moves = self.generate_moves_shuffled(solution);
         Box::new(moves.into_iter())
     }

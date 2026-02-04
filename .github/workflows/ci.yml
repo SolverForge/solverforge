@@ -45,6 +45,11 @@ jobs:
           echo "=== Python library info ==="
           python3 -c 'import sysconfig; print("LIBDIR:", sysconfig.get_config_var("LIBDIR")); print("LDLIBRARY:", sysconfig.get_config_var("LDLIBRARY"))'
 
+      - name: Set macOS linker flags
+        if: runner.os == 'macOS'
+        shell: bash
+        run: echo "RUSTFLAGS=-C link-arg=-undefined -C link-arg=dynamic_lookup" >> $GITHUB_ENV
+
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable

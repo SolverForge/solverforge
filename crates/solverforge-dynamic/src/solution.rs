@@ -1,6 +1,7 @@
 //! Dynamic solution types with runtime-defined schemas.
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -256,6 +257,8 @@ pub struct DynamicSolution {
     pub entities: Vec<Vec<DynamicEntity>>,
     pub facts: Vec<Vec<DynamicFact>>,
     pub score: Option<HardSoftScore>,
+    /// Maps entity ID to its location (class_idx, entity_idx) for O(1) lookup.
+    pub id_to_location: HashMap<i64, (usize, usize)>,
 }
 
 impl DynamicSolution {
@@ -267,6 +270,7 @@ impl DynamicSolution {
             entities: vec![Vec::new(); entity_count],
             facts: vec![Vec::new(); fact_count],
             score: None,
+            id_to_location: HashMap::new(),
         }
     }
 

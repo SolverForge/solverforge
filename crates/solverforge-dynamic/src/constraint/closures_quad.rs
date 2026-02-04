@@ -112,6 +112,7 @@ pub fn make_quad_weight(
                 entities: vec![Vec::new(); descriptor.entity_classes.len()],
                 facts: Vec::new(),
                 score: None,
+                id_to_location: std::collections::HashMap::new(),
             };
 
             // Place all four entities at indices 0, 1, 2, 3 in the class entity slice.

@@ -102,26 +102,28 @@ pub fn make_bi_weight(
     _descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> DynBiWeight {
-    Box::new(move |solution: &DynamicSolution, a_idx: usize, b_idx: usize| {
-        // Use the actual solution and indices directly - no cloning needed!
-        // Build entity tuple for evaluation context using the actual indices
-        let tuple = vec![
-            EntityRef::new(class_idx, a_idx),
-            EntityRef::new(class_idx, b_idx),
-        ];
+    Box::new(
+        move |solution: &DynamicSolution, a_idx: usize, b_idx: usize| {
+            // Use the actual solution and indices directly - no cloning needed!
+            // Build entity tuple for evaluation context using the actual indices
+            let tuple = vec![
+                EntityRef::new(class_idx, a_idx),
+                EntityRef::new(class_idx, b_idx),
+            ];
 
-        // Evaluate expression in bi-entity context using the real solution
-        let ctx = EvalContext::new(solution, &tuple);
-        let result = eval_expr(&weight_expr, &ctx);
+            // Evaluate expression in bi-entity context using the real solution
+            let ctx = EvalContext::new(solution, &tuple);
+            let result = eval_expr(&weight_expr, &ctx);
 
-        // Convert to numeric value (default to 0 if not numeric)
-        let weight_num = result.as_i64().unwrap_or(0) as f64;
+            // Convert to numeric value (default to 0 if not numeric)
+            let weight_num = result.as_i64().unwrap_or(0) as f64;
 
-        // Apply to hard or soft component
-        if is_hard {
-            HardSoftScore::of_hard(weight_num as i64)
-        } else {
-            HardSoftScore::of_soft(weight_num as i64)
-        }
-    })
+            // Apply to hard or soft component
+            if is_hard {
+                HardSoftScore::of_hard(weight_num as i64)
+            } else {
+                HardSoftScore::of_soft(weight_num as i64)
+            }
+        },
+    )
 }

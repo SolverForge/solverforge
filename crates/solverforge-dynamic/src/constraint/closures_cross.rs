@@ -186,15 +186,17 @@ pub fn make_cross_filter(
 
 /// Creates a cross-join weight function that evaluates an expression against entities from two different classes.
 ///
+/// This function creates a `DynCrossWeight` closure that takes the full solution and two entity
+/// indices (one for class A, one for class B), and evaluates a weight expression to produce a score.
+///
 /// # Arguments
 /// * `weight_expr` - The expression to evaluate against the entity pair (returns numeric weight)
 /// * `class_idx_a` - The entity class index for the first entity (class A)
 /// * `class_idx_b` - The entity class index for the second entity (class B)
-/// * `descriptor` - The schema descriptor for building evaluation context
 /// * `is_hard` - Whether this is a hard constraint (weight applied to hard score component)
 ///
 /// # Returns
-/// A boxed closure that takes two `DynamicEntity` references (one from class A, one from class B),
+/// A boxed closure that takes a `DynamicSolution` reference and two entity indices (a_idx, b_idx),
 /// evaluates the weight expression in a cross-join context, and returns a `HardSoftScore`.
 ///
 /// # Expression Evaluation
@@ -205,57 +207,36 @@ pub fn make_cross_filter(
 ///
 /// The expression should return a numeric value (i64). Non-numeric results default to 0.
 ///
-/// # Implementation Note
-/// This implementation clones entities into a temporary solution for evaluation. While this
-/// violates the zero-clone principle, it's necessary because the `DynCrossWeight` signature
-/// doesn't provide access to the solution or entity indices.
+/// # Performance
+/// This implementation uses the actual solution reference and entity indices directly,
+/// avoiding temporary solution construction and entity cloning.
 pub fn make_cross_weight(
     weight_expr: Expr,
     class_idx_a: usize,
     class_idx_b: usize,
-    descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> DynCrossWeight {
-    Box::new(move |a: &DynamicEntity, b: &DynamicEntity| {
-        // Create a temporary solution context with both entities
-        let mut temp_solution = DynamicSolution {
-            descriptor: descriptor.clone(),
-            entities: Vec::new(),
-            facts: Vec::new(),
-            score: None,
-            id_to_location: std::collections::HashMap::new(),
-        };
+    Box::new(
+        move |solution: &DynamicSolution, a_idx: usize, b_idx: usize| {
+            // Build entity tuple for evaluation context using the actual indices
+            let tuple = vec![
+                EntityRef::new(class_idx_a, a_idx),
+                EntityRef::new(class_idx_b, b_idx),
+            ];
 
-        // Ensure the entities vec is large enough for both classes
-        let max_class = class_idx_a.max(class_idx_b);
-        while temp_solution.entities.len() <= max_class {
-            temp_solution.entities.push(Vec::new());
-        }
+            // Evaluate expression in cross-join context using the actual solution
+            let ctx = EvalContext::new(solution, &tuple);
+            let result = eval_expr(&weight_expr, &ctx);
 
-        // Add entity A at index 0 of its class
-        temp_solution.entities[class_idx_a] = vec![a.clone()];
+            // Convert to numeric value (default to 0 if not numeric)
+            let weight_num = result.as_i64().unwrap_or(0) as i64;
 
-        // Add entity B at index 0 of its class
-        temp_solution.entities[class_idx_b] = vec![b.clone()];
-
-        // Build entity tuple for evaluation context
-        let tuple = vec![
-            EntityRef::new(class_idx_a, 0),
-            EntityRef::new(class_idx_b, 0),
-        ];
-
-        // Evaluate expression in cross-join context
-        let ctx = EvalContext::new(&temp_solution, &tuple);
-        let result = eval_expr(&weight_expr, &ctx);
-
-        // Convert to numeric value (default to 0 if not numeric)
-        let weight_num = result.as_i64().unwrap_or(0) as i64;
-
-        // Apply to hard or soft component
-        if is_hard {
-            HardSoftScore::of_hard(weight_num)
-        } else {
-            HardSoftScore::of_soft(weight_num)
-        }
-    })
+            // Apply to hard or soft component
+            if is_hard {
+                HardSoftScore::of_hard(weight_num)
+            } else {
+                HardSoftScore::of_soft(weight_num)
+            }
+        },
+    )
 }

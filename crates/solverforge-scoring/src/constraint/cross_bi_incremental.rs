@@ -47,7 +47,7 @@ where
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
     F: Fn(&S, &A, &B) -> bool,
-    W: Fn(&A, &B) -> Sc,
+    W: Fn(&S, usize, usize) -> Sc,
     Sc: Score,
 {
     /// Creates a new cross-bi-constraint.
@@ -86,8 +86,8 @@ where
     }
 
     #[inline]
-    fn compute_score(&self, a: &A, b: &B) -> Sc {
-        let base = (self.weight)(a, b);
+    fn compute_score(&self, solution: &S, a_idx: usize, b_idx: usize) -> Sc {
+        let base = (self.weight)(solution, a_idx, b_idx);
         match self.impact_type {
             ImpactType::Penalty => -base,
             ImpactType::Reward => base,
@@ -132,7 +132,7 @@ where
             let b = &entities_b[b_idx];
             if filter(solution, a, b) {
                 let pair = (a_idx, b_idx);
-                let base = weight(a, b);
+                let base = weight(solution, a_idx, b_idx);
                 let score = match impact_type {
                     ImpactType::Penalty => -base,
                     ImpactType::Reward => base,
@@ -177,7 +177,7 @@ where
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     F: Fn(&S, &A, &B) -> bool + Send + Sync,
-    W: Fn(&A, &B) -> Sc + Send + Sync,
+    W: Fn(&S, usize, usize) -> Sc + Send + Sync,
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
@@ -185,11 +185,11 @@ where
         let entities_b = (self.extractor_b)(solution);
         let mut total = Sc::zero();
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices(a) {
                 let b = &entities_b[b_idx];
                 if (self.filter)(solution, a, b) {
-                    total = total + self.compute_score(a, b);
+                    total = total + self.compute_score(solution, a_idx, b_idx);
                 }
             }
         }
@@ -267,14 +267,14 @@ where
 
         let mut matches = Vec::new();
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices(a) {
                 let b = &entities_b[b_idx];
                 if (self.filter)(solution, a, b) {
                     let entity_a = EntityRef::new(a);
                     let entity_b = EntityRef::new(b);
                     let justification = ConstraintJustification::new(vec![entity_a, entity_b]);
-                    let score = self.compute_score(a, b);
+                    let score = self.compute_score(solution, a_idx, b_idx);
                     matches.push(DetailedConstraintMatch::new(
                         cref.clone(),
                         score,

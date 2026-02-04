@@ -16,9 +16,18 @@ pub struct ConstraintBuilder {
     pub(crate) operations: Vec<ConstraintOp>,
 }
 
+/// Constraint operations in the pipeline.
+///
+/// `ForEach` and `Join` track which entity class they operate on.
+/// This allows field lookup to use the correct class for each parameter.
 #[derive(Clone)]
 pub enum ConstraintOp {
+    /// Iterate over entities of a class. The usize is the class index.
+    /// This becomes parameter A (index 0) in expressions.
     ForEach(usize),
+    /// Join with another class. The usize is the class index.
+    /// Conditions are unparsed strings that will be parsed during build.
+    /// This becomes parameter B (index 1) or C (index 2) depending on order.
     Join(usize, Vec<String>),
     Filter(String),
     DistinctPair,
@@ -116,6 +125,10 @@ impl ConstraintBuilder {
 pub struct DescriptorRef(pub DynamicDescriptor);
 
 /// Build a boxed constraint from a ConstraintBuilder.
+///
+/// This function tracks which class each parameter (A, B, C) refers to
+/// based on the order of ForEach and Join operations, enabling correct
+/// field lookup when multiple classes have fields with the same name.
 pub fn build_constraint(
     builder: &ConstraintBuilder,
     descriptor: &DynamicDescriptor,
@@ -130,20 +143,29 @@ pub fn build_constraint(
 > {
     let mut constraint = DynamicConstraint::new(builder.name.clone());
 
+    // Track which class index each parameter (A=0, B=1, C=2) refers to.
+    // ForEach sets param 0, first Join sets param 1, second Join sets param 2.
+    let mut param_to_class: Vec<usize> = Vec::new();
+
     for op in &builder.operations {
         match op {
             ConstraintOp::ForEach(class_idx) => {
+                // ForEach always sets parameter A (index 0)
+                param_to_class.clear();
+                param_to_class.push(*class_idx);
                 constraint = constraint.for_each(*class_idx);
             }
             ConstraintOp::Join(class_idx, conditions) => {
+                // Join adds the next parameter (B=1 or C=2)
+                param_to_class.push(*class_idx);
                 let mut exprs = Vec::new();
                 for cond in conditions {
-                    exprs.push(parse_expr(cond, builder.class_idx, descriptor)?);
+                    exprs.push(parse_expr(cond, &param_to_class, descriptor)?);
                 }
                 constraint = constraint.join(*class_idx, exprs);
             }
             ConstraintOp::Filter(predicate) => {
-                let expr = parse_expr(predicate, builder.class_idx, descriptor)?;
+                let expr = parse_expr(predicate, &param_to_class, descriptor)?;
                 constraint = constraint.filter(expr);
             }
             ConstraintOp::DistinctPair => {
@@ -165,9 +187,12 @@ pub fn build_constraint(
 }
 
 /// Parse a simple expression string.
+///
+/// `param_to_class` maps parameter indices (0=A, 1=B, 2=C) to their entity class indices.
+/// This allows correct field lookup when multiple classes have fields with the same name.
 pub fn parse_expr(
     expr_str: &str,
-    _class_idx: Option<usize>,
+    param_to_class: &[usize],
     descriptor: &DynamicDescriptor,
 ) -> PyResult<Expr> {
     let expr_str = expr_str.trim();
@@ -185,17 +210,24 @@ pub fn parse_expr(
             let left = expr_str[..pos].trim();
             let right = expr_str[pos + op.len()..].trim();
             return Ok(constructor(
-                parse_simple_expr(left, descriptor)?,
-                parse_simple_expr(right, descriptor)?,
+                parse_simple_expr(left, param_to_class, descriptor)?,
+                parse_simple_expr(right, param_to_class, descriptor)?,
             ));
         }
     }
 
-    parse_simple_expr(expr_str, descriptor)
+    parse_simple_expr(expr_str, param_to_class, descriptor)
 }
 
 /// Parse a simple expression (field reference or literal).
-pub fn parse_simple_expr(expr_str: &str, descriptor: &DynamicDescriptor) -> PyResult<Expr> {
+///
+/// `param_to_class` maps parameter indices (0=A, 1=B, 2=C) to their entity class indices.
+/// This allows correct field lookup when multiple classes have fields with the same name.
+pub fn parse_simple_expr(
+    expr_str: &str,
+    param_to_class: &[usize],
+    descriptor: &DynamicDescriptor,
+) -> PyResult<Expr> {
     let expr_str = expr_str.trim();
 
     // Check for arithmetic expressions
@@ -207,8 +239,8 @@ pub fn parse_simple_expr(expr_str: &str, descriptor: &DynamicDescriptor) -> PyRe
             let left = expr_str[..pos].trim();
             let right = expr_str[pos + op.len()..].trim();
             return Ok(constructor(
-                parse_simple_expr(left, descriptor)?,
-                parse_simple_expr(right, descriptor)?,
+                parse_simple_expr(left, param_to_class, descriptor)?,
+                parse_simple_expr(right, param_to_class, descriptor)?,
             ));
         }
     }
@@ -223,7 +255,7 @@ pub fn parse_simple_expr(expr_str: &str, descriptor: &DynamicDescriptor) -> PyRe
         let param_str = &expr_str[..dot_pos];
         let field_name = &expr_str[dot_pos + 1..];
 
-        let param_idx = match param_str {
+        let param_idx: usize = match param_str {
             "A" | "a" | "0" => 0,
             "B" | "b" | "1" => 1,
             "C" | "c" | "2" => 2,
@@ -235,23 +267,36 @@ pub fn parse_simple_expr(expr_str: &str, descriptor: &DynamicDescriptor) -> PyRe
             }
         };
 
-        // Find field index - search all entity classes
-        for class_def in &descriptor.entity_classes {
-            if let Some(field_idx) = class_def.field_index(field_name) {
-                return Ok(Expr::field(param_idx, field_idx));
-            }
-        }
+        // Look up the class index for this parameter
+        let class_idx = param_to_class.get(param_idx).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "Parameter {} not yet defined (need ForEach or Join first)",
+                param_str
+            ))
+        })?;
 
-        return Err(PyValueError::new_err(format!(
-            "Unknown field: {}",
-            field_name
-        )));
+        // Get the class definition for this parameter's class
+        let class_def = descriptor.entity_classes.get(*class_idx).ok_or_else(|| {
+            PyValueError::new_err(format!("Invalid class index: {}", class_idx))
+        })?;
+
+        // Look up field in the correct class (not all classes)
+        let field_idx = class_def.field_index(field_name).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "Unknown field '{}' in class '{}'",
+                field_name, class_def.name
+            ))
+        })?;
+
+        return Ok(Expr::field(param_idx, field_idx));
     }
 
-    // Check for simple field name (assume param 0)
-    for class_def in &descriptor.entity_classes {
-        if let Some(field_idx) = class_def.field_index(expr_str) {
-            return Ok(Expr::field(0, field_idx));
+    // Check for simple field name (assume param 0, use first class if available)
+    if let Some(&class_idx) = param_to_class.first() {
+        if let Some(class_def) = descriptor.entity_classes.get(class_idx) {
+            if let Some(field_idx) = class_def.field_index(expr_str) {
+                return Ok(Expr::field(0, field_idx));
+            }
         }
     }
 

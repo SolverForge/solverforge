@@ -225,20 +225,29 @@ impl SolverManager {
 
         let mut constraint = DynamicConstraint::new(builder.name.clone());
 
+        // Track which class index each parameter (A=0, B=1, C=2) refers to.
+        // ForEach sets param 0, first Join sets param 1, second Join sets param 2.
+        let mut param_to_class: Vec<usize> = Vec::new();
+
         for op in &builder.operations {
             match op {
                 ConstraintOp::ForEach(class_idx) => {
+                    // ForEach always sets parameter A (index 0)
+                    param_to_class.clear();
+                    param_to_class.push(*class_idx);
                     constraint = constraint.for_each(*class_idx);
                 }
                 ConstraintOp::Join(class_idx, conditions) => {
+                    // Join adds the next parameter (B=1 or C=2)
+                    param_to_class.push(*class_idx);
                     let mut exprs = Vec::new();
                     for cond in conditions {
-                        exprs.push(self.parse_expr_internal(cond)?);
+                        exprs.push(parse_expr(cond, &param_to_class, &self.descriptor)?);
                     }
                     constraint = constraint.join(*class_idx, exprs);
                 }
                 ConstraintOp::Filter(predicate) => {
-                    let expr = self.parse_expr_internal(predicate)?;
+                    let expr = parse_expr(predicate, &param_to_class, &self.descriptor)?;
                     constraint = constraint.filter(expr);
                 }
                 ConstraintOp::DistinctPair => {
@@ -256,9 +265,5 @@ impl SolverManager {
 
         // Build the constraint with the descriptor
         Ok(constraint.build(self.descriptor.clone()))
-    }
-
-    fn parse_expr_internal(&self, expr_str: &str) -> PyResult<solverforge_dynamic::Expr> {
-        parse_expr(expr_str, None, &self.descriptor)
     }
 }

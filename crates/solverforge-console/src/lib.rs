@@ -36,11 +36,8 @@ pub fn init() {
     INIT.get_or_init(|| {
         print_banner();
 
-        let default_level =
-            "solverforge_solver=info,solverforge_dynamic=info,solverforge_py=info,solverforge=info";
-
         let filter = EnvFilter::builder()
-            .with_default_directive(default_level.parse().unwrap())
+            .with_default_directive("solverforge_solver=info".parse().unwrap())
             .from_env_lossy();
 
         tracing_subscriber::registry()

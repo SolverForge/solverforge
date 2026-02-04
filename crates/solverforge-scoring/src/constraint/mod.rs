@@ -25,6 +25,8 @@ pub mod incremental;
 pub mod shared;
 
 #[cfg(test)]
+mod balance_tests;
+#[cfg(test)]
 mod bi_incr_tests;
 #[cfg(test)]
 mod complemented_tests;

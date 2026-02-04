@@ -185,9 +185,27 @@ pub fn make_cross_extractor_b(class_idx_b: usize) -> DynCrossExtractorB {
 /// 2. **Self-contained** - No external lookups to other entities or facts
 /// 3. **Deterministic** - Same entity always produces the same key
 ///
+/// # Why Keys Don't Have Full Solution Access (Design Decision)
+///
+/// We deliberately do NOT pass the full solution to key extractors. While this would
+/// allow `RefField` and fact lookups, it would break incremental constraint correctness:
+///
+/// - **Index invalidation**: The B-index (`b_by_key`) is built once during `initialize()`
+///   and updated only when B entities are inserted/retracted. If a key depends on
+///   `RefField` (e.g., `employee.department.region_id`), the key value could change
+///   when the referenced entity (`department`) is modified, but the B-index wouldn't
+///   be updated since no B entity was directly changed.
+///
+/// - **Stale matches**: This leads to stale or missing matches in the constraint
+///   evaluation, causing incorrect scores that don't match full recalculation.
+///
+/// - **Correct alternative**: Use the filter expression instead of the key expression
+///   for complex join logic. Filters receive the full solution context and are
+///   evaluated on every candidate pair, so they always see current values.
+///
 /// If your join key needs to reference other entities (via `RefField`) or facts,
-/// consider restructuring your constraint to use a filter expression instead,
-/// where the full solution context is available.
+/// restructure your constraint to use a simple key (like `entity_id`) and move the
+/// complex logic to the filter expression where the full solution is available.
 pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyA {
     // Check for unsupported expressions and emit runtime warnings
     let warnings = check_key_expr_limitations(&key_expr);
@@ -250,9 +268,16 @@ pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
 /// 2. **Self-contained** - No external lookups to other entities or facts
 /// 3. **Deterministic** - Same entity always produces the same key
 ///
+/// # Why Keys Don't Have Full Solution Access (Design Decision)
+///
+/// See [`make_cross_key_a`] for the full explanation. In summary: passing the full
+/// solution would allow `RefField` and fact lookups, but would break incremental
+/// correctness because the B-index (`b_by_key`) wouldn't be invalidated when
+/// referenced entities change.
+///
 /// If your join key needs to reference other entities (via `RefField`) or facts,
-/// consider restructuring your constraint to use a filter expression instead,
-/// where the full solution context is available.
+/// restructure your constraint to use a simple key (like `entity_id`) and move the
+/// complex logic to the filter expression where the full solution is available.
 pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCrossKeyB {
     // Check for unsupported expressions and emit runtime warnings
     let warnings = check_key_expr_limitations(&key_expr);

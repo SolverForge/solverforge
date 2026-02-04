@@ -160,7 +160,7 @@ mod benchmarks {
                     && a.start_hour < b.end_hour
                     && b.start_hour < a.end_hour
             },
-            |_a: &Shift, _b: &Shift| SimpleScore::of(10),
+            |_s: &Schedule, _a_idx: usize, _b_idx: usize| SimpleScore::of(10),
             false,
         );
 
@@ -248,7 +248,7 @@ mod benchmarks {
                 |_sol: &Schedule, a: &Shift, b: &Shift| {
                     a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
                 },
-                |_a: &Shift, _b: &Shift| SimpleScore::of(10),
+                |_s: &Schedule, _a_idx: usize, _b_idx: usize| SimpleScore::of(10),
                 false,
             );
 

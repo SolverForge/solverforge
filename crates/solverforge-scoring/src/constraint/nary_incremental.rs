@@ -338,7 +338,7 @@ macro_rules! impl_incremental_nary_constraint {
             E: Fn(&S) -> &[A],
             KE: Fn(&A) -> K,
             F: Fn(&S, &A, &A, &A) -> bool,
-            W: Fn(&A, &A, &A) -> Sc,
+            W: Fn(&S, usize, usize, usize) -> Sc,
             Sc: Score,
         {
             pub fn new(
@@ -367,8 +367,8 @@ macro_rules! impl_incremental_nary_constraint {
             }
 
             #[inline]
-            fn compute_score(&self, a: &A, b: &A, c: &A) -> Sc {
-                let base = (self.weight)(a, b, c);
+            fn compute_score(&self, solution: &S, a_idx: usize, b_idx: usize, c_idx: usize) -> Sc {
+                let base = (self.weight)(solution, a_idx, b_idx, c_idx);
                 match self.impact_type {
                     ImpactType::Penalty => -base,
                     ImpactType::Reward => base,
@@ -424,7 +424,7 @@ macro_rules! impl_incremental_nary_constraint {
                                 entity_to_matches.entry(a_idx).or_default().insert(triple);
                                 entity_to_matches.entry(b_idx).or_default().insert(triple);
                                 entity_to_matches.entry(c_idx).or_default().insert(triple);
-                                let base = weight(a, b, c);
+                                let base = weight(solution, a_idx, b_idx, c_idx);
                                 let score = match impact_type {
                                     ImpactType::Penalty => -base,
                                     ImpactType::Reward => base,
@@ -438,7 +438,7 @@ macro_rules! impl_incremental_nary_constraint {
                 total
             }
 
-            fn retract_entity(&mut self, entities: &[A], index: usize) -> Sc {
+            fn retract_entity(&mut self, solution: &S, entities: &[A], index: usize) -> Sc {
                 if let Some(key) = self.index_to_key.remove(&index) {
                     if let Some(indices) = self.key_to_indices.get_mut(&key) {
                         indices.remove(&index);
@@ -469,8 +469,7 @@ macro_rules! impl_incremental_nary_constraint {
                     }
 
                     if i < entities.len() && j < entities.len() && k < entities.len() {
-                        let score =
-                            self.compute_score(&entities[i], &entities[j], &entities[k]);
+                        let score = self.compute_score(solution, i, j, k);
                         total = total - score;
                     }
                 }
@@ -488,7 +487,7 @@ macro_rules! impl_incremental_nary_constraint {
             E: Fn(&S) -> &[A] + Send + Sync,
             KE: Fn(&A) -> K + Send + Sync,
             F: Fn(&S, &A, &A, &A) -> bool + Send + Sync,
-            W: Fn(&A, &A, &A) -> Sc + Send + Sync,
+            W: Fn(&S, usize, usize, usize) -> Sc + Send + Sync,
             Sc: Score,
         {
             fn evaluate(&self, solution: &S) -> Sc {
@@ -512,7 +511,7 @@ macro_rules! impl_incremental_nary_constraint {
                                 let b = &entities[j];
                                 let c = &entities[k];
                                 if (self.filter)(solution, a, b, c) {
-                                    total = total + self.compute_score(a, b, c);
+                                    total = total + self.compute_score(solution, i, j, k);
                                 }
                             }
                         }
@@ -572,7 +571,7 @@ macro_rules! impl_incremental_nary_constraint {
 
             fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
                 let entities = (self.extractor)(solution);
-                self.retract_entity(entities, entity_index)
+                self.retract_entity(solution, entities, entity_index)
             }
 
             fn reset(&mut self) {

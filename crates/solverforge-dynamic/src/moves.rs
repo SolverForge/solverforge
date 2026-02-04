@@ -12,6 +12,170 @@ use solverforge_solver::phase::construction::{EntityPlacer, Placement};
 use crate::descriptor::ValueRangeDef;
 use crate::solution::{DynamicSolution, DynamicValue};
 
+/// Lazy iterator over all possible change moves for a dynamic solution.
+///
+/// This iterator generates moves on-demand rather than pre-computing them all,
+/// which can significantly reduce memory usage for large solutions with many
+/// entities and value ranges.
+///
+/// The iterator traverses in the following order:
+/// 1. Entity classes (by class_idx)
+/// 2. Entities within each class (by entity_idx)
+/// 3. Planning variables within each entity (by field_idx)
+/// 4. Values in the value range for each variable (by value_idx)
+pub struct DynamicMoveIterator<'a> {
+    solution: &'a DynamicSolution,
+    /// Current entity class index
+    class_idx: usize,
+    /// Current entity index within the class
+    entity_idx: usize,
+    /// Current index into planning_variable_indices for the class
+    var_slot_idx: usize,
+    /// Current value index for the current variable's value range
+    value_idx: usize,
+    /// Cached values for the current variable's range (avoids repeated allocation)
+    current_values: Vec<DynamicValue>,
+    /// Cached field_idx for current variable
+    current_field_idx: usize,
+    /// Cached variable name for current variable
+    current_variable_name: Arc<str>,
+    /// Whether we've finished iterating
+    exhausted: bool,
+}
+
+impl<'a> DynamicMoveIterator<'a> {
+    /// Creates a new move iterator for the given solution.
+    pub fn new(solution: &'a DynamicSolution) -> Self {
+        let mut iter = Self {
+            solution,
+            class_idx: 0,
+            entity_idx: 0,
+            var_slot_idx: 0,
+            value_idx: 0,
+            current_values: Vec::new(),
+            current_field_idx: 0,
+            current_variable_name: Arc::from(""),
+            exhausted: false,
+        };
+        // Initialize to the first valid position
+        iter.advance_to_valid_position();
+        iter
+    }
+
+    /// Advances the iterator state to the next valid position that has moves.
+    /// Returns true if a valid position was found, false if exhausted.
+    fn advance_to_valid_position(&mut self) -> bool {
+        loop {
+            // Check if we've exhausted all classes
+            if self.class_idx >= self.solution.descriptor.entity_classes.len() {
+                self.exhausted = true;
+                return false;
+            }
+
+            let class_def = &self.solution.descriptor.entity_classes[self.class_idx];
+            let entity_count = self
+                .solution
+                .entities
+                .get(self.class_idx)
+                .map(|e| e.len())
+                .unwrap_or(0);
+
+            // Check if we've exhausted entities in this class
+            if self.entity_idx >= entity_count {
+                self.class_idx += 1;
+                self.entity_idx = 0;
+                self.var_slot_idx = 0;
+                self.value_idx = 0;
+                continue;
+            }
+
+            // Check if we've exhausted planning variables for this entity
+            if self.var_slot_idx >= class_def.planning_variable_indices.len() {
+                self.entity_idx += 1;
+                self.var_slot_idx = 0;
+                self.value_idx = 0;
+                continue;
+            }
+
+            // Get the current field info
+            let field_idx = class_def.planning_variable_indices[self.var_slot_idx];
+            let field_def = &class_def.fields[field_idx];
+
+            // Check if this variable has a value range
+            let Some(range_name) = &field_def.value_range else {
+                self.var_slot_idx += 1;
+                self.value_idx = 0;
+                continue;
+            };
+
+            // Check if the range exists
+            let Some(range) = self.solution.descriptor.value_range(range_name) else {
+                self.var_slot_idx += 1;
+                self.value_idx = 0;
+                continue;
+            };
+
+            // Get the values for this range
+            let values = get_range_values(range, self.solution);
+            if values.is_empty() {
+                self.var_slot_idx += 1;
+                self.value_idx = 0;
+                continue;
+            }
+
+            // Check if we've exhausted values for this variable
+            if self.value_idx >= values.len() {
+                self.var_slot_idx += 1;
+                self.value_idx = 0;
+                continue;
+            }
+
+            // We have a valid position - cache the current variable info
+            self.current_values = values;
+            self.current_field_idx = field_idx;
+            self.current_variable_name = field_def.name.clone();
+            return true;
+        }
+    }
+}
+
+impl<'a> Iterator for DynamicMoveIterator<'a> {
+    type Item = DynamicChangeMove;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.exhausted {
+            return None;
+        }
+
+        // Create the move for the current position
+        let m = DynamicChangeMove::new(
+            self.class_idx,
+            self.entity_idx,
+            self.current_field_idx,
+            self.current_variable_name.clone(),
+            self.current_values[self.value_idx].clone(),
+        );
+
+        // Advance to the next value
+        self.value_idx += 1;
+
+        // If we've exhausted values for this variable, advance to the next valid position
+        if self.value_idx >= self.current_values.len() {
+            self.var_slot_idx += 1;
+            self.value_idx = 0;
+            self.advance_to_valid_position();
+        }
+
+        Some(m)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // We can compute the exact size but it requires iterating through the structure
+        // For now, provide a lower bound of 0 and no upper bound
+        (0, None)
+    }
+}
+
 #[derive(Clone)]
 pub struct DynamicChangeMove {
     pub class_idx: usize,
@@ -327,5 +491,176 @@ mod tests {
 
         // 2 entities * 4 possible row values = 8 moves
         assert_eq!(moves.len(), 8);
+    }
+
+    #[test]
+    fn test_dynamic_move_iterator() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Queen",
+            vec![
+                FieldDef::new("column", FieldType::I64),
+                FieldDef::planning_variable("row", FieldType::I64, "rows"),
+            ],
+        ));
+        desc.add_value_range("rows", ValueRangeDef::int_range(0, 4));
+
+        let mut solution = DynamicSolution::new(desc);
+        solution.add_entity(
+            0,
+            DynamicEntity::new(0, vec![DynamicValue::I64(0), DynamicValue::I64(0)]),
+        );
+        solution.add_entity(
+            0,
+            DynamicEntity::new(1, vec![DynamicValue::I64(1), DynamicValue::I64(1)]),
+        );
+
+        // Create iterator and collect moves
+        let iterator = DynamicMoveIterator::new(&solution);
+        let moves: Vec<_> = iterator.collect();
+
+        // 2 entities * 4 possible row values = 8 moves
+        assert_eq!(moves.len(), 8);
+
+        // Verify moves have correct structure
+        // First entity (entity_idx=0) should have moves for values 0,1,2,3
+        assert_eq!(moves[0].entity_idx, 0);
+        assert_eq!(moves[0].class_idx, 0);
+        assert_eq!(moves[0].field_idx, 1); // row is field index 1
+        assert_eq!(moves[0].new_value, DynamicValue::I64(0));
+
+        assert_eq!(moves[1].entity_idx, 0);
+        assert_eq!(moves[1].new_value, DynamicValue::I64(1));
+
+        assert_eq!(moves[2].entity_idx, 0);
+        assert_eq!(moves[2].new_value, DynamicValue::I64(2));
+
+        assert_eq!(moves[3].entity_idx, 0);
+        assert_eq!(moves[3].new_value, DynamicValue::I64(3));
+
+        // Second entity (entity_idx=1) should have moves for values 0,1,2,3
+        assert_eq!(moves[4].entity_idx, 1);
+        assert_eq!(moves[4].new_value, DynamicValue::I64(0));
+
+        assert_eq!(moves[7].entity_idx, 1);
+        assert_eq!(moves[7].new_value, DynamicValue::I64(3));
+    }
+
+    #[test]
+    fn test_dynamic_move_iterator_multiple_variables() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Task",
+            vec![
+                FieldDef::new("id", FieldType::I64),
+                FieldDef::planning_variable("worker", FieldType::I64, "workers"),
+                FieldDef::planning_variable("machine", FieldType::I64, "machines"),
+            ],
+        ));
+        desc.add_value_range("workers", ValueRangeDef::int_range(0, 2));
+        desc.add_value_range("machines", ValueRangeDef::int_range(0, 3));
+
+        let mut solution = DynamicSolution::new(desc);
+        solution.add_entity(
+            0,
+            DynamicEntity::new(
+                0,
+                vec![
+                    DynamicValue::I64(0),
+                    DynamicValue::I64(0),
+                    DynamicValue::I64(0),
+                ],
+            ),
+        );
+
+        let iterator = DynamicMoveIterator::new(&solution);
+        let moves: Vec<_> = iterator.collect();
+
+        // 1 entity * (2 worker values + 3 machine values) = 5 moves
+        assert_eq!(moves.len(), 5);
+
+        // First two moves should be for worker (field_idx=1)
+        assert_eq!(moves[0].field_idx, 1);
+        assert_eq!(moves[0].new_value, DynamicValue::I64(0));
+        assert_eq!(moves[1].field_idx, 1);
+        assert_eq!(moves[1].new_value, DynamicValue::I64(1));
+
+        // Next three moves should be for machine (field_idx=2)
+        assert_eq!(moves[2].field_idx, 2);
+        assert_eq!(moves[2].new_value, DynamicValue::I64(0));
+        assert_eq!(moves[3].field_idx, 2);
+        assert_eq!(moves[3].new_value, DynamicValue::I64(1));
+        assert_eq!(moves[4].field_idx, 2);
+        assert_eq!(moves[4].new_value, DynamicValue::I64(2));
+    }
+
+    #[test]
+    fn test_dynamic_move_iterator_empty_solution() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Queen",
+            vec![
+                FieldDef::new("column", FieldType::I64),
+                FieldDef::planning_variable("row", FieldType::I64, "rows"),
+            ],
+        ));
+        desc.add_value_range("rows", ValueRangeDef::int_range(0, 4));
+
+        let solution = DynamicSolution::new(desc);
+        // No entities added
+
+        let iterator = DynamicMoveIterator::new(&solution);
+        let moves: Vec<_> = iterator.collect();
+
+        // No entities = no moves
+        assert_eq!(moves.len(), 0);
+    }
+
+    #[test]
+    fn test_dynamic_move_iterator_multiple_classes() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Employee",
+            vec![
+                FieldDef::new("id", FieldType::I64),
+                FieldDef::planning_variable("shift", FieldType::I64, "shifts"),
+            ],
+        ));
+        desc.add_entity_class(EntityClassDef::new(
+            "Vehicle",
+            vec![
+                FieldDef::new("id", FieldType::I64),
+                FieldDef::planning_variable("route", FieldType::I64, "routes"),
+            ],
+        ));
+        desc.add_value_range("shifts", ValueRangeDef::int_range(0, 2));
+        desc.add_value_range("routes", ValueRangeDef::int_range(0, 3));
+
+        let mut solution = DynamicSolution::new(desc);
+        // Add 1 employee
+        solution.add_entity(
+            0,
+            DynamicEntity::new(0, vec![DynamicValue::I64(0), DynamicValue::I64(0)]),
+        );
+        // Add 1 vehicle
+        solution.add_entity(
+            1,
+            DynamicEntity::new(1, vec![DynamicValue::I64(0), DynamicValue::I64(0)]),
+        );
+
+        let iterator = DynamicMoveIterator::new(&solution);
+        let moves: Vec<_> = iterator.collect();
+
+        // 1 employee * 2 shifts + 1 vehicle * 3 routes = 5 moves
+        assert_eq!(moves.len(), 5);
+
+        // First two should be for employee (class_idx=0)
+        assert_eq!(moves[0].class_idx, 0);
+        assert_eq!(moves[1].class_idx, 0);
+
+        // Last three should be for vehicle (class_idx=1)
+        assert_eq!(moves[2].class_idx, 1);
+        assert_eq!(moves[3].class_idx, 1);
+        assert_eq!(moves[4].class_idx, 1);
     }
 }

@@ -57,9 +57,12 @@ pub type DynPentaFilter = Box<
 pub type DynBiWeight =
     Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftScore + Send + Sync>;
 
-/// Tri-constraint weight: computes score for triple.
+/// Tri-constraint weight: computes score for triple using solution reference and entity indices.
+///
+/// Takes the full solution and three indices into the entity slice, avoiding entity cloning.
+/// The indices are positions within `solution.entities[class_idx]`.
 pub type DynTriWeight =
-    Box<dyn Fn(&DynamicEntity, &DynamicEntity, &DynamicEntity) -> HardSoftScore + Send + Sync>;
+    Box<dyn Fn(&DynamicSolution, usize, usize, usize) -> HardSoftScore + Send + Sync>;
 
 /// Quad-constraint weight: computes score for quadruple.
 pub type DynQuadWeight = Box<

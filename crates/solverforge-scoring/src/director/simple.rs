@@ -141,100 +141,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, TypedEntityExtractor};
+    use crate::test_utils::{calculate_conflicts, create_nqueens_solution, create_test_descriptor};
     use solverforge_core::score::SimpleScore;
-    use std::any::TypeId;
-
-    #[derive(Clone, Debug, PartialEq)]
-    struct Queen {
-        id: i64,
-        row: Option<i32>,
-    }
-
-    #[derive(Clone, Debug)]
-    struct NQueensSolution {
-        queens: Vec<Queen>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for NQueensSolution {
-        type Score = SimpleScore;
-
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-        &s.queens
-    }
-
-    fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-        &mut s.queens
-    }
-
-    fn calculate_conflicts(solution: &NQueensSolution) -> SimpleScore {
-        let mut conflicts = 0i64;
-        let queens = &solution.queens;
-
-        for i in 0..queens.len() {
-            for j in (i + 1)..queens.len() {
-                if let (Some(row_i), Some(row_j)) = (queens[i].row, queens[j].row) {
-                    if row_i == row_j {
-                        conflicts += 1;
-                    }
-                    let col_diff = (j - i) as i32;
-                    if (row_i - row_j).abs() == col_diff {
-                        conflicts += 1;
-                    }
-                }
-            }
-        }
-
-        SimpleScore::of(-conflicts)
-    }
-
-    fn create_test_descriptor() -> SolutionDescriptor {
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-            .with_entity(entity_desc)
-    }
 
     #[test]
     fn test_simple_score_director_calculate_score() {
-        let solution = NQueensSolution {
-            queens: vec![
-                Queen {
-                    id: 0,
-                    row: Some(0),
-                },
-                Queen {
-                    id: 1,
-                    row: Some(1),
-                },
-                Queen {
-                    id: 2,
-                    row: Some(2),
-                },
-                Queen {
-                    id: 3,
-                    row: Some(3),
-                },
-            ],
-            score: None,
-        };
+        let solution = create_nqueens_solution(&[Some(0), Some(1), Some(2), Some(3)]);
 
         let descriptor = create_test_descriptor();
         let mut director =
@@ -249,13 +161,7 @@ mod tests {
     fn test_score_director_factory() {
         use super::super::factory::ScoreDirectorFactory;
 
-        let solution = NQueensSolution {
-            queens: vec![Queen {
-                id: 0,
-                row: Some(0),
-            }],
-            score: None,
-        };
+        let solution = create_nqueens_solution(&[Some(0)]);
 
         let descriptor = create_test_descriptor();
         let factory = ScoreDirectorFactory::new(descriptor, calculate_conflicts);

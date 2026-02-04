@@ -9,7 +9,7 @@ description = "SolverForge - A constraint solver in Rust"
 default = []
 decimal = ["solverforge-core/decimal"]
 serde = ["solverforge-core/serde"]
-console = ["dep:tracing", "dep:tracing-subscriber", "dep:owo-colors", "dep:num-format"]
+console = ["dep:solverforge-console"]
 verbose-logging = []
 
 [dependencies]
@@ -20,7 +20,4 @@ solverforge-solver = { version = "0.6.0", path = "../solverforge-solver" }
 solverforge-config = { version = "0.6.0", path = "../solverforge-config" }
 
 # Console output (optional)
-tracing = { version = "0.1", optional = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
-owo-colors = { version = "4", optional = true }
-num-format = { version = "0.4", optional = true }
+solverforge-console = { version = "0.6.0", path = "../solverforge-console", optional = true }

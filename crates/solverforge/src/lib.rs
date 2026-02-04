@@ -84,7 +84,7 @@ pub use solverforge_solver::{
 // ============================================================================
 
 #[cfg(feature = "console")]
-pub mod console;
+pub use solverforge_console as console;
 
 // ============================================================================
 // Prelude
@@ -110,7 +110,7 @@ pub mod __internal {
     #[inline]
     pub fn init_console() {
         #[cfg(feature = "console")]
-        crate::console::init();
+        solverforge_console::init();
     }
 
     // Derive macros

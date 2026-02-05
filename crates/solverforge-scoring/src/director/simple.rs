@@ -141,8 +141,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{calculate_conflicts, create_nqueens_solution, create_test_descriptor};
     use solverforge_core::score::SimpleScore;
+    use solverforge_test::nqueens::{
+        calculate_conflicts, create_nqueens_solution, create_test_descriptor,
+    };
 
     #[test]
     fn test_simple_score_director_calculate_score() {

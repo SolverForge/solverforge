@@ -1,4 +1,4 @@
-//! Simple score director with full recalculation.
+// Simple score director with full recalculation.
 
 use std::any::Any;
 
@@ -6,10 +6,10 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
 use super::traits::ScoreDirector;
 
-/// A simple score director that recalculates the full score each time (zero-erasure).
-///
-/// The calculator is stored as a concrete generic type parameter, not as `Arc<dyn Fn>`.
-/// This is inefficient but correct - used for testing and simple problems.
+// A simple score director that recalculates the full score each time (zero-erasure).
+//
+// The calculator is stored as a concrete generic type parameter, not as `Arc<dyn Fn>`.
+// This is inefficient but correct - used for testing and simple problems.
 pub struct SimpleScoreDirector<S: PlanningSolution, C> {
     working_solution: S,
     solution_descriptor: SolutionDescriptor,
@@ -23,7 +23,7 @@ where
     S: PlanningSolution,
     C: Fn(&S) -> S::Score + Send + Sync,
 {
-    /// Creates a new SimpleScoreDirector.
+    // Creates a new SimpleScoreDirector.
     pub fn new(solution: S, solution_descriptor: SolutionDescriptor, score_calculator: C) -> Self {
         SimpleScoreDirector {
             working_solution: solution,
@@ -34,9 +34,9 @@ where
         }
     }
 
-    /// Creates a SimpleScoreDirector with a simple closure.
-    ///
-    /// This is an alias for `new()` for backward compatibility.
+    // Creates a SimpleScoreDirector with a simple closure.
+    //
+    // This is an alias for `new()` for backward compatibility.
     pub fn with_calculator(
         solution: S,
         solution_descriptor: SolutionDescriptor,

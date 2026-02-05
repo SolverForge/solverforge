@@ -1,26 +1,25 @@
 //! Task scheduling test fixtures.
 //!
-//! Provides a simple task scheduling problem for testing selector components
-//! like decorators and pillars. Each task has a priority that can be assigned.
+//! Provides data types for a simple task scheduling problem.
+//! Each task has a priority that can be assigned.
 //!
 //! # Example
 //!
-//! ```ignore
-//! use solverforge_test::task::{Task, TaskSolution, create_task_director};
+//! ```
+//! use solverforge_test::task::{Task, TaskSolution};
 //!
-//! let tasks = vec![
-//!     Task { priority: Some(1) },
-//!     Task { priority: Some(2) },
-//!     Task { priority: None },
-//! ];
-//! let director = create_task_director(tasks);
+//! let solution = TaskSolution::new(vec![
+//!     Task::with_priority(1),
+//!     Task::with_priority(2),
+//!     Task::unassigned(),
+//! ]);
+//! assert_eq!(solution.tasks.len(), 3);
 //! ```
 
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
 
 /// A task entity with an optional priority.
@@ -116,30 +115,9 @@ pub fn create_task_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>()).with_entity(entity_desc)
 }
 
-/// Creates a SimpleScoreDirector for TaskSolution.
-///
-/// The score calculator returns zero (tasks have no inherent conflicts).
-pub fn create_task_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
-    let solution = TaskSolution::new(tasks);
-    let descriptor = create_task_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
-}
-
-/// Creates a SimpleScoreDirector with n unassigned tasks.
-pub fn create_simple_task_director(
-    n: usize,
-) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
-    let solution = TaskSolution::unassigned(n);
-    let descriptor = create_task_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::ScoreDirector;
 
     #[test]
     fn test_task_creation() {
@@ -161,12 +139,6 @@ mod tests {
 
         let s2 = TaskSolution::new(vec![Task::with_priority(1), Task::with_priority(2)]);
         assert_eq!(s2.tasks.len(), 2);
-    }
-
-    #[test]
-    fn test_create_task_director() {
-        let director = create_task_director(vec![Task::with_priority(1), Task::unassigned()]);
-        assert_eq!(director.working_solution().tasks.len(), 2);
     }
 
     #[test]

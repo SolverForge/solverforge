@@ -1,6 +1,6 @@
-//! Penta-arity (5-tuple) incremental constraint macro.
+// Penta-arity (5-tuple) incremental constraint macro.
 
-/// Generates a penta-arity incremental constraint struct.
+// Generates a penta-arity incremental constraint struct.
 #[macro_export]
 macro_rules! impl_incremental_penta_constraint {
     ($struct_name:ident) => {

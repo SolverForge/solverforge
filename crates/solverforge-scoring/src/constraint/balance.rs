@@ -1,10 +1,10 @@
-//! Zero-erasure balance constraint for load distribution scoring.
-//!
-//! Provides a constraint that penalizes uneven distribution across groups
-//! using standard deviation. Unlike grouped constraints which score per-group,
-//! the balance constraint computes a GLOBAL statistic across all groups.
-//!
-//! All type information is preserved at compile time - no Arc, no dyn.
+// Zero-erasure balance constraint for load distribution scoring.
+//
+// Provides a constraint that penalizes uneven distribution across groups
+// using standard deviation. Unlike grouped constraints which score per-group,
+// the balance constraint computes a GLOBAL statistic across all groups.
+//
+// All type information is preserved at compile time - no Arc, no dyn.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -16,68 +16,68 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::UniFilter;
 
-/// Zero-erasure balance constraint that penalizes uneven load distribution.
-///
-/// This constraint:
-/// 1. Groups entities by key (e.g., employee_id)
-/// 2. Counts how many entities belong to each group
-/// 3. Computes population standard deviation across all group counts
-/// 4. Multiplies the base score by std_dev to produce the final score
-///
-/// The key difference from `GroupedUniConstraint` is that balance computes
-/// a GLOBAL statistic, not per-group scores.
-///
-/// # Type Parameters
-///
-/// - `S` - Solution type
-/// - `A` - Entity type
-/// - `K` - Group key type
-/// - `E` - Extractor function for entities
-/// - `F` - Filter type
-/// - `KF` - Key function
-/// - `Sc` - Score type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::constraint::balance::BalanceConstraint;
-/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-/// use solverforge_scoring::stream::filter::TrueFilter;
-/// use solverforge_core::{ConstraintRef, ImpactType, HardSoftDecimalScore};
-///
-/// #[derive(Clone)]
-/// struct Shift { employee_id: Option<usize> }
-///
-/// #[derive(Clone)]
-/// struct Solution { shifts: Vec<Shift> }
-///
-/// // Base score of 1000 soft per unit of std_dev
-/// let constraint = BalanceConstraint::new(
-///     ConstraintRef::new("", "Balance workload"),
-///     ImpactType::Penalty,
-///     |s: &Solution| &s.shifts,
-///     TrueFilter,
-///     |shift: &Shift| shift.employee_id,
-///     HardSoftDecimalScore::of_soft(1),  // 1 soft per unit std_dev (scaled internally)
-///     false,
-/// );
-///
-/// let solution = Solution {
-///     shifts: vec![
-///         Shift { employee_id: Some(0) },
-///         Shift { employee_id: Some(0) },
-///         Shift { employee_id: Some(0) },
-///         Shift { employee_id: Some(1) },
-///         Shift { employee_id: None },  // Unassigned, filtered out
-///     ],
-/// };
-///
-/// // Employee 0: 3 shifts, Employee 1: 1 shift
-/// // Mean = 2, Variance = ((3-2)² + (1-2)²) / 2 = 1
-/// // StdDev = 1.0, Score = -1 soft (base_score * std_dev, negated for penalty)
-/// let score = constraint.evaluate(&solution);
-/// assert_eq!(score, HardSoftDecimalScore::of_soft(-1));
-/// ```
+// Zero-erasure balance constraint that penalizes uneven load distribution.
+//
+// This constraint:
+// 1. Groups entities by key (e.g., employee_id)
+// 2. Counts how many entities belong to each group
+// 3. Computes population standard deviation across all group counts
+// 4. Multiplies the base score by std_dev to produce the final score
+//
+// The key difference from `GroupedUniConstraint` is that balance computes
+// a GLOBAL statistic, not per-group scores.
+//
+// # Type Parameters
+//
+// - `S` - Solution type
+// - `A` - Entity type
+// - `K` - Group key type
+// - `E` - Extractor function for entities
+// - `F` - Filter type
+// - `KF` - Key function
+// - `Sc` - Score type
+//
+// # Example
+//
+// ```
+// use solverforge_scoring::constraint::balance::BalanceConstraint;
+// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+// use solverforge_scoring::stream::filter::TrueFilter;
+// use solverforge_core::{ConstraintRef, ImpactType, HardSoftDecimalScore};
+//
+// #[derive(Clone)]
+// struct Shift { employee_id: Option<usize> }
+//
+// #[derive(Clone)]
+// struct Solution { shifts: Vec<Shift> }
+//
+// // Base score of 1000 soft per unit of std_dev
+// let constraint = BalanceConstraint::new(
+//     ConstraintRef::new("", "Balance workload"),
+//     ImpactType::Penalty,
+//     |s: &Solution| &s.shifts,
+//     TrueFilter,
+//     |shift: &Shift| shift.employee_id,
+//     HardSoftDecimalScore::of_soft(1),  // 1 soft per unit std_dev (scaled internally)
+//     false,
+// );
+//
+// let solution = Solution {
+//     shifts: vec![
+//         Shift { employee_id: Some(0) },
+//         Shift { employee_id: Some(0) },
+//         Shift { employee_id: Some(0) },
+//         Shift { employee_id: Some(1) },
+//         Shift { employee_id: None },  // Unassigned, filtered out
+//     ],
+// };
+//
+// // Employee 0: 3 shifts, Employee 1: 1 shift
+// // Mean = 2, Variance = ((3-2)² + (1-2)²) / 2 = 1
+// // StdDev = 1.0, Score = -1 soft (base_score * std_dev, negated for penalty)
+// let score = constraint.evaluate(&solution);
+// assert_eq!(score, HardSoftDecimalScore::of_soft(-1));
+// ```
 pub struct BalanceConstraint<S, A, K, E, F, KF, Sc>
 where
     Sc: Score,
@@ -87,19 +87,19 @@ where
     extractor: E,
     filter: F,
     key_fn: KF,
-    /// Base score representing 1 unit of standard deviation
+    // Base score representing 1 unit of standard deviation
     base_score: Sc,
     is_hard: bool,
-    /// Group key → count of entities in that group
+    // Group key → count of entities in that group
     counts: HashMap<K, i64>,
-    /// Entity index → group key (for tracking assignments)
+    // Entity index → group key (for tracking assignments)
     entity_keys: HashMap<usize, K>,
-    /// Cached statistics for incremental updates
-    /// Number of groups (employees with at least one shift)
+    // Cached statistics for incremental updates
+    // Number of groups (employees with at least one shift)
     group_count: i64,
-    /// Sum of all counts (total assignments)
+    // Sum of all counts (total assignments)
     total_count: i64,
-    /// Sum of squared counts (for variance calculation)
+    // Sum of squared counts (for variance calculation)
     sum_squared: i64,
     _phantom: PhantomData<(S, A)>,
 }
@@ -114,17 +114,17 @@ where
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
-    /// Creates a new zero-erasure balance constraint.
-    ///
-    /// # Arguments
-    ///
-    /// * `constraint_ref` - Identifier for this constraint
-    /// * `impact_type` - Whether to penalize or reward
-    /// * `extractor` - Function to get entity slice from solution
-    /// * `filter` - Filter to select which entities to consider
-    /// * `key_fn` - Function to extract group key (returns None to skip entity)
-    /// * `base_score` - Score per unit of standard deviation
-    /// * `is_hard` - Whether this is a hard constraint
+    // Creates a new zero-erasure balance constraint.
+    //
+    // # Arguments
+    //
+    // * `constraint_ref` - Identifier for this constraint
+    // * `impact_type` - Whether to penalize or reward
+    // * `extractor` - Function to get entity slice from solution
+    // * `filter` - Filter to select which entities to consider
+    // * `key_fn` - Function to extract group key (returns None to skip entity)
+    // * `base_score` - Score per unit of standard deviation
+    // * `is_hard` - Whether this is a hard constraint
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,
@@ -151,7 +151,7 @@ where
         }
     }
 
-    /// Computes standard deviation from cached statistics.
+    // Computes standard deviation from cached statistics.
     fn compute_std_dev(&self) -> f64 {
         if self.group_count == 0 {
             return 0.0;
@@ -165,7 +165,7 @@ where
         variance.sqrt()
     }
 
-    /// Computes the score from standard deviation.
+    // Computes the score from standard deviation.
     fn compute_score(&self) -> Sc {
         let std_dev = self.compute_std_dev();
         let base = self.base_score.multiply(std_dev);
@@ -175,7 +175,7 @@ where
         }
     }
 
-    /// Computes std_dev from raw counts (for stateless evaluate).
+    // Computes std_dev from raw counts (for stateless evaluate).
     fn compute_std_dev_from_counts(counts: &HashMap<K, i64>) -> f64 {
         if counts.is_empty() {
             return 0.0;

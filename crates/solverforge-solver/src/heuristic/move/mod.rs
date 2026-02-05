@@ -68,6 +68,9 @@ mod sublist_swap;
 mod swap;
 mod traits;
 
+#[cfg(test)]
+mod tests;
+
 pub use arena::MoveArena;
 pub use change::ChangeMove;
 pub use composite::CompositeMove;

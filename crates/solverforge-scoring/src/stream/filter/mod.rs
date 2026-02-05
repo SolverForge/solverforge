@@ -1,7 +1,7 @@
-//! Zero-erasure filter composition for constraint streams.
-//!
-//! Filters are composed at compile time using nested generic types,
-//! avoiding dynamic dispatch and Arc allocations.
+// Zero-erasure filter composition for constraint streams.
+//
+// Filters are composed at compile time using nested generic types,
+// avoiding dynamic dispatch and Arc allocations.
 
 mod adapters;
 mod composition;

@@ -5,4 +5,5 @@ use solverforge_scoring::ScoreDirector;
 
 use super::EntityReference;
 
+mod list_ruin;
 mod pillar;

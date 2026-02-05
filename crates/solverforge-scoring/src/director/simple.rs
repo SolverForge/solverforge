@@ -1,4 +1,4 @@
-//! Simple score director with full recalculation.
+// Simple score director with full recalculation.
 
 use std::any::Any;
 
@@ -6,10 +6,10 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
 use super::traits::ScoreDirector;
 
-/// A simple score director that recalculates the full score each time (zero-erasure).
-///
-/// The calculator is stored as a concrete generic type parameter, not as `Arc<dyn Fn>`.
-/// This is inefficient but correct - used for testing and simple problems.
+// A simple score director that recalculates the full score each time (zero-erasure).
+//
+// The calculator is stored as a concrete generic type parameter, not as `Arc<dyn Fn>`.
+// This is inefficient but correct - used for testing and simple problems.
 pub struct SimpleScoreDirector<S: PlanningSolution, C> {
     working_solution: S,
     solution_descriptor: SolutionDescriptor,
@@ -23,7 +23,7 @@ where
     S: PlanningSolution,
     C: Fn(&S) -> S::Score + Send + Sync,
 {
-    /// Creates a new SimpleScoreDirector.
+    // Creates a new SimpleScoreDirector.
     pub fn new(solution: S, solution_descriptor: SolutionDescriptor, score_calculator: C) -> Self {
         SimpleScoreDirector {
             working_solution: solution,
@@ -34,9 +34,9 @@ where
         }
     }
 
-    /// Creates a SimpleScoreDirector with a simple closure.
-    ///
-    /// This is an alias for `new()` for backward compatibility.
+    // Creates a SimpleScoreDirector with a simple closure.
+    //
+    // This is an alias for `new()` for backward compatibility.
     pub fn with_calculator(
         solution: S,
         solution_descriptor: SolutionDescriptor,
@@ -135,5 +135,41 @@ where
     fn reset(&mut self) {
         self.mark_dirty();
         self.cached_score = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solverforge_core::score::SimpleScore;
+    use solverforge_test::nqueens::{
+        calculate_conflicts, create_nqueens_solution, create_test_descriptor,
+    };
+
+    #[test]
+    fn test_simple_score_director_calculate_score() {
+        let solution = create_nqueens_solution(&[Some(0), Some(1), Some(2), Some(3)]);
+
+        let descriptor = create_test_descriptor();
+        let mut director =
+            SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+
+        // All on diagonal = 6 diagonal conflicts
+        let score = director.calculate_score();
+        assert_eq!(score, SimpleScore::of(-6));
+    }
+
+    #[test]
+    fn test_score_director_factory() {
+        use super::super::factory::ScoreDirectorFactory;
+
+        let solution = create_nqueens_solution(&[Some(0)]);
+
+        let descriptor = create_test_descriptor();
+        let factory = ScoreDirectorFactory::new(descriptor, calculate_conflicts);
+
+        let mut director = factory.build_score_director(solution);
+        let score = director.calculate_score();
+        assert_eq!(score, SimpleScore::of(0));
     }
 }

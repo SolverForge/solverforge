@@ -1,6 +1,6 @@
-//! Incremental cross-bi-constraint for cross-entity join evaluation.
-//!
-//! Zero-erasure: all closures are concrete generic types, fully monomorphized.
+// Incremental cross-bi-constraint for cross-entity join evaluation.
+//
+// Zero-erasure: all closures are concrete generic types, fully monomorphized.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -13,9 +13,9 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 use crate::api::constraint_set::IncrementalConstraint;
 
-/// Zero-erasure incremental cross-bi-constraint.
-///
-/// All function types are concrete generics - no trait objects, no Arc.
+// Zero-erasure incremental cross-bi-constraint.
+//
+// All function types are concrete generics - no trait objects, no Arc.
 pub struct IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     Sc: Score,
@@ -50,12 +50,12 @@ where
     W: Fn(&S, usize, usize) -> Sc,
     Sc: Score,
 {
-    /// Creates a new cross-bi-constraint.
-    ///
-    /// # Arguments
-    /// All 9 arguments are semantically distinct (2 extractors, 2 key functions,
-    /// 1 filter, 1 weight, 1 is_hard) and cannot be meaningfully grouped without losing
-    /// higher-ranked lifetime inference for the closures.
+    // Creates a new cross-bi-constraint.
+    //
+    // # Arguments
+    // All 9 arguments are semantically distinct (2 extractors, 2 key functions,
+    // 1 filter, 1 weight, 1 is_hard) and cannot be meaningfully grouped without losing
+    // higher-ranked lifetime inference for the closures.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,

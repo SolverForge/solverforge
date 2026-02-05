@@ -1,14 +1,15 @@
-//! Zero-erasure incremental constraint scoring for SolverForge.
-//!
-//! This crate provides fully-typed incremental scoring infrastructure:
-//! - Zero-erasure incremental constraints (`IncrementalUniConstraint`, `IncrementalBiConstraint`, etc.)
-//! - Typed score directors (`TypedScoreDirector`)
-//! - Tuple-based constraint sets (zero virtual dispatch)
-//!
-//! # Architecture
-//!
-//! All scoring is fully monomorphized - no `Box<dyn Trait>` in hot paths.
-//! Closures are stored as generic type parameters, not `Arc<dyn Fn>`.
+/*
+Zero-erasure incremental constraint scoring for SolverForge.
+
+This crate provides fully-typed incremental scoring infrastructure:
+- Zero-erasure incremental constraints (IncrementalUniConstraint, IncrementalBiConstraint, etc.)
+- Typed score directors (TypedScoreDirector)
+- Tuple-based constraint sets (zero virtual dispatch)
+
+Architecture:
+All scoring is fully monomorphized - no Box<dyn Trait> in hot paths.
+Closures are stored as generic type parameters, not Arc<dyn Fn>.
+*/
 
 // Zero-erasure architecture intentionally uses complex generic types
 #![allow(clippy::type_complexity)]
@@ -18,9 +19,6 @@ pub mod api;
 pub mod constraint;
 pub mod director;
 pub mod stream;
-
-#[cfg(test)]
-pub mod test_utils;
 
 // ============================================================================
 // Zero-Erasure Incremental Constraints

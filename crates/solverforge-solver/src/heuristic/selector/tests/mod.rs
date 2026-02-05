@@ -7,5 +7,6 @@ use super::EntityReference;
 
 mod list_change;
 mod list_ruin;
+mod mimic;
 mod nearby;
 mod pillar;

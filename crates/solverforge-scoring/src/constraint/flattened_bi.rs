@@ -123,9 +123,9 @@ pub struct FlattenedBiConstraint<
     filter: F,
     weight: W,
     is_hard: bool,
-    /// (join_key, c_key) → list of (b_idx, c_value) for O(1) lookup
+    // (join_key, c_key) → list of (b_idx, c_value) for O(1) lookup
     c_index: HashMap<(K, CK), Vec<(usize, C)>>,
-    /// A index → cached score for this entity's matches
+    // A index → cached score for this entity's matches
     a_scores: HashMap<usize, Sc>,
     _phantom: PhantomData<(S, A, B)>,
 }
@@ -194,7 +194,7 @@ where
         }
     }
 
-    /// Build C index: (join_key, c_key) → list of (b_idx, c_value)
+    // Build C index: (join_key, c_key) → list of (b_idx, c_value)
     fn build_c_index(&mut self, entities_b: &[B]) {
         self.c_index.clear();
         for (b_idx, b) in entities_b.iter().enumerate() {
@@ -209,7 +209,7 @@ where
         }
     }
 
-    /// Compute score for entity A using O(1) index lookup.
+    // Compute score for entity A using O(1) index lookup.
     fn compute_a_score(&self, solution: &S, a: &A) -> Sc {
         let join_key = (self.key_a)(a);
         let lookup_key = (self.a_lookup_fn)(a);

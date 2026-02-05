@@ -248,6 +248,32 @@ pub fn create_nqueens_director_optional(
     SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
 }
 
+// ============================================================================
+// Backward Compatibility Aliases
+// ============================================================================
+
+/// Alias for `create_nqueens_descriptor` for backward compatibility.
+pub fn create_test_descriptor() -> SolutionDescriptor {
+    create_nqueens_descriptor()
+}
+
+/// Creates an N-Queens solution with optional rows (backward compatibility alias).
+///
+/// This matches the old `create_nqueens_solution` signature from scoring's test_utils.
+pub fn create_nqueens_solution(rows: &[Option<i64>]) -> NQueensSolution {
+    NQueensSolution::with_optional_rows(rows)
+}
+
+/// Alias for `get_queen_row` for backward compatibility.
+pub fn get_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
+    get_queen_row(s, idx)
+}
+
+/// Alias for `set_queen_row` for backward compatibility.
+pub fn set_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
+    set_queen_row(s, idx, v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

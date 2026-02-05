@@ -1,6 +1,6 @@
-//! LoadBalance collector for computing unfairness (sqrt of variance).
-//!
-//! Matches Timefold's LoadBalance implementation for fair workload distribution.
+// LoadBalance collector for computing unfairness (sqrt of variance).
+//
+// Matches Timefold's LoadBalance implementation for fair workload distribution.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -8,54 +8,54 @@ use std::marker::PhantomData;
 
 use super::{Accumulator, UniCollector};
 
-/// Result of load balancing - tracks loads per item and computes unfairness.
-///
-/// Unfairness is the square root of sum of squared deviations from mean.
-/// Lower values indicate fairer distribution. Zero means perfectly balanced.
+// Result of load balancing - tracks loads per item and computes unfairness.
+//
+// Unfairness is the square root of sum of squared deviations from mean.
+// Lower values indicate fairer distribution. Zero means perfectly balanced.
 #[derive(Debug, Clone)]
 pub struct LoadBalance<K> {
     loads: HashMap<K, i64>,
-    /// Unfairness as integer (use with of_soft() for scoring)
+    // Unfairness as integer (use with of_soft() for scoring)
     unfairness: i64,
 }
 
 impl<K> LoadBalance<K> {
-    /// Returns map of balanced items to their total load.
+    // Returns map of balanced items to their total load.
     pub fn loads(&self) -> &HashMap<K, i64> {
         &self.loads
     }
 
-    /// Returns unfairness as i64 for use with `of_soft()`.
-    /// This is the raw value - `of_soft()` handles decimal scaling.
+    // Returns unfairness as i64 for use with `of_soft()`.
+    // This is the raw value - `of_soft()` handles decimal scaling.
     #[inline]
     pub fn unfairness(&self) -> i64 {
         self.unfairness
     }
 }
 
-/// Creates a load balance collector.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::stream::collector::{load_balance, UniCollector, Accumulator};
-///
-/// struct Shift { employee_id: usize }
-///
-/// let collector = load_balance(
-///     |s: &Shift| s.employee_id,
-///     |_s: &Shift| 1i64,  // Each shift counts as 1
-/// );
-///
-/// let mut acc = collector.create_accumulator();
-/// acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
-/// acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
-/// acc.accumulate(&collector.extract(&Shift { employee_id: 1 }));
-///
-/// let result = acc.finish();
-/// // Employee 0 has 2, Employee 1 has 1 → unfairness = sqrt(0.5) ≈ 1
-/// assert_eq!(result.unfairness(), 1);
-/// ```
+// Creates a load balance collector.
+//
+// # Example
+//
+// ```
+// use solverforge_scoring::stream::collector::{load_balance, UniCollector, Accumulator};
+//
+// struct Shift { employee_id: usize }
+//
+// let collector = load_balance(
+//     |s: &Shift| s.employee_id,
+//     |_s: &Shift| 1i64,  // Each shift counts as 1
+// );
+//
+// let mut acc = collector.create_accumulator();
+// acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
+// acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
+// acc.accumulate(&collector.extract(&Shift { employee_id: 1 }));
+//
+// let result = acc.finish();
+// // Employee 0 has 2, Employee 1 has 1 → unfairness = sqrt(0.5) ≈ 1
+// assert_eq!(result.unfairness(), 1);
+// ```
 pub fn load_balance<A, K, F, M>(key_fn: F, metric_fn: M) -> LoadBalanceCollector<A, K, F, M>
 where
     K: Clone + Eq + Hash + Send + Sync,
@@ -69,7 +69,7 @@ where
     }
 }
 
-/// Collector for computing load balance unfairness.
+// Collector for computing load balance unfairness.
 pub struct LoadBalanceCollector<A, K, F, M> {
     key_fn: F,
     metric_fn: M,
@@ -97,19 +97,19 @@ where
     }
 }
 
-/// Accumulator for load balance with incremental variance computation.
-///
-/// Uses Timefold's algorithm for O(1) incremental updates.
+// Accumulator for load balance with incremental variance computation.
+//
+// Uses Timefold's algorithm for O(1) incremental updates.
 pub struct LoadBalanceAccumulator<K> {
-    /// Count of items per balanced key (for duplicate tracking)
+    // Count of items per balanced key (for duplicate tracking)
     item_counts: HashMap<K, usize>,
-    /// Cumulative load per balanced key
+    // Cumulative load per balanced key
     loads: HashMap<K, i64>,
-    /// Sum of all loads
+    // Sum of all loads
     sum: i64,
-    /// Integral part of squared deviation
+    // Integral part of squared deviation
     squared_deviation_integral: i64,
-    /// Fractional numerator for incremental variance
+    // Fractional numerator for incremental variance
     squared_deviation_fraction_numerator: i64,
 }
 
@@ -144,7 +144,7 @@ impl<K: Clone + Eq + Hash> LoadBalanceAccumulator<K> {
         }
     }
 
-    /// Incremental variance update formula from Timefold.
+    // Incremental variance update formula from Timefold.
     fn update_squared_deviation(&mut self, old_value: i64, new_value: i64) {
         // Term 1: x_new² - x_old²
         let term1 = new_value * new_value - old_value * old_value;
@@ -166,8 +166,8 @@ impl<K: Clone + Eq + Hash> LoadBalanceAccumulator<K> {
         self.squared_deviation_fraction_numerator += fraction_delta;
     }
 
-    /// Returns unfairness as i64 (matching Timefold's formula, no pre-scaling).
-    /// Use with `of_soft()` which handles the decimal scaling.
+    // Returns unfairness as i64 (matching Timefold's formula, no pre-scaling).
+    // Use with `of_soft()` which handles the decimal scaling.
     fn compute_unfairness(&self) -> i64 {
         let n = self.item_counts.len();
         match n {

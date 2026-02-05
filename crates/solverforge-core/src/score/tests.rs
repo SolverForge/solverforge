@@ -1,8 +1,12 @@
-//! Tests for score types
+//! Tests for score types.
 
 use super::*;
 
-mod simple_score_tests {
+// ============================================================================
+// SimpleScore Tests
+// ============================================================================
+
+mod simple_score {
     use super::*;
 
     #[test]
@@ -62,7 +66,11 @@ mod simple_score_tests {
     }
 }
 
-mod hard_soft_score_tests {
+// ============================================================================
+// HardSoftScore Tests
+// ============================================================================
+
+mod hard_soft_score {
     use super::*;
 
     #[test]
@@ -133,7 +141,11 @@ mod hard_soft_score_tests {
     }
 }
 
-mod hard_medium_soft_score_tests {
+// ============================================================================
+// HardMediumSoftScore Tests
+// ============================================================================
+
+mod hard_medium_soft_score {
     use super::*;
 
     #[test]
@@ -193,7 +205,11 @@ mod hard_medium_soft_score_tests {
     }
 }
 
-mod hard_soft_decimal_score_tests {
+// ============================================================================
+// HardSoftDecimalScore Tests
+// ============================================================================
+
+mod hard_soft_decimal_score {
     use super::*;
 
     #[test]
@@ -296,7 +312,11 @@ mod hard_soft_decimal_score_tests {
     }
 }
 
-mod bendable_score_tests {
+// ============================================================================
+// BendableScore Tests
+// ============================================================================
+
+mod bendable_score {
     use super::*;
 
     #[test]

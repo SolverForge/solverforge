@@ -171,3 +171,81 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
         rate < self.min_rate
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{create_test_scope, create_test_scope_with_score, TestSolution};
+    use solverforge_core::score::SimpleScore;
+    use std::thread::sleep;
+
+    #[test]
+    fn test_not_terminated_during_grace_period() {
+        let termination =
+            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.0);
+
+        let scope = create_test_scope_with_score(SimpleScore::of(-100));
+
+        // During grace period, should not terminate even with no improvement
+        assert!(!termination.is_terminated(&scope));
+    }
+
+    #[test]
+    fn test_terminates_with_zero_improvement() {
+        // Use 200ms window with larger margins for cross-platform reliability
+        let termination =
+            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(200), 0.1);
+
+        let scope = create_test_scope_with_score(SimpleScore::of(-100));
+
+        // First call starts tracking at T0
+        assert!(!termination.is_terminated(&scope));
+
+        // Wait well into grace period but keep first sample in window
+        sleep(Duration::from_millis(120));
+
+        // Second call adds sample at T0+120ms (still in window)
+        // Both samples have score -100, so rate is 0
+        assert!(!termination.is_terminated(&scope));
+
+        // Wait past grace period with margin for timing variance
+        sleep(Duration::from_millis(100));
+
+        // Third call: past grace period (220ms > 200ms), 2+ samples, rate ~0
+        assert!(termination.is_terminated(&scope));
+    }
+
+    #[test]
+    fn test_not_terminated_with_sufficient_improvement() {
+        let termination =
+            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(50), 10.0);
+
+        let mut scope = create_test_scope_with_score(SimpleScore::of(-100));
+
+        // Check once to start tracking
+        assert!(!termination.is_terminated(&scope));
+
+        sleep(Duration::from_millis(60));
+
+        // Significant improvement: -100 -> 0 = +100 improvement over ~60ms
+        // Rate = 100 / 0.060 = ~1667/s, well above 10/s threshold
+        scope.set_best_solution(
+            TestSolution {
+                score: Some(SimpleScore::of(0)),
+            },
+            SimpleScore::of(0),
+        );
+        assert!(!termination.is_terminated(&scope));
+    }
+
+    #[test]
+    fn test_no_score_does_not_terminate() {
+        let termination =
+            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(10), 0.0);
+
+        let scope = create_test_scope(); // No best score set
+
+        sleep(Duration::from_millis(20));
+        assert!(!termination.is_terminated(&scope));
+    }
+}

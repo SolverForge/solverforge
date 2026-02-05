@@ -1,89 +1,12 @@
-//! Tests for supply infrastructure
+//! Tests for supply infrastructure.
 
 use super::*;
 
-mod anchor_supply_tests {
-    use super::*;
+// ============================================================================
+// InverseSupply Tests
+// ============================================================================
 
-    #[test]
-    fn test_set_and_get() {
-        let mut supply = AnchorSupply::new();
-
-        supply.set(0, 10);
-        supply.set(1, 10);
-        supply.set(2, 20);
-
-        assert_eq!(supply.get(0), Some(10));
-        assert_eq!(supply.get(1), Some(10));
-        assert_eq!(supply.get(2), Some(20));
-        assert_eq!(supply.get(99), None);
-    }
-
-    #[test]
-    fn test_remove() {
-        let mut supply = AnchorSupply::new();
-
-        supply.set(0, 10);
-        assert_eq!(supply.len(), 1);
-
-        let removed = supply.remove(0);
-        assert_eq!(removed, Some(10));
-        assert!(supply.is_empty());
-    }
-
-    #[test]
-    fn test_cascade() {
-        let mut supply = AnchorSupply::new();
-
-        supply.cascade([0, 1, 2, 3], 5);
-
-        assert_eq!(supply.get(0), Some(5));
-        assert_eq!(supply.get(1), Some(5));
-        assert_eq!(supply.get(2), Some(5));
-        assert_eq!(supply.get(3), Some(5));
-        assert_eq!(supply.len(), 4);
-    }
-
-    #[test]
-    fn test_update_anchor() {
-        let mut supply = AnchorSupply::new();
-
-        supply.set(0, 10);
-        assert_eq!(supply.get(0), Some(10));
-
-        supply.set(0, 20);
-        assert_eq!(supply.get(0), Some(20));
-        assert_eq!(supply.len(), 1);
-    }
-
-    #[test]
-    fn test_entities_for_anchor() {
-        let mut supply = AnchorSupply::new();
-
-        supply.set(0, 10);
-        supply.set(1, 10);
-        supply.set(2, 20);
-        supply.set(3, 10);
-
-        let mut entities = supply.entities_for_anchor(10);
-        entities.sort();
-
-        assert_eq!(entities, vec![0, 1, 3]);
-    }
-
-    #[test]
-    fn test_clear() {
-        let mut supply = AnchorSupply::new();
-
-        supply.cascade(0..10, 0);
-        assert_eq!(supply.len(), 10);
-
-        supply.clear();
-        assert!(supply.is_empty());
-    }
-}
-
-mod inverse_supply_tests {
+mod inverse_supply {
     use super::*;
 
     #[test]
@@ -164,7 +87,96 @@ mod inverse_supply_tests {
     }
 }
 
-mod list_state_supply_tests {
+// ============================================================================
+// AnchorSupply Tests
+// ============================================================================
+
+mod anchor_supply {
+    use super::*;
+
+    #[test]
+    fn test_set_and_get() {
+        let mut supply = AnchorSupply::new();
+
+        supply.set(0, 10);
+        supply.set(1, 10);
+        supply.set(2, 20);
+
+        assert_eq!(supply.get(0), Some(10));
+        assert_eq!(supply.get(1), Some(10));
+        assert_eq!(supply.get(2), Some(20));
+        assert_eq!(supply.get(99), None);
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut supply = AnchorSupply::new();
+
+        supply.set(0, 10);
+        assert_eq!(supply.len(), 1);
+
+        let removed = supply.remove(0);
+        assert_eq!(removed, Some(10));
+        assert!(supply.is_empty());
+    }
+
+    #[test]
+    fn test_cascade() {
+        let mut supply = AnchorSupply::new();
+
+        supply.cascade([0, 1, 2, 3], 5);
+
+        assert_eq!(supply.get(0), Some(5));
+        assert_eq!(supply.get(1), Some(5));
+        assert_eq!(supply.get(2), Some(5));
+        assert_eq!(supply.get(3), Some(5));
+        assert_eq!(supply.len(), 4);
+    }
+
+    #[test]
+    fn test_update_anchor() {
+        let mut supply = AnchorSupply::new();
+
+        supply.set(0, 10);
+        assert_eq!(supply.get(0), Some(10));
+
+        supply.set(0, 20);
+        assert_eq!(supply.get(0), Some(20));
+        assert_eq!(supply.len(), 1);
+    }
+
+    #[test]
+    fn test_entities_for_anchor() {
+        let mut supply = AnchorSupply::new();
+
+        supply.set(0, 10);
+        supply.set(1, 10);
+        supply.set(2, 20);
+        supply.set(3, 10);
+
+        let mut entities = supply.entities_for_anchor(10);
+        entities.sort();
+
+        assert_eq!(entities, vec![0, 1, 3]);
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut supply = AnchorSupply::new();
+
+        supply.cascade(0..10, 0);
+        assert_eq!(supply.len(), 10);
+
+        supply.clear();
+        assert!(supply.is_empty());
+    }
+}
+
+// ============================================================================
+// ListStateSupply Tests
+// ============================================================================
+
+mod list_state_supply {
     use super::*;
 
     #[test]

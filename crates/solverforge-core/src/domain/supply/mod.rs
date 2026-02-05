@@ -50,3 +50,6 @@ mod tests;
 pub use anchor::AnchorSupply;
 pub use inverse::InverseSupply;
 pub use list_state::{ElementPosition, ListStateSupply};
+
+#[cfg(test)]
+mod tests;

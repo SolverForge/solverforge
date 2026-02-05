@@ -385,3 +385,7 @@ where
         self.variable_name
     }
 }
+
+#[cfg(test)]
+#[path = "k_opt_tests.rs"]
+mod tests;

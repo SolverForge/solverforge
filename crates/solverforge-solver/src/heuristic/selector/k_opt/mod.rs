@@ -50,16 +50,15 @@
 //! ```
 
 mod config;
-mod cuts;
-mod distance;
+mod distance_meter;
+mod iterators;
 mod nearby;
 mod selector;
+#[cfg(test)]
+mod tests;
 
 pub use config::KOptConfig;
-pub use distance::{DefaultDistanceMeter, ListPositionDistanceMeter};
+pub use distance_meter::{DefaultDistanceMeter, ListPositionDistanceMeter};
+pub use iterators::{binomial, count_cut_combinations, CutCombinationIterator};
 pub use nearby::NearbyKOptMoveSelector;
 pub use selector::KOptMoveSelector;
-
-// Re-export for crate-internal testing
-#[cfg(test)]
-pub(crate) use cuts::{binomial, CutCombinationIterator};

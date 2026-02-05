@@ -5,6 +5,7 @@ use solverforge_scoring::ScoreDirector;
 
 use super::EntityReference;
 
+mod k_opt;
 mod list_change;
 mod list_ruin;
 mod mimic;

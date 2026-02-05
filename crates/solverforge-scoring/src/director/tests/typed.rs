@@ -1,8 +1,8 @@
 //! Tests for TypedScoreDirector.
 
-use super::typed::TypedScoreDirector;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
+use crate::director::typed::TypedScoreDirector;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};

@@ -385,4 +385,3 @@ where
         self.variable_name
     }
 }
-

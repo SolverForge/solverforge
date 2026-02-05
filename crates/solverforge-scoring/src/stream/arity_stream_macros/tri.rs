@@ -1,6 +1,6 @@
-//! Tri-arity constraint stream macro.
+// Tri-arity constraint stream macro.
 
-/// Generates a tri-arity constraint stream struct and builder.
+// Generates a tri-arity constraint stream struct and builder.
 macro_rules! impl_tri_arity_stream {
     ($stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>

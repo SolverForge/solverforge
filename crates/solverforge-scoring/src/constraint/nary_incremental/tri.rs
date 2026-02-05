@@ -1,6 +1,6 @@
-//! Tri-arity (3-tuple) incremental constraint macro.
+// Tri-arity (3-tuple) incremental constraint macro.
 
-/// Generates a tri-arity incremental constraint struct.
+// Generates a tri-arity incremental constraint struct.
 #[macro_export]
 macro_rules! impl_incremental_tri_constraint {
     ($struct_name:ident) => {

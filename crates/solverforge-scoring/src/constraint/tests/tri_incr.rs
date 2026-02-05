@@ -1,4 +1,4 @@
-//! Unit tests for IncrementalTriConstraint.
+// Unit tests for IncrementalTriConstraint.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalTriConstraint;

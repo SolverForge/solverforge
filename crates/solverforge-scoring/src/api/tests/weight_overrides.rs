@@ -1,7 +1,7 @@
-//! Consolidated tests for api module.
-//!
-//! Tests extracted from:
-//! - weight_overrides.rs (8 tests)
+// Consolidated tests for api module.
+//
+// Tests extracted from:
+// - weight_overrides.rs (8 tests)
 
 use std::sync::Arc;
 

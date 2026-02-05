@@ -1,4 +1,4 @@
-//! Tests for TypedScoreDirector.
+// Tests for TypedScoreDirector.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;

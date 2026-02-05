@@ -1,4 +1,4 @@
-//! Tests for zero-erasure incremental bi-constraint.
+// Tests for zero-erasure incremental bi-constraint.
 
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use crate::constraint::IncrementalBiConstraint;

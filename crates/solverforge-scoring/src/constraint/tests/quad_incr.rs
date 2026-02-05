@@ -1,4 +1,4 @@
-//! Unit tests for IncrementalQuadConstraint.
+// Unit tests for IncrementalQuadConstraint.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalQuadConstraint;

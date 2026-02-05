@@ -1,7 +1,7 @@
-//! Tests for filter module.
-//!
-//! Tests extracted from:
-//! - mod.rs (5 tests)
+// Tests for filter module.
+//
+// Tests extracted from:
+// - mod.rs (5 tests)
 
 use super::super::composition::{AndBiFilter, AndUniFilter};
 use super::super::traits::{BiFilter, UniFilter};

@@ -1,4 +1,4 @@
-//! Tests for RecordingScoreDirector.
+// Tests for RecordingScoreDirector.
 
 use crate::director::recording::RecordingScoreDirector;
 use crate::director::SimpleScoreDirector;

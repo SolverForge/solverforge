@@ -1,4 +1,4 @@
-//! Tests for ComplementedGroupConstraint.
+// Tests for ComplementedGroupConstraint.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::complemented::ComplementedGroupConstraint;

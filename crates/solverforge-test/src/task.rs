@@ -139,6 +139,7 @@ pub fn create_simple_task_director(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use solverforge_scoring::ScoreDirector;
 
     #[test]
     fn test_task_creation() {

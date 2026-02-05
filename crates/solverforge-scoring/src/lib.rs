@@ -13,17 +13,11 @@
 // Zero-erasure architecture intentionally uses complex generic types
 #![allow(clippy::type_complexity)]
 
-#[cfg(test)]
-pub mod test_utils;
-
 // Core modules
 pub mod api;
 pub mod constraint;
 pub mod director;
 pub mod stream;
-
-#[cfg(test)]
-pub mod test_utils;
 
 // ============================================================================
 // Zero-Erasure Incremental Constraints

@@ -1,6 +1,6 @@
 //! Tests for score analysis types.
 
-use super::analysis::*;
+use crate::api::analysis::*;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::ConstraintRef;
 

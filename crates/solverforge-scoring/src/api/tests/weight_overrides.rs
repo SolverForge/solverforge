@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use solverforge_core::score::{HardSoftScore, SimpleScore};
 
-use super::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
+use crate::api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // ============================================================================
 // ConstraintWeightOverrides tests

@@ -2,91 +2,11 @@
 
 use super::recording::RecordingScoreDirector;
 use super::SimpleScoreDirector;
-use crate::ScoreDirector;
-use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+use crate::test_utils::{
+    calculate_conflicts, create_test_descriptor, get_row, set_row, NQueensSolution, Queen,
 };
+use crate::ScoreDirector;
 use solverforge_core::score::SimpleScore;
-use std::any::TypeId;
-
-#[derive(Clone, Debug, PartialEq)]
-struct Queen {
-    id: i64,
-    row: Option<i32>,
-}
-
-#[derive(Clone, Debug)]
-struct NQueensSolution {
-    queens: Vec<Queen>,
-    score: Option<SimpleScore>,
-}
-
-impl PlanningSolution for NQueensSolution {
-    type Score = SimpleScore;
-
-    fn score(&self) -> Option<Self::Score> {
-        self.score
-    }
-
-    fn set_score(&mut self, score: Option<Self::Score>) {
-        self.score = score;
-    }
-}
-
-// Typed getter - zero erasure
-fn get_row(s: &NQueensSolution, idx: usize) -> Option<i32> {
-    s.queens.get(idx).and_then(|q| q.row)
-}
-
-// Typed setter - zero erasure
-fn set_row(s: &mut NQueensSolution, idx: usize, v: Option<i32>) {
-    if let Some(q) = s.queens.get_mut(idx) {
-        q.row = v;
-    }
-}
-
-fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-    &s.queens
-}
-
-fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-    &mut s.queens
-}
-
-fn calculate_conflicts(solution: &NQueensSolution) -> SimpleScore {
-    let mut conflicts = 0i64;
-    let queens = &solution.queens;
-
-    for i in 0..queens.len() {
-        for j in (i + 1)..queens.len() {
-            if let (Some(row_i), Some(row_j)) = (queens[i].row, queens[j].row) {
-                if row_i == row_j {
-                    conflicts += 1;
-                }
-                let col_diff = (j - i) as i32;
-                if (row_i - row_j).abs() == col_diff {
-                    conflicts += 1;
-                }
-            }
-        }
-    }
-
-    SimpleScore::of(-conflicts)
-}
-
-fn create_test_descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Queen",
-        "queens",
-        get_queens,
-        get_queens_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
-
-    SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc)
-}
 
 #[test]
 fn test_recording_register_undo() {

@@ -255,12 +255,15 @@ pub fn eval_expr(expr: &Expr, ctx: &EvalContext) -> DynamicValue {
             match v {
                 DynamicValue::DateTime(ms) => {
                     // Convert milliseconds since epoch to days since epoch
-                    let days = (ms / (1000 * 60 * 60 * 24)) as i32;
-                    DynamicValue::Date(days)
+                    let days = ms / (1000 * 60 * 60 * 24);
+                    let days_i32 =
+                        i32::try_from(days).expect("DateTime days overflow i32 in DateOf");
+                    DynamicValue::Date(days_i32)
                 }
                 DynamicValue::I64(ms) => {
-                    let days = (ms / (1000 * 60 * 60 * 24)) as i32;
-                    DynamicValue::Date(days)
+                    let days = ms / (1000 * 60 * 60 * 24);
+                    let days_i32 = i32::try_from(days).expect("I64 days overflow i32 in DateOf");
+                    DynamicValue::Date(days_i32)
                 }
                 DynamicValue::Date(d) => DynamicValue::Date(d),
                 _ => DynamicValue::None,

@@ -8,6 +8,9 @@
 //! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub mod basic;
 pub mod builder;
 pub mod heuristic;

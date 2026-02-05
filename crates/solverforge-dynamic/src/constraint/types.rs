@@ -63,25 +63,19 @@ pub type DynBiWeight = Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftSco
 pub type DynTriWeight =
     Box<dyn Fn(&DynamicSolution, usize, usize, usize) -> HardSoftScore + Send + Sync>;
 
-/// Quad-constraint weight: computes score for quadruple.
-pub type DynQuadWeight = Box<
-    dyn Fn(&DynamicEntity, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> HardSoftScore
-        + Send
-        + Sync,
->;
+/// Quad-constraint weight: computes score for quadruple using solution reference and entity indices.
+///
+/// Takes the full solution and four indices into the entity slice, avoiding entity cloning.
+/// The indices are positions within `solution.entities[class_idx]`.
+pub type DynQuadWeight =
+    Box<dyn Fn(&DynamicSolution, usize, usize, usize, usize) -> HardSoftScore + Send + Sync>;
 
-/// Penta-constraint weight: computes score for quintuple.
-pub type DynPentaWeight = Box<
-    dyn Fn(
-            &DynamicEntity,
-            &DynamicEntity,
-            &DynamicEntity,
-            &DynamicEntity,
-            &DynamicEntity,
-        ) -> HardSoftScore
-        + Send
-        + Sync,
->;
+/// Penta-constraint weight: computes score for quintuple using solution reference and entity indices.
+///
+/// Takes the full solution and five indices into the entity slice, avoiding entity cloning.
+/// The indices are positions within `solution.entities[class_idx]`.
+pub type DynPentaWeight =
+    Box<dyn Fn(&DynamicSolution, usize, usize, usize, usize, usize) -> HardSoftScore + Send + Sync>;
 
 // Cross-join constraint closures (for joining two different entity classes)
 

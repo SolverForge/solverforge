@@ -87,7 +87,7 @@ pub fn make_penta_filter(filter_expr: Expr, class_idx: usize) -> DynPentaFilter 
 /// # Parameters
 /// - `weight_expr`: Expression to evaluate (should return numeric value)
 /// - `class_idx`: Entity class index (all five entities must be from this class)
-/// - `descriptor`: Problem descriptor for creating temporary solution context
+/// - `_descriptor`: Problem descriptor (unused, kept for API consistency)
 /// - `is_hard`: If true, weight is applied to hard score; otherwise soft score
 ///
 /// # Expression Context
@@ -100,52 +100,35 @@ pub fn make_penta_filter(filter_expr: Expr, class_idx: usize) -> DynPentaFilter 
 /// - Arithmetic and comparison operations work across all five entities
 ///
 /// # Implementation
-/// Creates a temporary `DynamicSolution` with all five entities for proper evaluation context.
-/// This enables full penta-entity expression evaluation via `EvalContext`.
-///
-/// Note: This approach clones entities into a temporary solution. While this violates the
-/// zero-clone principle, it's necessary because the `DynPentaWeight` signature doesn't provide
-/// access to the solution or entity indices. The clone happens only for matched quintuples
-/// (bounded by match count, not total entity count).
+/// Takes the solution reference and entity indices directly, avoiding entity cloning.
+/// The indices refer to positions within `solution.entities[class_idx]`.
 pub fn make_penta_weight(
     weight_expr: Expr,
     class_idx: usize,
-    descriptor: DynamicDescriptor,
+    _descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> DynPentaWeight {
     Box::new(
-        move |a: &DynamicEntity,
-              b: &DynamicEntity,
-              c: &DynamicEntity,
-              d: &DynamicEntity,
-              e: &DynamicEntity| {
-            // Create a temporary solution with the descriptor and the five entities.
-            let mut temp_solution = DynamicSolution {
-                descriptor: descriptor.clone(),
-                entities: vec![Vec::new(); descriptor.entity_classes.len()],
-                facts: Vec::new(),
-                score: None,
-                id_to_location: std::collections::HashMap::new(),
-            };
-
-            // Place all five entities at indices 0, 1, 2, 3, 4 in the class entity slice.
-            temp_solution.entities[class_idx] =
-                vec![a.clone(), b.clone(), c.clone(), d.clone(), e.clone()];
-
-            // Build EntityRef tuple: all five entities from the same class.
+        move |solution: &DynamicSolution,
+              a_idx: usize,
+              b_idx: usize,
+              c_idx: usize,
+              d_idx: usize,
+              e_idx: usize| {
+            // Build EntityRef tuple using the provided indices.
             let tuple = vec![
-                EntityRef::new(class_idx, 0),
-                EntityRef::new(class_idx, 1),
-                EntityRef::new(class_idx, 2),
-                EntityRef::new(class_idx, 3),
-                EntityRef::new(class_idx, 4),
+                EntityRef::new(class_idx, a_idx),
+                EntityRef::new(class_idx, b_idx),
+                EntityRef::new(class_idx, c_idx),
+                EntityRef::new(class_idx, d_idx),
+                EntityRef::new(class_idx, e_idx),
             ];
 
-            let ctx = EvalContext::new(&temp_solution, &tuple);
+            let ctx = EvalContext::new(solution, &tuple);
             let result = crate::eval::eval_expr(&weight_expr, &ctx);
 
             // Convert result to numeric value and apply to hard or soft score.
-            let weight_num = result.as_i64().unwrap_or(0) as i64;
+            let weight_num = result.as_i64().unwrap_or(0);
             if is_hard {
                 HardSoftScore::of_hard(weight_num)
             } else {

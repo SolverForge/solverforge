@@ -166,7 +166,10 @@ impl ValueRangeDef {
     pub fn len(&self) -> usize {
         match self {
             ValueRangeDef::Explicit(values) => values.len(),
-            ValueRangeDef::IntRange { start, end } => (*end - *start) as usize,
+            ValueRangeDef::IntRange { start, end } => {
+                let count = (*end - *start).max(0);
+                usize::try_from(count).expect("ValueRangeDef::IntRange count overflows usize")
+            }
             ValueRangeDef::EntityClass(_) | ValueRangeDef::FactClass(_) => 0, // Must be resolved against solution
         }
     }

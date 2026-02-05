@@ -6,6 +6,7 @@
 //! - [`task`] - Task scheduling fixtures for selector tests
 //! - [`minimal`] - Minimal score-only solutions for termination tests
 //! - [`entity`] - Generic entity/solution fixtures
+//! - [`shadow`] - Shadow variable fixtures for ShadowAwareScoreDirector tests
 //!
 //! # Usage
 //!
@@ -21,15 +22,18 @@
 //! ```ignore
 //! use solverforge_test::nqueens::{NQueensSolution, create_nqueens_director};
 //! use solverforge_test::minimal::{TestSolution, create_minimal_director};
+//! use solverforge_test::shadow::{ShadowSolution, create_shadow_director};
 //! ```
 
 pub mod entity;
 pub mod minimal;
 pub mod nqueens;
+pub mod shadow;
 pub mod task;
 
 // Re-export commonly used types at crate root for convenience
 pub use entity::{TestEntity, TestSolution as EntityTestSolution};
 pub use minimal::{DummySolution, MinimalSolution, TestSolution};
 pub use nqueens::{NQueensSolution, Queen};
+pub use shadow::{create_shadow_director, make_sum_constraint, ShadowSolution};
 pub use task::{Task, TaskSolution};

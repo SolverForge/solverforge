@@ -26,6 +26,32 @@ impl Queen {
     pub fn at(row: i64, col: i64) -> Self {
         Self { id: row, row, col }
     }
+
+    /// Creates a queen with an optional row (for uninitialized queens).
+    pub fn with_optional_row(id: i64, col: i64, row: Option<i64>) -> Self {
+        Self {
+            id,
+            row: row.unwrap_or(-1),
+            col,
+        }
+    }
+}
+
+/// Gets the row of a queen in an NQueensSolution by index.
+pub fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
+    s.queens.get(idx).map(|q| q.row)
+}
+
+/// Sets the row of a queen in an NQueensSolution by index.
+pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, row: Option<i64>) {
+    if let Some(q) = s.queens.get_mut(idx) {
+        q.row = row.unwrap_or(-1);
+    }
+}
+
+/// Calculates the conflict score for an NQueensSolution.
+pub fn calculate_nqueens_score(solution: &NQueensSolution) -> SimpleScore {
+    SimpleScore::of(-solution.calculate_conflicts())
 }
 
 /// N-Queens solution for testing.

@@ -285,76 +285,16 @@ impl<'a> Iterator for ReplayingIterator<'a> {
 mod tests {
     use super::*;
     use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
-
-    #[derive(Clone, Debug)]
-    struct Queen {
-        id: i64,
-    }
-
-    #[derive(Clone, Debug)]
-    struct NQueensSolution {
-        queens: Vec<Queen>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for NQueensSolution {
-        type Score = SimpleScore;
-
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-        &s.queens
-    }
-
-    fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-        &mut s.queens
-    }
-
-    fn create_test_director(
-        n: usize,
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-        let queens: Vec<_> = (0..n).map(|i| Queen { id: i as i64 }).collect();
-
-        let solution = NQueensSolution {
-            queens,
-            score: None,
-        };
-
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
-    }
+    use crate::test_utils::create_simple_nqueens_director;
 
     #[test]
     fn test_mimic_recording_selector() {
-        let director = create_test_director(3);
+        let director = create_simple_nqueens_director(3);
 
-        // Verify entity IDs
+        // Verify column values match indices
         let solution = director.working_solution();
         for (i, queen) in solution.queens.iter().enumerate() {
-            assert_eq!(queen.id, i as i64);
+            assert_eq!(queen.column, i as i32);
         }
 
         let recorder = MimicRecorder::new("test");
@@ -370,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_mimic_replaying_selector() {
-        let director = create_test_director(3);
+        let director = create_simple_nqueens_director(3);
 
         let recorder = MimicRecorder::new("test");
         let child = FromSolutionEntitySelector::new(0);
@@ -401,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_mimic_synchronized_iteration() {
-        let director = create_test_director(3);
+        let director = create_simple_nqueens_director(3);
 
         let recorder = MimicRecorder::new("test");
         let child = FromSolutionEntitySelector::new(0);
@@ -419,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_mimic_empty_selector() {
-        let director = create_test_director(0);
+        let director = create_simple_nqueens_director(0);
 
         let recorder = MimicRecorder::new("test");
         let child = FromSolutionEntitySelector::new(0);

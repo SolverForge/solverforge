@@ -1,7 +1,7 @@
 //! Tests for RecordingScoreDirector.
 
-use super::recording::RecordingScoreDirector;
-use super::SimpleScoreDirector;
+use crate::director::recording::RecordingScoreDirector;
+use crate::director::SimpleScoreDirector;
 use crate::ScoreDirector;
 use solverforge_core::score::SimpleScore;
 use solverforge_test::nqueens::{

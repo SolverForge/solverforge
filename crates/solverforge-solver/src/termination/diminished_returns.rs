@@ -175,68 +175,16 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::SolutionDescriptor;
+    use crate::test_utils::{create_test_scope, create_test_scope_with_score, TestSolution};
     use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
     use std::thread::sleep;
-
-    #[derive(Clone, Debug)]
-    struct TestSolution {
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
-
-    fn calc(_: &TestSolution) -> SimpleScore {
-        SimpleScore::of(0)
-    }
-
-    fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
-        let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
-        let director = SimpleScoreDirector::with_calculator(
-            TestSolution { score: None },
-            descriptor,
-            calc as fn(&TestSolution) -> SimpleScore,
-        );
-        SolverScope::new(director)
-    }
-
-    fn create_scope_with_score(
-        score: SimpleScore,
-    ) -> SolverScope<
-        'static,
-        TestSolution,
-        SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
-    > {
-        let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
-        let score_clone = score;
-        let director = SimpleScoreDirector::with_calculator(
-            TestSolution { score: Some(score) },
-            descriptor,
-            move |_| score_clone,
-        );
-        let mut scope = SolverScope::new(director);
-        scope.update_best_solution();
-        scope
-    }
 
     #[test]
     fn test_not_terminated_during_grace_period() {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.0);
 
-        let scope = create_scope_with_score(SimpleScore::of(-100));
+        let scope = create_test_scope_with_score(SimpleScore::of(-100));
 
         // During grace period, should not terminate even with no improvement
         assert!(!termination.is_terminated(&scope));
@@ -248,7 +196,7 @@ mod tests {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(200), 0.1);
 
-        let scope = create_scope_with_score(SimpleScore::of(-100));
+        let scope = create_test_scope_with_score(SimpleScore::of(-100));
 
         // First call starts tracking at T0
         assert!(!termination.is_terminated(&scope));
@@ -272,7 +220,7 @@ mod tests {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(50), 10.0);
 
-        let mut scope = create_scope_with_score(SimpleScore::of(-100));
+        let mut scope = create_test_scope_with_score(SimpleScore::of(-100));
 
         // Check once to start tracking
         assert!(!termination.is_terminated(&scope));
@@ -295,7 +243,7 @@ mod tests {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(10), 0.0);
 
-        let scope = create_scope(); // No best score set
+        let scope = create_test_scope(); // No best score set
 
         sleep(Duration::from_millis(20));
         assert!(!termination.is_terminated(&scope));

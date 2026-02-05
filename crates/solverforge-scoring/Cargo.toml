@@ -8,3 +8,6 @@ description = "Incremental constraint scoring for SolverForge"
 [dependencies]
 solverforge-core = { version = "0.6.0", path = "../solverforge-core" }
 thiserror.workspace = true
+
+[dev-dependencies]
+solverforge-test = { workspace = true }

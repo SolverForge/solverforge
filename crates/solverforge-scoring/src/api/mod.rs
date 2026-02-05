@@ -11,8 +11,6 @@ pub mod constraint_set;
 pub mod weight_overrides;
 
 #[cfg(test)]
-mod analysis_tests;
-#[cfg(test)]
 mod tests;
 
 pub use analysis::{

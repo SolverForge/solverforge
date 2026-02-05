@@ -209,15 +209,15 @@ mod tests {
     };
     use solverforge_core::score::SimpleScore;
 
-    type NQueensMove = crate::heuristic::r#move::ChangeMove<NQueensSolution, i32>;
+    type NQueensMove = crate::heuristic::r#move::ChangeMove<NQueensSolution, i64>;
 
     fn create_move_selector(
-        values: Vec<i32>,
+        values: Vec<i64>,
     ) -> ChangeMoveSelector<
         NQueensSolution,
-        i32,
+        i64,
         crate::heuristic::selector::FromSolutionEntitySelector,
-        crate::heuristic::selector::StaticTypedValueSelector<NQueensSolution, i32>,
+        crate::heuristic::selector::StaticTypedValueSelector<NQueensSolution, i64>,
     > {
         ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
     }
@@ -230,7 +230,7 @@ mod tests {
         let initial_score = solver_scope.calculate_score();
         assert!(initial_score < SimpleScore::of(0));
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
         let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
@@ -250,7 +250,7 @@ mod tests {
 
         let initial_score = solver_scope.calculate_score();
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
         let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
@@ -268,7 +268,7 @@ mod tests {
         let director = create_nqueens_director(&[0, 0, 0, 0]);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let move_selector = create_move_selector(values);
         let acceptor = HillClimbingAcceptor::new();
         let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);

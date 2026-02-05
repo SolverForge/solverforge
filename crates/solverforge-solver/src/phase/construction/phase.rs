@@ -126,12 +126,12 @@ mod tests {
     };
 
     fn create_placer(
-        values: Vec<i32>,
+        values: Vec<i64>,
     ) -> QueuedEntityPlacer<
         NQueensSolution,
-        i32,
+        i64,
         FromSolutionEntitySelector,
-        StaticTypedValueSelector<NQueensSolution, i32>,
+        StaticTypedValueSelector<NQueensSolution, i64>,
     > {
         let es = FromSolutionEntitySelector::new(0);
         let vs = StaticTypedValueSelector::new(values);
@@ -143,7 +143,7 @@ mod tests {
         let director = create_simple_nqueens_director(4);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let placer = create_placer(values);
         let forager = FirstFitForager::new();
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);
@@ -164,7 +164,7 @@ mod tests {
         let director = create_simple_nqueens_director(4);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let placer = create_placer(values);
         let forager = BestFitForager::new();
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);
@@ -185,7 +185,7 @@ mod tests {
         let director = create_simple_nqueens_director(0);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = vec![];
+        let values: Vec<i64> = vec![];
         let placer = create_placer(values);
         let forager = FirstFitForager::new();
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);

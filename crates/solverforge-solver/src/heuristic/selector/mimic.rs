@@ -294,7 +294,7 @@ mod tests {
         // Verify column values match indices
         let solution = director.working_solution();
         for (i, queen) in solution.queens.iter().enumerate() {
-            assert_eq!(queen.column, i as i32);
+            assert_eq!(queen.column, i as i64);
         }
 
         let recorder = MimicRecorder::new("test");

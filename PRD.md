@@ -1,121 +1,110 @@
-# Project: SolverForge Dynamic Performance & Correctness Fixes
+# Project: solverforge-scoring refactor
 
-Fix performance bottlenecks and entity assignment bugs in the Python wrapper for solverforge-dynamic.
+Clean up test organization, remove doc comments, extract code from mod.rs files.
 
 ## Tasks
 
-### Phase 1: Critical Performance - Entity Index Lookup O(n) → O(1)
+### Phase 1: Fix test directory structure
+- [x] Fix crates/solverforge-scoring/src/api/constraint_set/tests/constraint_set.rs imports
+- [x] Fix crates/solverforge-scoring/src/stream/collector/tests/collector.rs imports
+- [x] Fix crates/solverforge-scoring/src/stream/filter/tests/filter.rs imports
+- [x] Run cargo test -p solverforge-scoring to verify
+- [ ] Commit: fix test imports
 
-- [x] Add entity ID to index mapping to DynamicSolution struct (crates/solverforge-dynamic/src/solution.rs)
-- [x] Implement HashMap<i64, (usize, usize)> for id_to_location lookup (crates/solverforge-dynamic/src/solution.rs)
-- [x] Update add_entity to maintain the id_to_location map (crates/solverforge-dynamic/src/solution.rs)
-- [x] Add get_entity_location(id: i64) -> Option<(usize, usize)> method (crates/solverforge-dynamic/src/solution.rs)
-- [x] Refactor make_bi_filter to use id_to_location instead of iter().position() (crates/solverforge-dynamic/src/constraint/closures_bi.rs)
-- [x] Refactor make_tri_filter to use id_to_location lookup (crates/solverforge-dynamic/src/constraint/closures_tri.rs)
-- [x] Refactor make_cross_filter to use id_to_location lookup (crates/solverforge-dynamic/src/constraint/closures_cross.rs)
-- [x] Add tests verifying O(1) lookup behavior (crates/solverforge-dynamic/src/solution.rs)
+### Phase 2: Convert /// to // or /* */
+- [ ] Convert /// comments in crates/solverforge-scoring/src/lib.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/api/analysis.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/api/weight_overrides.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/api/constraint_set/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/balance.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/complemented.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/cross_bi_incremental.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/flattened_bi.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/grouped.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/if_exists.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/incremental.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/macros.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/nary_incremental/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/nary_incremental/bi.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/nary_incremental/tri.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/nary_incremental/quad.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/constraint/nary_incremental/penta.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/director/simple.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/director/traits.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/director/typed.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/director/recording.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/director/shadow_aware.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/director/factory.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/factory.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/uni_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/bi_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/tri_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/quad_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/penta_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/balance_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/complemented_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/cross_bi_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/flattened_bi_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/grouped_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/if_exists_stream.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/collector/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/collector/count.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/collector/sum.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/collector/load_balance.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/filter/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/filter/traits.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/filter/wrappers.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/filter/composition.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/filter/adapters.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/joiner/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/joiner/equal.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/joiner/comparison.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/joiner/filtering.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/joiner/overlapping.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/arity_stream_macros/mod.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/arity_stream_macros/bi.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/arity_stream_macros/tri.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/arity_stream_macros/quad.rs
+- [ ] Convert /// comments in crates/solverforge-scoring/src/stream/arity_stream_macros/penta.rs
+- [ ] Run cargo test -p solverforge-scoring to verify
+- [ ] Commit: convert doc comments to regular comments
 
-### Phase 2: Moderate Performance - Eliminate Weight Function Cloning
+### Phase 3: Extract code from mod.rs files
+- [ ] Extract UniCollector and Accumulator traits from crates/solverforge-scoring/src/stream/collector/mod.rs to crates/solverforge-scoring/src/stream/collector/uni.rs
+- [ ] Update crates/solverforge-scoring/src/stream/collector/mod.rs to only have mod declarations and re-exports
+- [ ] Extract Joiner trait, AndJoiner, FnJoiner from crates/solverforge-scoring/src/stream/joiner/mod.rs to crates/solverforge-scoring/src/stream/joiner/match_condition.rs
+- [ ] Update crates/solverforge-scoring/src/stream/joiner/mod.rs to only have mod declarations and re-exports
+- [ ] Extract IncrementalConstraint, ConstraintSet, ConstraintResult, macro from crates/solverforge-scoring/src/api/constraint_set/mod.rs to crates/solverforge-scoring/src/api/constraint_set/incremental.rs
+- [ ] Update crates/solverforge-scoring/src/api/constraint_set/mod.rs to only have mod declarations and re-exports
+- [ ] Run cargo test -p solverforge-scoring to verify
+- [ ] Commit: extract code from mod.rs files
 
-- [x] Change DynBiWeight signature to accept solution reference and indices (crates/solverforge-dynamic/src/constraint/types.rs)
-- [x] Refactor make_bi_weight to use indices instead of cloning entities (crates/solverforge-dynamic/src/constraint/closures_bi.rs)
-- [x] Update IncrementalBiConstraint to pass solution to weight function (crates/solverforge-scoring/src/constraint/nary_incremental.rs)
-- [x] Change DynTriWeight signature to accept solution reference and indices (crates/solverforge-dynamic/src/constraint/types.rs)
-- [x] Refactor make_tri_weight to use indices instead of cloning (crates/solverforge-dynamic/src/constraint/closures_tri.rs)
-- [x] Change DynCrossWeight signature to accept solution reference (crates/solverforge-dynamic/src/constraint/types.rs)
-- [x] Refactor make_cross_weight to use solution reference (crates/solverforge-dynamic/src/constraint/closures_cross.rs)
-- [x] Run existing constraint tests to verify no regressions (crates/solverforge-dynamic/src/constraint/tests.rs)
+### Phase 4: Scan for repetition and refactor
+- [ ] Identify duplicate test fixtures across test files
+- [ ] Identify repeated code patterns
+- [ ] Refactor if opportunities found
+- [ ] Commit: refactor to reduce repetition (if changes made)
 
-### Phase 3: Entity Assignment Bug - Field Lookup Correctness
-
-- [x] Track source class index in ConstraintOp::ForEach and Join (crates/solverforge-py/src/constraint_builder.rs)
-- [x] Add param_to_class_idx mapping during constraint building (crates/solverforge-py/src/constraint_builder.rs)
-- [x] Refactor parse_simple_expr to use param's class for field lookup (crates/solverforge-py/src/constraint_builder.rs)
-- [x] Add test for cross-class constraints with same-named fields (crates/solverforge-py/src/constraint_builder.rs)
-
-### Phase 4: Key Extraction Context Fix
-
-- [x] Document key expression limitations in make_cross_key_a/b docstrings (crates/solverforge-dynamic/src/constraint/closures_cross.rs)
-- [x] Add runtime warning when key expr contains RefField or FactRef (crates/solverforge-dynamic/src/constraint/closures_cross.rs)
-- [x] Consider passing full solution to key extractors for complex keys (crates/solverforge-dynamic/src/constraint/closures_cross.rs)
-
-### Phase 5: Optional - Lazy Move Generation
-
-- [x] Create DynamicMoveIterator struct implementing Iterator<Item=DynamicChangeMove> (crates/solverforge-dynamic/src/moves.rs)
-- [x] Refactor generate_moves to return iterator instead of Vec (crates/solverforge-dynamic/src/moves.rs)
-- [x] Update MoveSelector trait impl to use iterator (crates/solverforge-dynamic/src/moves.rs)
-- [x] Benchmark move generation before/after change (crates/solverforge-dynamic/src/moves.rs)
-
-### Phase 6: Testing & Validation
-
-- [x] Create benchmark comparing old vs new filter performance (crates/solverforge-dynamic/benches/)
-- [x] Add integration test with 1000+ entities verifying correct assignments (crates/solverforge-dynamic/src/solve/tests.rs)
-- [x] Test Python wrapper with employee scheduling problem (crates/solverforge-py/)
-- [x] Verify incremental scoring matches full recalculation after all changes (crates/solverforge-dynamic/src/constraint/tests.rs)
+### Phase 5: Final verification
+- [ ] Run cargo test -p solverforge-scoring
+- [ ] Run cargo clippy -p solverforge-scoring
+- [ ] Verify zero-erasure: no Box<dyn> or Arc<dyn> in constraint evaluation hot paths
 
 ## Notes
 
-### Context for Implementation
-
-- The `DynamicEntity.id` is a sequential i64 assigned by `Solver.next_entity_id` in Python
-- Entity indices are positions in `solution.entities[class_idx]` vectors
-- The current O(n) lookup at closures_bi.rs:47-48 is called for EVERY filter evaluation
-- Weight functions create temporary `DynamicSolution` with cloned descriptor - this is expensive
-- The `IncrementalBiConstraint` in solverforge-scoring passes `&A` (entities) not indices to weight fn
-
-### Key Files
-
-- `crates/solverforge-dynamic/src/solution.rs` - DynamicSolution, DynamicEntity structs
-- `crates/solverforge-dynamic/src/constraint/closures_bi.rs` - Bi-constraint filter/weight closures
-- `crates/solverforge-dynamic/src/constraint/closures_tri.rs` - Tri-constraint closures
-- `crates/solverforge-dynamic/src/constraint/closures_cross.rs` - Cross-join closures
-- `crates/solverforge-dynamic/src/constraint/types.rs` - Closure type definitions
-- `crates/solverforge-py/src/constraint_builder.rs` - Python constraint API
-- `crates/solverforge-scoring/src/constraint/nary_incremental.rs` - Incremental constraint impls
-
-### Breaking Change Considerations
-
-- Changing weight function signatures affects `IncrementalBiConstraint` generic params
-- May need to update factory functions in `factory_self.rs`, `factory_cross.rs`
-- Python API should remain unchanged - changes are internal
-
-### Root Cause Analysis
-
-#### Performance Issue 1: O(n) Entity Lookup
-```rust
-// closures_bi.rs:47-48 - Called for EVERY filter evaluation
-let a_idx = entities.iter().position(|e| e.id == a.id);
-let b_idx = entities.iter().position(|e| e.id == b.id);
-```
-For N entities with M constraint matches, this is O(N * M) instead of O(M).
-
-#### Performance Issue 2: Weight Function Cloning
-```rust
-// closures_bi.rs:109-122 - Clones descriptor and entities
-let mut temp_solution = DynamicSolution {
-    descriptor: descriptor.clone(),
-    entities: Vec::new(),
-    ...
-};
-temp_solution.entities[class_idx] = vec![a.clone(), b.clone()];
-```
-
-#### Correctness Issue: Field Lookup Ambiguity
-```rust
-// constraint_builder.rs:239-248 - Searches ALL classes for field name
-for class_def in &descriptor.entity_classes {
-    if let Some(field_idx) = class_def.field_index(field_name) {
-        return Ok(Expr::field(param_idx, field_idx));
-    }
-}
-```
-If multiple classes have same-named fields with different indices, returns wrong field.
+- mod.rs files should ONLY contain: mod declarations, pub use re-exports, #[cfg(test)] mod tests
+- No /// or //! doc comments anywhere in this crate - it's internal, no rustdoc needed
+- Single-line comments become //, multi-line blocks become /* */
+- Test files live in tests/ subdirectories, not *_tests.rs suffixes
+- Zero-erasure = no dynamic dispatch in scoring hot paths
+- Already confirmed: zero-erasure is maintained, Box<dyn> only in undo stack (not hot path)
 
 ## Success Criteria
 
-- All checkboxes marked `[x]`
-- Existing tests in `constraint/tests.rs` pass
-- Filter operations achieve O(1) entity lookup
-- No temporary solution/entity cloning in weight functions
-- Cross-class constraints with same-named fields resolve correctly
-- Benchmark shows measurable performance improvement for 100+ entities
+- All checkboxes marked [x]
+- cargo test passes
+- cargo clippy passes
+- No /// or //! comments in crate
+- No code in mod.rs files (only mod/use statements)
+- All tests in tests/ subdirectories

@@ -1,4 +1,4 @@
-//! Tests for score analysis types.
+// Tests for score analysis types.
 
 use crate::api::analysis::*;
 use solverforge_core::score::SimpleScore;

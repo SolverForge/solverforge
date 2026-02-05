@@ -1,7 +1,7 @@
-//! Tests for collector module.
-//!
-//! Tests extracted from:
-//! - load_balance.rs (6 tests)
+// Tests for collector module.
+//
+// Tests extracted from:
+// - load_balance.rs (6 tests)
 
 use super::super::load_balance::load_balance;
 use super::super::{Accumulator, UniCollector};
@@ -81,8 +81,8 @@ fn test_single_item() {
     assert_eq!(result.loads().get(&0), Some(&3));
 }
 
-/// Matches Timefold's InnerUniConstraintCollectorsTest.loadBalance() pattern.
-/// Note: We return i64 (rounded) instead of BigDecimal, so 0.707 -> 1.
+// Matches Timefold's InnerUniConstraintCollectorsTest.loadBalance() pattern.
+// Note: We return i64 (rounded) instead of BigDecimal, so 0.707 -> 1.
 #[test]
 fn test_timefold_parity() {
     struct LoadBalanced {

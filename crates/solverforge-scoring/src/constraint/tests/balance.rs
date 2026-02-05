@@ -1,4 +1,4 @@
-//! Tests for BalanceConstraint.
+// Tests for BalanceConstraint.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::balance::BalanceConstraint;

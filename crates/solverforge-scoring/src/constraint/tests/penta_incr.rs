@@ -1,4 +1,4 @@
-//! Unit tests for IncrementalPentaConstraint.
+// Unit tests for IncrementalPentaConstraint.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalPentaConstraint;

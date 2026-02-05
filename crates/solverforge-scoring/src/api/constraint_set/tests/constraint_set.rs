@@ -1,10 +1,10 @@
-//! Tests for constraint set types.
+// Tests for constraint set types.
 
 use super::super::{ConstraintSet, IncrementalConstraint};
 use solverforge_core::score::SimpleScore;
 use solverforge_core::ConstraintRef;
 
-/// Simple test constraint that counts entities matching a predicate.
+// Simple test constraint that counts entities matching a predicate.
 struct CountingConstraint<S, F> {
     constraint_ref: ConstraintRef,
     extractor: fn(&S) -> usize,

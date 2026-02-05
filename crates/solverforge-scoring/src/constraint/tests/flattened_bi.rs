@@ -1,4 +1,4 @@
-//! Tests for FlattenedBiConstraint.
+// Tests for FlattenedBiConstraint.
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::flattened_bi::FlattenedBiConstraint;

@@ -1,0 +1,222 @@
+# Zoyd Progress Log
+
+## Iteration 1 - 2026-02-05 14:59:04
+
+Perfect! The task is complete. Let me provide a summary:
+
+## Summary
+
+I've successfully fixed the imports in `crates/solverforge-scoring/src/api/constraint_set/tests/constraint_set.rs`.
+
+### Changes Made:
+
+**File: `crates/solverforge-scoring/src/api/constraint_set/tests/constraint_set.rs`**
+- Changed import from `use crate::api::constraint_set::*;` to `use super::super::{ConstraintSet, IncrementalConstraint};`
+- Removed unused `ConstraintResult` import
+
+### Why the change was needed:
+
+The test file is located at `api/constraint_set/tests/constraint_set.rs`, which means:
+- `super` = `api/constraint_set/tests/`
+- `super::super` = `api/constraint_set/`
+
+So the correct relative import path is `super::super` to access the parent module where `ConstraintSet` and `IncrementalConstraint` are defined.
+
+### Verification:
+
+The constraint_set tests now compile and run successfully (6 tests passing):
+- `test_empty_constraint_set`
+- `test_single_constraint`
+- `test_two_constraints`
+- `test_incremental_insert`
+- `test_incremental_retract`
+- `test_sixteen_constraints`
+
+The task has been marked as complete in the PRD.md file.
+
+## Iteration 2 - 2026-02-05
+
+Task complete! Successfully fixed the imports in `crates/solverforge-scoring/src/stream/collector/tests/collector.rs`.
+
+### Changes Made:
+
+**File: `crates/solverforge-scoring/src/stream/collector/tests/collector.rs`**
+- Changed `use crate::stream::collector::load_balance::load_balance;` to `use super::super::load_balance::load_balance;`
+- Changed `use crate::stream::collector::{Accumulator, UniCollector};` to `use super::super::{Accumulator, UniCollector};`
+
+### Why the change was needed:
+
+The test file is located at `stream/collector/tests/collector.rs`, which means:
+- `super` = `stream/collector/tests/`
+- `super::super` = `stream/collector/`
+
+The correct relative import path is `super::super` to access the parent module where `load_balance`, `Accumulator`, and `UniCollector` are defined.
+
+### Verification:
+
+The collector tests now compile successfully. The library target (`cargo check -p solverforge-scoring --lib`) passes without any collector-related errors. The only remaining errors in the package are from the filter tests, which is the next task in the PRD.
+
+The task has been marked as complete in PRD.md.
+
+
+## Iteration 2 - 2026-02-05 15:00:22
+
+Perfect! The task is complete. Let me provide a summary:
+
+## Summary
+
+I've successfully fixed the imports in `crates/solverforge-scoring/src/stream/collector/tests/collector.rs`.
+
+### Changes Made:
+
+**File: `crates/solverforge-scoring/src/stream/collector/tests/collector.rs`**
+- Changed `use crate::stream::collector::load_balance::load_balance;` to `use super::super::load_balance::load_balance;`
+- Changed `use crate::stream::collector::{Accumulator, UniCollector};` to `use super::super::{Accumulator, UniCollector};`
+
+### Why the change was needed:
+
+The test file is located at `stream/collector/tests/collector.rs`, which means:
+- `super` = `stream/collector/tests/`
+- `super::super` = `stream/collector/`
+
+The correct relative import path is `super::super` to access the parent `collector` module where:
+- `load_balance` function is defined in the `load_balance` submodule
+- `Accumulator` and `UniCollector` traits are defined in the `mod.rs` file
+
+### Verification:
+
+The collector module now compiles successfully. Running `cargo check -p solverforge-scoring --lib` passes without any collector-related import errors. The remaining compilation errors are in the filter tests (next task in Phase 1).
+
+The task has been marked as complete in PRD.md and progress.txt has been updated.
+
+
+## Iteration 3 - 2026-02-05
+
+Task complete! Successfully fixed the imports in `crates/solverforge-scoring/src/stream/filter/tests/filter.rs`.
+
+### Changes Made:
+
+**File: `crates/solverforge-scoring/src/stream/filter/tests/filter.rs`**
+- Changed `use super::composition::{AndBiFilter, AndUniFilter};` to `use super::super::composition::{AndBiFilter, AndUniFilter};`
+- Changed `use super::traits::{BiFilter, UniFilter};` to `use super::super::traits::{BiFilter, UniFilter};`
+- Changed `use super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};` to `use super::super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};`
+
+### Why the change was needed:
+
+The test file is located at `stream/filter/tests/filter.rs`, which means:
+- `super` = `stream/filter/tests/`
+- `super::super` = `stream/filter/`
+
+The correct relative import path is `super::super` to access the parent `filter` module where:
+- `composition` module defines `AndBiFilter`, `AndUniFilter`
+- `traits` module defines `BiFilter`, `UniFilter`
+- `wrappers` module defines `FnBiFilter`, `FnUniFilter`, `TrueFilter`
+
+### Verification:
+
+The filter tests now compile and run successfully (5 tests passing):
+- `test_true_filter`
+- `test_fn_uni_filter`
+- `test_fn_bi_filter`
+- `test_and_uni_filter`
+- `test_and_bi_filter`
+
+The library target (`cargo check -p solverforge-scoring --lib`) now passes with zero errors.
+
+The task has been marked as complete in PRD.md.
+
+
+## Iteration 3 - 2026-02-05 15:01:41
+
+Perfect! The task is complete. Let me provide a summary:
+
+## Summary
+
+I've successfully fixed the imports in `crates/solverforge-scoring/src/stream/filter/tests/filter.rs`.
+
+### Changes Made:
+
+**File: `crates/solverforge-scoring/src/stream/filter/tests/filter.rs`**
+- Changed `use super::composition::{AndBiFilter, AndUniFilter};` to `use super::super::composition::{AndBiFilter, AndUniFilter};`
+- Changed `use super::traits::{BiFilter, UniFilter};` to `use super::super::traits::{BiFilter, UniFilter};`
+- Changed `use super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};` to `use super::super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};`
+
+### Why the change was needed:
+
+The test file is located at `stream/filter/tests/filter.rs`, which means:
+- `super` = `stream/filter/tests/`
+- `super::super` = `stream/filter/`
+
+The correct relative import path is `super::super` to access the parent `filter` module where the actual implementations are defined:
+- `composition` module with `AndBiFilter`, `AndUniFilter`
+- `traits` module with `BiFilter`, `UniFilter`
+- `wrappers` module with `FnBiFilter`, `FnUniFilter`, `TrueFilter`
+
+### Verification:
+
+The filter tests now compile and run successfully (5 tests passing):
+- `test_true_filter`
+- `test_fn_uni_filter`
+- `test_fn_bi_filter`
+- `test_and_uni_filter`
+- `test_and_bi_filter`
+
+The library target (`cargo check -p solverforge-scoring --lib`) now passes with zero errors.
+
+The task has been marked as complete in PRD.md and progress.txt has been updated.
+
+
+## Iteration 4 - 2026-02-05
+
+Task complete! Successfully verified all tests pass with `cargo test -p solverforge-scoring`.
+
+### Test Results:
+
+**Unit Tests**: 104 passed
+- All API tests (analysis, constraint_set, weight_overrides)
+- All constraint tests (balance, bi_incr, complemented, flattened_bi, grouped, if_exists, penta_incr, quad_incr, tri_incr)
+- All director tests (recording, shadow_aware, simple, typed, typed_bench)
+- All stream tests (collector, filter)
+
+**Doc Tests**: 73 passed
+- All constraint stream API doctests
+- All collector, filter, and joiner doctests
+- All director API doctests
+
+### Summary:
+
+Phase 1 (Fix test directory structure) is now complete. All three test files now use correct relative imports (`super::super::*` instead of `crate::*`) to work properly in the `tests/` subdirectory structure.
+
+The next task in the PRD is to commit these changes with message "fix test imports", but per instructions, I am not running any git commands.
+
+Task marked complete in PRD.md.
+
+
+## Iteration 4 - 2026-02-05 15:02:50
+
+Perfect! Task complete.
+
+## Summary
+
+Successfully verified all tests pass with `cargo test -p solverforge-scoring`.
+
+### Test Results:
+
+**Unit Tests**: 104 passed (0 failed)
+- API tests: analysis, constraint_set, weight_overrides
+- Constraint tests: balance, bi_incr, complemented, flattened_bi, grouped, if_exists, penta_incr, quad_incr, tri_incr
+- Director tests: recording, shadow_aware, simple, typed, typed_bench
+- Stream tests: collector, filter
+
+**Doc Tests**: 73 passed (0 failed)
+- All public API doctests passing
+
+### Verification:
+
+Phase 1 (Fix test directory structure) is now fully verified and complete. All three test import fixes work correctly:
+1. `api/constraint_set/tests/constraint_set.rs` - using `super::super::*`
+2. `stream/collector/tests/collector.rs` - using `super::super::*`
+3. `stream/filter/tests/filter.rs` - using `super::super::*`
+
+The task has been marked complete in PRD.md. Per instructions, I did not run any git commands.
+

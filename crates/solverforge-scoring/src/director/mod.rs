@@ -1,13 +1,13 @@
-//! Score director implementations.
-//!
-//! The score director manages solution state and score calculation.
-//!
-//! # Score Director Types
-//!
-//! - [`SimpleScoreDirector`] - Full recalculation (baseline)
-//! - [`TypedScoreDirector`] - Zero-erasure incremental scoring
-//! - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
-//! - [`ShadowAwareScoreDirector`] - Shadow variable integration wrapper
+// Score director implementations.
+//
+// The score director manages solution state and score calculation.
+//
+// # Score Director Types
+//
+// - [`SimpleScoreDirector`] - Full recalculation (baseline)
+// - [`TypedScoreDirector`] - Zero-erasure incremental scoring
+// - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
+// - [`ShadowAwareScoreDirector`] - Shadow variable integration wrapper
 
 mod factory;
 mod simple;
@@ -18,9 +18,7 @@ pub mod shadow_aware;
 pub mod typed;
 
 #[cfg(test)]
-mod recording_tests;
-#[cfg(test)]
-mod typed_bench;
+mod tests;
 
 pub use factory::ScoreDirectorFactory;
 pub use recording::RecordingScoreDirector;

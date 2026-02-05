@@ -21,25 +21,25 @@ use crate::stats::SolverStats;
 /// * `D` - The score director type
 #[allow(clippy::type_complexity)]
 pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
-    /// The score director managing the working solution.
+    // The score director managing the working solution.
     score_director: D,
-    /// The best solution found so far.
+    // The best solution found so far.
     best_solution: Option<S>,
-    /// The score of the best solution.
+    // The score of the best solution.
     best_score: Option<S::Score>,
-    /// Random number generator for stochastic algorithms.
+    // Random number generator for stochastic algorithms.
     rng: StdRng,
-    /// When solving started.
+    // When solving started.
     start_time: Option<Instant>,
-    /// Total number of steps across all phases.
+    // Total number of steps across all phases.
     total_step_count: u64,
-    /// Flag for early termination requests.
+    // Flag for early termination requests.
     terminate: Option<&'t AtomicBool>,
-    /// Solver statistics.
+    // Solver statistics.
     stats: SolverStats,
-    /// Time limit for solving (checked by phases).
+    // Time limit for solving (checked by phases).
     time_limit: Option<Duration>,
-    /// Callback invoked when the best solution improves.
+    // Callback invoked when the best solution improves.
     best_solution_callback: Option<Box<dyn Fn(&S) + Send + Sync + 't>>,
 }
 

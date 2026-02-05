@@ -143,7 +143,7 @@ mod tests {
         // Verify column values match indices (column is set to index in create_uninitialized_nqueens)
         let solution = director.working_solution();
         for (i, queen) in solution.queens.iter().enumerate() {
-            assert_eq!(queen.column, i as i32);
+            assert_eq!(queen.column, i as i64);
         }
 
         let selector = FromSolutionEntitySelector::new(0);

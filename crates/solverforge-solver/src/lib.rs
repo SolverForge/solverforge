@@ -19,6 +19,9 @@ pub mod solver;
 pub mod stats;
 pub mod termination;
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub use builder::AcceptorBuilder;
 pub use heuristic::{
     // K-opt reconnection patterns

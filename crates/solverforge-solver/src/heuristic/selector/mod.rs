@@ -16,6 +16,9 @@ mod selection_order;
 pub mod typed_move_selector;
 pub mod typed_value;
 
+#[cfg(test)]
+mod tests;
+
 pub use entity::{
     AllEntitiesSelector, EntityReference, EntitySelector, FromSolutionEntitySelector,
 };

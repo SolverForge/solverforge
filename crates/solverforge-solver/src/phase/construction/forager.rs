@@ -431,56 +431,30 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::EntityReference;
+    use crate::test_utils::{get_queens, get_queens_mut, NQueensSolution, Queen};
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
     use solverforge_core::score::SimpleScore;
     use solverforge_scoring::SimpleScoreDirector;
     use std::any::TypeId;
 
-    #[derive(Clone, Debug)]
-    struct Queen {
-        row: Option<i64>,
+    // Forager tests need i64 row values and a sum-based scorer, unlike the shared i32 version.
+    fn get_queen_row_i64(s: &NQueensSolution, idx: usize) -> Option<i64> {
+        s.queens.get(idx).and_then(|q| q.row.map(|r| r as i64))
     }
 
-    #[derive(Clone, Debug)]
-    struct NQueensSolution {
-        queens: Vec<Queen>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for NQueensSolution {
-        type Score = SimpleScore;
-
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-        &s.queens
-    }
-
-    fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-        &mut s.queens
-    }
-
-    fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
-        s.queens.get(idx).and_then(|q| q.row)
-    }
-
-    fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
+    fn set_queen_row_i64(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
         if let Some(queen) = s.queens.get_mut(idx) {
-            queen.row = v;
+            queen.row = v.map(|r| r as i32);
         }
     }
 
     fn create_test_director(
     ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
         let solution = NQueensSolution {
-            queens: vec![Queen { row: None }],
+            queens: vec![Queen {
+                column: 0,
+                row: None,
+            }],
             score: None,
         };
 
@@ -497,8 +471,14 @@ mod tests {
             SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
                 .with_entity(entity_desc);
 
+        // Sum-based scorer for forager tests (higher row value = better score)
         SimpleScoreDirector::with_calculator(solution, descriptor, |sol| {
-            let sum: i64 = sol.queens.iter().filter_map(|q| q.row).sum();
+            let sum: i64 = sol
+                .queens
+                .iter()
+                .filter_map(|q| q.row)
+                .map(|r| r as i64)
+                .sum();
             SimpleScore::of(sum)
         })
     }
@@ -508,9 +488,30 @@ mod tests {
     fn create_placement() -> Placement<NQueensSolution, TestMove> {
         let entity_ref = EntityReference::new(0, 0);
         let moves: Vec<TestMove> = vec![
-            ChangeMove::new(0, Some(1i64), get_queen_row, set_queen_row, "row", 0),
-            ChangeMove::new(0, Some(5i64), get_queen_row, set_queen_row, "row", 0),
-            ChangeMove::new(0, Some(3i64), get_queen_row, set_queen_row, "row", 0),
+            ChangeMove::new(
+                0,
+                Some(1i64),
+                get_queen_row_i64,
+                set_queen_row_i64,
+                "row",
+                0,
+            ),
+            ChangeMove::new(
+                0,
+                Some(5i64),
+                get_queen_row_i64,
+                set_queen_row_i64,
+                "row",
+                0,
+            ),
+            ChangeMove::new(
+                0,
+                Some(3i64),
+                get_queen_row_i64,
+                set_queen_row_i64,
+                "row",
+                0,
+            ),
         ];
         Placement::new(entity_ref, moves)
     }

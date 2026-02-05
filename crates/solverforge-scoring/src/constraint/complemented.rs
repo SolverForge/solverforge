@@ -381,7 +381,7 @@ where
     }
 
     /// Retract an A entity and return the score delta.
-    fn retract_entity(&mut self, _entities_a: &[A], entities_b: &[B], entity_index: usize) -> Sc {
+    fn retract_entity(&mut self, _entities_a: &[A], _entities_b: &[B], entity_index: usize) -> Sc {
         // Find which group this entity belonged to
         let Some(key) = self.entity_groups.remove(&entity_index) else {
             return Sc::zero();
@@ -395,15 +395,13 @@ where
 
         // Check if there's a B entity for this key
         let b_idx = self.b_by_key.get(&key).copied();
-        let Some(b_idx) = b_idx else {
+        if b_idx.is_none() {
             // No B entity for this key - just update accumulator, no score delta
             if let Some(acc) = self.groups.get_mut(&key) {
                 acc.retract(&value);
             }
             return Sc::zero();
-        };
-
-        let b = &entities_b[b_idx];
+        }
 
         // Get accumulator
         let Some(acc) = self.groups.get_mut(&key) else {
@@ -421,19 +419,13 @@ where
         // Retract value
         acc.retract(&value);
 
-        // Compute new score (use default if accumulator is now empty)
+        // Compute new score
         let new_result = acc.finish();
-        // Check if result is "empty" by comparing with default
-        let default_result = (self.default_fn)(b);
         let new_base = (self.weight_fn)(&new_result);
         let new_score = match impact {
             ImpactType::Penalty => -new_base,
             ImpactType::Reward => new_base,
         };
-
-        // If the accumulator result equals default, we could remove it from the map
-        // but it's not strictly necessary for correctness
-        let _ = default_result; // silence unused warning
 
         // Return delta
         new_score - old

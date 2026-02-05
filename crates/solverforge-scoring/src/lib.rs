@@ -13,6 +13,9 @@
 // Zero-erasure architecture intentionally uses complex generic types
 #![allow(clippy::type_complexity)]
 
+#[cfg(test)]
+pub mod test_utils;
+
 // Core modules
 pub mod api;
 pub mod constraint;

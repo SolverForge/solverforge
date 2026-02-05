@@ -143,7 +143,7 @@ macro_rules! impl_get_matches_nary {
                                     EntityRef::new(c),
                                     EntityRef::new(d),
                                 ]);
-                                let score = $self.compute_score(a, b, c, d);
+                                let score = $self.compute_score($solution, i, j, k, l);
                                 matches.push(DetailedConstraintMatch::new(
                                     cref.clone(),
                                     score,
@@ -197,7 +197,7 @@ macro_rules! impl_get_matches_nary {
                                         EntityRef::new(d),
                                         EntityRef::new(e),
                                     ]);
-                                    let score = $self.compute_score(a, b, c, d, e);
+                                    let score = $self.compute_score($solution, i, j, k, l, m);
                                     matches.push(DetailedConstraintMatch::new(
                                         cref.clone(),
                                         score,

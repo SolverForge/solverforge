@@ -20,6 +20,8 @@ pub mod typed;
 #[cfg(test)]
 mod recording_tests;
 #[cfg(test)]
+mod tests;
+#[cfg(test)]
 mod typed_bench;
 
 pub use factory::ScoreDirectorFactory;

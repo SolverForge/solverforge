@@ -8,6 +8,9 @@ use crate::eval::{EntityRef, EvalContext};
 use crate::expr::Expr;
 use crate::solution::{DynamicEntity, DynamicSolution};
 
+// Note: DynamicDescriptor is kept in make_quad_weight signature for API consistency,
+// even though it's no longer needed after switching to solution+indices pattern.
+
 /// Creates a quad-entity filter closure from a filter expression.
 ///
 /// Returns a boxed closure that evaluates the filter expression against four entities
@@ -79,7 +82,7 @@ pub fn make_quad_filter(filter_expr: Expr, class_idx: usize) -> DynQuadFilter {
 /// # Parameters
 /// - `weight_expr`: Expression to evaluate (should return numeric value)
 /// - `class_idx`: Entity class index (all four entities must be from this class)
-/// - `descriptor`: Problem descriptor for creating temporary solution context
+/// - `_descriptor`: Problem descriptor (unused, kept for API consistency)
 /// - `is_hard`: If true, weight is applied to hard score; otherwise soft score
 ///
 /// # Expression Context
@@ -91,46 +94,33 @@ pub fn make_quad_filter(filter_expr: Expr, class_idx: usize) -> DynQuadFilter {
 /// - Arithmetic and comparison operations work across all four entities
 ///
 /// # Implementation
-/// Creates a temporary `DynamicSolution` with all four entities for proper evaluation context.
-/// This enables full quad-entity expression evaluation via `EvalContext`.
-///
-/// Note: This approach clones entities into a temporary solution. While this violates the
-/// zero-clone principle, it's necessary because the `DynQuadWeight` signature doesn't provide
-/// access to the solution or entity indices. The clone happens only for matched quadruples
-/// (bounded by match count, not total entity count).
+/// Takes the solution reference and entity indices directly, avoiding entity cloning.
+/// The indices refer to positions within `solution.entities[class_idx]`.
 pub fn make_quad_weight(
     weight_expr: Expr,
     class_idx: usize,
-    descriptor: DynamicDescriptor,
+    _descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> DynQuadWeight {
     Box::new(
-        move |a: &DynamicEntity, b: &DynamicEntity, c: &DynamicEntity, d: &DynamicEntity| {
-            // Create a temporary solution with the descriptor and the four entities.
-            let mut temp_solution = DynamicSolution {
-                descriptor: descriptor.clone(),
-                entities: vec![Vec::new(); descriptor.entity_classes.len()],
-                facts: Vec::new(),
-                score: None,
-                id_to_location: std::collections::HashMap::new(),
-            };
-
-            // Place all four entities at indices 0, 1, 2, 3 in the class entity slice.
-            temp_solution.entities[class_idx] = vec![a.clone(), b.clone(), c.clone(), d.clone()];
-
-            // Build EntityRef tuple: all four entities from the same class.
+        move |solution: &DynamicSolution,
+              a_idx: usize,
+              b_idx: usize,
+              c_idx: usize,
+              d_idx: usize| {
+            // Build EntityRef tuple using the provided indices.
             let tuple = vec![
-                EntityRef::new(class_idx, 0),
-                EntityRef::new(class_idx, 1),
-                EntityRef::new(class_idx, 2),
-                EntityRef::new(class_idx, 3),
+                EntityRef::new(class_idx, a_idx),
+                EntityRef::new(class_idx, b_idx),
+                EntityRef::new(class_idx, c_idx),
+                EntityRef::new(class_idx, d_idx),
             ];
 
-            let ctx = EvalContext::new(&temp_solution, &tuple);
+            let ctx = EvalContext::new(solution, &tuple);
             let result = crate::eval::eval_expr(&weight_expr, &ctx);
 
             // Convert result to numeric value and apply to hard or soft score.
-            let weight_num = result.as_i64().unwrap_or(0) as i64;
+            let weight_num = result.as_i64().unwrap_or(0);
             if is_hard {
                 HardSoftScore::of_hard(weight_num)
             } else {

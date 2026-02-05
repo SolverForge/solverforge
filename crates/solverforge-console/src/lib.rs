@@ -47,14 +47,14 @@ pub fn init() {
     });
 }
 
-/// Marks the start of solving for elapsed time tracking.
+// Marks the start of solving for elapsed time tracking.
 fn mark_solve_start() {
     let epoch = EPOCH.get_or_init(Instant::now);
     let nanos = epoch.elapsed().as_nanos() as u64;
     SOLVE_START_NANOS.store(nanos, Ordering::Relaxed);
 }
 
-/// Returns elapsed time since solve start.
+// Returns elapsed time since solve start.
 fn elapsed_secs() -> f64 {
     let Some(epoch) = EPOCH.get() else {
         return 0.0;

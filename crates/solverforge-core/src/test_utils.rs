@@ -2,7 +2,11 @@
 //!
 //! Provides common test fixtures used across the crate's test modules.
 
-use crate::domain::{EntityExtractor, TypedEntityExtractor};
+use crate::domain::{
+    EntityDescriptor, EntityExtractor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+};
+use crate::score::SimpleScore;
+use std::any::TypeId;
 
 /// A simple test entity with an id and optional value.
 #[derive(Clone, Debug, PartialEq)]
@@ -31,10 +35,11 @@ impl TestEntity {
     }
 }
 
-/// A simple test solution containing a vector of test entities.
+/// A simple test solution containing a vector of test entities and an optional score.
 #[derive(Clone, Debug)]
 pub struct TestSolution {
     pub entities: Vec<TestEntity>,
+    pub score: Option<SimpleScore>,
 }
 
 impl TestSolution {
@@ -42,12 +47,24 @@ impl TestSolution {
     pub fn empty() -> Self {
         Self {
             entities: Vec::new(),
+            score: None,
         }
     }
 
     /// Creates a test solution with the given entities.
     pub fn with_entities(entities: Vec<TestEntity>) -> Self {
-        Self { entities }
+        Self {
+            entities,
+            score: None,
+        }
+    }
+
+    /// Creates a test solution with the given score (no entities).
+    pub fn with_score(score: SimpleScore) -> Self {
+        Self {
+            entities: Vec::new(),
+            score: Some(score),
+        }
     }
 
     /// Returns a reference to the entities.
@@ -58,6 +75,18 @@ impl TestSolution {
     /// Returns a mutable reference to the entities.
     pub fn entities_mut(&mut self) -> &mut Vec<TestEntity> {
         &mut self.entities
+    }
+}
+
+impl PlanningSolution for TestSolution {
+    type Score = SimpleScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
     }
 }
 
@@ -79,6 +108,14 @@ pub fn create_test_entity_extractor() -> Box<dyn EntityExtractor> {
         get_test_entities,
         get_test_entities_mut,
     ))
+}
+
+/// Creates a SolutionDescriptor for TestSolution with TestEntity.
+pub fn create_test_descriptor() -> SolutionDescriptor {
+    let extractor = create_test_entity_extractor();
+    let entity_desc = EntityDescriptor::new("TestEntity", TypeId::of::<TestEntity>(), "entities")
+        .with_extractor(extractor);
+    SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()).with_entity(entity_desc)
 }
 
 #[cfg(test)]

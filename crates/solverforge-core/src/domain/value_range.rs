@@ -193,7 +193,8 @@ where
     }
 
     fn value_count(&self, _solution: &S) -> usize {
-        (self.end - self.start).max(0) as usize
+        let count = (self.end - self.start).max(0);
+        usize::try_from(count).expect("IntegerRange count overflows usize")
     }
 }
 
@@ -202,11 +203,16 @@ where
     S: Send + Sync,
 {
     fn get_values(&self, _solution: &S) -> Vec<i32> {
-        (self.start as i32..self.end as i32).collect()
+        let start_i32 =
+            i32::try_from(self.start).expect("IntegerRange start overflows i32 for i32 provider");
+        let end_i32 =
+            i32::try_from(self.end).expect("IntegerRange end overflows i32 for i32 provider");
+        (start_i32..end_i32).collect()
     }
 
     fn value_count(&self, _solution: &S) -> usize {
-        (self.end - self.start).max(0) as usize
+        let count = (self.end - self.start).max(0);
+        usize::try_from(count).expect("IntegerRange count overflows usize")
     }
 }
 

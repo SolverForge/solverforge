@@ -803,6 +803,7 @@ name = "solverforge-scoring"
 version = "0.6.0"
 dependencies = [
  "solverforge-core",
+ "solverforge-test",
  "thiserror",
 ]
 
@@ -818,9 +819,17 @@ dependencies = [
  "solverforge-config",
  "solverforge-core",
  "solverforge-scoring",
+ "solverforge-test",
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "solverforge-test"
+version = "0.6.0"
+dependencies = [
+ "solverforge-core",
 ]
 
 [[package]]

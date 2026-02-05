@@ -121,116 +121,17 @@ mod tests {
     use super::*;
     use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
     use crate::phase::construction::{BestFitForager, FirstFitForager, QueuedEntityPlacer};
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
-    use std::any::TypeId;
-
-    #[derive(Clone, Debug)]
-    struct Queen {
-        column: i32,
-        row: Option<i32>,
-    }
-
-    #[derive(Clone, Debug)]
-    struct NQueensSolution {
-        n: i32,
-        queens: Vec<Queen>,
-        score: Option<SimpleScore>,
-    }
-
-    impl PlanningSolution for NQueensSolution {
-        type Score = SimpleScore;
-
-        fn score(&self) -> Option<Self::Score> {
-            self.score
-        }
-
-        fn set_score(&mut self, score: Option<Self::Score>) {
-            self.score = score;
-        }
-    }
-
-    fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-        &s.queens
-    }
-
-    fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-        &mut s.queens
-    }
-
-    fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i32> {
-        s.queens.get(idx).and_then(|q| q.row)
-    }
-
-    fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i32>) {
-        if let Some(queen) = s.queens.get_mut(idx) {
-            queen.row = v;
-        }
-    }
-
-    fn calculate_conflicts(solution: &NQueensSolution) -> SimpleScore {
-        let mut conflicts = 0i64;
-
-        for (i, q1) in solution.queens.iter().enumerate() {
-            if let Some(row1) = q1.row {
-                for (_, q2) in solution.queens.iter().enumerate().skip(i + 1) {
-                    if let Some(row2) = q2.row {
-                        if row1 == row2 {
-                            conflicts += 1;
-                        }
-                        let col_diff = (q2.column - q1.column).abs();
-                        let row_diff = (row2 - row1).abs();
-                        if col_diff == row_diff {
-                            conflicts += 1;
-                        }
-                    }
-                }
-            }
-        }
-
-        SimpleScore::of(-conflicts)
-    }
-
-    fn create_test_director(
-        n: i32,
-    ) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-        let queens: Vec<_> = (0..n)
-            .map(|col| Queen {
-                column: col,
-                row: None,
-            })
-            .collect();
-
-        let solution = NQueensSolution {
-            n,
-            queens,
-            score: None,
-        };
-
-        let extractor = Box::new(TypedEntityExtractor::new(
-            "Queen",
-            "queens",
-            get_queens,
-            get_queens_mut,
-        ));
-        let entity_desc = EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens")
-            .with_extractor(extractor);
-
-        let descriptor =
-            SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-                .with_entity(entity_desc);
-
-        SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
-    }
+    use crate::test_utils::{
+        create_simple_nqueens_director, get_queen_row, set_queen_row, NQueensSolution,
+    };
 
     fn create_placer(
-        values: Vec<i32>,
+        values: Vec<i64>,
     ) -> QueuedEntityPlacer<
         NQueensSolution,
-        i32,
+        i64,
         FromSolutionEntitySelector,
-        StaticTypedValueSelector<NQueensSolution, i32>,
+        StaticTypedValueSelector<NQueensSolution, i64>,
     > {
         let es = FromSolutionEntitySelector::new(0);
         let vs = StaticTypedValueSelector::new(values);
@@ -239,10 +140,10 @@ mod tests {
 
     #[test]
     fn test_construction_first_fit() {
-        let director = create_test_director(4);
+        let director = create_simple_nqueens_director(4);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let placer = create_placer(values);
         let forager = FirstFitForager::new();
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);
@@ -250,7 +151,7 @@ mod tests {
         phase.solve(&mut solver_scope);
 
         let solution = solver_scope.working_solution();
-        assert_eq!(solution.n, 4);
+        assert_eq!(solution.queens.len(), 4);
         for queen in &solution.queens {
             assert!(queen.row.is_some(), "Queen should have a row assigned");
         }
@@ -260,10 +161,10 @@ mod tests {
 
     #[test]
     fn test_construction_best_fit() {
-        let director = create_test_director(4);
+        let director = create_simple_nqueens_director(4);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = (0..4).collect();
+        let values: Vec<i64> = (0..4).collect();
         let placer = create_placer(values);
         let forager = BestFitForager::new();
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);
@@ -281,10 +182,10 @@ mod tests {
 
     #[test]
     fn test_construction_empty_solution() {
-        let director = create_test_director(0);
+        let director = create_simple_nqueens_director(0);
         let mut solver_scope = SolverScope::new(director);
 
-        let values: Vec<i32> = vec![];
+        let values: Vec<i64> = vec![];
         let placer = create_placer(values);
         let forager = FirstFitForager::new();
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);

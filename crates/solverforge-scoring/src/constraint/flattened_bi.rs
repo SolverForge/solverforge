@@ -1,6 +1,6 @@
-//! O(1) flattened bi-constraint for cross-entity joins.
-//!
-//! Pre-indexes C items by key for O(1) lookup on entity changes.
+// O(1) flattened bi-constraint for cross-entity joins.
+//
+// Pre-indexes C items by key for O(1) lookup on entity changes.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -11,86 +11,86 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 
-/// O(1) flattened bi-constraint.
-///
-/// Given a join between A and B entities by key, this constraint:
-/// 1. Expands each B into C items via a flatten function
-/// 2. Pre-indexes C items by (join_key, c_key) for O(1) lookup
-/// 3. On A entity change, looks up matching C items in O(1) instead of O(|C|)
-///
-/// # Type Parameters
-///
-/// - `S` - Solution type
-/// - `A` - Entity type A (the planning entity, e.g., Shift)
-/// - `B` - Entity type B (the joined entity, e.g., Employee)
-/// - `C` - Flattened item type (e.g., NaiveDate from unavailable dates)
-/// - `K` - Join key type (e.g., Option<usize> for employee_idx)
-/// - `CK` - C item key type for indexing (e.g., NaiveDate)
-/// - `EA` - Extractor for A entities
-/// - `EB` - Extractor for B entities
-/// - `KA` - Key extractor for A (join key)
-/// - `KB` - Key extractor for B (join key)
-/// - `Flatten` - Function extracting &[C] from &B
-/// - `CKeyFn` - Function extracting index key from &C
-/// - `ALookup` - Function extracting lookup key from &A
-/// - `F` - Filter on (A, C) pairs
-/// - `W` - Weight function on (A, C) pairs
-/// - `Sc` - Score type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::constraint::flattened_bi::FlattenedBiConstraint;
-/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-/// use solverforge_core::{ConstraintRef, ImpactType};
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Employee {
-///     id: usize,
-///     unavailable_days: Vec<u32>,
-/// }
-///
-/// #[derive(Clone)]
-/// struct Shift {
-///     employee_id: Option<usize>,
-///     day: u32,
-/// }
-///
-/// #[derive(Clone)]
-/// struct Schedule {
-///     shifts: Vec<Shift>,
-///     employees: Vec<Employee>,
-/// }
-///
-/// let constraint = FlattenedBiConstraint::new(
-///     ConstraintRef::new("", "Unavailable employee"),
-///     ImpactType::Penalty,
-///     |s: &Schedule| s.shifts.as_slice(),
-///     |s: &Schedule| s.employees.as_slice(),
-///     |shift: &Shift| shift.employee_id,
-///     |emp: &Employee| Some(emp.id),
-///     |emp: &Employee| emp.unavailable_days.as_slice(),
-///     |day: &u32| *day,           // C → index key
-///     |shift: &Shift| shift.day,  // A → lookup key
-///     |_s: &Schedule, shift: &Shift, day: &u32| shift.day == *day,
-///     |_shift: &Shift, _day: &u32| SimpleScore::of(1),
-///     false,
-/// );
-///
-/// let schedule = Schedule {
-///     shifts: vec![
-///         Shift { employee_id: Some(0), day: 5 },
-///         Shift { employee_id: Some(0), day: 10 },
-///     ],
-///     employees: vec![
-///         Employee { id: 0, unavailable_days: vec![5, 15] },
-///     ],
-/// };
-///
-/// // Day 5 shift conflicts with employee's unavailable day 5 → O(1) lookup!
-/// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
-/// ```
+// O(1) flattened bi-constraint.
+//
+// Given a join between A and B entities by key, this constraint:
+// 1. Expands each B into C items via a flatten function
+// 2. Pre-indexes C items by (join_key, c_key) for O(1) lookup
+// 3. On A entity change, looks up matching C items in O(1) instead of O(|C|)
+//
+// # Type Parameters
+//
+// - `S` - Solution type
+// - `A` - Entity type A (the planning entity, e.g., Shift)
+// - `B` - Entity type B (the joined entity, e.g., Employee)
+// - `C` - Flattened item type (e.g., NaiveDate from unavailable dates)
+// - `K` - Join key type (e.g., Option<usize> for employee_idx)
+// - `CK` - C item key type for indexing (e.g., NaiveDate)
+// - `EA` - Extractor for A entities
+// - `EB` - Extractor for B entities
+// - `KA` - Key extractor for A (join key)
+// - `KB` - Key extractor for B (join key)
+// - `Flatten` - Function extracting &[C] from &B
+// - `CKeyFn` - Function extracting index key from &C
+// - `ALookup` - Function extracting lookup key from &A
+// - `F` - Filter on (A, C) pairs
+// - `W` - Weight function on (A, C) pairs
+// - `Sc` - Score type
+//
+// # Example
+//
+// ```
+// use solverforge_scoring::constraint::flattened_bi::FlattenedBiConstraint;
+// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+// use solverforge_core::{ConstraintRef, ImpactType};
+// use solverforge_core::score::SimpleScore;
+//
+// #[derive(Clone)]
+// struct Employee {
+//     id: usize,
+//     unavailable_days: Vec<u32>,
+// }
+//
+// #[derive(Clone)]
+// struct Shift {
+//     employee_id: Option<usize>,
+//     day: u32,
+// }
+//
+// #[derive(Clone)]
+// struct Schedule {
+//     shifts: Vec<Shift>,
+//     employees: Vec<Employee>,
+// }
+//
+// let constraint = FlattenedBiConstraint::new(
+//     ConstraintRef::new("", "Unavailable employee"),
+//     ImpactType::Penalty,
+//     |s: &Schedule| s.shifts.as_slice(),
+//     |s: &Schedule| s.employees.as_slice(),
+//     |shift: &Shift| shift.employee_id,
+//     |emp: &Employee| Some(emp.id),
+//     |emp: &Employee| emp.unavailable_days.as_slice(),
+//     |day: &u32| *day,           // C → index key
+//     |shift: &Shift| shift.day,  // A → lookup key
+//     |_s: &Schedule, shift: &Shift, day: &u32| shift.day == *day,
+//     |_shift: &Shift, _day: &u32| SimpleScore::of(1),
+//     false,
+// );
+//
+// let schedule = Schedule {
+//     shifts: vec![
+//         Shift { employee_id: Some(0), day: 5 },
+//         Shift { employee_id: Some(0), day: 10 },
+//     ],
+//     employees: vec![
+//         Employee { id: 0, unavailable_days: vec![5, 15] },
+//     ],
+// };
+//
+// // Day 5 shift conflicts with employee's unavailable day 5 → O(1) lookup!
+// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+// ```
 pub struct FlattenedBiConstraint<
     S,
     A,
@@ -123,9 +123,9 @@ pub struct FlattenedBiConstraint<
     filter: F,
     weight: W,
     is_hard: bool,
-    /// (join_key, c_key) → list of (b_idx, c_value) for O(1) lookup
+    // (join_key, c_key) → list of (b_idx, c_value) for O(1) lookup
     c_index: HashMap<(K, CK), Vec<(usize, C)>>,
-    /// A index → cached score for this entity's matches
+    // A index → cached score for this entity's matches
     a_scores: HashMap<usize, Sc>,
     _phantom: PhantomData<(S, A, B)>,
 }
@@ -150,7 +150,7 @@ where
     W: Fn(&A, &C) -> Sc,
     Sc: Score,
 {
-    /// Creates a new O(1) flattened bi-constraint.
+    // Creates a new O(1) flattened bi-constraint.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
@@ -194,7 +194,7 @@ where
         }
     }
 
-    /// Build C index: (join_key, c_key) → list of (b_idx, c_value)
+    // Build C index: (join_key, c_key) → list of (b_idx, c_value)
     fn build_c_index(&mut self, entities_b: &[B]) {
         self.c_index.clear();
         for (b_idx, b) in entities_b.iter().enumerate() {
@@ -209,7 +209,7 @@ where
         }
     }
 
-    /// Compute score for entity A using O(1) index lookup.
+    // Compute score for entity A using O(1) index lookup.
     fn compute_a_score(&self, solution: &S, a: &A) -> Sc {
         let join_key = (self.key_a)(a);
         let lookup_key = (self.a_lookup_fn)(a);

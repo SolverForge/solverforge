@@ -14,11 +14,11 @@ use super::PhaseScope;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> {
-    /// Reference to the parent phase scope.
+    // Reference to the parent phase scope.
     phase_scope: &'a mut PhaseScope<'t, 'b, S, D>,
-    /// Index of this step within the phase (0-based).
+    // Index of this step within the phase (0-based).
     step_index: u64,
-    /// Score after this step.
+    // Score after this step.
     step_score: Option<S::Score>,
 }
 

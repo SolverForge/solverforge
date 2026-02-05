@@ -9,6 +9,7 @@ members = [
     "crates/solverforge-console",
     "crates/solverforge",
     "crates/solverforge-dynamic",
+    "crates/solverforge-test",
     "crates/solverforge-py",
     "examples/nqueens",
 ]
@@ -29,6 +30,7 @@ solverforge-solver = { path = "crates/solverforge-solver" }
 solverforge-config = { path = "crates/solverforge-config" }
 solverforge = { path = "crates/solverforge" }
 solverforge-dynamic = { path = "crates/solverforge-dynamic" }
+solverforge-test = { path = "crates/solverforge-test" }
 
 # External dependencies
 pyo3 = { version = "0.27", features = ["extension-module"] }

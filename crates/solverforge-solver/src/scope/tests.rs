@@ -1,67 +1,12 @@
 //! Tests for scope types.
 
 use super::*;
-use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
-};
+use crate::test_utils::create_simple_nqueens_director;
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
-use std::any::TypeId;
-
-#[derive(Clone, Debug)]
-struct Queen;
-
-#[derive(Clone, Debug)]
-struct NQueensSolution {
-    queens: Vec<Queen>,
-    score: Option<SimpleScore>,
-}
-
-impl PlanningSolution for NQueensSolution {
-    type Score = SimpleScore;
-
-    fn score(&self) -> Option<Self::Score> {
-        self.score
-    }
-
-    fn set_score(&mut self, score: Option<Self::Score>) {
-        self.score = score;
-    }
-}
-
-fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-    &s.queens
-}
-
-fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-    &mut s.queens
-}
-
-fn create_test_director(
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-    let solution = NQueensSolution {
-        queens: vec![Queen, Queen],
-        score: None,
-    };
-
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Queen",
-        "queens",
-        get_queens,
-        get_queens_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
-
-    let descriptor = SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc);
-
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
-}
 
 #[test]
 fn test_solver_scope_creation() {
-    let director = create_test_director();
+    let director = create_simple_nqueens_director(2);
     let scope = SolverScope::new(director);
 
     assert!(scope.best_solution().is_none());
@@ -71,7 +16,7 @@ fn test_solver_scope_creation() {
 
 #[test]
 fn test_solver_scope_update_best() {
-    let director = create_test_director();
+    let director = create_simple_nqueens_director(2);
     let mut scope = SolverScope::new(director);
 
     scope.update_best_solution();
@@ -82,7 +27,7 @@ fn test_solver_scope_update_best() {
 
 #[test]
 fn test_solver_scope_step_count() {
-    let director = create_test_director();
+    let director = create_simple_nqueens_director(2);
     let mut scope = SolverScope::new(director);
 
     assert_eq!(scope.increment_step_count(), 1);
@@ -92,7 +37,7 @@ fn test_solver_scope_step_count() {
 
 #[test]
 fn test_phase_scope() {
-    let director = create_test_director();
+    let director = create_simple_nqueens_director(2);
     let mut solver_scope = SolverScope::new(director);
 
     {
@@ -109,7 +54,7 @@ fn test_phase_scope() {
 
 #[test]
 fn test_step_scope() {
-    let director = create_test_director();
+    let director = create_simple_nqueens_director(2);
     let mut solver_scope = SolverScope::new(director);
 
     {

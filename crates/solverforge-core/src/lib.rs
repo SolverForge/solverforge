@@ -12,7 +12,7 @@ pub mod error;
 pub mod score;
 
 #[cfg(test)]
-pub mod test_utils;
+mod constraint_tests;
 
 pub use constraint::{ConstraintRef, ImpactType};
 pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};

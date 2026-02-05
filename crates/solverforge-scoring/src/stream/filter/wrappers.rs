@@ -1,8 +1,8 @@
-//! Filter wrappers for closures and constant filters.
+// Filter wrappers for closures and constant filters.
 
 use super::traits::{BiFilter, PentaFilter, QuadFilter, TriFilter, UniFilter};
 
-/// A filter that always returns true.
+// A filter that always returns true.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TrueFilter;
 
@@ -31,7 +31,7 @@ macro_rules! impl_fn_filter {
         }
 
         impl<F> $name<F> {
-            /// Creates a new filter wrapping the given closure.
+            // Creates a new filter wrapping the given closure.
             #[inline]
             pub fn new(f: F) -> Self {
                 Self { f }

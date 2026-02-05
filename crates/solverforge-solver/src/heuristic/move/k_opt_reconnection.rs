@@ -316,40 +316,9 @@ fn generate_permutations(items: &[u8]) -> Vec<Vec<u8>> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn enumerate_2opt_count() {
-        let patterns = enumerate_reconnections(2);
-        assert_eq!(patterns.len(), 1);
-        assert!(patterns[0].should_reverse(1));
-    }
-
-    #[test]
-    fn enumerate_3opt_count() {
-        let patterns = enumerate_reconnections(3);
-        assert_eq!(patterns.len(), 7);
-    }
-
-    #[test]
-    fn enumerate_matches_static_3opt() {
-        let dynamic = enumerate_reconnections(3);
-        assert_eq!(dynamic.len(), THREE_OPT_RECONNECTIONS.len());
-    }
-
-    #[test]
-    fn enumerate_4opt_count() {
-        // 4-opt: 3 middle segments
-        // 3! permutations * 2^3 reversals - 1 identity = 6 * 8 - 1 = 47
-        let patterns = enumerate_reconnections(4);
-        assert_eq!(patterns.len(), 47);
-    }
-
-    #[test]
-    fn enumerate_5opt_count() {
-        // 5-opt: 4 middle segments
-        // 4! permutations * 2^4 reversals - 1 identity = 24 * 16 - 1 = 383
-        let patterns = enumerate_reconnections(5);
-        assert_eq!(patterns.len(), 383);
-    }
+    // Note: Public API tests (enumerate_*_count, enumerate_matches_static_3opt)
+    // are in heuristic/move/tests/k_opt.rs
+    // These tests verify internal invariants using private methods.
 
     #[test]
     fn no_identity_in_patterns() {

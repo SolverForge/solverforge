@@ -3,7 +3,7 @@
 //! Tests extracted from:
 //! - load_balance.rs (6 tests)
 
-use super::load_balance::{load_balance, LoadBalance};
+use super::load_balance::load_balance;
 use super::{Accumulator, UniCollector};
 
 // ============================================================================

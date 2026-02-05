@@ -2,21 +2,15 @@
 
 use super::recording::RecordingScoreDirector;
 use super::SimpleScoreDirector;
-use crate::test_utils::{
-    calculate_conflicts, create_test_descriptor, get_row, set_row, NQueensSolution, Queen,
-};
 use crate::ScoreDirector;
 use solverforge_core::score::SimpleScore;
+use solverforge_test::nqueens::{
+    calculate_conflicts, create_test_descriptor, get_row, set_row, NQueensSolution, Queen,
+};
 
 #[test]
 fn test_recording_register_undo() {
-    let solution = NQueensSolution {
-        queens: vec![Queen {
-            id: 0,
-            row: Some(0),
-        }],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -51,23 +45,11 @@ fn test_recording_register_undo() {
 
 #[test]
 fn test_recording_multiple_undo() {
-    let solution = NQueensSolution {
-        queens: vec![
-            Queen {
-                id: 0,
-                row: Some(0),
-            },
-            Queen {
-                id: 1,
-                row: Some(1),
-            },
-            Queen {
-                id: 2,
-                row: Some(2),
-            },
-        ],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![
+        Queen::assigned(0, 0, 0),
+        Queen::assigned(1, 1, 1),
+        Queen::assigned(2, 2, 2),
+    ]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -78,7 +60,7 @@ fn test_recording_multiple_undo() {
         // Change multiple entities, registering typed undo for each
         for i in 0..3 {
             let old = get_row(recording.working_solution(), i);
-            set_row(recording.working_solution_mut(), i, Some(10 + i as i32));
+            set_row(recording.working_solution_mut(), i, Some(10 + i as i64));
             recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
                 set_row(s, i, old);
             }));
@@ -98,13 +80,7 @@ fn test_recording_multiple_undo() {
 
 #[test]
 fn test_recording_undo_same_entity_twice() {
-    let solution = NQueensSolution {
-        queens: vec![Queen {
-            id: 0,
-            row: Some(0),
-        }],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -137,13 +113,7 @@ fn test_recording_undo_same_entity_twice() {
 
 #[test]
 fn test_recording_reset() {
-    let solution = NQueensSolution {
-        queens: vec![Queen {
-            id: 0,
-            row: Some(0),
-        }],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -159,19 +129,7 @@ fn test_recording_reset() {
 
 #[test]
 fn test_recording_calculate_score() {
-    let solution = NQueensSolution {
-        queens: vec![
-            Queen {
-                id: 0,
-                row: Some(0),
-            },
-            Queen {
-                id: 1,
-                row: Some(1),
-            },
-        ],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0), Queen::assigned(1, 1, 1)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -200,10 +158,7 @@ fn test_recording_calculate_score() {
 
 #[test]
 fn test_recording_undo_none_to_some() {
-    let solution = NQueensSolution {
-        queens: vec![Queen { id: 0, row: None }],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::unassigned(0, 0)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -228,13 +183,7 @@ fn test_recording_undo_none_to_some() {
 
 #[test]
 fn test_recording_undo_some_to_none() {
-    let solution = NQueensSolution {
-        queens: vec![Queen {
-            id: 0,
-            row: Some(5),
-        }],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 5)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -259,10 +208,7 @@ fn test_recording_undo_some_to_none() {
 
 #[test]
 fn test_recording_is_incremental() {
-    let solution = NQueensSolution {
-        queens: vec![],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
@@ -273,19 +219,7 @@ fn test_recording_is_incremental() {
 
 #[test]
 fn test_recording_entity_count() {
-    let solution = NQueensSolution {
-        queens: vec![
-            Queen {
-                id: 0,
-                row: Some(0),
-            },
-            Queen {
-                id: 1,
-                row: Some(1),
-            },
-        ],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0), Queen::assigned(1, 1, 1)]);
 
     let descriptor = create_test_descriptor();
     let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);

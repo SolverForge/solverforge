@@ -51,11 +51,13 @@
 
 mod config;
 mod cuts;
+mod distance;
 mod nearby;
 mod selector;
 
 pub use config::KOptConfig;
-pub use nearby::{DefaultDistanceMeter, ListPositionDistanceMeter, NearbyKOptMoveSelector};
+pub use distance::{DefaultDistanceMeter, ListPositionDistanceMeter};
+pub use nearby::NearbyKOptMoveSelector;
 pub use selector::KOptMoveSelector;
 
 // Re-export for crate-internal testing

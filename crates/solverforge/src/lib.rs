@@ -84,7 +84,7 @@ pub use solverforge_solver::{
 // ============================================================================
 
 #[cfg(feature = "console")]
-pub mod console;
+pub use solverforge_console as console;
 
 // ============================================================================
 // Prelude
@@ -103,14 +103,14 @@ pub mod prelude {
 // Internal API for Macros
 // ============================================================================
 
-/// Internal module for macro-generated code. Not part of public API.
+// Internal module for macro-generated code. Not part of public API.
 #[doc(hidden)]
 pub mod __internal {
-    /// Initializes console output if the feature is enabled.
+    // Initializes console output if the feature is enabled.
     #[inline]
     pub fn init_console() {
         #[cfg(feature = "console")]
-        crate::console::init();
+        solverforge_console::init();
     }
 
     // Derive macros

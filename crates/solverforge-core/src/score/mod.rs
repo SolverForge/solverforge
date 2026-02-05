@@ -10,6 +10,9 @@ mod hard_soft_decimal;
 mod simple;
 mod traits;
 
+#[cfg(test)]
+mod tests;
+
 pub use bendable::BendableScore;
 pub use hard_medium_soft::HardMediumSoftScore;
 pub use hard_soft::HardSoftScore;

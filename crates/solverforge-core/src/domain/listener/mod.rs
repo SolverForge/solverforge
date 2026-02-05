@@ -15,6 +15,9 @@
 
 mod traits;
 
+#[cfg(test)]
+mod tests;
+
 pub use traits::{
     ListVariableListener, ListVariableNotification, VariableListener, VariableNotification,
 };

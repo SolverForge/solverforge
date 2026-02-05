@@ -3,8 +3,8 @@
 //! Tests extracted from:
 //! - load_balance.rs (6 tests)
 
-use crate::stream::collector::load_balance::load_balance;
-use crate::stream::collector::{Accumulator, UniCollector};
+use super::super::load_balance::load_balance;
+use super::super::{Accumulator, UniCollector};
 
 // ============================================================================
 // LoadBalance collector tests

@@ -19,7 +19,7 @@
 //!
 //! Then import the fixtures you need:
 //!
-//! ```ignore
+//! ```
 //! use solverforge_test::nqueens::{NQueensSolution, calculate_conflicts, create_nqueens_descriptor};
 //! use solverforge_test::shadow::ShadowSolution;
 //! ```

@@ -4,10 +4,10 @@
 #[macro_export]
 macro_rules! impl_incremental_bi_constraint {
     ($struct_name:ident) => {
-        /// Zero-erasure incremental bi-constraint for self-joins.
-        ///
-        /// All function types are concrete generics - no trait objects, no Arc.
-        /// Uses key-based indexing: entities are grouped by join key for O(k) lookups.
+        // Zero-erasure incremental bi-constraint for self-joins.
+        //
+        // All function types are concrete generics - no trait objects, no Arc.
+        // Uses key-based indexing: entities are grouped by join key for O(k) lookups.
         pub struct $struct_name<S, A, K, E, KE, F, W, Sc>
         where
             Sc: Score,

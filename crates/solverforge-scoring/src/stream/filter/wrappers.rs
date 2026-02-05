@@ -31,7 +31,7 @@ macro_rules! impl_fn_filter {
         }
 
         impl<F> $name<F> {
-            /// Creates a new filter wrapping the given closure.
+            // Creates a new filter wrapping the given closure.
             #[inline]
             pub fn new(f: F) -> Self {
                 Self { f }

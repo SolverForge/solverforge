@@ -11,7 +11,7 @@ macro_rules! impl_and_filter {
         }
 
         impl<F1, F2> $name<F1, F2> {
-            /// Creates a new combined filter from two filters.
+            // Creates a new combined filter from two filters.
             #[inline]
             pub fn new(first: F1, second: F2) -> Self {
                 Self { first, second }

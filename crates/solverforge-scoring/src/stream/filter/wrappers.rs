@@ -1,8 +1,8 @@
-//! Filter wrappers for closures and constant filters.
+// Filter wrappers for closures and constant filters.
 
 use super::traits::{BiFilter, PentaFilter, QuadFilter, TriFilter, UniFilter};
 
-/// A filter that always returns true.
+// A filter that always returns true.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TrueFilter;
 

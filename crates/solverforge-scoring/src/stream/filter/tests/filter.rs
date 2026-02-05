@@ -3,9 +3,9 @@
 //! Tests extracted from:
 //! - mod.rs (5 tests)
 
-use super::composition::{AndBiFilter, AndUniFilter};
-use super::traits::{BiFilter, UniFilter};
-use super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};
+use super::super::composition::{AndBiFilter, AndUniFilter};
+use super::super::traits::{BiFilter, UniFilter};
+use super::super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};
 
 // ============================================================================
 // Filter tests

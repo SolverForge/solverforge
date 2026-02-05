@@ -44,6 +44,9 @@ impl PlanningSolution for TestSolution {
     }
 }
 
+/// Type alias for DummySolution (identical to TestSolution, used in acceptor tests).
+pub type DummySolution = TestSolution;
+
 /// Type alias for a SimpleScoreDirector with a function pointer calculator.
 pub type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
 

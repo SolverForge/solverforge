@@ -4,11 +4,11 @@
 #[macro_export]
 macro_rules! impl_incremental_penta_constraint {
     ($struct_name:ident) => {
-        /// Zero-erasure incremental penta-constraint for self-joins.
-        ///
-        /// All function types are concrete generics - no Arc, no dyn, fully monomorphized.
-        /// Uses key-based indexing: entities are grouped by join key for O(k) lookups.
-        /// Quintuples are ordered as (i, j, k, l, m) where i < j < k < l < m to avoid duplicates.
+        // Zero-erasure incremental penta-constraint for self-joins.
+        //
+        // All function types are concrete generics - no Arc, no dyn, fully monomorphized.
+        // Uses key-based indexing: entities are grouped by join key for O(k) lookups.
+        // Quintuples are ordered as (i, j, k, l, m) where i < j < k < l < m to avoid duplicates.
         pub struct $struct_name<S, A, K, E, KE, F, W, Sc>
         where
             Sc: Score,

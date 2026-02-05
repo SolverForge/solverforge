@@ -219,11 +219,11 @@ macro_rules! impl_bi_arity_stream {
             W: Fn(&A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
-            /// Builds the constraint with an adapted weight function.
-            ///
-            /// The user-provided weight function `Fn(&A, &A) -> Sc` is adapted to the
-            /// constraint's internal signature `Fn(&S, usize, usize) -> Sc` by extracting
-            /// entities from the solution using the extractor and indices.
+            // Builds the constraint with an adapted weight function.
+            //
+            // The user-provided weight function `Fn(&A, &A) -> Sc` is adapted to the
+            // constraint's internal signature `Fn(&S, usize, usize) -> Sc` by extracting
+            // entities from the solution using the extractor and indices.
             pub fn as_constraint(
                 self,
                 name: &str,

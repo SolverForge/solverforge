@@ -4,11 +4,11 @@
 #[macro_export]
 macro_rules! impl_incremental_tri_constraint {
     ($struct_name:ident) => {
-        /// Zero-erasure incremental tri-constraint for self-joins.
-        ///
-        /// All function types are concrete generics - no Arc, no dyn, fully monomorphized.
-        /// Uses key-based indexing: entities are grouped by join key for O(k) lookups.
-        /// Triples are ordered as (i, j, k) where i < j < k to avoid duplicates.
+        // Zero-erasure incremental tri-constraint for self-joins.
+        //
+        // All function types are concrete generics - no Arc, no dyn, fully monomorphized.
+        // Uses key-based indexing: entities are grouped by join key for O(k) lookups.
+        // Triples are ordered as (i, j, k) where i < j < k to avoid duplicates.
         pub struct $struct_name<S, A, K, E, KE, F, W, Sc>
         where
             Sc: Score,

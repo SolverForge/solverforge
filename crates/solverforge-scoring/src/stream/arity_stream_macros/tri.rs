@@ -221,7 +221,7 @@ macro_rules! impl_tri_arity_stream {
             W: Fn(&A, &A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
-            /// Builds the constraint with an adapted weight function.
+            // Builds the constraint with an adapted weight function.
             pub fn as_constraint(
                 self,
                 name: &str,

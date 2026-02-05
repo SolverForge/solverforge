@@ -315,3 +315,7 @@ where
         }
     }
 }
+
+#[cfg(test)]
+#[path = "typed_move_selector_tests.rs"]
+mod tests;

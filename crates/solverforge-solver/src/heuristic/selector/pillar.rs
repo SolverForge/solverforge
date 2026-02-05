@@ -269,3 +269,7 @@ where
         self.descriptor_index
     }
 }
+
+#[cfg(test)]
+#[path = "pillar_tests.rs"]
+mod tests;

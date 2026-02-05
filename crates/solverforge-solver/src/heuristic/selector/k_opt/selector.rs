@@ -1,4 +1,4 @@
-//! K-opt move selector implementation.
+//! K-opt move selector for tour optimization.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,11 +10,12 @@ use crate::heuristic::r#move::k_opt_reconnection::{
     enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
 };
 use crate::heuristic::r#move::KOptMove;
-use crate::heuristic::selector::entity::EntitySelector;
-use crate::heuristic::selector::typed_move_selector::MoveSelector;
 
+use super::super::entity::EntitySelector;
+use super::super::typed_move_selector::MoveSelector;
 use super::config::KOptConfig;
-use super::cuts::{count_cut_combinations, CutCombinationIterator};
+use super::iterators::count_cut_combinations;
+use super::iterators::CutCombinationIterator;
 
 /// A move selector that generates k-opt moves.
 ///
@@ -26,17 +27,17 @@ pub struct KOptMoveSelector<S, V, ES> {
     /// K-opt configuration.
     config: KOptConfig,
     /// Reconnection patterns to use.
-    pub(super) patterns: Vec<&'static KOptReconnection>,
+    patterns: Vec<&'static KOptReconnection>,
     /// Get list length for an entity.
-    pub(super) list_len: fn(&S, usize) -> usize,
+    list_len: fn(&S, usize) -> usize,
     /// Remove sublist [start, end).
-    pub(super) sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     /// Insert elements at position.
-    pub(super) sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     /// Variable name.
-    pub(super) variable_name: &'static str,
+    variable_name: &'static str,
     /// Descriptor index.
-    pub(super) descriptor_index: usize,
+    descriptor_index: usize,
     _phantom: PhantomData<(S, V)>,
 }
 
@@ -85,11 +86,6 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
             descriptor_index,
             _phantom: PhantomData,
         }
-    }
-
-    /// Returns the k-opt configuration.
-    pub fn config(&self) -> &KOptConfig {
-        &self.config
     }
 }
 

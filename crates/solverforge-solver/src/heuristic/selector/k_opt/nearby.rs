@@ -1,4 +1,4 @@
-//! Nearby k-opt move selector with distance-based pruning.
+//! Nearby k-opt move selector for improved performance.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,11 +10,11 @@ use crate::heuristic::r#move::k_opt_reconnection::{
     enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
 };
 use crate::heuristic::r#move::{CutPoint, KOptMove};
-use crate::heuristic::selector::entity::EntitySelector;
-use crate::heuristic::selector::typed_move_selector::MoveSelector;
 
+use super::super::entity::EntitySelector;
+use super::super::typed_move_selector::MoveSelector;
 use super::config::KOptConfig;
-use super::distance::ListPositionDistanceMeter;
+use super::distance_meter::ListPositionDistanceMeter;
 
 /// A k-opt move selector with nearby selection for improved performance.
 ///

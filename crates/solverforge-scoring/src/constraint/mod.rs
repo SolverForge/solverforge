@@ -37,6 +37,8 @@ mod penta_incr_tests;
 #[cfg(test)]
 mod quad_incr_tests;
 #[cfg(test)]
+mod tests;
+#[cfg(test)]
 mod tri_incr_tests;
 
 pub use balance::BalanceConstraint;

@@ -1,4 +1,4 @@
-//! K-opt configuration.
+//! Configuration for k-opt move generation.
 
 /// Configuration for k-opt move generation.
 #[derive(Debug, Clone)]

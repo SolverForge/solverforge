@@ -1,4 +1,4 @@
-//! Tests for variable listener infrastructure
+//! Tests for variable listener infrastructure.
 
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -1,6 +1,6 @@
-//! Quad-arity (4-tuple) incremental constraint macro.
+// Quad-arity (4-tuple) incremental constraint macro.
 
-/// Generates a quad-arity incremental constraint struct.
+// Generates a quad-arity incremental constraint struct.
 #[macro_export]
 macro_rules! impl_incremental_quad_constraint {
     ($struct_name:ident) => {

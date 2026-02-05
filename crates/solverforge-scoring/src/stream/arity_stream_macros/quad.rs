@@ -1,6 +1,6 @@
-//! Quad-arity constraint stream macro.
+// Quad-arity constraint stream macro.
 
-/// Generates a quad-arity constraint stream struct and builder.
+// Generates a quad-arity constraint stream struct and builder.
 macro_rules! impl_quad_arity_stream {
     ($stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>

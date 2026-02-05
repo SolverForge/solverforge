@@ -5,7 +5,7 @@
 //!
 //! # Example
 //!
-//! ```ignore
+//! ```
 //! use solverforge_test::entity::{TestEntity, TestSolution, create_test_descriptor};
 //!
 //! let solution = TestSolution::with_entities(vec![

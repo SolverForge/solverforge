@@ -1,26 +1,26 @@
-//! Macros for reducing boilerplate in N-ary constraint implementations.
-//!
-//! The `impl_get_matches_nary!` macro generates `get_matches()` implementations
-//! for self-join constraints with identical structure but varying arity.
+// Macros for reducing boilerplate in N-ary constraint implementations.
+//
+// The `impl_get_matches_nary!` macro generates `get_matches()` implementations
+// for self-join constraints with identical structure but varying arity.
 
-/// Generates `get_matches()` implementation for N-ary self-join constraints.
-///
-/// All N-ary constraints share the same pattern:
-/// 1. Extract entities and build key index
-/// 2. Iterate over N-tuples within each key group
-/// 3. Filter and collect DetailedConstraintMatch with EntityRefs
-///
-/// # Usage
-///
-/// This macro is used internally in constraint implementations:
-///
-/// ```text
-/// fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
-///     impl_get_matches_nary!(bi: self, solution)
-/// }
-/// ```
-///
-/// Available arities: `bi`, `tri`, `quad`, `penta`
+// Generates `get_matches()` implementation for N-ary self-join constraints.
+//
+// All N-ary constraints share the same pattern:
+// 1. Extract entities and build key index
+// 2. Iterate over N-tuples within each key group
+// 3. Filter and collect DetailedConstraintMatch with EntityRefs
+//
+// # Usage
+//
+// This macro is used internally in constraint implementations:
+//
+// ```text
+// fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
+//     impl_get_matches_nary!(bi: self, solution)
+// }
+// ```
+//
+// Available arities: `bi`, `tri`, `quad`, `penta`
 #[macro_export]
 macro_rules! impl_get_matches_nary {
     // Bi-constraint: 2 entities

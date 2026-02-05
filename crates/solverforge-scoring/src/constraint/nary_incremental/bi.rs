@@ -1,6 +1,6 @@
-//! Bi-arity (2-tuple) incremental constraint macro.
+// Bi-arity (2-tuple) incremental constraint macro.
 
-/// Generates a bi-arity incremental constraint struct.
+// Generates a bi-arity incremental constraint struct.
 #[macro_export]
 macro_rules! impl_incremental_bi_constraint {
     ($struct_name:ident) => {

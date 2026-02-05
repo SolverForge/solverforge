@@ -5,11 +5,7 @@
 //! - simple.rs (2 tests)
 //! - shadow_aware.rs (3 tests)
 
-use std::any::TypeId;
-
-use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
-};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -18,12 +14,18 @@ use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::director::shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport};
 use crate::director::simple::SimpleScoreDirector;
 use crate::director::typed::TypedScoreDirector;
+#[allow(unused_imports)]
 use crate::director::ScoreDirector;
 
 // ============================================================================
 // TypedScoreDirector test fixtures
 // ============================================================================
 
+/// Local test solution for TypedScoreDirector tests.
+///
+/// Uses `Vec<Option<i32>>` to test incremental scoring with optional values.
+/// This is specific to testing the constraint evaluation pattern where
+/// None values are penalized.
 #[derive(Clone, Debug)]
 struct TestSolution {
     values: Vec<Option<i32>>,
@@ -274,103 +276,22 @@ fn test_typed_add_then_remove_value() {
 }
 
 // ============================================================================
-// SimpleScoreDirector test fixtures
-// ============================================================================
-
-#[derive(Clone, Debug, PartialEq)]
-struct Queen {
-    id: i64,
-    row: Option<i32>,
-}
-
-#[derive(Clone, Debug)]
-struct NQueensSolution {
-    queens: Vec<Queen>,
-    score: Option<SimpleScore>,
-}
-
-impl PlanningSolution for NQueensSolution {
-    type Score = SimpleScore;
-
-    fn score(&self) -> Option<Self::Score> {
-        self.score
-    }
-
-    fn set_score(&mut self, score: Option<Self::Score>) {
-        self.score = score;
-    }
-}
-
-fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-    &s.queens
-}
-
-fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-    &mut s.queens
-}
-
-fn calculate_conflicts(solution: &NQueensSolution) -> SimpleScore {
-    let mut conflicts = 0i64;
-    let queens = &solution.queens;
-
-    for i in 0..queens.len() {
-        for j in (i + 1)..queens.len() {
-            if let (Some(row_i), Some(row_j)) = (queens[i].row, queens[j].row) {
-                if row_i == row_j {
-                    conflicts += 1;
-                }
-                let col_diff = (j - i) as i32;
-                if (row_i - row_j).abs() == col_diff {
-                    conflicts += 1;
-                }
-            }
-        }
-    }
-
-    SimpleScore::of(-conflicts)
-}
-
-fn create_nqueens_descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
-        "Queen",
-        "queens",
-        get_queens,
-        get_queens_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
-
-    SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc)
-}
-
-// ============================================================================
 // SimpleScoreDirector tests
 // ============================================================================
 
+use solverforge_test::nqueens::{
+    calculate_conflicts, create_nqueens_descriptor, NQueensSolution, Queen,
+};
+
 #[test]
 fn test_simple_score_director_calculate_score() {
-    let solution = NQueensSolution {
-        queens: vec![
-            Queen {
-                id: 0,
-                row: Some(0),
-            },
-            Queen {
-                id: 1,
-                row: Some(1),
-            },
-            Queen {
-                id: 2,
-                row: Some(2),
-            },
-            Queen {
-                id: 3,
-                row: Some(3),
-            },
-        ],
-        score: None,
-    };
+    // Create queens on the diagonal (all conflicts)
+    let solution = NQueensSolution::new(vec![
+        Queen::assigned(0, 0, 0),
+        Queen::assigned(1, 1, 1),
+        Queen::assigned(2, 2, 2),
+        Queen::assigned(3, 3, 3),
+    ]);
 
     let descriptor = create_nqueens_descriptor();
     let mut director =
@@ -385,13 +306,7 @@ fn test_simple_score_director_calculate_score() {
 fn test_simple_score_director_factory() {
     use crate::director::ScoreDirectorFactory;
 
-    let solution = NQueensSolution {
-        queens: vec![Queen {
-            id: 0,
-            row: Some(0),
-        }],
-        score: None,
-    };
+    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
 
     let descriptor = create_nqueens_descriptor();
     let factory = ScoreDirectorFactory::new(descriptor, calculate_conflicts);
@@ -402,34 +317,23 @@ fn test_simple_score_director_factory() {
 }
 
 // ============================================================================
-// ShadowAwareScoreDirector test fixtures
+// ShadowAwareScoreDirector tests
 // ============================================================================
 
-#[derive(Clone, Debug)]
-struct ShadowSolution {
-    values: Vec<i32>,
-    cached_sum: i32,
-    score: Option<SimpleScore>,
-}
+use solverforge_test::shadow::ShadowSolution;
 
-impl PlanningSolution for ShadowSolution {
-    type Score = SimpleScore;
-
-    fn score(&self) -> Option<Self::Score> {
-        self.score
-    }
-
-    fn set_score(&mut self, score: Option<Self::Score>) {
-        self.score = score;
-    }
-}
-
+// Implement ShadowVariableSupport for ShadowSolution (trait is in this crate)
 impl ShadowVariableSupport for ShadowSolution {
     fn update_entity_shadows(&mut self, _entity_index: usize) {
         self.cached_sum = self.values.iter().sum();
     }
+
+    fn update_all_shadows(&mut self) {
+        self.cached_sum = self.values.iter().sum();
+    }
 }
 
+/// Creates a constraint that penalizes when cached_sum exceeds 100.
 fn make_sum_constraint() -> IncrementalUniConstraint<
     ShadowSolution,
     i32,
@@ -458,21 +362,34 @@ fn make_sum_constraint() -> IncrementalUniConstraint<
     )
 }
 
-// ============================================================================
-// ShadowAwareScoreDirector tests
-// ============================================================================
+/// Creates a ShadowAwareScoreDirector for testing.
+fn create_shadow_director(
+    values: Vec<i32>,
+) -> ShadowAwareScoreDirector<
+    ShadowSolution,
+    TypedScoreDirector<
+        ShadowSolution,
+        (
+            IncrementalUniConstraint<
+                ShadowSolution,
+                i32,
+                fn(&ShadowSolution) -> &[i32],
+                fn(&ShadowSolution, &i32) -> bool,
+                fn(&i32) -> SimpleScore,
+                SimpleScore,
+            >,
+        ),
+    >,
+> {
+    let solution = ShadowSolution::new(values);
+    let constraint = make_sum_constraint();
+    let inner = TypedScoreDirector::new(solution, (constraint,));
+    ShadowAwareScoreDirector::new(inner)
+}
 
 #[test]
 fn test_shadow_update_called_on_variable_change() {
-    let solution = ShadowSolution {
-        values: vec![10, 20, 30],
-        cached_sum: 0, // Will be updated by shadow
-        score: None,
-    };
-
-    let constraint = make_sum_constraint();
-    let inner = TypedScoreDirector::new(solution, (constraint,));
-    let mut director = ShadowAwareScoreDirector::new(inner);
+    let mut director = create_shadow_director(vec![10, 20, 30]);
 
     // Initialize
     director.calculate_score();
@@ -491,31 +408,13 @@ fn test_shadow_update_called_on_variable_change() {
 
 #[test]
 fn test_shadow_inner_access() {
-    let solution = ShadowSolution {
-        values: vec![1, 2, 3],
-        cached_sum: 0,
-        score: None,
-    };
-
-    let constraint = make_sum_constraint();
-    let inner = TypedScoreDirector::new(solution, (constraint,));
-    let director = ShadowAwareScoreDirector::new(inner);
-
+    let director = create_shadow_director(vec![1, 2, 3]);
     assert!(!director.inner().is_initialized());
 }
 
 #[test]
 fn test_shadow_into_inner_consumes() {
-    let solution = ShadowSolution {
-        values: vec![1],
-        cached_sum: 0,
-        score: None,
-    };
-
-    let constraint = make_sum_constraint();
-    let inner = TypedScoreDirector::new(solution, (constraint,));
-    let director = ShadowAwareScoreDirector::new(inner);
-
+    let director = create_shadow_director(vec![1]);
     let recovered = director.into_inner();
     assert_eq!(recovered.working_solution().values.len(), 1);
 }

@@ -1,7 +1,7 @@
 //! Tests for ComplementedGroupConstraint.
 
-use super::complemented::ComplementedGroupConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::constraint::complemented::ComplementedGroupConstraint;
 use crate::stream::collector::count;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};

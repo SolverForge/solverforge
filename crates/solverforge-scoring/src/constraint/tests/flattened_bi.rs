@@ -1,7 +1,7 @@
 //! Tests for FlattenedBiConstraint.
 
-use super::flattened_bi::FlattenedBiConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::constraint::flattened_bi::FlattenedBiConstraint;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 

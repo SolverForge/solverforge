@@ -1,7 +1,7 @@
 //! Tests for zero-erasure incremental bi-constraint.
 
-use super::IncrementalBiConstraint;
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+use crate::constraint::IncrementalBiConstraint;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 

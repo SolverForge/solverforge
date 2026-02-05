@@ -1,7 +1,7 @@
 //! Tests for BalanceConstraint.
 
-use super::balance::BalanceConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::constraint::balance::BalanceConstraint;
 use crate::stream::filter::TrueFilter;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};

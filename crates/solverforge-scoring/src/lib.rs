@@ -22,6 +22,9 @@ pub mod constraint;
 pub mod director;
 pub mod stream;
 
+#[cfg(test)]
+pub mod test_utils;
+
 // ============================================================================
 // Zero-Erasure Incremental Constraints
 // ============================================================================

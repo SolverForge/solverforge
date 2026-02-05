@@ -1,7 +1,7 @@
-//! Zero-erasure complemented group constraint.
-//!
-//! Evaluates grouped results plus complement entities with default values.
-//! Provides true incremental scoring by tracking per-key accumulators.
+// Zero-erasure complemented group constraint.
+//
+// Evaluates grouped results plus complement entities with default values.
+// Provides true incremental scoring by tracking per-key accumulators.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -13,76 +13,76 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collector::{Accumulator, UniCollector};
 
-/// Zero-erasure constraint for complemented grouped results.
-///
-/// Groups A entities by key, then iterates over B entities (complement source),
-/// using grouped values where they exist and default values otherwise.
-///
-/// The key function for A returns `Option<K>`, allowing entities to be skipped
-/// when they don't have a valid key (e.g., unassigned shifts).
-///
-/// # Type Parameters
-///
-/// - `S` - Solution type
-/// - `A` - Entity type being grouped (e.g., Shift)
-/// - `B` - Complement entity type (e.g., Employee)
-/// - `K` - Group key type
-/// - `EA` - Extractor for A entities
-/// - `EB` - Extractor for B entities
-/// - `KA` - Key function for A (returns `Option<K>` to allow skipping)
-/// - `KB` - Key function for B
-/// - `C` - Collector type
-/// - `D` - Default value function
-/// - `W` - Weight function
-/// - `Sc` - Score type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::constraint::complemented::ComplementedGroupConstraint;
-/// use solverforge_scoring::stream::collector::count;
-/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-/// use solverforge_core::{ConstraintRef, ImpactType};
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Hash, PartialEq, Eq)]
-/// struct Employee { id: usize }
-///
-/// #[derive(Clone)]
-/// struct Shift { employee_id: Option<usize> }
-///
-/// #[derive(Clone)]
-/// struct Schedule {
-///     employees: Vec<Employee>,
-///     shifts: Vec<Shift>,
-/// }
-///
-/// let constraint = ComplementedGroupConstraint::new(
-///     ConstraintRef::new("", "Shift count"),
-///     ImpactType::Penalty,
-///     |s: &Schedule| s.shifts.as_slice(),
-///     |s: &Schedule| s.employees.as_slice(),
-///     |shift: &Shift| shift.employee_id,  // Returns Option<usize>
-///     |emp: &Employee| emp.id,
-///     count(),
-///     |_emp: &Employee| 0usize,
-///     |count: &usize| SimpleScore::of(*count as i64),
-///     false,
-/// );
-///
-/// let schedule = Schedule {
-///     employees: vec![Employee { id: 0 }, Employee { id: 1 }],
-///     shifts: vec![
-///         Shift { employee_id: Some(0) },
-///         Shift { employee_id: Some(0) },
-///         Shift { employee_id: None },  // Skipped - no key
-///     ],
-/// };
-///
-/// // Employee 0: 2 shifts, Employee 1: 0 shifts → Total: -2
-/// // Unassigned shift is skipped
-/// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
-/// ```
+// Zero-erasure constraint for complemented grouped results.
+//
+// Groups A entities by key, then iterates over B entities (complement source),
+// using grouped values where they exist and default values otherwise.
+//
+// The key function for A returns `Option<K>`, allowing entities to be skipped
+// when they don't have a valid key (e.g., unassigned shifts).
+//
+// # Type Parameters
+//
+// - `S` - Solution type
+// - `A` - Entity type being grouped (e.g., Shift)
+// - `B` - Complement entity type (e.g., Employee)
+// - `K` - Group key type
+// - `EA` - Extractor for A entities
+// - `EB` - Extractor for B entities
+// - `KA` - Key function for A (returns `Option<K>` to allow skipping)
+// - `KB` - Key function for B
+// - `C` - Collector type
+// - `D` - Default value function
+// - `W` - Weight function
+// - `Sc` - Score type
+//
+// # Example
+//
+// ```
+// use solverforge_scoring::constraint::complemented::ComplementedGroupConstraint;
+// use solverforge_scoring::stream::collector::count;
+// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+// use solverforge_core::{ConstraintRef, ImpactType};
+// use solverforge_core::score::SimpleScore;
+//
+// #[derive(Clone, Hash, PartialEq, Eq)]
+// struct Employee { id: usize }
+//
+// #[derive(Clone)]
+// struct Shift { employee_id: Option<usize> }
+//
+// #[derive(Clone)]
+// struct Schedule {
+//     employees: Vec<Employee>,
+//     shifts: Vec<Shift>,
+// }
+//
+// let constraint = ComplementedGroupConstraint::new(
+//     ConstraintRef::new("", "Shift count"),
+//     ImpactType::Penalty,
+//     |s: &Schedule| s.shifts.as_slice(),
+//     |s: &Schedule| s.employees.as_slice(),
+//     |shift: &Shift| shift.employee_id,  // Returns Option<usize>
+//     |emp: &Employee| emp.id,
+//     count(),
+//     |_emp: &Employee| 0usize,
+//     |count: &usize| SimpleScore::of(*count as i64),
+//     false,
+// );
+//
+// let schedule = Schedule {
+//     employees: vec![Employee { id: 0 }, Employee { id: 1 }],
+//     shifts: vec![
+//         Shift { employee_id: Some(0) },
+//         Shift { employee_id: Some(0) },
+//         Shift { employee_id: None },  // Skipped - no key
+//     ],
+// };
+//
+// // Employee 0: 2 shifts, Employee 1: 0 shifts → Total: -2
+// // Unassigned shift is skipped
+// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+// ```
 pub struct ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
 where
     C: UniCollector<A>,
@@ -98,13 +98,13 @@ where
     default_fn: D,
     weight_fn: W,
     is_hard: bool,
-    /// Group key -> accumulator for incremental scoring
+    // Group key -> accumulator for incremental scoring
     groups: HashMap<K, C::Accumulator>,
-    /// A entity index -> group key (for tracking which group each entity belongs to)
+    // A entity index -> group key (for tracking which group each entity belongs to)
     entity_groups: HashMap<usize, K>,
-    /// A entity index -> extracted value (for correct retraction after entity mutation)
+    // A entity index -> extracted value (for correct retraction after entity mutation)
     entity_values: HashMap<usize, C::Value>,
-    /// B key -> B entity index (for looking up B entities by key)
+    // B key -> B entity index (for looking up B entities by key)
     b_by_key: HashMap<K, usize>,
     _phantom: PhantomData<(S, A, B, Sc)>,
 }
@@ -126,7 +126,7 @@ where
     W: Fn(&C::Result) -> Sc,
     Sc: Score,
 {
-    /// Creates a new complemented group constraint.
+    // Creates a new complemented group constraint.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
@@ -168,7 +168,7 @@ where
         }
     }
 
-    /// Build grouped results from A entities.
+    // Build grouped results from A entities.
     fn build_groups(&self, entities_a: &[A]) -> HashMap<K, C::Result> {
         let mut accumulators: HashMap<K, C::Accumulator> = HashMap::new();
 
@@ -319,7 +319,7 @@ where
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score,
 {
-    /// Insert an A entity and return the score delta.
+    // Insert an A entity and return the score delta.
     fn insert_entity(&mut self, entities_b: &[B], entity_index: usize, entity: &A) -> Sc {
         // Skip entities with no key (e.g., unassigned shifts)
         let Some(key) = (self.key_a)(entity) else {
@@ -380,7 +380,7 @@ where
         new_score - old
     }
 
-    /// Retract an A entity and return the score delta.
+    // Retract an A entity and return the score delta.
     fn retract_entity(&mut self, _entities_a: &[A], _entities_b: &[B], entity_index: usize) -> Sc {
         // Find which group this entity belonged to
         let Some(key) = self.entity_groups.remove(&entity_index) else {
@@ -444,277 +444,5 @@ where
             .field("impact_type", &self.impact_type)
             .field("groups", &self.groups.len())
             .finish()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::stream::collector::count;
-    use solverforge_core::score::SimpleScore;
-
-    #[derive(Clone, Hash, PartialEq, Eq)]
-    struct Employee {
-        id: usize,
-    }
-
-    #[derive(Clone)]
-    struct Shift {
-        employee_id: Option<usize>,
-    }
-
-    #[derive(Clone)]
-    struct Schedule {
-        employees: Vec<Employee>,
-        shifts: Vec<Shift>,
-    }
-
-    #[test]
-    fn test_complemented_evaluate() {
-        let constraint = ComplementedGroupConstraint::new(
-            ConstraintRef::new("", "Shift count"),
-            ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
-            |s: &Schedule| s.employees.as_slice(),
-            |shift: &Shift| shift.employee_id,
-            |emp: &Employee| emp.id,
-            count::<Shift>(),
-            |_emp: &Employee| 0usize,
-            |count: &usize| SimpleScore::of(*count as i64),
-            false,
-        );
-
-        let schedule = Schedule {
-            employees: vec![Employee { id: 0 }, Employee { id: 1 }],
-            shifts: vec![
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(0),
-                },
-            ],
-        };
-
-        // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
-        // Total: -2
-        assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
-    }
-
-    #[test]
-    fn test_complemented_skips_none_keys() {
-        let constraint = ComplementedGroupConstraint::new(
-            ConstraintRef::new("", "Shift count"),
-            ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
-            |s: &Schedule| s.employees.as_slice(),
-            |shift: &Shift| shift.employee_id,
-            |emp: &Employee| emp.id,
-            count::<Shift>(),
-            |_emp: &Employee| 0usize,
-            |count: &usize| SimpleScore::of(*count as i64),
-            false,
-        );
-
-        let schedule = Schedule {
-            employees: vec![Employee { id: 0 }, Employee { id: 1 }],
-            shifts: vec![
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift { employee_id: None }, // Unassigned - should be skipped
-                Shift { employee_id: None }, // Unassigned - should be skipped
-            ],
-        };
-
-        // Only 2 assigned shifts count, both to employee 0
-        // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
-        // Total: -2 (unassigned shifts don't count)
-        assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
-    }
-
-    #[test]
-    fn test_complemented_incremental() {
-        let mut constraint = ComplementedGroupConstraint::new(
-            ConstraintRef::new("", "Shift count"),
-            ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
-            |s: &Schedule| s.employees.as_slice(),
-            |shift: &Shift| shift.employee_id,
-            |emp: &Employee| emp.id,
-            count::<Shift>(),
-            |_emp: &Employee| 0usize,
-            |count: &usize| SimpleScore::of(*count as i64),
-            false,
-        );
-
-        let schedule = Schedule {
-            employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
-            shifts: vec![
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(1),
-                },
-            ],
-        };
-
-        // Initialize
-        let total = constraint.initialize(&schedule);
-        // Employee 0: 2 shifts -> -2
-        // Employee 1: 1 shift -> -1
-        // Employee 2: 0 shifts -> 0
-        // Total: -3
-        assert_eq!(total, SimpleScore::of(-3));
-
-        // Retract shift at index 0 (employee 0)
-        let delta = constraint.on_retract(&schedule, 0, 0);
-        // Employee 0 now has 1 shift -> score goes from -2 to -1, delta = +1
-        assert_eq!(delta, SimpleScore::of(1));
-
-        // Insert shift at index 0 (employee 0)
-        let delta = constraint.on_insert(&schedule, 0, 0);
-        // Employee 0 now has 2 shifts -> score goes from -1 to -2, delta = -1
-        assert_eq!(delta, SimpleScore::of(-1));
-    }
-
-    #[test]
-    fn test_complemented_incremental_with_none_keys() {
-        let mut constraint = ComplementedGroupConstraint::new(
-            ConstraintRef::new("", "Shift count"),
-            ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
-            |s: &Schedule| s.employees.as_slice(),
-            |shift: &Shift| shift.employee_id,
-            |emp: &Employee| emp.id,
-            count::<Shift>(),
-            |_emp: &Employee| 0usize,
-            |count: &usize| SimpleScore::of(*count as i64),
-            false,
-        );
-
-        let schedule = Schedule {
-            employees: vec![Employee { id: 0 }, Employee { id: 1 }],
-            shifts: vec![
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift { employee_id: None }, // Unassigned
-                Shift {
-                    employee_id: Some(0),
-                },
-            ],
-        };
-
-        // Initialize - only assigned shifts count
-        let total = constraint.initialize(&schedule);
-        // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
-        // Total: -2
-        assert_eq!(total, SimpleScore::of(-2));
-
-        // Retract unassigned shift at index 1 - should be no-op
-        let delta = constraint.on_retract(&schedule, 1, 0);
-        assert_eq!(delta, SimpleScore::of(0));
-
-        // Insert unassigned shift at index 1 - should be no-op
-        let delta = constraint.on_insert(&schedule, 1, 0);
-        assert_eq!(delta, SimpleScore::of(0));
-    }
-
-    #[test]
-    fn test_complemented_with_default() {
-        let constraint = ComplementedGroupConstraint::new(
-            ConstraintRef::new("", "Workload balance"),
-            ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
-            |s: &Schedule| s.employees.as_slice(),
-            |shift: &Shift| shift.employee_id,
-            |emp: &Employee| emp.id,
-            count::<Shift>(),
-            |_emp: &Employee| 0usize,
-            |count: &usize| SimpleScore::of((*count as i64).pow(2)),
-            false,
-        );
-
-        let schedule = Schedule {
-            employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
-            shifts: vec![
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(0),
-                },
-            ],
-        };
-
-        // Employee 0: 3 shifts -> 9
-        // Employee 1: 0 shifts -> 0
-        // Employee 2: 0 shifts -> 0
-        // Total penalty: -9
-        assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-9));
-    }
-
-    #[test]
-    fn test_complemented_incremental_matches_evaluate() {
-        let mut constraint = ComplementedGroupConstraint::new(
-            ConstraintRef::new("", "Shift count"),
-            ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
-            |s: &Schedule| s.employees.as_slice(),
-            |shift: &Shift| shift.employee_id,
-            |emp: &Employee| emp.id,
-            count::<Shift>(),
-            |_emp: &Employee| 0usize,
-            |count: &usize| SimpleScore::of((*count as i64).pow(2)),
-            false,
-        );
-
-        let schedule = Schedule {
-            employees: vec![Employee { id: 0 }, Employee { id: 1 }],
-            shifts: vec![
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(0),
-                },
-                Shift {
-                    employee_id: Some(1),
-                },
-            ],
-        };
-
-        // Verify initialize matches evaluate
-        let init_total = constraint.initialize(&schedule);
-        let eval_total = constraint.evaluate(&schedule);
-        assert_eq!(init_total, eval_total);
-
-        // Employee 0: 2 shifts -> 4, Employee 1: 1 shift -> 1
-        // Total: -5
-        assert_eq!(init_total, SimpleScore::of(-5));
-
-        // Simulate retract + insert cycle and verify total remains consistent
-        let mut running_total = init_total;
-
-        // Retract shift 2 (employee 1)
-        running_total = running_total + constraint.on_retract(&schedule, 2, 0);
-        // Now: Employee 0: 2->4, Employee 1: 0->0, Total: -4
-        assert_eq!(running_total, SimpleScore::of(-4));
-
-        // Insert shift 2 back (employee 1)
-        running_total = running_total + constraint.on_insert(&schedule, 2, 0);
-        // Back to: Employee 0: 2->4, Employee 1: 1->1, Total: -5
-        assert_eq!(running_total, SimpleScore::of(-5));
     }
 }

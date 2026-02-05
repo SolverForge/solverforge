@@ -1,0 +1,12 @@
+[package]
+name = "solverforge-console"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Colorful console output for SolverForge solver metrics"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+owo-colors = "4"
+num-format = "0.4"

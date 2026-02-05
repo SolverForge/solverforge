@@ -11,6 +11,9 @@ pub mod domain;
 pub mod error;
 pub mod score;
 
+#[cfg(test)]
+mod constraint_tests;
+
 pub use constraint::{ConstraintRef, ImpactType};
 pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use error::SolverForgeError;

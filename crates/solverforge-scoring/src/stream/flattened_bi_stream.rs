@@ -1,6 +1,6 @@
-//! O(1) flattened bi-constraint stream.
-//!
-//! Provides O(1) lookup for flattened items by pre-indexing C items by key.
+// O(1) flattened bi-constraint stream.
+//
+// Provides O(1) lookup for flattened items by pre-indexing C items by key.
 
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -12,27 +12,27 @@ use crate::constraint::flattened_bi::FlattenedBiConstraint;
 
 use super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 
-/// O(1) flattened bi-constraint stream.
-///
-/// Pre-indexes C items by key for O(1) lookup.
-///
-/// # Type Parameters
-///
-/// - `S` - Solution type
-/// - `A` - Entity type A (e.g., Shift)
-/// - `B` - Entity type B (e.g., Employee)
-/// - `C` - Flattened item type (e.g., NaiveDate)
-/// - `K` - Join key type
-/// - `CK` - C item key type for indexing
-/// - `EA` - Extractor function for A entities
-/// - `EB` - Extractor function for B entities
-/// - `KA` - Key extractor for A
-/// - `KB` - Key extractor for B
-/// - `Flatten` - Function that extracts a slice from B
-/// - `CKeyFn` - Function that extracts index key from C
-/// - `ALookup` - Function that extracts lookup key from A
-/// - `F` - Combined filter type over (A, C) pairs
-/// - `Sc` - Score type
+// O(1) flattened bi-constraint stream.
+//
+// Pre-indexes C items by key for O(1) lookup.
+//
+// # Type Parameters
+//
+// - `S` - Solution type
+// - `A` - Entity type A (e.g., Shift)
+// - `B` - Entity type B (e.g., Employee)
+// - `C` - Flattened item type (e.g., NaiveDate)
+// - `K` - Join key type
+// - `CK` - C item key type for indexing
+// - `EA` - Extractor function for A entities
+// - `EB` - Extractor function for B entities
+// - `KA` - Key extractor for A
+// - `KB` - Key extractor for B
+// - `Flatten` - Function that extracts a slice from B
+// - `CKeyFn` - Function that extracts index key from C
+// - `ALookup` - Function that extracts lookup key from A
+// - `F` - Combined filter type over (A, C) pairs
+// - `Sc` - Score type
 pub struct FlattenedBiConstraintStream<
     S,
     A,
@@ -97,9 +97,9 @@ where
     ALookup: Fn(&A) -> CK + Send + Sync,
     Sc: Score + 'static,
 {
-    /// Creates a new O(1) indexed flattened bi-constraint stream.
-    ///
-    /// This is called from `CrossBiConstraintStream::flatten_last_indexed()`.
+    // Creates a new O(1) indexed flattened bi-constraint stream.
+    //
+    // This is called from `CrossBiConstraintStream::flatten_last_indexed()`.
     pub fn new(
         extractor_a: EA,
         extractor_b: EB,
@@ -142,7 +142,7 @@ where
     F: BiFilter<S, A, C>,
     Sc: Score + 'static,
 {
-    /// Adds a filter predicate to the stream.
+    // Adds a filter predicate to the stream.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -182,7 +182,7 @@ where
         }
     }
 
-    /// Penalizes each matching (A, C) pair with a fixed weight.
+    // Penalizes each matching (A, C) pair with a fixed weight.
     pub fn penalize(
         self,
         weight: Sc,
@@ -228,7 +228,7 @@ where
         }
     }
 
-    /// Penalizes each matching (A, C) pair with a dynamic weight.
+    // Penalizes each matching (A, C) pair with a dynamic weight.
     pub fn penalize_with<W>(
         self,
         weight_fn: W,
@@ -269,7 +269,7 @@ where
         }
     }
 
-    /// Penalizes each matching (A, C) pair with a dynamic weight, explicitly marked as hard.
+    // Penalizes each matching (A, C) pair with a dynamic weight, explicitly marked as hard.
     pub fn penalize_hard_with<W>(
         self,
         weight_fn: W,
@@ -310,7 +310,7 @@ where
         }
     }
 
-    /// Rewards each matching (A, C) pair with a fixed weight.
+    // Rewards each matching (A, C) pair with a fixed weight.
     pub fn reward(
         self,
         weight: Sc,
@@ -356,7 +356,7 @@ where
         }
     }
 
-    /// Rewards each matching (A, C) pair with a dynamic weight.
+    // Rewards each matching (A, C) pair with a dynamic weight.
     pub fn reward_with<W>(
         self,
         weight_fn: W,
@@ -422,7 +422,7 @@ impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc: Score> 
     }
 }
 
-/// Builder for finalizing an O(1) indexed flattened bi-constraint.
+// Builder for finalizing an O(1) indexed flattened bi-constraint.
 pub struct FlattenedBiConstraintBuilder<
     S,
     A,
@@ -494,7 +494,7 @@ where
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /// Finalizes the builder into an O(1) indexed constraint.
+    // Finalizes the builder into an O(1) indexed constraint.
     pub fn as_constraint(
         self,
         name: &str,

@@ -14,6 +14,9 @@ mod moves;
 mod solution;
 mod solve;
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub use constraint::build_from_stream_ops;
 pub use constraint::StreamOp;
 pub use constraint_set::DynamicConstraintSet;

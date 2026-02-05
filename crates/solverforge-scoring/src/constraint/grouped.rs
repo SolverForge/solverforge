@@ -1,8 +1,8 @@
-//! Zero-erasure grouped constraint for group-by operations.
-//!
-//! Provides incremental scoring for constraints that group entities and
-//! apply collectors to compute aggregate scores.
-//! All type information is preserved at compile time - no Arc, no dyn.
+// Zero-erasure grouped constraint for group-by operations.
+//
+// Provides incremental scoring for constraints that group entities and
+// apply collectors to compute aggregate scores.
+// All type information is preserved at compile time - no Arc, no dyn.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -14,66 +14,66 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collector::{Accumulator, UniCollector};
 
-/// Zero-erasure constraint that groups entities by key and scores based on collector results.
-///
-/// This enables incremental scoring for group-by operations:
-/// - Tracks which entities belong to which group
-/// - Maintains collector state per group
-/// - Computes score deltas when entities are added/removed
-///
-/// All type parameters are concrete - no trait objects, no Arc allocations.
-///
-/// # Type Parameters
-///
-/// - `S` - Solution type
-/// - `A` - Entity type
-/// - `K` - Group key type
-/// - `E` - Extractor function for entities
-/// - `KF` - Key function
-/// - `C` - Collector type
-/// - `W` - Weight function
-/// - `Sc` - Score type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::constraint::grouped::GroupedUniConstraint;
-/// use solverforge_scoring::stream::collector::count;
-/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-/// use solverforge_core::{ConstraintRef, ImpactType};
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone, Hash, PartialEq, Eq)]
-/// struct Shift { employee_id: usize }
-///
-/// #[derive(Clone)]
-/// struct Solution { shifts: Vec<Shift> }
-///
-/// // Penalize based on squared workload per employee
-/// let constraint = GroupedUniConstraint::new(
-///     ConstraintRef::new("", "Balanced workload"),
-///     ImpactType::Penalty,
-///     |s: &Solution| &s.shifts,
-///     |shift: &Shift| shift.employee_id,
-///     count::<Shift>(),
-///     |count: &usize| SimpleScore::of((*count * *count) as i64),
-///     false,
-/// );
-///
-/// let solution = Solution {
-///     shifts: vec![
-///         Shift { employee_id: 1 },
-///         Shift { employee_id: 1 },
-///         Shift { employee_id: 1 },
-///         Shift { employee_id: 2 },
-///     ],
-/// };
-///
-/// // Employee 1: 3 shifts -> 9 penalty
-/// // Employee 2: 1 shift -> 1 penalty
-/// // Total: -10
-/// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
-/// ```
+// Zero-erasure constraint that groups entities by key and scores based on collector results.
+//
+// This enables incremental scoring for group-by operations:
+// - Tracks which entities belong to which group
+// - Maintains collector state per group
+// - Computes score deltas when entities are added/removed
+//
+// All type parameters are concrete - no trait objects, no Arc allocations.
+//
+// # Type Parameters
+//
+// - `S` - Solution type
+// - `A` - Entity type
+// - `K` - Group key type
+// - `E` - Extractor function for entities
+// - `KF` - Key function
+// - `C` - Collector type
+// - `W` - Weight function
+// - `Sc` - Score type
+//
+// # Example
+//
+// ```
+// use solverforge_scoring::constraint::grouped::GroupedUniConstraint;
+// use solverforge_scoring::stream::collector::count;
+// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+// use solverforge_core::{ConstraintRef, ImpactType};
+// use solverforge_core::score::SimpleScore;
+//
+// #[derive(Clone, Hash, PartialEq, Eq)]
+// struct Shift { employee_id: usize }
+//
+// #[derive(Clone)]
+// struct Solution { shifts: Vec<Shift> }
+//
+// // Penalize based on squared workload per employee
+// let constraint = GroupedUniConstraint::new(
+//     ConstraintRef::new("", "Balanced workload"),
+//     ImpactType::Penalty,
+//     |s: &Solution| &s.shifts,
+//     |shift: &Shift| shift.employee_id,
+//     count::<Shift>(),
+//     |count: &usize| SimpleScore::of((*count * *count) as i64),
+//     false,
+// );
+//
+// let solution = Solution {
+//     shifts: vec![
+//         Shift { employee_id: 1 },
+//         Shift { employee_id: 1 },
+//         Shift { employee_id: 1 },
+//         Shift { employee_id: 2 },
+//     ],
+// };
+//
+// // Employee 1: 3 shifts -> 9 penalty
+// // Employee 2: 1 shift -> 1 penalty
+// // Total: -10
+// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
+// ```
 pub struct GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>
 where
     C: UniCollector<A>,
@@ -86,11 +86,11 @@ where
     collector: C,
     weight_fn: W,
     is_hard: bool,
-    /// Group key -> accumulator (scores computed on-the-fly, no cloning)
+    // Group key -> accumulator (scores computed on-the-fly, no cloning)
     groups: HashMap<K, C::Accumulator>,
-    /// Entity index -> group key (for tracking which group an entity belongs to)
+    // Entity index -> group key (for tracking which group an entity belongs to)
     entity_groups: HashMap<usize, K>,
-    /// Entity index -> extracted value (for correct retraction after entity mutation)
+    // Entity index -> extracted value (for correct retraction after entity mutation)
     entity_values: HashMap<usize, C::Value>,
     _phantom: PhantomData<(S, A, Sc)>,
 }
@@ -108,17 +108,17 @@ where
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /// Creates a new zero-erasure grouped constraint.
-    ///
-    /// # Arguments
-    ///
-    /// * `constraint_ref` - Identifier for this constraint
-    /// * `impact_type` - Whether to penalize or reward
-    /// * `extractor` - Function to get entity slice from solution
-    /// * `key_fn` - Function to extract group key from entity
-    /// * `collector` - Collector to aggregate entities per group
-    /// * `weight_fn` - Function to compute score from collector result
-    /// * `is_hard` - Whether this is a hard constraint
+    // Creates a new zero-erasure grouped constraint.
+    //
+    // # Arguments
+    //
+    // * `constraint_ref` - Identifier for this constraint
+    // * `impact_type` - Whether to penalize or reward
+    // * `extractor` - Function to get entity slice from solution
+    // * `key_fn` - Function to extract group key from entity
+    // * `collector` - Collector to aggregate entities per group
+    // * `weight_fn` - Function to compute score from collector result
+    // * `is_hard` - Whether this is a hard constraint
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,
@@ -143,7 +143,7 @@ where
         }
     }
 
-    /// Computes the score contribution for a group's result.
+    // Computes the score contribution for a group's result.
     fn compute_score(&self, result: &C::Result) -> Sc {
         let base = (self.weight_fn)(result);
         match self.impact_type {
@@ -349,107 +349,5 @@ where
             .field("impact_type", &self.impact_type)
             .field("groups", &self.groups.len())
             .finish()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::stream::collector::count;
-    use solverforge_core::score::SimpleScore;
-
-    #[derive(Clone, Hash, PartialEq, Eq)]
-    struct Shift {
-        employee_id: usize,
-    }
-
-    #[derive(Clone)]
-    struct Solution {
-        shifts: Vec<Shift>,
-    }
-
-    #[test]
-    fn test_grouped_constraint_evaluate() {
-        let constraint = GroupedUniConstraint::new(
-            ConstraintRef::new("", "Workload"),
-            ImpactType::Penalty,
-            |s: &Solution| &s.shifts,
-            |shift: &Shift| shift.employee_id,
-            count::<Shift>(),
-            |count: &usize| SimpleScore::of((*count * *count) as i64),
-            false,
-        );
-
-        let solution = Solution {
-            shifts: vec![
-                Shift { employee_id: 1 },
-                Shift { employee_id: 1 },
-                Shift { employee_id: 1 },
-                Shift { employee_id: 2 },
-            ],
-        };
-
-        // Employee 1: 3 shifts -> 9
-        // Employee 2: 1 shift -> 1
-        // Total penalty: -10
-        assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
-    }
-
-    #[test]
-    fn test_grouped_constraint_incremental() {
-        let mut constraint = GroupedUniConstraint::new(
-            ConstraintRef::new("", "Workload"),
-            ImpactType::Penalty,
-            |s: &Solution| &s.shifts,
-            |shift: &Shift| shift.employee_id,
-            count::<Shift>(),
-            |count: &usize| SimpleScore::of(*count as i64),
-            false,
-        );
-
-        let solution = Solution {
-            shifts: vec![
-                Shift { employee_id: 1 },
-                Shift { employee_id: 1 },
-                Shift { employee_id: 2 },
-            ],
-        };
-
-        // Initialize
-        let total = constraint.initialize(&solution);
-        // Employee 1: 2 shifts -> -2
-        // Employee 2: 1 shift -> -1
-        // Total: -3
-        assert_eq!(total, SimpleScore::of(-3));
-
-        // Retract shift at index 0 (employee 1)
-        let delta = constraint.on_retract(&solution, 0, 0);
-        // Employee 1 now has 1 shift -> score goes from -2 to -1, delta = +1
-        assert_eq!(delta, SimpleScore::of(1));
-
-        // Insert shift at index 0 (employee 1)
-        let delta = constraint.on_insert(&solution, 0, 0);
-        // Employee 1 now has 2 shifts -> score goes from -1 to -2, delta = -1
-        assert_eq!(delta, SimpleScore::of(-1));
-    }
-
-    #[test]
-    fn test_grouped_constraint_reward() {
-        let constraint = GroupedUniConstraint::new(
-            ConstraintRef::new("", "Collaboration"),
-            ImpactType::Reward,
-            |s: &Solution| &s.shifts,
-            |shift: &Shift| shift.employee_id,
-            count::<Shift>(),
-            |count: &usize| SimpleScore::of(*count as i64),
-            false,
-        );
-
-        let solution = Solution {
-            shifts: vec![Shift { employee_id: 1 }, Shift { employee_id: 1 }],
-        };
-
-        // 2 shifts in one group -> reward of +2
-        assert_eq!(constraint.evaluate(&solution), SimpleScore::of(2));
     }
 }

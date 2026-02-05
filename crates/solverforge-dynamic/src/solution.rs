@@ -152,7 +152,9 @@ impl DynamicValue {
     pub fn as_date(&self) -> Option<i32> {
         match self {
             DynamicValue::Date(v) => Some(*v),
-            DynamicValue::I64(v) => Some(*v as i32),
+            DynamicValue::I64(v) => {
+                Some(i32::try_from(*v).expect("i64 value exceeds i32 range for date conversion"))
+            }
             _ => None,
         }
     }

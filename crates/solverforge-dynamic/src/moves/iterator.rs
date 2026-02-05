@@ -41,21 +41,21 @@ use crate::solution::{DynamicSolution, DynamicValue};
 /// 4. Values in the value range for each variable (by value_idx)
 pub struct DynamicMoveIterator<'a> {
     solution: &'a DynamicSolution,
-    /// Current entity class index
+    // Current entity class index
     class_idx: usize,
-    /// Current entity index within the class
+    // Current entity index within the class
     entity_idx: usize,
-    /// Current index into planning_variable_indices for the class
+    // Current index into planning_variable_indices for the class
     var_slot_idx: usize,
-    /// Current value index for the current variable's value range
+    // Current value index for the current variable's value range
     value_idx: usize,
-    /// Cached values for the current variable's range (avoids repeated allocation)
+    // Cached values for the current variable's range (avoids repeated allocation)
     current_values: Vec<DynamicValue>,
-    /// Cached field_idx for current variable
+    // Cached field_idx for current variable
     current_field_idx: usize,
-    /// Cached variable name for current variable
+    // Cached variable name for current variable
     current_variable_name: Arc<str>,
-    /// Whether we've finished iterating
+    // Whether we've finished iterating
     exhausted: bool,
 }
 
@@ -78,8 +78,8 @@ impl<'a> DynamicMoveIterator<'a> {
         iter
     }
 
-    /// Advances the iterator state to the next valid position that has moves.
-    /// Returns true if a valid position was found, false if exhausted.
+    // Advances the iterator state to the next valid position that has moves.
+    // Returns true if a valid position was found, false if exhausted.
     fn advance_to_valid_position(&mut self) -> bool {
         loop {
             // Check if we've exhausted all classes

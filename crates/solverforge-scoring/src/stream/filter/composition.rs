@@ -1,4 +1,4 @@
-//! Filter composition types for combining filters with AND semantics.
+// Filter composition types for combining filters with AND semantics.
 
 use super::traits::{BiFilter, PentaFilter, QuadFilter, TriFilter, UniFilter};
 

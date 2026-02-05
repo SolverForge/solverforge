@@ -61,4 +61,5 @@ pub use nearby::NearbyKOptMoveSelector;
 pub use selector::KOptMoveSelector;
 
 // Re-export for crate-internal testing
+#[cfg(test)]
 pub(crate) use cuts::{binomial, CutCombinationIterator};

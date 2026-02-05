@@ -14,6 +14,9 @@ mod traits;
 mod value_range;
 mod variable;
 
+#[cfg(test)]
+mod tests;
+
 pub use descriptor::{
     EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, VariableDescriptor,
 };

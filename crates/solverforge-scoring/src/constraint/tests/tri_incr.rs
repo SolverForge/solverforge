@@ -1,7 +1,7 @@
-//! Unit tests for IncrementalQuadConstraint.
+//! Unit tests for IncrementalTriConstraint.
 
-use super::IncrementalQuadConstraint;
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::constraint::IncrementalTriConstraint;
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -16,20 +16,19 @@ struct Solution {
 }
 
 #[test]
-fn test_quad_constraint_evaluate() {
-    let constraint = IncrementalQuadConstraint::new(
+fn test_tri_constraint_evaluate() {
+    let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(1),
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SimpleScore::of(1),
         false,
     );
 
     let solution = Solution {
         tasks: vec![
-            Task { team: 1 },
             Task { team: 1 },
             Task { team: 1 },
             Task { team: 1 },
@@ -37,19 +36,19 @@ fn test_quad_constraint_evaluate() {
         ],
     };
 
-    // One quadruple on team 1: (0, 1, 2, 3) = -1 penalty
+    // One triple on team 1: (0, 1, 2) = -1 penalty
     assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1));
 }
 
 #[test]
-fn test_quad_constraint_multiple_quads() {
-    let constraint = IncrementalQuadConstraint::new(
+fn test_tri_constraint_multiple_triples() {
+    let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(1),
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SimpleScore::of(1),
         false,
     );
 
@@ -59,71 +58,60 @@ fn test_quad_constraint_multiple_quads() {
             Task { team: 1 },
             Task { team: 1 },
             Task { team: 1 },
-            Task { team: 1 },
         ],
     };
 
-    // Five tasks on same team = C(5,4) = 5 quadruples
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-5));
+    // Four tasks on same team = C(4,3) = 4 triples
+    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-4));
 }
 
 #[test]
-fn test_quad_constraint_incremental() {
-    let mut constraint = IncrementalQuadConstraint::new(
+fn test_tri_constraint_incremental() {
+    let mut constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(1),
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SimpleScore::of(1),
         false,
     );
 
     let solution = Solution {
-        tasks: vec![
-            Task { team: 1 },
-            Task { team: 1 },
-            Task { team: 1 },
-            Task { team: 1 },
-        ],
+        tasks: vec![Task { team: 1 }, Task { team: 1 }, Task { team: 1 }],
     };
 
-    // Initialize with 4 tasks on same team = 1 quadruple
+    // Initialize with 3 tasks on same team = 1 triple
     let total = constraint.initialize(&solution);
     assert_eq!(total, SimpleScore::of(-1));
 
     // Retract one task
     let delta = constraint.on_retract(&solution, 0, 0);
-    // Removes the quadruple = +1
+    // Removes the triple = +1
     assert_eq!(delta, SimpleScore::of(1));
 
     // Re-insert the task
     let delta = constraint.on_insert(&solution, 0, 0);
-    // Re-adds the quadruple = -1
+    // Re-adds the triple = -1
     assert_eq!(delta, SimpleScore::of(-1));
 }
 
 #[test]
-fn test_quad_constraint_reward() {
-    let constraint = IncrementalQuadConstraint::new(
+fn test_tri_constraint_reward() {
+    let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Team bonus"),
         ImpactType::Reward,
         |s: &Solution| s.tasks.as_slice(),
         |t: &Task| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(5),
+        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SimpleScore::of(5),
         false,
     );
 
     let solution = Solution {
-        tasks: vec![
-            Task { team: 1 },
-            Task { team: 1 },
-            Task { team: 1 },
-            Task { team: 1 },
-        ],
+        tasks: vec![Task { team: 1 }, Task { team: 1 }, Task { team: 1 }],
     };
 
-    // One quadruple = +5 reward
+    // One triple = +5 reward
     assert_eq!(constraint.evaluate(&solution), SimpleScore::of(5));
 }

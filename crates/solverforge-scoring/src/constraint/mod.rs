@@ -25,21 +25,7 @@ pub mod incremental;
 pub mod shared;
 
 #[cfg(test)]
-mod balance_tests;
-#[cfg(test)]
-mod bi_incr_tests;
-#[cfg(test)]
-mod complemented_tests;
-#[cfg(test)]
-mod flattened_bi_tests;
-#[cfg(test)]
-mod penta_incr_tests;
-#[cfg(test)]
-mod quad_incr_tests;
-#[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod tri_incr_tests;
 
 pub use balance::BalanceConstraint;
 pub use complemented::ComplementedGroupConstraint;

@@ -3,8 +3,7 @@ name = "solverforge-test"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Shared test utilities for SolverForge crates"
+description = "Shared test fixtures (data types and pure functions) for SolverForge crates"
 
 [dependencies]
 solverforge-core = { workspace = true }
-solverforge-scoring = { workspace = true }

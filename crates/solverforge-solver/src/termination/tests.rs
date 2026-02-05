@@ -2,7 +2,10 @@
 
 use super::*;
 use crate::scope::SolverScope;
-use crate::test_utils::{create_test_scope, create_test_scope_with_score, TestSolution};
+use crate::test_utils::{
+    create_scope, create_scope_with_score, create_test_scope, create_test_scope_with_score,
+    TestSolution,
+};
 use solverforge_core::domain::SolutionDescriptor;
 use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;

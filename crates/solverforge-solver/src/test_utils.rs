@@ -4,30 +4,117 @@
 //! Re-exports types from solverforge-test and adds solver-specific helpers.
 
 use crate::scope::SolverScope;
-use solverforge_core::domain::SolutionDescriptor;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SimpleScore;
 use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
 
-// Re-export N-Queens test infrastructure from solverforge-test
+// Re-export N-Queens test infrastructure from solverforge-test (data types only)
 pub use solverforge_test::nqueens::{
-    calculate_conflicts, create_nqueens_descriptor, create_nqueens_director,
-    create_simple_nqueens_director, get_queen_row, set_queen_row, NQueensSolution, Queen,
-};
-
-// Re-export minimal solution types from solverforge-test
-pub use solverforge_test::minimal::{
-    create_minimal_descriptor, create_minimal_director, zero_calculator, DummySolution,
-    MinimalSolution, TestDirector, TestSolution,
+    calculate_conflicts, create_nqueens_descriptor, get_queen_row, set_queen_row, NQueensSolution,
+    Queen,
 };
 
 // ============================================================================
-// SolverScope-specific helpers (cannot be in solverforge-test due to dependency order)
+// TestSolution - a minimal solution type for solver tests
+// ============================================================================
+
+/// A minimal test solution with just a score field.
+///
+/// This is useful for testing components like termination conditions
+/// that only need to track score, not entities.
+#[derive(Clone, Debug)]
+pub struct TestSolution {
+    pub score: Option<SimpleScore>,
+}
+
+impl TestSolution {
+    /// Creates a new test solution with no score.
+    pub fn new() -> Self {
+        Self { score: None }
+    }
+
+    /// Creates a test solution with the given score.
+    pub fn with_score(score: SimpleScore) -> Self {
+        Self { score: Some(score) }
+    }
+}
+
+impl Default for TestSolution {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PlanningSolution for TestSolution {
+    type Score = SimpleScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+// Type aliases for backward compatibility
+pub type MinimalSolution = TestSolution;
+pub type DummySolution = TestSolution;
+
+/// Type alias for a SimpleScoreDirector with a function pointer calculator.
+pub type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+
+/// A zero-returning calculator function.
+pub fn zero_calculator(_: &TestSolution) -> SimpleScore {
+    SimpleScore::of(0)
+}
+
+/// Creates a SolutionDescriptor for TestSolution.
+pub fn create_minimal_descriptor() -> SolutionDescriptor {
+    SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+}
+
+/// Creates a SimpleScoreDirector for TestSolution with a zero calculator.
+pub fn create_minimal_director() -> TestDirector {
+    let solution = TestSolution::new();
+    let descriptor = create_minimal_descriptor();
+    SimpleScoreDirector::with_calculator(
+        solution,
+        descriptor,
+        zero_calculator as fn(&TestSolution) -> SimpleScore,
+    )
+}
+
+// ============================================================================
+// N-Queens director factories (solver-specific, using solverforge-scoring)
+// ============================================================================
+
+/// Creates a SimpleScoreDirector for N-Queens with queens at the specified rows.
+pub fn create_nqueens_director(
+    rows: &[i64],
+) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    let solution = NQueensSolution::with_rows(rows);
+    let descriptor = create_nqueens_descriptor();
+    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
+}
+
+/// Creates a SimpleScoreDirector for N-Queens with n uninitialized queens.
+pub fn create_simple_nqueens_director(
+    n: usize,
+) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+    let solution = NQueensSolution::uninitialized(n);
+    let descriptor = create_nqueens_descriptor();
+    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
+}
+
+// ============================================================================
+// SolverScope-specific helpers
 // ============================================================================
 
 /// Creates a SolverScope with the default zero calculator.
 pub fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
-    let desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let desc = create_minimal_descriptor();
     let director = SimpleScoreDirector::with_calculator(
         TestSolution::new(),
         desc,
@@ -50,7 +137,7 @@ pub fn create_scope_with_score(
     TestSolution,
     SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
 > {
-    let desc = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let desc = create_minimal_descriptor();
     let score_clone = score;
     let director =
         SimpleScoreDirector::with_calculator(TestSolution::with_score(score), desc, move |_| {

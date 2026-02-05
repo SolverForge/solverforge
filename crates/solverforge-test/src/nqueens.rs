@@ -1,24 +1,24 @@
 //! N-Queens problem test fixtures.
 //!
-//! Provides a complete N-Queens implementation for testing constraint satisfaction
-//! and solver components. The N-Queens problem places N queens on an N×N chessboard
-//! such that no two queens threaten each other.
+//! Provides data types and pure functions for the N-Queens problem.
+//! The N-Queens problem places N queens on an N×N chessboard such that
+//! no two queens threaten each other.
 //!
 //! # Example
 //!
-//! ```ignore
-//! use solverforge_test::nqueens::{create_nqueens_director, NQueensSolution};
+//! ```
+//! use solverforge_test::nqueens::{NQueensSolution, calculate_conflicts};
+//! use solverforge_core::score::SimpleScore;
 //!
-//! // Create a 4-queens problem with queens at rows [0, 2, 1, 3]
-//! let director = create_nqueens_director(&[0, 2, 1, 3]);
-//! let score = director.calculate_score();
+//! let solution = NQueensSolution::with_rows(&[1, 3, 0, 2]);
+//! let score = calculate_conflicts(&solution);
+//! assert_eq!(score, SimpleScore::of(0)); // No conflicts
 //! ```
 
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
 use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
 use std::any::TypeId;
 
 /// A queen entity in the N-Queens problem.
@@ -200,58 +200,6 @@ pub fn create_nqueens_descriptor() -> SolutionDescriptor {
         .with_entity(entity_desc)
 }
 
-/// Creates a SimpleScoreDirector for N-Queens with queens at the specified rows.
-///
-/// This is the primary factory for creating test directors with initialized queens.
-///
-/// # Example
-///
-/// ```ignore
-/// // Create a 4-queens problem with queens at rows [0, 2, 1, 3]
-/// let director = create_nqueens_director(&[0, 2, 1, 3]);
-/// ```
-pub fn create_nqueens_director(
-    rows: &[i64],
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-    let solution = NQueensSolution::with_rows(rows);
-    let descriptor = create_nqueens_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
-}
-
-/// Creates a SimpleScoreDirector for N-Queens with n uninitialized queens.
-///
-/// This is useful for testing construction heuristics where queens start
-/// without assigned rows.
-///
-/// # Example
-///
-/// ```ignore
-/// // Create a 4-queens problem with no rows assigned
-/// let director = create_simple_nqueens_director(4);
-/// ```
-pub fn create_simple_nqueens_director(
-    n: usize,
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-    let solution = NQueensSolution::uninitialized(n);
-    let descriptor = create_nqueens_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
-}
-
-/// Creates a SimpleScoreDirector for N-Queens with optional rows.
-///
-/// This is useful when you need a mix of initialized and uninitialized queens.
-pub fn create_nqueens_director_optional(
-    rows: &[Option<i64>],
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
-    let solution = NQueensSolution::with_optional_rows(rows);
-    let descriptor = create_nqueens_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
-}
-
-// ============================================================================
-// Backward Compatibility Aliases
-// ============================================================================
-
 /// Alias for `create_nqueens_descriptor` for backward compatibility.
 pub fn create_test_descriptor() -> SolutionDescriptor {
     create_nqueens_descriptor()
@@ -277,7 +225,6 @@ pub fn set_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_scoring::ScoreDirector;
 
     #[test]
     fn test_queen_creation() {
@@ -327,24 +274,5 @@ mod tests {
         let solution = NQueensSolution::with_rows(&[0, 1, 3, 2]);
         let score = calculate_conflicts(&solution);
         assert!(score < SimpleScore::of(0));
-    }
-
-    #[test]
-    fn test_create_nqueens_director() {
-        let mut director = create_nqueens_director(&[0, 0, 0, 0]);
-        let score = director.calculate_score();
-        // All queens on row 0 = many conflicts
-        assert!(score < SimpleScore::of(0));
-    }
-
-    #[test]
-    fn test_create_simple_nqueens_director() {
-        let director = create_simple_nqueens_director(4);
-        assert_eq!(director.working_solution().queens.len(), 4);
-        assert!(director
-            .working_solution()
-            .queens
-            .iter()
-            .all(|q| q.row.is_none()));
     }
 }

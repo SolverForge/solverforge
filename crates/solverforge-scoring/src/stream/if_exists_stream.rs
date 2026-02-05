@@ -1,7 +1,7 @@
-//! Zero-erasure if_exists/if_not_exists constraint stream.
-//!
-//! A `IfExistsStream` is created from `UniConstraintStream::if_exists()` or
-//! `if_not_exists()` and provides filtering, weighting, and finalization.
+// Zero-erasure if_exists/if_not_exists constraint stream.
+//
+// A `IfExistsStream` is created from `UniConstraintStream::if_exists()` or
+// `if_not_exists()` and provides filtering, weighting, and finalization.
 
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -13,70 +13,70 @@ use crate::constraint::if_exists::{ExistenceMode, IfExistsUniConstraint};
 
 use super::filter::UniFilter;
 
-/// Zero-erasure stream for building if_exists/if_not_exists constraints.
-///
-/// Created by `UniConstraintStream::if_exists()` or `if_not_exists()`.
-/// Filters A entities based on whether a matching B exists.
-///
-/// # Type Parameters
-///
-/// - `S` - Solution type
-/// - `A` - Primary entity type (scored)
-/// - `B` - Secondary entity type (checked for existence)
-/// - `K` - Join key type
-/// - `EA` - Extractor for A entities
-/// - `EB` - Extractor for B entities (returns Vec for filtering)
-/// - `KA` - Key extractor for A
-/// - `KB` - Key extractor for B
-/// - `FA` - Filter on A entities
-/// - `Sc` - Score type
-///
-/// # Example
-///
-/// ```
-/// use solverforge_scoring::stream::ConstraintFactory;
-/// use solverforge_scoring::stream::joiner::equal_bi;
-/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-/// use solverforge_core::score::SimpleScore;
-///
-/// #[derive(Clone)]
-/// struct Shift { id: usize, employee_idx: Option<usize> }
-///
-/// #[derive(Clone)]
-/// struct Employee { id: usize, on_vacation: bool }
-///
-/// #[derive(Clone)]
-/// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
-///
-/// // Penalize shifts assigned to employees who are on vacation
-/// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
-///     .for_each(|s: &Schedule| s.shifts.as_slice())
-///     .filter(|shift: &Shift| shift.employee_idx.is_some())
-///     .if_exists_filtered(
-///         |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect(),
-///         equal_bi(
-///             |shift: &Shift| shift.employee_idx,
-///             |emp: &Employee| Some(emp.id),
-///         ),
-///     )
-///     .penalize(SimpleScore::of(1))
-///     .as_constraint("Vacation conflict");
-///
-/// let schedule = Schedule {
-///     shifts: vec![
-///         Shift { id: 0, employee_idx: Some(0) },
-///         Shift { id: 1, employee_idx: Some(1) },
-///         Shift { id: 2, employee_idx: None },
-///     ],
-///     employees: vec![
-///         Employee { id: 0, on_vacation: true },
-///         Employee { id: 1, on_vacation: false },
-///     ],
-/// };
-///
-/// // Shift 0 is assigned to employee 0 who is on vacation
-/// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
-/// ```
+// Zero-erasure stream for building if_exists/if_not_exists constraints.
+//
+// Created by `UniConstraintStream::if_exists()` or `if_not_exists()`.
+// Filters A entities based on whether a matching B exists.
+//
+// # Type Parameters
+//
+// - `S` - Solution type
+// - `A` - Primary entity type (scored)
+// - `B` - Secondary entity type (checked for existence)
+// - `K` - Join key type
+// - `EA` - Extractor for A entities
+// - `EB` - Extractor for B entities (returns Vec for filtering)
+// - `KA` - Key extractor for A
+// - `KB` - Key extractor for B
+// - `FA` - Filter on A entities
+// - `Sc` - Score type
+//
+// # Example
+//
+// ```
+// use solverforge_scoring::stream::ConstraintFactory;
+// use solverforge_scoring::stream::joiner::equal_bi;
+// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+// use solverforge_core::score::SimpleScore;
+//
+// #[derive(Clone)]
+// struct Shift { id: usize, employee_idx: Option<usize> }
+//
+// #[derive(Clone)]
+// struct Employee { id: usize, on_vacation: bool }
+//
+// #[derive(Clone)]
+// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
+//
+// // Penalize shifts assigned to employees who are on vacation
+// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+//     .for_each(|s: &Schedule| s.shifts.as_slice())
+//     .filter(|shift: &Shift| shift.employee_idx.is_some())
+//     .if_exists_filtered(
+//         |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect(),
+//         equal_bi(
+//             |shift: &Shift| shift.employee_idx,
+//             |emp: &Employee| Some(emp.id),
+//         ),
+//     )
+//     .penalize(SimpleScore::of(1))
+//     .as_constraint("Vacation conflict");
+//
+// let schedule = Schedule {
+//     shifts: vec![
+//         Shift { id: 0, employee_idx: Some(0) },
+//         Shift { id: 1, employee_idx: Some(1) },
+//         Shift { id: 2, employee_idx: None },
+//     ],
+//     employees: vec![
+//         Employee { id: 0, on_vacation: true },
+//         Employee { id: 1, on_vacation: false },
+//     ],
+// };
+//
+// // Shift 0 is assigned to employee 0 who is on vacation
+// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+// ```
 pub struct IfExistsStream<S, A, B, K, EA, EB, KA, KB, FA, Sc>
 where
     Sc: Score,
@@ -103,7 +103,7 @@ where
     FA: UniFilter<S, A>,
     Sc: Score + 'static,
 {
-    /// Creates a new if_exists stream.
+    // Creates a new if_exists stream.
     pub(crate) fn new(
         mode: ExistenceMode,
         extractor_a: EA,
@@ -123,7 +123,7 @@ where
         }
     }
 
-    /// Penalizes each matching entity with a fixed weight.
+    // Penalizes each matching entity with a fixed weight.
     pub fn penalize(
         self,
         weight: Sc,
@@ -150,7 +150,7 @@ where
         }
     }
 
-    /// Penalizes each matching entity with a dynamic weight.
+    // Penalizes each matching entity with a dynamic weight.
     pub fn penalize_with<W>(
         self,
         weight_fn: W,
@@ -172,7 +172,7 @@ where
         }
     }
 
-    /// Penalizes each matching entity with a dynamic weight, explicitly marked as hard.
+    // Penalizes each matching entity with a dynamic weight, explicitly marked as hard.
     pub fn penalize_hard_with<W>(
         self,
         weight_fn: W,
@@ -194,7 +194,7 @@ where
         }
     }
 
-    /// Rewards each matching entity with a fixed weight.
+    // Rewards each matching entity with a fixed weight.
     pub fn reward(
         self,
         weight: Sc,
@@ -221,7 +221,7 @@ where
         }
     }
 
-    /// Rewards each matching entity with a dynamic weight.
+    // Rewards each matching entity with a dynamic weight.
     pub fn reward_with<W>(
         self,
         weight_fn: W,
@@ -243,7 +243,7 @@ where
         }
     }
 
-    /// Rewards each matching entity with a dynamic weight, explicitly marked as hard.
+    // Rewards each matching entity with a dynamic weight, explicitly marked as hard.
     pub fn reward_hard_with<W>(
         self,
         weight_fn: W,
@@ -276,7 +276,7 @@ impl<S, A, B, K, EA, EB, KA, KB, FA, Sc: Score> std::fmt::Debug
     }
 }
 
-/// Zero-erasure builder for finalizing an if_exists constraint.
+// Zero-erasure builder for finalizing an if_exists constraint.
 pub struct IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
 where
     Sc: Score,
@@ -307,7 +307,7 @@ where
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /// Finalizes the builder into a zero-erasure `IfExistsUniConstraint`.
+    // Finalizes the builder into a zero-erasure `IfExistsUniConstraint`.
     pub fn as_constraint(
         self,
         name: &str,

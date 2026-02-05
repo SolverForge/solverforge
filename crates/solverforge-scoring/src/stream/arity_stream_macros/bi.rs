@@ -1,6 +1,6 @@
-//! Bi-arity constraint stream macro.
+// Bi-arity constraint stream macro.
 
-/// Generates a bi-arity constraint stream struct and builder.
+// Generates a bi-arity constraint stream struct and builder.
 macro_rules! impl_bi_arity_stream {
     ($stream:ident, $builder:ident, $constraint:ident) => {
         pub struct $stream<S, A, K, E, KE, F, Sc>

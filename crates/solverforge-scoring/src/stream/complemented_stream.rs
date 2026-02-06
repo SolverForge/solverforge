@@ -89,7 +89,7 @@ where
     key_b: KB,
     collector: C,
     default_fn: D,
-    _phantom: PhantomData<(S, A, B, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, D, Sc>
@@ -240,7 +240,7 @@ where
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, B, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>

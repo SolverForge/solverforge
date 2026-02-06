@@ -70,7 +70,7 @@ where
     extractor: E,
     key_fn: KF,
     collector: C,
-    _phantom: PhantomData<(S, A, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, K, E, KF, C, Sc> GroupedConstraintStream<S, A, K, E, KF, C, Sc>
@@ -383,7 +383,7 @@ where
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, K, E, KF, C, W, Sc> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>

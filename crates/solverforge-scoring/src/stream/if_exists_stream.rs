@@ -87,7 +87,7 @@ where
     key_a: KA,
     key_b: KB,
     filter_a: FA,
-    _phantom: PhantomData<(S, A, B, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, FA, Sc> IfExistsStream<S, A, B, K, EA, EB, KA, KB, FA, Sc>
@@ -290,7 +290,7 @@ where
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, B, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, FA, W, Sc> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>

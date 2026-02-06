@@ -41,7 +41,7 @@ use super::UniConstraintStream;
 // assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-2));
 // ```
 pub struct ConstraintFactory<S, Sc: Score> {
-    _phantom: PhantomData<(S, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> Sc)>,
 }
 
 impl<S, Sc> ConstraintFactory<S, Sc>

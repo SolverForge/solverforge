@@ -60,7 +60,15 @@ pub struct FlattenedBiConstraintStream<
     c_key_fn: CKeyFn,
     a_lookup_fn: ALookup,
     filter: F,
-    _phantom: PhantomData<(S, A, B, C, K, CK, Sc)>,
+    _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> B,
+        fn() -> C,
+        fn() -> K,
+        fn() -> CK,
+        fn() -> Sc,
+    )>,
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, Sc>
@@ -454,7 +462,15 @@ pub struct FlattenedBiConstraintBuilder<
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, B, C, K, CK, Sc)>,
+    _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> B,
+        fn() -> C,
+        fn() -> K,
+        fn() -> CK,
+        fn() -> Sc,
+    )>,
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>

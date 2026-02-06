@@ -10,7 +10,8 @@ macro_rules! impl_quad_arity_stream {
             pub(crate) extractor: E,
             pub(crate) key_extractor: KE,
             pub(crate) filter: F,
-            pub(crate) _phantom: std::marker::PhantomData<(S, A, K, Sc)>,
+            pub(crate) _phantom:
+                std::marker::PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
         }
 
         impl<S, A, K, E, KE, Sc> $stream<S, A, K, E, KE, super::filter::TrueFilter, Sc>
@@ -207,7 +208,8 @@ macro_rules! impl_quad_arity_stream {
             pub(crate) impact_type: solverforge_core::ImpactType,
             pub(crate) weight: W,
             pub(crate) is_hard: bool,
-            pub(crate) _phantom: std::marker::PhantomData<(S, A, K, Sc)>,
+            pub(crate) _phantom:
+                std::marker::PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
         }
 
         impl<S, A, K, E, KE, F, W, Sc> $builder<S, A, K, E, KE, F, W, Sc>

@@ -44,7 +44,7 @@ where
 {
     extractor: E,
     filter: F,
-    _phantom: PhantomData<(S, A, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
 impl<S, A, E, Sc> UniConstraintStream<S, A, E, TrueFilter, Sc>
@@ -524,7 +524,7 @@ where
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
 impl<S, A, E, F, W, Sc> UniConstraintBuilder<S, A, E, F, W, Sc>

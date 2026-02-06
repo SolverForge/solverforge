@@ -44,7 +44,7 @@ where
     key_a: KA,
     key_b: KB,
     filter: F,
-    _phantom: PhantomData<(S, A, B, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, Sc>
@@ -440,7 +440,7 @@ where
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, B, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>

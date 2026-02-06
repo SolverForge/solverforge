@@ -65,7 +65,7 @@ where
     extractor: E,
     filter: F,
     key_fn: KF,
-    _phantom: PhantomData<(S, A, K, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
 impl<S, A, K, E, F, KF, Sc> BalanceConstraintStream<S, A, K, E, F, KF, Sc>
@@ -148,7 +148,7 @@ where
     impact_type: ImpactType,
     base_score: Sc,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, K)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K)>,
 }
 
 impl<S, A, K, E, F, KF, Sc> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>

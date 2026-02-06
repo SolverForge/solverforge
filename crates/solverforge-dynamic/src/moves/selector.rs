@@ -92,7 +92,7 @@ impl MoveSelector<DynamicSolution, DynamicEitherMove> for DynamicMoveSelector {
         let change_iter = DynamicMoveIterator::new(solution).map(DynamicEitherMove::Change);
         let swap_moves = Self::generate_swap_moves(solution);
 
-        change_iter.chain(swap_moves.into_iter())
+        change_iter.chain(swap_moves)
     }
 
     fn size<D: ScoreDirector<DynamicSolution>>(&self, score_director: &D) -> usize {

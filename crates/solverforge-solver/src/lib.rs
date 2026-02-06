@@ -8,6 +8,11 @@
 //! - Tracing-based structured logging
 //! - Configuration wiring (builder module)
 
+// PhantomData<(fn() -> T, ...)> is an intentional pattern to avoid inheriting
+// trait bounds from phantom type parameters. Clippy's type_complexity lint
+// triggers on these tuples but the pattern is architecturally required.
+#![allow(clippy::type_complexity)]
+
 #[cfg(test)]
 pub mod test_utils;
 

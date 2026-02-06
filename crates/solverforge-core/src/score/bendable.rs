@@ -187,6 +187,21 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
             )
         }
     }
+
+    #[inline]
+    fn to_scalar(&self) -> f64 {
+        let total_levels = H + S;
+        let mut scalar = 0.0;
+        for (i, &v) in self.hard.iter().enumerate() {
+            let weight = 10_f64.powi(((total_levels - 1 - i) * 6) as i32);
+            scalar += v as f64 * weight;
+        }
+        for (i, &v) in self.soft.iter().enumerate() {
+            let weight = 10_f64.powi(((S - 1 - i) * 6) as i32);
+            scalar += v as f64 * weight;
+        }
+        scalar
+    }
 }
 
 impl<const H: usize, const S: usize> Ord for BendableScore<H, S> {

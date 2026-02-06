@@ -24,7 +24,7 @@ impl<S, V: Clone> Clone for EitherMove<S, V> {
     fn clone(&self) -> Self {
         match self {
             Self::Change(m) => Self::Change(m.clone()),
-            Self::Swap(m) => Self::Swap(m.clone()),
+            Self::Swap(m) => Self::Swap(*m),
         }
     }
 }

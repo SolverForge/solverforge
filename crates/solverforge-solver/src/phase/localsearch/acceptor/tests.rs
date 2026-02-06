@@ -23,7 +23,7 @@ impl PlanningSolution for DummySolution {
 
 #[test]
 fn test_hill_climbing_accepts_improving() {
-    let acceptor: Box<dyn Acceptor<DummySolution>> = Box::new(HillClimbingAcceptor::new());
+    let mut acceptor: Box<dyn Acceptor<DummySolution>> = Box::new(HillClimbingAcceptor::new());
 
     // Should accept improving move
     assert!(acceptor.is_accepted(&SimpleScore::of(-10), &SimpleScore::of(-5)));
@@ -31,7 +31,7 @@ fn test_hill_climbing_accepts_improving() {
 
 #[test]
 fn test_hill_climbing_rejects_worsening() {
-    let acceptor: Box<dyn Acceptor<DummySolution>> = Box::new(HillClimbingAcceptor::new());
+    let mut acceptor: Box<dyn Acceptor<DummySolution>> = Box::new(HillClimbingAcceptor::new());
 
     // Should reject worsening move
     assert!(!acceptor.is_accepted(&SimpleScore::of(-5), &SimpleScore::of(-10)));
@@ -39,7 +39,7 @@ fn test_hill_climbing_rejects_worsening() {
 
 #[test]
 fn test_hill_climbing_rejects_equal() {
-    let acceptor: Box<dyn Acceptor<DummySolution>> = Box::new(HillClimbingAcceptor::new());
+    let mut acceptor: Box<dyn Acceptor<DummySolution>> = Box::new(HillClimbingAcceptor::new());
 
     // Should reject equal move (not strictly improving)
     assert!(!acceptor.is_accepted(&SimpleScore::of(-5), &SimpleScore::of(-5)));
@@ -47,7 +47,7 @@ fn test_hill_climbing_rejects_equal() {
 
 #[test]
 fn test_simulated_annealing_accepts_improving() {
-    let acceptor: Box<dyn Acceptor<DummySolution>> =
+    let mut acceptor: Box<dyn Acceptor<DummySolution>> =
         Box::new(SimulatedAnnealingAcceptor::new(1.0, 0.99));
 
     // Should always accept improving move
@@ -183,7 +183,7 @@ fn test_entity_tabu_accepts_improving() {
     // Should accept improving move
     assert!(
         <EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
-            &acceptor,
+            &mut acceptor,
             &SimpleScore::of(-10),
             &SimpleScore::of(-5)
         )
@@ -201,7 +201,7 @@ fn test_entity_tabu_accepts_equal() {
     // Should accept equal move
     assert!(
         <EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
-            &acceptor,
+            &mut acceptor,
             &SimpleScore::of(-10),
             &SimpleScore::of(-10)
         )
@@ -219,7 +219,7 @@ fn test_entity_tabu_rejects_worsening() {
     // Should reject worsening move
     assert!(
         !<EntityTabuAcceptor as Acceptor<DummySolution>>::is_accepted(
-            &acceptor,
+            &mut acceptor,
             &SimpleScore::of(-5),
             &SimpleScore::of(-10)
         )

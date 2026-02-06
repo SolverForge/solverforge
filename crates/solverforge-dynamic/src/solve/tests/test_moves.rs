@@ -191,7 +191,7 @@ fn test_local_search_simulation() {
 
     // Generate moves like MoveSelector does
     let selector = DynamicMoveSelector::new();
-    let moves: Vec<DynamicChangeMove> = selector.iter_moves(&director).collect();
+    let moves: Vec<crate::moves::DynamicEitherMove> = selector.iter_moves(&director).collect();
     eprintln!("Generated {} moves", moves.len());
 
     // Evaluate each move like LocalSearchPhase does

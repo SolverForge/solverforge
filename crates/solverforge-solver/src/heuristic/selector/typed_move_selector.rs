@@ -269,40 +269,33 @@ where
         let getter = self.getter;
         let setter = self.setter;
 
-        // Collect entities once — needed for triangular pairing with index tracking.
+        // Collect entities once — needed for triangular pairing.
         let left_entities: Vec<EntityReference> =
             self.left_entity_selector.iter(score_director).collect();
         let right_entities: Vec<EntityReference> =
             self.right_entity_selector.iter(score_director).collect();
 
-        // Lazy triangular iteration over pairs using index-based slicing.
-        // No per-outer-iteration Vec::clone() — we share via Rc.
-        let right_rc = std::rc::Rc::new(right_entities);
-        let iter = left_entities
-            .into_iter()
-            .enumerate()
-            .flat_map(move |(i, left)| {
-                let right_ref = right_rc.clone(); // Rc clone = pointer bump, not data clone
-                (i + 1..right_ref.len()).filter_map(move |j| {
-                    let right = right_ref[j];
-                    if left.descriptor_index == right.descriptor_index
-                        && left.descriptor_index == descriptor_index
-                    {
-                        Some(SwapMove::new(
-                            left.entity_index,
-                            right.entity_index,
-                            getter,
-                            setter,
-                            variable_name,
-                            descriptor_index,
-                        ))
-                    } else {
-                        None
-                    }
-                })
-            });
+        // Eager triangular pairing — no Rc, no shared pointers.
+        let mut moves =
+            Vec::with_capacity(left_entities.len() * left_entities.len().saturating_sub(1) / 2);
+        for (i, left) in left_entities.iter().enumerate() {
+            for right in &right_entities[i + 1..] {
+                if left.descriptor_index == right.descriptor_index
+                    && left.descriptor_index == descriptor_index
+                {
+                    moves.push(SwapMove::new(
+                        left.entity_index,
+                        right.entity_index,
+                        getter,
+                        setter,
+                        variable_name,
+                        descriptor_index,
+                    ));
+                }
+            }
+        }
 
-        Box::new(iter)
+        Box::new(moves.into_iter())
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

@@ -1,4 +1,4 @@
-//! Async solver manager for Python API.
+//! SolverManager: the single Python entry point for SolverForge.
 
 use std::time::Duration;
 
@@ -12,22 +12,20 @@ use solverforge_dynamic::{
     DynamicValue, EntityClassDef, FieldDef, SolveConfig, SolveStatus, ValueRangeDef,
 };
 
-use crate::constraint_builder::{parse_expr, ConstraintBuilder, ConstraintOp};
+use crate::constraint_builder::{build_constraint, ConstraintBuilder};
 use crate::convert::{parse_field_type, parse_weight, py_to_dynamic};
 use crate::solve_result::PySolveResult;
 
-// Python wrapper for async solver manager.
 #[pyclass]
 pub struct SolverManager {
     inner: Option<DynamicSolverManager>,
-    descriptor: DynamicDescriptor,
+    pub(crate) descriptor: DynamicDescriptor,
     entities: Vec<Vec<DynamicEntity>>,
     constraints: Vec<ConstraintBuilder>,
 }
 
 #[pymethods]
 impl SolverManager {
-    // Creates a new SolverManager.
     #[new]
     fn new() -> Self {
         Self {
@@ -38,7 +36,7 @@ impl SolverManager {
         }
     }
 
-    // Define an entity class (same as Solver).
+    /// Define an entity class with fields.
     #[pyo3(signature = (name, fields))]
     fn entity_class(&mut self, name: &str, fields: &Bound<'_, PyList>) -> PyResult<()> {
         let mut field_defs = Vec::new();
@@ -77,13 +75,21 @@ impl SolverManager {
         Ok(())
     }
 
-    // Define an integer range.
+    /// Define an integer range [start, end).
     fn int_range(&mut self, name: &str, start: i64, end: i64) {
         self.descriptor
             .add_value_range(name, ValueRangeDef::int_range(start, end));
     }
 
-    // Add entities to a class.
+    /// Define a value range with explicit values.
+    fn value_range(&mut self, name: &str, values: &Bound<'_, PyList>) -> PyResult<()> {
+        let dynamic_values: PyResult<Vec<_>> = values.iter().map(|v| py_to_dynamic(&v)).collect();
+        self.descriptor
+            .add_value_range(name, ValueRangeDef::Explicit(dynamic_values?));
+        Ok(())
+    }
+
+    /// Add entities to a class.
     fn add_entities(&mut self, class_name: &str, data: &Bound<'_, PyList>) -> PyResult<()> {
         let class_idx = self
             .descriptor
@@ -115,15 +121,10 @@ impl SolverManager {
         Ok(())
     }
 
-    // Start defining a constraint.
+    /// Create a new constraint builder.
     fn constraint(&self, name: &str, weight: &str) -> PyResult<ConstraintBuilder> {
         let weight = parse_weight(weight)?;
-        Ok(ConstraintBuilder {
-            name: name.to_string(),
-            weight,
-            class_idx: None,
-            operations: Vec::new(),
-        })
+        Ok(ConstraintBuilder::new(name.to_string(), weight))
     }
 
     /// Add a completed constraint.
@@ -131,10 +132,9 @@ impl SolverManager {
         self.constraints.push(builder);
     }
 
-    /// Start solving asynchronously.
+    /// Start solving. Launches a background Rust thread and returns immediately.
     #[pyo3(signature = (time_limit_seconds = 30))]
-    fn solve_async(&mut self, time_limit_seconds: u64) -> PyResult<()> {
-        // Build the solution
+    fn solve(&mut self, time_limit_seconds: u64) -> PyResult<()> {
         let mut solution = DynamicSolution::new(self.descriptor.clone());
         for (class_idx, entities) in self.entities.iter().enumerate() {
             for entity in entities {
@@ -142,10 +142,9 @@ impl SolverManager {
             }
         }
 
-        // Build constraints
         let mut constraint_set = DynamicConstraintSet::new();
         for builder in &self.constraints {
-            let constraint = self.build_constraint_internal(builder)?;
+            let constraint = build_constraint(builder, &self.descriptor)?;
             constraint_set.add(constraint);
         }
 
@@ -158,7 +157,7 @@ impl SolverManager {
         Ok(())
     }
 
-    // Get current solve status.
+    /// Get current solve status.
     fn get_status(&self) -> String {
         if let Some(ref manager) = self.inner {
             match manager.status() {
@@ -171,7 +170,7 @@ impl SolverManager {
         }
     }
 
-    // Get the best solution found so far.
+    /// Get the best solution found so far.
     fn get_best_solution(&self) -> PyResult<Option<PySolveResult>> {
         if let Some(ref manager) = self.inner {
             if let Some(solution) = manager.get_best_solution() {
@@ -181,7 +180,7 @@ impl SolverManager {
                     score.hard(),
                     score.soft(),
                     score.hard() >= 0,
-                    0, // Not available from snapshot
+                    0,
                     0,
                     0,
                     solution,
@@ -191,79 +190,19 @@ impl SolverManager {
         Ok(None)
     }
 
-    // Request termination of the solve.
+    /// Request termination of the solve.
     fn terminate(&mut self) {
         if let Some(ref mut manager) = self.inner {
             manager.terminate();
         }
     }
 
-    // Check if termination was requested.
+    /// Check if termination was requested.
     fn is_terminating(&self) -> bool {
         if let Some(ref manager) = self.inner {
             manager.is_terminating()
         } else {
             false
         }
-    }
-}
-
-impl SolverManager {
-    fn build_constraint_internal(
-        &self,
-        builder: &ConstraintBuilder,
-    ) -> PyResult<
-        Box<
-            dyn solverforge_scoring::api::constraint_set::IncrementalConstraint<
-                    solverforge_dynamic::DynamicSolution,
-                    solverforge_core::score::HardSoftScore,
-                > + Send
-                + Sync,
-        >,
-    > {
-        use solverforge_dynamic::{DynamicConstraint, Expr};
-
-        let mut constraint = DynamicConstraint::new(builder.name.clone());
-
-        // Track which class index each parameter (A=0, B=1, C=2) refers to.
-        // ForEach sets param 0, first Join sets param 1, second Join sets param 2.
-        let mut param_to_class: Vec<usize> = Vec::new();
-
-        for op in &builder.operations {
-            match op {
-                ConstraintOp::ForEach(class_idx) => {
-                    // ForEach always sets parameter A (index 0)
-                    param_to_class.clear();
-                    param_to_class.push(*class_idx);
-                    constraint = constraint.for_each(*class_idx);
-                }
-                ConstraintOp::Join(class_idx, conditions) => {
-                    // Join adds the next parameter (B=1 or C=2)
-                    param_to_class.push(*class_idx);
-                    let mut exprs = Vec::new();
-                    for cond in conditions {
-                        exprs.push(parse_expr(cond, &param_to_class, &self.descriptor)?);
-                    }
-                    constraint = constraint.join(*class_idx, exprs);
-                }
-                ConstraintOp::Filter(predicate) => {
-                    let expr = parse_expr(predicate, &param_to_class, &self.descriptor)?;
-                    constraint = constraint.filter(expr);
-                }
-                ConstraintOp::DistinctPair => {
-                    let expr = Expr::lt(Expr::field(0, 0), Expr::field(1, 0));
-                    constraint = constraint.distinct_pair(expr);
-                }
-                ConstraintOp::Penalize => {
-                    constraint = constraint.penalize(builder.weight);
-                }
-                ConstraintOp::Reward => {
-                    constraint = constraint.reward(builder.weight);
-                }
-            }
-        }
-
-        // Build the constraint with the descriptor
-        Ok(constraint.build(self.descriptor.clone()))
     }
 }

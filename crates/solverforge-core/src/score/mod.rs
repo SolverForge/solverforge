@@ -9,6 +9,7 @@ mod bendable;
 mod hard_medium_soft;
 mod hard_soft;
 mod hard_soft_decimal;
+mod level;
 mod simple;
 mod traits;
 
@@ -19,16 +20,6 @@ pub use bendable::BendableScore;
 pub use hard_medium_soft::HardMediumSoftScore;
 pub use hard_soft::HardSoftScore;
 pub use hard_soft_decimal::HardSoftDecimalScore;
+pub use level::ScoreLevel;
 pub use simple::SimpleScore;
 pub use traits::{ParseableScore, Score, ScoreParseError};
-
-/// Score level representing different constraint priorities
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ScoreLevel {
-    /// Hard constraints - must be satisfied for feasibility
-    Hard,
-    /// Medium constraints - secondary priority
-    Medium,
-    /// Soft constraints - optimization objectives
-    Soft,
-}

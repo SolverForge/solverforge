@@ -66,7 +66,7 @@ pub trait PillarSelector<S: PlanningSolution>: Send + Debug {
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = Pillar> + 'a>;
+    ) -> impl Iterator<Item = Pillar> + 'a;
 
     /// Returns the approximate number of pillars.
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
@@ -256,9 +256,9 @@ where
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = Pillar> + 'a> {
+    ) -> impl Iterator<Item = Pillar> + 'a {
         let pillars = self.build_pillars(score_director);
-        Box::new(pillars.into_iter())
+        pillars.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

@@ -221,15 +221,7 @@ pub fn make_cross_key_a(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
         );
     }
 
-    // Create minimal solution with only descriptor (no entities/facts).
-    // This is intentional - join keys should be stable entity attributes.
-    let minimal_solution = DynamicSolution {
-        descriptor,
-        entities: Vec::new(),
-        facts: Vec::new(),
-        score: None,
-        id_to_location: std::collections::HashMap::new(),
-    };
+    let minimal_solution = DynamicSolution::empty(descriptor);
 
     Box::new(move |entity: &DynamicEntity| {
         crate::eval::eval_entity_expr(&key_expr, &minimal_solution, entity)
@@ -293,15 +285,7 @@ pub fn make_cross_key_b(key_expr: Expr, descriptor: DynamicDescriptor) -> DynCro
         );
     }
 
-    // Create minimal solution with only descriptor (no entities/facts).
-    // This is intentional - join keys should be stable entity attributes.
-    let minimal_solution = DynamicSolution {
-        descriptor,
-        entities: Vec::new(),
-        facts: Vec::new(),
-        score: None,
-        id_to_location: std::collections::HashMap::new(),
-    };
+    let minimal_solution = DynamicSolution::empty(descriptor);
 
     Box::new(move |entity: &DynamicEntity| {
         crate::eval::eval_entity_expr(&key_expr, &minimal_solution, entity)

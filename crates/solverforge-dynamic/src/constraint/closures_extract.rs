@@ -45,13 +45,7 @@ pub fn make_key_extractor(key_expr: Expr, descriptor: DynamicDescriptor) -> DynK
     // Create a minimal solution context with only the descriptor, cloned once into the closure.
     // This is sufficient for entity field access, which is all that join keys should need.
     // Fact lookups and other solution-dependent operations will not work in this context.
-    let minimal_solution = DynamicSolution {
-        descriptor,
-        entities: Vec::new(),
-        facts: Vec::new(),
-        score: None,
-        id_to_location: std::collections::HashMap::new(),
-    };
+    let minimal_solution = DynamicSolution::empty(descriptor);
 
     Box::new(move |entity: &DynamicEntity| {
         crate::eval::eval_entity_expr(&key_expr, &minimal_solution, entity)

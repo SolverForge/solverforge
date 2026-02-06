@@ -104,13 +104,7 @@ pub fn build_uni_constraint(
     let weight_descriptor = descriptor;
     let weight: DynUniWeight = Box::new(move |entity: &DynamicEntity| {
         // Create minimal solution for entity-level evaluation
-        let minimal_solution = DynamicSolution {
-            descriptor: weight_descriptor.clone(),
-            entities: Vec::new(),
-            facts: Vec::new(),
-            score: None,
-            id_to_location: std::collections::HashMap::new(),
-        };
+        let minimal_solution = DynamicSolution::empty(weight_descriptor.clone());
 
         // Evaluate weight expression
         let result = crate::eval::eval_entity_expr(&weight_expr, &minimal_solution, entity);

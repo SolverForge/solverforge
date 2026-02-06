@@ -39,7 +39,7 @@ pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a>;
+    ) -> impl Iterator<Item = EntityReference> + 'a;
 
     /// Returns the approximate number of entities.
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
@@ -79,14 +79,14 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+    ) -> impl Iterator<Item = EntityReference> + 'a {
         let count = score_director
             .entity_count(self.descriptor_index)
             .unwrap_or(0);
 
         let desc_idx = self.descriptor_index;
 
-        Box::new((0..count).map(move |i| EntityReference::new(desc_idx, i)))
+        (0..count).map(move |i| EntityReference::new(desc_idx, i))
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
@@ -111,7 +111,7 @@ impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+    ) -> impl Iterator<Item = EntityReference> + 'a {
         let desc = score_director.solution_descriptor();
         let descriptor_count = desc.entity_descriptors.len();
 
@@ -123,7 +123,7 @@ impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
             }
         }
 
-        Box::new(refs.into_iter())
+        refs.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

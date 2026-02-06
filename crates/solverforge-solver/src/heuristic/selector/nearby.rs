@@ -189,29 +189,26 @@ where
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+    ) -> impl Iterator<Item = EntityReference> + 'a {
         // Get the origin entity from the recorder
-        let origin = match self.origin_recorder.get_recorded_entity() {
-            Some(e) => e,
-            None => {
-                // No origin recorded yet, return empty
-                return Box::new(std::iter::empty());
-            }
-        };
+        let origin = self.origin_recorder.get_recorded_entity();
 
-        // Collect all candidate entities with their distances
-        let mut candidates: Vec<(EntityReference, f64)> = self
-            .child
-            .iter(score_director)
-            .filter(|&dest| dest != origin) // Exclude the origin itself
-            .map(|dest| {
-                let dist = self
-                    .distance_meter
-                    .distance_between(score_director, origin, dest);
-                (dest, dist)
-            })
-            .filter(|(_, dist)| *dist >= self.config.min_distance)
-            .collect();
+        // Collect all candidate entities with their distances (empty if no origin)
+        let mut candidates: Vec<(EntityReference, f64)> = match origin {
+            Some(origin) => self
+                .child
+                .iter(score_director)
+                .filter(move |&dest| dest != origin) // Exclude the origin itself
+                .map(move |dest| {
+                    let dist = self
+                        .distance_meter
+                        .distance_between(score_director, origin, dest);
+                    (dest, dist)
+                })
+                .filter(|(_, dist)| *dist >= self.config.min_distance)
+                .collect(),
+            None => Vec::new(),
+        };
 
         // Sort by distance (closest first)
         candidates.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
@@ -221,7 +218,7 @@ where
             candidates.truncate(max_size);
         }
 
-        Box::new(candidates.into_iter().map(|(entity, _)| entity))
+        candidates.into_iter().map(|(entity, _)| entity)
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

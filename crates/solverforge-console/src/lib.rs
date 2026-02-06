@@ -40,10 +40,10 @@ pub fn init() {
             .with_default_directive("solverforge_solver=info".parse().unwrap())
             .from_env_lossy();
 
-        tracing_subscriber::registry()
+        let _ = tracing_subscriber::registry()
             .with(filter)
             .with(SolverConsoleLayer)
-            .init();
+            .try_init();
     });
 }
 
@@ -130,6 +130,9 @@ struct EventVisitor {
     constraint_count: Option<u64>,
     time_limit_secs: Option<u64>,
     feasible: Option<bool>,
+    moves_speed: Option<u64>,
+    calc_speed: Option<u64>,
+    acceptance_rate: Option<String>,
 }
 
 impl Visit for EventVisitor {
@@ -155,6 +158,8 @@ impl Visit for EventVisitor {
             "value_count" => self.value_count = Some(value),
             "constraint_count" => self.constraint_count = Some(value),
             "time_limit_secs" => self.time_limit_secs = Some(value),
+            "moves_speed" => self.moves_speed = Some(value),
+            "calc_speed" => self.calc_speed = Some(value),
             _ => {}
         }
     }
@@ -176,6 +181,7 @@ impl Visit for EventVisitor {
             "event" => self.event = Some(value.to_string()),
             "phase" => self.phase = Some(value.to_string()),
             "score" => self.score = Some(value.to_string()),
+            "acceptance_rate" => self.acceptance_rate = Some(value.to_string()),
             _ => {}
         }
     }
@@ -328,23 +334,40 @@ fn format_phase_start(v: &EventVisitor) -> String {
 fn format_phase_end(v: &EventVisitor) -> String {
     let phase = v.phase.as_deref().unwrap_or("Unknown");
     let steps = v.steps.unwrap_or(0);
-    let speed = v.speed.unwrap_or(0);
+    let moves_speed = v.moves_speed.unwrap_or(v.speed.unwrap_or(0));
     let score = v.score.as_deref().unwrap_or("N/A");
     let duration = v.duration_ms.unwrap_or(0);
 
-    format!(
-        "{} {} {} ended │ {} │ {} steps │ {}/s │ {}",
+    let mut output = format!(
+        "{} {} {} ended │ {} │ {} steps │ {} moves/s",
         format_elapsed(),
         "◀".bright_blue(),
         phase.white().bold(),
         format_duration_ms(duration).yellow(),
         steps.to_formatted_string(&Locale::en).white(),
-        speed
+        moves_speed
             .to_formatted_string(&Locale::en)
             .bright_magenta()
             .bold(),
-        format_score(score)
-    )
+    );
+
+    if let Some(calc_speed) = v.calc_speed {
+        output.push_str(&format!(
+            " │ {} calcs/s",
+            calc_speed
+                .to_formatted_string(&Locale::en)
+                .bright_magenta()
+                .bold()
+        ));
+    }
+
+    if let Some(ref rate) = v.acceptance_rate {
+        output.push_str(&format!(" │ {} accepted", rate.bright_yellow()));
+    }
+
+    output.push_str(&format!(" │ {}", format_score(score)));
+
+    output
 }
 
 fn format_progress(v: &EventVisitor) -> String {

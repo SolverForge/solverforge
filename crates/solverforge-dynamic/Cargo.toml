@@ -8,6 +8,7 @@ rust-version.workspace = true
 description = "Runtime-defined solution types for SolverForge"
 
 [dependencies]
+solverforge-config.workspace = true
 solverforge-core.workspace = true
 solverforge-scoring.workspace = true
 solverforge-solver.workspace = true

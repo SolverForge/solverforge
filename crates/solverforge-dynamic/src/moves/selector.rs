@@ -1,11 +1,21 @@
-//! Move selector for dynamic solutions.
+//! Move selector for dynamic solutions — unified change + swap moves.
 
 use solverforge_scoring::ScoreDirector;
 use solverforge_solver::heuristic::selector::typed_move_selector::MoveSelector;
 
-use super::{DynamicChangeMove, DynamicMoveIterator};
+use super::swap_move::DynamicSwapMove;
+use super::{DynamicEitherMove, DynamicMoveIterator};
 use crate::solution::DynamicSolution;
 
+/// Move selector that generates both change moves and swap moves
+/// as a unified `DynamicEitherMove` stream.
+///
+/// Change moves are generated lazily via `DynamicMoveIterator`.
+/// Swap moves are generated for triangular entity pairs within each class.
+/// Both are chained: all change moves first, then all swap moves.
+///
+/// No per-step shuffle. The arena in the local search phase stores all moves;
+/// SA acceptance handles exploration via probabilistic acceptance.
 #[derive(Debug)]
 pub struct DynamicMoveSelector {
     _phantom: std::marker::PhantomData<()>,
@@ -18,35 +28,35 @@ impl DynamicMoveSelector {
         }
     }
 
-    /// Returns a lazy iterator over all possible change moves for the solution.
-    ///
-    /// This method generates moves on-demand using `DynamicMoveIterator`, which
-    /// significantly reduces memory usage for large solutions compared to
-    /// pre-computing all moves into a `Vec`.
-    ///
-    /// The moves are generated in deterministic order (by class, entity, variable, value).
-    /// If randomized order is needed (e.g., for `FirstAcceptedForager`), the caller
-    /// should collect and shuffle the moves, or use `generate_moves_shuffled`.
-    pub fn generate_moves<'a>(&self, solution: &'a DynamicSolution) -> DynamicMoveIterator<'a> {
-        DynamicMoveIterator::new(solution)
-    }
+    /// Generate swap moves for all entity pairs within each class.
+    fn generate_swap_moves(solution: &DynamicSolution) -> Vec<DynamicEitherMove> {
+        let mut moves = Vec::new();
+        for (class_idx, class_def) in solution.descriptor.entity_classes.iter().enumerate() {
+            let entity_count = solution
+                .entities
+                .get(class_idx)
+                .map(|e| e.len())
+                .unwrap_or(0);
+            if entity_count < 2 {
+                continue;
+            }
 
-    /// Returns all possible change moves as a shuffled Vec.
-    ///
-    /// This method collects all moves and shuffles them for randomized selection,
-    /// which is important for foragers like `FirstAcceptedForager`.
-    ///
-    /// For memory-constrained scenarios with many moves, prefer using
-    /// `generate_moves()` to get a lazy iterator.
-    pub fn generate_moves_shuffled(&self, solution: &DynamicSolution) -> Vec<DynamicChangeMove> {
-        use rand::seq::SliceRandom;
-
-        let mut moves: Vec<_> = self.generate_moves(solution).collect();
-
-        // Shuffle moves for randomized selection (important for FirstAcceptedForager)
-        let mut rng = rand::rng();
-        moves.shuffle(&mut rng);
-
+            for &field_idx in &class_def.planning_variable_indices {
+                let variable_name = &class_def.fields[field_idx].name;
+                // Triangular pairs: (i, j) where i < j
+                for i in 0..entity_count {
+                    for j in (i + 1)..entity_count {
+                        moves.push(DynamicEitherMove::Swap(DynamicSwapMove::new(
+                            class_idx,
+                            i,
+                            j,
+                            field_idx,
+                            variable_name.clone(),
+                        )));
+                    }
+                }
+            }
+        }
         moves
     }
 }
@@ -57,38 +67,47 @@ impl Default for DynamicMoveSelector {
     }
 }
 
-// Implement the real MoveSelector trait
-impl MoveSelector<DynamicSolution, DynamicChangeMove> for DynamicMoveSelector {
-    /// Returns an iterator over all possible change moves in randomized order.
+impl MoveSelector<DynamicSolution, DynamicEitherMove> for DynamicMoveSelector {
+    /// Returns an iterator over all change and swap moves in shuffled order.
     ///
-    /// This implementation leverages `DynamicMoveIterator` for the initial move generation,
-    /// then collects and shuffles the moves for randomized selection. The shuffling is
-    /// critical for effective local search with `FirstAcceptedForager`, which relies on
-    /// randomized move order to escape local optima and explore the solution space.
-    ///
-    /// **Design decision**: While lazy iteration without shuffling would save memory,
-    /// it causes the solver to get stuck in local optima because moves are always
-    /// evaluated in the same deterministic order. The shuffled approach ensures:
-    /// - Effective exploration with `FirstAcceptedForager`
-    /// - Consistent solver performance across different problem instances
-    /// - Better solution quality within time limits
-    ///
-    /// For memory-constrained scenarios where deterministic order is acceptable,
-    /// use `generate_moves()` directly to get a lazy iterator.
+    /// Shuffling is critical for effective search with AcceptedCountForager,
+    /// which stops after finding N accepted moves. Without shuffling, the
+    /// deterministic order causes the solver to cycle through the same moves.
     fn iter_moves<'a, D: ScoreDirector<DynamicSolution>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = DynamicChangeMove> + 'a> {
+    ) -> Box<dyn Iterator<Item = DynamicEitherMove> + 'a> {
+        use rand::seq::SliceRandom;
+
         let solution = score_director.working_solution();
-        // Collect moves from lazy iterator and shuffle for randomized selection
-        // This is necessary for FirstAcceptedForager to work effectively
-        let moves = self.generate_moves_shuffled(solution);
-        Box::new(moves.into_iter())
+
+        // Collect all moves (change + swap) and shuffle
+        let change_iter = DynamicMoveIterator::new(solution).map(DynamicEitherMove::Change);
+        let swap_moves = Self::generate_swap_moves(solution);
+
+        let mut all_moves: Vec<DynamicEitherMove> =
+            change_iter.chain(swap_moves.into_iter()).collect();
+        let mut rng = rand::rng();
+        all_moves.shuffle(&mut rng);
+
+        Box::new(all_moves.into_iter())
     }
 
     fn size<D: ScoreDirector<DynamicSolution>>(&self, score_director: &D) -> usize {
-        // Use lazy iterator to count without allocating all moves
-        self.generate_moves(score_director.working_solution())
-            .count()
+        let solution = score_director.working_solution();
+        let change_count = DynamicMoveIterator::new(solution).count();
+
+        let mut swap_count = 0usize;
+        for (class_idx, class_def) in solution.descriptor.entity_classes.iter().enumerate() {
+            let n = solution
+                .entities
+                .get(class_idx)
+                .map(|e| e.len())
+                .unwrap_or(0);
+            let vars = class_def.planning_variable_indices.len();
+            swap_count += vars * n * n.saturating_sub(1) / 2;
+        }
+
+        change_count + swap_count
     }
 }

@@ -172,6 +172,8 @@ pub struct IntegerRange {
     end: i64,
 }
 
+use super::variable::ValueRangeType;
+
 impl IntegerRange {
     /// Creates a new integer range [start, end).
     pub fn new(start: i64, end: i64) -> Self {
@@ -181,6 +183,16 @@ impl IntegerRange {
     /// Creates a range from 0 to n (exclusive).
     pub fn from_zero(n: i64) -> Self {
         Self::new(0, n)
+    }
+
+    /// Returns the [`ValueRangeType`] describing this range.
+    ///
+    /// An `IntegerRange` is a countable range with known bounds.
+    pub fn value_range_type(&self) -> ValueRangeType {
+        ValueRangeType::CountableRange {
+            from: self.start,
+            to: self.end,
+        }
     }
 }
 

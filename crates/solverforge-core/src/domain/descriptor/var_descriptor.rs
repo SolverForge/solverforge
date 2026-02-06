@@ -89,6 +89,12 @@ impl VariableDescriptor {
         self
     }
 
+    /// Sets the value range type.
+    pub fn with_value_range_type(mut self, value_range_type: ValueRangeType) -> Self {
+        self.value_range_type = value_range_type;
+        self
+    }
+
     /// Sets the source variable for shadow variables.
     pub fn with_source(mut self, entity: &'static str, variable: &'static str) -> Self {
         self.source_entity = Some(entity);

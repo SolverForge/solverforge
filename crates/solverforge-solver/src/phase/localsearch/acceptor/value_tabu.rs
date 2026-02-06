@@ -81,7 +81,7 @@ impl Default for ValueTabuAcceptor {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for ValueTabuAcceptor {
-    fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Accept improving moves
         if move_score > last_step_score {
             return true;
@@ -182,11 +182,11 @@ mod tests {
 
     #[test]
     fn test_accepts_improving_move() {
-        let acceptor = ValueTabuAcceptor::new(5);
+        let mut acceptor = ValueTabuAcceptor::new(5);
         let last_score = SimpleScore::of(-10);
         let move_score = SimpleScore::of(-5);
         assert!(Acceptor::<TestSolution>::is_accepted(
-            &acceptor,
+            &mut acceptor,
             &last_score,
             &move_score
         ));
@@ -194,20 +194,22 @@ mod tests {
 
     #[test]
     fn test_accepts_equal_move() {
-        let acceptor = ValueTabuAcceptor::new(5);
+        let mut acceptor = ValueTabuAcceptor::new(5);
         let score = SimpleScore::of(-10);
         assert!(Acceptor::<TestSolution>::is_accepted(
-            &acceptor, &score, &score
+            &mut acceptor,
+            &score,
+            &score
         ));
     }
 
     #[test]
     fn test_rejects_worsening_move() {
-        let acceptor = ValueTabuAcceptor::new(5);
+        let mut acceptor = ValueTabuAcceptor::new(5);
         let last_score = SimpleScore::of(-5);
         let move_score = SimpleScore::of(-10);
         assert!(!Acceptor::<TestSolution>::is_accepted(
-            &acceptor,
+            &mut acceptor,
             &last_score,
             &move_score
         ));

@@ -27,7 +27,7 @@ where
     A: Send + Sync,
 {
     #[inline]
-    fn test(&self, solution: &S, a: &A, b: &A) -> bool {
+    fn test(&self, solution: &S, a: &A, b: &A, _a_idx: usize, _b_idx: usize) -> bool {
         self.filter.test(solution, a) && self.filter.test(solution, b)
     }
 }
@@ -55,7 +55,7 @@ where
     B: Send + Sync,
 {
     #[inline]
-    fn test(&self, solution: &S, a: &A, _: &B) -> bool {
+    fn test(&self, solution: &S, a: &A, _: &B, _a_idx: usize, _b_idx: usize) -> bool {
         self.filter.test(solution, a)
     }
 }

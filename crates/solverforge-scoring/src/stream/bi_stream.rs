@@ -61,7 +61,7 @@ where
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
-    KE: Fn(&A) -> K + Send + Sync,
+    KE: Fn(&S, &A, usize) -> K + Send + Sync,
     F: BiFilter<S, A, A>,
     Sc: Score + 'static,
 {
@@ -111,7 +111,7 @@ where
     {
         let filter = self.filter;
         let combined_filter =
-            move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b) && joiner.matches(a, c);
+            move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b, 0, 0) && joiner.matches(a, c);
 
         TriConstraintStream::new_self_join_with_filter(
             self.extractor,

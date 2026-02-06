@@ -33,7 +33,7 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)(entity);
+            let key = ($self.key_extractor)($solution, entity, i);
             temp_index.entry(key).or_default().push(i);
         }
 
@@ -45,7 +45,7 @@ macro_rules! impl_get_matches_nary {
                     let idx_b = indices[j];
                     let a = &entities[idx_a];
                     let b = &entities[idx_b];
-                    if ($self.filter)($solution, a, b) {
+                    if ($self.filter)($solution, a, b, idx_a, idx_b) {
                         let justification = ConstraintJustification::new(vec![
                             EntityRef::new(a),
                             EntityRef::new(b),
@@ -73,7 +73,7 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)(entity);
+            let key = ($self.key_extractor)($solution, entity, i);
             temp_index.entry(key).or_default().push(i);
         }
 
@@ -118,7 +118,7 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)(entity);
+            let key = ($self.key_extractor)($solution, entity, i);
             temp_index.entry(key).or_default().push(i);
         }
 
@@ -168,7 +168,7 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)(entity);
+            let key = ($self.key_extractor)($solution, entity, i);
             temp_index.entry(key).or_default().push(i);
         }
 

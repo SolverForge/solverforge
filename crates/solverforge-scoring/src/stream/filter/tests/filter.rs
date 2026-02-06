@@ -15,7 +15,7 @@ use super::super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};
 fn test_true_filter() {
     let f = TrueFilter;
     assert!(UniFilter::<(), i32>::test(&f, &(), &42));
-    assert!(BiFilter::<(), i32, i32>::test(&f, &(), &1, &2));
+    assert!(BiFilter::<(), i32, i32>::test(&f, &(), &1, &2, 0, 0));
 }
 
 #[test]
@@ -28,8 +28,8 @@ fn test_fn_uni_filter() {
 #[test]
 fn test_fn_bi_filter() {
     let f = FnBiFilter::new(|_: &(), a: &i32, b: &i32| a + b > 10);
-    assert!(f.test(&(), &7, &8));
-    assert!(!f.test(&(), &3, &4));
+    assert!(f.test(&(), &7, &8, 0, 0));
+    assert!(!f.test(&(), &3, &4, 0, 0));
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn test_and_bi_filter() {
     let f1 = FnBiFilter::new(|_: &(), a: &i32, _b: &i32| *a > 0);
     let f2 = FnBiFilter::new(|_: &(), _a: &i32, b: &i32| *b > 0);
     let combined = AndBiFilter::new(f1, f2);
-    assert!(combined.test(&(), &1, &2));
-    assert!(!combined.test(&(), &-1, &2));
-    assert!(!combined.test(&(), &1, &-2));
+    assert!(combined.test(&(), &1, &2, 0, 0));
+    assert!(!combined.test(&(), &-1, &2, 0, 0));
+    assert!(!combined.test(&(), &1, &-2, 0, 0));
 }

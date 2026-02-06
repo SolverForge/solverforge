@@ -119,7 +119,7 @@ impl Default for MoveTabuAcceptor {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for MoveTabuAcceptor {
-    fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Check aspiration criterion
         if self.aspiration_enabled {
             if let Some(best) = self.best_score {
@@ -248,11 +248,11 @@ mod tests {
 
     #[test]
     fn test_accepts_improving_move() {
-        let acceptor = MoveTabuAcceptor::new(5);
+        let mut acceptor = MoveTabuAcceptor::new(5);
         let last_score = SimpleScore::of(-10);
         let move_score = SimpleScore::of(-5);
         assert!(Acceptor::<TestSolution>::is_accepted(
-            &acceptor,
+            &mut acceptor,
             &last_score,
             &move_score
         ));

@@ -15,13 +15,15 @@ use solverforge_scoring::director::typed::TypedScoreDirector;
 use solverforge_scoring::ConstraintSet;
 use solverforge_solver::phase::construction::{BestFitForager, ConstructionHeuristicPhase};
 use solverforge_solver::phase::localsearch::{
-    FirstAcceptedForager, LateAcceptanceAcceptor, LocalSearchPhase,
+    AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
 };
 use solverforge_solver::Solver;
 use tracing::info;
 
 use crate::constraint_set::DynamicConstraintSet;
-use crate::moves::{DynamicChangeMove, DynamicEntityPlacer, DynamicMoveSelector};
+use crate::moves::{
+    DynamicChangeMove, DynamicEitherMove, DynamicEntityPlacer, DynamicMoveSelector,
+};
 use crate::solution::DynamicSolution;
 
 /// Default time limit in seconds.
@@ -32,15 +34,12 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 pub struct SolveConfig {
     /// Maximum time to spend solving.
     pub time_limit: Duration,
-    /// Late acceptance history size.
-    pub late_acceptance_size: usize,
 }
 
 impl Default for SolveConfig {
     fn default() -> Self {
         Self {
             time_limit: Duration::from_secs(DEFAULT_TIME_LIMIT_SECS),
-            late_acceptance_size: 400,
         }
     }
 }
@@ -48,10 +47,7 @@ impl Default for SolveConfig {
 impl SolveConfig {
     /// Creates a new solve config with the given time limit.
     pub fn with_time_limit(time_limit: Duration) -> Self {
-        Self {
-            time_limit,
-            ..Default::default()
-        }
+        Self { time_limit }
     }
 }
 
@@ -100,7 +96,7 @@ pub fn solve_with_controls(
     constraints: DynamicConstraintSet,
     config: SolveConfig,
     terminate: &AtomicBool,
-    _snapshot: &Mutex<Option<DynamicSolution>>,
+    snapshot: &Mutex<Option<DynamicSolution>>,
 ) -> SolveResult {
     // Initialize console output (identical to native Rust solver)
     solverforge_console::init();
@@ -154,18 +150,17 @@ pub fn solve_with_controls(
         .as_ref()
         .and_then(|t| t.step_count_limit);
 
-    // Create local search phase with Late Acceptance
-    // Use FirstAcceptedForager to take sidesteps for plateau exploration
+    // Create local search phase with Simulated Annealing + unified move selector
     let local_search: LocalSearchPhase<
         DynamicSolution,
-        DynamicChangeMove,
+        DynamicEitherMove,
         DynamicMoveSelector,
-        LateAcceptanceAcceptor<DynamicSolution>,
-        FirstAcceptedForager<DynamicSolution>,
+        SimulatedAnnealingAcceptor,
+        AcceptedCountForager<DynamicSolution>,
     > = LocalSearchPhase::new(
         DynamicMoveSelector::new(),
-        LateAcceptanceAcceptor::new(config.late_acceptance_size),
-        FirstAcceptedForager::new(), // Take first accepted (enables plateau exploration)
+        SimulatedAnnealingAcceptor::default(),
+        AcceptedCountForager::new(1),
         step_limit,
     );
 
@@ -176,10 +171,20 @@ pub fn solve_with_controls(
         .and_then(|c| c.time_limit())
         .unwrap_or(config.time_limit);
 
-    // Create and run solver - now returns SolveResult with full telemetry
+    // Wire best-solution snapshot: write to the Mutex whenever a better solution is found.
+    // This allows Python to poll intermediate results via SolverManager.get_best_solution().
+    let snapshot_callback: Box<dyn Fn(&DynamicSolution) + Send + Sync> =
+        Box::new(move |solution: &DynamicSolution| {
+            if let Ok(mut guard) = snapshot.try_lock() {
+                *guard = Some(solution.clone());
+            }
+        });
+
+    // Create and run solver with snapshot callback
     let solver_result = Solver::new(((), construction, local_search))
         .with_time_limit(time_limit)
         .with_terminate(terminate)
+        .with_best_solution_callback(snapshot_callback)
         .solve(score_director);
 
     let duration = start.elapsed();

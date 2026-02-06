@@ -154,8 +154,8 @@ mod benchmarks {
             ConstraintRef::new("", "Overlapping"),
             ImpactType::Penalty,
             |s: &Schedule| s.shifts.as_slice(),
-            |s: &Shift| s.employee_id, // Key by employee_id
-            |_sol: &Schedule, a: &Shift, b: &Shift| {
+            |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id, // Key by employee_id
+            |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                 a.id < b.id // Ordering to avoid duplicates
                     && a.start_hour < b.end_hour
                     && b.start_hour < a.end_hour
@@ -244,8 +244,8 @@ mod benchmarks {
                 ConstraintRef::new("", "Overlapping"),
                 ImpactType::Penalty,
                 |s: &Schedule| s.shifts.as_slice(),
-                |s: &Shift| s.employee_id,
-                |_sol: &Schedule, a: &Shift, b: &Shift| {
+                |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id,
+                |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                     a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
                 },
                 |_s: &Schedule, _a_idx: usize, _b_idx: usize| SimpleScore::of(10),

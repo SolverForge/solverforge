@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::{ChangeMove, Move, SwapMove};
+use crate::heuristic::r#move::{ChangeMove, EitherMove, Move, SwapMove};
 
 use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector};
 use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
@@ -269,36 +269,37 @@ where
         let getter = self.getter;
         let setter = self.setter;
 
-        // Collect entities - needed for triangular pairing with index tracking
-        // (lazy would require re-iterating right_entities for each left, which is worse)
+        // Collect entities once — needed for triangular pairing with index tracking.
         let left_entities: Vec<EntityReference> =
             self.left_entity_selector.iter(score_director).collect();
         let right_entities: Vec<EntityReference> =
             self.right_entity_selector.iter(score_director).collect();
 
-        // Lazy triangular iteration over pairs
+        // Lazy triangular iteration over pairs using index-based slicing.
+        // No per-outer-iteration Vec::clone() — we share via Rc.
+        let right_rc = std::rc::Rc::new(right_entities);
         let iter = left_entities
             .into_iter()
             .enumerate()
             .flat_map(move |(i, left)| {
-                let right_slice = right_entities.clone();
-                right_slice
-                    .into_iter()
-                    .skip(i + 1)
-                    .filter(move |right| {
-                        left.descriptor_index == right.descriptor_index
-                            && left.descriptor_index == descriptor_index
-                    })
-                    .map(move |right| {
-                        SwapMove::new(
+                let right_ref = right_rc.clone(); // Rc clone = pointer bump, not data clone
+                (i + 1..right_ref.len()).filter_map(move |j| {
+                    let right = right_ref[j];
+                    if left.descriptor_index == right.descriptor_index
+                        && left.descriptor_index == descriptor_index
+                    {
+                        Some(SwapMove::new(
                             left.entity_index,
                             right.entity_index,
                             getter,
                             setter,
                             variable_name,
                             descriptor_index,
-                        )
-                    })
+                        ))
+                    } else {
+                        None
+                    }
+                })
             });
 
         Box::new(iter)
@@ -313,6 +314,117 @@ where
         } else {
             left_count * right_count / 2
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EitherMove adaptor selectors
+// ---------------------------------------------------------------------------
+
+/// Wraps a `ChangeMoveSelector` to yield `EitherMove::Change`.
+pub struct EitherChangeMoveSelector<S, V, ES, VS> {
+    inner: ChangeMoveSelector<S, V, ES, VS>,
+}
+
+impl<S, V: Debug, ES: Debug, VS: Debug> Debug for EitherChangeMoveSelector<S, V, ES, VS> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EitherChangeMoveSelector")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
+    EitherChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
+{
+    /// Creates a simple selector that yields `EitherMove::Change` variants.
+    pub fn simple(
+        getter: fn(&S, usize) -> Option<V>,
+        setter: fn(&mut S, usize, Option<V>),
+        descriptor_index: usize,
+        variable_name: &'static str,
+        values: Vec<V>,
+    ) -> Self {
+        Self {
+            inner: ChangeMoveSelector::simple(
+                getter,
+                setter,
+                descriptor_index,
+                variable_name,
+                values,
+            ),
+        }
+    }
+}
+
+impl<S, V, ES, VS> MoveSelector<S, EitherMove<S, V>> for EitherChangeMoveSelector<S, V, ES, VS>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
+{
+    fn iter_moves<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = EitherMove<S, V>> + 'a> {
+        Box::new(
+            self.inner
+                .iter_moves(score_director)
+                .map(EitherMove::Change),
+        )
+    }
+
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+        self.inner.size(score_director)
+    }
+}
+
+/// Wraps a `SwapMoveSelector` to yield `EitherMove::Swap`.
+pub struct EitherSwapMoveSelector<S, V, LES, RES> {
+    inner: SwapMoveSelector<S, V, LES, RES>,
+}
+
+impl<S, V: Debug, LES: Debug, RES: Debug> Debug for EitherSwapMoveSelector<S, V, LES, RES> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EitherSwapMoveSelector")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution, V>
+    EitherSwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
+{
+    /// Creates a simple selector that yields `EitherMove::Swap` variants.
+    pub fn simple(
+        getter: fn(&S, usize) -> Option<V>,
+        setter: fn(&mut S, usize, Option<V>),
+        descriptor_index: usize,
+        variable_name: &'static str,
+    ) -> Self {
+        Self {
+            inner: SwapMoveSelector::simple(getter, setter, descriptor_index, variable_name),
+        }
+    }
+}
+
+impl<S, V, LES, RES> MoveSelector<S, EitherMove<S, V>> for EitherSwapMoveSelector<S, V, LES, RES>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    LES: EntitySelector<S>,
+    RES: EntitySelector<S>,
+{
+    fn iter_moves<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = EitherMove<S, V>> + 'a> {
+        Box::new(self.inner.iter_moves(score_director).map(EitherMove::Swap))
+    }
+
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+        self.inner.size(score_director)
     }
 }
 

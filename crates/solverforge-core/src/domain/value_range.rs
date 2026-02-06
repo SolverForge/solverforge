@@ -69,7 +69,7 @@ where
     F: Fn(&S) -> &Vec<V> + Send + Sync,
 {
     getter: F,
-    _marker: std::marker::PhantomData<(S, V)>,
+    _marker: std::marker::PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, F> FieldValueRangeProvider<S, V, F>
@@ -109,7 +109,7 @@ where
     F: Fn(&S) -> Vec<V> + Send + Sync,
 {
     compute: F,
-    _marker: std::marker::PhantomData<(S, V)>,
+    _marker: std::marker::PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, F> ComputedValueRangeProvider<S, V, F>

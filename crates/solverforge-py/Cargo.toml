@@ -15,4 +15,5 @@ crate-type = ["cdylib"]
 solverforge-dynamic.workspace = true
 solverforge-core.workspace = true
 solverforge-scoring.workspace = true
+solverforge-console.workspace = true
 pyo3.workspace = true

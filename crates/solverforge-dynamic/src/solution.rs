@@ -340,6 +340,7 @@ impl DynamicSolution {
     }
 
     /// The single mutation point. Updates both the tagged `DynamicValue` and the flat i64 slot.
+    /// Flat buffer write uses unsafe pointer arithmetic — no bounds checks on the hot path.
     #[inline]
     pub fn update_field(
         &mut self,
@@ -350,7 +351,10 @@ impl DynamicSolution {
     ) {
         let field_count = self.descriptor.entity_classes[class_idx].fields.len();
         let flat_offset = entity_idx * field_count + field_idx;
-        self.flat_entities[class_idx][flat_offset] = value.to_flat_i64();
+        let flat_val = value.to_flat_i64();
+        unsafe {
+            *self.flat_entities[class_idx].as_mut_ptr().add(flat_offset) = flat_val;
+        }
         self.entities[class_idx][entity_idx].fields[field_idx] = value;
     }
 

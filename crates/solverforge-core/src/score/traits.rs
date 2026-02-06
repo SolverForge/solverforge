@@ -79,6 +79,12 @@ pub trait Score:
     /// Returns the absolute value of this score.
     fn abs(&self) -> Self;
 
+    /// Converts this score to a single f64 scalar value.
+    ///
+    /// Higher-priority levels are weighted with larger multipliers to preserve
+    /// their dominance. Used for simulated annealing temperature calculations.
+    fn to_scalar(&self) -> f64;
+
     /// Returns the semantic label for the score level at the given index.
     ///
     /// Level indices follow the same order as `to_level_numbers()`:

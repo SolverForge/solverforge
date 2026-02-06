@@ -179,10 +179,7 @@ where
         let thread_count = self.config.thread_count.resolve(partition_count);
 
         if self.config.log_progress {
-            println!(
-                "[PartitionedSearch] Solving {} partitions with {} threads",
-                partition_count, thread_count
-            );
+            tracing::info!(event = "phase_start", phase = "PartitionedSearch",);
         }
 
         // Solve partitions - parallel when multiple, sequential when single
@@ -222,9 +219,10 @@ where
 
         if self.config.log_progress {
             if let Some(score) = solver_scope.best_score() {
-                println!(
-                    "[PartitionedSearch] Completed with merged score: {:?}",
-                    score
+                tracing::info!(
+                    event = "phase_end",
+                    phase = "PartitionedSearch",
+                    score = %format!("{:?}", score),
                 );
             }
         }

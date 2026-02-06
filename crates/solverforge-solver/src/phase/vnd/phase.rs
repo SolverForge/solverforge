@@ -59,7 +59,7 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 /// // Single neighborhood VND
 /// let vnd: VndPhase<_, MyMove> = VndPhase::new((selector,));
 /// ```
-pub struct VndPhase<T, M>(pub T, PhantomData<M>);
+pub struct VndPhase<T, M>(pub T, PhantomData<fn() -> M>);
 
 impl<T: Debug, M> Debug for VndPhase<T, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

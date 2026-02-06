@@ -67,7 +67,7 @@ where
     index_to_element: fn(usize) -> E,
     variable_name: &'static str,
     descriptor_index: usize,
-    _marker: PhantomData<(S, E)>,
+    _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
 
 impl<S, E> ListConstructionPhaseBuilder<S, E>
@@ -138,7 +138,7 @@ where
     index_to_element: fn(usize) -> E,
     variable_name: &'static str,
     descriptor_index: usize,
-    _marker: PhantomData<(S, E)>,
+    _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
 
 impl<S, E> std::fmt::Debug for ListConstructionPhase<S, E>

@@ -159,7 +159,7 @@ where
 {
     /// The sequence of moves from root to current node.
     moves: Vec<M>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, M> MoveSequence<S, M>

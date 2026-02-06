@@ -87,7 +87,7 @@ where
     descriptor_index: usize,
     k: usize,
     step_limit: Option<u64>,
-    _marker: PhantomData<(S, V, DM, ESF)>,
+    _marker: PhantomData<(fn() -> S, fn() -> V, fn() -> DM, fn() -> ESF)>,
 }
 
 impl<S, V, DM, ESF> KOptPhaseBuilder<S, V, DM, ESF>
@@ -170,7 +170,7 @@ where
     variable_name: &'static str,
     descriptor_index: usize,
     step_limit: Option<u64>,
-    _marker: PhantomData<(S, V)>,
+    _marker: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V> Debug for KOptPhase<S, V>

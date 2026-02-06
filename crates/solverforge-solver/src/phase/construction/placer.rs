@@ -115,7 +115,7 @@ where
     variable_name: &'static str,
     /// The descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> V>,
 }
 
 impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>

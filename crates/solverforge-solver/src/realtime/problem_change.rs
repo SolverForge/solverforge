@@ -133,7 +133,7 @@ where
 {
     name: &'static str,
     change_fn: F,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S, F> ClosureProblemChange<S, F>

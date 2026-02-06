@@ -76,7 +76,7 @@ impl Default for EntityTabuAcceptor {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for EntityTabuAcceptor {
-    fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Accept improving moves
         if move_score > last_step_score {
             return true;

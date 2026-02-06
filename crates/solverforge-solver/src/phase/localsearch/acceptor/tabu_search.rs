@@ -112,7 +112,7 @@ impl<S: PlanningSolution> Default for TabuSearchAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
-    fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Check aspiration criterion: accept if this would be a new best score
         if self.aspiration_enabled {
             if let Some(best) = &self.best_score {

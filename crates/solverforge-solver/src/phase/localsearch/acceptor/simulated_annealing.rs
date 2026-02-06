@@ -50,7 +50,7 @@ impl Default for SimulatedAnnealingAcceptor {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for SimulatedAnnealingAcceptor {
-    fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
         // Always accept improving moves
         if move_score > last_step_score {
             return true;

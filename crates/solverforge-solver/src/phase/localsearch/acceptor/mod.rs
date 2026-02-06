@@ -36,7 +36,7 @@ pub use value_tabu::ValueTabuAcceptor;
 pub trait Acceptor<S: PlanningSolution>: Send + Debug {
     /// Returns true if a move resulting in `move_score` should be accepted,
     /// given the previous step's score.
-    fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool;
+    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool;
 
     /// Called when a phase starts.
     fn phase_started(&mut self, _initial_score: &S::Score) {}

@@ -109,7 +109,7 @@ pub fn run_solver_with_channel<S, C>(
     value_count: fn(&S) -> usize,
     entity_count_fn: fn(&S) -> usize,
     terminate: Option<&AtomicBool>,
-    _sender: mpsc::UnboundedSender<(S, S::Score)>,
+    sender: mpsc::UnboundedSender<(S, S::Score)>,
 ) -> S
 where
     S: PlanningSolution,
@@ -138,7 +138,9 @@ where
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
         info!(event = "solve_end", score = %score);
-        return solver_scope.take_best_or_working_solution();
+        let solution = solver_scope.take_best_or_working_solution();
+        let _ = sender.send((solution.clone(), score));
+        return solution;
     }
 
     // Build construction phase with BestFitForager
@@ -173,6 +175,7 @@ where
         local_search,
         terminate,
         config.termination.as_ref(),
+        sender,
     );
 
     let score = result.solution.score().unwrap_or_default();
@@ -191,6 +194,7 @@ fn solve_with_termination<S, D, M1, M2, P, Fo, MS, A, Fo2>(
     local_search: LocalSearchPhase<S, M2, MS, A, Fo2>,
     terminate: Option<&AtomicBool>,
     term_config: Option<&solverforge_config::TerminationConfig>,
+    sender: mpsc::UnboundedSender<(S, S::Score)>,
 ) -> SolveResult<S>
 where
     S: PlanningSolution,
@@ -220,6 +224,7 @@ where
             terminate,
             director,
             time_limit,
+            sender,
         )
     } else if let Some(unimproved_step_limit) =
         term_config.and_then(|c| c.unimproved_step_count_limit)
@@ -233,6 +238,7 @@ where
             terminate,
             director,
             time_limit,
+            sender,
         )
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
         let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
@@ -244,6 +250,7 @@ where
             terminate,
             director,
             time_limit,
+            sender,
         )
     } else {
         let termination: OrTermination<_, S, D> = OrTermination::new((time,));
@@ -254,6 +261,7 @@ where
             terminate,
             director,
             time_limit,
+            sender,
         )
     }
 }
@@ -265,6 +273,7 @@ fn build_and_solve<S, D, M1, M2, P, Fo, MS, A, Fo2, Term>(
     terminate: Option<&AtomicBool>,
     director: D,
     time_limit: Duration,
+    sender: mpsc::UnboundedSender<(S, S::Score)>,
 ) -> SolveResult<S>
 where
     S: PlanningSolution,
@@ -279,15 +288,29 @@ where
     Fo2: crate::phase::localsearch::LocalSearchForager<S, M2>,
     Term: crate::termination::Termination<S, D>,
 {
-    match terminate {
+    let callback_sender = sender.clone();
+    let callback: Box<dyn Fn(&S) + Send + Sync> = Box::new(move |solution: &S| {
+        let score = solution.score().unwrap_or_default();
+        let _ = callback_sender.send((solution.clone(), score));
+    });
+
+    let result = match terminate {
         Some(flag) => Solver::new(((), construction, local_search))
             .with_termination(termination)
             .with_time_limit(time_limit)
             .with_terminate(flag)
+            .with_best_solution_callback(callback)
             .solve(director),
         None => Solver::new(((), construction, local_search))
             .with_termination(termination)
             .with_time_limit(time_limit)
+            .with_best_solution_callback(callback)
             .solve(director),
-    }
+    };
+
+    // Send the final solution so the receiver always gets the last state
+    let final_score = result.solution.score().unwrap_or_default();
+    let _ = sender.send((result.solution.clone(), final_score));
+
+    result
 }

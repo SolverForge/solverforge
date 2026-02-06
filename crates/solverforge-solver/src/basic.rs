@@ -19,11 +19,15 @@ use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
 use tokio::sync::mpsc;
 use tracing::info;
 
+use crate::heuristic::selector::decorator::UnionMoveSelector;
 use crate::heuristic::selector::{
-    ChangeMoveSelector, FromSolutionEntitySelector, StaticTypedValueSelector,
+    EitherChangeMoveSelector, EitherSwapMoveSelector, FromSolutionEntitySelector,
+    StaticTypedValueSelector,
 };
 use crate::phase::construction::{BestFitForager, ConstructionHeuristicPhase, QueuedEntityPlacer};
-use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase};
+use crate::phase::localsearch::{
+    AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
+};
 use crate::scope::SolverScope;
 use crate::solver::{SolveResult, Solver};
 use crate::termination::{
@@ -152,10 +156,13 @@ where
     let construction = ConstructionHeuristicPhase::new(placer, BestFitForager::new());
 
     // Build local search phase with Late Acceptance
+    // Unified move selector: ChangeMove + SwapMove via EitherMove
     let values: Vec<usize> = (0..n_values).collect();
-    let move_selector =
-        ChangeMoveSelector::simple(get_variable, set_variable, 0, "variable", values);
-    let acceptor = LateAcceptanceAcceptor::new(400);
+    let change_selector =
+        EitherChangeMoveSelector::simple(get_variable, set_variable, 0, "variable", values);
+    let swap_selector = EitherSwapMoveSelector::simple(get_variable, set_variable, 0, "variable");
+    let move_selector = UnionMoveSelector::new(change_selector, swap_selector);
+    let acceptor = SimulatedAnnealingAcceptor::default();
     let forager = AcceptedCountForager::new(1);
     let local_search = LocalSearchPhase::new(move_selector, acceptor, forager, None);
 
@@ -178,10 +185,10 @@ where
     result.solution
 }
 
-fn solve_with_termination<S, D, M, P, Fo, MS, A, Fo2>(
+fn solve_with_termination<S, D, M1, M2, P, Fo, MS, A, Fo2>(
     director: D,
-    construction: ConstructionHeuristicPhase<S, M, P, Fo>,
-    local_search: LocalSearchPhase<S, M, MS, A, Fo2>,
+    construction: ConstructionHeuristicPhase<S, M1, P, Fo>,
+    local_search: LocalSearchPhase<S, M2, MS, A, Fo2>,
     terminate: Option<&AtomicBool>,
     term_config: Option<&solverforge_config::TerminationConfig>,
 ) -> SolveResult<S>
@@ -189,12 +196,13 @@ where
     S: PlanningSolution,
     S::Score: Score,
     D: solverforge_scoring::ScoreDirector<S>,
-    M: crate::heuristic::r#move::Move<S>,
-    P: crate::phase::construction::EntityPlacer<S, M>,
-    Fo: crate::phase::construction::ConstructionForager<S, M>,
-    MS: crate::heuristic::selector::MoveSelector<S, M>,
+    M1: crate::heuristic::r#move::Move<S>,
+    M2: crate::heuristic::r#move::Move<S>,
+    P: crate::phase::construction::EntityPlacer<S, M1>,
+    Fo: crate::phase::construction::ConstructionForager<S, M1>,
+    MS: crate::heuristic::selector::MoveSelector<S, M2>,
     A: crate::phase::localsearch::Acceptor<S>,
-    Fo2: crate::phase::localsearch::LocalSearchForager<S, M>,
+    Fo2: crate::phase::localsearch::LocalSearchForager<S, M2>,
 {
     let time_limit = term_config
         .and_then(|c| c.time_limit())
@@ -250,9 +258,9 @@ where
     }
 }
 
-fn build_and_solve<S, D, M, P, Fo, MS, A, Fo2, Term>(
-    construction: ConstructionHeuristicPhase<S, M, P, Fo>,
-    local_search: LocalSearchPhase<S, M, MS, A, Fo2>,
+fn build_and_solve<S, D, M1, M2, P, Fo, MS, A, Fo2, Term>(
+    construction: ConstructionHeuristicPhase<S, M1, P, Fo>,
+    local_search: LocalSearchPhase<S, M2, MS, A, Fo2>,
     termination: Term,
     terminate: Option<&AtomicBool>,
     director: D,
@@ -262,12 +270,13 @@ where
     S: PlanningSolution,
     S::Score: Score,
     D: solverforge_scoring::ScoreDirector<S>,
-    M: crate::heuristic::r#move::Move<S>,
-    P: crate::phase::construction::EntityPlacer<S, M>,
-    Fo: crate::phase::construction::ConstructionForager<S, M>,
-    MS: crate::heuristic::selector::MoveSelector<S, M>,
+    M1: crate::heuristic::r#move::Move<S>,
+    M2: crate::heuristic::r#move::Move<S>,
+    P: crate::phase::construction::EntityPlacer<S, M1>,
+    Fo: crate::phase::construction::ConstructionForager<S, M1>,
+    MS: crate::heuristic::selector::MoveSelector<S, M2>,
     A: crate::phase::localsearch::Acceptor<S>,
-    Fo2: crate::phase::localsearch::LocalSearchForager<S, M>,
+    Fo2: crate::phase::localsearch::LocalSearchForager<S, M2>,
     Term: crate::termination::Termination<S, D>,
 {
     match terminate {

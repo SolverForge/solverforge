@@ -157,7 +157,7 @@ fn test_large_scale_entity_assignments() {
     for (idx, &entity_idx) in tasks_on_resource_0.iter().enumerate() {
         // Retract, update, insert
         let delta1 = constraints.on_retract_all(&solution, entity_idx, 0);
-        solution.get_entity_mut(0, entity_idx).unwrap().fields[2] = DynamicValue::I64(0); // slot 0
+        solution.update_field(0, entity_idx, 2, DynamicValue::I64(0)); // slot 0
         let delta2 = constraints.on_insert_all(&solution, entity_idx, 0);
 
         // Each new assignment to slot 0 creates conflicts with all previous assignments

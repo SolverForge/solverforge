@@ -54,6 +54,7 @@
 mod arena;
 mod change;
 mod composite;
+mod either;
 mod k_opt;
 pub mod k_opt_reconnection;
 mod list_change;
@@ -74,6 +75,7 @@ mod tests;
 pub use arena::MoveArena;
 pub use change::ChangeMove;
 pub use composite::CompositeMove;
+pub use either::EitherMove;
 pub use k_opt::{CutPoint, KOptMove};
 pub use list_change::ListChangeMove;
 pub use list_reverse::ListReverseMove;

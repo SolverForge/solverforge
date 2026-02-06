@@ -18,5 +18,10 @@ thiserror.workspace = true
 tracing.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+cranelift-codegen.workspace = true
+cranelift-frontend.workspace = true
+cranelift-module.workspace = true
+cranelift-jit.workspace = true
+cranelift-native.workspace = true
 
 [dev-dependencies]

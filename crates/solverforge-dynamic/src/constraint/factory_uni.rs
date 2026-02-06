@@ -1,4 +1,9 @@
 //! Factory function for building unary (single entity) constraints.
+//!
+//! Zero-fallback policy: all closures JIT-compiled via compile_1.
+//! Panics on failure. No interpreter fallback.
+
+use std::sync::Arc;
 
 use solverforge_core::score::HardSoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -6,125 +11,58 @@ use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
 
 use super::closures_extract::make_extractor;
-use super::types::{DynUniFilter, DynUniWeight};
-use crate::descriptor::DynamicDescriptor;
 use crate::expr::Expr;
+use crate::jit;
 use crate::solution::{DynamicEntity, DynamicSolution};
 
-/// Builds a unary constraint (single entity class, no joins) that returns a boxed IncrementalConstraint.
+/// Builds a unary constraint (single entity class, no joins).
 ///
-/// This factory creates an `IncrementalUniConstraint` that evaluates a filter and weight
-/// expression against entities from a single class without any joins.
-///
-/// # Parameters
-///
-/// * `constraint_ref` - Reference identifying this constraint
-/// * `impact_type` - Whether this constraint is a penalty or reward
-/// * `class_idx` - Index of the entity class to iterate over
-/// * `filter_expr` - Expression to filter entities (returns bool)
-/// * `weight_expr` - Expression to compute score weight for each matching entity
-/// * `descriptor` - Dynamic descriptor for expression evaluation
-/// * `is_hard` - Whether to apply weight to hard or soft score component
-///
-/// # Expression Context
-///
-/// Both filter and weight expressions are evaluated in a single-entity context:
-/// - `Param(0)` refers to the entity being evaluated (returns entity ID)
-/// - `Field { param_idx: 0, field_idx }` accesses fields from the entity
-/// - Arithmetic, comparisons, and logical operations work as expected
-/// - Access to facts via solution context is available
-///
-/// # Example
-///
-/// This internal function is called by [`build_from_stream_ops`] when a uni-constraint
-/// pattern is detected. Users should typically use the public API:
-///
-/// ```
-/// use solverforge_dynamic::{
-///     DynamicDescriptor, EntityClassDef, FieldDef, FieldType,
-///     Expr, StreamOp, build_from_stream_ops,
-/// };
-/// use solverforge_core::{ConstraintRef, ImpactType};
-/// use solverforge_core::score::HardSoftScore;
-///
-/// // Define an employee entity with workload and capacity fields
-/// let mut descriptor = DynamicDescriptor::new();
-/// descriptor.add_entity_class(EntityClassDef::new(
-///     "Employee",
-///     vec![
-///         FieldDef::new("id", FieldType::I64),
-///         FieldDef::new("workload", FieldType::I64),
-///         FieldDef::new("capacity", FieldType::I64),
-///     ],
-/// ));
-///
-/// // Build a uni-constraint via the public stream API:
-/// // Penalize each overloaded employee (workload > capacity)
-/// let ops = vec![
-///     StreamOp::ForEach { class_idx: 0 },
-///     StreamOp::Filter {
-///         predicate: Expr::gt(Expr::field(0, 1), Expr::field(0, 2)),
-///     },
-///     StreamOp::Penalize { weight: HardSoftScore::of_hard(1) },
-/// ];
-///
-/// let constraint = build_from_stream_ops(
-///     ConstraintRef::new("", "overloaded_employees"),
-///     ImpactType::Penalty,
-///     &ops,
-///     descriptor,
-/// );
-/// ```
-///
-/// # Returns
-///
-/// A boxed `IncrementalConstraint<DynamicSolution, HardSoftScore>` that can be stored
-/// in `DynamicConstraintSet`.
+/// All closures are JIT-compiled. Zero fallback.
 pub fn build_uni_constraint(
     constraint_ref: ConstraintRef,
     impact_type: ImpactType,
     class_idx: usize,
     filter_expr: Expr,
     weight_expr: Expr,
-    descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync> {
-    // Create extractor for the entity class
     let extractor = make_extractor(class_idx);
 
-    // Create filter closure
-    let filter: DynUniFilter =
-        Box::new(move |solution: &DynamicSolution, entity: &DynamicEntity| {
-            // Evaluate filter expression using the actual solution (which has access to facts, etc.)
-            let result = crate::eval::eval_entity_expr(&filter_expr, solution, entity);
-            result.as_bool().unwrap_or(false)
-        });
+    // --- Filter: JIT compile_1 ---
+    let jit_filter = Arc::new(jit::compile_1(&filter_expr));
+    let ci_filter = class_idx;
+    let filter = Box::new(
+        move |solution: &DynamicSolution, entity: &DynamicEntity| -> bool {
+            let loc = solution.get_entity_location(entity.id);
+            let Some((_, entity_idx)) = loc else {
+                return false;
+            };
+            let ptr = solution.flat_entity_ptr(ci_filter, entity_idx);
+            jit_filter.call_1(ptr) != 0
+        },
+    ) as Box<dyn Fn(&DynamicSolution, &DynamicEntity) -> bool + Send + Sync>;
 
-    // Create weight closure
-    let weight_descriptor = descriptor;
-    let weight: DynUniWeight = Box::new(move |entity: &DynamicEntity| {
-        // Create minimal solution for entity-level evaluation
-        let minimal_solution = DynamicSolution {
-            descriptor: weight_descriptor.clone(),
-            entities: Vec::new(),
-            facts: Vec::new(),
-            score: None,
-            id_to_location: std::collections::HashMap::new(),
-        };
-
-        // Evaluate weight expression
-        let result = crate::eval::eval_entity_expr(&weight_expr, &minimal_solution, entity);
-        let weight_num = result.as_i64().unwrap_or(0);
-
-        // Apply to hard or soft score
-        if is_hard {
-            HardSoftScore::of_hard(weight_num)
-        } else {
-            HardSoftScore::of_soft(weight_num)
+    // --- Weight: JIT compile_1 ---
+    let jit_weight = Arc::new(jit::compile_1(&weight_expr));
+    let hard = is_hard;
+    let weight = Box::new(move |entity: &DynamicEntity| -> HardSoftScore {
+        // Uni weight cannot access solution (signature is Fn(&A) -> Sc).
+        // Use a fixed-size stack buffer — no heap allocation.
+        const MAX_FIELDS: usize = 32;
+        let fields = entity.fields();
+        let n = fields.len().min(MAX_FIELDS);
+        let mut buf = [0i64; MAX_FIELDS];
+        for i in 0..n {
+            buf[i] = fields[i].to_flat_i64();
         }
-    });
+        let w = jit_weight.call_1(buf.as_ptr());
+        if hard {
+            HardSoftScore::of_hard(w)
+        } else {
+            HardSoftScore::of_soft(w)
+        }
+    }) as Box<dyn Fn(&DynamicEntity) -> HardSoftScore + Send + Sync>;
 
-    // Create and box the IncrementalUniConstraint
     Box::new(IncrementalUniConstraint::new(
         constraint_ref,
         impact_type,

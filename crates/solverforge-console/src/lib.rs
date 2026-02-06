@@ -38,7 +38,8 @@ pub fn init() {
 
         let filter = EnvFilter::builder()
             .with_default_directive("solverforge_solver=info".parse().unwrap())
-            .from_env_lossy();
+            .from_env_lossy()
+            .add_directive("solverforge_dynamic=info".parse().unwrap());
 
         let _ = tracing_subscriber::registry()
             .with(filter)

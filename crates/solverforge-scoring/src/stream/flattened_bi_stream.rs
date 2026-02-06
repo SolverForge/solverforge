@@ -517,7 +517,7 @@ where
         Sc,
     > {
         let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, c: &C| filter.test(s, a, c);
+        let combined_filter = move |s: &S, a: &A, c: &C| filter.test(s, a, c, 0, 0);
 
         FlattenedBiConstraint::new(
             ConstraintRef::new("", name),

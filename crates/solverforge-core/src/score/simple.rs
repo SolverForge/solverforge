@@ -81,6 +81,11 @@ impl Score for SimpleScore {
             _ => panic!("SimpleScore has 1 level, got index {}", index),
         }
     }
+
+    #[inline]
+    fn to_scalar(&self) -> f64 {
+        self.score as f64
+    }
 }
 
 impl Ord for SimpleScore {

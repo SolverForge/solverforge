@@ -119,8 +119,20 @@ pub fn build_from_stream_ops(
     // Parse the pipeline to extract constraint pattern
     let pattern = parse_stream_ops(ops);
 
-    // Determine if hard or soft score based on impact type
-    let is_hard = matches!(impact_type, ImpactType::Penalty | ImpactType::Reward);
+    // Determine if hard or soft score based on the weight in the terminal operation.
+    // A weight with nonzero hard component targets the hard score; otherwise soft.
+    let is_hard = ops
+        .iter()
+        .rev()
+        .find_map(|op| match op {
+            StreamOp::Penalize { weight } | StreamOp::Reward { weight } => Some(weight.hard() != 0),
+            StreamOp::PenalizeConfigurable { .. } | StreamOp::RewardConfigurable { .. } => {
+                // Configurable weights are evaluated at runtime; default to hard
+                Some(true)
+            }
+            _ => None,
+        })
+        .unwrap_or(true);
 
     // Call the appropriate factory based on detected pattern
     match pattern {
@@ -134,7 +146,6 @@ pub fn build_from_stream_ops(
             class_idx,
             filter_expr,
             weight_expr,
-            descriptor,
             is_hard,
         ),
 
@@ -150,7 +161,6 @@ pub fn build_from_stream_ops(
             key_expr,
             filter_expr,
             weight_expr,
-            descriptor,
             is_hard,
         ),
 
@@ -166,7 +176,6 @@ pub fn build_from_stream_ops(
             key_expr,
             filter_expr,
             weight_expr,
-            descriptor,
             is_hard,
         ),
 

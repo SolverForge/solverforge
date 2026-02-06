@@ -144,8 +144,11 @@ impl Solver {
     }
 
     /// Solve the problem.
+    ///
+    /// Releases the GIL during the native solve loop so the Python event loop
+    /// (Uvicorn, asyncio, etc.) is not blocked.
     #[pyo3(signature = (time_limit_seconds = 30))]
-    fn solve(&self, time_limit_seconds: u64) -> PyResult<PySolveResult> {
+    fn solve(&self, py: Python<'_>, time_limit_seconds: u64) -> PyResult<PySolveResult> {
         // Build the solution
         let mut solution = DynamicSolution::new(self.descriptor.clone());
         for (class_idx, entities) in self.entities.iter().enumerate() {
@@ -161,9 +164,10 @@ impl Solver {
             constraint_set.add(constraint);
         }
 
-        // Solve
+        // Solve — release the GIL so the Python event loop stays alive
         let config = SolveConfig::with_time_limit(Duration::from_secs(time_limit_seconds));
-        let result = solverforge_dynamic::solve(solution, constraint_set, config);
+        let result =
+            py.allow_threads(|| solverforge_dynamic::solve(solution, constraint_set, config));
 
         Ok(PySolveResult::new(
             format!("{}hard/{}soft", result.score.hard(), result.score.soft()),

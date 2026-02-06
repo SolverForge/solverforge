@@ -13,7 +13,7 @@ use solverforge_scoring::ScoreDirector;
 /// The bounder estimates the best possible score that can be achieved
 /// from a partial solution state. If this optimistic bound is worse than
 /// the best complete solution found so far, the branch can be pruned.
-pub trait ScoreBounder<S: PlanningSolution>: Send + Debug {
+pub trait ScoreBounder<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// Calculates the optimistic bound for the current solution state.
     ///
     /// The optimistic bound is an upper bound on the score achievable
@@ -22,8 +22,7 @@ pub trait ScoreBounder<S: PlanningSolution>: Send + Debug {
     /// - Greater than or equal to any actual achievable score
     ///
     /// Returns `None` if no bound can be computed.
-    fn calculate_optimistic_bound(&self, score_director: &dyn ScoreDirector<S>)
-        -> Option<S::Score>;
+    fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score>;
 
     /// Calculates the pessimistic bound for the current solution state.
     ///
@@ -32,10 +31,7 @@ pub trait ScoreBounder<S: PlanningSolution>: Send + Debug {
     /// help with certain heuristics.
     ///
     /// Returns `None` if no bound can be computed.
-    fn calculate_pessimistic_bound(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-    ) -> Option<S::Score> {
+    fn calculate_pessimistic_bound(&self, score_director: &D) -> Option<S::Score> {
         // Default: no pessimistic bound
         let _ = score_director;
         None
@@ -56,11 +52,8 @@ impl SimpleScoreBounder {
     }
 }
 
-impl<S: PlanningSolution> ScoreBounder<S> for SimpleScoreBounder {
-    fn calculate_optimistic_bound(
-        &self,
-        _score_director: &dyn ScoreDirector<S>,
-    ) -> Option<S::Score> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for SimpleScoreBounder {
+    fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
         // The simple bounder doesn't compute bounds
         // This effectively disables pruning
         None
@@ -92,14 +85,11 @@ impl<S: PlanningSolution> FixedOffsetBounder<S> {
     }
 }
 
-impl<S: PlanningSolution> ScoreBounder<S> for FixedOffsetBounder<S>
+impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for FixedOffsetBounder<S>
 where
     S::Score: Clone + std::ops::Add<Output = S::Score> + std::ops::Mul<i32, Output = S::Score>,
 {
-    fn calculate_optimistic_bound(
-        &self,
-        score_director: &dyn ScoreDirector<S>,
-    ) -> Option<S::Score> {
+    fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score> {
         // Count unassigned entities
         let total = score_director.total_entity_count()?;
 

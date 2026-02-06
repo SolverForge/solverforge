@@ -17,7 +17,7 @@ use super::node::ExhaustiveSearchNode;
 /// - Finding the next entity to assign
 /// - Generating all possible value assignments
 /// - Creating child nodes for each assignment
-pub trait ExhaustiveSearchDecider<S: PlanningSolution>: Send + Debug {
+pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
     /// Expands a node by generating all child nodes.
     ///
     /// Returns a vector of child nodes, one for each possible assignment.
@@ -25,11 +25,11 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution>: Send + Debug {
         &self,
         parent_index: usize,
         parent: &ExhaustiveSearchNode<S>,
-        score_director: &mut dyn ScoreDirector<S>,
+        score_director: &mut D,
     ) -> Vec<ExhaustiveSearchNode<S>>;
 
     /// Returns the total number of entities to assign.
-    fn total_entities(&self, score_director: &dyn ScoreDirector<S>) -> usize;
+    fn total_entities(&self, score_director: &D) -> usize;
 }
 
 /// A simple value-based decider that works with any value type.
@@ -102,17 +102,18 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static, B: Debug> De
     }
 }
 
-impl<S, V, B> ExhaustiveSearchDecider<S> for SimpleDecider<S, V, B>
+impl<S, V, B, D> ExhaustiveSearchDecider<S, D> for SimpleDecider<S, V, B>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
-    B: ScoreBounder<S>,
+    B: ScoreBounder<S, D>,
+    D: ScoreDirector<S>,
 {
     fn expand(
         &self,
         parent_index: usize,
         parent: &ExhaustiveSearchNode<S>,
-        score_director: &mut dyn ScoreDirector<S>,
+        score_director: &mut D,
     ) -> Vec<ExhaustiveSearchNode<S>> {
         let entity_index = parent.depth();
         let new_depth = parent.depth() + 1;
@@ -185,7 +186,7 @@ where
         children
     }
 
-    fn total_entities(&self, score_director: &dyn ScoreDirector<S>) -> usize {
+    fn total_entities(&self, score_director: &D) -> usize {
         score_director
             .entity_count(self.descriptor_index)
             .unwrap_or(0)
@@ -193,11 +194,8 @@ where
 }
 
 // Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
-impl<S: PlanningSolution> ScoreBounder<S> for () {
-    fn calculate_optimistic_bound(
-        &self,
-        _score_director: &dyn ScoreDirector<S>,
-    ) -> Option<S::Score> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for () {
+    fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
         None
     }
 }

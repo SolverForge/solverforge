@@ -247,7 +247,7 @@ impl<S, D, Dec> Phase<S, D> for ExhaustiveSearchPhase<Dec>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    Dec: ExhaustiveSearchDecider<S>,
+    Dec: ExhaustiveSearchDecider<S, D>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);

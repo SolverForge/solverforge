@@ -233,12 +233,14 @@ macro_rules! impl_bi_arity_stream {
                 K,
                 E,
                 KE,
-                impl Fn(&S, &A, &A) -> bool + Send + Sync,
+                impl Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
                 impl Fn(&S, usize, usize) -> Sc + Send + Sync,
                 Sc,
             > {
                 let filter = self.filter;
-                let combined_filter = move |s: &S, a: &A, b: &A| filter.test(s, a, b);
+                let combined_filter = move |s: &S, a: &A, b: &A, a_idx: usize, b_idx: usize| {
+                    filter.test(s, a, b, a_idx, b_idx)
+                };
 
                 // Adapt the user's Fn(&A, &A) -> Sc to Fn(&S, usize, usize) -> Sc
                 let extractor_for_weight = self.extractor.clone();

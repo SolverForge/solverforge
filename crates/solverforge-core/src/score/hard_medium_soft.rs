@@ -26,6 +26,7 @@ use super::ScoreLevel;
 /// assert!(score2 > score1);
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HardMediumSoftScore {
     hard: i64,
     medium: i64,

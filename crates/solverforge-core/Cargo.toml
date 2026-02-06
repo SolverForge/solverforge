@@ -8,6 +8,7 @@ description = "Core types and traits for SolverForge constraint solver"
 [features]
 default = []
 decimal = []
+serde = ["dep:serde"]
 
 [dependencies]
 thiserror.workspace = true

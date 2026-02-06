@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
+use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::{ConstructionForager, EntityPlacer};
@@ -75,6 +76,13 @@ where
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
+        let phase_index = phase_scope.phase_index();
+
+        info!(
+            event = "phase_start",
+            phase = "Construction Heuristic",
+            phase_index = phase_index,
+        );
 
         // Get all placements (entities that need values assigned)
         let placements = self.placer.get_placements(phase_scope.score_director());
@@ -85,12 +93,26 @@ where
                 break;
             }
 
+            // Record move evaluations at call-site (Option C: maintains trait purity)
+            // BestFitForager evaluates ALL moves in the placement
+            let moves_in_placement = placement.moves.len() as u64;
+
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Use forager to pick the best move index for this placement
             let selected_idx = self
                 .forager
                 .pick_move_index(&placement, step_scope.score_director_mut());
+
+            // Record all moves as evaluated, with one accepted if selection succeeded
+            for i in 0..moves_in_placement {
+                let accepted = selected_idx == Some(i as usize);
+                step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .stats_mut()
+                    .record_move(accepted);
+            }
 
             if let Some(idx) = selected_idx {
                 // Take ownership of the move
@@ -109,6 +131,30 @@ where
 
         // Update best solution at end of phase
         phase_scope.update_best_solution();
+
+        let best_score = phase_scope
+            .solver_scope()
+            .best_score()
+            .map(|s| format!("{}", s))
+            .unwrap_or_else(|| "none".to_string());
+
+        let duration = phase_scope.elapsed();
+        let steps = phase_scope.step_count();
+        let speed = if duration.as_secs_f64() > 0.0 {
+            (steps as f64 / duration.as_secs_f64()) as u64
+        } else {
+            0
+        };
+
+        info!(
+            event = "phase_end",
+            phase = "Construction Heuristic",
+            phase_index = phase_index,
+            duration_ms = duration.as_millis() as u64,
+            steps = steps,
+            speed = speed,
+            score = best_score,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {
@@ -142,6 +188,7 @@ mod tests {
     fn test_construction_first_fit() {
         let director = create_simple_nqueens_director(4);
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
 
         let values: Vec<i64> = (0..4).collect();
         let placer = create_placer(values);
@@ -157,12 +204,15 @@ mod tests {
         }
 
         assert!(solver_scope.best_solution().is_some());
+        // Verify stats were recorded
+        assert!(solver_scope.stats().moves_evaluated > 0);
     }
 
     #[test]
     fn test_construction_best_fit() {
         let director = create_simple_nqueens_director(4);
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
 
         let values: Vec<i64> = (0..4).collect();
         let placer = create_placer(values);
@@ -178,12 +228,16 @@ mod tests {
 
         assert!(solver_scope.best_solution().is_some());
         assert!(solver_scope.best_score().is_some());
+
+        // BestFitForager evaluates all moves: 4 entities * 4 values = 16 moves
+        assert_eq!(solver_scope.stats().moves_evaluated, 16);
     }
 
     #[test]
     fn test_construction_empty_solution() {
         let director = create_simple_nqueens_director(0);
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
 
         let values: Vec<i64> = vec![];
         let placer = create_placer(values);
@@ -191,5 +245,8 @@ mod tests {
         let mut phase = ConstructionHeuristicPhase::new(placer, forager);
 
         phase.solve(&mut solver_scope);
+
+        // No moves should be evaluated for empty solution
+        assert_eq!(solver_scope.stats().moves_evaluated, 0);
     }
 }

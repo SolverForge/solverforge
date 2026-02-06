@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::{ChangeMove, Move, SwapMove};
+use crate::heuristic::r#move::{ChangeMove, EitherMove, Move, SwapMove};
 
 use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector};
 use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
@@ -313,6 +313,117 @@ where
         } else {
             left_count * right_count / 2
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// EitherMove adaptor selectors
+// ---------------------------------------------------------------------------
+
+/// Wraps a `ChangeMoveSelector` to yield `EitherMove::Change`.
+pub struct EitherChangeMoveSelector<S, V, ES, VS> {
+    inner: ChangeMoveSelector<S, V, ES, VS>,
+}
+
+impl<S, V: Debug, ES: Debug, VS: Debug> Debug for EitherChangeMoveSelector<S, V, ES, VS> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EitherChangeMoveSelector")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
+    EitherChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
+{
+    /// Creates a simple selector that yields `EitherMove::Change` variants.
+    pub fn simple(
+        getter: fn(&S, usize) -> Option<V>,
+        setter: fn(&mut S, usize, Option<V>),
+        descriptor_index: usize,
+        variable_name: &'static str,
+        values: Vec<V>,
+    ) -> Self {
+        Self {
+            inner: ChangeMoveSelector::simple(
+                getter,
+                setter,
+                descriptor_index,
+                variable_name,
+                values,
+            ),
+        }
+    }
+}
+
+impl<S, V, ES, VS> MoveSelector<S, EitherMove<S, V>> for EitherChangeMoveSelector<S, V, ES, VS>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    ES: EntitySelector<S>,
+    VS: TypedValueSelector<S, V>,
+{
+    fn iter_moves<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = EitherMove<S, V>> + 'a> {
+        Box::new(
+            self.inner
+                .iter_moves(score_director)
+                .map(EitherMove::Change),
+        )
+    }
+
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+        self.inner.size(score_director)
+    }
+}
+
+/// Wraps a `SwapMoveSelector` to yield `EitherMove::Swap`.
+pub struct EitherSwapMoveSelector<S, V, LES, RES> {
+    inner: SwapMoveSelector<S, V, LES, RES>,
+}
+
+impl<S, V: Debug, LES: Debug, RES: Debug> Debug for EitherSwapMoveSelector<S, V, LES, RES> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EitherSwapMoveSelector")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl<S: PlanningSolution, V>
+    EitherSwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
+{
+    /// Creates a simple selector that yields `EitherMove::Swap` variants.
+    pub fn simple(
+        getter: fn(&S, usize) -> Option<V>,
+        setter: fn(&mut S, usize, Option<V>),
+        descriptor_index: usize,
+        variable_name: &'static str,
+    ) -> Self {
+        Self {
+            inner: SwapMoveSelector::simple(getter, setter, descriptor_index, variable_name),
+        }
+    }
+}
+
+impl<S, V, LES, RES> MoveSelector<S, EitherMove<S, V>> for EitherSwapMoveSelector<S, V, LES, RES>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    LES: EntitySelector<S>,
+    RES: EntitySelector<S>,
+{
+    fn iter_moves<'a, D: ScoreDirector<S>>(
+        &'a self,
+        score_director: &'a D,
+    ) -> Box<dyn Iterator<Item = EitherMove<S, V>> + 'a> {
+        Box::new(self.inner.iter_moves(score_director).map(EitherMove::Swap))
+    }
+
+    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+        self.inner.size(score_director)
     }
 }
 

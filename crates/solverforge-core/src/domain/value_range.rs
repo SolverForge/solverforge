@@ -123,6 +123,12 @@ where
             _marker: std::marker::PhantomData,
         }
     }
+
+    /// Returns [`ValueRangeType::EntityDependent`] since computed ranges
+    /// derive their values from solution state at runtime.
+    pub fn value_range_type() -> ValueRangeType {
+        ValueRangeType::EntityDependent
+    }
 }
 
 impl<S, V, F> ValueRangeProvider<S, V> for ComputedValueRangeProvider<S, V, F>

@@ -262,6 +262,17 @@ mod value_range_tests {
     }
 
     #[test]
+    fn test_computed_value_range_type() {
+        use crate::domain::variable::ValueRangeType;
+        type TestProvider =
+            ComputedValueRangeProvider<TestSolution, i32, fn(&TestSolution) -> Vec<i32>>;
+        assert_eq!(
+            TestProvider::value_range_type(),
+            ValueRangeType::EntityDependent
+        );
+    }
+
+    #[test]
     fn test_integer_range() {
         let range = IntegerRange::new(5, 10);
         let solution = TestSolution {

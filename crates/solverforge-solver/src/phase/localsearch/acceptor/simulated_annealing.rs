@@ -96,10 +96,8 @@ impl Default for SimulatedAnnealingAcceptor {
 /// Hard levels are weighted exponentially more than soft levels so that
 /// hard constraint improvements always dominate the acceptance probability.
 ///
-/// For HardSoftScore [-576hard/0soft] -> [-575hard/0soft], the delta is [1, 0],
-/// scalar = 1 * 1_000_000 + 0 = 1_000_000. This means the temperature needs
-/// to be in the millions range to accept hard-worsening moves, while soft-only
-/// degradations need temperature in the hundreds range.
+/// NOTE: This is only used by `auto_calibrate` during `phase_started`.
+/// The hot-path `is_accepted` uses `Score::to_scalar()` directly (zero alloc).
 fn score_delta_to_scalar(levels: &[i64]) -> f64 {
     if levels.is_empty() {
         return 0.0;
@@ -107,9 +105,6 @@ fn score_delta_to_scalar(levels: &[i64]) -> f64 {
     if levels.len() == 1 {
         return levels[0] as f64;
     }
-    // Weight each level: highest priority gets largest weight.
-    // level[0] (hard) * 10^(6*(n-1)), level[1] (soft) * 10^(6*(n-2)), etc.
-    // For HardSoftScore: hard * 1_000_000 + soft
     let n = levels.len();
     let mut scalar = 0.0f64;
     for (i, &level) in levels.iter().enumerate() {
@@ -133,10 +128,9 @@ where
             return false;
         }
 
-        // Compute score difference: move_score - last_step_score (negative for worsening)
-        let delta_score = *move_score - *last_step_score;
-        let delta_levels = delta_score.to_level_numbers();
-        let delta = score_delta_to_scalar(&delta_levels);
+        // Compute score difference: move_score - last_step_score (negative for worsening).
+        // Uses Score::to_scalar() directly — no Vec allocation.
+        let delta = move_score.to_scalar() - last_step_score.to_scalar();
 
         // delta is negative (worsening move). Acceptance probability = exp(delta / T).
         let probability = (delta / self.current_temperature).exp();

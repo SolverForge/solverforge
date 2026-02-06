@@ -160,7 +160,7 @@ pub fn solve_with_controls(
     > = LocalSearchPhase::new(
         DynamicMoveSelector::new(),
         SimulatedAnnealingAcceptor::default(),
-        AcceptedCountForager::new(4),
+        AcceptedCountForager::new(1),
         step_limit,
     );
 

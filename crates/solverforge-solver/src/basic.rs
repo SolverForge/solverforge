@@ -163,7 +163,7 @@ where
     let swap_selector = EitherSwapMoveSelector::simple(get_variable, set_variable, 0, "variable");
     let move_selector = UnionMoveSelector::new(change_selector, swap_selector);
     let acceptor = SimulatedAnnealingAcceptor::default();
-    let forager = AcceptedCountForager::new(4);
+    let forager = AcceptedCountForager::new(1);
     let local_search = LocalSearchPhase::new(move_selector, acceptor, forager, None);
 
     // Build solver with termination configuration

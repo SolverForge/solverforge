@@ -269,36 +269,37 @@ where
         let getter = self.getter;
         let setter = self.setter;
 
-        // Collect entities - needed for triangular pairing with index tracking
-        // (lazy would require re-iterating right_entities for each left, which is worse)
+        // Collect entities once — needed for triangular pairing with index tracking.
         let left_entities: Vec<EntityReference> =
             self.left_entity_selector.iter(score_director).collect();
         let right_entities: Vec<EntityReference> =
             self.right_entity_selector.iter(score_director).collect();
 
-        // Lazy triangular iteration over pairs
+        // Lazy triangular iteration over pairs using index-based slicing.
+        // No per-outer-iteration Vec::clone() — we share via Rc.
+        let right_rc = std::rc::Rc::new(right_entities);
         let iter = left_entities
             .into_iter()
             .enumerate()
             .flat_map(move |(i, left)| {
-                let right_slice = right_entities.clone();
-                right_slice
-                    .into_iter()
-                    .skip(i + 1)
-                    .filter(move |right| {
-                        left.descriptor_index == right.descriptor_index
-                            && left.descriptor_index == descriptor_index
-                    })
-                    .map(move |right| {
-                        SwapMove::new(
+                let right_ref = right_rc.clone(); // Rc clone = pointer bump, not data clone
+                (i + 1..right_ref.len()).filter_map(move |j| {
+                    let right = right_ref[j];
+                    if left.descriptor_index == right.descriptor_index
+                        && left.descriptor_index == descriptor_index
+                    {
+                        Some(SwapMove::new(
                             left.entity_index,
                             right.entity_index,
                             getter,
                             setter,
                             variable_name,
                             descriptor_index,
-                        )
-                    })
+                        ))
+                    } else {
+                        None
+                    }
+                })
             });
 
         Box::new(iter)

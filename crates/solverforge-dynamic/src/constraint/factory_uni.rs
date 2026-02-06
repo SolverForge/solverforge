@@ -47,9 +47,15 @@ pub fn build_uni_constraint(
     let hard = is_hard;
     let weight = Box::new(move |entity: &DynamicEntity| -> HardSoftScore {
         // Uni weight cannot access solution (signature is Fn(&A) -> Sc).
-        // Build a stack buffer from entity fields.
-        let flat: Vec<i64> = entity.fields().iter().map(|f| f.to_flat_i64()).collect();
-        let w = jit_weight.call_1(flat.as_ptr());
+        // Use a fixed-size stack buffer — no heap allocation.
+        const MAX_FIELDS: usize = 32;
+        let fields = entity.fields();
+        let n = fields.len().min(MAX_FIELDS);
+        let mut buf = [0i64; MAX_FIELDS];
+        for i in 0..n {
+            buf[i] = fields[i].to_flat_i64();
+        }
+        let w = jit_weight.call_1(buf.as_ptr());
         if hard {
             HardSoftScore::of_hard(w)
         } else {

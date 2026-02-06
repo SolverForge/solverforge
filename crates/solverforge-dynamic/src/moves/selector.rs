@@ -14,8 +14,8 @@ use crate::solution::DynamicSolution;
 /// Swap moves are generated for triangular entity pairs within each class.
 /// Both are chained: all change moves first, then all swap moves.
 ///
-/// No per-step shuffle. The arena in the local search phase stores all moves;
-/// SA acceptance handles exploration via probabilistic acceptance.
+/// The arena in the local search phase populates once and shuffles in-place
+/// each step. No per-call allocation or shuffle here.
 #[derive(Debug)]
 pub struct DynamicMoveSelector {
     _phantom: std::marker::PhantomData<()>,
@@ -30,7 +30,18 @@ impl DynamicMoveSelector {
 
     /// Generate swap moves for all entity pairs within each class.
     fn generate_swap_moves(solution: &DynamicSolution) -> Vec<DynamicEitherMove> {
-        let mut moves = Vec::new();
+        let mut swap_count = 0usize;
+        for (class_idx, class_def) in solution.descriptor.entity_classes.iter().enumerate() {
+            let n = solution
+                .entities
+                .get(class_idx)
+                .map(|e| e.len())
+                .unwrap_or(0);
+            let vars = class_def.planning_variable_indices.len();
+            swap_count += vars * n * n.saturating_sub(1) / 2;
+        }
+
+        let mut moves = Vec::with_capacity(swap_count);
         for (class_idx, class_def) in solution.descriptor.entity_classes.iter().enumerate() {
             let entity_count = solution
                 .entities
@@ -68,29 +79,20 @@ impl Default for DynamicMoveSelector {
 }
 
 impl MoveSelector<DynamicSolution, DynamicEitherMove> for DynamicMoveSelector {
-    /// Returns an iterator over all change and swap moves in shuffled order.
+    /// Returns an iterator over all change and swap moves.
     ///
-    /// Shuffling is critical for effective search with AcceptedCountForager,
-    /// which stops after finding N accepted moves. Without shuffling, the
-    /// deterministic order causes the solver to cycle through the same moves.
+    /// Moves are yielded in deterministic order. The local search phase's
+    /// arena handles shuffling in-place each step — no allocation here.
     fn iter_moves<'a, D: ScoreDirector<DynamicSolution>>(
         &'a self,
         score_director: &'a D,
     ) -> Box<dyn Iterator<Item = DynamicEitherMove> + 'a> {
-        use rand::seq::SliceRandom;
-
         let solution = score_director.working_solution();
 
-        // Collect all moves (change + swap) and shuffle
         let change_iter = DynamicMoveIterator::new(solution).map(DynamicEitherMove::Change);
         let swap_moves = Self::generate_swap_moves(solution);
 
-        let mut all_moves: Vec<DynamicEitherMove> =
-            change_iter.chain(swap_moves.into_iter()).collect();
-        let mut rng = rand::rng();
-        all_moves.shuffle(&mut rng);
-
-        Box::new(all_moves.into_iter())
+        Box::new(change_iter.chain(swap_moves.into_iter()))
     }
 
     fn size<D: ScoreDirector<DynamicSolution>>(&self, score_director: &D) -> usize {

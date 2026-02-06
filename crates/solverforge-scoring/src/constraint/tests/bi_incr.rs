@@ -23,7 +23,7 @@ fn test_evaluate_no_conflicts() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row, // Key by row for grouping
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col, // Filter: only ordered pairs
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col, // Filter: only ordered pairs
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -48,7 +48,7 @@ fn test_evaluate_with_conflicts() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -72,7 +72,7 @@ fn test_incremental_insert() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -109,7 +109,7 @@ fn test_incremental_retract() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -136,7 +136,9 @@ fn test_reward_type() {
         ImpactType::Reward,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row, // Group by row
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col && (a.col - b.col).abs() == 1,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| {
+            a.col < b.col && (a.col - b.col).abs() == 1
+        },
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(2),
         false,
     );
@@ -158,7 +160,7 @@ fn test_dynamic_weight() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |s: &NQueensSolution, a_idx: usize, b_idx: usize| {
             let a = &s.queens[a_idx];
             let b = &s.queens[b_idx];
@@ -184,7 +186,7 @@ fn test_multiple_conflicts() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -209,7 +211,7 @@ fn test_reset() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -237,7 +239,7 @@ fn test_in_constraint_set() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );
@@ -261,7 +263,7 @@ fn test_out_of_bounds() {
         ImpactType::Penalty,
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
-        |_s: &NQueensSolution, a: &Queen, b: &Queen| a.col < b.col,
+        |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
         false,
     );

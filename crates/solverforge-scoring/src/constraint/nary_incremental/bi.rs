@@ -33,7 +33,7 @@ macro_rules! impl_incremental_bi_constraint {
             K: Eq + Hash + Clone,
             E: Fn(&S) -> &[A],
             KE: Fn(&S, &A, usize) -> K,
-            F: Fn(&S, &A, &A) -> bool,
+            F: Fn(&S, &A, &A, usize, usize) -> bool,
             W: Fn(&S, usize, usize) -> Sc,
             Sc: Score,
         {
@@ -106,7 +106,7 @@ macro_rules! impl_incremental_bi_constraint {
                             (other_idx, index, other, entity)
                         };
 
-                        if filter(solution, low_entity, high_entity) {
+                        if filter(solution, low_entity, high_entity, low_idx, high_idx) {
                             let pair = (low_idx, high_idx);
                             if matches.insert(pair) {
                                 entity_to_matches.entry(low_idx).or_default().insert(pair);
@@ -170,7 +170,7 @@ macro_rules! impl_incremental_bi_constraint {
             K: Eq + Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
             KE: Fn(&S, &A, usize) -> K + Send + Sync,
-            F: Fn(&S, &A, &A) -> bool + Send + Sync,
+            F: Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
             W: Fn(&S, usize, usize) -> Sc + Send + Sync,
             Sc: Score,
         {
@@ -191,7 +191,7 @@ macro_rules! impl_incremental_bi_constraint {
                             let high = indices[j];
                             let a = &entities[low];
                             let b = &entities[high];
-                            if (self.filter)(solution, a, b) {
+                            if (self.filter)(solution, a, b, low, high) {
                                 total = total + self.compute_score(solution, low, high);
                             }
                         }
@@ -216,7 +216,7 @@ macro_rules! impl_incremental_bi_constraint {
                         for j in (i + 1)..indices.len() {
                             let low = indices[i];
                             let high = indices[j];
-                            if (self.filter)(solution, &entities[low], &entities[high]) {
+                            if (self.filter)(solution, &entities[low], &entities[high], low, high) {
                                 count += 1;
                             }
                         }

@@ -111,7 +111,7 @@ where
     {
         let filter = self.filter;
         let combined_filter =
-            move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b) && joiner.matches(a, c);
+            move |s: &S, a: &A, b: &A, c: &A| filter.test(s, a, b, 0, 0) && joiner.matches(a, c);
 
         TriConstraintStream::new_self_join_with_filter(
             self.extractor,

@@ -45,7 +45,7 @@ macro_rules! impl_get_matches_nary {
                     let idx_b = indices[j];
                     let a = &entities[idx_a];
                     let b = &entities[idx_b];
-                    if ($self.filter)($solution, a, b) {
+                    if ($self.filter)($solution, a, b, idx_a, idx_b) {
                         let justification = ConstraintJustification::new(vec![
                             EntityRef::new(a),
                             EntityRef::new(b),

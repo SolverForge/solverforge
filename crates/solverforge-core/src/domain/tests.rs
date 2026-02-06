@@ -279,6 +279,17 @@ mod value_range_tests {
     }
 
     #[test]
+    fn test_integer_range_value_range_type() {
+        use crate::domain::variable::ValueRangeType;
+
+        let range = IntegerRange::new(5, 10);
+        assert_eq!(
+            range.value_range_type(),
+            ValueRangeType::CountableRange { from: 5, to: 10 }
+        );
+    }
+
+    #[test]
     fn test_integer_range_i32() {
         let range = IntegerRange::from_zero(3);
         let solution = TestSolution {

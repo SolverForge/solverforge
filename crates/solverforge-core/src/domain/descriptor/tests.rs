@@ -1,6 +1,7 @@
 //! Tests for descriptor types.
 
 use super::*;
+use crate::domain::variable::ValueRangeType;
 use crate::domain::{TypedEntityExtractor, VariableType};
 use std::any::{Any, TypeId};
 
@@ -429,4 +430,14 @@ fn test_variable_descriptor_with_value_range() {
 fn test_variable_descriptor_with_allows_unassigned() {
     let desc = VariableDescriptor::genuine("var").with_allows_unassigned(true);
     assert!(desc.allows_unassigned);
+}
+
+#[test]
+fn test_variable_descriptor_with_value_range_type() {
+    let desc = VariableDescriptor::genuine("var")
+        .with_value_range_type(ValueRangeType::CountableRange { from: 0, to: 100 });
+    assert_eq!(
+        desc.value_range_type,
+        ValueRangeType::CountableRange { from: 0, to: 100 }
+    );
 }

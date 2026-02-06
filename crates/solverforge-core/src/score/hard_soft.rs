@@ -2,9 +2,9 @@
 
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, Neg, Sub};
 
-use super::traits::{ParseableScore, Score, ScoreParseError};
+use super::traits::Score;
+use super::ScoreLevel;
 
 /// A score with separate hard and soft constraint levels.
 ///
@@ -112,26 +112,19 @@ impl Score for HardSoftScore {
         HardSoftScore::of(levels[0], levels[1])
     }
 
-    fn multiply(&self, multiplicand: f64) -> Self {
-        let hard = (self.hard as f64 * multiplicand).round() as i64;
-        let soft = (self.soft as f64 * multiplicand).round() as i64;
-        HardSoftScore::of(hard, soft)
-    }
+    impl_score_scale!(HardSoftScore { hard, soft } => of);
 
-    fn divide(&self, divisor: f64) -> Self {
-        let hard = (self.hard as f64 / divisor).round() as i64;
-        let soft = (self.soft as f64 / divisor).round() as i64;
-        HardSoftScore::of(hard, soft)
-    }
-
-    fn abs(&self) -> Self {
-        HardSoftScore::of(self.hard.abs(), self.soft.abs())
+    fn level_label(index: usize) -> ScoreLevel {
+        match index {
+            0 => ScoreLevel::Hard,
+            1 => ScoreLevel::Soft,
+            _ => panic!("HardSoftScore has 2 levels, got index {}", index),
+        }
     }
 }
 
 impl Ord for HardSoftScore {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Compare hard scores first, then soft scores
         match self.hard.cmp(&other.hard) {
             Ordering::Equal => self.soft.cmp(&other.soft),
             other => other,
@@ -139,35 +132,7 @@ impl Ord for HardSoftScore {
     }
 }
 
-impl PartialOrd for HardSoftScore {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Add for HardSoftScore {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self {
-        HardSoftScore::of(self.hard + other.hard, self.soft + other.soft)
-    }
-}
-
-impl Sub for HardSoftScore {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self {
-        HardSoftScore::of(self.hard - other.hard, self.soft - other.soft)
-    }
-}
-
-impl Neg for HardSoftScore {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        HardSoftScore::of(-self.hard, -self.soft)
-    }
-}
+impl_score_ops!(HardSoftScore { hard, soft } => of);
 
 impl fmt::Debug for HardSoftScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -181,47 +146,4 @@ impl fmt::Display for HardSoftScore {
     }
 }
 
-impl ParseableScore for HardSoftScore {
-    fn parse(s: &str) -> Result<Self, ScoreParseError> {
-        let s = s.trim();
-
-        // Format: "0hard/-100soft" or "-1hard/0soft"
-        let parts: Vec<&str> = s.split('/').collect();
-        if parts.len() != 2 {
-            return Err(ScoreParseError {
-                message: format!(
-                    "Invalid HardSoftScore format '{}': expected 'Xhard/Ysoft'",
-                    s
-                ),
-            });
-        }
-
-        let hard_str = parts[0]
-            .trim()
-            .strip_suffix("hard")
-            .ok_or_else(|| ScoreParseError {
-                message: format!("Hard score part '{}' must end with 'hard'", parts[0]),
-            })?;
-
-        let soft_str = parts[1]
-            .trim()
-            .strip_suffix("soft")
-            .ok_or_else(|| ScoreParseError {
-                message: format!("Soft score part '{}' must end with 'soft'", parts[1]),
-            })?;
-
-        let hard = hard_str.parse::<i64>().map_err(|e| ScoreParseError {
-            message: format!("Invalid hard score '{}': {}", hard_str, e),
-        })?;
-
-        let soft = soft_str.parse::<i64>().map_err(|e| ScoreParseError {
-            message: format!("Invalid soft score '{}': {}", soft_str, e),
-        })?;
-
-        Ok(HardSoftScore::of(hard, soft))
-    }
-
-    fn to_string_repr(&self) -> String {
-        format!("{}hard/{}soft", self.hard, self.soft)
-    }
-}
+impl_score_parse!(HardSoftScore { hard => "hard", soft => "soft" } => of);

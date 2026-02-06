@@ -111,6 +111,12 @@ impl ShadowVariableKind {
                 | ShadowVariableKind::Anchor
         )
     }
+
+    /// Returns true if this shadow variable piggybacks on another
+    /// shadow variable's listener rather than having its own.
+    pub fn is_piggyback(&self) -> bool {
+        matches!(self, ShadowVariableKind::Piggyback)
+    }
 }
 
 /// Information about a chained variable's configuration.

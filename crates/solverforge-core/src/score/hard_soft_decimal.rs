@@ -1,4 +1,4 @@
-//! HardSoftDecimalScore - Two-level score with i64 precision and ×100000 scaling
+//! HardSoftDecimalScore - Two-level score with i64 precision and x100000 scaling
 //!
 //! This score type represents a decimal score without heap allocation.
 //! Internal values are scaled by 100000 to provide 5 decimal places of precision,
@@ -6,14 +6,14 @@
 
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, Neg, Sub};
 
 use super::traits::{ParseableScore, Score, ScoreParseError};
+use super::ScoreLevel;
 
 /// Scale factor for 5 decimal places of precision (matching Timefold).
 const SCALE: i64 = 100_000;
 
-/// A score with separate hard and soft constraint levels, using i64 with ×100000 scaling.
+/// A score with separate hard and soft constraint levels, using i64 with x100000 scaling.
 ///
 /// This provides 5 decimal places of precision (matching Timefold's BigDecimal display)
 /// while maintaining zero heap allocation and full type safety.
@@ -192,21 +192,14 @@ impl Score for HardSoftDecimalScore {
         HardSoftDecimalScore::of_scaled(levels[0], levels[1])
     }
 
-    fn multiply(&self, multiplicand: f64) -> Self {
-        // Multiply scaled values directly, round to nearest integer
-        let hard = (self.hard as f64 * multiplicand).round() as i64;
-        let soft = (self.soft as f64 * multiplicand).round() as i64;
-        HardSoftDecimalScore::of_scaled(hard, soft)
-    }
+    impl_score_scale!(HardSoftDecimalScore { hard, soft } => of_scaled);
 
-    fn divide(&self, divisor: f64) -> Self {
-        let hard = (self.hard as f64 / divisor).round() as i64;
-        let soft = (self.soft as f64 / divisor).round() as i64;
-        HardSoftDecimalScore::of_scaled(hard, soft)
-    }
-
-    fn abs(&self) -> Self {
-        HardSoftDecimalScore::of_scaled(self.hard.abs(), self.soft.abs())
+    fn level_label(index: usize) -> ScoreLevel {
+        match index {
+            0 => ScoreLevel::Hard,
+            1 => ScoreLevel::Soft,
+            _ => panic!("HardSoftDecimalScore has 2 levels, got index {}", index),
+        }
     }
 }
 
@@ -219,35 +212,7 @@ impl Ord for HardSoftDecimalScore {
     }
 }
 
-impl PartialOrd for HardSoftDecimalScore {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Add for HardSoftDecimalScore {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self {
-        HardSoftDecimalScore::of_scaled(self.hard + other.hard, self.soft + other.soft)
-    }
-}
-
-impl Sub for HardSoftDecimalScore {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self {
-        HardSoftDecimalScore::of_scaled(self.hard - other.hard, self.soft - other.soft)
-    }
-}
-
-impl Neg for HardSoftDecimalScore {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        HardSoftDecimalScore::of_scaled(-self.hard, -self.soft)
-    }
-}
+impl_score_ops!(HardSoftDecimalScore { hard, soft } => of_scaled);
 
 impl fmt::Debug for HardSoftDecimalScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -285,6 +250,7 @@ impl fmt::Display for HardSoftDecimalScore {
     }
 }
 
+// HardSoftDecimalScore has custom parse logic (f64 parsing with scaling) so no macro.
 impl ParseableScore for HardSoftDecimalScore {
     fn parse(s: &str) -> Result<Self, ScoreParseError> {
         let s = s.trim();

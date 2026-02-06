@@ -89,6 +89,28 @@ impl VariableDescriptor {
         self
     }
 
+    /// Creates a piggyback shadow variable descriptor.
+    ///
+    /// Piggyback shadows ride on another shadow variable's listener,
+    /// updated as a side-effect without their own dedicated listener.
+    pub fn piggyback(name: &'static str, source_shadow: &'static str) -> Self {
+        VariableDescriptor {
+            name,
+            variable_type: VariableType::Shadow(ShadowVariableKind::Piggyback),
+            allows_unassigned: true,
+            value_range_provider: None,
+            value_range_type: ValueRangeType::Collection,
+            source_variable: Some(source_shadow),
+            source_entity: None,
+        }
+    }
+
+    /// Sets the value range type.
+    pub fn with_value_range_type(mut self, value_range_type: ValueRangeType) -> Self {
+        self.value_range_type = value_range_type;
+        self
+    }
+
     /// Sets the source variable for shadow variables.
     pub fn with_source(mut self, entity: &'static str, variable: &'static str) -> Self {
         self.source_entity = Some(entity);

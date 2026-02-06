@@ -23,8 +23,10 @@ pub type DynUniFilter = Box<dyn Fn(&DynamicSolution, &DynamicEntity) -> bool + S
 pub type DynUniWeight = Box<dyn Fn(&DynamicEntity) -> HardSoftScore + Send + Sync>;
 
 /// Bi-constraint filter: checks if pair of entities matches.
-pub type DynBiFilter =
-    Box<dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync>;
+/// Indices (a_idx, b_idx) are passed through from the constraint for direct flat-buffer access.
+pub type DynBiFilter = Box<
+    dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, usize, usize) -> bool + Send + Sync,
+>;
 
 /// Tri-constraint filter: checks if triple of entities matches.
 pub type DynTriFilter = Box<

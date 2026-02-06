@@ -146,7 +146,6 @@ pub fn build_from_stream_ops(
             class_idx,
             filter_expr,
             weight_expr,
-            descriptor,
             is_hard,
         ),
 
@@ -162,7 +161,6 @@ pub fn build_from_stream_ops(
             key_expr,
             filter_expr,
             weight_expr,
-            descriptor,
             is_hard,
         ),
 
@@ -178,7 +176,6 @@ pub fn build_from_stream_ops(
             key_expr,
             filter_expr,
             weight_expr,
-            descriptor,
             is_hard,
         ),
 

@@ -5,4 +5,4 @@ mod tests;
 
 pub mod compiler;
 
-pub use compiler::{compile_1, compile_2, JitError, JitFn};
+pub use compiler::{compile_1, compile_2, compile_n, JitFn};

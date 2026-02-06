@@ -5,7 +5,6 @@
 mod tests;
 
 // Module organization: types, closures, factories, and stream operations
-mod closures_bi;
 mod closures_cross;
 mod closures_extract;
 mod closures_flattened;

@@ -84,8 +84,6 @@ pub fn parse_stream_ops(ops: &[StreamOp]) -> ConstraintPattern {
     let mut filters = Vec::new();
     let mut weight_expr = None;
     let mut flatten_expr = None;
-    let mut _is_distinct_pair = false;
-
     // Scan through operations
     for op in ops {
         match op {
@@ -102,9 +100,10 @@ pub fn parse_stream_ops(ops: &[StreamOp]) -> ConstraintPattern {
             StreamOp::Filter { predicate } => {
                 filters.push(predicate.clone());
             }
-            StreamOp::DistinctPair { .. } => {
-                _is_distinct_pair = true;
-            }
+            // DistinctPair ordering is handled internally by the bi-constraint's
+            // (low_idx, high_idx) pair canonicalization in `matches.insert(pair)`.
+            // The ordering expression is intentionally not added as a filter.
+            StreamOp::DistinctPair { .. } => {}
             StreamOp::Penalize { weight } | StreamOp::Reward { weight } => {
                 // Convert HardSoftScore to weight expression
                 weight_expr = Some(if weight.hard() != 0 {

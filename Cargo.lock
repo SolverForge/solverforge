@@ -759,7 +759,6 @@ dependencies = [
 name = "solverforge-core"
 version = "0.6.0"
 dependencies = [
- "num-traits",
  "rust_decimal",
  "serde",
  "thiserror",

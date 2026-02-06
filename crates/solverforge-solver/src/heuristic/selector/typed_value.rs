@@ -41,10 +41,18 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
 }
 
 /// A typed value selector with a static list of values.
-#[derive(Clone)]
 pub struct StaticTypedValueSelector<S, V> {
     values: Vec<V>,
     _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, V: Clone> Clone for StaticTypedValueSelector<S, V> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, V: Debug> Debug for StaticTypedValueSelector<S, V> {

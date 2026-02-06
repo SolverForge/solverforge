@@ -23,6 +23,7 @@ use super::ScoreLevel;
 /// assert!(!score1.is_feasible());  // Negative scores are not feasible
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SimpleScore {
     score: i64,
 }

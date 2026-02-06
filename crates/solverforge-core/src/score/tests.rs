@@ -24,6 +24,8 @@ mod simple_score {
 
     #[test]
     fn test_comparison() {
+        use std::cmp::Ordering;
+
         let s1 = SimpleScore::of(-10);
         let s2 = SimpleScore::of(-5);
         let s3 = SimpleScore::of(0);
@@ -31,6 +33,12 @@ mod simple_score {
         assert!(s3 > s2);
         assert!(s2 > s1);
         assert!(s1 < s2);
+
+        // Wire Score convenience methods
+        assert!(s3.is_better_than(&s2));
+        assert!(s1.is_worse_than(&s2));
+        assert!(s2.is_equal_to(&s2));
+        assert_eq!(s3.compare(&s1), Ordering::Greater);
     }
 
     #[test]
@@ -94,20 +102,29 @@ mod hard_soft_score {
 
     #[test]
     fn test_comparison() {
+        use std::cmp::Ordering;
+
         // Infeasible vs feasible
         let infeasible = HardSoftScore::of(-1, 0);
         let feasible = HardSoftScore::of(0, -1000);
         assert!(feasible > infeasible);
+        assert!(feasible.is_better_than(&infeasible));
+        assert!(infeasible.is_worse_than(&feasible));
 
         // Same hard, different soft
         let s1 = HardSoftScore::of(0, -100);
         let s2 = HardSoftScore::of(0, -50);
         assert!(s2 > s1);
+        assert_eq!(s2.compare(&s1), Ordering::Greater);
 
         // Different hard
         let s3 = HardSoftScore::of(-2, 0);
         let s4 = HardSoftScore::of(-1, -1000);
         assert!(s4 > s3);
+
+        // Equality
+        let eq1 = HardSoftScore::of(0, -50);
+        assert!(eq1.is_equal_to(&s2));
     }
 
     #[test]
@@ -179,6 +196,8 @@ mod hard_medium_soft_score {
         let s1 = HardMediumSoftScore::of(-1, 0, 0);
         let s2 = HardMediumSoftScore::of(0, -1000, -1000);
         assert!(s2 > s1);
+        assert!(s2.is_better_than(&s1));
+        assert!(s1.is_worse_than(&s2));
 
         // Medium dominates soft
         let s3 = HardMediumSoftScore::of(0, -10, 0);
@@ -189,6 +208,7 @@ mod hard_medium_soft_score {
         let s5 = HardMediumSoftScore::of(0, 0, -100);
         let s6 = HardMediumSoftScore::of(0, 0, -50);
         assert!(s6 > s5);
+        assert!(s6.is_equal_to(&HardMediumSoftScore::of(0, 0, -50)));
     }
 
     #[test]
@@ -257,10 +277,12 @@ mod hard_soft_decimal_score {
         let infeasible = HardSoftDecimalScore::of(-1, 0);
         let feasible = HardSoftDecimalScore::of(0, -1000);
         assert!(feasible > infeasible);
+        assert!(feasible.is_better_than(&infeasible));
 
         let s1 = HardSoftDecimalScore::of(0, -100);
         let s2 = HardSoftDecimalScore::of(0, -50);
         assert!(s2 > s1);
+        assert!(s1.is_worse_than(&s2));
 
         let s3 = HardSoftDecimalScore::of(-2, 0);
         let s4 = HardSoftDecimalScore::of(-1, -1000);
@@ -364,15 +386,21 @@ mod bendable_score {
 
     #[test]
     fn test_comparison() {
+        use std::cmp::Ordering;
+
         // First hard level dominates
         let s1: BendableScore<2, 1> = BendableScore::of([-1, 0], [0]);
         let s2: BendableScore<2, 1> = BendableScore::of([0, -100], [-1000]);
         assert!(s2 > s1);
+        assert!(s2.is_better_than(&s1));
+        assert!(s1.is_worse_than(&s2));
+        assert_eq!(s2.compare(&s1), Ordering::Greater);
 
         // Second hard level matters when first is equal
         let s3: BendableScore<2, 1> = BendableScore::of([0, -10], [0]);
         let s4: BendableScore<2, 1> = BendableScore::of([0, -5], [-100]);
         assert!(s4 > s3);
+        assert!(s4.is_equal_to(&s4));
     }
 
     #[test]

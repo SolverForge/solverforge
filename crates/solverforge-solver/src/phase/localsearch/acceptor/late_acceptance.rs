@@ -78,8 +78,8 @@ impl<S: PlanningSolution> Default for LateAcceptanceAcceptor<S> {
 
 impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
     fn is_accepted(&self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
-        // Always accept improving moves
-        if move_score > last_step_score {
+        // Always accept improving or equal moves
+        if move_score >= last_step_score {
             return true;
         }
 

@@ -29,6 +29,7 @@ solverforge-scoring = { path = "crates/solverforge-scoring" }
 solverforge-solver = { path = "crates/solverforge-solver" }
 solverforge-config = { path = "crates/solverforge-config" }
 solverforge = { path = "crates/solverforge" }
+solverforge-console = { path = "crates/solverforge-console" }
 solverforge-dynamic = { path = "crates/solverforge-dynamic" }
 solverforge-test = { path = "crates/solverforge-test" }
 

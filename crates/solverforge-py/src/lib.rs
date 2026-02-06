@@ -22,6 +22,9 @@ pub use solver_manager::SolverManager;
 /// SolverForge Python module.
 #[pymodule]
 fn solverforge(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Print banner and initialize tracing at import time
+    solverforge_console::init();
+
     m.add_class::<Solver>()?;
     m.add_class::<SolverManager>()?;
     m.add_class::<ConstraintBuilder>()?;

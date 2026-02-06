@@ -12,7 +12,9 @@ use crate::solution::{DynamicEntity, DynamicSolution, DynamicValue};
 pub type DynExtractor = Box<dyn Fn(&DynamicSolution) -> &[DynamicEntity] + Send + Sync>;
 
 /// Key extractor: extracts join key from entity.
-pub type DynKeyExtractor = Box<dyn Fn(&DynamicEntity) -> DynamicValue + Send + Sync>;
+/// Takes the full solution (for flat buffer access), the entity reference, and the entity index.
+pub type DynKeyExtractor =
+    Box<dyn Fn(&DynamicSolution, &DynamicEntity, usize) -> DynamicValue + Send + Sync>;
 
 /// Uni-constraint filter: checks if a single entity matches.
 pub type DynUniFilter = Box<dyn Fn(&DynamicSolution, &DynamicEntity) -> bool + Send + Sync>;

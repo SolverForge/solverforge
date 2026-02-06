@@ -318,6 +318,27 @@ impl DynamicSolution {
         }
     }
 
+    /// Remove an entity by index. Updates flat buffer and id_to_location.
+    /// Indices of subsequent entities shift down by 1.
+    pub fn remove_entity(&mut self, class_idx: usize, entity_idx: usize) {
+        let field_count = self.descriptor.entity_classes[class_idx].fields.len();
+        let flat_start = entity_idx * field_count;
+        let flat_end = flat_start + field_count;
+
+        // Remove from flat buffer
+        self.flat_entities[class_idx].drain(flat_start..flat_end);
+
+        // Remove from tagged entities
+        let entity = self.entities[class_idx].remove(entity_idx);
+        self.id_to_location.remove(&entity.id);
+
+        // Fix id_to_location for shifted indices
+        for shifted_idx in entity_idx..self.entities[class_idx].len() {
+            let id = self.entities[class_idx][shifted_idx].id;
+            self.id_to_location.insert(id, (class_idx, shifted_idx));
+        }
+    }
+
     /// The single mutation point. Updates both the tagged `DynamicValue` and the flat i64 slot.
     #[inline]
     pub fn update_field(

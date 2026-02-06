@@ -112,7 +112,15 @@ where
     pub fn join_self<K, KA, KB>(
         self,
         joiner: EqualJoiner<KA, KB, K>,
-    ) -> BiConstraintStream<S, A, K, E, KA, UniLeftBiFilter<F, A>, Sc>
+    ) -> BiConstraintStream<
+        S,
+        A,
+        K,
+        E,
+        impl Fn(&S, &A, usize) -> K + Send + Sync,
+        UniLeftBiFilter<F, A>,
+        Sc,
+    >
     where
         A: Hash + PartialEq,
         K: Eq + Hash + Clone + Send + Sync,
@@ -121,10 +129,14 @@ where
     {
         let (key_extractor, _) = joiner.into_keys();
 
+        // Wrap key_extractor to match the new KE: Fn(&S, &A, usize) -> K signature.
+        // The static stream API doesn't need solution/index, so ignore them.
+        let wrapped_ke = move |_s: &S, a: &A, _idx: usize| key_extractor(a);
+
         // Convert uni-filter to bi-filter that applies to left entity
         let bi_filter = UniLeftBiFilter::new(self.filter);
 
-        BiConstraintStream::new_self_join_with_filter(self.extractor, key_extractor, bi_filter)
+        BiConstraintStream::new_self_join_with_filter(self.extractor, wrapped_ke, bi_filter)
     }
 
     // Joins this stream with another collection to create cross-entity pairs (zero-erasure).

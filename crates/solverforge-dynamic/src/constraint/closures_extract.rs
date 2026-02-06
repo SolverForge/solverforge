@@ -41,13 +41,10 @@ pub fn make_extractor(class_idx: usize) -> DynExtractor {
 /// `Field { param_idx: 0, ... }`). References to facts or other solution state will not work
 /// correctly because the closure only has access to the entity and a minimal solution context.
 /// This is an intentional design constraint - join keys should be stable entity attributes.
-pub fn make_key_extractor(key_expr: Expr, descriptor: DynamicDescriptor) -> DynKeyExtractor {
-    // Create a minimal solution context with only the descriptor, cloned once into the closure.
-    // This is sufficient for entity field access, which is all that join keys should need.
-    // Fact lookups and other solution-dependent operations will not work in this context.
-    let minimal_solution = DynamicSolution::empty(descriptor);
-
-    Box::new(move |entity: &DynamicEntity| {
-        crate::eval::eval_entity_expr(&key_expr, &minimal_solution, entity)
-    })
+pub fn make_key_extractor(key_expr: Expr, _descriptor: DynamicDescriptor) -> DynKeyExtractor {
+    Box::new(
+        move |solution: &DynamicSolution, entity: &DynamicEntity, _entity_idx: usize| {
+            crate::eval::eval_entity_expr(&key_expr, solution, entity)
+        },
+    )
 }

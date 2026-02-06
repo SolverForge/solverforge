@@ -64,6 +64,11 @@ mod simple_score {
         assert_eq!(score.to_level_numbers(), vec![-5]);
         assert_eq!(SimpleScore::from_level_numbers(&[-5]), score);
     }
+
+    #[test]
+    fn test_level_label() {
+        assert_eq!(SimpleScore::level_label(0), ScoreLevel::Soft);
+    }
 }
 
 // ============================================================================
@@ -139,6 +144,12 @@ mod hard_soft_score {
         assert_eq!(score.to_level_numbers(), vec![-2, -50]);
         assert_eq!(HardSoftScore::from_level_numbers(&[-2, -50]), score);
     }
+
+    #[test]
+    fn test_level_label() {
+        assert_eq!(HardSoftScore::level_label(0), ScoreLevel::Hard);
+        assert_eq!(HardSoftScore::level_label(1), ScoreLevel::Soft);
+    }
 }
 
 // ============================================================================
@@ -202,6 +213,13 @@ mod hard_medium_soft_score {
     fn test_display() {
         let score = HardMediumSoftScore::of(-1, -10, -100);
         assert_eq!(format!("{}", score), "-1hard/-10medium/-100soft");
+    }
+
+    #[test]
+    fn test_level_label() {
+        assert_eq!(HardMediumSoftScore::level_label(0), ScoreLevel::Hard);
+        assert_eq!(HardMediumSoftScore::level_label(1), ScoreLevel::Medium);
+        assert_eq!(HardMediumSoftScore::level_label(2), ScoreLevel::Soft);
     }
 }
 
@@ -310,6 +328,12 @@ mod hard_soft_decimal_score {
             score
         );
     }
+
+    #[test]
+    fn test_level_label() {
+        assert_eq!(HardSoftDecimalScore::level_label(0), ScoreLevel::Hard);
+        assert_eq!(HardSoftDecimalScore::level_label(1), ScoreLevel::Soft);
+    }
 }
 
 // ============================================================================
@@ -370,5 +394,14 @@ mod bendable_score {
         let s1: BendableScore<1, 1> = BendableScore::of([-1], [-10]);
         let s2 = s1; // Copy
         assert_eq!(s1, s2); // s1 still valid
+    }
+
+    #[test]
+    fn test_level_label() {
+        assert_eq!(BendableScore::<2, 3>::level_label(0), ScoreLevel::Hard);
+        assert_eq!(BendableScore::<2, 3>::level_label(1), ScoreLevel::Hard);
+        assert_eq!(BendableScore::<2, 3>::level_label(2), ScoreLevel::Soft);
+        assert_eq!(BendableScore::<2, 3>::level_label(3), ScoreLevel::Soft);
+        assert_eq!(BendableScore::<2, 3>::level_label(4), ScoreLevel::Soft);
     }
 }

@@ -5,6 +5,7 @@ use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
 use super::traits::{ParseableScore, Score, ScoreParseError};
+use super::ScoreLevel;
 
 /// A score with separate hard and soft constraint levels.
 ///
@@ -126,6 +127,14 @@ impl Score for HardSoftScore {
 
     fn abs(&self) -> Self {
         HardSoftScore::of(self.hard.abs(), self.soft.abs())
+    }
+
+    fn level_label(index: usize) -> ScoreLevel {
+        match index {
+            0 => ScoreLevel::Hard,
+            1 => ScoreLevel::Soft,
+            _ => panic!("HardSoftScore has 2 levels, got index {}", index),
+        }
     }
 }
 

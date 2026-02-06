@@ -5,6 +5,7 @@ use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
 use super::traits::{ParseableScore, Score, ScoreParseError};
+use super::ScoreLevel;
 
 /// A simple score with a single integer value.
 ///
@@ -82,6 +83,13 @@ impl Score for SimpleScore {
 
     fn abs(&self) -> Self {
         SimpleScore::of(self.score.abs())
+    }
+
+    fn level_label(index: usize) -> ScoreLevel {
+        match index {
+            0 => ScoreLevel::Soft,
+            _ => panic!("SimpleScore has 1 level, got index {}", index),
+        }
     }
 }
 

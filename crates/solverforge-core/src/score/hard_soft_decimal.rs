@@ -9,6 +9,7 @@ use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
 use super::traits::{ParseableScore, Score, ScoreParseError};
+use super::ScoreLevel;
 
 /// Scale factor for 5 decimal places of precision (matching Timefold).
 const SCALE: i64 = 100_000;
@@ -207,6 +208,14 @@ impl Score for HardSoftDecimalScore {
 
     fn abs(&self) -> Self {
         HardSoftDecimalScore::of_scaled(self.hard.abs(), self.soft.abs())
+    }
+
+    fn level_label(index: usize) -> ScoreLevel {
+        match index {
+            0 => ScoreLevel::Hard,
+            1 => ScoreLevel::Soft,
+            _ => panic!("HardSoftDecimalScore has 2 levels, got index {}", index),
+        }
     }
 }
 

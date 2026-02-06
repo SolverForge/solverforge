@@ -24,7 +24,7 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
         score_director: &'a D,
         descriptor_index: usize,
         entity_index: usize,
-    ) -> Box<dyn Iterator<Item = V> + 'a>;
+    ) -> impl Iterator<Item = V> + 'a;
 
     /// Returns the number of values.
     fn size<D: ScoreDirector<S>>(
@@ -80,8 +80,8 @@ where
         _score_director: &'a D,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> Box<dyn Iterator<Item = V> + 'a> {
-        Box::new(self.values.iter().cloned())
+    ) -> impl Iterator<Item = V> + 'a {
+        self.values.iter().cloned()
     }
 
     fn size<D: ScoreDirector<S>>(
@@ -126,9 +126,9 @@ where
         score_director: &'a D,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> Box<dyn Iterator<Item = V> + 'a> {
+    ) -> impl Iterator<Item = V> + 'a {
         let values = (self.extractor)(score_director.working_solution());
-        Box::new(values.into_iter())
+        values.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(
@@ -174,9 +174,9 @@ where
         score_director: &'a D,
         _descriptor_index: usize,
         _entity_index: usize,
-    ) -> Box<dyn Iterator<Item = usize> + 'a> {
+    ) -> impl Iterator<Item = usize> + 'a {
         let count = (self.count_fn)(score_director.working_solution());
-        Box::new(0..count)
+        0..count
     }
 
     fn size<D: ScoreDirector<S>>(

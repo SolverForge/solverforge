@@ -172,6 +172,7 @@ impl From<cranelift_module::ModuleError> for CodegenError {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn compile_function(expr: &Expr, arity: usize) -> Result<(JITModule, *const u8), CodegenError> {
     let mut module = make_jit_module();
     let ptr_type = module.target_config().pointer_type();

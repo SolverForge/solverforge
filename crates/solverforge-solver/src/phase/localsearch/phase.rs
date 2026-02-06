@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::Instant;
 
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 use tracing::{debug, info, trace};
@@ -119,6 +121,8 @@ where
         let mut local_moves_evaluated: u64 = 0;
         let mut last_progress_time = Instant::now();
         let mut last_progress_moves: u64 = 0;
+        let mut rng = SmallRng::from_os_rng();
+        let mut arena_populated = false;
 
         loop {
             // Check early termination
@@ -138,30 +142,36 @@ where
             // Reset forager for this step
             self.forager.step_started();
 
-            // Reset arena and populate with moves - O(1) reset
-            self.arena.reset();
-            self.arena
-                .extend(self.move_selector.iter_moves(step_scope.score_director()));
+            if !arena_populated {
+                // First step: generate all moves into the arena
+                self.arena
+                    .extend(self.move_selector.iter_moves(step_scope.score_director()));
+                arena_populated = true;
+            }
+            // Shuffle arena in-place — O(n) Fisher-Yates, no allocation
+            self.arena.shuffle(&mut rng);
 
             // Evaluate moves by index
             for i in 0..self.arena.len() {
                 local_moves_evaluated += 1;
 
-                // Log progress every second
-                let now = Instant::now();
-                if now.duration_since(last_progress_time).as_secs() >= 1 {
-                    let moves_delta = local_moves_evaluated - last_progress_moves;
-                    let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
-                    let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
-                    debug!(
-                        event = "progress",
-                        steps = step_scope.step_index(),
-                        moves_evaluated = local_moves_evaluated,
-                        speed = current_speed,
-                        score = %last_step_score,
-                    );
-                    last_progress_time = now;
-                    last_progress_moves = local_moves_evaluated;
+                // Log progress every ~8k moves (avoids Instant::now() syscall per move)
+                if local_moves_evaluated & 0x1FFF == 0 {
+                    let now = Instant::now();
+                    if now.duration_since(last_progress_time).as_secs() >= 1 {
+                        let moves_delta = local_moves_evaluated - last_progress_moves;
+                        let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
+                        let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
+                        debug!(
+                            event = "progress",
+                            steps = step_scope.step_index(),
+                            moves_evaluated = local_moves_evaluated,
+                            speed = current_speed,
+                            score = %last_step_score,
+                        );
+                        last_progress_time = now;
+                        last_progress_moves = local_moves_evaluated;
+                    }
                 }
 
                 let m = self.arena.get(i).unwrap();
@@ -233,13 +243,13 @@ where
 
             // Pick the best accepted move index
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
-                // Take ownership of the move from arena
-                let selected_move = self.arena.take(selected_index);
-
-                // Execute the selected move permanently
+                // Execute the selected move permanently (by reference — no ownership needed).
                 // The RecordingScoreDirector already undid the evaluation,
-                // so this is a fresh application of the chosen move
-                selected_move.do_move(step_scope.score_director_mut());
+                // so this is a fresh application of the chosen move.
+                self.arena
+                    .get(selected_index)
+                    .unwrap()
+                    .do_move(step_scope.score_director_mut());
                 step_scope.set_step_score(selected_score);
 
                 // Update last step score

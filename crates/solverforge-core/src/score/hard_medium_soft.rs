@@ -162,6 +162,11 @@ impl Score for HardMediumSoftScore {
     fn abs(&self) -> Self {
         HardMediumSoftScore::of(self.hard.abs(), self.medium.abs(), self.soft.abs())
     }
+
+    #[inline]
+    fn to_scalar(&self) -> f64 {
+        self.hard as f64 * 1_000_000_000_000.0 + self.medium as f64 * 1_000_000.0 + self.soft as f64
+    }
 }
 
 impl Ord for HardMediumSoftScore {

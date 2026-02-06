@@ -221,15 +221,15 @@ where
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
+    ) -> impl Iterator<Item = EntityReference> + 'a {
         // Reset for new iteration
         self.recorder.reset();
 
         let child_iter = self.child.iter(score_director);
-        Box::new(RecordingIterator {
+        RecordingIterator {
             inner: child_iter,
             recorder: &self.recorder,
-        })
+        }
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
@@ -242,12 +242,12 @@ where
 }
 
 /// Iterator that records each entity as it's yielded.
-struct RecordingIterator<'a> {
-    inner: Box<dyn Iterator<Item = EntityReference> + 'a>,
+struct RecordingIterator<'a, I> {
+    inner: I,
     recorder: &'a MimicRecorder,
 }
 
-impl<'a> Iterator for RecordingIterator<'a> {
+impl<'a, I: Iterator<Item = EntityReference>> Iterator for RecordingIterator<'a, I> {
     type Item = EntityReference;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -293,11 +293,11 @@ impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
     fn iter<'a, D: ScoreDirector<S>>(
         &'a self,
         _score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EntityReference> + 'a> {
-        Box::new(ReplayingIterator {
+    ) -> impl Iterator<Item = EntityReference> + 'a {
+        ReplayingIterator {
             recorder: &self.recorder,
             returned: false,
-        })
+        }
     }
 
     fn size<D: ScoreDirector<S>>(&self, _score_director: &D) -> usize {

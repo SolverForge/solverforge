@@ -13,6 +13,7 @@ mod simple_score {
     fn test_creation() {
         let score = SimpleScore::of(-5);
         assert_eq!(score.score(), -5);
+        assert_eq!(SimpleScore::ONE, SimpleScore::of(1));
     }
 
     #[test]
@@ -91,6 +92,10 @@ mod hard_soft_score {
         let score = HardSoftScore::of(-2, -100);
         assert_eq!(score.hard(), -2);
         assert_eq!(score.soft(), -100);
+
+        // Wire hard_score() / soft_score() extraction methods
+        assert_eq!(score.hard_score(), HardSoftScore::of_hard(-2));
+        assert_eq!(score.soft_score(), HardSoftScore::of_soft(-100));
     }
 
     #[test]
@@ -255,6 +260,18 @@ mod hard_soft_decimal_score {
         let score = HardSoftDecimalScore::of(-2, -100);
         assert_eq!(score.hard_scaled(), -200000);
         assert_eq!(score.soft_scaled(), -10000000);
+
+        // Wire hard_score() / soft_score() / has_hard_component()
+        assert_eq!(
+            score.hard_score(),
+            HardSoftDecimalScore::of_hard_scaled(-200000)
+        );
+        assert_eq!(
+            score.soft_score(),
+            HardSoftDecimalScore::of_soft_scaled(-10000000)
+        );
+        assert!(score.has_hard_component());
+        assert!(!HardSoftDecimalScore::ZERO.has_hard_component());
     }
 
     #[test]

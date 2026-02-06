@@ -8,6 +8,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use solverforge_config::SolverConfig;
 use solverforge_core::domain::SolutionDescriptor;
 use solverforge_core::score::HardSoftScore;
 use solverforge_scoring::director::typed::TypedScoreDirector;
@@ -23,6 +24,9 @@ use crate::constraint_set::DynamicConstraintSet;
 use crate::moves::{DynamicChangeMove, DynamicEntityPlacer, DynamicMoveSelector};
 use crate::solution::DynamicSolution;
 
+/// Default time limit in seconds.
+const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
+
 /// Configuration for the solver.
 #[derive(Debug, Clone)]
 pub struct SolveConfig {
@@ -35,7 +39,7 @@ pub struct SolveConfig {
 impl Default for SolveConfig {
     fn default() -> Self {
         Self {
-            time_limit: Duration::from_secs(30),
+            time_limit: Duration::from_secs(DEFAULT_TIME_LIMIT_SECS),
             late_acceptance_size: 400,
         }
     }
@@ -76,6 +80,7 @@ impl SolveResult {
 /// Solves the given problem using the real solver infrastructure.
 ///
 /// Uses ConstructionHeuristicPhase + LocalSearchPhase with Late Acceptance.
+/// Loads configuration from solver.toml if available.
 pub fn solve(
     solution: DynamicSolution,
     constraints: DynamicConstraintSet,
@@ -95,10 +100,13 @@ pub fn solve_with_controls(
     constraints: DynamicConstraintSet,
     config: SolveConfig,
     terminate: &AtomicBool,
-    snapshot: &Mutex<Option<DynamicSolution>>,
+    _snapshot: &Mutex<Option<DynamicSolution>>,
 ) -> SolveResult {
     // Initialize console output (identical to native Rust solver)
     solverforge_console::init();
+
+    // Load solver.toml config if available
+    let solver_config = SolverConfig::load("solver.toml").unwrap_or_default();
 
     let start = Instant::now();
 
@@ -140,6 +148,12 @@ pub fn solve_with_controls(
         BestFitForager<DynamicSolution, DynamicChangeMove>,
     > = ConstructionHeuristicPhase::new(DynamicEntityPlacer::new(), BestFitForager::new());
 
+    // Get step limit from solver.toml config
+    let step_limit = solver_config
+        .termination
+        .as_ref()
+        .and_then(|t| t.step_count_limit);
+
     // Create local search phase with Late Acceptance
     // Use FirstAcceptedForager to take sidesteps for plateau exploration
     let local_search: LocalSearchPhase<
@@ -150,39 +164,41 @@ pub fn solve_with_controls(
         FirstAcceptedForager<DynamicSolution>,
     > = LocalSearchPhase::new(
         DynamicMoveSelector::new(),
-        LateAcceptanceAcceptor::new(400), // Standard late acceptance size
-        FirstAcceptedForager::new(),      // Take first accepted (enables plateau exploration)
-        None,                             // No step limit - rely on time limit
+        LateAcceptanceAcceptor::new(config.late_acceptance_size),
+        FirstAcceptedForager::new(), // Take first accepted (enables plateau exploration)
+        step_limit,
     );
 
-    // Create callback to update snapshot mutex when better solutions are found
-    let snapshot_callback = Box::new(|solution: &DynamicSolution| {
-        if let Ok(mut guard) = snapshot.lock() {
-            *guard = Some(solution.clone());
-        }
-    });
+    // Build termination based on config - use time_limit from solver.toml or config
+    let time_limit = solver_config
+        .termination
+        .as_ref()
+        .and_then(|c| c.time_limit())
+        .unwrap_or(config.time_limit);
 
-    let mut solver = Solver::new(((), construction, local_search))
-        .with_time_limit(config.time_limit)
+    // Create and run solver - now returns SolveResult with full telemetry
+    let solver_result = Solver::new(((), construction, local_search))
+        .with_time_limit(time_limit)
         .with_terminate(terminate)
-        .with_best_solution_callback(snapshot_callback);
+        .solve(score_director);
 
-    let result_solution = solver.solve(score_director);
     let duration = start.elapsed();
-    let score = result_solution.score.unwrap_or(HardSoftScore::ZERO);
+    let score = solver_result.solution.score.unwrap_or(HardSoftScore::ZERO);
 
     info!(
         event = "solve_end",
         score = %score,
         feasible = score.hard() >= 0,
         duration_ms = duration.as_millis(),
+        steps = solver_result.stats.step_count,
+        moves_evaluated = solver_result.stats.moves_evaluated,
     );
 
     SolveResult {
-        solution: result_solution,
+        solution: solver_result.solution,
         score,
         duration,
-        steps: 0,           // TODO: Get from solver stats
-        moves_evaluated: 0, // TODO: Get from solver stats
+        steps: solver_result.stats.step_count,
+        moves_evaluated: solver_result.stats.moves_evaluated,
     }
 }

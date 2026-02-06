@@ -11,7 +11,53 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
+use crate::stats::SolverStats;
 use crate::termination::Termination;
+
+/// Result of a solve operation containing solution and telemetry.
+///
+/// This is the canonical return type for `Solver::solve()`. It provides
+/// both the optimized solution and comprehensive statistics about the
+/// solving process.
+#[derive(Debug)]
+pub struct SolveResult<S: PlanningSolution> {
+    /// The best solution found during solving.
+    pub solution: S,
+    /// Solver statistics including steps, moves evaluated, and acceptance rates.
+    pub stats: SolverStats,
+}
+
+impl<S: PlanningSolution> SolveResult<S> {
+    /// Returns a reference to the solution.
+    pub fn solution(&self) -> &S {
+        &self.solution
+    }
+
+    /// Returns the solution, consuming this result.
+    pub fn into_solution(self) -> S {
+        self.solution
+    }
+
+    /// Returns a reference to the solver statistics.
+    pub fn stats(&self) -> &SolverStats {
+        &self.stats
+    }
+
+    /// Returns the total number of steps taken across all phases.
+    pub fn step_count(&self) -> u64 {
+        self.stats.step_count
+    }
+
+    /// Returns the total number of moves evaluated across all phases.
+    pub fn moves_evaluated(&self) -> u64 {
+        self.stats.moves_evaluated
+    }
+
+    /// Returns the total number of moves accepted across all phases.
+    pub fn moves_accepted(&self) -> u64 {
+        self.stats.moves_accepted
+    }
+}
 
 /// The main solver that optimizes planning solutions.
 ///
@@ -165,7 +211,10 @@ macro_rules! impl_solver {
             $($P: Phase<S, D>,)+
         {
             /// Solves using the provided score director.
-            pub fn solve(&mut self, score_director: D) -> S {
+            ///
+            /// Returns a `SolveResult` containing the best solution found
+            /// and comprehensive solver statistics.
+            pub fn solve(&mut self, score_director: D) -> SolveResult<S> {
                 let mut solver_scope = SolverScope::with_terminate(score_director, self.terminate);
                 if let Some(limit) = self.time_limit {
                     solver_scope.set_time_limit(limit);
@@ -193,7 +242,9 @@ macro_rules! impl_solver {
                     }
                 )+
 
-                solver_scope.take_best_or_working_solution()
+                // Extract solution and stats before consuming scope
+                let (solution, stats) = solver_scope.take_solution_and_stats();
+                SolveResult { solution, stats }
             }
 
             fn check_termination(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
@@ -216,7 +267,7 @@ macro_rules! impl_solver_with_director {
             T: Send,
         {
             /// Solves using a provided score director.
-            pub fn solve_with_director<D>(self, director: D) -> S
+            pub fn solve_with_director<D>(self, director: D) -> SolveResult<S>
             where
                 D: ScoreDirector<S>,
                 T: MaybeTermination<S, D>,

@@ -66,7 +66,7 @@ pub struct ListRuinMove<S, V> {
     list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> V>,
 }
 
 impl<S, V> Clone for ListRuinMove<S, V> {

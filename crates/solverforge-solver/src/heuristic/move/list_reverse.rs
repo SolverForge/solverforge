@@ -65,7 +65,7 @@ pub struct ListReverseMove<S, V> {
     list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
     descriptor_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> V>,
 }
 
 impl<S, V> Clone for ListReverseMove<S, V> {

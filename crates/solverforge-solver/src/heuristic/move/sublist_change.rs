@@ -88,7 +88,7 @@ pub struct SubListChangeMove<S, V> {
     descriptor_index: usize,
     /// Store indices for entity_indices()
     indices: [usize; 2],
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> V>,
 }
 
 impl<S, V> Clone for SubListChangeMove<S, V> {

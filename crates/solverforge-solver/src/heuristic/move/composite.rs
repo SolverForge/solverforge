@@ -32,7 +32,7 @@ where
 {
     index_1: usize,
     index_2: usize,
-    _phantom: PhantomData<(S, M1, M2)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M1, fn() -> M2)>,
 }
 
 impl<S, M1, M2> CompositeMove<S, M1, M2>

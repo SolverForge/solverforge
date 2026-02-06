@@ -146,7 +146,7 @@ pub struct KOptMove<S, V> {
     descriptor_index: usize,
     /// Entity index (for intra-route moves).
     entity_index: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> V>,
 }
 
 impl<S, V> Clone for KOptMove<S, V> {

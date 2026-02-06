@@ -4,6 +4,8 @@ use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::ops::{Add, Neg, Sub};
 
+use super::ScoreLevel;
+
 /// Core trait for all score types in SolverForge.
 ///
 /// Scores represent the quality of a planning solution. They are used to:
@@ -76,6 +78,15 @@ pub trait Score:
 
     /// Returns the absolute value of this score.
     fn abs(&self) -> Self;
+
+    /// Returns the semantic label for the score level at the given index.
+    ///
+    /// Level indices follow the same order as `to_level_numbers()`:
+    /// highest priority first.
+    ///
+    /// # Panics
+    /// Panics if `index >= levels_count()`.
+    fn level_label(index: usize) -> ScoreLevel;
 
     /// Compares two scores, returning the ordering.
     ///

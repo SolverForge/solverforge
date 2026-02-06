@@ -2,9 +2,9 @@
 
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, Neg, Sub};
 
 use super::traits::{ParseableScore, Score, ScoreParseError};
+use super::ScoreLevel;
 
 /// A simple score with a single integer value.
 ///
@@ -23,6 +23,7 @@ use super::traits::{ParseableScore, Score, ScoreParseError};
 /// assert!(!score1.is_feasible());  // Negative scores are not feasible
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SimpleScore {
     score: i64,
 }
@@ -72,16 +73,13 @@ impl Score for SimpleScore {
         SimpleScore::of(levels[0])
     }
 
-    fn multiply(&self, multiplicand: f64) -> Self {
-        SimpleScore::of((self.score as f64 * multiplicand).round() as i64)
-    }
+    impl_score_scale!(SimpleScore { score } => of);
 
-    fn divide(&self, divisor: f64) -> Self {
-        SimpleScore::of((self.score as f64 / divisor).round() as i64)
-    }
-
-    fn abs(&self) -> Self {
-        SimpleScore::of(self.score.abs())
+    fn level_label(index: usize) -> ScoreLevel {
+        match index {
+            0 => ScoreLevel::Soft,
+            _ => panic!("SimpleScore has 1 level, got index {}", index),
+        }
     }
 }
 
@@ -91,35 +89,7 @@ impl Ord for SimpleScore {
     }
 }
 
-impl PartialOrd for SimpleScore {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Add for SimpleScore {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self {
-        SimpleScore::of(self.score + other.score)
-    }
-}
-
-impl Sub for SimpleScore {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self {
-        SimpleScore::of(self.score - other.score)
-    }
-}
-
-impl Neg for SimpleScore {
-    type Output = Self;
-
-    fn neg(self) -> Self {
-        SimpleScore::of(-self.score)
-    }
-}
+impl_score_ops!(SimpleScore { score } => of);
 
 impl fmt::Debug for SimpleScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -133,6 +103,7 @@ impl fmt::Display for SimpleScore {
     }
 }
 
+// SimpleScore has custom parse logic (optional "init" suffix) so no macro.
 impl ParseableScore for SimpleScore {
     fn parse(s: &str) -> Result<Self, ScoreParseError> {
         let s = s.trim();

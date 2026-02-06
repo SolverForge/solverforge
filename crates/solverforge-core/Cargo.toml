@@ -7,12 +7,11 @@ description = "Core types and traits for SolverForge constraint solver"
 
 [features]
 default = []
-decimal = ["rust_decimal"]
+decimal = []
+serde = ["dep:serde"]
 
 [dependencies]
 thiserror.workspace = true
-num-traits.workspace = true
-rust_decimal = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

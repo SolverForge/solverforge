@@ -142,6 +142,4 @@ macro_rules! impl_score_parse {
     };
 }
 
-pub(crate) use impl_score_ops;
-pub(crate) use impl_score_parse;
-pub(crate) use impl_score_scale;
+// Macros are used via #[macro_use] on the module declaration.

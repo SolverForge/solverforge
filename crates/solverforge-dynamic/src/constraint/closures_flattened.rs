@@ -106,14 +106,7 @@ pub fn make_c_key_fn(_c_key_expr: Expr, _descriptor: DynamicDescriptor) -> DynCK
 /// Lookup key expressions should only reference entity fields, not facts or solution state.
 /// This is enforced by the minimal solution context which has empty entities and facts vectors.
 pub fn make_a_lookup(lookup_expr: Expr, descriptor: DynamicDescriptor) -> DynALookup {
-    // Create minimal solution with only descriptor (no entities/facts).
-    let minimal_solution = DynamicSolution {
-        descriptor,
-        entities: Vec::new(),
-        facts: Vec::new(),
-        score: None,
-        id_to_location: std::collections::HashMap::new(),
-    };
+    let minimal_solution = DynamicSolution::empty(descriptor);
 
     Box::new(move |entity: &DynamicEntity| {
         crate::eval::eval_entity_expr(&lookup_expr, &minimal_solution, entity)
@@ -228,13 +221,7 @@ pub fn make_flattened_weight(
 ) -> DynFlattenedWeight {
     Box::new(move |a: &DynamicEntity, c: &DynamicValue| {
         // Create a temporary solution with entity A and synthetic C entity
-        let mut temp_solution = DynamicSolution {
-            descriptor: descriptor.clone(),
-            entities: vec![Vec::new(); descriptor.entity_classes.len()],
-            facts: Vec::new(),
-            score: None,
-            id_to_location: std::collections::HashMap::new(),
-        };
+        let mut temp_solution = DynamicSolution::new(descriptor.clone());
 
         // Place entity A at index 0 in class_idx_a
         temp_solution.entities[class_idx_a] = vec![a.clone()];

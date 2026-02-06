@@ -57,7 +57,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 pub struct SortingMoveSelector<S, M, Inner> {
     inner: Inner,
     comparator: fn(&M, &M) -> Ordering,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 impl<S, M, Inner> SortingMoveSelector<S, M, Inner> {

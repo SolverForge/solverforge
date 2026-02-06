@@ -55,7 +55,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 pub struct FilteringMoveSelector<S, M, Inner> {
     inner: Inner,
     predicate: fn(&M) -> bool,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 impl<S, M, Inner> FilteringMoveSelector<S, M, Inner> {

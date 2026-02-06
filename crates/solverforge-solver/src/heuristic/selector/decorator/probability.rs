@@ -61,7 +61,7 @@ pub struct ProbabilityMoveSelector<S, M, Inner> {
     inner: Inner,
     weight_fn: fn(&M) -> f64,
     rng: RefCell<StdRng>,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 // SAFETY: RefCell<StdRng> is only accessed from a single thread at a time

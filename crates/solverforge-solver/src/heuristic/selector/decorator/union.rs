@@ -53,7 +53,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 pub struct UnionMoveSelector<S, M, A, B> {
     first: A,
     second: B,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 impl<S, M, A, B> UnionMoveSelector<S, M, A, B> {

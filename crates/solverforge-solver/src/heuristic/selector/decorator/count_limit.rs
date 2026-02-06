@@ -51,7 +51,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 pub struct SelectedCountLimitMoveSelector<S, M, Inner> {
     inner: Inner,
     limit: usize,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 impl<S, M, Inner> SelectedCountLimitMoveSelector<S, M, Inner> {

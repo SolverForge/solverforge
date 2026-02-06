@@ -35,7 +35,7 @@ where
 {
     arena_1: MoveArena<M1>,
     arena_2: MoveArena<M2>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, M1, M2> CartesianProductArena<S, M1, M2>

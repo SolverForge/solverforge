@@ -55,7 +55,7 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 pub struct ShufflingMoveSelector<S, M, Inner> {
     inner: Inner,
     rng: RefCell<StdRng>,
-    _phantom: PhantomData<(S, M)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 // SAFETY: RefCell<StdRng> is only accessed from a single thread at a time

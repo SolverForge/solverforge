@@ -11,7 +11,7 @@ use super::simple::SimpleScoreDirector;
 pub struct ScoreDirectorFactory<S: PlanningSolution, C> {
     solution_descriptor: SolutionDescriptor,
     score_calculator: C,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S, C> ScoreDirectorFactory<S, C>

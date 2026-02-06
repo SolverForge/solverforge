@@ -32,7 +32,7 @@ where
     matches: HashMap<(usize, usize), Sc>,
     a_to_matches: HashMap<usize, HashSet<(usize, usize)>>,
     b_by_key: HashMap<K, Vec<usize>>,
-    _phantom: PhantomData<(S, A, B)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>

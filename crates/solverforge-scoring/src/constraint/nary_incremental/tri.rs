@@ -24,7 +24,7 @@ macro_rules! impl_incremental_tri_constraint {
             matches: HashSet<(usize, usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
             index_to_key: HashMap<usize, K>,
-            _phantom: PhantomData<(S, A, Sc)>,
+            _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
         }
 
         impl<S, A, K, E, KE, F, W, Sc> $struct_name<S, A, K, E, KE, F, W, Sc>

@@ -101,7 +101,7 @@ where
     total_count: i64,
     // Sum of squared counts (for variance calculation)
     sum_squared: i64,
-    _phantom: PhantomData<(S, A)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A)>,
 }
 
 impl<S, A, K, E, F, KF, Sc> BalanceConstraint<S, A, K, E, F, KF, Sc>

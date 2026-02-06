@@ -219,7 +219,7 @@ where
     D: ScoreDirector<S>,
 {
     inner: D,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, D> ShadowAwareScoreDirector<S, D>

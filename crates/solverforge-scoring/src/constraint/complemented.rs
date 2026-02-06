@@ -106,7 +106,7 @@ where
     entity_values: HashMap<usize, C::Value>,
     // B key -> B entity index (for looking up B entities by key)
     b_by_key: HashMap<K, usize>,
-    _phantom: PhantomData<(S, A, B, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> Sc)>,
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>

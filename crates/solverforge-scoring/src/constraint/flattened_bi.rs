@@ -127,7 +127,7 @@ pub struct FlattenedBiConstraint<
     c_index: HashMap<(K, CK), Vec<(usize, C)>>,
     // A index → cached score for this entity's matches
     a_scores: HashMap<usize, Sc>,
-    _phantom: PhantomData<(S, A, B)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B)>,
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>

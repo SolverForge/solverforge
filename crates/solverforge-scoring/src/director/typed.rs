@@ -89,7 +89,7 @@ where
     // throughout the solver pipeline.
     entity_counter: fn(&S, usize) -> usize,
     // Phantom for score type.
-    _phantom: PhantomData<S::Score>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, C> TypedScoreDirector<S, C>

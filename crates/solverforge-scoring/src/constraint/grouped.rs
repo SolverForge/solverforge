@@ -92,7 +92,7 @@ where
     entity_groups: HashMap<usize, K>,
     // Entity index -> extracted value (for correct retraction after entity mutation)
     entity_values: HashMap<usize, C::Value>,
-    _phantom: PhantomData<(S, A, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
 impl<S, A, K, E, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>

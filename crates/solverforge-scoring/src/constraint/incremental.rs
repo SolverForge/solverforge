@@ -24,7 +24,7 @@ where
     filter: F,
     weight: W,
     is_hard: bool,
-    _phantom: PhantomData<(S, A, Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
 impl<S, A, E, F, W, Sc> IncrementalUniConstraint<S, A, E, F, W, Sc>

@@ -7,6 +7,7 @@ use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
 use super::traits::Score;
+use super::ScoreLevel;
 
 /// A score with a configurable number of hard and soft levels.
 ///
@@ -169,6 +170,22 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
             *item = self.soft[i].abs();
         }
         BendableScore { hard, soft }
+    }
+
+    fn level_label(index: usize) -> ScoreLevel {
+        if index < H {
+            ScoreLevel::Hard
+        } else if index < H + S {
+            ScoreLevel::Soft
+        } else {
+            panic!(
+                "BendableScore<{}, {}> has {} levels, got index {}",
+                H,
+                S,
+                H + S,
+                index
+            )
+        }
     }
 }
 

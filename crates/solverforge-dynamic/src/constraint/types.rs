@@ -16,22 +16,8 @@ pub type DynExtractor = Box<dyn Fn(&DynamicSolution) -> &[DynamicEntity] + Send 
 pub type DynKeyExtractor =
     Box<dyn Fn(&DynamicSolution, &DynamicEntity, usize) -> DynamicValue + Send + Sync>;
 
-/// Uni-constraint filter: checks if a single entity matches.
-pub type DynUniFilter = Box<dyn Fn(&DynamicSolution, &DynamicEntity) -> bool + Send + Sync>;
-
-/// Uni-constraint weight: computes score for a single entity.
-pub type DynUniWeight = Box<dyn Fn(&DynamicEntity) -> HardSoftScore + Send + Sync>;
-
-/// Bi-constraint filter: checks if pair of entities matches.
-/// Indices (a_idx, b_idx) are passed through from the constraint for direct flat-buffer access.
-pub type DynBiFilter = Box<
-    dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, usize, usize) -> bool + Send + Sync,
->;
-
-/// Tri-constraint filter: checks if triple of entities matches.
-pub type DynTriFilter = Box<
-    dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> bool + Send + Sync,
->;
+// DynUniFilter, DynUniWeight, DynBiFilter, DynTriFilter removed:
+// factories now build closures inline with explicit casts (JIT migration).
 
 /// Quad-constraint filter: checks if quadruple of entities matches.
 pub type DynQuadFilter = Box<
@@ -54,18 +40,7 @@ pub type DynPentaFilter = Box<
         + Sync,
 >;
 
-/// Bi-constraint weight: computes score for pair using solution reference and entity indices.
-///
-/// Takes the full solution and indices into the entity slice, avoiding entity cloning.
-/// The indices are positions within `solution.entities[class_idx]`.
-pub type DynBiWeight = Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftScore + Send + Sync>;
-
-/// Tri-constraint weight: computes score for triple using solution reference and entity indices.
-///
-/// Takes the full solution and three indices into the entity slice, avoiding entity cloning.
-/// The indices are positions within `solution.entities[class_idx]`.
-pub type DynTriWeight =
-    Box<dyn Fn(&DynamicSolution, usize, usize, usize) -> HardSoftScore + Send + Sync>;
+// DynBiWeight, DynTriWeight removed: factories now build closures inline (JIT migration).
 
 /// Quad-constraint weight: computes score for quadruple using solution reference and entity indices.
 ///

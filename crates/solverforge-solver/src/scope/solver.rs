@@ -136,7 +136,10 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     }
 
     /// Calculates and returns the current score.
+    ///
+    /// Also records the score calculation in solver statistics.
     pub fn calculate_score(&mut self) -> S::Score {
+        self.stats.record_score_calculation();
         self.score_director.calculate_score()
     }
 
@@ -185,6 +188,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     /// Increments and returns the total step count.
     pub fn increment_step_count(&mut self) -> u64 {
         self.total_step_count += 1;
+        self.stats.record_step();
         self.total_step_count
     }
 
@@ -202,6 +206,17 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
     pub fn take_best_or_working_solution(self) -> S {
         self.best_solution
             .unwrap_or_else(|| self.score_director.clone_working_solution())
+    }
+
+    /// Extracts both the solution and stats, consuming this scope.
+    ///
+    /// Returns the best solution (or working solution if none) along with
+    /// the accumulated solver statistics.
+    pub fn take_solution_and_stats(self) -> (S, SolverStats) {
+        let solution = self
+            .best_solution
+            .unwrap_or_else(|| self.score_director.clone_working_solution());
+        (solution, self.stats)
     }
 
     /// Checks if early termination was requested (external flag only).

@@ -159,7 +159,7 @@ where
     /// Sub-pillar configuration.
     sub_pillar_config: SubPillarConfig,
     /// Marker for solution and value types.
-    _phantom: PhantomData<(fn() -> S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, ES, E> Debug for DefaultPillarSelector<S, V, ES, E>

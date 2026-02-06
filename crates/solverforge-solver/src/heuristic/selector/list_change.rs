@@ -85,7 +85,7 @@ pub struct ListChangeMoveSelector<S, V, ES> {
     variable_name: &'static str,
     /// Entity descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {

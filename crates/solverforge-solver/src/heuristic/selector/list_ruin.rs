@@ -114,7 +114,7 @@ pub struct ListRuinMoveSelector<S, V> {
     descriptor_index: usize,
     /// Number of ruin moves to generate per iteration.
     moves_per_step: usize,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<fn() -> V>,
 }
 
 impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {

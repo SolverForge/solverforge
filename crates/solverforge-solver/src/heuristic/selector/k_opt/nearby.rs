@@ -50,7 +50,7 @@ pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>, ES> {
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug

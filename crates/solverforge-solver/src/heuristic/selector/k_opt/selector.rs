@@ -38,7 +38,7 @@ pub struct KOptMoveSelector<S, V, ES> {
     variable_name: &'static str,
     /// Descriptor index.
     descriptor_index: usize,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {

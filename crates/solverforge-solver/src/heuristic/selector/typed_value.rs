@@ -44,7 +44,7 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
 #[derive(Clone)]
 pub struct StaticTypedValueSelector<S, V> {
     values: Vec<V>,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, V: Debug> Debug for StaticTypedValueSelector<S, V> {
@@ -97,7 +97,7 @@ where
 /// A typed value selector that extracts values from the solution using a function pointer.
 pub struct FromSolutionTypedValueSelector<S, V> {
     extractor: fn(&S) -> Vec<V>,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V> Debug for FromSolutionTypedValueSelector<S, V> {
@@ -146,7 +146,7 @@ where
 /// Uses a function pointer to get the count from the solution.
 pub struct RangeValueSelector<S> {
     count_fn: fn(&S) -> usize,
-    _phantom: PhantomData<S>,
+    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S> Debug for RangeValueSelector<S> {

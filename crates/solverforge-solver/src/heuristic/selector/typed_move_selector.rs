@@ -48,7 +48,7 @@ pub struct ChangeMoveSelector<S, V, ES, VS> {
     setter: fn(&mut S, usize, Option<V>),
     descriptor_index: usize,
     variable_name: &'static str,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, VS> {
@@ -186,7 +186,7 @@ pub struct SwapMoveSelector<S, V, LES, RES> {
     setter: fn(&mut S, usize, Option<V>),
     descriptor_index: usize,
     variable_name: &'static str,
-    _phantom: PhantomData<(S, V)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, LES: Debug, RES: Debug> Debug for SwapMoveSelector<S, V, LES, RES> {

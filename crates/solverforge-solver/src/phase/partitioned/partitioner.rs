@@ -75,7 +75,7 @@ where
     partition_fn: PF,
     merge_fn: MF,
     recommended_count: Option<usize>,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S, PF, MF> FunctionalPartitioner<S, PF, MF>

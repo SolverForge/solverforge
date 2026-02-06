@@ -65,7 +65,7 @@ where
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
     feasibility_check: F,
-    _phantom: std::marker::PhantomData<S>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S, F> Debug for BestScoreFeasibleTermination<S, F>

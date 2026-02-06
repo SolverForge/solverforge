@@ -87,7 +87,7 @@ pub trait Analyzable: PlanningSolution + Clone + Send + 'static {
 ///
 /// * `S` - Solution type that implements `Analyzable`
 pub struct SolutionManager<S> {
-    _marker: PhantomData<S>,
+    _marker: PhantomData<fn() -> S>,
 }
 
 impl<S> Default for SolutionManager<S> {

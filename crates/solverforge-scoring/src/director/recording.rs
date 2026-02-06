@@ -62,8 +62,8 @@ use super::ScoreDirector;
 // recording.undo_changes();
 // assert_eq!(recording.working_solution().value, 10);
 // ```
-pub struct RecordingScoreDirector<'a, S: PlanningSolution> {
-    inner: &'a mut dyn ScoreDirector<S>,
+pub struct RecordingScoreDirector<'a, S: PlanningSolution, D: ScoreDirector<S>> {
+    inner: &'a mut D,
     // Typed undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
     // Entities modified during this step that need shadow refresh after undo.
@@ -71,9 +71,9 @@ pub struct RecordingScoreDirector<'a, S: PlanningSolution> {
     modified_entities: Vec<(usize, usize)>,
 }
 
-impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
+impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S, D> {
     // Creates a new recording score director wrapping the inner director.
-    pub fn new(inner: &'a mut dyn ScoreDirector<S>) -> Self {
+    pub fn new(inner: &'a mut D) -> Self {
         Self {
             inner,
             undo_stack: Vec::with_capacity(16),
@@ -125,7 +125,9 @@ impl<'a, S: PlanningSolution> RecordingScoreDirector<'a, S> {
     }
 }
 
-impl<S: PlanningSolution> ScoreDirector<S> for RecordingScoreDirector<'_, S> {
+impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
+    for RecordingScoreDirector<'_, S, D>
+{
     fn working_solution(&self) -> &S {
         self.inner.working_solution()
     }

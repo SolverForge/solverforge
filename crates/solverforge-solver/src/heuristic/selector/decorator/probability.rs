@@ -106,7 +106,7 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a> {
+    ) -> impl Iterator<Item = M> + 'a {
         let weight_fn = self.weight_fn;
 
         let moves_with_weights: Vec<(M, f64)> = self
@@ -120,21 +120,21 @@ where
 
         let total_weight: f64 = moves_with_weights.iter().map(|(_, w)| w).sum();
 
-        if total_weight <= 0.0 {
-            return Box::new(std::iter::empty());
-        }
+        let mut selected = Vec::new();
 
-        let mut rng = self.rng.borrow_mut();
-        let mut selected = Vec::with_capacity(moves_with_weights.len());
+        if total_weight > 0.0 {
+            let mut rng = self.rng.borrow_mut();
+            selected.reserve(moves_with_weights.len());
 
-        for (m, weight) in moves_with_weights {
-            let probability = weight / total_weight;
-            if rng.random::<f64>() < probability {
-                selected.push(m);
+            for (m, weight) in moves_with_weights {
+                let probability = weight / total_weight;
+                if rng.random::<f64>() < probability {
+                    selected.push(m);
+                }
             }
         }
 
-        Box::new(selected.into_iter())
+        selected.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

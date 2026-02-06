@@ -102,10 +102,10 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a> {
+    ) -> impl Iterator<Item = M> + 'a {
         let mut moves: Vec<M> = self.inner.iter_moves(score_director).collect();
         moves.shuffle(&mut *self.rng.borrow_mut());
-        Box::new(moves.into_iter())
+        moves.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

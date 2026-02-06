@@ -114,33 +114,42 @@ fn create_assigned_solver_scope(
 
 type TestMove = ChangeMove<TestSolution, i64>;
 
-fn create_placer_factory(
-) -> impl Fn() -> Box<dyn EntityPlacer<TestSolution, TestMove>> + Send + Sync {
+type TestPlacer = QueuedEntityPlacer<
+    TestSolution,
+    i64,
+    FromSolutionEntitySelector,
+    StaticTypedValueSelector<TestSolution, i64>,
+>;
+
+fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     || {
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
-        Box::new(QueuedEntityPlacer::new(
-            entity_selector,
-            value_selector,
+        QueuedEntityPlacer::new(
+            FromSolutionEntitySelector::new(0),
+            StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]),
             get_task_priority,
             set_task_priority,
             0,
             "priority",
-        ))
+        )
     }
 }
 
-fn create_move_selector_factory(
-) -> impl Fn() -> Box<dyn MoveSelector<TestSolution, TestMove>> + Send + Sync {
+type TestMoveSelector = ChangeMoveSelector<
+    TestSolution,
+    i64,
+    FromSolutionEntitySelector,
+    StaticTypedValueSelector<TestSolution, i64>,
+>;
+
+fn create_move_selector_factory() -> impl Fn() -> TestMoveSelector + Send + Sync {
     || {
-        let selector = ChangeMoveSelector::<TestSolution, i64>::simple(
+        ChangeMoveSelector::<TestSolution, i64>::simple(
             get_task_priority,
             set_task_priority,
             0,
             "priority",
             vec![1i64, 2, 3, 4, 5],
-        );
-        Box::new(selector)
+        )
     }
 }
 

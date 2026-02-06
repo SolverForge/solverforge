@@ -201,7 +201,7 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = RuinMove<S, V>> + 'a> {
+    ) -> impl Iterator<Item = RuinMove<S, V>> + 'a {
         let total_entities = (self.entity_count)(score_director.working_solution());
         let getter = self.getter;
         let setter = self.setter;
@@ -234,9 +234,9 @@ where
             })
             .collect();
 
-        Box::new(subsets.into_iter().map(move |indices| {
+        subsets.into_iter().map(move |indices| {
             RuinMove::new(&indices, getter, setter, variable_name, descriptor_index)
-        }))
+        })
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

@@ -101,20 +101,24 @@ type TestMove = ChangeMove<TestSolution, i64>;
 
 // ==================== Helper Factories ====================
 
+type TestPlacer = QueuedEntityPlacer<
+    TestSolution,
+    i64,
+    FromSolutionEntitySelector,
+    StaticTypedValueSelector<TestSolution, i64>,
+>;
+
 /// Creates a simple placer factory for construction phases.
-fn create_placer_factory(
-) -> impl Fn() -> Box<dyn EntityPlacer<TestSolution, TestMove>> + Send + Sync {
+fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     || {
-        let entity_selector = Box::new(FromSolutionEntitySelector::new(0));
-        let value_selector = Box::new(StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]));
-        Box::new(QueuedEntityPlacer::new(
-            entity_selector,
-            value_selector,
+        QueuedEntityPlacer::new(
+            FromSolutionEntitySelector::new(0),
+            StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]),
             get_task_priority,
             set_task_priority,
             0,
             "priority",
-        ))
+        )
     }
 }
 

@@ -137,7 +137,7 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ListChangeMove<S, V>> + 'a> {
+    ) -> impl Iterator<Item = ListChangeMove<S, V>> + 'a {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_remove = self.list_remove;
@@ -212,7 +212,7 @@ where
             }
         }
 
-        Box::new(moves.into_iter())
+        moves.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

@@ -30,7 +30,9 @@ pub use descriptor::{
 pub use eval::{eval_expr, EntityRef, EvalContext};
 pub use expr::Expr;
 pub use manager::{DynamicSolverManager, SolveStatus};
-pub use moves::{DynamicChangeMove, DynamicEntityPlacer, DynamicMoveSelector};
+pub use moves::{
+    DynamicChangeMove, DynamicEitherMove, DynamicEntityPlacer, DynamicMoveSelector, DynamicSwapMove,
+};
 pub use solution::{DynamicEntity, DynamicFact, DynamicSolution, DynamicValue};
 pub use solve::{solve, solve_with_controls, SolveConfig, SolveResult};
 

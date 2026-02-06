@@ -3,6 +3,8 @@
 //! Scores are used to compare solutions and guide the optimization process.
 //! All score types are immutable and implement arithmetic operations.
 
+#[macro_use]
+mod macros;
 mod bendable;
 mod hard_medium_soft;
 mod hard_soft;

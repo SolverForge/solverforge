@@ -5,13 +5,11 @@
 mod tests;
 
 // Module organization: types, closures, factories, and stream operations
-mod closures_bi;
 mod closures_cross;
 mod closures_extract;
 mod closures_flattened;
 mod closures_penta;
 mod closures_quad;
-mod closures_tri;
 mod factory_cross;
 mod factory_self;
 mod factory_self_higher;

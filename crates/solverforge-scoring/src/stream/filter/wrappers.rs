@@ -18,10 +18,17 @@ macro_rules! impl_true_filter {
 }
 
 impl_true_filter!(UniFilter, A);
-impl_true_filter!(BiFilter, A, B);
 impl_true_filter!(TriFilter, A, B, C);
 impl_true_filter!(QuadFilter, A, B, C, D);
 impl_true_filter!(PentaFilter, A, B, C, D, E);
+
+// BiFilter has extra index params, so implement manually.
+impl<S, A, B> BiFilter<S, A, B> for TrueFilter {
+    #[inline]
+    fn test(&self, _: &S, _: &A, _: &B, _a_idx: usize, _b_idx: usize) -> bool {
+        true
+    }
+}
 
 macro_rules! impl_fn_filter {
     ($name:ident, $trait:ident, $doc:expr, $(($type_param:ident, $var:ident)),+) => {
@@ -56,13 +63,28 @@ impl_fn_filter!(
     "A uni-filter wrapping a closure.",
     (A, a)
 );
-impl_fn_filter!(
-    FnBiFilter,
-    BiFilter,
-    "A bi-filter wrapping a closure.",
-    (A, a),
-    (B, b)
-);
+// FnBiFilter: manual impl because BiFilter has extra index params.
+/// A bi-filter wrapping a closure.
+pub struct FnBiFilter<F> {
+    f: F,
+}
+
+impl<F> FnBiFilter<F> {
+    #[inline]
+    pub fn new(f: F) -> Self {
+        Self { f }
+    }
+}
+
+impl<S, A, B, F> BiFilter<S, A, B> for FnBiFilter<F>
+where
+    F: Fn(&S, &A, &B) -> bool + Send + Sync,
+{
+    #[inline]
+    fn test(&self, solution: &S, a: &A, b: &B, _a_idx: usize, _b_idx: usize) -> bool {
+        (self.f)(solution, a, b)
+    }
+}
 impl_fn_filter!(
     FnTriFilter,
     TriFilter,

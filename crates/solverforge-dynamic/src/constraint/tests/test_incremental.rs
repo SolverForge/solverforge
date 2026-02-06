@@ -61,7 +61,7 @@ fn test_incremental_delta_matches_full_recalculation() {
 
         // Retract entity - call on_retract BEFORE removing from solution
         let delta2 = constraint.on_retract(&solution, 3, 0);
-        solution.entities[0].remove(3);
+        solution.remove_entity(0, 3);
         let accumulated2 = accumulated1 + delta2;
         let full2 = constraint.evaluate(&solution);
         assert_eq!(
@@ -503,7 +503,7 @@ fn test_comprehensive_incremental_correctness() {
         let retract_indices = [11, 10, 9]; // col=17, col=14, col=18 in reverse
         for (i, &idx) in retract_indices.iter().enumerate() {
             let delta = constraint.on_retract(&solution, idx, 0);
-            solution.entities[0].remove(idx);
+            solution.remove_entity(0, idx);
             running_score = running_score + delta;
 
             let full_score = constraint.evaluate(&solution);
@@ -631,7 +631,7 @@ fn test_comprehensive_incremental_correctness() {
         // Retract some shifts
         for idx in (0..10).rev().take(5) {
             let delta = constraint.on_retract(&solution, idx, shift_class);
-            solution.entities[shift_class].remove(idx);
+            solution.remove_entity(shift_class, idx);
             running_score = running_score + delta;
 
             let full_score = constraint.evaluate(&solution);
@@ -713,7 +713,7 @@ fn test_comprehensive_incremental_correctness() {
         // Retract from end: 10 (idx 9), 9 (idx 8), 8 (idx 7)
         for idx in (7..=9).rev() {
             let delta = constraint.on_retract(&solution, idx, 0);
-            solution.entities[0].remove(idx);
+            solution.remove_entity(0, idx);
             running_score = running_score + delta;
 
             let full_score = constraint.evaluate(&solution);

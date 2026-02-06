@@ -31,9 +31,12 @@ pub trait UniFilter<S, A>: Send + Sync {
 }
 
 // A filter over pairs of entities.
+// Indices (a_idx, b_idx) are the positions in the entity slice, passed
+// through from the constraint so JIT closures can use them directly
+// for flat-buffer access without HashMap lookups.
 pub trait BiFilter<S, A, B>: Send + Sync {
     // Returns true if the pair passes the filter.
-    fn test(&self, solution: &S, a: &A, b: &B) -> bool;
+    fn test(&self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize) -> bool;
 }
 
 // A filter over triples of entities.

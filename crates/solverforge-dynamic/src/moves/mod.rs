@@ -1,9 +1,11 @@
 //! Move generation for dynamic solutions.
 
 mod change_move;
+mod either_move;
 mod entity_placer;
 mod iterator;
 mod selector;
+mod swap_move;
 
 #[cfg(test)]
 mod tests;
@@ -12,9 +14,11 @@ use crate::descriptor::ValueRangeDef;
 use crate::solution::{DynamicSolution, DynamicValue};
 
 pub use change_move::DynamicChangeMove;
+pub use either_move::DynamicEitherMove;
 pub use entity_placer::DynamicEntityPlacer;
 pub use iterator::DynamicMoveIterator;
 pub use selector::DynamicMoveSelector;
+pub use swap_move::DynamicSwapMove;
 
 fn get_range_values(range: &ValueRangeDef, solution: &DynamicSolution) -> Vec<DynamicValue> {
     match range {

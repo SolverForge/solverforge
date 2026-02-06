@@ -4,11 +4,15 @@
 //! but with schemas defined at runtime rather than compile time. This enables
 //! language bindings (e.g., Python) to define problems without Rust compilation.
 
+/// Sentinel value representing `DynamicValue::None` in flat i64 entity buffers.
+pub const NONE_SENTINEL: i64 = i64::MIN;
+
 mod constraint;
 mod constraint_set;
 mod descriptor;
 mod eval;
 mod expr;
+pub mod jit;
 mod manager;
 mod moves;
 mod solution;
@@ -26,7 +30,9 @@ pub use descriptor::{
 pub use eval::{eval_expr, EntityRef, EvalContext};
 pub use expr::Expr;
 pub use manager::{DynamicSolverManager, SolveStatus};
-pub use moves::{DynamicChangeMove, DynamicEntityPlacer, DynamicMoveSelector};
+pub use moves::{
+    DynamicChangeMove, DynamicEitherMove, DynamicEntityPlacer, DynamicMoveSelector, DynamicSwapMove,
+};
 pub use solution::{DynamicEntity, DynamicFact, DynamicSolution, DynamicValue};
 pub use solve::{solve, solve_with_controls, SolveConfig, SolveResult};
 

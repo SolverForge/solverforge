@@ -9,6 +9,7 @@ use solverforge_core::domain::{PlanningEntity, PlanningId, PlanningSolution, Pro
 use solverforge_core::score::HardSoftScore;
 
 use crate::descriptor::DynamicDescriptor;
+use crate::NONE_SENTINEL;
 
 #[derive(Debug, Clone)]
 pub enum DynamicValue {
@@ -41,7 +42,6 @@ impl PartialEq for DynamicValue {
             (DynamicValue::DateTime(a), DynamicValue::DateTime(b)) => a == b,
             (DynamicValue::Date(a), DynamicValue::Date(b)) => a == b,
             (DynamicValue::Set(a), DynamicValue::Set(b)) => {
-                // Sets are equal if they contain the same elements (order-independent)
                 if a.len() != b.len() {
                     return false;
                 }
@@ -75,7 +75,6 @@ impl Hash for DynamicValue {
             DynamicValue::DateTime(v) => v.hash(state),
             DynamicValue::Date(v) => v.hash(state),
             DynamicValue::Set(v) => {
-                // Hash as a sorted set for consistency
                 let mut sorted: Vec<_> = v.iter().collect();
                 sorted.sort_by(|a, b| format!("{:?}", a).cmp(&format!("{:?}", b)));
                 for item in sorted {
@@ -144,7 +143,7 @@ impl DynamicValue {
     pub fn as_datetime(&self) -> Option<i64> {
         match self {
             DynamicValue::DateTime(v) => Some(*v),
-            DynamicValue::I64(v) => Some(*v), // Allow i64 to be treated as datetime
+            DynamicValue::I64(v) => Some(*v),
             _ => None,
         }
     }
@@ -162,7 +161,7 @@ impl DynamicValue {
     pub fn as_set(&self) -> Option<&[DynamicValue]> {
         match self {
             DynamicValue::Set(v) => Some(v),
-            DynamicValue::List(v) => Some(v), // Lists can be treated as sets
+            DynamicValue::List(v) => Some(v),
             _ => None,
         }
     }
@@ -173,12 +172,38 @@ impl DynamicValue {
             _ => false,
         }
     }
+
+    /// Flatten to i64 for the flat entity buffer.
+    #[inline]
+    pub fn to_flat_i64(&self) -> i64 {
+        match self {
+            DynamicValue::None => NONE_SENTINEL,
+            DynamicValue::I64(v) => *v,
+            DynamicValue::Bool(b) => *b as i64,
+            DynamicValue::DateTime(ms) => *ms,
+            DynamicValue::Date(days) => *days as i64,
+            DynamicValue::F64(f) => f.to_bits() as i64,
+            DynamicValue::Ref(_, idx) | DynamicValue::FactRef(_, idx) => *idx as i64,
+            DynamicValue::String(s) => {
+                let mut hash: u64 = 0xcbf29ce484222325;
+                for byte in s.as_bytes() {
+                    hash ^= *byte as u64;
+                    hash = hash.wrapping_mul(0x100000001b3);
+                }
+                hash as i64
+            }
+            DynamicValue::List(_) | DynamicValue::Set(_) => 0,
+        }
+    }
 }
+
+// ---- DynamicEntity ----
 
 #[derive(Debug, Clone)]
 pub struct DynamicEntity {
     pub id: i64,
-    pub fields: Vec<DynamicValue>,
+    /// Accessible for reads. All mutation must go through `DynamicSolution::update_field`.
+    pub(crate) fields: Vec<DynamicValue>,
 }
 
 impl DynamicEntity {
@@ -190,14 +215,8 @@ impl DynamicEntity {
         self.fields.get(field_idx)
     }
 
-    pub fn get_mut(&mut self, field_idx: usize) -> Option<&mut DynamicValue> {
-        self.fields.get_mut(field_idx)
-    }
-
-    pub fn set(&mut self, field_idx: usize, value: DynamicValue) {
-        if field_idx < self.fields.len() {
-            self.fields[field_idx] = value;
-        }
+    pub fn fields(&self) -> &[DynamicValue] {
+        &self.fields
     }
 }
 
@@ -205,7 +224,6 @@ impl PlanningEntity for DynamicEntity {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
@@ -213,11 +231,12 @@ impl PlanningEntity for DynamicEntity {
 
 impl PlanningId for DynamicEntity {
     type Id = i64;
-
     fn planning_id(&self) -> i64 {
         self.id
     }
 }
+
+// ---- DynamicFact ----
 
 #[derive(Debug, Clone)]
 pub struct DynamicFact {
@@ -243,24 +262,28 @@ impl ProblemFact for DynamicFact {
 
 impl PlanningId for DynamicFact {
     type Id = i64;
-
     fn planning_id(&self) -> i64 {
         self.id
     }
 }
 
+// ---- DynamicSolution ----
+
 /// A solution where schema is defined at runtime.
 ///
-/// This is the core type that allows dynamic problem definitions while
-/// implementing the real `PlanningSolution` trait.
+/// Entity fields are stored twice:
+/// - `entities[class_idx][entity_idx].fields` — tagged `DynamicValue` for the interpreter
+/// - `flat_entities[class_idx]` — contiguous `i64` buffer for JIT, `entity_idx * field_count` offset
+///
+/// Both are updated atomically by `update_field`. No other mutation path exists.
 #[derive(Debug, Clone)]
 pub struct DynamicSolution {
     pub descriptor: DynamicDescriptor,
     pub entities: Vec<Vec<DynamicEntity>>,
     pub facts: Vec<Vec<DynamicFact>>,
     pub score: Option<HardSoftScore>,
-    /// Maps entity ID to its location (class_idx, entity_idx) for O(1) lookup.
     pub id_to_location: HashMap<i64, (usize, usize)>,
+    flat_entities: Vec<Vec<i64>>,
 }
 
 impl DynamicSolution {
@@ -273,7 +296,14 @@ impl DynamicSolution {
             facts: vec![Vec::new(); fact_count],
             score: None,
             id_to_location: HashMap::new(),
+            flat_entities: vec![Vec::new(); entity_count],
         }
+    }
+
+    /// Minimal solution with only descriptor, no entities/facts.
+    /// Used by closure factories for key extraction where only the descriptor is needed.
+    pub fn empty(descriptor: DynamicDescriptor) -> Self {
+        Self::new(descriptor)
     }
 
     pub fn add_entity(&mut self, class_idx: usize, entity: DynamicEntity) {
@@ -281,13 +311,68 @@ impl DynamicSolution {
             let entity_idx = self.entities[class_idx].len();
             self.id_to_location
                 .insert(entity.id, (class_idx, entity_idx));
+            for field in &entity.fields {
+                self.flat_entities[class_idx].push(field.to_flat_i64());
+            }
             self.entities[class_idx].push(entity);
         }
     }
 
-    /// Look up an entity's location by its ID in O(1) time.
-    ///
-    /// Returns `Some((class_idx, entity_idx))` if the entity exists, `None` otherwise.
+    /// Remove an entity by index. Updates flat buffer and id_to_location.
+    /// Indices of subsequent entities shift down by 1.
+    pub fn remove_entity(&mut self, class_idx: usize, entity_idx: usize) {
+        let field_count = self.descriptor.entity_classes[class_idx].fields.len();
+        let flat_start = entity_idx * field_count;
+        let flat_end = flat_start + field_count;
+
+        // Remove from flat buffer
+        self.flat_entities[class_idx].drain(flat_start..flat_end);
+
+        // Remove from tagged entities
+        let entity = self.entities[class_idx].remove(entity_idx);
+        self.id_to_location.remove(&entity.id);
+
+        // Fix id_to_location for shifted indices
+        for shifted_idx in entity_idx..self.entities[class_idx].len() {
+            let id = self.entities[class_idx][shifted_idx].id;
+            self.id_to_location.insert(id, (class_idx, shifted_idx));
+        }
+    }
+
+    /// The single mutation point. Updates both the tagged `DynamicValue` and the flat i64 slot.
+    /// Flat buffer write uses unsafe pointer arithmetic — no bounds checks on the hot path.
+    #[inline]
+    pub fn update_field(
+        &mut self,
+        class_idx: usize,
+        entity_idx: usize,
+        field_idx: usize,
+        value: DynamicValue,
+    ) {
+        let field_count = self.descriptor.entity_classes[class_idx].fields.len();
+        let flat_offset = entity_idx * field_count + field_idx;
+        let flat_val = value.to_flat_i64();
+        unsafe {
+            *self.flat_entities[class_idx].as_mut_ptr().add(flat_offset) = flat_val;
+        }
+        self.entities[class_idx][entity_idx].fields[field_idx] = value;
+    }
+
+    /// Read a field value.
+    #[inline]
+    pub fn get_field(
+        &self,
+        class_idx: usize,
+        entity_idx: usize,
+        field_idx: usize,
+    ) -> Option<&DynamicValue> {
+        self.entities
+            .get(class_idx)?
+            .get(entity_idx)?
+            .fields
+            .get(field_idx)
+    }
+
     pub fn get_entity_location(&self, id: i64) -> Option<(usize, usize)> {
         self.id_to_location.get(&id).copied()
     }
@@ -302,6 +387,8 @@ impl DynamicSolution {
         self.entities.get(class_idx)?.get(entity_idx)
     }
 
+    /// Mutable entity access for internal use. Callers must NOT mutate fields directly;
+    /// use `update_field` instead. This exists for `PlanningEntity::as_any_mut` compatibility.
     pub fn get_entity_mut(
         &mut self,
         class_idx: usize,
@@ -325,6 +412,18 @@ impl DynamicSolution {
     pub fn entity_refs_in_class(&self, class_idx: usize) -> impl Iterator<Item = (usize, usize)> {
         let count = self.entities.get(class_idx).map(|v| v.len()).unwrap_or(0);
         (0..count).map(move |i| (class_idx, i))
+    }
+
+    /// Pointer to entity's flat i64 data. Valid until next `add_entity` on same class.
+    #[inline]
+    pub fn flat_entity_ptr(&self, class_idx: usize, entity_idx: usize) -> *const i64 {
+        let field_count = self.descriptor.entity_classes[class_idx].fields.len();
+        let offset = entity_idx * field_count;
+        unsafe { self.flat_entities[class_idx].as_ptr().add(offset) }
+    }
+
+    pub fn flat_field_count(&self, class_idx: usize) -> usize {
+        self.descriptor.entity_classes[class_idx].fields.len()
     }
 
     pub fn check_initialized(&self) -> bool {
@@ -378,13 +477,33 @@ mod tests {
 
     #[test]
     fn test_dynamic_entity() {
-        let mut entity = DynamicEntity::new(1, vec![DynamicValue::I64(0), DynamicValue::None]);
-        assert_eq!(entity.planning_id(), 1);
-        assert_eq!(entity.get(0).unwrap().as_i64(), Some(0));
-        assert!(entity.get(1).unwrap().is_none());
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Test",
+            vec![
+                FieldDef::new("a", FieldType::I64),
+                FieldDef::new("b", FieldType::I64),
+            ],
+        ));
+        let mut solution = DynamicSolution::new(desc);
+        solution.add_entity(
+            0,
+            DynamicEntity::new(1, vec![DynamicValue::I64(0), DynamicValue::None]),
+        );
 
-        entity.set(1, DynamicValue::I64(3));
-        assert_eq!(entity.get(1).unwrap().as_i64(), Some(3));
+        assert_eq!(solution.get_entity(0, 0).unwrap().planning_id(), 1);
+        assert_eq!(solution.get_field(0, 0, 0).unwrap().as_i64(), Some(0));
+        assert!(solution.get_field(0, 0, 1).unwrap().is_none());
+
+        solution.update_field(0, 0, 1, DynamicValue::I64(3));
+        assert_eq!(solution.get_field(0, 0, 1).unwrap().as_i64(), Some(3));
+
+        // Verify flat buffer is in sync
+        let ptr = solution.flat_entity_ptr(0, 0);
+        unsafe {
+            assert_eq!(*ptr, 0); // field 0
+            assert_eq!(*ptr.add(1), 3); // field 1 (was None, now 3)
+        }
     }
 
     #[test]
@@ -407,10 +526,7 @@ mod tests {
 
         assert!(!solution.is_initialized());
 
-        solution
-            .get_entity_mut(0, 0)
-            .unwrap()
-            .set(1, DynamicValue::I64(2));
+        solution.update_field(0, 0, 1, DynamicValue::I64(2));
         assert!(solution.is_initialized());
     }
 
@@ -429,28 +545,66 @@ mod tests {
         });
 
         let mut solution = DynamicSolution::new(desc);
-
-        // Add entities with various IDs to different classes
         solution.add_entity(0, DynamicEntity::new(100, vec![DynamicValue::I64(1)]));
         solution.add_entity(0, DynamicEntity::new(101, vec![DynamicValue::I64(2)]));
         solution.add_entity(1, DynamicEntity::new(200, vec![DynamicValue::I64(3)]));
         solution.add_entity(1, DynamicEntity::new(201, vec![DynamicValue::I64(4)]));
         solution.add_entity(0, DynamicEntity::new(102, vec![DynamicValue::I64(5)]));
 
-        // Verify O(1) lookup returns correct (class_idx, entity_idx)
         assert_eq!(solution.get_entity_location(100), Some((0, 0)));
         assert_eq!(solution.get_entity_location(101), Some((0, 1)));
         assert_eq!(solution.get_entity_location(102), Some((0, 2)));
         assert_eq!(solution.get_entity_location(200), Some((1, 0)));
         assert_eq!(solution.get_entity_location(201), Some((1, 1)));
-
-        // Non-existent ID returns None
         assert_eq!(solution.get_entity_location(999), None);
 
-        // Verify we can retrieve entity using the location
         let (class_idx, entity_idx) = solution.get_entity_location(201).unwrap();
         let entity = solution.get_entity(class_idx, entity_idx).unwrap();
         assert_eq!(entity.id, 201);
         assert_eq!(entity.get(0).unwrap().as_i64(), Some(4));
+    }
+
+    #[test]
+    fn test_flat_buffer_sync() {
+        let mut desc = DynamicDescriptor::new();
+        desc.add_entity_class(EntityClassDef::new(
+            "Item",
+            vec![
+                FieldDef::new("id", FieldType::I64),
+                FieldDef::planning_variable("slot", FieldType::I64, "slots"),
+            ],
+        ));
+
+        let mut solution = DynamicSolution::new(desc);
+        solution.add_entity(
+            0,
+            DynamicEntity::new(0, vec![DynamicValue::I64(0), DynamicValue::None]),
+        );
+        solution.add_entity(
+            0,
+            DynamicEntity::new(1, vec![DynamicValue::I64(1), DynamicValue::None]),
+        );
+
+        // Flat buffer: [0, SENTINEL, 1, SENTINEL]
+        let ptr0 = solution.flat_entity_ptr(0, 0);
+        let ptr1 = solution.flat_entity_ptr(0, 1);
+        unsafe {
+            assert_eq!(*ptr0, 0);
+            assert_eq!(*ptr0.add(1), NONE_SENTINEL);
+            assert_eq!(*ptr1, 1);
+            assert_eq!(*ptr1.add(1), NONE_SENTINEL);
+        }
+
+        // Mutate via update_field
+        solution.update_field(0, 0, 1, DynamicValue::I64(42));
+        solution.update_field(0, 1, 1, DynamicValue::I64(99));
+
+        // Both tagged and flat must be in sync
+        assert_eq!(solution.get_field(0, 0, 1).unwrap().as_i64(), Some(42));
+        assert_eq!(solution.get_field(0, 1, 1).unwrap().as_i64(), Some(99));
+        unsafe {
+            assert_eq!(*solution.flat_entity_ptr(0, 0).add(1), 42);
+            assert_eq!(*solution.flat_entity_ptr(0, 1).add(1), 99);
+        }
     }
 }

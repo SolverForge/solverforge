@@ -59,7 +59,7 @@ fn test_move_score_changes() {
             // Retract old value
             let delta1 = constraints.on_retract_all(&solution, queen_idx, 0);
             // Apply change
-            solution.get_entity_mut(0, queen_idx).unwrap().fields[1] = DynamicValue::I64(new_row);
+            solution.update_field(0, queen_idx, 1, DynamicValue::I64(new_row));
             // Insert new value
             let delta2 = constraints.on_insert_all(&solution, queen_idx, 0);
             let new_score = initial_score + delta1 + delta2;
@@ -75,8 +75,7 @@ fn test_move_score_changes() {
 
             // Undo: retract new, restore old, insert old
             constraints.on_retract_all(&solution, queen_idx, 0);
-            solution.get_entity_mut(0, queen_idx).unwrap().fields[1] =
-                DynamicValue::I64(current_row);
+            solution.update_field(0, queen_idx, 1, DynamicValue::I64(current_row));
             constraints.on_insert_all(&solution, queen_idx, 0);
         }
     }
@@ -192,7 +191,7 @@ fn test_local_search_simulation() {
 
     // Generate moves like MoveSelector does
     let selector = DynamicMoveSelector::new();
-    let moves: Vec<DynamicChangeMove> = selector.iter_moves(&director).collect();
+    let moves: Vec<crate::moves::DynamicEitherMove> = selector.iter_moves(&director).collect();
     eprintln!("Generated {} moves", moves.len());
 
     // Evaluate each move like LocalSearchPhase does

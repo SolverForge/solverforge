@@ -121,6 +121,11 @@ impl Score for HardSoftScore {
             _ => panic!("HardSoftScore has 2 levels, got index {}", index),
         }
     }
+
+    #[inline]
+    fn to_scalar(&self) -> f64 {
+        self.hard as f64 * 1_000_000.0 + self.soft as f64
+    }
 }
 
 impl Ord for HardSoftScore {

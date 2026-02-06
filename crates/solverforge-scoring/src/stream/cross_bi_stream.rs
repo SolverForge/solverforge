@@ -479,7 +479,7 @@ where
         Sc,
     > {
         let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b);
+        let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b, 0, 0);
 
         // Adapt user's Fn(&A, &B) -> Sc to internal Fn(&S, usize, usize) -> Sc
         let extractor_a = self.extractor_a.clone();

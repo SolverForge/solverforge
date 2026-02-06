@@ -19,7 +19,7 @@ macro_rules! impl_bi_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&A) -> K + Send + Sync,
+            KE: Fn(&S, &A, usize) -> K + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn new_self_join(extractor: E, key_extractor: KE) -> Self {
@@ -38,7 +38,7 @@ macro_rules! impl_bi_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&A) -> K + Send + Sync,
+            KE: Fn(&S, &A, usize) -> K + Send + Sync,
             F: super::filter::BiFilter<S, A, A>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -214,7 +214,7 @@ macro_rules! impl_bi_arity_stream {
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync + Clone,
-            KE: Fn(&A) -> K + Send + Sync,
+            KE: Fn(&S, &A, usize) -> K + Send + Sync,
             F: super::filter::BiFilter<S, A, A>,
             W: Fn(&A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
@@ -233,12 +233,14 @@ macro_rules! impl_bi_arity_stream {
                 K,
                 E,
                 KE,
-                impl Fn(&S, &A, &A) -> bool + Send + Sync,
+                impl Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
                 impl Fn(&S, usize, usize) -> Sc + Send + Sync,
                 Sc,
             > {
                 let filter = self.filter;
-                let combined_filter = move |s: &S, a: &A, b: &A| filter.test(s, a, b);
+                let combined_filter = move |s: &S, a: &A, b: &A, a_idx: usize, b_idx: usize| {
+                    filter.test(s, a, b, a_idx, b_idx)
+                };
 
                 // Adapt the user's Fn(&A, &A) -> Sc to Fn(&S, usize, usize) -> Sc
                 let extractor_for_weight = self.extractor.clone();

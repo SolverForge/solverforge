@@ -8,6 +8,9 @@ use std::fmt::Debug;
 use std::mem::MaybeUninit;
 use std::ptr;
 
+use rand::seq::SliceRandom;
+use rand::Rng;
+
 /// Arena allocator for moves with O(1) reset.
 ///
 /// Instead of allocating a new Vec<M> each step and letting it drop,
@@ -182,6 +185,20 @@ impl<M> MoveArena<M> {
         for m in iter {
             self.push(m);
         }
+    }
+
+    /// Shuffles the initialized moves in-place using Fisher-Yates.
+    ///
+    /// This avoids re-generating and re-collecting all moves each step.
+    /// The arena keeps its existing storage and just randomises evaluation order.
+    #[inline]
+    pub fn shuffle<R: Rng>(&mut self, rng: &mut R) {
+        if self.len < 2 {
+            return;
+        }
+        // Fisher-Yates on the initialized portion of storage
+        let slice = &mut self.storage[..self.len];
+        slice.shuffle(rng);
     }
 
     /// Returns the capacity of the arena.

@@ -63,7 +63,7 @@ where
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     E: Fn(&S) -> &[A] + Send + Sync,
-    KE: Fn(&A) -> K + Send + Sync,
+    KE: Fn(&S, &A, usize) -> K + Send + Sync,
     F: TriFilter<S, A, A, A>,
     Sc: Score + 'static,
 {

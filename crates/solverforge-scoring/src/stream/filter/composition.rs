@@ -37,13 +37,31 @@ impl_and_filter!(
     "Combines two uni-filters with AND semantics.",
     (A, a)
 );
-impl_and_filter!(
-    AndBiFilter,
-    BiFilter,
-    "Combines two bi-filters with AND semantics.",
-    (A, a),
-    (B, b)
-);
+// AndBiFilter: manual impl because BiFilter has extra index params.
+/// Combines two bi-filters with AND semantics.
+pub struct AndBiFilter<F1, F2> {
+    first: F1,
+    second: F2,
+}
+
+impl<F1, F2> AndBiFilter<F1, F2> {
+    #[inline]
+    pub fn new(first: F1, second: F2) -> Self {
+        Self { first, second }
+    }
+}
+
+impl<S, A, B, F1, F2> BiFilter<S, A, B> for AndBiFilter<F1, F2>
+where
+    F1: BiFilter<S, A, B>,
+    F2: BiFilter<S, A, B>,
+{
+    #[inline]
+    fn test(&self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize) -> bool {
+        self.first.test(solution, a, b, a_idx, b_idx)
+            && self.second.test(solution, a, b, a_idx, b_idx)
+    }
+}
 impl_and_filter!(
     AndTriFilter,
     TriFilter,

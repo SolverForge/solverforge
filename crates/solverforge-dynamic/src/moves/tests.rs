@@ -5,7 +5,7 @@ use crate::descriptor::{DynamicDescriptor, EntityClassDef, FieldDef, FieldType, 
 use crate::solution::DynamicEntity;
 
 #[test]
-fn test_generate_moves() {
+fn test_generate_change_moves() {
     let mut desc = DynamicDescriptor::new();
     desc.add_entity_class(EntityClassDef::new(
         "Queen",
@@ -26,16 +26,17 @@ fn test_generate_moves() {
         DynamicEntity::new(1, vec![DynamicValue::I64(1), DynamicValue::I64(1)]),
     );
 
-    let selector = DynamicMoveSelector::new();
-    // generate_moves now returns an iterator; collect to count
-    let moves: Vec<_> = selector.generate_moves(&solution).collect();
+    // Use DynamicMoveIterator directly for change moves
+    let moves: Vec<_> = DynamicMoveIterator::new(&solution).collect();
 
-    // 2 entities * 4 possible row values = 8 moves
+    // 2 entities * 4 possible row values = 8 change moves
     assert_eq!(moves.len(), 8);
 }
 
 #[test]
-fn test_generate_moves_shuffled() {
+fn test_selector_generates_change_and_swap() {
+    use solverforge_scoring::ScoreDirector;
+
     let mut desc = DynamicDescriptor::new();
     desc.add_entity_class(EntityClassDef::new(
         "Queen",
@@ -57,14 +58,40 @@ fn test_generate_moves_shuffled() {
     );
 
     let selector = DynamicMoveSelector::new();
-    let moves = selector.generate_moves_shuffled(&solution);
 
-    // 2 entities * 4 possible row values = 8 moves
-    assert_eq!(moves.len(), 8);
+    // Build a minimal score director to call iter_moves via the trait
+    let constraint_set = crate::constraint_set::DynamicConstraintSet::new();
+    let descriptor = solverforge_core::domain::SolutionDescriptor::new(
+        "DynSol",
+        std::any::TypeId::of::<DynamicSolution>(),
+    );
+    fn counter(s: &DynamicSolution, idx: usize) -> usize {
+        s.entities.get(idx).map(|v| v.len()).unwrap_or(0)
+    }
+    let director = solverforge_scoring::TypedScoreDirector::with_descriptor(
+        solution,
+        constraint_set,
+        descriptor,
+        counter,
+    );
 
-    // All moves should still be present (just in different order)
-    let unshuffled: Vec<_> = selector.generate_moves(&solution).collect();
-    assert_eq!(moves.len(), unshuffled.len());
+    let moves: Vec<_> =
+        solverforge_solver::heuristic::selector::MoveSelector::iter_moves(&selector, &director)
+            .collect();
+
+    // 8 change moves + 1 swap pair (2 entities, 1 variable) = 9 total
+    assert_eq!(moves.len(), 9);
+
+    let change_count = moves
+        .iter()
+        .filter(|m| matches!(m, DynamicEitherMove::Change(_)))
+        .count();
+    let swap_count = moves
+        .iter()
+        .filter(|m| matches!(m, DynamicEitherMove::Swap(_)))
+        .count();
+    assert_eq!(change_count, 8);
+    assert_eq!(swap_count, 1);
 }
 
 #[test]

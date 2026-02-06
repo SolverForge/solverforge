@@ -115,7 +115,7 @@ where
         self,
         extractor: E,
         joiner: EqualJoiner<KA, KA, K>,
-    ) -> BiConstraintStream<S, A, K, E, KA, TrueFilter, Sc>
+    ) -> BiConstraintStream<S, A, K, E, impl Fn(&S, &A, usize) -> K + Send + Sync, TrueFilter, Sc>
     where
         A: Clone + Hash + PartialEq + Send + Sync + 'static,
         E: Fn(&S) -> &[A] + Send + Sync,
@@ -123,7 +123,9 @@ where
         KA: Fn(&A) -> K + Send + Sync,
     {
         let (key_extractor, _) = joiner.into_keys();
-        BiConstraintStream::new_self_join(extractor, key_extractor)
+        // Wrap to match the new KE: Fn(&S, &A, usize) -> K signature
+        let wrapped_ke = move |_s: &S, a: &A, _idx: usize| key_extractor(a);
+        BiConstraintStream::new_self_join(extractor, wrapped_ke)
     }
 }
 

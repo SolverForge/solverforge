@@ -1,4 +1,9 @@
 //! Factory functions for building self-join bi and tri constraints.
+//!
+//! Zero-fallback policy: all closures are JIT-compiled via `compile_n`.
+//! If compilation fails, the process panics. No interpreter fallback.
+
+use std::sync::Arc;
 
 use solverforge_core::score::HardSoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -7,42 +12,14 @@ use solverforge_scoring::constraint::nary_incremental::{
     IncrementalBiConstraint, IncrementalTriConstraint,
 };
 
-use super::closures_bi::{make_bi_filter, make_bi_weight};
-use super::closures_extract::{make_extractor, make_key_extractor};
-use super::closures_tri::{make_tri_filter, make_tri_weight};
-use crate::descriptor::DynamicDescriptor;
+use super::closures_extract::make_extractor;
 use crate::expr::Expr;
-use crate::solution::DynamicSolution;
+use crate::jit;
+use crate::solution::{DynamicEntity, DynamicSolution, DynamicValue};
 
-/// Builds a bi-constraint (self-join on single entity class) that returns a boxed IncrementalConstraint.
+/// Builds a bi-constraint (self-join on single entity class).
 ///
-/// This factory creates an `IncrementalBiConstraint` that evaluates a filter and weight
-/// expression against pairs of entities from the same class (self-join).
-///
-/// # Parameters
-///
-/// * `constraint_ref` - Reference identifying this constraint
-/// * `impact_type` - Whether this constraint is a penalty or reward
-/// * `class_idx` - Index of the entity class to iterate over
-/// * `key_expr` - Expression to extract join key from entities (for efficient pairing)
-/// * `filter_expr` - Expression to filter entity pairs (returns bool)
-/// * `weight_expr` - Expression to compute score weight for each matching pair
-/// * `descriptor` - Dynamic descriptor for expression evaluation
-/// * `is_hard` - Whether to apply weight to hard or soft score component
-///
-/// # Expression Context
-///
-/// All expressions are evaluated in a bi-entity context:
-/// - `Param(0)` refers to the first entity in the pair
-/// - `Param(1)` refers to the second entity in the pair
-/// - `Field { param_idx: 0, field_idx }` accesses fields from the first entity
-/// - `Field { param_idx: 1, field_idx }` accesses fields from the second entity
-/// - Arithmetic, comparisons, and logical operations work across both entities
-///
-/// # Returns
-///
-/// A boxed `IncrementalConstraint<DynamicSolution, HardSoftScore>` that can be stored
-/// in `DynamicConstraintSet`.
+/// All closures are JIT-compiled. Zero fallback.
 #[allow(clippy::too_many_arguments)]
 pub fn build_bi_self_constraint(
     constraint_ref: ConstraintRef,
@@ -51,22 +28,62 @@ pub fn build_bi_self_constraint(
     key_expr: Expr,
     filter_expr: Expr,
     weight_expr: Expr,
-    descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync> {
-    // Create extractor for the entity class
     let extractor = make_extractor(class_idx);
 
-    // Create key extractor
-    let key_extractor = make_key_extractor(key_expr, descriptor.clone());
+    // --- Key extractor: JIT compile_1, reads from flat buffer via solution ---
+    let jit_key = Arc::new(jit::compile_1(&key_expr));
+    let ci_key = class_idx;
+    let key_extractor = Box::new(
+        move |solution: &DynamicSolution,
+              _entity: &DynamicEntity,
+              entity_idx: usize|
+              -> DynamicValue {
+            let ptr = solution.flat_entity_ptr(ci_key, entity_idx);
+            DynamicValue::I64(jit_key.call_1(ptr))
+        },
+    )
+        as Box<dyn Fn(&DynamicSolution, &DynamicEntity, usize) -> DynamicValue + Send + Sync>;
 
-    // Create filter closure
-    let filter = make_bi_filter(filter_expr, class_idx);
+    // --- Filter: JIT compile_2 --- indices passed directly, zero HashMap lookups
+    let jit_filter = Arc::new(jit::compile_2(&filter_expr));
+    let ci_filter = class_idx;
+    let filter = Box::new(
+        move |solution: &DynamicSolution,
+              _a: &DynamicEntity,
+              _b: &DynamicEntity,
+              a_idx: usize,
+              b_idx: usize| {
+            let a_ptr = solution.flat_entity_ptr(ci_filter, a_idx);
+            let b_ptr = solution.flat_entity_ptr(ci_filter, b_idx);
+            jit_filter.call_2(a_ptr, b_ptr) != 0
+        },
+    )
+        as Box<
+            dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, usize, usize) -> bool
+                + Send
+                + Sync,
+        >;
 
-    // Create weight closure
-    let weight = make_bi_weight(weight_expr, class_idx, descriptor, is_hard);
+    // --- Weight: JIT compile_2 ---
+    let jit_weight = Arc::new(jit::compile_2(&weight_expr));
+    let ci_weight = class_idx;
+    let hard = is_hard;
+    let weight = Box::new(
+        move |solution: &DynamicSolution, a_idx: usize, b_idx: usize| -> HardSoftScore {
+            let a_ptr = solution.flat_entity_ptr(ci_weight, a_idx);
+            let b_ptr = solution.flat_entity_ptr(ci_weight, b_idx);
+            let w = jit_weight.call_2(a_ptr, b_ptr);
+            if hard {
+                HardSoftScore::of_hard(w)
+            } else {
+                HardSoftScore::of_soft(w)
+            }
+        },
+    )
+        as Box<dyn Fn(&DynamicSolution, usize, usize) -> HardSoftScore + Send + Sync>;
 
-    // Create and box the IncrementalBiConstraint
     Box::new(IncrementalBiConstraint::new(
         constraint_ref,
         impact_type,
@@ -78,35 +95,9 @@ pub fn build_bi_self_constraint(
     ))
 }
 
-/// Builds a tri-constraint (self-join on single entity class) that returns a boxed IncrementalConstraint.
+/// Builds a tri-constraint (self-join on single entity class).
 ///
-/// This factory creates an `IncrementalTriConstraint` that evaluates a filter and weight
-/// expression against triples of entities from the same class (self-join on three entities).
-///
-/// # Parameters
-///
-/// * `constraint_ref` - Reference identifying this constraint
-/// * `impact_type` - Whether this constraint is a penalty or reward
-/// * `class_idx` - Index of the entity class to iterate over
-/// * `key_expr` - Expression to extract join key from entities (for efficient grouping)
-/// * `filter_expr` - Expression to filter entity triples (returns bool)
-/// * `weight_expr` - Expression to compute score weight for each matching triple
-/// * `descriptor` - Dynamic descriptor for expression evaluation
-/// * `is_hard` - Whether to apply weight to hard or soft score component
-///
-/// # Expression Context
-///
-/// All expressions are evaluated in a tri-entity context:
-/// - `Param(0)` refers to the first entity in the triple
-/// - `Param(1)` refers to the second entity in the triple
-/// - `Param(2)` refers to the third entity in the triple
-/// - `Field { param_idx: 0/1/2, field_idx }` accesses fields from respective entities
-/// - Arithmetic, comparisons, and logical operations work across all three entities
-///
-/// # Returns
-///
-/// A boxed `IncrementalConstraint<DynamicSolution, HardSoftScore>` that can be stored
-/// in `DynamicConstraintSet`.
+/// All closures are JIT-compiled via compile_n. Zero fallback.
 #[allow(clippy::too_many_arguments)]
 pub fn build_tri_self_constraint(
     constraint_ref: ConstraintRef,
@@ -115,22 +106,86 @@ pub fn build_tri_self_constraint(
     key_expr: Expr,
     filter_expr: Expr,
     weight_expr: Expr,
-    descriptor: DynamicDescriptor,
     is_hard: bool,
 ) -> Box<dyn IncrementalConstraint<DynamicSolution, HardSoftScore> + Send + Sync> {
-    // Create extractor for the entity class
     let extractor = make_extractor(class_idx);
 
-    // Create key extractor
-    let key_extractor = make_key_extractor(key_expr, descriptor.clone());
+    // --- Key extractor: JIT compile_1 ---
+    let jit_key = Arc::new(jit::compile_1(&key_expr));
+    let ci_key = class_idx;
+    let key_extractor = Box::new(
+        move |solution: &DynamicSolution,
+              _entity: &DynamicEntity,
+              entity_idx: usize|
+              -> DynamicValue {
+            let ptr = solution.flat_entity_ptr(ci_key, entity_idx);
+            DynamicValue::I64(jit_key.call_1(ptr))
+        },
+    )
+        as Box<dyn Fn(&DynamicSolution, &DynamicEntity, usize) -> DynamicValue + Send + Sync>;
 
-    // Create filter closure
-    let filter = make_tri_filter(filter_expr, class_idx);
+    // --- Filter: JIT compile_n(3) ---
+    // TriFilter doesn't pass indices yet (monomorphization pending).
+    // Use get_entity_location to recover indices. This will be eliminated
+    // when TriFilter::test gets index params, same as the bi path.
+    let jit_filter = Arc::new(jit::compile_n(&filter_expr, 3));
+    let ci_f = class_idx;
+    let filter = Box::new(
+        move |solution: &DynamicSolution,
+              a: &DynamicEntity,
+              b: &DynamicEntity,
+              c: &DynamicEntity| {
+            let a_idx = solution
+                .get_entity_location(a.id)
+                .map(|(_, i)| i)
+                .unwrap_or(0);
+            let b_idx = solution
+                .get_entity_location(b.id)
+                .map(|(_, i)| i)
+                .unwrap_or(0);
+            let c_idx = solution
+                .get_entity_location(c.id)
+                .map(|(_, i)| i)
+                .unwrap_or(0);
+            let ptrs = [
+                solution.flat_entity_ptr(ci_f, a_idx),
+                solution.flat_entity_ptr(ci_f, b_idx),
+                solution.flat_entity_ptr(ci_f, c_idx),
+            ];
+            jit_filter.call_n(&ptrs) != 0
+        },
+    )
+        as Box<
+            dyn Fn(&DynamicSolution, &DynamicEntity, &DynamicEntity, &DynamicEntity) -> bool
+                + Send
+                + Sync,
+        >;
 
-    // Create weight closure
-    let weight = make_tri_weight(weight_expr, class_idx, descriptor, is_hard);
+    // --- Weight: JIT compile_n(3) via index-based weight ---
+    let jit_weight = Arc::new(jit::compile_n(&weight_expr, 3));
+    let ci_w = class_idx;
+    let hard = is_hard;
+    let weight = Box::new(
+        move |solution: &DynamicSolution,
+              a_idx: usize,
+              b_idx: usize,
+              c_idx: usize|
+              -> HardSoftScore {
+            let ptrs = [
+                solution.flat_entity_ptr(ci_w, a_idx),
+                solution.flat_entity_ptr(ci_w, b_idx),
+                solution.flat_entity_ptr(ci_w, c_idx),
+            ];
+            let w = jit_weight.call_n(&ptrs);
+            if hard {
+                HardSoftScore::of_hard(w)
+            } else {
+                HardSoftScore::of_soft(w)
+            }
+        },
+    )
+        as Box<dyn Fn(&DynamicSolution, usize, usize, usize) -> HardSoftScore + Send + Sync>;
 
-    // Create and box the IncrementalTriConstraint
     Box::new(IncrementalTriConstraint::new(
         constraint_ref,
         impact_type,

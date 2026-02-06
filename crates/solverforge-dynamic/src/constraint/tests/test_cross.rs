@@ -279,11 +279,10 @@ fn test_cross_class_same_named_field_constraint() {
     // - (Employee 0 "Alice", Shift 0): assigned_shift_id = 100
     // - (Employee 2 "Charlie", Shift 0): assigned_shift_id = 100
     // - (Employee 1 "Bob", Shift 1): assigned_shift_id = 200
-    // Total: 3 matches → -3 hard score (Penalize with soft(1) yields hard:-3 soft:0)
-    // Note: HardSoftScore::of_soft(1) as penalty weight produces hard:-penalty_count, soft:0
+    // Total: 3 matches → -3 soft score (Penalize with soft(1) yields hard:0 soft:-3)
     assert_eq!(
         init_score,
-        HardSoftScore::of(-3, 0),
+        HardSoftScore::of(0, -3),
         "Expected 3 (employee, shift) matches with same assigned_shift_id"
     );
 

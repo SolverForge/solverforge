@@ -2,9 +2,11 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use tracing::{debug, info, trace};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -99,12 +101,24 @@ where
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
+        let phase_index = phase_scope.phase_index();
 
         // Calculate initial score
         let mut last_step_score = phase_scope.calculate_score();
 
+        info!(
+            event = "phase_start",
+            phase = "Local Search",
+            phase_index = phase_index,
+        );
+
         // Notify acceptor of phase start
         self.acceptor.phase_started(&last_step_score);
+
+        let start_time = Instant::now();
+        let mut local_moves_evaluated: u64 = 0;
+        let mut last_progress_time = Instant::now();
+        let mut last_progress_moves: u64 = 0;
 
         loop {
             // Check early termination
@@ -131,13 +145,40 @@ where
 
             // Evaluate moves by index
             for i in 0..self.arena.len() {
+                local_moves_evaluated += 1;
+
+                // Log progress every second
+                let now = Instant::now();
+                if now.duration_since(last_progress_time).as_secs() >= 1 {
+                    let moves_delta = local_moves_evaluated - last_progress_moves;
+                    let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
+                    let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
+                    debug!(
+                        event = "progress",
+                        steps = step_scope.step_index(),
+                        moves_evaluated = local_moves_evaluated,
+                        speed = current_speed,
+                        score = %last_step_score,
+                    );
+                    last_progress_time = now;
+                    last_progress_moves = local_moves_evaluated;
+                }
+
                 let m = self.arena.get(i).unwrap();
 
                 if !m.is_doable(step_scope.score_director()) {
+                    // Record as evaluated but not accepted
+                    step_scope
+                        .phase_scope_mut()
+                        .solver_scope_mut()
+                        .stats_mut()
+                        .record_move(false);
                     continue;
                 }
 
                 // Use RecordingScoreDirector for automatic undo
+                // This correctly handles state rollback for all moves including
+                // accepted-but-not-improving sidesteps (>= acceptance)
                 let move_score = {
                     let mut recording =
                         RecordingScoreDirector::new(step_scope.score_director_mut());
@@ -148,14 +189,36 @@ where
                     // Calculate resulting score
                     let score = recording.calculate_score();
 
-                    // Undo the move
+                    // Undo the move - state is fully restored regardless of acceptance
                     recording.undo_changes();
 
                     score
                 };
 
-                // Check if accepted
+                // Record score calculation (RecordingScoreDirector bypasses scope interceptor)
+                step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .stats_mut()
+                    .record_score_calculation();
+
+                // Check if accepted (>= allows sidesteps for plateau exploration)
                 let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
+
+                // Record move evaluation in solver stats
+                step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .stats_mut()
+                    .record_move(accepted);
+
+                trace!(
+                    event = "step",
+                    step = step_scope.step_index(),
+                    move_index = i,
+                    score = %move_score,
+                    accepted = accepted,
+                );
 
                 // Add index to forager if accepted (not the move itself)
                 if accepted {
@@ -173,7 +236,9 @@ where
                 // Take ownership of the move from arena
                 let selected_move = self.arena.take(selected_index);
 
-                // Execute the selected move (for real this time)
+                // Execute the selected move permanently
+                // The RecordingScoreDirector already undid the evaluation,
+                // so this is a fresh application of the chosen move
                 selected_move.do_move(step_scope.score_director_mut());
                 step_scope.set_step_score(selected_score);
 
@@ -182,6 +247,10 @@ where
 
                 // Update best solution if improved
                 step_scope.phase_scope_mut().update_best_solution();
+
+                // Notify acceptor that step ended with the new score
+                // This updates late acceptance history for plateau exploration
+                self.acceptor.step_ended(&selected_score);
             } else {
                 // No accepted moves - we're stuck
                 break;
@@ -192,6 +261,41 @@ where
 
         // Notify acceptor of phase end
         self.acceptor.phase_ended();
+
+        let duration = start_time.elapsed();
+        let steps = phase_scope.step_count();
+        let secs = duration.as_secs_f64();
+        let speed = if secs > 0.0 {
+            (local_moves_evaluated as f64 / secs) as u64
+        } else {
+            0
+        };
+
+        let stats = phase_scope.solver_scope().stats();
+        let acceptance_rate = stats.acceptance_rate() * 100.0;
+        let calc_speed = if secs > 0.0 {
+            (stats.score_calculations as f64 / secs) as u64
+        } else {
+            0
+        };
+
+        let best_score_str = phase_scope
+            .solver_scope()
+            .best_score()
+            .map(|s| format!("{}", s))
+            .unwrap_or_else(|| "none".to_string());
+
+        info!(
+            event = "phase_end",
+            phase = "Local Search",
+            phase_index = phase_index,
+            duration_ms = duration.as_millis() as u64,
+            steps = steps,
+            moves_speed = speed,
+            calc_speed = calc_speed,
+            acceptance_rate = format!("{:.1}%", acceptance_rate),
+            score = best_score_str,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {
@@ -226,6 +330,7 @@ mod tests {
     fn test_local_search_hill_climbing() {
         let director = create_nqueens_director(&[0, 0, 0, 0]);
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
 
         let initial_score = solver_scope.calculate_score();
         assert!(initial_score < SimpleScore::of(0));
@@ -241,12 +346,16 @@ mod tests {
 
         let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
         assert!(final_score >= initial_score);
+
+        // Verify stats were recorded
+        assert!(solver_scope.stats().moves_evaluated > 0);
     }
 
     #[test]
     fn test_local_search_reaches_optimal() {
         let director = create_nqueens_director(&[0, 2, 1, 3]);
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
 
         let initial_score = solver_scope.calculate_score();
 
@@ -267,6 +376,7 @@ mod tests {
     fn test_local_search_step_limit() {
         let director = create_nqueens_director(&[0, 0, 0, 0]);
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
 
         let values: Vec<i64> = (0..4).collect();
         let move_selector = create_move_selector(values);
@@ -276,5 +386,8 @@ mod tests {
             LocalSearchPhase::new(move_selector, acceptor, forager, Some(3));
 
         phase.solve(&mut solver_scope);
+
+        // Steps should be limited
+        assert!(solver_scope.stats().step_count <= 3);
     }
 }

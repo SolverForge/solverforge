@@ -88,8 +88,8 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a> {
-        Box::new(self.inner.iter_moves(score_director).take(self.limit))
+    ) -> impl Iterator<Item = M> + 'a {
+        self.inner.iter_moves(score_director).take(self.limit)
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

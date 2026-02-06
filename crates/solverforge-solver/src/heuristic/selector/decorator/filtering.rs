@@ -86,9 +86,9 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a> {
+    ) -> impl Iterator<Item = M> + 'a {
         let predicate = self.predicate;
-        Box::new(self.inner.iter_moves(score_director).filter(predicate))
+        self.inner.iter_moves(score_director).filter(predicate)
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

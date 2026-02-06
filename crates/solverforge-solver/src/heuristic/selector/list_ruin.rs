@@ -207,7 +207,7 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ListRuinMove<S, V>> + 'a> {
+    ) -> impl Iterator<Item = ListRuinMove<S, V>> + 'a {
         let solution = score_director.working_solution();
         let total_entities = (self.entity_count)(solution);
         let list_len = self.list_len;
@@ -219,52 +219,52 @@ where
         let max_ruin = self.max_ruin_count;
         let moves_count = self.moves_per_step;
 
-        if total_entities == 0 {
-            return Box::new(std::iter::empty());
-        }
-
-        // Pre-generate moves using RNG
+        // Pre-generate moves using RNG (empty if no entities)
         let mut rng = self.create_rng();
-        let moves: Vec<ListRuinMove<S, V>> = (0..moves_count)
-            .filter_map(|_| {
-                // Pick a random entity
-                let entity_idx = rng.random_range(0..total_entities);
-                let list_length = list_len(solution, entity_idx);
+        let moves: Vec<ListRuinMove<S, V>> = if total_entities == 0 {
+            Vec::new()
+        } else {
+            (0..moves_count)
+                .filter_map(|_| {
+                    // Pick a random entity
+                    let entity_idx = rng.random_range(0..total_entities);
+                    let list_length = list_len(solution, entity_idx);
 
-                if list_length == 0 {
-                    return None;
-                }
+                    if list_length == 0 {
+                        return None;
+                    }
 
-                // Clamp ruin count to available elements
-                let min = min_ruin.min(list_length);
-                let max = max_ruin.min(list_length);
-                let ruin_count = if min == max {
-                    min
-                } else {
-                    rng.random_range(min..=max)
-                };
+                    // Clamp ruin count to available elements
+                    let min = min_ruin.min(list_length);
+                    let max = max_ruin.min(list_length);
+                    let ruin_count = if min == max {
+                        min
+                    } else {
+                        rng.random_range(min..=max)
+                    };
 
-                // Fisher-Yates partial shuffle to select random indices
-                let mut indices: SmallVec<[usize; 8]> = (0..list_length).collect();
-                for i in 0..ruin_count {
-                    let j = rng.random_range(i..list_length);
-                    indices.swap(i, j);
-                }
-                indices.truncate(ruin_count);
+                    // Fisher-Yates partial shuffle to select random indices
+                    let mut indices: SmallVec<[usize; 8]> = (0..list_length).collect();
+                    for i in 0..ruin_count {
+                        let j = rng.random_range(i..list_length);
+                        indices.swap(i, j);
+                    }
+                    indices.truncate(ruin_count);
 
-                Some(ListRuinMove::new(
-                    entity_idx,
-                    &indices,
-                    list_len,
-                    list_remove,
-                    list_insert,
-                    variable_name,
-                    descriptor_index,
-                ))
-            })
-            .collect();
+                    Some(ListRuinMove::new(
+                        entity_idx,
+                        &indices,
+                        list_len,
+                        list_remove,
+                        list_insert,
+                        variable_name,
+                        descriptor_index,
+                    ))
+                })
+                .collect()
+        };
 
-        Box::new(moves.into_iter())
+        moves.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

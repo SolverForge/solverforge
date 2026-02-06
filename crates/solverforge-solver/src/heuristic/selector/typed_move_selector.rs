@@ -27,7 +27,7 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = M> + 'a>;
+    ) -> impl Iterator<Item = M> + 'a;
 
     /// Returns the approximate number of moves.
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
@@ -125,7 +125,7 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = ChangeMove<S, V>> + 'a> {
+    ) -> impl Iterator<Item = ChangeMove<S, V>> + 'a {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -133,8 +133,7 @@ where
         let value_selector = &self.value_selector;
 
         // Lazy iteration: O(1) per .next() call, no upfront allocation
-        let iter = self
-            .entity_selector
+        self.entity_selector
             .iter(score_director)
             .flat_map(move |entity_ref| {
                 value_selector
@@ -153,9 +152,7 @@ where
                             descriptor_index,
                         )
                     })
-            });
-
-        Box::new(iter)
+            })
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
@@ -263,7 +260,7 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = SwapMove<S, V>> + 'a> {
+    ) -> impl Iterator<Item = SwapMove<S, V>> + 'a {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -295,7 +292,7 @@ where
             }
         }
 
-        Box::new(moves.into_iter())
+        moves.into_iter()
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
@@ -360,12 +357,10 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EitherMove<S, V>> + 'a> {
-        Box::new(
-            self.inner
-                .iter_moves(score_director)
-                .map(EitherMove::Change),
-        )
+    ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
+        self.inner
+            .iter_moves(score_director)
+            .map(EitherMove::Change)
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
@@ -412,8 +407,8 @@ where
     fn iter_moves<'a, D: ScoreDirector<S>>(
         &'a self,
         score_director: &'a D,
-    ) -> Box<dyn Iterator<Item = EitherMove<S, V>> + 'a> {
-        Box::new(self.inner.iter_moves(score_director).map(EitherMove::Swap))
+    ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
+        self.inner.iter_moves(score_director).map(EitherMove::Swap)
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

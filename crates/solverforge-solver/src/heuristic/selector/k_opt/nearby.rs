@@ -139,7 +139,7 @@ where
     fn iter_moves<'a, SD: ScoreDirector<S>>(
         &'a self,
         score_director: &'a SD,
-    ) -> Box<dyn Iterator<Item = KOptMove<S, V>> + 'a> {
+    ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
@@ -149,8 +149,7 @@ where
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
-        let iter = self
-            .entity_selector
+        self.entity_selector
             .iter(score_director)
             .flat_map(move |entity_ref| {
                 let entity_idx = entity_ref.entity_index;
@@ -177,9 +176,7 @@ where
                         )
                     })
                 })
-            });
-
-        Box::new(iter)
+            })
     }
 
     fn size<SD: ScoreDirector<S>>(&self, score_director: &SD) -> usize {

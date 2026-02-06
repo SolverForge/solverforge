@@ -266,7 +266,7 @@ where
             score_director.working_solution_mut(),
             self.dest_entity_index,
             dest_pos,
-            elements.clone(),
+            elements,
         );
 
         // Notify after changes

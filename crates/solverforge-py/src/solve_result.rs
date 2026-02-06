@@ -74,7 +74,7 @@ impl PySolveResult {
                 let dict = PyDict::new(py);
                 dict.set_item("id", entity.id).unwrap();
                 for (i, field) in class_def.fields.iter().enumerate() {
-                    if let Some(value) = entity.fields.get(i) {
+                    if let Some(value) = entity.get(i) {
                         dict.set_item(field.name.as_ref(), dynamic_to_py(py, value))
                             .unwrap();
                     }

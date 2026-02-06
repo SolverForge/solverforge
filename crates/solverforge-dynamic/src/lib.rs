@@ -4,6 +4,9 @@
 //! but with schemas defined at runtime rather than compile time. This enables
 //! language bindings (e.g., Python) to define problems without Rust compilation.
 
+/// Sentinel value representing `DynamicValue::None` in flat i64 entity buffers.
+pub const NONE_SENTINEL: i64 = i64::MIN;
+
 mod constraint;
 mod constraint_set;
 mod descriptor;

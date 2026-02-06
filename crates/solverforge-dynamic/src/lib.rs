@@ -9,6 +9,7 @@ mod constraint_set;
 mod descriptor;
 mod eval;
 mod expr;
+pub mod jit;
 mod manager;
 mod moves;
 mod solution;

@@ -342,7 +342,7 @@ where
         let mut new_elements = Vec::with_capacity(len);
         for pos in 0..self.reconnection.segment_count() {
             let seg_idx = self.reconnection.segment_at(pos);
-            let mut seg = segments[seg_idx].clone();
+            let mut seg = std::mem::take(&mut segments[seg_idx]);
             if self.reconnection.should_reverse(seg_idx) {
                 seg.reverse();
             }
@@ -350,11 +350,12 @@ where
         }
 
         // Insert reordered elements back
+        let new_len = new_elements.len();
         (self.sublist_insert)(
             score_director.working_solution_mut(),
             entity,
             0,
-            new_elements.clone(),
+            new_elements,
         );
 
         // Notify after change
@@ -366,8 +367,7 @@ where
 
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Remove current elements
-            let current_len = new_elements.len();
-            let _ = sublist_remove(s, entity, 0, current_len);
+            let _ = sublist_remove(s, entity, 0, new_len);
             // Insert original elements
             sublist_insert(s, entity, 0, all_elements);
         }));

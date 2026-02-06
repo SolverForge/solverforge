@@ -294,24 +294,24 @@ where
             );
 
             // Insert late elements at early position
+            let late_len = late_end - late_start;
+            let early_len = early_end - early_start;
             (self.sublist_insert)(
                 score_director.working_solution_mut(),
                 self.first_entity_index,
                 early_start,
-                late_elements.clone(),
+                late_elements,
             );
 
             // Insert early elements at adjusted late position
             // After removing early range, late_start shifts by early_len
             // After inserting late elements, it shifts back by late_len
-            let late_len = late_end - late_start;
-            let early_len = early_end - early_start;
             let new_late_pos = late_start - early_len + late_len;
             (self.sublist_insert)(
                 score_director.working_solution_mut(),
                 self.first_entity_index,
                 new_late_pos,
-                early_elements.clone(),
+                early_elements,
             );
 
             // Register undo - swap back
@@ -355,14 +355,14 @@ where
                 score_director.working_solution_mut(),
                 self.first_entity_index,
                 self.first_start,
-                second_elements.clone(),
+                second_elements,
             );
 
             (self.sublist_insert)(
                 score_director.working_solution_mut(),
                 self.second_entity_index,
                 self.second_start,
-                first_elements.clone(),
+                first_elements,
             );
 
             // Register undo

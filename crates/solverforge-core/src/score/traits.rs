@@ -77,6 +77,29 @@ pub trait Score:
     /// Returns the absolute value of this score.
     fn abs(&self) -> Self;
 
+    /// Converts this score to a single scalar f64 for algorithms like
+    /// Simulated Annealing that need a continuous representation.
+    ///
+    /// Higher-priority levels are weighted exponentially more (10^6 per level).
+    /// Override for zero-allocation implementations on fixed-level score types.
+    #[inline]
+    fn to_scalar(&self) -> f64 {
+        let levels = self.to_level_numbers();
+        if levels.is_empty() {
+            return 0.0;
+        }
+        if levels.len() == 1 {
+            return levels[0] as f64;
+        }
+        let n = levels.len();
+        let mut scalar = 0.0f64;
+        for (i, &level) in levels.iter().enumerate() {
+            let weight = 10.0f64.powi(6 * (n - 1 - i) as i32);
+            scalar += level as f64 * weight;
+        }
+        scalar
+    }
+
     /// Compares two scores, returning the ordering.
     ///
     /// Default implementation uses the Ord trait.

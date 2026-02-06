@@ -83,6 +83,11 @@ impl Score for SimpleScore {
     fn abs(&self) -> Self {
         SimpleScore::of(self.score.abs())
     }
+
+    #[inline]
+    fn to_scalar(&self) -> f64 {
+        self.score as f64
+    }
 }
 
 impl Ord for SimpleScore {

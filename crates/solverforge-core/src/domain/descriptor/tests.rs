@@ -433,6 +433,20 @@ fn test_variable_descriptor_with_allows_unassigned() {
 }
 
 #[test]
+fn test_variable_descriptor_piggyback() {
+    use crate::domain::ShadowVariableKind;
+    let desc = VariableDescriptor::piggyback("arrival_time", "departure_time");
+    assert_eq!(
+        desc.variable_type,
+        VariableType::Shadow(ShadowVariableKind::Piggyback)
+    );
+    assert!(desc.allows_unassigned);
+    assert_eq!(desc.source_variable, Some("departure_time"));
+    assert!(desc.variable_type.is_shadow());
+    assert!(!desc.variable_type.is_genuine());
+}
+
+#[test]
 fn test_variable_descriptor_with_value_range_type() {
     let desc = VariableDescriptor::genuine("var")
         .with_value_range_type(ValueRangeType::CountableRange { from: 0, to: 100 });

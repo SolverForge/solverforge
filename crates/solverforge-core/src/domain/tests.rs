@@ -370,6 +370,7 @@ mod variable_tests {
         assert!(!ShadowVariableKind::InverseRelation.requires_listener());
         assert!(!ShadowVariableKind::Index.requires_listener());
         assert!(!ShadowVariableKind::Anchor.requires_listener());
+        assert!(!ShadowVariableKind::Piggyback.requires_listener());
     }
 
     #[test]
@@ -381,6 +382,14 @@ mod variable_tests {
         assert!(ShadowVariableKind::NextElement.is_automatic());
         assert!(ShadowVariableKind::PreviousElement.is_automatic());
         assert!(ShadowVariableKind::Anchor.is_automatic());
+        assert!(!ShadowVariableKind::Piggyback.is_automatic());
+    }
+
+    #[test]
+    fn test_shadow_variable_kind_is_piggyback() {
+        assert!(ShadowVariableKind::Piggyback.is_piggyback());
+        assert!(!ShadowVariableKind::Custom.is_piggyback());
+        assert!(!ShadowVariableKind::Anchor.is_piggyback());
     }
 
     struct TestAnchor;

@@ -74,7 +74,6 @@ pub use manager::{
     LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
-pub use phase::basic::{BasicConstructionPhase, BasicLocalSearchPhase};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
@@ -101,7 +100,7 @@ pub use phase::{
     Phase,
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
-pub use solver::{MaybeTermination, NoTermination, Solver};
+pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};
 pub use stats::{PhaseStats, SolverStats};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,

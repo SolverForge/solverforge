@@ -433,6 +433,8 @@ fn generate_basic_variable_operations(
                     Self::basic_set_variable,
                     Self::basic_value_count,
                     Self::basic_entity_count,
+                    Self::descriptor,
+                    Self::entity_count,
                     terminate,
                     sender,
                 )

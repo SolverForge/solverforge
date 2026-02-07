@@ -57,8 +57,8 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 /// * `set_variable` - Sets the planning variable value for an entity
 /// * `value_count` - Returns the number of valid values
 /// * `entity_count_fn` - Returns the number of entities
-/// * `_descriptor` - Solution descriptor (unused, for future extensions)
-/// * `_entity_count` - Entity count function (unused, for future extensions)
+/// * `descriptor` - Solution descriptor for solver infrastructure
+/// * `entity_count_by_descriptor` - Returns entity count for a given descriptor index
 /// * `_variable_field` - Variable field name (unused, for future extensions)
 /// * `_descriptor_index` - Descriptor index (unused, for future extensions)
 #[allow(clippy::too_many_arguments)]
@@ -70,8 +70,8 @@ pub fn run_solver<S, C>(
     set_variable: fn(&mut S, usize, Option<usize>),
     value_count: fn(&S) -> usize,
     entity_count_fn: fn(&S) -> usize,
-    _descriptor: fn() -> SolutionDescriptor,
-    _entity_count: fn(&S, usize) -> usize,
+    descriptor: fn() -> SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
     _variable_field: &'static str,
     _descriptor_index: usize,
 ) -> S
@@ -90,6 +90,8 @@ where
         set_variable,
         value_count,
         entity_count_fn,
+        descriptor,
+        entity_count_by_descriptor,
         None,
         sender,
     )
@@ -108,6 +110,8 @@ pub fn run_solver_with_channel<S, C>(
     set_variable: fn(&mut S, usize, Option<usize>),
     value_count: fn(&S) -> usize,
     entity_count_fn: fn(&S) -> usize,
+    descriptor: fn() -> SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
     terminate: Option<&AtomicBool>,
     sender: mpsc::UnboundedSender<(S, S::Score)>,
 ) -> S
@@ -128,9 +132,14 @@ where
         value_count = n_values,
     );
 
-    // Create score director
+    // Create score director with real entity counter for selector iteration
     let constraints = constraints_fn();
-    let director = TypedScoreDirector::new(solution, constraints);
+    let director = TypedScoreDirector::with_descriptor(
+        solution,
+        constraints,
+        descriptor(),
+        entity_count_by_descriptor,
+    );
 
     // Handle empty case - nothing to solve, return immediately
     if n_entities == 0 || n_values == 0 {

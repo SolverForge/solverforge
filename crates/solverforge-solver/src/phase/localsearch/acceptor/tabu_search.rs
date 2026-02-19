@@ -68,8 +68,13 @@ impl<S: PlanningSolution> TabuSearchAcceptor<S> {
     /// Creates a new tabu search acceptor.
     ///
     /// # Arguments
-    /// * `tabu_size` - Maximum number of solutions to remember as tabu
+    /// * `tabu_size` - Maximum number of solutions to remember as tabu. Must be > 0.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `tabu_size` is 0.
     pub fn new(tabu_size: usize) -> Self {
+        assert!(tabu_size > 0, "tabu_size must be > 0, got 0");
         Self {
             tabu_size,
             tabu_list: Vec::with_capacity(tabu_size),
@@ -82,7 +87,12 @@ impl<S: PlanningSolution> TabuSearchAcceptor<S> {
     ///
     /// Without aspiration, tabu moves are never accepted, even if they
     /// would lead to a new best solution.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `tabu_size` is 0.
     pub fn without_aspiration(tabu_size: usize) -> Self {
+        assert!(tabu_size > 0, "tabu_size must be > 0, got 0");
         Self {
             tabu_size,
             tabu_list: Vec::with_capacity(tabu_size),

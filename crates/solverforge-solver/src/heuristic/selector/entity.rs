@@ -1,5 +1,6 @@
 //! Entity selectors for iterating over planning entities
 
+use std::any::Any;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
@@ -51,12 +52,27 @@ pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
 }
 
 /// An entity selector that iterates over all entities from the solution.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FromSolutionEntitySelector {
     /// The descriptor index to select from.
     descriptor_index: usize,
     /// Whether to skip pinned entities.
     skip_pinned: bool,
+    /// Optional function to test whether an entity (as `&dyn Any`) is pinned.
+    ///
+    /// Required when `skip_pinned` is true. The function receives the entity
+    /// returned by `ScoreDirector::get_entity` and returns `true` if pinned.
+    is_pinned_fn: Option<fn(&dyn Any) -> bool>,
+}
+
+impl Debug for FromSolutionEntitySelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FromSolutionEntitySelector")
+            .field("descriptor_index", &self.descriptor_index)
+            .field("skip_pinned", &self.skip_pinned)
+            .field("has_is_pinned_fn", &self.is_pinned_fn.is_some())
+            .finish()
+    }
 }
 
 impl FromSolutionEntitySelector {
@@ -65,12 +81,28 @@ impl FromSolutionEntitySelector {
         Self {
             descriptor_index,
             skip_pinned: false,
+            is_pinned_fn: None,
         }
     }
 
     /// Creates an entity selector that skips pinned entities.
+    ///
+    /// When `skip` is `true`, you must also call
+    /// [`with_is_pinned_fn`](Self::with_is_pinned_fn) to supply a predicate,
+    /// otherwise no filtering occurs.
     pub fn with_skip_pinned(mut self, skip: bool) -> Self {
         self.skip_pinned = skip;
+        self
+    }
+
+    /// Sets the function used to determine whether an entity is pinned.
+    ///
+    /// The function receives the entity as `&dyn Any` (the value returned by
+    /// `ScoreDirector::get_entity`) and returns `true` if the entity is pinned.
+    ///
+    /// Only consulted when `skip_pinned` is `true`.
+    pub fn with_is_pinned_fn(mut self, f: fn(&dyn Any) -> bool) -> Self {
+        self.is_pinned_fn = Some(f);
         self
     }
 }
@@ -85,8 +117,23 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
             .unwrap_or(0);
 
         let desc_idx = self.descriptor_index;
+        let skip_pinned = self.skip_pinned;
+        let is_pinned_fn = self.is_pinned_fn;
 
-        (0..count).map(move |i| EntityReference::new(desc_idx, i))
+        (0..count)
+            .filter(move |&i| {
+                if skip_pinned {
+                    if let Some(pinned_fn) = is_pinned_fn {
+                        if let Some(entity) = score_director.get_entity(desc_idx, i) {
+                            if pinned_fn(entity) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                true
+            })
+            .map(move |i| EntityReference::new(desc_idx, i))
     }
 
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {

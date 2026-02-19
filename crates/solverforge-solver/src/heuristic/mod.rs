@@ -10,18 +10,25 @@ pub mod selector;
 // Re-export move types
 pub use r#move::k_opt_reconnection;
 pub use r#move::{
-    ChangeMove, CompositeMove, CutPoint, KOptMove, ListChangeMove, ListRuinMove, Move, MoveArena,
-    PillarChangeMove, PillarSwapMove, RuinMove, SwapMove,
+    ChangeMove, CompositeMove, CutPoint, EitherMove, KOptMove, ListChangeMove, ListMoveImpl,
+    ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveArena, PillarChangeMove, PillarSwapMove,
+    RuinMove, SubListChangeMove, SubListSwapMove, SwapMove,
 };
 
 // Re-export selector types
 pub use selector::{
-    AllEntitiesSelector, ChangeMoveSelector, DefaultDistanceMeter, DefaultPillarSelector,
-    EntityReference, EntitySelector, FromSolutionEntitySelector, FromSolutionTypedValueSelector,
-    KOptConfig, KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter,
-    ListRuinMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
-    MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
-    NearbyKOptMoveSelector, NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector,
-    SelectionOrder, StaticTypedValueSelector, SubPillarConfig, SwapMoveSelector,
-    TypedValueSelector,
+    AllEntitiesSelector, ChangeMoveSelector, CrossEntityDistanceMeter,
+    DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector,
+    EitherChangeMoveSelector, EitherSwapMoveSelector, EntityReference, EntitySelector,
+    FromSolutionEntitySelector, FromSolutionTypedValueSelector, KOptConfig, KOptMoveSelector,
+    ListChangeMoveSelector, ListMoveKOptSelector, ListMoveListChangeSelector,
+    ListMoveListReverseSelector, ListMoveListRuinSelector, ListMoveListSwapSelector,
+    ListMoveNearbyListChangeSelector, ListMoveNearbyListSwapSelector,
+    ListMoveSubListChangeSelector, ListMoveSubListSwapSelector, ListPositionDistanceMeter,
+    ListReverseMoveSelector, ListRuinMoveSelector, ListSwapMoveSelector, MimicRecorder,
+    MimicRecordingEntitySelector, MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter,
+    NearbyEntitySelector, NearbyKOptMoveSelector, NearbyListChangeMoveSelector,
+    NearbyListSwapMoveSelector, NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector,
+    SelectionOrder, StaticTypedValueSelector, SubListChangeMoveSelector, SubListSwapMoveSelector,
+    SubPillarConfig, SwapMoveSelector, TypedValueSelector,
 };

@@ -12,7 +12,10 @@ pub use acceptor::{
     HillClimbingAcceptor, LateAcceptanceAcceptor, MoveTabuAcceptor, SimulatedAnnealingAcceptor,
     StepCountingHillClimbingAcceptor, TabuSearchAcceptor, ValueTabuAcceptor,
 };
-pub use forager::{AcceptedCountForager, FirstAcceptedForager, LocalSearchForager};
+pub use forager::{
+    AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
+    FirstLastStepScoreImprovingForager, LocalSearchForager,
+};
 pub use phase::LocalSearchPhase;
 
 /// Local search phase configuration.

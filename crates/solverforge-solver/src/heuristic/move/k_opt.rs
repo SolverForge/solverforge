@@ -7,7 +7,7 @@
 //! # Zero-Erasure Design
 //!
 //! - Fixed arrays for cut points (no SmallVec for static data)
-//! - Reference to static reconnection pattern
+//! - Reconnection pattern stored by value (`KOptReconnection` is `Copy`)
 //! - Typed function pointers for all list operations
 //!
 //! # Example
@@ -120,7 +120,7 @@ impl CutPoint {
 /// # Zero-Erasure Design
 ///
 /// - Fixed array `[CutPoint; 5]` for up to 5 cuts (5-opt)
-/// - Reference to static `&'static KOptReconnection`
+/// - `KOptReconnection` stored by value (`Copy` type, no heap allocation)
 /// - Typed function pointers for list operations
 ///
 /// # Type Parameters
@@ -132,8 +132,8 @@ pub struct KOptMove<S, V> {
     cuts: [CutPoint; 5],
     /// Number of actual cuts (k value).
     cut_count: u8,
-    /// Reconnection pattern to apply.
-    reconnection: &'static KOptReconnection,
+    /// Reconnection pattern to apply (stored by value — `KOptReconnection` is `Copy`).
+    reconnection: KOptReconnection,
     /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
     /// Remove sublist [start, end), returns removed elements.
@@ -201,7 +201,7 @@ impl<S, V> KOptMove<S, V> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         cuts: &[CutPoint],
-        reconnection: &'static KOptReconnection,
+        reconnection: &KOptReconnection,
         list_len: fn(&S, usize) -> usize,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
@@ -221,7 +221,7 @@ impl<S, V> KOptMove<S, V> {
         Self {
             cuts: cut_array,
             cut_count: cuts.len() as u8,
-            reconnection,
+            reconnection: *reconnection,
             list_len,
             sublist_remove,
             sublist_insert,

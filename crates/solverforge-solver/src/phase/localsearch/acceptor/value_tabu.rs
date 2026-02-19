@@ -52,8 +52,13 @@ impl ValueTabuAcceptor {
     /// Creates a new value tabu acceptor.
     ///
     /// # Arguments
-    /// * `value_tabu_size` - Maximum number of values to remember as tabu
+    /// * `value_tabu_size` - Maximum number of values to remember as tabu. Must be > 0.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `value_tabu_size` is 0.
     pub fn new(value_tabu_size: usize) -> Self {
+        assert!(value_tabu_size > 0, "value_tabu_size must be > 0, got 0");
         Self {
             value_tabu_size,
             value_tabu_list: Vec::with_capacity(value_tabu_size),

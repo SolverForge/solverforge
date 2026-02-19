@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-use solverforge_core::score::Score;
+use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
 use tokio::sync::mpsc;
 use tracing::info;
@@ -31,8 +31,8 @@ use crate::phase::localsearch::{
 use crate::scope::SolverScope;
 use crate::solver::{SolveResult, Solver};
 use crate::termination::{
-    OrTermination, StepCountTermination, TimeTermination, UnimprovedStepCountTermination,
-    UnimprovedTimeTermination,
+    BestScoreTermination, OrTermination, StepCountTermination, TimeTermination,
+    UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
 /// Default time limit in seconds.
@@ -77,7 +77,7 @@ pub fn run_solver<S, C>(
 ) -> S
 where
     S: PlanningSolution,
-    S::Score: Score,
+    S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
 {
     // Create a channel but ignore the receiver - no streaming needed
@@ -117,7 +117,7 @@ pub fn run_solver_with_channel<S, C>(
 ) -> S
 where
     S: PlanningSolution,
-    S::Score: Score,
+    S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
 {
     finalize_fn(&mut solution);
@@ -207,7 +207,7 @@ fn solve_with_termination<S, D, M1, M2, P, Fo, MS, A, Fo2>(
 ) -> SolveResult<S>
 where
     S: PlanningSolution,
-    S::Score: Score,
+    S::Score: Score + ParseableScore,
     D: solverforge_scoring::ScoreDirector<S>,
     M1: crate::heuristic::r#move::Move<S>,
     M2: crate::heuristic::r#move::Move<S>,
@@ -222,8 +222,25 @@ where
         .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS));
     let time = TimeTermination::new(time_limit);
 
+    // Check best_score_limit (T2: parse and wire to BestScoreTermination)
+    let best_score_target: Option<S::Score> = term_config
+        .and_then(|c| c.best_score_limit.as_ref())
+        .and_then(|s| S::Score::parse(s).ok());
+
     // Build termination based on config
-    if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
+    if let Some(target) = best_score_target {
+        let best_score = BestScoreTermination::new(target);
+        let termination: OrTermination<_, S, D> = OrTermination::new((time, best_score));
+        build_and_solve(
+            construction,
+            local_search,
+            termination,
+            terminate,
+            director,
+            time_limit,
+            sender,
+        )
+    } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
         let step = StepCountTermination::new(step_limit);
         let termination: OrTermination<_, S, D> = OrTermination::new((time, step));
         build_and_solve(
@@ -286,7 +303,7 @@ fn build_and_solve<S, D, M1, M2, P, Fo, MS, A, Fo2, Term>(
 ) -> SolveResult<S>
 where
     S: PlanningSolution,
-    S::Score: Score,
+    S::Score: Score + ParseableScore,
     D: solverforge_scoring::ScoreDirector<S>,
     M1: crate::heuristic::r#move::Move<S>,
     M2: crate::heuristic::r#move::Move<S>,

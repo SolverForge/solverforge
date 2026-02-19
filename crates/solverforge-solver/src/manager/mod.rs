@@ -23,8 +23,9 @@ mod mod_tests_integration;
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
-    ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListConstructionPhase,
-    ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+    ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListCheapestInsertionPhase,
+    ListConstructionPhase, ListConstructionPhaseBuilder, ListRegretInsertionPhase,
+    LocalSearchPhaseFactory,
 };
 pub use solution_manager::{Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager};
 pub use solver_factory::{solver_factory_builder, SolverFactory};

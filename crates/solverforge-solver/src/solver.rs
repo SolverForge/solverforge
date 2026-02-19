@@ -176,6 +176,15 @@ pub struct NoTermination;
 pub trait MaybeTermination<S: PlanningSolution, D: ScoreDirector<S>>: Send {
     /// Checks if the solver should terminate.
     fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D>) -> bool;
+
+    /// Installs in-phase termination limits on the solver scope.
+    ///
+    /// This allows `Termination` conditions (step count, move count, etc.) to fire
+    /// inside the phase step loop, not only between phases (T1 fix).
+    ///
+    /// The default implementation is a no-op. Override for terminations that
+    /// express a concrete limit via a scope field.
+    fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<'_, S, D>) {}
 }
 
 impl<S: PlanningSolution, D: ScoreDirector<S>, T: Termination<S, D>> MaybeTermination<S, D>
@@ -187,12 +196,20 @@ impl<S: PlanningSolution, D: ScoreDirector<S>, T: Termination<S, D>> MaybeTermin
             None => false,
         }
     }
+
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<'_, S, D>) {
+        if let Some(t) = self {
+            t.install_inphase_limits(solver_scope);
+        }
+    }
 }
 
 impl<S: PlanningSolution, D: ScoreDirector<S>> MaybeTermination<S, D> for NoTermination {
     fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, D>) -> bool {
         false
     }
+
+    // install_inphase_limits: no-op (default)
 }
 
 impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for NoTermination {
@@ -223,6 +240,10 @@ macro_rules! impl_solver {
                     solver_scope = solver_scope.with_best_solution_callback(callback);
                 }
                 solver_scope.start_solving();
+
+                // Install in-phase termination limits so phases can check them
+                // inside their step loops (T1: StepCountTermination, MoveCountTermination, etc.)
+                self.termination.install_inphase_limits(&mut solver_scope);
 
                 // Execute phases with termination checking
                 $(
@@ -255,6 +276,8 @@ macro_rules! impl_solver {
                 // Then check configured termination conditions
                 self.termination.should_terminate(solver_scope)
             }
+
+
         }
     };
 }

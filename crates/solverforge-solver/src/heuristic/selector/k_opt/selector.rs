@@ -6,8 +6,9 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::r#move::k_opt_reconnection::{
-    enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
+    enumerate_reconnections, THREE_OPT_RECONNECTIONS,
 };
 use crate::heuristic::r#move::KOptMove;
 
@@ -26,8 +27,8 @@ pub struct KOptMoveSelector<S, V, ES> {
     entity_selector: ES,
     /// K-opt configuration.
     config: KOptConfig,
-    /// Reconnection patterns to use.
-    patterns: Vec<&'static KOptReconnection>,
+    /// Owned reconnection patterns (avoids `Box::leak` for non-k=3 cases).
+    owned_patterns: Vec<KOptReconnection>,
     /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
     /// Remove sublist [start, end).
@@ -46,7 +47,7 @@ impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
         f.debug_struct("KOptMoveSelector")
             .field("entity_selector", &self.entity_selector)
             .field("config", &self.config)
-            .field("pattern_count", &self.patterns.len())
+            .field("pattern_count", &self.owned_patterns.len())
             .field("variable_name", &self.variable_name)
             .finish()
     }
@@ -64,21 +65,18 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
-        // Get static patterns for k=3, generate for others
-        let patterns: Vec<&'static KOptReconnection> = if config.k == 3 {
-            THREE_OPT_RECONNECTIONS.iter().collect()
+        // For k=3, copy from the static table; for other k values, generate and own the patterns.
+        // This avoids Box::leak() which permanently leaks memory on every selector creation.
+        let owned_patterns: Vec<KOptReconnection> = if config.k == 3 {
+            THREE_OPT_RECONNECTIONS.to_vec()
         } else {
-            // For other k values, we need to leak the patterns to get 'static lifetime
-            // This is a one-time allocation per selector creation
-            let generated = enumerate_reconnections(config.k);
-            let leaked: &'static [KOptReconnection] = Box::leak(generated.into_boxed_slice());
-            leaked.iter().collect()
+            enumerate_reconnections(config.k)
         };
 
         Self {
             entity_selector,
             config,
-            patterns,
+            owned_patterns,
             list_len,
             sublist_remove,
             sublist_insert,
@@ -101,7 +99,7 @@ where
     ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
-        let patterns = &self.patterns;
+        let patterns = &self.owned_patterns;
         let list_len = self.list_len;
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
@@ -120,7 +118,7 @@ where
 
                 cuts_iter.flat_map(move |cuts| {
                     // For each cut combination, generate moves for each pattern
-                    patterns.iter().map(move |&pattern| {
+                    patterns.iter().map(move |pattern| {
                         KOptMove::new(
                             &cuts,
                             pattern,
@@ -138,7 +136,7 @@ where
     fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
-        let pattern_count = self.patterns.len();
+        let pattern_count = self.owned_patterns.len();
 
         self.entity_selector
             .iter(score_director)

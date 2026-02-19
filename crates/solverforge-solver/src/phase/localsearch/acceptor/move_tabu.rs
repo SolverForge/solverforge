@@ -63,8 +63,13 @@ impl MoveTabuAcceptor {
     /// Creates a new move tabu acceptor with aspiration enabled.
     ///
     /// # Arguments
-    /// * `move_tabu_size` - Maximum number of moves to remember as tabu
+    /// * `move_tabu_size` - Maximum number of moves to remember as tabu. Must be > 0.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `move_tabu_size` is 0.
     pub fn new(move_tabu_size: usize) -> Self {
+        assert!(move_tabu_size > 0, "move_tabu_size must be > 0, got 0");
         Self {
             move_tabu_size,
             move_tabu_list: Vec::with_capacity(move_tabu_size),
@@ -78,7 +83,12 @@ impl MoveTabuAcceptor {
     ///
     /// Without aspiration, tabu moves are never accepted even if they
     /// would lead to a new best solution.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `move_tabu_size` is 0.
     pub fn without_aspiration(move_tabu_size: usize) -> Self {
+        assert!(move_tabu_size > 0, "move_tabu_size must be > 0, got 0");
         Self {
             move_tabu_size,
             move_tabu_list: Vec::with_capacity(move_tabu_size),

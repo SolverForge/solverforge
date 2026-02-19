@@ -115,6 +115,14 @@ macro_rules! impl_composite_termination {
                 )+
                 false
             }
+
+            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+                // Propagate in-phase limits from all child terminations.
+                // For OR, each child independently may set a limit.
+                $(
+                    self.0.$idx.install_inphase_limits(solver_scope);
+                )+
+            }
         }
 
         impl<S, D, $($T),+> Termination<S, D> for AndTermination<($($T,)+), S, D>
@@ -130,6 +138,12 @@ macro_rules! impl_composite_termination {
                     }
                 )+
                 true
+            }
+
+            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+                $(
+                    self.0.$idx.install_inphase_limits(solver_scope);
+                )+
             }
         }
     };

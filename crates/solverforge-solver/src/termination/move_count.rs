@@ -60,4 +60,12 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for MoveCountTe
     fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
         solver_scope.stats().moves_evaluated >= self.limit
     }
+
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+        let limit = match solver_scope.inphase_move_count_limit {
+            Some(existing) => existing.min(self.limit),
+            None => self.limit,
+        };
+        solver_scope.inphase_move_count_limit = Some(limit);
+    }
 }

@@ -75,9 +75,17 @@ impl<S: PlanningSolution> DiversifiedLateAcceptanceAcceptor<S> {
     /// Creates a new diversified late acceptance acceptor.
     ///
     /// # Arguments
-    /// * `late_acceptance_size` - Number of historical scores to keep
+    /// * `late_acceptance_size` - Number of historical scores to keep. Must be > 0.
     /// * `tolerance` - Fraction of best score to accept (0.05 = 5% tolerance)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `late_acceptance_size` is 0.
     pub fn new(late_acceptance_size: usize, tolerance: f64) -> Self {
+        assert!(
+            late_acceptance_size > 0,
+            "late_acceptance_size must be > 0, got 0"
+        );
         Self {
             late_acceptance_size,
             score_history: vec![None; late_acceptance_size],
@@ -101,8 +109,8 @@ impl<S: PlanningSolution> Default for DiversifiedLateAcceptanceAcceptor<S> {
 
 impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
     fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
-        // Always accept improving moves
-        if move_score > last_step_score {
+        // Accept non-worsening moves (consistent with LateAcceptanceAcceptor which uses >=)
+        if move_score >= last_step_score {
             return true;
         }
 

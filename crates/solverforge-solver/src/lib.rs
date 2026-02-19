@@ -75,7 +75,8 @@ pub use heuristic::{
 };
 pub use manager::{
     Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
-    KOptPhaseBuilder, ListConstructionPhase, ListConstructionPhaseBuilder, LocalSearchPhaseFactory,
+    KOptPhaseBuilder, ListCheapestInsertionPhase, ListConstructionPhase,
+    ListConstructionPhaseBuilder, ListRegretInsertionPhase, LocalSearchPhaseFactory,
     LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
@@ -91,11 +92,12 @@ pub use phase::{
         SimpleDecider, SimpleScoreBounder,
     },
     localsearch::{
-        AcceptedCountForager, Acceptor, AcceptorType, DiversifiedLateAcceptanceAcceptor,
-        EntityTabuAcceptor, FirstAcceptedForager, GreatDelugeAcceptor, HillClimbingAcceptor,
-        LateAcceptanceAcceptor, LocalSearchConfig, LocalSearchForager, LocalSearchPhase,
-        MoveTabuAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
-        TabuSearchAcceptor, ValueTabuAcceptor,
+        AcceptedCountForager, Acceptor, AcceptorType, BestScoreForager,
+        DiversifiedLateAcceptanceAcceptor, EntityTabuAcceptor, FirstAcceptedForager,
+        FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager, GreatDelugeAcceptor,
+        HillClimbingAcceptor, LateAcceptanceAcceptor, LocalSearchConfig, LocalSearchForager,
+        LocalSearchPhase, MoveTabuAcceptor, SimulatedAnnealingAcceptor,
+        StepCountingHillClimbingAcceptor, TabuSearchAcceptor, ValueTabuAcceptor,
     },
     partitioned::{
         ChildPhases, FunctionalPartitioner, PartitionedSearchConfig, PartitionedSearchPhase,

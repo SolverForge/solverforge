@@ -24,5 +24,8 @@ mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
 pub use k_opt::{KOptPhase, KOptPhaseBuilder};
-pub use list_construction::{ListConstructionPhase, ListConstructionPhaseBuilder};
+pub use list_construction::{
+    ListCheapestInsertionPhase, ListConstructionPhase, ListConstructionPhaseBuilder,
+    ListRegretInsertionPhase,
+};
 pub use local_search::LocalSearchPhaseFactory;

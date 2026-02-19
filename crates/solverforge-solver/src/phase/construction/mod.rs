@@ -36,4 +36,10 @@ pub enum ForagerType {
     FirstFit,
     /// Evaluate all moves and pick the best.
     BestFit,
+    /// Pick the first move that results in a feasible score.
+    FirstFeasible,
+    /// Pick the move with the lowest strength value.
+    WeakestFit,
+    /// Pick the move with the highest strength value.
+    StrongestFit,
 }

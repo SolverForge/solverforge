@@ -50,7 +50,12 @@ impl Clone for EntityTabuAcceptor {
 
 impl EntityTabuAcceptor {
     /// Creates a new entity tabu acceptor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `entity_tabu_size` is 0.
     pub fn new(entity_tabu_size: usize) -> Self {
+        assert!(entity_tabu_size > 0, "entity_tabu_size must be > 0, got 0");
         Self {
             entity_tabu_size,
             entity_tabu_list: Vec::with_capacity(entity_tabu_size),

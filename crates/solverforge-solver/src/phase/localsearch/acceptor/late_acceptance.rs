@@ -60,8 +60,16 @@ impl<S: PlanningSolution> LateAcceptanceAcceptor<S> {
     /// Creates a new late acceptance acceptor.
     ///
     /// # Arguments
-    /// * `late_acceptance_size` - Number of historical scores to keep
+    /// * `late_acceptance_size` - Number of historical scores to keep. Must be > 0.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `late_acceptance_size` is 0.
     pub fn new(late_acceptance_size: usize) -> Self {
+        assert!(
+            late_acceptance_size > 0,
+            "late_acceptance_size must be > 0, got 0"
+        );
         Self {
             late_acceptance_size,
             score_history: vec![None; late_acceptance_size],

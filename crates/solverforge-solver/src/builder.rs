@@ -7,8 +7,8 @@ use solverforge_config::AcceptorConfig;
 use solverforge_core::domain::PlanningSolution;
 
 use crate::phase::localsearch::{
-    Acceptor, HillClimbingAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
-    TabuSearchAcceptor,
+    Acceptor, GreatDelugeAcceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
+    SimulatedAnnealingAcceptor, TabuSearchAcceptor,
 };
 
 /// Builder for constructing acceptors from configuration.
@@ -30,13 +30,16 @@ impl AcceptorBuilder {
             }
 
             AcceptorConfig::SimulatedAnnealing(sa_config) => {
-                // Parse starting temperature (default to 1.0 if not specified)
+                // Parse starting temperature; if not specified, use auto-calibrate (0.0)
                 let starting_temp = sa_config
                     .starting_temperature
                     .as_ref()
                     .and_then(|s| s.parse::<f64>().ok())
-                    .unwrap_or(1.0);
-                Box::new(SimulatedAnnealingAcceptor::new(starting_temp, 0.99))
+                    .unwrap_or(0.0);
+                // Use the well-tuned default decay rate (0.999985) that gives near-zero
+                // temperature after ~300k steps — not the aggressive 0.99 which would
+                // reach zero after only ~500 steps.
+                Box::new(SimulatedAnnealingAcceptor::new(starting_temp, 0.999985))
             }
 
             AcceptorConfig::LateAcceptance(la_config) => {
@@ -44,10 +47,9 @@ impl AcceptorBuilder {
                 Box::new(LateAcceptanceAcceptor::<S>::new(size))
             }
 
-            AcceptorConfig::GreatDeluge(_) => {
-                // Great deluge not yet implemented, fall back to hill climbing
-                tracing::warn!("Great deluge acceptor not yet implemented, using hill climbing");
-                Box::new(HillClimbingAcceptor::new())
+            AcceptorConfig::GreatDeluge(gd_config) => {
+                let rain_speed = gd_config.water_level_increase_ratio.unwrap_or(0.001);
+                Box::new(GreatDelugeAcceptor::<S>::new(rain_speed))
             }
         }
     }

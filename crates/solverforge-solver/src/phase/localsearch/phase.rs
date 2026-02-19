@@ -122,7 +122,6 @@ where
         let mut last_progress_time = Instant::now();
         let mut last_progress_moves: u64 = 0;
         let mut rng = SmallRng::from_os_rng();
-        let mut arena_populated = false;
 
         loop {
             // Check early termination
@@ -139,15 +138,25 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            // Reset forager for this step
-            self.forager.step_started();
+            // Reset forager and acceptor for this step.
+            // Pass best and last-step scores so foragers that implement
+            // pick-early-on-improvement strategies know their reference targets.
+            let best_score = step_scope
+                .phase_scope()
+                .solver_scope()
+                .best_score()
+                .copied()
+                .unwrap_or(last_step_score);
+            self.forager.step_started(best_score, last_step_score);
+            self.acceptor.step_started();
 
-            if !arena_populated {
-                // First step: generate all moves into the arena
-                self.arena
-                    .extend(self.move_selector.iter_moves(step_scope.score_director()));
-                arena_populated = true;
-            }
+            // Regenerate moves every step so the move space reflects the
+            // current solution topology. This is essential for list variables
+            // (VRP-style) where positions change after each accepted move.
+            self.arena.reset();
+            self.arena
+                .extend(self.move_selector.iter_moves(step_scope.score_director()));
+
             // Shuffle arena in-place — O(n) Fisher-Yates, no allocation
             self.arena.shuffle(&mut rng);
 
@@ -257,14 +266,16 @@ where
 
                 // Update best solution if improved
                 step_scope.phase_scope_mut().update_best_solution();
-
-                // Notify acceptor that step ended with the new score
-                // This updates late acceptance history for plateau exploration
-                self.acceptor.step_ended(&selected_score);
-            } else {
-                // No accepted moves - we're stuck
-                break;
             }
+            // else: no accepted moves this step — that's fine, the acceptor
+            // history still needs to advance so Late Acceptance / SA / etc.
+            // can eventually escape the local optimum.
+
+            // Always notify acceptor that step ended. For stateful acceptors
+            // (Late Acceptance, Simulated Annealing, Great Deluge, SCHC),
+            // the history must advance every step — even steps where no move
+            // was accepted — otherwise the acceptor state stalls.
+            self.acceptor.step_ended(&last_step_score);
 
             step_scope.complete();
         }

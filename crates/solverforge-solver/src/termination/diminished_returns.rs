@@ -145,9 +145,23 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
         // Add current sample
         state.samples.push_back((now, *current_score));
 
-        // Use oldest in-window sample as reference; fall back to baseline if window is empty.
-        let (oldest_time, oldest_score) =
-            state.samples.front().or(state.baseline.as_ref()).unwrap();
+        // Use oldest available reference: whichever of the in-window front or the
+        // baseline is older. The baseline is the first sample ever recorded (during
+        // the grace period) and is never evicted, so it provides a stable reference
+        // even when macOS timer slop causes all window samples to be evicted.
+        let reference = match (state.samples.front(), state.baseline.as_ref()) {
+            (Some(w), Some(b)) => {
+                if b.0 <= w.0 {
+                    b
+                } else {
+                    w
+                }
+            }
+            (Some(w), None) => w,
+            (None, Some(b)) => b,
+            (None, None) => return false,
+        };
+        let (oldest_time, oldest_score) = reference;
         let elapsed = now.duration_since(*oldest_time).as_secs_f64();
 
         if elapsed < 0.001 {

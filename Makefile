@@ -207,25 +207,22 @@ publish-crates: banner
 	@printf "$(YELLOW)Press Ctrl+C to abort, or Enter to continue...$(RESET)\n"
 	@read dummy
 	@printf "\n$(PROGRESS) Publishing crates in dependency order...\n\n"
-	@printf "$(ARROW) [1/7] Publishing solverforge-core...\n"
+	@printf "$(ARROW) [1/6] Publishing solverforge-core...\n"
 	@cargo publish -p solverforge-core && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [2/7] Publishing solverforge-macros...\n"
+	@printf "$(ARROW) [2/6] Publishing solverforge-macros...\n"
 	@cargo publish -p solverforge-macros && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [3/7] Publishing solverforge-scoring...\n"
+	@printf "$(ARROW) [3/6] Publishing solverforge-scoring...\n"
 	@cargo publish -p solverforge-scoring && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [4/7] Publishing solverforge-config...\n"
+	@printf "$(ARROW) [4/6] Publishing solverforge-config...\n"
 	@cargo publish -p solverforge-config && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [5/7] Publishing solverforge-solver...\n"
+	@printf "$(ARROW) [5/6] Publishing solverforge-solver...\n"
 	@cargo publish -p solverforge-solver && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [6/7] Publishing solverforge-benchmark...\n"
-	@cargo publish -p solverforge-benchmark && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
-	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [7/7] Publishing solverforge (facade)...\n"
+	@printf "$(ARROW) [6/6] Publishing solverforge (facade)...\n"
 	@cargo publish -p solverforge && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "\n$(GREEN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)║          $(CHECK) All crates published successfully!            ║$(RESET)\n"

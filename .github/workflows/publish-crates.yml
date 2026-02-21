@@ -76,10 +76,5 @@ jobs:
       - name: Wait for crates.io
         run: sleep 30
 
-      - name: Publish solverforge-benchmark
-        run: cargo publish -p solverforge-benchmark --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - name: Wait for crates.io
-        run: sleep 30
-
       - name: Publish solverforge
         run: cargo publish -p solverforge --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

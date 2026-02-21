@@ -33,16 +33,19 @@ This enables aggressive compiler optimizations and cache-friendly data layouts.
 - **ConstraintStream API**: Declarative constraint definition with fluent builders
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Construction Heuristic (First Fit, Best Fit)
-  - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance)
+  - Construction Heuristic (FirstFit, BestFit, FirstFeasible, WeakestFit, StrongestFit, CheapestInsertion, RegretInsertion)
+  - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
-  - Partitioned Search (multi-threaded)
+  - Partitioned Search (multi-threaded via rayon)
   - VND (Variable Neighborhood Descent)
-- **SolverManager/SolutionManager API**: Channel-based async solving with score analysis
-- **Move System**: Zero-allocation typed moves
+- **Move System**: Zero-allocation typed moves with arena-based ownership
+  - Basic: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
+  - List: ListChangeMove, ListSwapMove, SubListChangeMove, SubListSwapMove, KOptMove, ListRuinMove
+  - Nearby selection for list moves
+- **SolverManager/SolutionManager API**: Channel-based async solving with score analysis and telemetry
 - **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Configuration**: TOML support with builder API
-- **Console Output**: Colorful tracing-based progress display
+- **Console Output**: Colorful tracing-based progress display with solve telemetry
 
 ## Installation
 
@@ -164,7 +167,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.5.0 - Zero-Erasure Constraint Solver
+                   v0.5.2 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -201,14 +204,15 @@ With `features = ["console"]`, SolverForge displays colorful progress:
         ▼              ▼              ▼              ▼
 ┌──────────────┬──────────────┬──────────────┬──────────────┐
 │solverforge-  │solverforge-  │solverforge-  │solverforge-  │
-│   solver     │   scoring    │   config     │  benchmark   │
+│   solver     │   scoring    │   config     │   console    │
 │              │              │              │              │
-│ • Phases     │ • Constraint │ • TOML       │ • Runner     │
-│ • Moves      │   Streams    │ • Builders   │ • Statistics │
-│ • Selectors  │ • Score      │              │ • Reports    │
+│ • Phases     │ • Constraint │ • TOML       │ • Banner     │
+│ • Moves      │   Streams    │ • Builders   │ • Tracing    │
+│ • Selectors  │ • Score      │              │ • Progress   │
 │ • Acceptors  │   Directors  │              │              │
 │ • Termination│ • SERIO      │              │              │
 │ • Manager    │   Engine     │              │              │
+│ • Telemetry  │              │              │              │
 └──────────────┴──────────────┴──────────────┴──────────────┘
         │              │
         └──────┬───────┘
@@ -238,11 +242,11 @@ With `features = ["console"]`, SolverForge displays colorful progress:
 |-------|---------|
 | `solverforge` | Main facade with prelude and re-exports |
 | `solverforge-core` | Core types: scores, domain traits, descriptors |
-| `solverforge-solver` | Solver engine: phases, moves, termination, SolverManager |
+| `solverforge-solver` | Solver engine: phases, moves, termination, SolverManager, telemetry |
 | `solverforge-scoring` | ConstraintStream API, SERIO incremental scoring |
 | `solverforge-config` | Configuration via TOML and builder API |
+| `solverforge-console` | Tracing-based console output with banner and progress display |
 | `solverforge-macros` | Procedural macros for domain model |
-| `solverforge-benchmark` | Benchmarking framework |
 
 ## Score Types
 
@@ -344,24 +348,59 @@ For comprehensive examples including employee scheduling and vehicle routing, se
 
 SolverForge leverages Rust's zero-cost abstractions:
 
-- **Typed Moves**: Values stored inline, no boxing
+- **Typed Moves**: Values stored inline, no boxing, arena-based ownership (never cloned)
+- **RPITIT Selectors**: Return-position impl Trait eliminates `Box<dyn Iterator>` from all selectors
 - **Incremental Scoring**: SERIO propagates only changed constraints
 - **No GC**: Predictable latency without garbage collection
 - **Cache-friendly**: Contiguous memory layouts for hot paths
+- **No vtable dispatch**: Monomorphized score directors, deciders, and bounders
 
 Typical throughput: 100k-500k moves/second depending on constraint complexity.
 
 ## Status
 
-**Current Version**: 0.5.0 (pre-release, on `release/0.5.0` branch)
+**Current Version**: 0.5.2
+
+### What's New in 0.5.2
+
+**New Features:**
+- **Ruin-and-Recreate (LNS)**: `ListRuinMove` for Large Neighborhood Search on list variables
+- **Nearby Selection**: Proximity-based list change/swap selectors for improved VRP solving
+- **EitherMove**: Monomorphized union of ChangeMove + SwapMove with `UnionMoveSelector` for mixed move neighborhoods
+- **Simulated Annealing**: Rewritten with true Boltzmann distribution
+- **Telemetry**: `SolveResult` with solve statistics (moves/sec, calc/sec, acceptance rate)
+- **Best Solution Callback**: `with_best_solution_callback()` on Solver for real-time progress streaming
+- **DiminishedReturns Termination**: Terminate when score improvement rate falls below threshold
+
+**Zero-Erasure Deepening:**
+- Eliminated all `Box<dyn Iterator>` from selectors via RPITIT (return-position impl Trait in trait)
+- Monomorphized `RecordingScoreDirector` and exhaustive search decider/bounder (no more vtable dispatch)
+- Replaced `Arc<RwLock>` in MimicRecorder with `Cell` + manual refcount
+- Removed `Rc` from SwapMoveSelector (eager triangular pairing)
+- `PhantomData<fn() -> T>` applied across all types to prevent inherited trait bounds
+
+**Performance:**
+- Eliminated Vec clones in KOptMove, SubListChangeMove, and SubListSwapMove hot paths
+- Fixed 6 hot-path regressions in local search and SA acceptor
+- Score macros (`impl_score_ops!`, `impl_score_scale!`, `impl_score_parse!`) reduce codegen
+
+**Fixes:**
+- Construction heuristic and local search producing 0 steps (entity_count wiring)
+- Overflow panics in IntegerRange, ValueRangeDef, and date evaluation
+- Correct `Acceptor::is_accepted` signature (`&mut self`)
+
+### What's New in 0.5.1
+
+- Removed `filter_with_solution()` in favor of shadow variables on entities
 
 ### What's New in 0.5.0
 
-**Improvements:**
-- Refactored incremental constraint internals using macro-based codegen
-- Improved code organization with extracted test utilities
-- Enhanced clippy compliance and eliminated unnecessary clones
-- Better structured logging with trace-level move evaluation
+- Zero-erasure architecture across entire solver pipeline
+- ConstraintStream API with incremental SERIO scoring
+- Channel-based SolverManager/SolutionManager API
+- Console output with tracing-based progress display
+- Solution-aware filter traits
+- Macro-based codegen for N-ary incremental constraints
 
 ### Component Status
 
@@ -371,17 +410,20 @@ Typical throughput: 100k-500k moves/second depending on constraint complexity.
 | Domain model macros | Complete |
 | ConstraintStream API | Complete |
 | SERIO incremental scoring | Complete |
-| Construction heuristics | Complete |
-| Local search | Complete |
+| Construction heuristics (7 types) | Complete |
+| Local search (7 acceptors, 5 foragers) | Complete |
 | Exhaustive search | Complete |
 | Partitioned search | Complete |
 | VND | Complete |
-| Move system | Complete |
+| Move system (12 move types) | Complete |
+| Nearby selection | Complete |
+| Ruin-and-recreate (LNS) | Complete |
+| Selector decorators (8 types) | Complete |
 | Termination | Complete |
 | SolverManager | Complete |
 | SolutionManager | Complete |
+| Solve telemetry | Complete |
 | Console output | Complete |
-| Benchmarking | Complete |
 
 ## Minimum Rust Version
 

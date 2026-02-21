@@ -13,11 +13,11 @@ console = ["dep:solverforge-console"]
 verbose-logging = []
 
 [dependencies]
-solverforge-core = { version = "0.6.0", path = "../solverforge-core" }
-solverforge-macros = { version = "0.6.0", path = "../solverforge-macros" }
-solverforge-scoring = { version = "0.6.0", path = "../solverforge-scoring" }
-solverforge-solver = { version = "0.6.0", path = "../solverforge-solver" }
-solverforge-config = { version = "0.6.0", path = "../solverforge-config" }
+solverforge-core = { version = "0.5.2", path = "../solverforge-core" }
+solverforge-macros = { version = "0.5.2", path = "../solverforge-macros" }
+solverforge-scoring = { version = "0.5.2", path = "../solverforge-scoring" }
+solverforge-solver = { version = "0.5.2", path = "../solverforge-solver" }
+solverforge-config = { version = "0.5.2", path = "../solverforge-config" }
 
 # Console output (optional)
-solverforge-console = { version = "0.6.0", path = "../solverforge-console", optional = true }
+solverforge-console = { version = "0.5.2", path = "../solverforge-console", optional = true }

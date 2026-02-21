@@ -12,7 +12,7 @@ solverforge-config.workspace = true
 solverforge-core.workspace = true
 solverforge-scoring.workspace = true
 solverforge-solver.workspace = true
-solverforge-console = { version = "0.6.0", path = "../solverforge-console" }
+solverforge-console = { version = "0.5.2", path = "../solverforge-console" }
 
 thiserror.workspace = true
 tracing.workspace = true

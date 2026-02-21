@@ -196,7 +196,7 @@ where
 
         let n_entities = entity_count(score_director.working_solution());
 
-        for elem in removed.iter().cloned() {
+        for elem in removed.iter() {
             let mut best_score: Option<S::Score> = None;
             let mut best_entity = src;
             let mut best_pos = list_len(score_director.working_solution(), src);
@@ -209,7 +209,7 @@ where
                     score_director.after_variable_changed(descriptor, e, variable_name);
 
                     let candidate_score = score_director.calculate_score();
-                    if best_score.map_or(true, |b| candidate_score > b) {
+                    if best_score.is_none_or(|b| candidate_score > b) {
                         best_score = Some(candidate_score);
                         best_entity = e;
                         best_pos = pos;

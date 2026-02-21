@@ -270,6 +270,25 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
         self.termination_fn = None;
     }
 
+    /// Checks if construction heuristic should terminate.
+    ///
+    /// Construction phases must always complete — they build the initial solution.
+    /// Step/move/score-calculation count limits are for local search phases only,
+    /// so this method intentionally excludes those checks.
+    pub fn should_terminate_construction(&self) -> bool {
+        // Check external termination flag
+        if self.is_terminate_early() {
+            return true;
+        }
+        // Check time limit only
+        if let (Some(start), Some(limit)) = (self.start_time, self.time_limit) {
+            if start.elapsed() >= limit {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Checks if solving should terminate (external flag, time limit, OR any registered limits).
     pub fn should_terminate(&self) -> bool {
         // Check external termination flag

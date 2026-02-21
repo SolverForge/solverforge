@@ -30,6 +30,9 @@ fn get_routes_mut(s: &mut VrpSolution) -> &mut Vec<Route> {
     &mut s.routes
 }
 
+fn entity_count(s: &VrpSolution) -> usize {
+    s.routes.len()
+}
 fn list_len(s: &VrpSolution, entity_idx: usize) -> usize {
     s.routes.get(entity_idx).map_or(0, |r| r.stops.len())
 }
@@ -73,6 +76,7 @@ fn ruin_single_element() {
     let m = ListRuinMove::<VrpSolution, i32>::new(
         0,
         &[2],
+        entity_count,
         list_len,
         list_remove,
         list_insert,
@@ -87,12 +91,19 @@ fn ruin_single_element() {
         let mut recording = RecordingScoreDirector::new(&mut director);
         m.do_move(&mut recording);
 
+        // After ruin-and-recreate: element 3 (was at index 2) is reinserted.
+        // With constant score=0, first tried position wins: (entity=0, pos=0).
+        // Route contains same elements, just possibly reordered.
         let stops = &recording.working_solution().routes[0].stops;
-        assert_eq!(stops, &[1, 2, 4, 5]);
+        assert_eq!(stops.len(), 5);
+        let mut sorted = stops.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec![1, 2, 3, 4, 5]);
 
         recording.undo_changes();
     }
 
+    // Undo must restore original exactly
     let stops = &director.working_solution().routes[0].stops;
     assert_eq!(stops, &[1, 2, 3, 4, 5]);
 }
@@ -104,6 +115,7 @@ fn ruin_multiple_elements() {
     let m = ListRuinMove::<VrpSolution, i32>::new(
         0,
         &[1, 3],
+        entity_count,
         list_len,
         list_remove,
         list_insert,
@@ -118,8 +130,13 @@ fn ruin_multiple_elements() {
         let mut recording = RecordingScoreDirector::new(&mut director);
         m.do_move(&mut recording);
 
+        // After ruin-and-recreate: elements 2 and 4 removed then reinserted.
+        // Same elements, possibly reordered.
         let stops = &recording.working_solution().routes[0].stops;
-        assert_eq!(stops, &[1, 3, 5]);
+        assert_eq!(stops.len(), 5);
+        let mut sorted = stops.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec![1, 2, 3, 4, 5]);
 
         recording.undo_changes();
     }
@@ -135,6 +152,7 @@ fn ruin_unordered_indices() {
     let m = ListRuinMove::<VrpSolution, i32>::new(
         0,
         &[3, 1],
+        entity_count,
         list_len,
         list_remove,
         list_insert,
@@ -146,8 +164,12 @@ fn ruin_unordered_indices() {
         let mut recording = RecordingScoreDirector::new(&mut director);
         m.do_move(&mut recording);
 
+        // Indices sorted internally: removes index 1 and 3 (values 2 and 4).
         let stops = &recording.working_solution().routes[0].stops;
-        assert_eq!(stops, &[1, 3, 5]);
+        assert_eq!(stops.len(), 5);
+        let mut sorted = stops.clone();
+        sorted.sort();
+        assert_eq!(sorted, vec![1, 2, 3, 4, 5]);
 
         recording.undo_changes();
     }
@@ -163,6 +185,7 @@ fn empty_indices_not_doable() {
     let m = ListRuinMove::<VrpSolution, i32>::new(
         0,
         &[],
+        entity_count,
         list_len,
         list_remove,
         list_insert,
@@ -180,6 +203,7 @@ fn out_of_bounds_not_doable() {
     let m = ListRuinMove::<VrpSolution, i32>::new(
         0,
         &[0, 10],
+        entity_count,
         list_len,
         list_remove,
         list_insert,

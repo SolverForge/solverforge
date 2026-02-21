@@ -88,8 +88,9 @@ where
         let placements = self.placer.get_placements(phase_scope.score_director());
 
         for mut placement in placements {
-            // Check early termination
-            if phase_scope.solver_scope().should_terminate() {
+            // Construction must complete — only stop for external flag or time limit,
+            // never for step/move count limits (those are for local search).
+            if phase_scope.solver_scope().should_terminate_construction() {
                 break;
             }
 

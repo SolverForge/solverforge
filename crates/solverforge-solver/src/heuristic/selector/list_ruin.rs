@@ -254,6 +254,7 @@ where
                     Some(ListRuinMove::new(
                         entity_idx,
                         &indices,
+                        self.entity_count,
                         list_len,
                         list_remove,
                         list_insert,

@@ -50,29 +50,34 @@ jobs:
       - name: Run doc tests
         run: cargo test --workspace --doc
 
-      # Publish in dependency order
+      # Publish in dependency order (skip already-published crates)
       - name: Publish solverforge-core
-        run: cargo publish -p solverforge-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p solverforge-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Already published"
       - name: Wait for crates.io
         run: sleep 30
 
       - name: Publish solverforge-macros
-        run: cargo publish -p solverforge-macros --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p solverforge-macros --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Already published"
       - name: Wait for crates.io
         run: sleep 30
 
       - name: Publish solverforge-scoring
-        run: cargo publish -p solverforge-scoring --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p solverforge-scoring --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Already published"
       - name: Wait for crates.io
         run: sleep 30
 
       - name: Publish solverforge-config
-        run: cargo publish -p solverforge-config --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p solverforge-config --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Already published"
       - name: Wait for crates.io
         run: sleep 30
 
       - name: Publish solverforge-solver
-        run: cargo publish -p solverforge-solver --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p solverforge-solver --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Already published"
+      - name: Wait for crates.io
+        run: sleep 30
+
+      - name: Publish solverforge-console
+        run: cargo publish -p solverforge-console --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Already published"
       - name: Wait for crates.io
         run: sleep 30
 

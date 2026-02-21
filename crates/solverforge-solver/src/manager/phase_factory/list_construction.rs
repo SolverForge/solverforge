@@ -188,7 +188,7 @@ where
 
         let mut entity_idx = 0;
         for elem_idx in 0..n_elements {
-            if phase_scope.solver_scope().should_terminate() {
+            if phase_scope.solver_scope().should_terminate_construction() {
                 break;
             }
 
@@ -509,7 +509,7 @@ where
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
 
         for elem_idx in 0..n_elements {
-            if phase_scope.solver_scope().should_terminate() {
+            if phase_scope.solver_scope().should_terminate_construction() {
                 break;
             }
 
@@ -771,7 +771,7 @@ where
             .collect();
 
         while !unassigned.is_empty() {
-            if phase_scope.solver_scope().should_terminate() {
+            if phase_scope.solver_scope().should_terminate_construction() {
                 break;
             }
 

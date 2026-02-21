@@ -178,7 +178,7 @@ fn compile_function(expr: &Expr, arity: usize) -> Result<(JITModule, *const u8),
     let ptr_type = module.target_config().pointer_type();
 
     // Single parameter: *const *const i64 (pointer to array of entity base pointers)
-    let mut sig = Signature::new(CallConv::SystemV);
+    let mut sig = Signature::new(module.isa().default_call_conv());
     sig.params.push(AbiParam::new(ptr_type));
     sig.returns.push(AbiParam::new(I64));
 

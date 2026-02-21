@@ -208,26 +208,20 @@ mod tests {
 
     #[test]
     fn test_terminates_with_zero_improvement() {
-        // Use 200ms window with larger margins for cross-platform reliability
         let termination =
-            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(200), 0.1);
+            DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(500), 0.1);
 
         let scope = create_test_scope_with_score(SimpleScore::of(-100));
 
-        // First call starts tracking at T0
+        // First call starts tracking
         assert!(!termination.is_terminated(&scope));
 
-        // Wait well into grace period but keep first sample in window
-        sleep(Duration::from_millis(120));
-
-        // Second call adds sample at T0+120ms (still in window)
-        // Both samples have score -100, so rate is 0
+        // Brief pause, well within 500ms grace period
+        sleep(Duration::from_millis(50));
         assert!(!termination.is_terminated(&scope));
 
-        // Wait past grace period with margin for timing variance
-        sleep(Duration::from_millis(100));
-
-        // Third call: past grace period (220ms > 200ms), 2+ samples, rate ~0
+        // Wait past grace period
+        sleep(Duration::from_millis(500));
         assert!(termination.is_terminated(&scope));
     }
 

@@ -35,8 +35,6 @@ fn test_generate_change_moves() {
 
 #[test]
 fn test_selector_generates_change_and_swap() {
-    use solverforge_scoring::ScoreDirector;
-
     let mut desc = DynamicDescriptor::new();
     desc.add_entity_class(EntityClassDef::new(
         "Queen",

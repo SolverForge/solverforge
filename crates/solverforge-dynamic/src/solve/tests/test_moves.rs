@@ -135,7 +135,7 @@ fn test_move_application() {
 #[test]
 fn test_local_search_simulation() {
     // Simulate what local search does: iterate moves, evaluate with RecordingScoreDirector
-    use crate::moves::{DynamicChangeMove, DynamicMoveSelector};
+    use crate::moves::DynamicMoveSelector;
     use solverforge_scoring::director::typed::TypedScoreDirector;
     use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
     use solverforge_solver::heuristic::r#move::Move;

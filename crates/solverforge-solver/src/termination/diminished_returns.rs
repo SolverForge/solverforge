@@ -67,6 +67,8 @@ struct DiminishedState<Sc: Score> {
     samples: VecDeque<(Instant, Sc)>,
     /// Timestamp of first sample for initial grace period.
     start_time: Option<Instant>,
+    /// Oldest score seen — retained as baseline even after window eviction.
+    baseline: Option<(Instant, Sc)>,
 }
 
 impl<Sc: Score> Default for DiminishedState<Sc> {
@@ -74,6 +76,7 @@ impl<Sc: Score> Default for DiminishedState<Sc> {
         Self {
             samples: VecDeque::new(),
             start_time: None,
+            baseline: None,
         }
     }
 }
@@ -121,7 +124,10 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
 
         // Don't terminate during the initial grace period (first window)
         if now.duration_since(state.start_time.unwrap()) < self.window {
-            // Still record the sample
+            // Record the sample; first sample becomes the baseline
+            if state.baseline.is_none() {
+                state.baseline = Some((now, *current_score));
+            }
             state.samples.push_back((now, *current_score));
             return false;
         }
@@ -139,13 +145,9 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D>
         // Add current sample
         state.samples.push_back((now, *current_score));
 
-        // Need at least 2 samples to calculate rate
-        if state.samples.len() < 2 {
-            return false;
-        }
-
-        // Calculate improvement rate
-        let (oldest_time, oldest_score) = state.samples.front().unwrap();
+        // Use oldest in-window sample as reference; fall back to baseline if window is empty.
+        let (oldest_time, oldest_score) =
+            state.samples.front().or(state.baseline.as_ref()).unwrap();
         let elapsed = now.duration_since(*oldest_time).as_secs_f64();
 
         if elapsed < 0.001 {

@@ -12,6 +12,10 @@
 
 </div>
 
+> **Used in Production**
+>
+> "Working like a charm, A+" — *Dr. Fawaz Halwani, Pathologist, The Ottawa Hospital*
+
 A zero-erasure constraint solver in Rust.
 
 SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API with efficient incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
@@ -355,7 +359,7 @@ SolverForge leverages Rust's zero-cost abstractions:
 - **Cache-friendly**: Contiguous memory layouts for hot paths
 - **No vtable dispatch**: Monomorphized score directors, deciders, and bounders
 
-Typical throughput: 100k-500k moves/second depending on constraint complexity.
+Typical throughput: 300k-1M moves/second depending on constraint complexity for scheduling; 2.5M+ moves/second on VRP
 
 ## Status
 

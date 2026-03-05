@@ -264,8 +264,7 @@ where
                         let now = Instant::now();
                         if now.duration_since(last_progress_time).as_secs() >= 1 {
                             let moves_delta = local_moves_evaluated - last_progress_moves;
-                            let elapsed_secs =
-                                now.duration_since(last_progress_time).as_secs_f64();
+                            let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
                             let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
                             debug!(
                                 event = "progress",

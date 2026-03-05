@@ -154,99 +154,196 @@ where
             // current solution topology. This is essential for list variables
             // (VRP-style) where positions change after each accepted move.
             self.arena.reset();
-            self.arena
-                .extend(self.move_selector.iter_moves(step_scope.score_director()));
 
-            // Shuffle arena in-place — O(n) Fisher-Yates, no allocation
-            self.arena.shuffle(&mut rng);
+            if self.move_selector.is_never_ending() {
+                // Streaming path for random-sampling (never-ending) selectors.
+                // Pull moves in small batches to avoid holding an immutable borrow
+                // on the score director across the mutable evaluation calls.
+                // The selector provides its own randomization; no shuffle needed.
+                'streaming: loop {
+                    let batch_start = self.arena.len();
+                    {
+                        let iter = self.move_selector.iter_moves(step_scope.score_director());
+                        for mov in iter.take(64) {
+                            self.arena.push(mov);
+                        }
+                    }
+                    let batch_end = self.arena.len();
+                    if batch_end == batch_start {
+                        break;
+                    }
 
-            // Evaluate moves by index
-            for i in 0..self.arena.len() {
-                local_moves_evaluated += 1;
+                    for i in batch_start..batch_end {
+                        local_moves_evaluated += 1;
 
-                // Log progress every ~8k moves (avoids Instant::now() syscall per move)
-                if local_moves_evaluated & 0x1FFF == 0 {
-                    let now = Instant::now();
-                    if now.duration_since(last_progress_time).as_secs() >= 1 {
-                        let moves_delta = local_moves_evaluated - last_progress_moves;
-                        let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
-                        let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
-                        debug!(
-                            event = "progress",
-                            steps = step_scope.step_index(),
-                            moves_evaluated = local_moves_evaluated,
-                            speed = current_speed,
-                            score = %last_step_score,
+                        // Log progress every ~8k moves (avoids Instant::now() syscall per move)
+                        if local_moves_evaluated & 0x1FFF == 0 {
+                            let now = Instant::now();
+                            if now.duration_since(last_progress_time).as_secs() >= 1 {
+                                let moves_delta = local_moves_evaluated - last_progress_moves;
+                                let elapsed_secs =
+                                    now.duration_since(last_progress_time).as_secs_f64();
+                                let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
+                                debug!(
+                                    event = "progress",
+                                    steps = step_scope.step_index(),
+                                    moves_evaluated = local_moves_evaluated,
+                                    speed = current_speed,
+                                    score = %last_step_score,
+                                );
+                                last_progress_time = now;
+                                last_progress_moves = local_moves_evaluated;
+                            }
+                        }
+
+                        let m = self.arena.get(i).unwrap();
+
+                        if !m.is_doable(step_scope.score_director()) {
+                            step_scope
+                                .phase_scope_mut()
+                                .solver_scope_mut()
+                                .stats_mut()
+                                .record_move(false);
+                            continue;
+                        }
+
+                        let move_score = {
+                            let mut recording =
+                                RecordingScoreDirector::new(step_scope.score_director_mut());
+                            m.do_move(&mut recording);
+                            let score = recording.calculate_score();
+                            recording.undo_changes();
+                            score
+                        };
+
+                        step_scope
+                            .phase_scope_mut()
+                            .solver_scope_mut()
+                            .stats_mut()
+                            .record_score_calculation();
+
+                        let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
+
+                        step_scope
+                            .phase_scope_mut()
+                            .solver_scope_mut()
+                            .stats_mut()
+                            .record_move(accepted);
+
+                        trace!(
+                            event = "step",
+                            step = step_scope.step_index(),
+                            move_index = i,
+                            score = %move_score,
+                            accepted = accepted,
                         );
-                        last_progress_time = now;
-                        last_progress_moves = local_moves_evaluated;
+
+                        if accepted {
+                            self.forager.add_move_index(i, move_score);
+                        }
+
+                        if self.forager.is_quit_early() {
+                            break 'streaming;
+                        }
                     }
                 }
+            } else {
+                // Batch path: materialize full move space, shuffle, evaluate.
+                self.arena
+                    .extend(self.move_selector.iter_moves(step_scope.score_director()));
 
-                let m = self.arena.get(i).unwrap();
+                // Shuffle arena in-place — O(n) Fisher-Yates, no allocation
+                self.arena.shuffle(&mut rng);
 
-                if !m.is_doable(step_scope.score_director()) {
-                    // Record as evaluated but not accepted
+                // Evaluate moves by index
+                for i in 0..self.arena.len() {
+                    local_moves_evaluated += 1;
+
+                    // Log progress every ~8k moves (avoids Instant::now() syscall per move)
+                    if local_moves_evaluated & 0x1FFF == 0 {
+                        let now = Instant::now();
+                        if now.duration_since(last_progress_time).as_secs() >= 1 {
+                            let moves_delta = local_moves_evaluated - last_progress_moves;
+                            let elapsed_secs =
+                                now.duration_since(last_progress_time).as_secs_f64();
+                            let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
+                            debug!(
+                                event = "progress",
+                                steps = step_scope.step_index(),
+                                moves_evaluated = local_moves_evaluated,
+                                speed = current_speed,
+                                score = %last_step_score,
+                            );
+                            last_progress_time = now;
+                            last_progress_moves = local_moves_evaluated;
+                        }
+                    }
+
+                    let m = self.arena.get(i).unwrap();
+
+                    if !m.is_doable(step_scope.score_director()) {
+                        // Record as evaluated but not accepted
+                        step_scope
+                            .phase_scope_mut()
+                            .solver_scope_mut()
+                            .stats_mut()
+                            .record_move(false);
+                        continue;
+                    }
+
+                    // Use RecordingScoreDirector for automatic undo
+                    // This correctly handles state rollback for all moves including
+                    // accepted-but-not-improving sidesteps (>= acceptance)
+                    let move_score = {
+                        let mut recording =
+                            RecordingScoreDirector::new(step_scope.score_director_mut());
+
+                        // Execute move
+                        m.do_move(&mut recording);
+
+                        // Calculate resulting score
+                        let score = recording.calculate_score();
+
+                        // Undo the move - state is fully restored regardless of acceptance
+                        recording.undo_changes();
+
+                        score
+                    };
+
+                    // Record score calculation (RecordingScoreDirector bypasses scope interceptor)
                     step_scope
                         .phase_scope_mut()
                         .solver_scope_mut()
                         .stats_mut()
-                        .record_move(false);
-                    continue;
-                }
+                        .record_score_calculation();
 
-                // Use RecordingScoreDirector for automatic undo
-                // This correctly handles state rollback for all moves including
-                // accepted-but-not-improving sidesteps (>= acceptance)
-                let move_score = {
-                    let mut recording =
-                        RecordingScoreDirector::new(step_scope.score_director_mut());
+                    // Check if accepted (>= allows sidesteps for plateau exploration)
+                    let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
 
-                    // Execute move
-                    m.do_move(&mut recording);
+                    // Record move evaluation in solver stats
+                    step_scope
+                        .phase_scope_mut()
+                        .solver_scope_mut()
+                        .stats_mut()
+                        .record_move(accepted);
 
-                    // Calculate resulting score
-                    let score = recording.calculate_score();
+                    trace!(
+                        event = "step",
+                        step = step_scope.step_index(),
+                        move_index = i,
+                        score = %move_score,
+                        accepted = accepted,
+                    );
 
-                    // Undo the move - state is fully restored regardless of acceptance
-                    recording.undo_changes();
+                    // Add index to forager if accepted (not the move itself)
+                    if accepted {
+                        self.forager.add_move_index(i, move_score);
+                    }
 
-                    score
-                };
-
-                // Record score calculation (RecordingScoreDirector bypasses scope interceptor)
-                step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .stats_mut()
-                    .record_score_calculation();
-
-                // Check if accepted (>= allows sidesteps for plateau exploration)
-                let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
-
-                // Record move evaluation in solver stats
-                step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .stats_mut()
-                    .record_move(accepted);
-
-                trace!(
-                    event = "step",
-                    step = step_scope.step_index(),
-                    move_index = i,
-                    score = %move_score,
-                    accepted = accepted,
-                );
-
-                // Add index to forager if accepted (not the move itself)
-                if accepted {
-                    self.forager.add_move_index(i, move_score);
-                }
-
-                // Check if forager wants to quit early
-                if self.forager.is_quit_early() {
-                    break;
+                    // Check if forager wants to quit early
+                    if self.forager.is_quit_early() {
+                        break;
+                    }
                 }
             }
 

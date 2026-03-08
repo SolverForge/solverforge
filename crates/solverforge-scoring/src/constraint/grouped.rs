@@ -86,6 +86,7 @@ where
     collector: C,
     weight_fn: W,
     is_hard: bool,
+    expected_descriptor: Option<usize>,
     // Group key -> accumulator (scores computed on-the-fly, no cloning)
     groups: HashMap<K, C::Accumulator>,
     // Entity index -> group key (for tracking which group an entity belongs to)
@@ -136,11 +137,17 @@ where
             collector,
             weight_fn,
             is_hard,
+            expected_descriptor: None,
             groups: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
+        self.expected_descriptor = Some(descriptor_index);
+        self
     }
 
     // Computes the score contribution for a group's result.
@@ -219,7 +226,12 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        if let Some(expected) = self.expected_descriptor {
+            if descriptor_index != expected {
+                return Sc::zero();
+            }
+        }
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -229,7 +241,12 @@ where
         self.insert_entity(entities, entity_index, entity)
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        if let Some(expected) = self.expected_descriptor {
+            if descriptor_index != expected {
+                return Sc::zero();
+            }
+        }
         let entities = (self.extractor)(solution);
         self.retract_entity(entities, entity_index)
     }

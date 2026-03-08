@@ -142,6 +142,7 @@ where
             impact_type: ImpactType::Penalty,
             weight_fn,
             is_hard: false,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -161,6 +162,7 @@ where
             impact_type: ImpactType::Penalty,
             weight_fn,
             is_hard: true,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -177,6 +179,7 @@ where
             impact_type: ImpactType::Reward,
             weight_fn,
             is_hard: false,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -196,6 +199,7 @@ where
             impact_type: ImpactType::Reward,
             weight_fn,
             is_hard: true,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -383,6 +387,7 @@ where
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
+    expected_descriptor: Option<usize>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
@@ -423,8 +428,13 @@ where
     //
     // assert_eq!(constraint.name(), "Category penalty");
     // ```
+    pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
+        self.expected_descriptor = Some(descriptor_index);
+        self
+    }
+
     pub fn as_constraint(self, name: &str) -> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc> {
-        GroupedUniConstraint::new(
+        let mut constraint = GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor,
@@ -432,7 +442,11 @@ where
             self.collector,
             self.weight_fn,
             self.is_hard,
-        )
+        );
+        if let Some(d) = self.expected_descriptor {
+            constraint = constraint.with_descriptor(d);
+        }
+        constraint
     }
 }
 

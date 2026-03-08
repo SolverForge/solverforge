@@ -24,6 +24,7 @@ where
     filter: F,
     weight: W,
     is_hard: bool,
+    expected_descriptor: Option<usize>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
@@ -52,8 +53,14 @@ where
             filter,
             weight,
             is_hard,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
+        self.expected_descriptor = Some(descriptor_index);
+        self
     }
 
     #[inline]
@@ -112,7 +119,12 @@ where
         self.evaluate(solution)
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        if let Some(expected) = self.expected_descriptor {
+            if descriptor_index != expected {
+                return Sc::zero();
+            }
+        }
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -125,7 +137,12 @@ where
         }
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        if let Some(expected) = self.expected_descriptor {
+            if descriptor_index != expected {
+                return Sc::zero();
+            }
+        }
         let entities = (self.extractor)(solution);
         if entity_index >= entities.len() {
             return Sc::zero();

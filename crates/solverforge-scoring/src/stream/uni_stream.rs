@@ -413,6 +413,7 @@ where
             impact_type: ImpactType::Penalty,
             weight: move |_: &A| weight,
             is_hard,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -431,6 +432,7 @@ where
             impact_type: ImpactType::Penalty,
             weight: weight_fn,
             is_hard: false, // Can't detect at build time; use penalize_hard_with for hard constraints
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -446,6 +448,7 @@ where
             impact_type: ImpactType::Penalty,
             weight: weight_fn,
             is_hard: true,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -470,6 +473,7 @@ where
             impact_type: ImpactType::Reward,
             weight: move |_: &A| weight,
             is_hard,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -488,6 +492,7 @@ where
             impact_type: ImpactType::Reward,
             weight: weight_fn,
             is_hard: false, // Can't detect at build time; use reward_hard_with for hard constraints
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -503,6 +508,7 @@ where
             impact_type: ImpactType::Reward,
             weight: weight_fn,
             is_hard: true,
+            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -524,6 +530,7 @@ where
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
+    expected_descriptor: Option<usize>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
@@ -536,6 +543,16 @@ where
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    // Restricts this constraint to only fire for the given descriptor index.
+    //
+    // Required when multiple entity classes exist (e.g., FurnaceAssignment at 0,
+    // ShiftAssignment at 1). Without this, on_insert/on_retract fire for all entity
+    // classes using the constraint's entity_index, which indexes into the wrong slice.
+    pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
+        self.expected_descriptor = Some(descriptor_index);
+        self
+    }
+
     // Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.
     pub fn as_constraint(
         self,
@@ -544,14 +561,18 @@ where
         let filter = self.filter;
         let combined_filter = move |s: &S, a: &A| filter.test(s, a);
 
-        IncrementalUniConstraint::new(
+        let mut constraint = IncrementalUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor,
             combined_filter,
             self.weight,
             self.is_hard,
-        )
+        );
+        if let Some(d) = self.expected_descriptor {
+            constraint = constraint.with_descriptor(d);
+        }
+        constraint
     }
 }
 

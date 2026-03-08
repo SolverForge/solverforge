@@ -102,6 +102,7 @@ macro_rules! impl_quad_arity_stream {
                     impact_type: solverforge_core::ImpactType::Penalty,
                     weight: move |_: &A, _: &A, _: &A, _: &A| weight,
                     is_hard,
+                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -117,6 +118,7 @@ macro_rules! impl_quad_arity_stream {
                     impact_type: solverforge_core::ImpactType::Penalty,
                     weight: weight_fn,
                     is_hard: false,
+                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -132,6 +134,7 @@ macro_rules! impl_quad_arity_stream {
                     impact_type: solverforge_core::ImpactType::Penalty,
                     weight: weight_fn,
                     is_hard: true,
+                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -155,6 +158,7 @@ macro_rules! impl_quad_arity_stream {
                     impact_type: solverforge_core::ImpactType::Reward,
                     weight: move |_: &A, _: &A, _: &A, _: &A| weight,
                     is_hard,
+                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -170,6 +174,7 @@ macro_rules! impl_quad_arity_stream {
                     impact_type: solverforge_core::ImpactType::Reward,
                     weight: weight_fn,
                     is_hard: false,
+                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -185,6 +190,7 @@ macro_rules! impl_quad_arity_stream {
                     impact_type: solverforge_core::ImpactType::Reward,
                     weight: weight_fn,
                     is_hard: true,
+                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -208,6 +214,7 @@ macro_rules! impl_quad_arity_stream {
             pub(crate) impact_type: solverforge_core::ImpactType,
             pub(crate) weight: W,
             pub(crate) is_hard: bool,
+            pub(crate) expected_descriptor: Option<usize>,
             pub(crate) _phantom:
                 std::marker::PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
         }
@@ -224,6 +231,11 @@ macro_rules! impl_quad_arity_stream {
             Sc: solverforge_core::score::Score + 'static,
         {
             // Builds the constraint with an adapted weight function.
+            pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
+                self.expected_descriptor = Some(descriptor_index);
+                self
+            }
+
             pub fn as_constraint(
                 self,
                 name: &str,
@@ -253,7 +265,7 @@ macro_rules! impl_quad_arity_stream {
                         user_weight(a, b, c, d)
                     };
 
-                $constraint::new(
+                let mut constraint = $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type,
                     self.extractor,
@@ -261,7 +273,11 @@ macro_rules! impl_quad_arity_stream {
                     combined_filter,
                     adapted_weight,
                     self.is_hard,
-                )
+                );
+                if let Some(d) = self.expected_descriptor {
+                    constraint = constraint.with_descriptor(d);
+                }
+                constraint
             }
         }
 

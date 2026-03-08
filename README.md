@@ -171,7 +171,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.5.2 - Zero-Erasure Constraint Solver
+                   v0.5.6 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -363,7 +363,26 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.2
+**Current Version**: 0.5.6
+
+### What's New in 0.5.6
+
+- Fixed `GroupedUniConstraint` new-group `old_score` computation (was using `-weight(empty)` instead of `Sc::zero()`, causing phantom positive deltas)
+- Fixed `UniConstraintStream::group_by()` silently dropping accumulated filters (`.filter().group_by()` now works correctly)
+- Added `#[allow(too_many_arguments)]` on `GroupedUniConstraint::new` to suppress lint
+
+### What's New in 0.5.5
+
+- Fixed incremental scoring corruption when multiple entity classes are present — `on_insert`/`on_retract` notifications now filtered by `descriptor_index` in all constraint types (`IncrementalUniConstraint`, `GroupedUniConstraint`, all nary variants)
+- `UniConstraintStream::for_descriptor(idx)` exposed in stream builder API
+
+### What's New in 0.5.4
+
+- Deleted dynamic/cranelift and stub dotfile artifacts (internal cleanup)
+
+### What's New in 0.5.3
+
+- Move streaming for never-ending selectors: local search no longer stalls when selectors produce moves lazily without exhausting
 
 ### What's New in 0.5.2
 

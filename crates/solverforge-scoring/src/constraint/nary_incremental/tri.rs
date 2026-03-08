@@ -20,6 +20,7 @@ macro_rules! impl_incremental_tri_constraint {
             filter: F,
             weight: W,
             is_hard: bool,
+            expected_descriptor: Option<usize>,
             entity_to_matches: HashMap<usize, HashSet<(usize, usize, usize)>>,
             matches: HashSet<(usize, usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
@@ -55,12 +56,18 @@ macro_rules! impl_incremental_tri_constraint {
                     filter,
                     weight,
                     is_hard,
+                    expected_descriptor: None,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
                     index_to_key: HashMap::new(),
                     _phantom: PhantomData,
                 }
+            }
+
+            pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
+                self.expected_descriptor = Some(descriptor_index);
+                self
             }
 
             #[inline]
@@ -265,8 +272,13 @@ macro_rules! impl_incremental_tri_constraint {
                 &mut self,
                 solution: &S,
                 entity_index: usize,
-                _descriptor_index: usize,
+                descriptor_index: usize,
             ) -> Sc {
+                if let Some(expected) = self.expected_descriptor {
+                    if descriptor_index != expected {
+                        return Sc::zero();
+                    }
+                }
                 let entities = (self.extractor)(solution);
                 self.insert_entity(solution, entities, entity_index)
             }
@@ -275,8 +287,13 @@ macro_rules! impl_incremental_tri_constraint {
                 &mut self,
                 solution: &S,
                 entity_index: usize,
-                _descriptor_index: usize,
+                descriptor_index: usize,
             ) -> Sc {
+                if let Some(expected) = self.expected_descriptor {
+                    if descriptor_index != expected {
+                        return Sc::zero();
+                    }
+                }
                 let entities = (self.extractor)(solution);
                 self.retract_entity(solution, entities, entity_index)
             }

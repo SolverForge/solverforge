@@ -7,6 +7,14 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Bug Fixes
 
+* **scoring:** allow too_many_arguments on GroupedUniConstraint::new 659bd0e
+* **scoring:** GroupedUniConstraint new-group old_score and filter propagation da40769
+
+## [0.5.6](///compare/v0.5.5...v0.5.6) (2026-03-08)
+
+
+### Bug Fixes
+
 * **scoring:** GroupedUniConstraint new-group old_score and filter propagation da40769
 
 ## [0.5.5](///compare/v0.5.4...v0.5.5) (2026-03-08)

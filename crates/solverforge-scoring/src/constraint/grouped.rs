@@ -129,6 +129,7 @@ where
     // * `collector` - Collector to aggregate entities per group
     // * `weight_fn` - Function to compute score from collector result
     // * `is_hard` - Whether this is a hard constraint
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,

@@ -447,10 +447,7 @@ where
         self
     }
 
-    pub fn as_constraint(
-        self,
-        name: &str,
-    ) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
+    pub fn as_constraint(self, name: &str) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
         let mut constraint = GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,

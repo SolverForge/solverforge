@@ -12,6 +12,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::collector::UniCollector;
 use super::complemented_stream::ComplementedConstraintStream;
+use super::filter::UniFilter;
 use crate::constraint::grouped::GroupedUniConstraint;
 
 // Zero-erasure constraint stream over grouped entities.
@@ -27,6 +28,7 @@ use crate::constraint::grouped::GroupedUniConstraint;
 // - `A` - Entity type
 // - `K` - Group key type
 // - `E` - Extractor function for entities
+// - `Fi` - Filter type (preserved from upstream stream)
 // - `KF` - Key function
 // - `C` - Collector type
 // - `Sc` - Score type
@@ -63,22 +65,24 @@ use crate::constraint::grouped::GroupedUniConstraint;
 // // Employee 1: 3² = 9, Employee 2: 1² = 1, Total: -10
 // assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
 // ```
-pub struct GroupedConstraintStream<S, A, K, E, KF, C, Sc>
+pub struct GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
 where
     Sc: Score,
 {
     extractor: E,
+    filter: Fi,
     key_fn: KF,
     collector: C,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
-impl<S, A, K, E, KF, C, Sc> GroupedConstraintStream<S, A, K, E, KF, C, Sc>
+impl<S, A, K, E, Fi, KF, C, Sc> GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
+    Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
@@ -86,9 +90,10 @@ where
     Sc: Score + 'static,
 {
     // Creates a new zero-erasure grouped constraint stream.
-    pub(crate) fn new(extractor: E, key_fn: KF, collector: C) -> Self {
+    pub(crate) fn new(extractor: E, filter: Fi, key_fn: KF, collector: C) -> Self {
         Self {
             extractor,
+            filter,
             key_fn,
             collector,
             _phantom: PhantomData,
@@ -131,12 +136,13 @@ where
     pub fn penalize_with<W>(
         self,
         weight_fn: W,
-    ) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
         GroupedConstraintBuilder {
             extractor: self.extractor,
+            filter: self.filter,
             key_fn: self.key_fn,
             collector: self.collector,
             impact_type: ImpactType::Penalty,
@@ -151,12 +157,13 @@ where
     pub fn penalize_hard_with<W>(
         self,
         weight_fn: W,
-    ) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
         GroupedConstraintBuilder {
             extractor: self.extractor,
+            filter: self.filter,
             key_fn: self.key_fn,
             collector: self.collector,
             impact_type: ImpactType::Penalty,
@@ -168,12 +175,16 @@ where
     }
 
     // Rewards each group with a weight based on the collector result.
-    pub fn reward_with<W>(self, weight_fn: W) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    pub fn reward_with<W>(
+        self,
+        weight_fn: W,
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
         GroupedConstraintBuilder {
             extractor: self.extractor,
+            filter: self.filter,
             key_fn: self.key_fn,
             collector: self.collector,
             impact_type: ImpactType::Reward,
@@ -188,12 +199,13 @@ where
     pub fn reward_hard_with<W>(
         self,
         weight_fn: W,
-    ) -> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
         GroupedConstraintBuilder {
             extractor: self.extractor,
+            filter: self.filter,
             key_fn: self.key_fn,
             collector: self.collector,
             impact_type: ImpactType::Reward,
@@ -368,8 +380,8 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, Sc: Score> std::fmt::Debug
-    for GroupedConstraintStream<S, A, K, E, KF, C, Sc>
+impl<S, A, K, E, Fi, KF, C, Sc: Score> std::fmt::Debug
+    for GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupedConstraintStream").finish()
@@ -377,11 +389,12 @@ impl<S, A, K, E, KF, C, Sc: Score> std::fmt::Debug
 }
 
 // Zero-erasure builder for finalizing a grouped constraint.
-pub struct GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+pub struct GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
 where
     Sc: Score,
 {
     extractor: E,
+    filter: Fi,
     key_fn: KF,
     collector: C,
     impact_type: ImpactType,
@@ -391,12 +404,13 @@ where
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
-impl<S, A, K, E, KF, C, W, Sc> GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, W, Sc> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
+    Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
@@ -433,11 +447,15 @@ where
         self
     }
 
-    pub fn as_constraint(self, name: &str) -> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc> {
+    pub fn as_constraint(
+        self,
+        name: &str,
+    ) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
         let mut constraint = GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor,
+            self.filter,
             self.key_fn,
             self.collector,
             self.weight_fn,
@@ -450,8 +468,8 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, W, Sc: Score> std::fmt::Debug
-    for GroupedConstraintBuilder<S, A, K, E, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, W, Sc: Score> std::fmt::Debug
+    for GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupedConstraintBuilder")

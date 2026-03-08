@@ -13,6 +13,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collector::{Accumulator, UniCollector};
+use crate::stream::filter::UniFilter;
 
 // Zero-erasure constraint that groups entities by key and scores based on collector results.
 //
@@ -29,6 +30,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 // - `A` - Entity type
 // - `K` - Group key type
 // - `E` - Extractor function for entities
+// - `Fi` - Filter type (applied before grouping)
 // - `KF` - Key function
 // - `C` - Collector type
 // - `W` - Weight function
@@ -39,6 +41,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 // ```
 // use solverforge_scoring::constraint::grouped::GroupedUniConstraint;
 // use solverforge_scoring::stream::collector::count;
+// use solverforge_scoring::stream::filter::TrueFilter;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 // use solverforge_core::{ConstraintRef, ImpactType};
 // use solverforge_core::score::SimpleScore;
@@ -54,6 +57,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 //     ConstraintRef::new("", "Balanced workload"),
 //     ImpactType::Penalty,
 //     |s: &Solution| &s.shifts,
+//     TrueFilter,
 //     |shift: &Shift| shift.employee_id,
 //     count::<Shift>(),
 //     |count: &usize| SimpleScore::of((*count * *count) as i64),
@@ -74,7 +78,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 // // Total: -10
 // assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
 // ```
-pub struct GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>
+pub struct GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where
     C: UniCollector<A>,
     Sc: Score,
@@ -82,6 +86,7 @@ where
     constraint_ref: ConstraintRef,
     impact_type: ImpactType,
     extractor: E,
+    filter: Fi,
     key_fn: KF,
     collector: C,
     weight_fn: W,
@@ -89,6 +94,8 @@ where
     expected_descriptor: Option<usize>,
     // Group key -> accumulator (scores computed on-the-fly, no cloning)
     groups: HashMap<K, C::Accumulator>,
+    // Group key -> number of entities in the group (for empty-group detection)
+    group_counts: HashMap<K, usize>,
     // Entity index -> group key (for tracking which group an entity belongs to)
     entity_groups: HashMap<usize, K>,
     // Entity index -> extracted value (for correct retraction after entity mutation)
@@ -96,12 +103,13 @@ where
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
-impl<S, A, K, E, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
+    Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
@@ -116,6 +124,7 @@ where
     // * `constraint_ref` - Identifier for this constraint
     // * `impact_type` - Whether to penalize or reward
     // * `extractor` - Function to get entity slice from solution
+    // * `filter` - Filter applied to entities before grouping
     // * `key_fn` - Function to extract group key from entity
     // * `collector` - Collector to aggregate entities per group
     // * `weight_fn` - Function to compute score from collector result
@@ -124,6 +133,7 @@ where
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,
         extractor: E,
+        filter: Fi,
         key_fn: KF,
         collector: C,
         weight_fn: W,
@@ -133,12 +143,14 @@ where
             constraint_ref,
             impact_type,
             extractor,
+            filter,
             key_fn,
             collector,
             weight_fn,
             is_hard,
             expected_descriptor: None,
             groups: HashMap::new(),
+            group_counts: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
             _phantom: PhantomData,
@@ -160,13 +172,14 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, W, Sc> IncrementalConstraint<S, Sc>
-    for GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, W, Sc> IncrementalConstraint<S, Sc>
+    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
+    Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
@@ -178,10 +191,13 @@ where
     fn evaluate(&self, solution: &S) -> Sc {
         let entities = (self.extractor)(solution);
 
-        // Group entities by key
+        // Group entities by key, applying filter
         let mut groups: HashMap<K, C::Accumulator> = HashMap::new();
 
         for entity in entities {
+            if !self.filter.test(solution, entity) {
+                continue;
+            }
             let key = (self.key_fn)(entity);
             let value = self.collector.extract(entity);
             let acc = groups
@@ -203,9 +219,12 @@ where
     fn match_count(&self, solution: &S) -> usize {
         let entities = (self.extractor)(solution);
 
-        // Count unique groups
+        // Count unique groups (filtered)
         let mut groups: HashMap<K, ()> = HashMap::new();
         for entity in entities {
+            if !self.filter.test(solution, entity) {
+                continue;
+            }
             let key = (self.key_fn)(entity);
             groups.insert(key, ());
         }
@@ -220,6 +239,9 @@ where
         let mut total = Sc::zero();
 
         for (idx, entity) in entities.iter().enumerate() {
+            if !self.filter.test(solution, entity) {
+                continue;
+            }
             total = total + self.insert_entity(entities, idx, entity);
         }
 
@@ -238,6 +260,9 @@ where
         }
 
         let entity = &entities[entity_index];
+        if !self.filter.test(solution, entity) {
+            return Sc::zero();
+        }
         self.insert_entity(entities, entity_index, entity)
     }
 
@@ -253,6 +278,7 @@ where
 
     fn reset(&mut self) {
         self.groups.clear();
+        self.group_counts.clear();
         self.entity_groups.clear();
         self.entity_values.clear();
     }
@@ -270,12 +296,13 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
     E: Fn(&S) -> &[A] + Send + Sync,
+    Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
@@ -290,16 +317,21 @@ where
         let impact = self.impact_type;
 
         // Get or create group accumulator
+        let is_new = !self.groups.contains_key(&key);
         let acc = self
             .groups
             .entry(key.clone())
             .or_insert_with(|| self.collector.create_accumulator());
 
-        // Compute old score from current state (inlined to avoid borrow conflict)
-        let old_base = (self.weight_fn)(&acc.finish());
-        let old = match impact {
-            ImpactType::Penalty => -old_base,
-            ImpactType::Reward => old_base,
+        // Old score is zero for new groups (they didn't exist before, contributing nothing)
+        let old = if is_new {
+            Sc::zero()
+        } else {
+            let old_base = (self.weight_fn)(&acc.finish());
+            match impact {
+                ImpactType::Penalty => -old_base,
+                ImpactType::Reward => old_base,
+            }
         };
 
         // Accumulate and compute new score
@@ -311,8 +343,9 @@ where
         };
 
         // Track entity -> group mapping and cache value for correct retraction
-        self.entity_groups.insert(entity_index, key);
+        self.entity_groups.insert(entity_index, key.clone());
         self.entity_values.insert(entity_index, value);
+        *self.group_counts.entry(key).or_insert(0) += 1;
 
         // Return delta (both scores computed fresh, no cloning)
         new_score - old
@@ -342,12 +375,28 @@ where
             ImpactType::Reward => old_base,
         };
 
+        // Decrement group count; remove group if now empty
+        let is_empty = {
+            let cnt = self.group_counts.entry(key.clone()).or_insert(0);
+            *cnt = cnt.saturating_sub(1);
+            *cnt == 0
+        };
+        if is_empty {
+            self.group_counts.remove(&key);
+        }
+
         // Retract and compute new score
         acc.retract(&value);
-        let new_base = (self.weight_fn)(&acc.finish());
-        let new_score = match impact {
-            ImpactType::Penalty => -new_base,
-            ImpactType::Reward => new_base,
+        let new_score = if is_empty {
+            // Group is now empty; remove it and treat its contribution as zero
+            self.groups.remove(&key);
+            Sc::zero()
+        } else {
+            let new_base = (self.weight_fn)(&acc.finish());
+            match impact {
+                ImpactType::Penalty => -new_base,
+                ImpactType::Reward => new_base,
+            }
         };
 
         // Return delta (both scores computed fresh, no cloning)
@@ -355,7 +404,8 @@ where
     }
 }
 
-impl<S, A, K, E, KF, C, W, Sc> std::fmt::Debug for GroupedUniConstraint<S, A, K, E, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, W, Sc> std::fmt::Debug
+    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where
     C: UniCollector<A>,
     Sc: Score,

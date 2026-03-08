@@ -182,7 +182,7 @@ where
         self,
         key_fn: KF,
         collector: C,
-    ) -> GroupedConstraintStream<S, A, K, E, KF, C, Sc>
+    ) -> GroupedConstraintStream<S, A, K, E, F, KF, C, Sc>
     where
         K: Clone + Eq + Hash + Send + Sync + 'static,
         KF: Fn(&A) -> K + Send + Sync,
@@ -190,7 +190,7 @@ where
         C::Accumulator: Send + Sync,
         C::Result: Clone + Send + Sync,
     {
-        GroupedConstraintStream::new(self.extractor, key_fn, collector)
+        GroupedConstraintStream::new(self.extractor, self.filter, key_fn, collector)
     }
 
     // Creates a balance constraint that penalizes uneven distribution across groups.

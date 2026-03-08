@@ -6,6 +6,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::grouped::GroupedUniConstraint;
 use crate::stream::collector::count;
+use crate::stream::filter::TrueFilter;
 
 #[derive(Clone)]
 struct GroupedShift {
@@ -23,6 +24,7 @@ fn test_grouped_constraint_evaluate() {
         ConstraintRef::new("", "Workload"),
         ImpactType::Penalty,
         |s: &GroupedSolution| &s.shifts,
+        TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
         |count: &usize| SimpleScore::of((*count * *count) as i64),
@@ -50,6 +52,7 @@ fn test_grouped_constraint_incremental() {
         ConstraintRef::new("", "Workload"),
         ImpactType::Penalty,
         |s: &GroupedSolution| &s.shifts,
+        TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
         |count: &usize| SimpleScore::of(*count as i64),
@@ -88,6 +91,7 @@ fn test_grouped_constraint_reward() {
         ConstraintRef::new("", "Collaboration"),
         ImpactType::Reward,
         |s: &GroupedSolution| &s.shifts,
+        TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
         |count: &usize| SimpleScore::of(*count as i64),

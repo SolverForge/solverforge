@@ -52,7 +52,7 @@ use super::super::PhaseFactory;
 ///     |plan| plan.vehicles.iter().flat_map(|v| v.visits.iter().copied()).collect(),
 ///     |plan| plan.vehicles.len(),
 ///     |plan, entity_idx, element| { plan.vehicles[entity_idx].visits.push(element); },
-///     |idx| idx,
+///     |_plan, idx| idx,
 ///     1,
 /// );
 ///
@@ -68,7 +68,7 @@ where
     get_assigned: fn(&S) -> Vec<E>,
     entity_count: fn(&S) -> usize,
     assign_element: fn(&mut S, usize, E),
-    index_to_element: fn(usize) -> E,
+    index_to_element: fn(&S, usize) -> E,
     descriptor_index: usize,
     _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
@@ -84,7 +84,7 @@ where
         get_assigned: fn(&S) -> Vec<E>,
         entity_count: fn(&S) -> usize,
         assign_element: fn(&mut S, usize, E),
-        index_to_element: fn(usize) -> E,
+        index_to_element: fn(&S, usize) -> E,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -135,7 +135,7 @@ where
     get_assigned: fn(&S) -> Vec<E>,
     entity_count: fn(&S) -> usize,
     assign_element: fn(&mut S, usize, E),
-    index_to_element: fn(usize) -> E,
+    index_to_element: fn(&S, usize) -> E,
     descriptor_index: usize,
     _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
@@ -150,13 +150,14 @@ where
     }
 }
 
-impl<S, E, D> Phase<S, D> for ListConstructionPhase<S, E>
+impl<S, E, D, BestCb> Phase<S, D, BestCb> for ListConstructionPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: Director<S>,
+    BestCb: crate::scope::BestSolutionCallback<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         let solution = phase_scope.score_director().working_solution();
@@ -186,7 +187,8 @@ where
                 break;
             }
 
-            let element = (self.index_to_element)(elem_idx);
+            let element =
+                (self.index_to_element)(phase_scope.score_director().working_solution(), elem_idx);
             if assigned_set.contains(&element) {
                 continue;
             }
@@ -230,7 +232,7 @@ struct ScoredConstructionState<S, E> {
     list_len: fn(&S, usize) -> usize,
     list_insert: fn(&mut S, usize, usize, E),
     list_remove: fn(&mut S, usize, usize) -> E,
-    index_to_element: fn(usize) -> E,
+    index_to_element: fn(&S, usize) -> E,
     descriptor_index: usize,
 }
 
@@ -392,7 +394,7 @@ where
 ///     list_len,
 ///     list_insert,
 ///     list_remove,
-///     |idx| idx,
+///     |_plan, idx| idx,
 ///     0,
 /// );
 /// ```
@@ -439,7 +441,7 @@ where
         list_len: fn(&S, usize) -> usize,
         list_insert: fn(&mut S, usize, usize, E),
         list_remove: fn(&mut S, usize, usize) -> E,
-        index_to_element: fn(usize) -> E,
+        index_to_element: fn(&S, usize) -> E,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -458,13 +460,14 @@ where
     }
 }
 
-impl<S, E, D> Phase<S, D> for ListCheapestInsertionPhase<S, E>
+impl<S, E, D, BestCb> Phase<S, D, BestCb> for ListCheapestInsertionPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: Director<S>,
+    BestCb: crate::scope::BestSolutionCallback<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         let n_elements =
@@ -493,7 +496,10 @@ where
                 break;
             }
 
-            let element = (self.state.index_to_element)(elem_idx);
+            let element = (self.state.index_to_element)(
+                phase_scope.score_director().working_solution(),
+                elem_idx,
+            );
             if assigned_set.contains(&element) {
                 continue;
             }
@@ -594,7 +600,7 @@ where
 ///     list_len,
 ///     list_insert,
 ///     list_remove,
-///     |idx| idx,
+///     |_plan, idx| idx,
 ///     0,
 /// );
 /// ```
@@ -641,7 +647,7 @@ where
         list_len: fn(&S, usize) -> usize,
         list_insert: fn(&mut S, usize, usize, E),
         list_remove: fn(&mut S, usize, usize) -> E,
-        index_to_element: fn(usize) -> E,
+        index_to_element: fn(&S, usize) -> E,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -711,13 +717,14 @@ where
     }
 }
 
-impl<S, E, D> Phase<S, D> for ListRegretInsertionPhase<S, E>
+impl<S, E, D, BestCb> Phase<S, D, BestCb> for ListRegretInsertionPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: Director<S>,
+    BestCb: crate::scope::BestSolutionCallback<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 
         let n_elements =
@@ -741,8 +748,9 @@ where
 
         // Build list of unassigned elements
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
+        let solution = phase_scope.score_director().working_solution();
         let mut unassigned: Vec<E> = (0..n_elements)
-            .map(|i| (self.state.index_to_element)(i))
+            .map(|i| (self.state.index_to_element)(solution, i))
             .filter(|e| !assigned_set.contains(e))
             .collect();
 

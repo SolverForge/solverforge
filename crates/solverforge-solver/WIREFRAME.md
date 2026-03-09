@@ -24,7 +24,14 @@ src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── basic.rs                             — run_solver() convenience fn
-├── builder.rs                           — AcceptorBuilder factory, AnyAcceptor enum
+├── list_solver.rs                       — run_list_solver() convenience fn for list variables
+├── builder/
+│   ├── mod.rs                           — Re-exports from all builder submodules
+│   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
+│   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
+│   ├── context.rs                       — BasicContext<S>, ListContext<S, V, DM, IDM>
+│   ├── basic_selector.rs               — BasicLeafSelector<S> enum, BasicMoveSelectorBuilder
+│   └── list_selector.rs                — ListLeafSelector<S, V, DM, IDM> enum, ListMoveSelectorBuilder
 ├── stats.rs                             — SolverStats, PhaseStats
 ├── test_utils.rs                        — TestSolution, TestDirector, NQueens helpers
 │
@@ -100,6 +107,7 @@ src/
 │       │   ├── shuffling.rs            — ShufflingMoveSelector<S, M, Inner>
 │       │   ├── sorting.rs              — SortingMoveSelector<S, M, Inner>
 │       │   ├── union.rs                — UnionMoveSelector<S, M, A, B>
+│       │   ├── vec_union.rs            — VecUnionSelector<S, M, Leaf> (Vec-backed union for config-driven composition)
 │       │   └── test_utils.rs           — Test helpers
 │       ├── k_opt/
 │       │   ├── mod.rs                   — Re-exports

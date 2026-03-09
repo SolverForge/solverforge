@@ -80,6 +80,8 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `post_update_listener = "method"` — method name called after all shadow updates per entity
 - `entity_aggregate = "target:sum:source"` — aggregate element field onto entity (sum only)
 - `entity_compute = "target:method"` — compute entity field via method
+- `distance_meter = "path"` — optional cross-entity distance meter type (defaults to `DefaultDistanceMeter`)
+- `intra_distance_meter = "path"` — optional intra-entity distance meter type (defaults to `DefaultDistanceMeter`)
 
 **`#[basic_variable_config]` parameters:**
 - `entity_collection = "field"` — entity collection field name
@@ -91,13 +93,13 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
-- List operations (when shadow_variable_updates configured): `list_len()`, `list_remove()`, `list_insert()`, `sublist_remove()`, `sublist_insert()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
+- List operations (when shadow_variable_updates configured): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`, `finalize_all()`
 - Basic variable operations (when basic_variable_config configured): `basic_get_variable()`, `basic_set_variable()`, `basic_value_count()`, `basic_entity_count()`, `basic_variable_descriptor_index()`, `basic_variable_field_name()`, `finalize_all()`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` (when any variable config present) — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal()` (when constraints path specified) — calls `run_solver()`
+- `fn solve_internal()` (when constraints path specified) — calls `run_solver()` (basic) or `run_list_solver()` (list)
 
 ### `ProblemFactImpl`
 
@@ -126,7 +128,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
 | `parse_basic_variable_config` | `fn(&[Attribute]) -> BasicVariableConfig` | Parses `#[basic_variable_config(...)]` |
-| `generate_list_operations` | `fn(&ShadowConfig, &Fields) -> TokenStream` | Generates list variable methods |
+| `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates list variable methods + solve_internal |
 | `generate_basic_variable_operations` | `fn(&BasicVariableConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates basic variable methods |
 | `generate_solvable_solution` | `fn(&ShadowConfig, &BasicVariableConfig, &Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Ident) -> TokenStream` | Generates ShadowVariableSupport impl |
@@ -150,6 +152,8 @@ struct ShadowConfig {
     element_type: Option<String>,
     entity_aggregates: Vec<String>,   // "target:sum:source" format
     entity_computes: Vec<String>,     // "target:method" format
+    distance_meter: Option<String>,   // optional cross-entity distance meter path
+    intra_distance_meter: Option<String>, // optional intra-entity distance meter path
 }
 ```
 

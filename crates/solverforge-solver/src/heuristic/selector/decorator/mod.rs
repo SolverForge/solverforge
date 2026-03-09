@@ -20,6 +20,7 @@ mod sorting;
 #[cfg(test)]
 mod test_utils;
 mod union;
+mod vec_union;
 
 pub use cartesian_product::CartesianProductArena;
 pub use count_limit::SelectedCountLimitMoveSelector;
@@ -28,3 +29,4 @@ pub use probability::ProbabilityMoveSelector;
 pub use shuffling::ShufflingMoveSelector;
 pub use sorting::SortingMoveSelector;
 pub use union::UnionMoveSelector;
+pub use vec_union::VecUnionSelector;

@@ -19,6 +19,7 @@ pub mod test_utils;
 pub mod basic;
 pub mod builder;
 pub mod heuristic;
+pub mod list_solver;
 pub mod manager;
 pub mod phase;
 pub mod realtime;
@@ -27,7 +28,11 @@ pub mod solver;
 pub mod stats;
 pub mod termination;
 
-pub use builder::{AcceptorBuilder, AnyAcceptor};
+pub use builder::{
+    AcceptorBuilder, AnyAcceptor, AnyForager, BasicContext, BasicLeafSelector,
+    BasicMoveSelectorBuilder, ForagerBuilder, ListContext, ListLeafSelector,
+    ListMoveSelectorBuilder,
+};
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -72,6 +77,8 @@ pub use heuristic::{
     SwapMove,
     SwapMoveSelector,
     TypedValueSelector,
+    // Vec union selector
+    VecUnionSelector,
 };
 pub use manager::{
     analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
@@ -117,3 +124,4 @@ pub use termination::{
 };
 
 pub use basic::run_solver;
+pub use list_solver::run_list_solver;

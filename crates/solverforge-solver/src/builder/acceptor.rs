@@ -1,7 +1,4 @@
-//! Builder module for constructing solver components from configuration
-//!
-//! This module provides the wiring between configuration types and
-//! the actual solver implementation.
+//! Acceptor builder and `AnyAcceptor` enum.
 
 use std::fmt::Debug;
 

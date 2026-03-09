@@ -67,6 +67,7 @@ src/
 ### Solver (from `solverforge-solver`)
 
 - `run_solver`
+- `run_list_solver`
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
@@ -74,6 +75,7 @@ src/
 - `SolverStatus`
 - `ScoreAnalysis`
 - `ConstraintAnalysis`
+- `DefaultDistanceMeter`
 
 ### Console (feature-gated)
 

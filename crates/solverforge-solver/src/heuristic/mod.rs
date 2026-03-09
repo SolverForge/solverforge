@@ -16,6 +16,7 @@ pub use r#move::{
 };
 
 // Re-export selector types
+pub use selector::decorator::VecUnionSelector;
 pub use selector::{
     AllEntitiesSelector, ChangeMoveSelector, CrossEntityDistanceMeter,
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector,

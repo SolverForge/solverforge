@@ -76,8 +76,8 @@ pub use solverforge_scoring::{Director, ScoreDirector};
 
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_list_solver, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
-    SolverManager, SolverStatus,
+    analyze, run_solver, Analyzable, BasicSpec, ConstraintAnalysis, ListSpec, ScoreAnalysis,
+    Solvable, SolverManager, SolverStatus,
 };
 
 // ============================================================================
@@ -135,6 +135,7 @@ pub mod __internal {
     pub use solverforge_solver::manager::{
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
+    pub use solverforge_solver::{BasicSpec, ListSpec};
 
     // Config
     pub use solverforge_config::SolverConfig;

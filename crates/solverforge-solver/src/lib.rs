@@ -22,7 +22,9 @@ pub mod heuristic;
 pub mod list_solver;
 pub mod manager;
 pub mod phase;
+pub mod problem_spec;
 pub mod realtime;
+pub mod run;
 pub mod scope;
 pub mod solver;
 pub mod stats;
@@ -123,5 +125,7 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use basic::run_solver;
-pub use list_solver::run_list_solver;
+pub use basic::BasicSpec;
+pub use list_solver::ListSpec;
+pub use problem_spec::ProblemSpec;
+pub use run::run_solver;

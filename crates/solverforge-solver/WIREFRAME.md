@@ -23,8 +23,10 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── basic.rs                             — run_solver() convenience fn
-├── list_solver.rs                       — run_list_solver() convenience fn for list variables
+├── basic.rs                             — BasicSpec struct
+├── list_solver.rs                       — ListSpec struct
+├── run.rs                               — AnyTermination, build_termination, unified run_solver()
+├── problem_spec.rs                      — ProblemSpec trait
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
@@ -700,9 +702,25 @@ Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBo
 
 Aggregate and per-phase metrics: step count, moves evaluated/accepted, score calculations, elapsed time, acceptance rate, moves per second.
 
-### `run_solver()`
+### `ProblemSpec` — `problem_spec.rs`
 
-Convenience function in `basic.rs` that wires construction + local search with `SimulatedAnnealing` + `AcceptedCountForager` using `UnionMoveSelector` of `EitherChangeMoveSelector` + `EitherSwapMoveSelector`. Accepts `terminate: Option<&AtomicBool>` and `sender: mpsc::UnboundedSender<(S, S::Score)>` for external control and solution streaming.
+Trait that abstracts over basic and list-variable problems for config-driven solver construction.
+
+### `BasicSpec` — `basic.rs`
+
+Concrete `ProblemSpec` implementation for basic (non-list) variable problems. Wires construction + local search with `SimulatedAnnealing` + `AcceptedCountForager` using `UnionMoveSelector` of `EitherChangeMoveSelector` + `EitherSwapMoveSelector`.
+
+### `ListSpec` — `list_solver.rs`
+
+Concrete `ProblemSpec` implementation for list-variable problems. Wires list construction + local search phases for ordered/routed planning problems.
+
+### `AnyTermination` / `build_termination()` — `run.rs`
+
+`AnyTermination` is an enum over all built-in termination types for config-driven dispatch. `build_termination()` constructs an `AnyTermination` from a `SolverConfig`.
+
+### `run_solver()` — `run.rs`
+
+Unified convenience function covering both basic and list-variable problems. Accepts `terminate: Option<&AtomicBool>` and `sender: mpsc::UnboundedSender<(S, S::Score)>` for external control and solution streaming. Replaces the former per-problem-type functions.
 
 ## Architectural Notes
 

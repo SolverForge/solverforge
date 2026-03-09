@@ -1,6 +1,6 @@
 //! List variable solver for routing and scheduling problems.
 //!
-//! This module provides `run_list_solver` for problems using list variables
+//! This module provides `ListSpec` for problems with list variables
 //! (e.g., vehicle routes, shift schedules). The solver configuration
 //! (construction type, move selectors, acceptor, forager, termination) is
 //! driven by `solver.toml`.
@@ -11,14 +11,14 @@
 //! - **TRACE**: Move evaluation details
 
 use std::fmt;
+use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use solverforge_config::{ConstructionHeuristicType, PhaseConfig, SolverConfig};
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
-use tokio::sync::mpsc;
+use solverforge_scoring::{ConstraintSet, ScoreDirector};
 use tracing::info;
 
 use crate::builder::list_selector::ListLeafSelector;
@@ -30,63 +30,9 @@ use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::manager::{ListCheapestInsertionPhase, ListRegretInsertionPhase};
 use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase};
-use crate::scope::BestSolutionCallback;
-use crate::scope::SolverScope;
-use crate::solver::Solver;
-use crate::termination::{
-    BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
-    UnimprovedStepCountTermination, UnimprovedTimeTermination,
-};
-
-/// Default time limit in seconds for list solvers.
-const DEFAULT_TIME_LIMIT_SECS: u64 = 60;
-
-/// Monomorphized termination enum reused from basic solver.
-pub(crate) enum AnyListTermination<S: PlanningSolution, D: Director<S>> {
-    Default(OrTermination<(TimeTermination,), S, D>),
-    WithBestScore(OrTermination<(TimeTermination, BestScoreTermination<S::Score>), S, D>),
-    WithStepCount(OrTermination<(TimeTermination, StepCountTermination), S, D>),
-    WithUnimprovedStep(OrTermination<(TimeTermination, UnimprovedStepCountTermination<S>), S, D>),
-    WithUnimprovedTime(OrTermination<(TimeTermination, UnimprovedTimeTermination<S>), S, D>),
-}
-
-impl<S: PlanningSolution, D: Director<S>> fmt::Debug for AnyListTermination<S, D> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Default(_) => write!(f, "AnyListTermination::Default"),
-            Self::WithBestScore(_) => write!(f, "AnyListTermination::WithBestScore"),
-            Self::WithStepCount(_) => write!(f, "AnyListTermination::WithStepCount"),
-            Self::WithUnimprovedStep(_) => write!(f, "AnyListTermination::WithUnimprovedStep"),
-            Self::WithUnimprovedTime(_) => write!(f, "AnyListTermination::WithUnimprovedTime"),
-        }
-    }
-}
-
-impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
-    for AnyListTermination<S, D>
-where
-    S::Score: Score,
-{
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
-        match self {
-            Self::Default(t) => t.is_terminated(solver_scope),
-            Self::WithBestScore(t) => t.is_terminated(solver_scope),
-            Self::WithStepCount(t) => t.is_terminated(solver_scope),
-            Self::WithUnimprovedStep(t) => t.is_terminated(solver_scope),
-            Self::WithUnimprovedTime(t) => t.is_terminated(solver_scope),
-        }
-    }
-
-    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
-        match self {
-            Self::Default(t) => t.install_inphase_limits(solver_scope),
-            Self::WithBestScore(t) => t.install_inphase_limits(solver_scope),
-            Self::WithStepCount(t) => t.install_inphase_limits(solver_scope),
-            Self::WithUnimprovedStep(t) => t.install_inphase_limits(solver_scope),
-            Self::WithUnimprovedTime(t) => t.install_inphase_limits(solver_scope),
-        }
-    }
-}
+use crate::problem_spec::ProblemSpec;
+use crate::run::AnyTermination;
+use crate::solver::{SolveResult, Solver};
 
 // Type alias for the config-driven list local search phase
 type ConfigListLocalSearch<S, V, DM, IDM> = LocalSearchPhase<
@@ -130,62 +76,38 @@ where
     RegretInsertion(ListRegretInsertionPhase<S, V>),
 }
 
-/// Solves a list variable problem using construction heuristic + local search.
+/// Problem specification for list variable problems.
 ///
-/// Called by macro-generated `solve()` methods for solutions using
-/// `#[shadow_variable_updates]` (list variables). When phases are configured in
-/// `solver.toml`, the construction type, acceptor, forager, and move selectors
-/// are built from config; otherwise defaults are used.
-///
-/// # Type Parameters
-///
-/// * `S` - The solution type
-/// * `V` - The list element type
-/// * `C` - The constraint set type
-/// * `DM` - Cross-entity distance meter type
-/// * `IDM` - Intra-entity distance meter type
-///
-/// # Default Behavior (no config)
-///
-/// - Construction: `ListCheapestInsertion`
-/// - Acceptor: `LateAcceptance(400)`
-/// - Forager: `AcceptedCount(4)`
-/// - Move selector: `Union(NearbyListChange(20), NearbyListSwap(20), ListReverse)`
-/// - Termination: 60s
-#[allow(clippy::too_many_arguments)]
-pub fn run_list_solver<S, V, C, DM, IDM>(
-    mut solution: S,
-    finalize_fn: fn(&mut S),
-    constraints_fn: fn() -> C,
+/// Passed to `run_solver` to provide problem-specific construction and local
+/// search phases for solutions using `#[shadow_variable_updates]` (list variables).
+pub struct ListSpec<S, V, DM, IDM> {
     // List operation function pointers
-    list_len: fn(&S, usize) -> usize,
-    list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    list_insert: fn(&mut S, usize, usize, V),
-    list_get: fn(&S, usize, usize) -> Option<V>,
-    list_set: fn(&mut S, usize, usize, V),
-    list_reverse: fn(&mut S, usize, usize, usize),
-    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
-    ruin_remove: fn(&mut S, usize, usize) -> V,
-    ruin_insert: fn(&mut S, usize, usize, V),
+    pub list_len: fn(&S, usize) -> usize,
+    pub list_remove: fn(&mut S, usize, usize) -> Option<V>,
+    pub list_insert: fn(&mut S, usize, usize, V),
+    pub list_get: fn(&S, usize, usize) -> Option<V>,
+    pub list_set: fn(&mut S, usize, usize, V),
+    pub list_reverse: fn(&mut S, usize, usize, usize),
+    pub sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+    pub sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    pub ruin_remove: fn(&mut S, usize, usize) -> V,
+    pub ruin_insert: fn(&mut S, usize, usize, V),
     // Construction function pointers
-    element_count: fn(&S) -> usize,
-    get_assigned: fn(&S) -> Vec<V>,
-    entity_count: fn(&S) -> usize,
-    list_remove_for_construction: fn(&mut S, usize, usize) -> V,
-    index_to_element: fn(&S, usize) -> V,
+    pub element_count: fn(&S) -> usize,
+    pub get_assigned: fn(&S) -> Vec<V>,
+    pub entity_count: fn(&S) -> usize,
+    pub list_remove_for_construction: fn(&mut S, usize, usize) -> V,
+    pub index_to_element: fn(&S, usize) -> V,
     // Distance meters
-    cross_distance_meter: DM,
-    intra_distance_meter: IDM,
+    pub cross_distance_meter: DM,
+    pub intra_distance_meter: IDM,
     // Metadata
-    variable_name: &'static str,
-    descriptor_index: usize,
-    // Solver infrastructure
-    descriptor: fn() -> SolutionDescriptor,
-    entity_count_by_descriptor: fn(&S, usize) -> usize,
-    terminate: Option<&AtomicBool>,
-    sender: mpsc::UnboundedSender<(S, S::Score)>,
-) -> S
+    pub variable_name: &'static str,
+    pub descriptor_index: usize,
+    pub _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, V, C, DM, IDM> ProblemSpec<S, C> for ListSpec<S, V, DM, IDM>
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
@@ -194,172 +116,110 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone,
     IDM: CrossEntityDistanceMeter<S> + Clone,
 {
-    finalize_fn(&mut solution);
-
-    let config = SolverConfig::load("solver.toml").unwrap_or_default();
-    let n_entities = entity_count(&solution);
-    let n_elements = element_count(&solution);
-
-    info!(
-        event = "solve_start",
-        entity_count = n_entities,
-        element_count = n_elements,
-    );
-
-    let constraints = constraints_fn();
-    let director = ScoreDirector::with_descriptor(
-        solution,
-        constraints,
-        descriptor(),
-        entity_count_by_descriptor,
-    );
-
-    if n_entities == 0 {
-        let mut solver_scope = SolverScope::new(director);
-        solver_scope.start_solving();
-        let score = solver_scope.calculate_score();
-        info!(event = "solve_end", score = %score);
-        let solution = solver_scope.take_best_or_working_solution();
-        let _ = sender.send((solution.clone(), score));
-        return solution;
+    fn is_trivial(&self, solution: &S) -> bool {
+        (self.entity_count)(solution) == 0
     }
 
-    // Build construction phase
-    let construction = build_list_construction::<S, V>(
-        &config,
-        element_count,
-        get_assigned,
-        entity_count,
-        list_len,
-        list_insert,
-        list_remove_for_construction,
-        index_to_element,
-        descriptor_index,
-    );
+    fn default_time_limit_secs(&self) -> u64 {
+        60
+    }
 
-    let ctx = ListContext::new(
-        list_len,
-        list_remove,
-        list_insert,
-        list_get,
-        list_set,
-        list_reverse,
-        sublist_remove,
-        sublist_insert,
-        ruin_remove,
-        ruin_insert,
-        entity_count,
-        cross_distance_meter,
-        intra_distance_meter,
-        variable_name,
-        descriptor_index,
-    );
+    fn log_scale(&self, solution: &S) {
+        info!(
+            event = "solve_start",
+            entity_count = (self.entity_count)(solution),
+            element_count = (self.element_count)(solution),
+        );
+    }
 
-    // Build local search phase
-    let local_search = build_list_local_search::<S, V, DM, IDM>(&config, &ctx);
+    fn build_and_solve(
+        self,
+        director: ScoreDirector<S, C>,
+        config: &SolverConfig,
+        time_limit: Duration,
+        termination: AnyTermination<S, ScoreDirector<S, C>>,
+        terminate: Option<&AtomicBool>,
+        callback: impl Fn(&S) + Send + Sync,
+    ) -> SolveResult<S> {
+        let construction = build_list_construction::<S, V>(
+            config,
+            self.element_count,
+            self.get_assigned,
+            self.entity_count,
+            self.list_len,
+            self.list_insert,
+            self.list_remove_for_construction,
+            self.index_to_element,
+            self.descriptor_index,
+        );
 
-    // Build termination
-    let term_config = config.termination.as_ref();
-    let time_limit = term_config
-        .and_then(|c| c.time_limit())
-        .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS));
-    let time = TimeTermination::new(time_limit);
+        let ctx = ListContext::new(
+            self.list_len,
+            self.list_remove,
+            self.list_insert,
+            self.list_get,
+            self.list_set,
+            self.list_reverse,
+            self.sublist_remove,
+            self.sublist_insert,
+            self.ruin_remove,
+            self.ruin_insert,
+            self.entity_count,
+            self.cross_distance_meter,
+            self.intra_distance_meter,
+            self.variable_name,
+            self.descriptor_index,
+        );
 
-    let best_score_target: Option<S::Score> = term_config
-        .and_then(|c| c.best_score_limit.as_ref())
-        .and_then(|s| S::Score::parse(s).ok());
+        let local_search = build_list_local_search::<S, V, DM, IDM>(config, &ctx);
 
-    let termination: AnyListTermination<S, ScoreDirector<S, C>> =
-        if let Some(target) = best_score_target {
-            AnyListTermination::WithBestScore(OrTermination::new((
-                time,
-                BestScoreTermination::new(target),
-            )))
-        } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
-            AnyListTermination::WithStepCount(OrTermination::new((
-                time,
-                StepCountTermination::new(step_limit),
-            )))
-        } else if let Some(unimproved_step_limit) =
-            term_config.and_then(|c| c.unimproved_step_count_limit)
-        {
-            AnyListTermination::WithUnimprovedStep(OrTermination::new((
-                time,
-                UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
-            )))
-        } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
-            AnyListTermination::WithUnimprovedTime(OrTermination::new((
-                time,
-                UnimprovedTimeTermination::<S>::new(unimproved_time),
-            )))
-        } else {
-            AnyListTermination::Default(OrTermination::new((time,)))
-        };
-
-    let callback_sender = sender.clone();
-    let callback = move |solution: &S| {
-        let score = solution.score().unwrap_or_default();
-        let _ = callback_sender.send((solution.clone(), score));
-    };
-
-    // Run solver using the construction + local search phases
-    let result = match (construction, local_search) {
-        (ListConstruction::CheapestInsertion(c), ListLocalSearch::Default(ls)) => {
-            let solver = Solver::new(((), c, ls))
-                .with_termination(termination)
-                .with_time_limit(time_limit)
-                .with_best_solution_callback(callback);
-            if let Some(flag) = terminate {
-                solver.with_terminate(flag).solve(director)
-            } else {
-                solver.solve(director)
+        match (construction, local_search) {
+            (ListConstruction::CheapestInsertion(c), ListLocalSearch::Default(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
+            (ListConstruction::CheapestInsertion(c), ListLocalSearch::Config(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
+            (ListConstruction::RegretInsertion(c), ListLocalSearch::Default(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
+            (ListConstruction::RegretInsertion(c), ListLocalSearch::Config(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
             }
         }
-        (ListConstruction::CheapestInsertion(c), ListLocalSearch::Config(ls)) => {
-            let solver = Solver::new(((), c, ls))
-                .with_termination(termination)
-                .with_time_limit(time_limit)
-                .with_best_solution_callback(callback);
-            if let Some(flag) = terminate {
-                solver.with_terminate(flag).solve(director)
-            } else {
-                solver.solve(director)
-            }
-        }
-        (ListConstruction::RegretInsertion(c), ListLocalSearch::Default(ls)) => {
-            let solver = Solver::new(((), c, ls))
-                .with_termination(termination)
-                .with_time_limit(time_limit)
-                .with_best_solution_callback(callback);
-            if let Some(flag) = terminate {
-                solver.with_terminate(flag).solve(director)
-            } else {
-                solver.solve(director)
-            }
-        }
-        (ListConstruction::RegretInsertion(c), ListLocalSearch::Config(ls)) => {
-            let solver = Solver::new(((), c, ls))
-                .with_termination(termination)
-                .with_time_limit(time_limit)
-                .with_best_solution_callback(callback);
-            if let Some(flag) = terminate {
-                solver.with_terminate(flag).solve(director)
-            } else {
-                solver.solve(director)
-            }
-        }
-    };
-
-    let final_score = result.solution.score().unwrap_or_default();
-    let _ = sender.send((result.solution.clone(), final_score));
-
-    info!(
-        event = "solve_end",
-        score = %final_score,
-        steps = result.stats.step_count,
-        moves_evaluated = result.stats.moves_evaluated,
-    );
-    result.solution
+    }
 }
 
 /// Builds the construction phase from config or defaults to cheapest insertion.

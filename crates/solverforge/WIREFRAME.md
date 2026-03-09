@@ -67,10 +67,14 @@ src/
 ### Solver (from `solverforge-solver`)
 
 - `run_solver`
-- `run_list_solver`
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
+- `ProblemSpec` (trait)
+- `BasicSpec`
+- `ListSpec`
+- `AnyTermination`
+- `build_termination`
 - `SolverManager`
 - `SolverStatus`
 - `ScoreAnalysis`

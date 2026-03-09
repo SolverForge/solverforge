@@ -171,7 +171,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.5.6 - Zero-Erasure Constraint Solver
+                   v0.5.7 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -363,7 +363,18 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.6
+**Current Version**: 0.5.7
+
+### What's New in 0.5.7
+
+- API cleanup: ~1500-1900 LOC removed across scoring and solver crates
+- Consolidated tri/quad/penta n-ary constraints and arity stream macros into unified macro files
+- Deleted `ShadowAwareScoreDirector`, `ScoreDirectorFactory` (dead wrappers)
+- Trimmed `ScoreDirector` trait: removed `variable_name` param, `before/after_entity_changed`, `trigger_variable_listeners`, `get_entity`; deleted dead pinning infrastructure
+- Eliminated `Box<dyn Acceptor<S>>` via `AnyAcceptor<S>` enum in `AcceptorBuilder`
+- Removed `run_solver_with_channel`; collapsed `basic.rs` solve overloads
+- Deleted dead `termination_fn` field/methods from `SolverScope`
+- Added `WIREFRAME.md` canonical API references for all crates
 
 ### What's New in 0.5.6
 

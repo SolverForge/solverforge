@@ -1,11 +1,11 @@
-// Shadow variable support tests using TypedScoreDirector directly.
+// Shadow variable support tests using ScoreDirector directly.
 
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::incremental::IncrementalUniConstraint;
+use crate::director::score_director::ScoreDirector;
 use crate::director::shadow_aware::ShadowVariableSupport;
-use crate::director::typed::TypedScoreDirector;
 
 use solverforge_test::shadow::ShadowSolution;
 
@@ -26,8 +26,8 @@ fn make_sum_constraint() -> IncrementalUniConstraint<
     i32,
     fn(&ShadowSolution) -> &[i32],
     fn(&ShadowSolution, &i32) -> bool,
-    fn(&i32) -> SimpleScore,
-    SimpleScore,
+    fn(&i32) -> SoftScore,
+    SoftScore,
 > {
     fn extract(s: &ShadowSolution) -> &[i32] {
         std::slice::from_ref(&s.cached_sum)
@@ -35,8 +35,8 @@ fn make_sum_constraint() -> IncrementalUniConstraint<
     fn filter(_s: &ShadowSolution, &sum: &i32) -> bool {
         sum > 100
     }
-    fn score(&sum: &i32) -> SimpleScore {
-        SimpleScore::of((sum - 100) as i64)
+    fn score(&sum: &i32) -> SoftScore {
+        SoftScore::of((sum - 100) as i64)
     }
 
     IncrementalUniConstraint::new(
@@ -44,15 +44,15 @@ fn make_sum_constraint() -> IncrementalUniConstraint<
         ImpactType::Penalty,
         extract as fn(&ShadowSolution) -> &[i32],
         filter as fn(&ShadowSolution, &i32) -> bool,
-        score as fn(&i32) -> SimpleScore,
+        score as fn(&i32) -> SoftScore,
         false,
     )
 }
 
-// Creates a TypedScoreDirector for testing shadow variable support.
+// Creates a ScoreDirector for testing shadow variable support.
 fn create_director(
     values: Vec<i32>,
-) -> TypedScoreDirector<
+) -> ScoreDirector<
     ShadowSolution,
     (
         IncrementalUniConstraint<
@@ -60,14 +60,14 @@ fn create_director(
             i32,
             fn(&ShadowSolution) -> &[i32],
             fn(&ShadowSolution, &i32) -> bool,
-            fn(&i32) -> SimpleScore,
-            SimpleScore,
+            fn(&i32) -> SoftScore,
+            SoftScore,
         >,
     ),
 > {
     let solution = ShadowSolution::new(values);
     let constraint = make_sum_constraint();
-    TypedScoreDirector::new(solution, (constraint,))
+    ScoreDirector::new(solution, (constraint,))
 }
 
 #[test]

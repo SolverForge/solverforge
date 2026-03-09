@@ -21,4 +21,4 @@
 mod phase;
 
 pub use phase::VndPhase;
-pub use solverforge_scoring::ScoreDirector as ScoreDirectorTrait;
+pub use solverforge_scoring::Director as DirectorTrait;

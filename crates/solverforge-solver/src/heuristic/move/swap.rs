@@ -11,14 +11,14 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Move;
 
 /// A move that swaps values between two entities.
 ///
 /// Stores entity indices and typed function pointers for zero-erasure access.
-/// Undo is handled by `RecordingScoreDirector`, not by this move.
+/// Undo is handled by `RecordingDirector`, not by this move.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -28,13 +28,13 @@ use super::Move;
 /// ```
 /// use solverforge_solver::heuristic::r#move::SwapMove;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone)]
-/// struct Sol { values: Vec<Option<i32>>, score: Option<SimpleScore> }
+/// struct Sol { values: Vec<Option<i32>>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Sol {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -123,7 +123,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         // Can't swap with self
         if self.left_entity_index == self.right_entity_index {
             return false;
@@ -137,7 +137,7 @@ where
         left_val != right_val
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         // Get both values using typed getter - zero erasure
         let left_value = (self.getter)(score_director.working_solution(), self.left_entity_index);
         let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);

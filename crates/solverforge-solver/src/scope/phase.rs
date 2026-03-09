@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::solver::BestSolutionCallback;
 use super::SolverScope;
@@ -17,7 +17,7 @@ use crate::stats::PhaseStats;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type
-pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>, BestCb = ()> {
+pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb = ()> {
     /// Reference to the parent solver scope.
     solver_scope: &'a mut SolverScope<'t, S, D, BestCb>,
     /// Index of this phase (0-based).
@@ -32,7 +32,7 @@ pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>, BestCb =
     stats: PhaseStats,
 }
 
-impl<'t, 'a, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     PhaseScope<'t, 'a, S, D, BestCb>
 {
     /// Creates a new phase scope.

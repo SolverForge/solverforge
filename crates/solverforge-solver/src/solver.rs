@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 use crate::scope::BestSolutionCallback;
@@ -185,7 +185,7 @@ pub struct NoTermination;
 /// Marker trait for termination types that can be used in Solver.
 pub trait MaybeTermination<
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S> = (),
 >: Send
 {
@@ -205,7 +205,7 @@ pub trait MaybeTermination<
 impl<S, D, BestCb, T> MaybeTermination<S, D, BestCb> for Option<T>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     T: Termination<S, D, BestCb>,
 {
@@ -226,7 +226,7 @@ where
 impl<S, D, BestCb> MaybeTermination<S, D, BestCb> for NoTermination
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
 {
     fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
@@ -239,7 +239,7 @@ where
 impl<S, D, BestCb> Termination<S, D, BestCb> for NoTermination
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
 {
     fn is_terminated(&self, _solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
@@ -252,7 +252,7 @@ macro_rules! impl_solver {
         impl<'t, S, D, T, BestCb, $($P),+> Solver<'t, ($($P,)+), T, S, D, BestCb>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
+            D: Director<S>,
             T: MaybeTermination<S, D, BestCb>,
             BestCb: BestSolutionCallback<S>,
             $($P: Phase<S, D, BestCb>,)+
@@ -317,7 +317,7 @@ fn check_termination<S, D, BestCb, T>(
 ) -> bool
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     T: MaybeTermination<S, D, BestCb>,
 {
@@ -338,7 +338,7 @@ macro_rules! impl_solver_with_director {
             /// Solves using a provided score director.
             pub fn solve_with_director<D>(self, director: D) -> SolveResult<S>
             where
-                D: ScoreDirector<S>,
+                D: Director<S>,
                 BestCb: BestSolutionCallback<S>,
                 T: MaybeTermination<S, D, BestCb>,
                 $($P: Phase<S, D, BestCb>,)+

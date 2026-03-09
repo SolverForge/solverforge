@@ -10,11 +10,11 @@ struct Route {
 #[derive(Clone, Debug)]
 struct VrpSolution {
     routes: Vec<Route>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for VrpSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -48,9 +48,7 @@ fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
     }
 }
 
-fn create_director(
-    stops: Vec<i32>,
-) -> SimpleScoreDirector<VrpSolution, impl Fn(&VrpSolution) -> SimpleScore> {
+fn create_director(stops: Vec<i32>) -> ScoreDirector<VrpSolution, ()> {
     let routes = vec![Route { stops }];
     let solution = VrpSolution {
         routes,
@@ -66,7 +64,7 @@ fn create_director(
         EntityDescriptor::new("Route", TypeId::of::<Route>(), "routes").with_extractor(extractor);
     let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>())
         .with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.routes.len())
 }
 
 #[test]
@@ -88,7 +86,7 @@ fn ruin_single_element() {
     assert_eq!(m.ruin_count(), 1);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // After ruin-and-recreate: element 3 (was at index 2) is reinserted.
@@ -127,7 +125,7 @@ fn ruin_multiple_elements() {
     assert_eq!(m.ruin_count(), 2);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // After ruin-and-recreate: elements 2 and 4 removed then reinserted.
@@ -161,7 +159,7 @@ fn ruin_unordered_indices() {
     );
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // Indices sorted internally: removes index 1 and 3 (values 2 and 4).

@@ -3,19 +3,19 @@
 use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 
 use super::{ConstructionType, LocalSearchType, SolverFactoryBuilder};
 
 #[derive(Clone, Debug)]
 struct TestSolution {
     value: i64,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -25,15 +25,15 @@ impl PlanningSolution for TestSolution {
 }
 
 /// Type alias for the score director used in tests.
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+type TestDirector = ScoreDirector<TestSolution, ()>;
 
 #[test]
 fn test_builder_with_time_limit() {
-    fn calculator(s: &TestSolution) -> SimpleScore {
-        SimpleScore::of(-s.value)
+    fn calculator(s: &TestSolution) -> SoftScore {
+        SoftScore::of(-s.value)
     }
     let factory = SolverFactoryBuilder::<TestSolution, TestDirector, _, _, _>::new(
-        calculator as fn(&TestSolution) -> SimpleScore,
+        calculator as fn(&TestSolution) -> SoftScore,
     )
     .with_time_limit(Duration::from_secs(30))
     .build()
@@ -44,16 +44,16 @@ fn test_builder_with_time_limit() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-5));
+    assert_eq!(score, SoftScore::of(-5));
 }
 
 #[test]
 fn test_builder_with_step_limit() {
-    fn calculator(s: &TestSolution) -> SimpleScore {
-        SimpleScore::of(-s.value)
+    fn calculator(s: &TestSolution) -> SoftScore {
+        SoftScore::of(-s.value)
     }
     let factory = SolverFactoryBuilder::<TestSolution, TestDirector, _, _, _>::new(
-        calculator as fn(&TestSolution) -> SimpleScore,
+        calculator as fn(&TestSolution) -> SoftScore,
     )
     .with_step_limit(100)
     .build()
@@ -64,7 +64,7 @@ fn test_builder_with_step_limit() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-10));
+    assert_eq!(score, SoftScore::of(-10));
 }
 
 #[test]

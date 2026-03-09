@@ -12,7 +12,7 @@
 //! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
 //! use solverforge_solver::heuristic::selector::MoveSelector;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::SoftScore;
 //!
 //! #[derive(Clone, Debug)]
 //! struct Visit { x: f64, y: f64 }
@@ -21,10 +21,10 @@
 //! struct Vehicle { visits: Vec<Visit> }
 //!
 //! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
+//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
 //!
 //! impl PlanningSolution for Solution {
-//!     type Score = SimpleScore;
+//!     type Score = SoftScore;
 //!     fn score(&self) -> Option<Self::Score> { self.score }
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
@@ -75,7 +75,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ListMoveImpl, ListSwapMove};
 
@@ -161,7 +161,7 @@ where
     D: CrossEntityDistanceMeter<S>,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: ScoreDirector<S>>(
+    fn iter_moves<'a, SD: Director<S>>(
         &'a self,
         score_director: &'a SD,
     ) -> impl Iterator<Item = ListSwapMove<S, V>> + 'a {
@@ -259,7 +259,7 @@ where
         moves.into_iter()
     }
 
-    fn size<SD: ScoreDirector<S>>(&self, score_director: &SD) -> usize {
+    fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
 
@@ -302,7 +302,7 @@ where
     D: CrossEntityDistanceMeter<S>,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: ScoreDirector<S>>(
+    fn iter_moves<'a, SD: Director<S>>(
         &'a self,
         score_director: &'a SD,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
@@ -311,7 +311,7 @@ where
             .map(ListMoveImpl::ListSwap)
     }
 
-    fn size<SD: ScoreDirector<S>>(&self, score_director: &SD) -> usize {
+    fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
         self.inner.size(score_director)
     }
 }

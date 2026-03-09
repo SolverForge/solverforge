@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Termination;
 use crate::scope::BestSolutionCallback;
@@ -20,20 +20,20 @@ use crate::scope::SolverScope;
 ///
 /// ```
 /// use solverforge_solver::termination::{OrTermination, TimeTermination, StepCountTermination};
-/// use solverforge_scoring::SimpleScoreDirector;
+/// use solverforge_scoring::ScoreDirector;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use std::time::Duration;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
 ///
-/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
+/// type MyDirector = ScoreDirector<MySolution, ()>;
 ///
 /// // Terminate after 30 seconds OR 1000 steps
 /// let term: OrTermination<_, MySolution, MyDirector> = OrTermination::new((
@@ -64,20 +64,20 @@ impl<T, S, D> OrTermination<T, S, D> {
 ///
 /// ```
 /// use solverforge_solver::termination::{AndTermination, TimeTermination, StepCountTermination};
-/// use solverforge_scoring::SimpleScoreDirector;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_scoring::ScoreDirector;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 /// use std::time::Duration;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
 ///
-/// type MyDirector = SimpleScoreDirector<MySolution, fn(&MySolution) -> SimpleScore>;
+/// type MyDirector = ScoreDirector<MySolution, ()>;
 ///
 /// // Terminate when both conditions are met
 /// let term: AndTermination<_, MySolution, MyDirector> = AndTermination::new((
@@ -105,7 +105,7 @@ macro_rules! impl_composite_termination {
         impl<S, D, BestCb, $($T),+> Termination<S, D, BestCb> for OrTermination<($($T,)+), S, D>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
+            D: Director<S>,
             BestCb: BestSolutionCallback<S>,
             $($T: Termination<S, D, BestCb>,)+
         {
@@ -130,7 +130,7 @@ macro_rules! impl_composite_termination {
         impl<S, D, BestCb, $($T),+> Termination<S, D, BestCb> for AndTermination<($($T,)+), S, D>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
+            D: Director<S>,
             BestCb: BestSolutionCallback<S>,
             $($T: Termination<S, D, BestCb>,)+
         {

@@ -3,8 +3,8 @@
 use super::*;
 use std::time::Duration;
 
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;
 
@@ -13,11 +13,10 @@ use crate::scope::SolverScope;
 // ============================================================================
 
 /// Score director type for TestSolution
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+type TestDirector = ScoreDirector<TestSolution, ()>;
 
 /// Score director type for EntityTestSolution
-type EntityTestDirector =
-    SimpleScoreDirector<EntityTestSolution, fn(&EntityTestSolution) -> SimpleScore>;
+type EntityTestDirector = ScoreDirector<EntityTestSolution, ()>;
 
 // ============================================================================
 // Test Solution Types
@@ -26,11 +25,11 @@ type EntityTestDirector =
 #[derive(Clone, Debug)]
 struct TestSolution {
     value: i64,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -50,11 +49,11 @@ struct TestEntity {
 struct EntityTestSolution {
     entities: Vec<TestEntity>,
     target_sum: i64,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for EntityTestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -63,10 +62,10 @@ impl PlanningSolution for EntityTestSolution {
     }
 }
 
-fn calculate_entity_score(solution: &EntityTestSolution) -> SimpleScore {
+fn calculate_entity_score(solution: &EntityTestSolution) -> SoftScore {
     let sum: i64 = solution.entities.iter().filter_map(|e| e.value).sum();
     let diff = (sum - solution.target_sum).abs();
-    SimpleScore::of(-diff)
+    SoftScore::of(-diff)
 }
 
 // ============================================================================
@@ -77,7 +76,7 @@ fn calculate_entity_score(solution: &EntityTestSolution) -> SimpleScore {
 #[derive(Debug, Clone)]
 struct NoOpPhase;
 
-impl<S: PlanningSolution, D: solverforge_scoring::ScoreDirector<S>> crate::phase::Phase<S, D>
+impl<S: PlanningSolution, D: solverforge_scoring::Director<S>> crate::phase::Phase<S, D>
     for NoOpPhase
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
@@ -118,7 +117,7 @@ fn test_solver_with_time_limit_termination() {
 
     // Verify the factory can calculate scores
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(0)); // 1 + 2 + 2 = 5, target is 5, diff = 0
+    assert_eq!(score, SoftScore::of(0)); // 1 + 2 + 2 = 5, target is 5, diff = 0
 }
 
 #[test]
@@ -146,7 +145,7 @@ fn test_solver_with_step_limit_termination() {
 
     // Verify the factory can calculate scores
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-6)); // sum = 0, target = 6, diff = 6
+    assert_eq!(score, SoftScore::of(-6)); // sum = 0, target = 6, diff = 6
 }
 
 #[test]
@@ -172,13 +171,13 @@ fn test_solver_factory_with_entity_solution() {
             .expect("Failed to build factory");
 
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(0));
+    assert_eq!(score, SoftScore::of(0));
 }
 
 #[test]
 fn test_solver_factory_with_phases() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_step_limit(10)
@@ -190,13 +189,13 @@ fn test_solver_factory_with_phases() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-5));
+    assert_eq!(score, SoftScore::of(-5));
 }
 
 #[test]
 fn test_solver_factory_with_multiple_phases() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_phase(NoOpPhase)
@@ -209,7 +208,7 @@ fn test_solver_factory_with_multiple_phases() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-7));
+    assert_eq!(score, SoftScore::of(-7));
 }
 
 #[test]

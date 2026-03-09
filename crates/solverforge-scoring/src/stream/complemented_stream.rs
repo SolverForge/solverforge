@@ -41,7 +41,7 @@ use crate::constraint::complemented::ComplementedGroupConstraint;
 // use solverforge_scoring::stream::ConstraintFactory;
 // use solverforge_scoring::stream::collector::count;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone, Hash, PartialEq, Eq)]
 // struct Employee { id: usize }
@@ -56,7 +56,7 @@ use crate::constraint::complemented::ComplementedGroupConstraint;
 // }
 //
 // // Count shifts per employee, including employees with 0 shifts
-// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+// let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
 //     .for_each(|s: &Schedule| &s.shifts)
 //     .group_by(|shift: &Shift| shift.employee_id, count())
 //     .complement(
@@ -64,7 +64,7 @@ use crate::constraint::complemented::ComplementedGroupConstraint;
 //         |emp: &Employee| emp.id,
 //         |_emp: &Employee| 0usize,
 //     )
-//     .penalize_with(|count: &usize| SimpleScore::of(*count as i64))
+//     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
 //     .as_constraint("Shift count");
 //
 // let schedule = Schedule {
@@ -77,7 +77,7 @@ use crate::constraint::complemented::ComplementedGroupConstraint;
 // };
 //
 // // Employee 0: 2, Employee 1: 0, Employee 2: 0 → Total: -2
-// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 // ```
 pub struct ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, D, Sc>
 where

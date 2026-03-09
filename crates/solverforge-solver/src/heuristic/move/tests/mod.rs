@@ -4,8 +4,8 @@ use super::*;
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector, SimpleScoreDirector};
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
 use std::any::TypeId;
 
 mod arena;

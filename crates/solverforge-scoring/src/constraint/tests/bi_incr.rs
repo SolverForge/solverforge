@@ -2,7 +2,7 @@
 
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use crate::constraint::IncrementalBiConstraint;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -24,7 +24,7 @@ fn test_evaluate_no_conflicts() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row, // Key by row for grouping
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col, // Filter: only ordered pairs
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -37,7 +37,7 @@ fn test_evaluate_no_conflicts() {
     };
 
     // Each row has exactly one queen, no pairs exist within same row
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(0));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(0));
     assert_eq!(constraint.match_count(&solution), 0);
 }
 
@@ -49,7 +49,7 @@ fn test_evaluate_with_conflicts() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -61,7 +61,7 @@ fn test_evaluate_with_conflicts() {
         ],
     };
 
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
     assert_eq!(constraint.match_count(&solution), 1);
 }
 
@@ -73,7 +73,7 @@ fn test_incremental_insert() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -91,15 +91,15 @@ fn test_incremental_insert() {
 
     // Insert first queen - no matches yet
     let delta = constraint.on_insert(&solution, 0, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 
     // Insert second queen - matches with first (same row)
     let delta = constraint.on_insert(&solution, 1, 0);
-    assert_eq!(delta, SimpleScore::of(-1));
+    assert_eq!(delta, SoftScore::of(-1));
 
     // Insert third queen - no new matches (different row)
     let delta = constraint.on_insert(&solution, 2, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn test_incremental_retract() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -126,7 +126,7 @@ fn test_incremental_retract() {
 
     // Retract first queen - removes the match
     let delta = constraint.on_retract(&solution, 0, 0);
-    assert_eq!(delta, SimpleScore::of(1)); // Reverses penalty
+    assert_eq!(delta, SoftScore::of(1)); // Reverses penalty
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn test_reward_type() {
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| {
             a.col < b.col && (a.col - b.col).abs() == 1
         },
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(2),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(2),
         false,
     );
 
@@ -150,7 +150,7 @@ fn test_reward_type() {
         ],
     };
 
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(2));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(2));
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn test_dynamic_weight() {
         |s: &NQueensSolution, a_idx: usize, b_idx: usize| {
             let a = &s.queens[a_idx];
             let b = &s.queens[b_idx];
-            SimpleScore::of((b.col - a.col).abs())
+            SoftScore::of((b.col - a.col).abs())
         },
         false,
     );
@@ -176,7 +176,7 @@ fn test_dynamic_weight() {
         ],
     };
 
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-3));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-3));
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn test_multiple_conflicts() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -200,7 +200,7 @@ fn test_multiple_conflicts() {
     };
 
     // 3 queens on same row = 3 conflicts: (0,1), (0,2), (1,2)
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-3));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-3));
     assert_eq!(constraint.match_count(&solution), 3);
 }
 
@@ -212,7 +212,7 @@ fn test_reset() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -229,7 +229,7 @@ fn test_reset() {
 
     // After reset, inserting should produce no delta (no prior state)
     let delta = constraint.on_insert(&solution, 0, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 }
 
 #[test]
@@ -240,7 +240,7 @@ fn test_in_constraint_set() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -253,7 +253,7 @@ fn test_in_constraint_set() {
         ],
     };
 
-    assert_eq!(constraints.evaluate_all(&solution), SimpleScore::of(-1));
+    assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-1));
 }
 
 #[test]
@@ -264,7 +264,7 @@ fn test_out_of_bounds() {
         |s: &NQueensSolution| s.queens.as_slice(),
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
-        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SimpleScore::of(1),
+        |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
         false,
     );
 
@@ -275,6 +275,6 @@ fn test_out_of_bounds() {
     constraint.initialize(&solution);
 
     // Out of bounds returns zero
-    assert_eq!(constraint.on_insert(&solution, 100, 0), SimpleScore::of(0));
-    assert_eq!(constraint.on_retract(&solution, 100, 0), SimpleScore::of(0));
+    assert_eq!(constraint.on_insert(&solution, 100, 0), SoftScore::of(0));
+    assert_eq!(constraint.on_retract(&solution, 100, 0), SoftScore::of(0));
 }

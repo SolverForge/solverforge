@@ -5,8 +5,8 @@
 
 use crate::scope::SolverScope;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::director::score_director::ScoreDirector;
 use std::any::TypeId;
 
 // Re-export N-Queens test infrastructure from solverforge-test (data types only)
@@ -25,7 +25,7 @@ pub use solverforge_test::nqueens::{
 /// that only need to track score, not entities.
 #[derive(Clone, Debug)]
 pub struct TestSolution {
-    pub score: Option<SimpleScore>,
+    pub score: Option<SoftScore>,
 }
 
 impl TestSolution {
@@ -35,7 +35,7 @@ impl TestSolution {
     }
 
     /// Creates a test solution with the given score.
-    pub fn with_score(score: SimpleScore) -> Self {
+    pub fn with_score(score: SoftScore) -> Self {
         Self { score: Some(score) }
     }
 }
@@ -47,7 +47,7 @@ impl Default for TestSolution {
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -58,54 +58,37 @@ impl PlanningSolution for TestSolution {
     }
 }
 
-// Type aliases for backward compatibility
-pub type MinimalSolution = TestSolution;
-pub type DummySolution = TestSolution;
-
-/// Type alias for a SimpleScoreDirector with a function pointer calculator.
-pub type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
-
-/// A zero-returning calculator function.
-pub fn zero_calculator(_: &TestSolution) -> SimpleScore {
-    SimpleScore::of(0)
-}
+/// Type alias for a ScoreDirector with empty constraint set.
+pub type TestDirector = ScoreDirector<TestSolution, ()>;
 
 /// Creates a SolutionDescriptor for TestSolution.
 pub fn create_minimal_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
 }
 
-/// Creates a SimpleScoreDirector for TestSolution with a zero calculator.
+/// Creates a ScoreDirector for TestSolution with empty constraints.
 pub fn create_minimal_director() -> TestDirector {
     let solution = TestSolution::new();
     let descriptor = create_minimal_descriptor();
-    SimpleScoreDirector::with_calculator(
-        solution,
-        descriptor,
-        zero_calculator as fn(&TestSolution) -> SimpleScore,
-    )
+    ScoreDirector::simple(solution, descriptor, |_, _| 0)
 }
 
 // ============================================================================
 // N-Queens director factories (solver-specific, using solverforge-scoring)
 // ============================================================================
 
-/// Creates a SimpleScoreDirector for N-Queens with queens at the specified rows.
-pub fn create_nqueens_director(
-    rows: &[i64],
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+/// Creates a ScoreDirector for N-Queens with queens at the specified rows.
+pub fn create_nqueens_director(rows: &[i64]) -> ScoreDirector<NQueensSolution, ()> {
     let solution = NQueensSolution::with_rows(rows);
     let descriptor = create_nqueens_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
+    ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
 }
 
-/// Creates a SimpleScoreDirector for N-Queens with n uninitialized queens.
-pub fn create_simple_nqueens_director(
-    n: usize,
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+/// Creates a ScoreDirector for N-Queens with n uninitialized queens.
+pub fn create_simple_nqueens_director(n: usize) -> ScoreDirector<NQueensSolution, ()> {
     let solution = NQueensSolution::uninitialized(n);
     let descriptor = create_nqueens_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts)
+    ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
 }
 
 // ============================================================================
@@ -115,11 +98,7 @@ pub fn create_simple_nqueens_director(
 /// Creates a SolverScope with the default zero calculator.
 pub fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
     let desc = create_minimal_descriptor();
-    let director = SimpleScoreDirector::with_calculator(
-        TestSolution::new(),
-        desc,
-        zero_calculator as fn(&TestSolution) -> SimpleScore,
-    );
+    let director = ScoreDirector::simple(TestSolution::new(), desc, |_, _| 0);
     SolverScope::new(director)
 }
 
@@ -128,34 +107,24 @@ pub fn create_test_scope() -> SolverScope<'static, TestSolution, TestDirector> {
     create_scope()
 }
 
-/// Creates a SolverScope with a fixed score that will be returned by the calculator.
-/// The best solution is automatically updated.
+/// Creates a SolverScope with a fixed score.
+///
+/// The score is set directly on the solution — no calculator is used.
 pub fn create_scope_with_score(
-    score: SimpleScore,
-) -> SolverScope<
-    'static,
-    TestSolution,
-    SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
-> {
+    score: SoftScore,
+) -> SolverScope<'static, TestSolution, TestDirector> {
     let desc = create_minimal_descriptor();
-    let score_clone = score;
-    let director =
-        SimpleScoreDirector::with_calculator(TestSolution::with_score(score), desc, move |_| {
-            score_clone
-        });
+    let solution = TestSolution::with_score(score);
+    let director = ScoreDirector::simple(solution.clone(), desc, |_, _| 0);
     let mut scope = SolverScope::new(director);
-    scope.update_best_solution();
+    scope.set_best_solution(solution, score);
     scope
 }
 
 /// Alias for `create_scope_with_score` for backward compatibility.
 pub fn create_test_scope_with_score(
-    score: SimpleScore,
-) -> SolverScope<
-    'static,
-    TestSolution,
-    SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore>,
-> {
+    score: SoftScore,
+) -> SolverScope<'static, TestSolution, TestDirector> {
     create_scope_with_score(score)
 }
 
@@ -168,8 +137,8 @@ mod tests {
         let s1 = TestSolution::new();
         assert!(s1.score.is_none());
 
-        let s2 = TestSolution::with_score(SimpleScore::of(-5));
-        assert_eq!(s2.score, Some(SimpleScore::of(-5)));
+        let s2 = TestSolution::with_score(SoftScore::of(-5));
+        assert_eq!(s2.score, Some(SoftScore::of(-5)));
     }
 
     #[test]
@@ -186,21 +155,15 @@ mod tests {
 
     #[test]
     fn test_create_scope_with_score() {
-        let scope = create_scope_with_score(SimpleScore::of(-10));
+        let scope = create_scope_with_score(SoftScore::of(-10));
         assert!(scope.best_solution().is_some());
-        assert_eq!(scope.best_score(), Some(&SimpleScore::of(-10)));
+        assert_eq!(scope.best_score(), Some(&SoftScore::of(-10)));
     }
 
     #[test]
     fn test_create_test_scope_with_score_alias() {
-        let scope = create_test_scope_with_score(SimpleScore::of(-10));
+        let scope = create_test_scope_with_score(SoftScore::of(-10));
         assert!(scope.best_solution().is_some());
-        assert_eq!(scope.best_score(), Some(&SimpleScore::of(-10)));
-    }
-
-    #[test]
-    fn test_zero_calculator() {
-        let solution = TestSolution::with_score(SimpleScore::of(100));
-        assert_eq!(zero_calculator(&solution), SimpleScore::of(0));
+        assert_eq!(scope.best_score(), Some(&SoftScore::of(-10)));
     }
 }

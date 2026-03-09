@@ -24,5 +24,5 @@ pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use error::SolverForgeError;
 pub use score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, ParseableScore, Score,
-    ScoreParseError, SimpleScore,
+    ScoreParseError, SoftScore,
 };

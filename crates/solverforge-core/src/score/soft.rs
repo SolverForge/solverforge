@@ -1,4 +1,4 @@
-//! SimpleScore - Single-level score implementation
+//! SoftScore - Single-level score implementation
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -14,31 +14,31 @@ use super::ScoreLevel;
 /// # Examples
 ///
 /// ```
-/// use solverforge_core::{SimpleScore, Score};
+/// use solverforge_core::{SoftScore, Score};
 ///
-/// let score1 = SimpleScore::of(-5);
-/// let score2 = SimpleScore::of(-3);
+/// let score1 = SoftScore::of(-5);
+/// let score2 = SoftScore::of(-3);
 ///
 /// assert!(score2 > score1);  // -3 is better than -5
 /// assert!(!score1.is_feasible());  // Negative scores are not feasible
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SimpleScore {
+pub struct SoftScore {
     score: i64,
 }
 
-impl SimpleScore {
+impl SoftScore {
     /// The zero score.
-    pub const ZERO: SimpleScore = SimpleScore { score: 0 };
+    pub const ZERO: SoftScore = SoftScore { score: 0 };
 
     /// A score of 1 (useful for incrementing).
-    pub const ONE: SimpleScore = SimpleScore { score: 1 };
+    pub const ONE: SoftScore = SoftScore { score: 1 };
 
-    /// Creates a new SimpleScore with the given value.
+    /// Creates a new SoftScore with the given value.
     #[inline]
     pub const fn of(score: i64) -> Self {
-        SimpleScore { score }
+        SoftScore { score }
     }
 
     /// Returns the score value.
@@ -48,7 +48,7 @@ impl SimpleScore {
     }
 }
 
-impl Score for SimpleScore {
+impl Score for SoftScore {
     #[inline]
     fn is_feasible(&self) -> bool {
         self.score >= 0
@@ -56,7 +56,7 @@ impl Score for SimpleScore {
 
     #[inline]
     fn zero() -> Self {
-        SimpleScore::ZERO
+        SoftScore::ZERO
     }
 
     #[inline]
@@ -69,16 +69,16 @@ impl Score for SimpleScore {
     }
 
     fn from_level_numbers(levels: &[i64]) -> Self {
-        assert_eq!(levels.len(), 1, "SimpleScore requires exactly 1 level");
-        SimpleScore::of(levels[0])
+        assert_eq!(levels.len(), 1, "SoftScore requires exactly 1 level");
+        SoftScore::of(levels[0])
     }
 
-    impl_score_scale!(SimpleScore { score } => of);
+    impl_score_scale!(SoftScore { score } => of);
 
     fn level_label(index: usize) -> ScoreLevel {
         match index {
             0 => ScoreLevel::Soft,
-            _ => panic!("SimpleScore has 1 level, got index {}", index),
+            _ => panic!("SoftScore has 1 level, got index {}", index),
         }
     }
 
@@ -88,37 +88,37 @@ impl Score for SimpleScore {
     }
 }
 
-impl Ord for SimpleScore {
+impl Ord for SoftScore {
     fn cmp(&self, other: &Self) -> Ordering {
         self.score.cmp(&other.score)
     }
 }
 
-impl_score_ops!(SimpleScore { score } => of);
+impl_score_ops!(SoftScore { score } => of);
 
-impl fmt::Debug for SimpleScore {
+impl fmt::Debug for SoftScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SimpleScore({})", self.score)
+        write!(f, "SoftScore({})", self.score)
     }
 }
 
-impl fmt::Display for SimpleScore {
+impl fmt::Display for SoftScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.score)
     }
 }
 
-// SimpleScore has custom parse logic (optional "init" suffix) so no macro.
-impl ParseableScore for SimpleScore {
+// SoftScore has custom parse logic (optional "init" suffix) so no macro.
+impl ParseableScore for SoftScore {
     fn parse(s: &str) -> Result<Self, ScoreParseError> {
         let s = s.trim();
         // Remove optional "init" suffix
         let s = s.strip_suffix("init").unwrap_or(s);
 
         s.parse::<i64>()
-            .map(SimpleScore::of)
+            .map(SoftScore::of)
             .map_err(|e| ScoreParseError {
-                message: format!("Invalid SimpleScore '{}': {}", s, e),
+                message: format!("Invalid SoftScore '{}': {}", s, e),
             })
     }
 
@@ -127,8 +127,8 @@ impl ParseableScore for SimpleScore {
     }
 }
 
-impl From<i64> for SimpleScore {
+impl From<i64> for SoftScore {
     fn from(score: i64) -> Self {
-        SimpleScore::of(score)
+        SoftScore::of(score)
     }
 }

@@ -9,10 +9,8 @@
 /// The constructor must accept fields in the order they are listed.
 ///
 /// # Usage
-/// ```ignore
-/// impl_score_ops!(HardSoftScore { hard, soft } => of);
-/// impl_score_ops!(HardSoftDecimalScore { hard, soft } => of_scaled);
-/// ```
+///
+/// `impl_score_ops!(HardSoftScore { hard, soft } => of);`
 macro_rules! impl_score_ops {
     ($type:ident { $($field:ident),+ } => $ctor:ident) => {
         impl PartialOrd for $type {
@@ -53,12 +51,8 @@ macro_rules! impl_score_ops {
 /// Produces three method bodies that operate field-by-field.
 ///
 /// # Usage
-/// ```ignore
-/// impl Score for HardSoftScore {
-///     // ...other methods...
-///     impl_score_scale!(HardSoftScore { hard, soft } => of);
-/// }
-/// ```
+///
+/// `impl_score_scale!(HardSoftScore { hard, soft } => of);` inside an `impl Score for T` block.
 macro_rules! impl_score_scale {
     ($type:ident { $($field:ident),+ } => $ctor:ident) => {
         fn multiply(&self, multiplicand: f64) -> Self {
@@ -81,10 +75,8 @@ macro_rules! impl_score_scale {
 /// All values are parsed as `i64`.
 ///
 /// # Usage
-/// ```ignore
-/// impl_score_parse!(HardSoftScore { hard => "hard", soft => "soft" } => of);
-/// impl_score_parse!(HardMediumSoftScore { hard => "hard", medium => "medium", soft => "soft" } => of);
-/// ```
+///
+/// `impl_score_parse!(HardSoftScore { hard => "hard", soft => "soft" } => of);`
 macro_rules! impl_score_parse {
     ($type:ident { $($field:ident => $suffix:literal),+ } => $ctor:ident) => {
         impl $crate::score::traits::ParseableScore for $type {

@@ -19,7 +19,7 @@
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use std::any::TypeId;
 
 /// A task entity with an optional priority.
@@ -51,7 +51,7 @@ impl Task {
 #[derive(Clone, Debug)]
 pub struct TaskSolution {
     pub tasks: Vec<Task>,
-    pub score: Option<SimpleScore>,
+    pub score: Option<SoftScore>,
 }
 
 impl TaskSolution {
@@ -68,7 +68,7 @@ impl TaskSolution {
 }
 
 impl PlanningSolution for TaskSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score

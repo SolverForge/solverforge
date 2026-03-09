@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ChangeMove, EitherMove, ListMoveImpl, Move, SwapMove};
 
@@ -24,13 +24,13 @@ use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
 /// * `M` - The move type
 pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     /// Returns an iterator over typed moves.
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = M> + 'a;
 
     /// Returns the approximate number of moves.
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {
@@ -122,7 +122,7 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = ChangeMove<S, V>> + 'a {
@@ -155,7 +155,7 @@ where
             })
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let entity_count = self.entity_selector.size(score_director);
         if entity_count == 0 {
             return 0;
@@ -257,7 +257,7 @@ where
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = SwapMove<S, V>> + 'a {
@@ -295,7 +295,7 @@ where
         moves.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let left_count = self.left_entity_selector.size(score_director);
         let right_count = self.right_entity_selector.size(score_director);
 
@@ -354,7 +354,7 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
@@ -363,7 +363,7 @@ where
             .map(EitherMove::Change)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 }
@@ -404,14 +404,14 @@ where
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
         self.inner.iter_moves(score_director).map(EitherMove::Swap)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 }
@@ -450,7 +450,7 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
@@ -459,7 +459,7 @@ where
             .map(ListMoveImpl::ListChange)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 }
@@ -490,7 +490,7 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
@@ -499,7 +499,7 @@ where
             .map(ListMoveImpl::KOpt)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 }
@@ -529,7 +529,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
@@ -538,7 +538,7 @@ where
             .map(ListMoveImpl::ListRuin)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 }

@@ -57,15 +57,14 @@ src/
 │       └── if_exists.rs                            — IfExistsUniConstraint tests
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
-│   ├── traits.rs                                   — ScoreDirector<S> trait
-│   ├── typed.rs                                    — TypedScoreDirector<S,C> (zero-erasure incremental)
-│   ├── simple.rs                                   — SimpleScoreDirector<S,C> (full recalculation)
-│   ├── recording.rs                                — RecordingScoreDirector<'a,S,D> (automatic undo tracking)
+│   ├── traits.rs                                   — Director<S> trait
+│   ├── typed.rs                                    — ScoreDirector<S,C> (zero-erasure incremental)
+│   ├── recording.rs                                — RecordingDirector<'a,S,D> (automatic undo tracking)
 │   ├── shadow_aware.rs                             — ShadowVariableSupport trait, SolvableSolution trait
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
-│       ├── typed.rs                                — TypedScoreDirector tests
-│       ├── recording.rs                            — RecordingScoreDirector tests
+│       ├── typed.rs                                — ScoreDirector tests
+│       ├── recording.rs                            — RecordingDirector tests
 │       ├── shadow.rs                               — Shadow-aware director tests
 │       └── bench.rs                                — Benchmarks
 ├── stream/
@@ -127,10 +126,9 @@ pub use api::constraint_set::{ConstraintResult, ConstraintSet, IncrementalConstr
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
-pub use director::typed::TypedScoreDirector;
+pub use director::score_director::ScoreDirector;
 pub use director::{
-    RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
-    SolvableSolution,
+    RecordingDirector, Director, ShadowVariableSupport, SolvableSolution,
 };
 
 // Analysis
@@ -148,7 +146,7 @@ pub use stream::{
 
 ## Public Traits
 
-### `ScoreDirector<S: PlanningSolution>` — `Send`
+### `Director<S: PlanningSolution>` — `Send`
 
 | Method | Signature | Note |
 |--------|-----------|------|
@@ -261,20 +259,17 @@ All `Send + Sync`:
 
 ### Score Directors
 
-**`TypedScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
+**`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
-- Key methods: `new()`, `with_descriptor()`, `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `after_variable_changed_with_shadows()` (where `S: ShadowVariableSupport`), `do_change()`, `do_change_with_shadows()`, `get_score()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
-- Implements `ScoreDirector<S>`
+- Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `after_variable_changed_with_shadows()` (where `S: ShadowVariableSupport`), `do_change()`, `do_change_with_shadows()`, `get_score()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
+- `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
+- `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
+- Implements `Director<S>`
 
-**`SimpleScoreDirector<S, C>`** where `S: PlanningSolution`, `C: Fn(&S) -> S::Score + Send + Sync`
-- Full recalculation baseline.
-- Key methods: `new()`, `with_calculator()`
-- Implements `ScoreDirector<S>`
-
-**`RecordingScoreDirector<'a, S, D>`** where `S: PlanningSolution`, `D: ScoreDirector<S>`
+**`RecordingDirector<'a, S, D>`** where `S: PlanningSolution`, `D: Director<S>`
 - Wraps any director with automatic undo tracking.
 - Key methods: `new()`, `undo_changes()`, `reset()`, `change_count()`, `is_empty()`
-- Implements `ScoreDirector<S>`
+- Implements `Director<S>`
 
 ### Constraint Types
 
@@ -431,7 +426,7 @@ Score directors use a retract-then-insert protocol:
 2. Modify the solution
 3. `after_variable_changed()` → constraint `on_insert()` (add new contribution)
 
-The `TypedScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_all()`.
+The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_all()`.
 
 ### ConstraintSet Tuple Implementation
 

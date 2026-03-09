@@ -187,15 +187,15 @@ mod tests {
     use solverforge_config::{
         AcceptorConfig, LateAcceptanceConfig, SimulatedAnnealingConfig, TabuSearchConfig,
     };
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
 
     #[derive(Clone, Debug)]
     struct TestSolution {
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }

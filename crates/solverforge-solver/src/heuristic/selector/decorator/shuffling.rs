@@ -11,7 +11,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::typed_move_selector::MoveSelector;
@@ -27,16 +27,16 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 /// use solverforge_solver::heuristic::selector::decorator::ShufflingMoveSelector;
 /// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { id: usize, priority: Option<i32> }
 ///
 /// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
+/// struct Solution { tasks: Vec<Task>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -99,7 +99,7 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = M> + 'a {
@@ -108,7 +108,7 @@ where
         moves.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 

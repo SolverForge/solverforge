@@ -329,7 +329,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::joiner::equal_bi;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone)]
     // struct Employee {
@@ -350,7 +350,7 @@ where
     // }
     //
     // // O(1) lookup by indexing unavailable_days by day number
-    // let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
     //     .for_each(|s: &Schedule| &s.shifts)
     //     .join(
     //         |s: &Schedule| &s.employees,
@@ -362,7 +362,7 @@ where
     //         |shift: &Shift| shift.day,  // A → lookup key
     //     )
     //     .filter(|shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day)
-    //     .penalize(SimpleScore::of(1))
+    //     .penalize(SoftScore::of(1))
     //     .as_constraint("Unavailable employee");
     //
     // let schedule = Schedule {
@@ -376,7 +376,7 @@ where
     // };
     //
     // // Day 5 shift matches via O(1) lookup
-    // assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    // assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
     // ```
     pub fn flatten_last<C, CK, Flatten, CKeyFn, ALookup>(
         self,

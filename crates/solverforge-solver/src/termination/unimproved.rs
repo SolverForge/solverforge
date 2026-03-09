@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Termination;
 use crate::scope::BestSolutionCallback;
@@ -22,13 +22,13 @@ use crate::scope::SolverScope;
 ///
 /// ```
 /// use solverforge_solver::termination::UnimprovedStepCountTermination;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
@@ -84,8 +84,8 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedStepCountTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
-    Termination<S, D, BestCb> for UnimprovedStepCountTermination<S>
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+    for UnimprovedStepCountTermination<S>
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         let mut state = self.state.borrow_mut();
@@ -138,13 +138,13 @@ impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
 /// ```
 /// use std::time::Duration;
 /// use solverforge_solver::termination::UnimprovedTimeTermination;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
@@ -205,8 +205,8 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for UnimprovedTimeTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
-    Termination<S, D, BestCb> for UnimprovedTimeTermination<S>
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+    for UnimprovedTimeTermination<S>
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         let mut state = self.state.borrow_mut();

@@ -21,16 +21,16 @@
 //! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
 //! use solverforge_solver::heuristic::selector::MoveSelector;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::SoftScore;
 //!
 //! #[derive(Clone, Debug)]
 //! struct Vehicle { visits: Vec<i32> }
 //!
 //! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
+//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
 //!
 //! impl PlanningSolution for Solution {
-//!     type Score = SimpleScore;
+//!     type Score = SoftScore;
 //!     fn score(&self) -> Option<Self::Score> { self.score }
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
@@ -67,7 +67,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ListMoveImpl, SubListChangeMove};
 
@@ -161,7 +161,7 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = SubListChangeMove<S, V>> + 'a {
@@ -249,7 +249,7 @@ where
         moves.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
 
@@ -299,7 +299,7 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
@@ -308,7 +308,7 @@ where
             .map(ListMoveImpl::SubListChange)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.inner.size(score_director)
     }
 }

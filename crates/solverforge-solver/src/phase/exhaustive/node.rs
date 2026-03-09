@@ -228,16 +228,16 @@ where
 mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
 
     #[derive(Clone, Debug)]
     struct TestSolution {
         values: Vec<Option<i32>>,
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
 
         fn score(&self) -> Option<Self::Score> {
             self.score
@@ -262,11 +262,10 @@ mod tests {
 
     #[test]
     fn test_root_node() {
-        let node: ExhaustiveSearchNode<TestSolution> =
-            ExhaustiveSearchNode::root(SimpleScore::of(0));
+        let node: ExhaustiveSearchNode<TestSolution> = ExhaustiveSearchNode::root(SoftScore::of(0));
 
         assert_eq!(node.depth(), 0);
-        assert_eq!(node.score(), &SimpleScore::of(0));
+        assert_eq!(node.score(), &SoftScore::of(0));
         assert!(node.parent_index().is_none());
         assert!(node.entity_index().is_none());
         assert!(!node.is_expanded());
@@ -275,10 +274,10 @@ mod tests {
     #[test]
     fn test_child_node() {
         let node: ExhaustiveSearchNode<TestSolution> =
-            ExhaustiveSearchNode::child(0, 1, SimpleScore::of(-1), 0, 2);
+            ExhaustiveSearchNode::child(0, 1, SoftScore::of(-1), 0, 2);
 
         assert_eq!(node.depth(), 1);
-        assert_eq!(node.score(), &SimpleScore::of(-1));
+        assert_eq!(node.score(), &SoftScore::of(-1));
         assert_eq!(node.parent_index(), Some(0));
         assert_eq!(node.entity_index(), Some(0));
         assert_eq!(node.value_index(), Some(2));
@@ -287,7 +286,7 @@ mod tests {
     #[test]
     fn test_is_leaf() {
         let node: ExhaustiveSearchNode<TestSolution> =
-            ExhaustiveSearchNode::child(0, 4, SimpleScore::of(0), 3, 1);
+            ExhaustiveSearchNode::child(0, 4, SoftScore::of(0), 3, 1);
 
         assert!(node.is_leaf(4));
         assert!(!node.is_leaf(5));
@@ -296,18 +295,18 @@ mod tests {
     #[test]
     fn test_optimistic_bound_pruning() {
         let mut node: ExhaustiveSearchNode<TestSolution> =
-            ExhaustiveSearchNode::root(SimpleScore::of(-5));
+            ExhaustiveSearchNode::root(SoftScore::of(-5));
 
         // No bound set - cannot prune
-        assert!(!node.can_prune(&SimpleScore::of(0)));
+        assert!(!node.can_prune(&SoftScore::of(0)));
 
         // Set bound worse than best - can prune
-        node.set_optimistic_bound(SimpleScore::of(-2));
-        assert!(node.can_prune(&SimpleScore::of(0)));
+        node.set_optimistic_bound(SoftScore::of(-2));
+        assert!(node.can_prune(&SoftScore::of(0)));
 
         // Set bound better than best - cannot prune
-        node.set_optimistic_bound(SimpleScore::of(5));
-        assert!(!node.can_prune(&SimpleScore::of(0)));
+        node.set_optimistic_bound(SoftScore::of(5));
+        assert!(!node.can_prune(&SoftScore::of(0)));
     }
 
     type TestMove = ChangeMove<TestSolution, i32>;

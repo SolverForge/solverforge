@@ -43,7 +43,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 // use solverforge_scoring::constraint::flattened_bi::FlattenedBiConstraint;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 // use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Employee {
@@ -74,7 +74,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 //     |day: &u32| *day,           // C → index key
 //     |shift: &Shift| shift.day,  // A → lookup key
 //     |_s: &Schedule, shift: &Shift, day: &u32| shift.day == *day,
-//     |_shift: &Shift, _day: &u32| SimpleScore::of(1),
+//     |_shift: &Shift, _day: &u32| SoftScore::of(1),
 //     false,
 // );
 //
@@ -89,7 +89,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 // };
 //
 // // Day 5 shift conflicts with employee's unavailable day 5 → O(1) lookup!
-// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
 // ```
 pub struct FlattenedBiConstraint<
     S,

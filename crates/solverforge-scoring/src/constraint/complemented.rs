@@ -43,7 +43,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 // use solverforge_scoring::stream::collector::count;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 // use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone, Hash, PartialEq, Eq)]
 // struct Employee { id: usize }
@@ -66,7 +66,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 //     |emp: &Employee| emp.id,
 //     count(),
 //     |_emp: &Employee| 0usize,
-//     |count: &usize| SimpleScore::of(*count as i64),
+//     |count: &usize| SoftScore::of(*count as i64),
 //     false,
 // );
 //
@@ -81,7 +81,7 @@ use crate::stream::collector::{Accumulator, UniCollector};
 //
 // // Employee 0: 2 shifts, Employee 1: 0 shifts → Total: -2
 // // Unassigned shift is skipped
-// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 // ```
 pub struct ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
 where

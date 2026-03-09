@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::r#move::Move;
 
@@ -35,7 +35,7 @@ where
     /// Picks a move index from the placement's candidates.
     ///
     /// Returns None if no suitable move is found.
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
@@ -84,7 +84,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
@@ -141,7 +141,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
@@ -154,9 +154,9 @@ where
                 continue;
             }
 
-            // Use RecordingScoreDirector for automatic undo
+            // Use RecordingDirector for automatic undo
             let score = {
-                let mut recording = RecordingScoreDirector::new(score_director);
+                let mut recording = RecordingDirector::new(score_director);
 
                 // Execute move
                 m.do_move(&mut recording);
@@ -228,7 +228,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
@@ -241,9 +241,9 @@ where
                 continue;
             }
 
-            // Use RecordingScoreDirector for automatic undo
+            // Use RecordingDirector for automatic undo
             let score = {
-                let mut recording = RecordingScoreDirector::new(score_director);
+                let mut recording = RecordingDirector::new(score_director);
 
                 // Execute move
                 m.do_move(&mut recording);
@@ -323,7 +323,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
@@ -396,7 +396,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn pick_move_index<D: ScoreDirector<S>>(
+    fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,

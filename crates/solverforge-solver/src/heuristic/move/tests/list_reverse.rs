@@ -10,11 +10,11 @@ struct Tour {
 #[derive(Clone, Debug)]
 struct TspSolution {
     tours: Vec<Tour>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TspSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -39,9 +39,7 @@ fn list_reverse(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize
     }
 }
 
-fn create_director(
-    tours: Vec<Tour>,
-) -> SimpleScoreDirector<TspSolution, impl Fn(&TspSolution) -> SimpleScore> {
+fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
     let solution = TspSolution { tours, score: None };
     let extractor = Box::new(TypedEntityExtractor::new(
         "Tour",
@@ -53,7 +51,7 @@ fn create_director(
         EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "tours").with_extractor(extractor);
     let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
         .with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tours.len())
 }
 
 #[test]
@@ -68,7 +66,7 @@ fn reverse_segment() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         let cities = &recording.working_solution().tours[0].cities;
@@ -93,7 +91,7 @@ fn reverse_entire_list() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         let cities = &recording.working_solution().tours[0].cities;

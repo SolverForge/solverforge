@@ -3,7 +3,7 @@
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::complemented::ComplementedGroupConstraint;
 use crate::stream::collector::count;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -33,7 +33,7 @@ fn test_complemented_evaluate() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SimpleScore::of(*count as i64),
+        |count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -51,7 +51,7 @@ fn test_complemented_evaluate() {
 
     // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
     // Total: -2
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_complemented_skips_none_keys() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SimpleScore::of(*count as i64),
+        |count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -86,7 +86,7 @@ fn test_complemented_skips_none_keys() {
     // Only 2 assigned shifts count, both to employee 0
     // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
     // Total: -2 (unassigned shifts don't count)
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn test_complemented_incremental() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SimpleScore::of(*count as i64),
+        |count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -125,17 +125,17 @@ fn test_complemented_incremental() {
     // Employee 1: 1 shift -> -1
     // Employee 2: 0 shifts -> 0
     // Total: -3
-    assert_eq!(total, SimpleScore::of(-3));
+    assert_eq!(total, SoftScore::of(-3));
 
     // Retract shift at index 0 (employee 0)
     let delta = constraint.on_retract(&schedule, 0, 0);
     // Employee 0 now has 1 shift -> score goes from -2 to -1, delta = +1
-    assert_eq!(delta, SimpleScore::of(1));
+    assert_eq!(delta, SoftScore::of(1));
 
     // Insert shift at index 0 (employee 0)
     let delta = constraint.on_insert(&schedule, 0, 0);
     // Employee 0 now has 2 shifts -> score goes from -1 to -2, delta = -1
-    assert_eq!(delta, SimpleScore::of(-1));
+    assert_eq!(delta, SoftScore::of(-1));
 }
 
 #[test]
@@ -149,7 +149,7 @@ fn test_complemented_incremental_with_none_keys() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SimpleScore::of(*count as i64),
+        |count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -170,15 +170,15 @@ fn test_complemented_incremental_with_none_keys() {
     let total = constraint.initialize(&schedule);
     // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
     // Total: -2
-    assert_eq!(total, SimpleScore::of(-2));
+    assert_eq!(total, SoftScore::of(-2));
 
     // Retract unassigned shift at index 1 - should be no-op
     let delta = constraint.on_retract(&schedule, 1, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 
     // Insert unassigned shift at index 1 - should be no-op
     let delta = constraint.on_insert(&schedule, 1, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn test_complemented_with_default() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SimpleScore::of((*count as i64).pow(2)),
+        |count: &usize| SoftScore::of((*count as i64).pow(2)),
         false,
     );
 
@@ -215,7 +215,7 @@ fn test_complemented_with_default() {
     // Employee 1: 0 shifts -> 0
     // Employee 2: 0 shifts -> 0
     // Total penalty: -9
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-9));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-9));
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn test_complemented_incremental_matches_evaluate() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SimpleScore::of((*count as i64).pow(2)),
+        |count: &usize| SoftScore::of((*count as i64).pow(2)),
         false,
     );
 
@@ -255,7 +255,7 @@ fn test_complemented_incremental_matches_evaluate() {
 
     // Employee 0: 2 shifts -> 4, Employee 1: 1 shift -> 1
     // Total: -5
-    assert_eq!(init_total, SimpleScore::of(-5));
+    assert_eq!(init_total, SoftScore::of(-5));
 
     // Simulate retract + insert cycle and verify total remains consistent
     let mut running_total = init_total;
@@ -263,10 +263,10 @@ fn test_complemented_incremental_matches_evaluate() {
     // Retract shift 2 (employee 1)
     running_total = running_total + constraint.on_retract(&schedule, 2, 0);
     // Now: Employee 0: 2->4, Employee 1: 0->0, Total: -4
-    assert_eq!(running_total, SimpleScore::of(-4));
+    assert_eq!(running_total, SoftScore::of(-4));
 
     // Insert shift 2 back (employee 1)
     running_total = running_total + constraint.on_insert(&schedule, 2, 0);
     // Back to: Employee 0: 2->4, Employee 1: 1->1, Total: -5
-    assert_eq!(running_total, SimpleScore::of(-5));
+    assert_eq!(running_total, SoftScore::of(-5));
 }

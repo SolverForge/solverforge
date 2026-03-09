@@ -53,7 +53,7 @@ pub trait Score:
     /// Returns the number of score levels.
     ///
     /// For example:
-    /// - SimpleScore: 1 level
+    /// - SoftScore: 1 level
     /// - HardSoftScore: 2 levels
     /// - HardMediumSoftScore: 3 levels
     fn levels_count() -> usize;
@@ -124,7 +124,7 @@ pub trait ParseableScore: Score {
     /// Parses a score from a string representation.
     ///
     /// # Format
-    /// - SimpleScore: "42" or "42init"
+    /// - SoftScore: "42" or "42init"
     /// - HardSoftScore: "0hard/-100soft" or "-1hard/0soft"
     /// - HardMediumSoftScore: "0hard/0medium/-100soft"
     fn parse(s: &str) -> Result<Self, ScoreParseError>;

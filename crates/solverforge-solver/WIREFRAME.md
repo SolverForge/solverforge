@@ -7,7 +7,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 ## Dependencies
 
 - `solverforge-core` (path) — Score types, domain traits, descriptors
-- `solverforge-scoring` (path) — ScoreDirector trait, constraint scoring
+- `solverforge-scoring` (path) — Director trait, constraint scoring
 - `solverforge-config` (path) — SolverConfig, PhaseConfig, AcceptorConfig
 - `thiserror` (workspace) — Error derivation
 - `tracing` (workspace) — Logging
@@ -149,7 +149,7 @@ src/
 │   │       └── tests.rs                — Tests
 │   ├── exhaustive/
 │   │   ├── mod.rs                       — ExhaustiveSearchPhase, ExhaustiveSearchConfig, ExplorationType
-│   │   ├── bounder.rs                   — ScoreBounder trait, SimpleScoreBounder, FixedOffsetBounder
+│   │   ├── bounder.rs                   — ScoreBounder trait, SoftScoreBounder, FixedOffsetBounder
 │   │   ├── decider.rs                   — ExhaustiveSearchDecider trait, SimpleDecider
 │   │   └── node.rs                      — ExhaustiveSearchNode, MoveSequence
 │   ├── partitioned/
@@ -211,15 +211,15 @@ Requires: `Send + Sync + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `is_doable` | `fn<D: ScoreDirector<S>>(&self, score_director: &D) -> bool` |
-| `do_move` | `fn<D: ScoreDirector<S>>(&self, score_director: &mut D)` |
+| `is_doable` | `fn<D: Director<S>>(&self, score_director: &D) -> bool` |
+| `do_move` | `fn<D: Director<S>>(&self, score_director: &mut D)` |
 | `descriptor_index` | `fn(&self) -> usize` |
 | `entity_indices` | `fn(&self) -> &[usize]` |
 | `variable_name` | `fn(&self) -> &str` |
 
 Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
 
-### `Phase<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S> = ()>` — `phase/mod.rs`
+### `Phase<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>` — `phase/mod.rs`
 
 Requires: `Send + Debug`.
 
@@ -230,7 +230,7 @@ Requires: `Send + Debug`.
 
 All concrete phase types implement `Phase<S, D, BestCb>` for all `BestCb: BestSolutionCallback<S>`. Tuple implementations via `tuple_impl.rs`.
 
-### `Termination<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S> = ()>` — `termination/mod.rs`
+### `Termination<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>` — `termination/mod.rs`
 
 Requires: `Send + Debug`.
 
@@ -257,32 +257,32 @@ Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `iter` | `fn<'a, D: ScoreDirector<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = EntityReference> + 'a` |
-| `size` | `fn<D: ScoreDirector<S>>(&self, score_director: &D) -> usize` |
+| `iter` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = EntityReference> + 'a` |
+| `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
 ### `MoveSelector<S: PlanningSolution, M: Move<S>>` — `typed_move_selector.rs`
 
 | Method | Signature |
 |--------|-----------|
-| `iter_moves` | `fn<'a, D: ScoreDirector<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = M> + 'a` |
-| `size` | `fn<D: ScoreDirector<S>>(&self, score_director: &D) -> usize` |
+| `iter_moves` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = M> + 'a` |
+| `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
 ### `TypedValueSelector<S: PlanningSolution, V>` — `typed_value.rs`
 
 | Method | Signature |
 |--------|-----------|
-| `iter_typed` | `fn<'a, D: ScoreDirector<S>>(&'a self, score_director: &'a D, descriptor_index: usize, entity_index: usize) -> impl Iterator<Item = V> + 'a` |
-| `size` | `fn<D: ScoreDirector<S>>(&self, score_director: &D, descriptor_index: usize, entity_index: usize) -> usize` |
+| `iter_typed` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D, descriptor_index: usize, entity_index: usize) -> impl Iterator<Item = V> + 'a` |
+| `size` | `fn<D: Director<S>>(&self, score_director: &D, descriptor_index: usize, entity_index: usize) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
 ### `PillarSelector<S: PlanningSolution>` — `pillar.rs`
 
 | Method | Signature |
 |--------|-----------|
-| `iter` | `fn<'a, D: ScoreDirector<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = Pillar> + 'a` |
-| `size` | `fn<D: ScoreDirector<S>>(&self, score_director: &D) -> usize` |
+| `iter` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = Pillar> + 'a` |
+| `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 | `descriptor_index` | `fn(&self) -> usize` |
 
@@ -292,7 +292,7 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
 
 | Method | Signature |
 |--------|-----------|
-| `pick_move_index` | `fn<D: ScoreDirector<S>>(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<usize>` |
+| `pick_move_index` | `fn<D: Director<S>>(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<usize>` |
 
 ### `LocalSearchForager<S, M>` — `localsearch/forager.rs`
 
@@ -311,11 +311,11 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
 
 | Method | Signature |
 |--------|-----------|
-| `get_placements` | `fn<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>` |
+| `get_placements` | `fn<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>` |
 
 ### `ScoreBounder<S, D>` — `exhaustive/bounder.rs`
 
-Requires: `Send + Debug`. Bounds: `S: PlanningSolution, D: ScoreDirector<S>`.
+Requires: `Send + Debug`. Bounds: `S: PlanningSolution, D: Director<S>`.
 
 | Method | Signature | Default |
 |--------|-----------|---------|
@@ -324,7 +324,7 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, D: ScoreDirector<S>`.
 
 ### `ExhaustiveSearchDecider<S, D>` — `exhaustive/decider.rs`
 
-Requires: `Send + Debug`. Bounds: `S: PlanningSolution, D: ScoreDirector<S>`.
+Requires: `Send + Debug`. Bounds: `S: PlanningSolution, D: Director<S>`.
 
 | Method | Signature |
 |--------|-----------|
@@ -363,7 +363,7 @@ Requires: `Send + Sync + Debug`.
 
 ### `PhaseFactory<S, D>` — `manager/mod.rs`
 
-Requires: `Send + Sync`. Bounds: `S: PlanningSolution, D: ScoreDirector<S>`.
+Requires: `Send + Sync`. Bounds: `S: PlanningSolution, D: Director<S>`.
 
 | Associated Type | Bound |
 |----------------|-------|
@@ -395,7 +395,7 @@ Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `apply` | `fn(&self, score_director: &mut dyn ScoreDirector<S>)` |
+| `apply` | `fn(&self, score_director: &mut dyn Director<S>)` |
 
 ## Move Types
 
@@ -573,7 +573,7 @@ Local search foragers:
 
 **`SimpleDecider<S, V, B>`** — Generic decider with values and optional bounder.
 
-Score bounders: `SimpleScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
+Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 
 ### Partitioned Search
 
@@ -672,7 +672,7 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 
 **`ProblemChangeResult`** — `Queued`, `SolverNotRunning`, `QueueFull`.
 
-**`ClosureProblemChange<S, F>`** — Wraps `Fn(&mut dyn ScoreDirector<S>)`.
+**`ClosureProblemChange<S, F>`** — Wraps `Fn(&mut dyn Director<S>)`.
 
 **`BoxedProblemChange<S>`** — Type alias: `Box<dyn ProblemChange<S>>`.
 
@@ -704,6 +704,6 @@ Convenience function in `basic.rs` that wires construction + local search with `
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.
 - **Tuple-based composition.** Phases, terminations, and VND neighborhoods compose via nested tuples with macro-generated impls, avoiding `Vec<Box<dyn Phase>>`.
 - **Intentional `dyn` boundaries.** `DynDistanceMeter` in `nearby.rs` and `DefaultPillarSelector` value extractor closures are intentional type-erasure points to avoid monomorphization bloat.
-- **`ProblemChange::apply` uses `&mut dyn ScoreDirector<S>`** — intentional type erasure at the real-time planning boundary.
+- **`ProblemChange::apply` uses `&mut dyn Director<S>`** — intentional type erasure at the real-time planning boundary.
 - **Arena-based move ownership.** Moves are pushed into `MoveArena`, evaluated by index, and taken (moved out) when selected. Never cloned.
 - **Rayon for parallelism.** Partitioned search uses rayon for CPU-bound parallel solving. `tokio::sync::mpsc` for solution streaming.

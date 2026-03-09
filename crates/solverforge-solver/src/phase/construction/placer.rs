@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::heuristic::selector::{EntityReference, EntitySelector, TypedValueSelector};
@@ -84,7 +84,7 @@ where
     M: Move<S>,
 {
     /// Returns all placements (entities + their candidate moves).
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
+    fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
 }
 
 /// A queued entity placer that processes entities in order.
@@ -167,7 +167,7 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    fn get_placements<D: ScoreDirector<S>>(
+    fn get_placements<D: Director<S>>(
         &self,
         score_director: &D,
     ) -> Vec<Placement<S, ChangeMove<S, V>>> {
@@ -230,18 +230,18 @@ where
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
-/// use solverforge_scoring::SimpleScoreDirector;
+/// use solverforge_core::score::SoftScore;
+/// use solverforge_scoring::ScoreDirector;
 /// use std::cmp::Ordering;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { difficulty: i32, assigned: Option<i32> }
 ///
 /// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SimpleScore> }
+/// struct Solution { tasks: Vec<Task>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -311,7 +311,7 @@ where
     M: Move<S>,
     Inner: EntityPlacer<S, M>,
 {
-    fn get_placements<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Placement<S, M>> {
+    fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>> {
         let mut placements = self.inner.get_placements(score_director);
         let solution = score_director.working_solution();
         let cmp = self.comparator;

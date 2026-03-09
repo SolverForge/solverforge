@@ -14,7 +14,7 @@
 // ```
 // use solverforge_scoring::stream::ConstraintFactory;
 // use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Schedule {
@@ -28,10 +28,10 @@
 // }
 //
 // // Define constraints using the fluent API
-// let unassigned = ConstraintFactory::<Schedule, SimpleScore>::new()
+// let unassigned = ConstraintFactory::<Schedule, SoftScore>::new()
 //     .for_each(|s: &Schedule| &s.shifts)
 //     .filter(|shift: &Shift| shift.employee_idx.is_none())
-//     .penalize(SimpleScore::of(1))
+//     .penalize(SoftScore::of(1))
 //     .as_constraint("Unassigned shift");
 //
 // // Use the constraint
@@ -42,7 +42,7 @@
 //     ],
 // };
 //
-// assert_eq!(unassigned.evaluate(&schedule), SimpleScore::of(-1));
+// assert_eq!(unassigned.evaluate(&schedule), SoftScore::of(-1));
 // ```
 //
 // # Architecture

@@ -32,7 +32,7 @@ pub use solver_factory::{solver_factory_builder, SolverFactory};
 pub use solver_manager::{Solvable, SolverManager, SolverStatus};
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 
@@ -48,7 +48,7 @@ use crate::phase::Phase;
 pub trait PhaseFactory<S, D>: Send + Sync
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     /// The concrete phase type produced by this factory.
     type Phase: Phase<S, D>;

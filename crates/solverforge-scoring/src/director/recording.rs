@@ -1,11 +1,11 @@
 // Recording score director for automatic undo tracking.
 //
-// The `RecordingScoreDirector` wraps an existing score director and stores
+// The `RecordingDirector` wraps an existing score director and stores
 // typed undo closures registered by moves. This enables zero-erasure undo:
 //
 // ```text
 // // Pattern:
-// let mut recording = RecordingScoreDirector::new(&mut inner_sd);
+// let mut recording = RecordingDirector::new(&mut inner_sd);
 // move.do_move(&mut recording);  // Move registers typed undo closure
 // let score = recording.calculate_score();
 // recording.undo_changes();  // Calls undo closures in reverse order
@@ -16,7 +16,7 @@
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
-use super::ScoreDirector;
+use super::Director;
 
 // A score director wrapper that stores typed undo closures.
 //
@@ -26,28 +26,29 @@ use super::ScoreDirector;
 // # Example
 //
 // ```
-// use solverforge_scoring::director::{RecordingScoreDirector, SimpleScoreDirector, ScoreDirector};
+// use solverforge_scoring::director::{RecordingDirector, Director};
+// use solverforge_scoring::director::score_director::ScoreDirector;
 // use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 // use std::any::TypeId;
 //
 // #[derive(Clone)]
-// struct Solution { value: i32, score: Option<SimpleScore> }
+// struct Solution { value: i32, score: Option<SoftScore> }
 //
 // impl PlanningSolution for Solution {
-//     type Score = SimpleScore;
+//     type Score = SoftScore;
 //     fn score(&self) -> Option<Self::Score> { self.score }
 //     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 // }
 //
-// let mut sd = SimpleScoreDirector::new(
+// let mut sd = ScoreDirector::simple(
 //     Solution { value: 10, score: None },
 //     SolutionDescriptor::new("Solution", TypeId::of::<Solution>()),
-//     |s: &Solution| SimpleScore::of(s.value as i64),
+//     |_, _| 0,
 // );
 //
 // // Wrap in recording director
-// let mut recording = RecordingScoreDirector::new(&mut sd);
+// let mut recording = RecordingDirector::new(&mut sd);
 //
 // // Make a change and register undo
 // let old_value = recording.working_solution().value;
@@ -60,7 +61,7 @@ use super::ScoreDirector;
 // recording.undo_changes();
 // assert_eq!(recording.working_solution().value, 10);
 // ```
-pub struct RecordingScoreDirector<'a, S: PlanningSolution, D: ScoreDirector<S>> {
+pub struct RecordingDirector<'a, S: PlanningSolution, D: Director<S>> {
     inner: &'a mut D,
     // Typed undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
@@ -69,7 +70,7 @@ pub struct RecordingScoreDirector<'a, S: PlanningSolution, D: ScoreDirector<S>> 
     modified_entities: Vec<(usize, usize)>,
 }
 
-impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S, D> {
+impl<'a, S: PlanningSolution, D: Director<S>> RecordingDirector<'a, S, D> {
     // Creates a new recording score director wrapping the inner director.
     pub fn new(inner: &'a mut D) -> Self {
         Self {
@@ -123,9 +124,7 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
-    for RecordingScoreDirector<'_, S, D>
-{
+impl<S: PlanningSolution, D: Director<S>> Director<S> for RecordingDirector<'_, S, D> {
     fn working_solution(&self) -> &S {
         self.inner.working_solution()
     }

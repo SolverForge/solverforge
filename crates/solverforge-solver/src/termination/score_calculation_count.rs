@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Termination;
 use crate::scope::BestSolutionCallback;
@@ -16,13 +16,13 @@ use crate::scope::SolverScope;
 ///
 /// ```
 /// use solverforge_solver::termination::ScoreCalculationCountTermination;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
@@ -57,8 +57,8 @@ impl<S: PlanningSolution> ScoreCalculationCountTermination<S> {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
-    Termination<S, D, BestCb> for ScoreCalculationCountTermination<S>
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+    for ScoreCalculationCountTermination<S>
 {
     fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
         solver_scope.stats().score_calculations >= self.limit

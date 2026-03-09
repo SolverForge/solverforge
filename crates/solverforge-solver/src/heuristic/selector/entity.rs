@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 /// A reference to an entity within a solution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -36,13 +36,13 @@ pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
     ///
     /// The iterator yields `EntityReference` values that identify entities
     /// within the solution.
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a;
 
     /// Returns the approximate number of entities.
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same entity multiple times.
     fn is_never_ending(&self) -> bool {
@@ -65,7 +65,7 @@ impl FromSolutionEntitySelector {
 }
 
 impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
@@ -76,7 +76,7 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
         (0..count).map(move |i| EntityReference::new(desc_idx, i))
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         score_director
             .entity_count(self.descriptor_index)
             .unwrap_or(0)
@@ -95,7 +95,7 @@ impl AllEntitiesSelector {
 }
 
 impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
@@ -113,7 +113,7 @@ impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
         refs.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         score_director.total_entity_count().unwrap_or(0)
     }
 }

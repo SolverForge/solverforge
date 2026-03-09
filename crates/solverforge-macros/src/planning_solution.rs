@@ -535,11 +535,11 @@ fn generate_solvable_solution(
             impl ::solverforge::Analyzable for #solution_name {
                 fn analyze(&self) -> ::solverforge::ScoreAnalysis<<Self as ::solverforge::__internal::PlanningSolution>::Score> {
                     use ::solverforge::__internal::{
-                        TypedScoreDirector, ScoreDirector,
+                        ScoreDirector, Director,
                     };
 
                     let constraints = #constraints_fn();
-                    let mut director = TypedScoreDirector::with_descriptor(
+                    let mut director = ScoreDirector::with_descriptor(
                         self.clone(),
                         constraints,
                         Self::descriptor(),

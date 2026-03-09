@@ -15,7 +15,7 @@
 //! ```
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 
 /// A solution with a shadow variable for testing.
 ///
@@ -28,7 +28,7 @@ pub struct ShadowSolution {
     pub values: Vec<i32>,
     /// Shadow variable: cached sum of all values.
     pub cached_sum: i32,
-    pub score: Option<SimpleScore>,
+    pub score: Option<SoftScore>,
 }
 
 impl ShadowSolution {
@@ -61,7 +61,7 @@ impl Default for ShadowSolution {
 }
 
 impl PlanningSolution for ShadowSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score

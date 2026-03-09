@@ -22,23 +22,23 @@ use super::UniConstraintStream;
 // ```
 // use solverforge_scoring::stream::ConstraintFactory;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Solution {
 //     values: Vec<Option<i32>>,
 // }
 //
-// let factory = ConstraintFactory::<Solution, SimpleScore>::new();
+// let factory = ConstraintFactory::<Solution, SoftScore>::new();
 //
 // let constraint = factory
 //     .for_each(|s: &Solution| &s.values)
 //     .filter(|v: &Option<i32>| v.is_none())
-//     .penalize(SimpleScore::of(1))
+//     .penalize(SoftScore::of(1))
 //     .as_constraint("Unassigned");
 //
 // let solution = Solution { values: vec![Some(1), None, None] };
-// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-2));
+// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-2));
 // ```
 pub struct ConstraintFactory<S, Sc: Score> {
     _phantom: PhantomData<(fn() -> S, fn() -> Sc)>,
@@ -81,7 +81,7 @@ where
     // ```
     // use solverforge_scoring::stream::{ConstraintFactory, joiner::equal};
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
     // struct Task { team: u32, priority: u32 }
@@ -89,7 +89,7 @@ where
     // #[derive(Clone)]
     // struct Solution { tasks: Vec<Task> }
     //
-    // let factory = ConstraintFactory::<Solution, SimpleScore>::new();
+    // let factory = ConstraintFactory::<Solution, SoftScore>::new();
     //
     // // Penalize when two tasks on the same team conflict
     // let constraint = factory
@@ -97,7 +97,7 @@ where
     //         |s: &Solution| s.tasks.as_slice(),
     //         equal(|t: &Task| t.team)
     //     )
-    //     .penalize(SimpleScore::of(1))
+    //     .penalize(SoftScore::of(1))
     //     .as_constraint("Team conflict");
     //
     // let solution = Solution {
@@ -109,7 +109,7 @@ where
     // };
     //
     // // One pair on same team: (0, 1) = -1 penalty
-    // assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1));
+    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
     // ```
     pub fn for_each_unique_pair<A, E, K, KA>(
         self,

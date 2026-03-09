@@ -5,8 +5,8 @@ use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -18,11 +18,11 @@ struct Employee {
 #[derive(Clone, Debug)]
 struct ScheduleSolution {
     employees: Vec<Employee>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for ScheduleSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -41,9 +41,7 @@ fn get_employees_mut(s: &mut ScheduleSolution) -> &mut Vec<Employee> {
     &mut s.employees
 }
 
-fn create_test_director(
-    employees: Vec<Employee>,
-) -> SimpleScoreDirector<ScheduleSolution, impl Fn(&ScheduleSolution) -> SimpleScore> {
+fn create_test_director(employees: Vec<Employee>) -> ScoreDirector<ScheduleSolution, ()> {
     let solution = ScheduleSolution {
         employees,
         score: None,
@@ -61,7 +59,7 @@ fn create_test_director(
     let descriptor = SolutionDescriptor::new("ScheduleSolution", TypeId::of::<ScheduleSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.employees.len())
 }
 
 #[test]
@@ -122,7 +120,7 @@ fn test_default_pillar_selector_groups_by_value() {
         entity_selector,
         0,
         "shift",
-        |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
+        |sd: &dyn Director<ScheduleSolution>, _desc_idx, entity_idx| {
             let solution = sd.working_solution();
             solution.employees.get(entity_idx).and_then(|e| e.shift)
         },
@@ -183,7 +181,7 @@ fn test_pillar_selector_with_minimum_size() {
         entity_selector,
         0,
         "shift",
-        |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
+        |sd: &dyn Director<ScheduleSolution>, _desc_idx, entity_idx| {
             let solution = sd.working_solution();
             solution.employees.get(entity_idx).and_then(|e| e.shift)
         },
@@ -225,7 +223,7 @@ fn test_pillar_selector_with_none_values() {
         entity_selector,
         0,
         "shift",
-        |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
+        |sd: &dyn Director<ScheduleSolution>, _desc_idx, entity_idx| {
             let solution = sd.working_solution();
             solution.employees.get(entity_idx).and_then(|e| e.shift)
         },
@@ -246,7 +244,7 @@ fn test_pillar_selector_empty_solution() {
         entity_selector,
         0,
         "shift",
-        |sd: &dyn ScoreDirector<ScheduleSolution>, _desc_idx, entity_idx| {
+        |sd: &dyn Director<ScheduleSolution>, _desc_idx, entity_idx| {
             let solution = sd.working_solution();
             solution.employees.get(entity_idx).and_then(|e| e.shift)
         },

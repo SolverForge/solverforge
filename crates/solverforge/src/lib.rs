@@ -48,7 +48,7 @@ pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFa
 // ============================================================================
 
 pub use solverforge_core::score::{
-    BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SimpleScore,
+    BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SoftScore,
 };
 
 // ============================================================================
@@ -68,7 +68,7 @@ pub mod stream {
 // Score Director
 // ============================================================================
 
-pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
+pub use solverforge_scoring::{Director, ScoreDirector};
 
 // ============================================================================
 // Solver
@@ -93,9 +93,8 @@ pub use solverforge_console as console;
 pub mod prelude {
     pub use crate::stream::{joiner, ConstraintFactory};
     pub use crate::{
-        planning_entity, planning_solution, problem_fact, BendableScore, ConstraintSet,
-        HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, ScoreDirector,
-        SimpleScore, TypedScoreDirector,
+        planning_entity, planning_solution, problem_fact, BendableScore, ConstraintSet, Director,
+        HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, ScoreDirector, SoftScore,
     };
 }
 
@@ -125,8 +124,7 @@ pub mod __internal {
 
     // Scoring
     pub use solverforge_scoring::{
-        ScoreDirector, ShadowVariableSupport, SimpleScoreDirector, SolvableSolution,
-        TypedScoreDirector,
+        Director, ScoreDirector, ShadowVariableSupport, SolvableSolution,
     };
 
     // Solver infrastructure

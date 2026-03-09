@@ -10,7 +10,7 @@ mod hard_medium_soft;
 mod hard_soft;
 mod hard_soft_decimal;
 mod level;
-mod simple;
+mod soft;
 mod traits;
 
 #[cfg(test)]
@@ -21,5 +21,5 @@ pub use hard_medium_soft::HardMediumSoftScore;
 pub use hard_soft::HardSoftScore;
 pub use hard_soft_decimal::HardSoftDecimalScore;
 pub use level::ScoreLevel;
-pub use simple::SimpleScore;
+pub use soft::SoftScore;
 pub use traits::{ParseableScore, Score, ScoreParseError};

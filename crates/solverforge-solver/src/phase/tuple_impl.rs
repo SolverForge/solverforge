@@ -1,7 +1,7 @@
 //! Blanket Phase implementation for nested tuples.
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
@@ -19,7 +19,7 @@ use super::Phase;
 impl<S, D, BestCb, Prev, P> Phase<S, D, BestCb> for (Prev, P)
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     Prev: Phase<S, D, BestCb>,
     P: Phase<S, D, BestCb>,

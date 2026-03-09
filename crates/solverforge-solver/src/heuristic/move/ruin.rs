@@ -12,7 +12,7 @@ use std::fmt::Debug;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Move;
 
@@ -31,15 +31,15 @@ use super::Move;
 /// ```
 /// use solverforge_solver::heuristic::r#move::RuinMove;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
-/// struct Task { assigned_to: Option<i32>, score: Option<SimpleScore> }
+/// struct Task { assigned_to: Option<i32>, score: Option<SoftScore> }
 /// #[derive(Clone, Debug)]
-/// struct Schedule { tasks: Vec<Task>, score: Option<SimpleScore> }
+/// struct Schedule { tasks: Vec<Task>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -131,7 +131,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
         self.entity_indices
@@ -139,7 +139,7 @@ where
             .any(|&idx| (self.getter)(solution, idx).is_some())
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;

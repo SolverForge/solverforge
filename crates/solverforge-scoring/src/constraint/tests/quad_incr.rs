@@ -2,7 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalQuadConstraint;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -23,7 +23,7 @@ fn test_quad_constraint_evaluate() {
         |s: &Solution| s.tasks.as_slice(),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(1),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(1),
         false,
     );
 
@@ -38,7 +38,7 @@ fn test_quad_constraint_evaluate() {
     };
 
     // One quadruple on team 1: (0, 1, 2, 3) = -1 penalty
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn test_quad_constraint_multiple_quads() {
         |s: &Solution| s.tasks.as_slice(),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(1),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(1),
         false,
     );
 
@@ -64,7 +64,7 @@ fn test_quad_constraint_multiple_quads() {
     };
 
     // Five tasks on same team = C(5,4) = 5 quadruples
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-5));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn test_quad_constraint_incremental() {
         |s: &Solution| s.tasks.as_slice(),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(1),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(1),
         false,
     );
 
@@ -90,17 +90,17 @@ fn test_quad_constraint_incremental() {
 
     // Initialize with 4 tasks on same team = 1 quadruple
     let total = constraint.initialize(&solution);
-    assert_eq!(total, SimpleScore::of(-1));
+    assert_eq!(total, SoftScore::of(-1));
 
     // Retract one task
     let delta = constraint.on_retract(&solution, 0, 0);
     // Removes the quadruple = +1
-    assert_eq!(delta, SimpleScore::of(1));
+    assert_eq!(delta, SoftScore::of(1));
 
     // Re-insert the task
     let delta = constraint.on_insert(&solution, 0, 0);
     // Re-adds the quadruple = -1
-    assert_eq!(delta, SimpleScore::of(-1));
+    assert_eq!(delta, SoftScore::of(-1));
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn test_quad_constraint_reward() {
         |s: &Solution| s.tasks.as_slice(),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SimpleScore::of(5),
+        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(5),
         false,
     );
 
@@ -125,5 +125,5 @@ fn test_quad_constraint_reward() {
     };
 
     // One quadruple = +5 reward
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(5));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(5));
 }

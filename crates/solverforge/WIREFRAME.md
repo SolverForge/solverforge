@@ -8,7 +8,7 @@ Facade crate: re-exports the public API from all sub-crates under a single `solv
 
 - `solverforge-core` (path) — Score types, domain traits
 - `solverforge-macros` (path) — Attribute and derive macros
-- `solverforge-scoring` (path) — Constraint API, ScoreDirector
+- `solverforge-scoring` (path) — Constraint API, Director
 - `solverforge-solver` (path) — Solver engine, manager, phases
 - `solverforge-config` (path) — Configuration types
 - `solverforge-console` (path, optional) — Console output (feature-gated)
@@ -46,7 +46,7 @@ src/
 ### Score Types (from `solverforge-core`)
 
 - `Score` (trait)
-- `SimpleScore`
+- `SoftScore`
 - `HardSoftScore`
 - `HardMediumSoftScore`
 - `HardSoftDecimalScore`
@@ -61,8 +61,8 @@ src/
 
 ### Score Director (from `solverforge-scoring`)
 
-- `ScoreDirector` (trait)
-- `TypedScoreDirector`
+- `Director` (trait)
+- `ScoreDirector`
 
 ### Solver (from `solverforge-solver`)
 
@@ -88,8 +88,8 @@ pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_solution, problem_fact,
     BendableScore, ConstraintSet, HardMediumSoftScore,
-    HardSoftDecimalScore, HardSoftScore, Score, ScoreDirector,
-    SimpleScore, TypedScoreDirector,
+    HardSoftDecimalScore, HardSoftScore, Score, Director,
+    SoftScore, ScoreDirector,
 };
 ```
 
@@ -114,8 +114,7 @@ Used exclusively by macro-generated code. Not public API.
 - `ShadowVariableKind`
 
 **Scoring (from `solverforge-scoring`):**
-- `ScoreDirector`, `TypedScoreDirector`
-- `SimpleScoreDirector`
+- `Director`, `ScoreDirector`
 - `ShadowVariableSupport`, `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**

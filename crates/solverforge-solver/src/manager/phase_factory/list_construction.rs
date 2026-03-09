@@ -10,7 +10,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -33,16 +33,16 @@ use super::super::PhaseFactory;
 /// ```
 /// use solverforge_solver::{ListConstructionPhase, ListConstructionPhaseBuilder};
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone)]
 /// struct Vehicle { visits: Vec<usize> }
 ///
 /// #[derive(Clone)]
-/// struct Plan { vehicles: Vec<Vehicle>, visits: Vec<()>, score: Option<SimpleScore> }
+/// struct Plan { vehicles: Vec<Vehicle>, visits: Vec<()>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Plan {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -116,7 +116,7 @@ impl<S, E, D> PhaseFactory<S, D> for ListConstructionPhaseBuilder<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     type Phase = ListConstructionPhase<S, E>;
 
@@ -154,7 +154,7 @@ impl<S, E, D> Phase<S, D> for ListConstructionPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -243,7 +243,7 @@ where
     ///
     /// Performs: before_changed → insert → score → remove → after_changed (undo).
     /// Returns the score if the insertion is evaluable.
-    fn eval_insertion<D: ScoreDirector<S>>(
+    fn eval_insertion<D: Director<S>>(
         &self,
         element: E,
         entity_idx: usize,
@@ -254,7 +254,7 @@ where
         let list_remove = self.list_remove;
         let descriptor_index = self.descriptor_index;
 
-        let mut recording = RecordingScoreDirector::new(score_director);
+        let mut recording = RecordingDirector::new(score_director);
 
         // Before change notification
         recording.before_variable_changed(descriptor_index, entity_idx);
@@ -282,7 +282,7 @@ where
     /// Find the best (entity_idx, pos, score) for inserting `element`.
     ///
     /// Returns `None` if there are no valid insertion points.
-    fn best_insertion<D: ScoreDirector<S>>(
+    fn best_insertion<D: Director<S>>(
         &self,
         element: E,
         n_entities: usize,
@@ -313,7 +313,7 @@ where
     /// Apply the best insertion for `element` permanently.
     ///
     /// Returns true if the element was inserted.
-    fn apply_insertion<D: ScoreDirector<S>>(
+    fn apply_insertion<D: Director<S>>(
         &self,
         element: E,
         entity_idx: usize,
@@ -361,16 +361,16 @@ where
 /// ```
 /// use solverforge_solver::ListCheapestInsertionPhase;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone)]
 /// struct Vehicle { visits: Vec<usize> }
 ///
 /// #[derive(Clone)]
-/// struct Plan { vehicles: Vec<Vehicle>, n_visits: usize, score: Option<SimpleScore> }
+/// struct Plan { vehicles: Vec<Vehicle>, n_visits: usize, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Plan {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -462,7 +462,7 @@ impl<S, E, D> Phase<S, D> for ListCheapestInsertionPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -563,16 +563,16 @@ where
 /// ```
 /// use solverforge_solver::ListRegretInsertionPhase;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone)]
 /// struct Vehicle { visits: Vec<usize> }
 ///
 /// #[derive(Clone)]
-/// struct Plan { vehicles: Vec<Vehicle>, n_visits: usize, score: Option<SimpleScore> }
+/// struct Plan { vehicles: Vec<Vehicle>, n_visits: usize, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Plan {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -663,7 +663,7 @@ where
     ///
     /// Returns `(regret, best_entity, best_pos)` where regret is the score
     /// difference between first and second best insertion.
-    fn evaluate_regret<D: ScoreDirector<S>>(
+    fn evaluate_regret<D: Director<S>>(
         &self,
         element: E,
         n_entities: usize,
@@ -715,7 +715,7 @@ impl<S, E, D> Phase<S, D> for ListRegretInsertionPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);

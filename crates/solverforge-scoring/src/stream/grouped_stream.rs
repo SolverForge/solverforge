@@ -39,7 +39,7 @@ use crate::constraint::grouped::GroupedUniConstraint;
 // use solverforge_scoring::stream::ConstraintFactory;
 // use solverforge_scoring::stream::collector::count;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone, Hash, PartialEq, Eq)]
 // struct Shift { employee_id: usize }
@@ -47,10 +47,10 @@ use crate::constraint::grouped::GroupedUniConstraint;
 // #[derive(Clone)]
 // struct Solution { shifts: Vec<Shift> }
 //
-// let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+// let constraint = ConstraintFactory::<Solution, SoftScore>::new()
 //     .for_each(|s: &Solution| &s.shifts)
 //     .group_by(|shift: &Shift| shift.employee_id, count())
-//     .penalize_with(|count: &usize| SimpleScore::of((*count * *count) as i64))
+//     .penalize_with(|count: &usize| SoftScore::of((*count * *count) as i64))
 //     .as_constraint("Balanced workload");
 //
 // let solution = Solution {
@@ -63,7 +63,7 @@ use crate::constraint::grouped::GroupedUniConstraint;
 // };
 //
 // // Employee 1: 3² = 9, Employee 2: 1² = 1, Total: -10
-// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
+// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
 // ```
 pub struct GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
 where
@@ -108,7 +108,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::collector::count;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone, Hash, PartialEq, Eq)]
     // struct Task { priority: u32 }
@@ -116,10 +116,10 @@ where
     // #[derive(Clone)]
     // struct Solution { tasks: Vec<Task> }
     //
-    // let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| &s.tasks)
     //     .group_by(|t: &Task| t.priority, count())
-    //     .penalize_with(|count: &usize| SimpleScore::of(*count as i64))
+    //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
     //     .as_constraint("Priority distribution");
     //
     // let solution = Solution {
@@ -131,7 +131,7 @@ where
     // };
     //
     // // Priority 1: 2 tasks, Priority 2: 1 task, Total: -3
-    // assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-3));
+    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-3));
     // ```
     pub fn penalize_with<W>(
         self,
@@ -231,7 +231,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::collector::count;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone, Hash, PartialEq, Eq)]
     // struct Employee { id: usize }
@@ -246,7 +246,7 @@ where
     // }
     //
     // // Count shifts per employee, including employees with 0 shifts
-    // let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
     //     .for_each(|s: &Schedule| &s.shifts)
     //     .group_by(|shift: &Shift| shift.employee_id, count())
     //     .complement(
@@ -254,7 +254,7 @@ where
     //         |emp: &Employee| emp.id,
     //         |_emp: &Employee| 0usize,
     //     )
-    //     .penalize_with(|count: &usize| SimpleScore::of(*count as i64))
+    //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
     //     .as_constraint("Shift count");
     //
     // let schedule = Schedule {
@@ -266,7 +266,7 @@ where
     // };
     //
     // // Employee 0: 2, Employee 1: 0 → Total: -2
-    // assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+    // assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
     // ```
     pub fn complement<B, EB, KB, D>(
         self,
@@ -315,7 +315,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::collector::count;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone, Hash, PartialEq, Eq)]
     // struct Employee { id: usize }
@@ -331,7 +331,7 @@ where
     //
     // // Count shifts per employee, skipping unassigned shifts
     // // The group_by key is ignored; complement_with_key provides its own
-    // let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
     //     .for_each(|s: &Schedule| &s.shifts)
     //     .group_by(|_shift: &Shift| 0usize, count())  // Placeholder key, will be overridden
     //     .complement_with_key(
@@ -340,7 +340,7 @@ where
     //         |emp: &Employee| emp.id,            // usize
     //         |_emp: &Employee| 0usize,
     //     )
-    //     .penalize_with(|count: &usize| SimpleScore::of(*count as i64))
+    //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
     //     .as_constraint("Shift count");
     //
     // let schedule = Schedule {
@@ -353,7 +353,7 @@ where
     // };
     //
     // // Employee 0: 2, Employee 1: 0 → Total: -2
-    // assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-2));
+    // assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
     // ```
     pub fn complement_with_key<B, EB, KA2, KB, D>(
         self,
@@ -426,7 +426,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::collector::count;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone, Hash, PartialEq, Eq)]
     // struct Item { category: u32 }
@@ -434,10 +434,10 @@ where
     // #[derive(Clone)]
     // struct Solution { items: Vec<Item> }
     //
-    // let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| &s.items)
     //     .group_by(|i: &Item| i.category, count())
-    //     .penalize_with(|n: &usize| SimpleScore::of(*n as i64))
+    //     .penalize_with(|n: &usize| SoftScore::of(*n as i64))
     //     .as_constraint("Category penalty");
     //
     // assert_eq!(constraint.name(), "Category penalty");

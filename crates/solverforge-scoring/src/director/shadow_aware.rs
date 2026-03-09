@@ -22,7 +22,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 // ```
 // use solverforge_scoring::director::ShadowVariableSupport;
 // use solverforge_core::domain::PlanningSolution;
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Visit {
@@ -42,11 +42,11 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 // struct VrpSolution {
 //     visits: Vec<Visit>,
 //     vehicles: Vec<Vehicle>,
-//     score: Option<SimpleScore>,
+//     score: Option<SoftScore>,
 // }
 //
 // impl PlanningSolution for VrpSolution {
-//     type Score = SimpleScore;
+//     type Score = SoftScore;
 //     fn score(&self) -> Option<Self::Score> { self.score }
 //     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 // }
@@ -103,17 +103,17 @@ pub trait ShadowVariableSupport: PlanningSolution {
 // use solverforge_scoring::ShadowVariableSupport;
 // use solverforge_scoring::director::SolvableSolution;
 // use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 // use std::any::TypeId;
 //
 // #[derive(Clone)]
 // struct MyPlan {
 //     entities: Vec<i64>,
-//     score: Option<SimpleScore>,
+//     score: Option<SoftScore>,
 // }
 //
 // impl PlanningSolution for MyPlan {
-//     type Score = SimpleScore;
+//     type Score = SoftScore;
 //     fn score(&self) -> Option<Self::Score> { self.score }
 //     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 // }
@@ -140,6 +140,6 @@ pub trait SolvableSolution: ShadowVariableSupport {
     // Returns the entity count for a given descriptor index.
     //
     // This is an associated function (not a method) to match the
-    // `fn(&S, usize) -> usize` signature required by `TypedScoreDirector`.
+    // `fn(&S, usize) -> usize` signature required by `ScoreDirector`.
     fn entity_count(solution: &Self, descriptor_index: usize) -> usize;
 }

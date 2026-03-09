@@ -10,7 +10,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::entity::{EntityReference, EntitySelector};
 
@@ -63,13 +63,13 @@ pub trait PillarSelector<S: PlanningSolution>: Send + Debug {
     ///
     /// Each pillar contains entity references for entities that share
     /// the same variable value.
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = Pillar> + 'a;
 
     /// Returns the approximate number of pillars.
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize;
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     /// Returns true if this selector may return the same pillar multiple times.
     fn is_never_ending(&self) -> bool {
@@ -139,14 +139,14 @@ impl SubPillarConfig {
 /// Both the entity selector `ES` and the extractor function `E` are stored as
 /// concrete generic type parameters, eliminating all virtual dispatch overhead.
 ///
-/// **Note**: The value extractor closure uses `&dyn ScoreDirector<S>` intentionally.
+/// **Note**: The value extractor closure uses `&dyn Director<S>` intentionally.
 /// This is a scorer-agnostic boundary - the closure doesn't need the concrete `D` type.
 pub struct DefaultPillarSelector<S, V, ES, E>
 where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S>,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&dyn Director<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     /// The underlying entity selector (zero-erasure).
     entity_selector: ES,
@@ -167,7 +167,7 @@ where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S> + Debug,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&dyn Director<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultPillarSelector")
@@ -184,7 +184,7 @@ where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S>,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&dyn Director<S>, usize, usize) -> Option<V> + Send + Sync,
 {
     /// Creates a new default pillar selector.
     ///
@@ -222,12 +222,12 @@ where
     }
 
     /// Builds the pillar list from the current solution state.
-    fn build_pillars<D: ScoreDirector<S>>(&self, score_director: &D) -> Vec<Pillar> {
+    fn build_pillars<D: Director<S>>(&self, score_director: &D) -> Vec<Pillar> {
         // Group entities by their value
         let mut value_to_entities: HashMap<Option<V>, Vec<EntityReference>> = HashMap::new();
 
         for entity_ref in self.entity_selector.iter(score_director) {
-            // Use dyn ScoreDirector for the extractor (intentional type-erasure boundary)
+            // Use dyn Director for the extractor (intentional type-erasure boundary)
             let value = (self.value_extractor)(
                 score_director,
                 entity_ref.descriptor_index,
@@ -251,9 +251,9 @@ where
     S: PlanningSolution,
     V: Clone + Eq + Hash + Send + Sync + 'static,
     ES: EntitySelector<S>,
-    E: Fn(&dyn ScoreDirector<S>, usize, usize) -> Option<V> + Send + Sync,
+    E: Fn(&dyn Director<S>, usize, usize) -> Option<V> + Send + Sync,
 {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = Pillar> + 'a {
@@ -261,7 +261,7 @@ where
         pillars.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.build_pillars(score_director).len()
     }
 

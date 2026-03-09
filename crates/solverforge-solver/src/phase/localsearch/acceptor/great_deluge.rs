@@ -23,13 +23,13 @@ use super::Acceptor;
 ///
 /// ```
 /// use solverforge_solver::phase::localsearch::GreatDelugeAcceptor;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
@@ -121,15 +121,15 @@ impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
 
     #[derive(Clone)]
     struct TestSolution {
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -141,70 +141,70 @@ mod tests {
     #[test]
     fn test_accepts_improving_moves() {
         let mut acceptor = GreatDelugeAcceptor::<TestSolution>::new(0.001);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Improving move: -100 -> -50
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-50)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-50)));
     }
 
     #[test]
     fn test_accepts_above_water_level() {
         let mut acceptor = GreatDelugeAcceptor::<TestSolution>::new(0.001);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Equal to water level
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-100)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-100)));
 
         // Above water level (less negative)
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-90)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-90)));
     }
 
     #[test]
     fn test_rejects_below_water_level() {
         let mut acceptor = GreatDelugeAcceptor::<TestSolution>::new(0.001);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Below water level (more negative)
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-110)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-110)));
     }
 
     #[test]
     fn test_water_rises_over_time() {
         let mut acceptor = GreatDelugeAcceptor::<TestSolution>::new(0.1);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Initially water_level = -100
         // Score -100 is at water level (accepted)
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-100)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-100)));
         // Score -101 is below water level and not improving (-101 < -100)
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-101)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-101)));
 
         // After one step, water rises by 0.1 * 100 = 10, so water_level = -90
-        acceptor.step_ended(&SimpleScore::of(-100));
+        acceptor.step_ended(&SoftScore::of(-100));
         // Score -90 is at water level
-        assert!(acceptor.is_accepted(&SimpleScore::of(-90), &SimpleScore::of(-90)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-90), &SoftScore::of(-90)));
         // Score -91 is below water level and not improving (-91 < -90)
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-90), &SimpleScore::of(-91)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-90), &SoftScore::of(-91)));
 
         // After another step, water_level = -80
-        acceptor.step_ended(&SimpleScore::of(-90));
+        acceptor.step_ended(&SoftScore::of(-90));
         // Score -80 is at water level
-        assert!(acceptor.is_accepted(&SimpleScore::of(-80), &SimpleScore::of(-80)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-80), &SoftScore::of(-80)));
         // Score -81 is below water level and not improving (-81 < -80)
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-80), &SimpleScore::of(-81)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-80), &SoftScore::of(-81)));
     }
 
     #[test]
     fn test_phase_reset() {
         let mut acceptor = GreatDelugeAcceptor::<TestSolution>::new(0.1);
-        acceptor.phase_started(&SimpleScore::of(-100));
-        acceptor.step_ended(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
+        acceptor.step_ended(&SoftScore::of(-100));
         acceptor.phase_ended();
 
         // After phase ends, should reset
-        acceptor.phase_started(&SimpleScore::of(-50));
+        acceptor.phase_started(&SoftScore::of(-50));
         // Water level should be -50, not -90
-        assert!(acceptor.is_accepted(&SimpleScore::of(-50), &SimpleScore::of(-50)));
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-50), &SimpleScore::of(-51)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-50), &SoftScore::of(-50)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-50), &SoftScore::of(-51)));
     }
 }

@@ -3,20 +3,17 @@
 //! Re-exports Task-based fixtures from solverforge-test and provides
 //! director factory functions.
 
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_scoring::ScoreDirector;
 
 pub use solverforge_test::task::{
     create_task_descriptor, get_priority, set_priority, Task, TaskSolution,
 };
 
-/// Creates a SimpleScoreDirector for TaskSolution.
+/// Creates a ScoreDirector for TaskSolution.
 ///
 /// The score calculator returns zero (tasks have no inherent conflicts).
-pub fn create_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+pub fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     let solution = TaskSolution::new(tasks);
     let descriptor = create_task_descriptor();
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
 }

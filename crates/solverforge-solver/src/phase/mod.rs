@@ -17,7 +17,7 @@ pub mod vnd;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
@@ -31,7 +31,7 @@ use crate::scope::SolverScope;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type (default `()`)
-pub trait Phase<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S> = ()>:
+pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>:
     Send + Debug
 {
     /// Executes this phase.
@@ -45,7 +45,7 @@ pub trait Phase<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCa
 }
 
 /// Unit type implements Phase as a no-op (empty phase list).
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>> Phase<S, D, BestCb>
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Phase<S, D, BestCb>
     for ()
 {
     fn solve(&mut self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>) {

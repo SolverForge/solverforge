@@ -1,6 +1,6 @@
 // GroupedUniConstraint tests
 
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
@@ -27,7 +27,7 @@ fn test_grouped_constraint_evaluate() {
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
-        |count: &usize| SimpleScore::of((*count * *count) as i64),
+        |count: &usize| SoftScore::of((*count * *count) as i64),
         false,
     );
 
@@ -43,7 +43,7 @@ fn test_grouped_constraint_evaluate() {
     // Employee 1: 3 shifts -> 9
     // Employee 2: 1 shift -> 1
     // Total penalty: -10
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn test_grouped_constraint_incremental() {
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
-        |count: &usize| SimpleScore::of(*count as i64),
+        |count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -72,17 +72,17 @@ fn test_grouped_constraint_incremental() {
     // Employee 1: 2 shifts -> -2
     // Employee 2: 1 shift -> -1
     // Total: -3
-    assert_eq!(total, SimpleScore::of(-3));
+    assert_eq!(total, SoftScore::of(-3));
 
     // Retract shift at index 0 (employee 1)
     let delta = constraint.on_retract(&solution, 0, 0);
     // Employee 1 now has 1 shift -> score goes from -2 to -1, delta = +1
-    assert_eq!(delta, SimpleScore::of(1));
+    assert_eq!(delta, SoftScore::of(1));
 
     // Insert shift at index 0 (employee 1)
     let delta = constraint.on_insert(&solution, 0, 0);
     // Employee 1 now has 2 shifts -> score goes from -1 to -2, delta = -1
-    assert_eq!(delta, SimpleScore::of(-1));
+    assert_eq!(delta, SoftScore::of(-1));
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn test_grouped_constraint_reward() {
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
-        |count: &usize| SimpleScore::of(*count as i64),
+        |count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -106,5 +106,5 @@ fn test_grouped_constraint_reward() {
     };
 
     // 2 shifts in one group -> reward of +2
-    assert_eq!(constraint.evaluate(&solution), SimpleScore::of(2));
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(2));
 }

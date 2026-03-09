@@ -3,8 +3,8 @@
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector, SimpleScoreDirector};
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
 use std::any::TypeId;
 
 use crate::heuristic::r#move::Move;
@@ -21,11 +21,11 @@ struct Task {
 #[derive(Clone, Debug)]
 struct TaskSolution {
     tasks: Vec<Task>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TaskSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -54,9 +54,7 @@ fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
     }
 }
 
-fn create_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     let solution = TaskSolution { tasks, score: None };
 
     let extractor = Box::new(TypedEntityExtractor::new(
@@ -71,7 +69,7 @@ fn create_director(
     let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
 }
 
 #[test]
@@ -163,7 +161,7 @@ fn test_change_do_and_undo() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // Verify change using typed getter - zero erasure
@@ -201,7 +199,7 @@ fn test_swap_do_and_undo() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // Verify swap using typed getter

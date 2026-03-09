@@ -3,8 +3,8 @@
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 
 use super::EntityReference;
@@ -22,11 +22,11 @@ struct Queen {
 #[derive(Clone, Debug)]
 struct NQueensSolution {
     queens: Vec<Queen>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for NQueensSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -45,9 +45,7 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
     &mut s.queens
 }
 
-fn create_test_director(
-    n: usize,
-) -> SimpleScoreDirector<NQueensSolution, impl Fn(&NQueensSolution) -> SimpleScore> {
+fn create_test_director(n: usize) -> ScoreDirector<NQueensSolution, ()> {
     let queens: Vec<_> = (0..n).map(|i| Queen { id: i as i64 }).collect();
 
     let solution = NQueensSolution {
@@ -67,7 +65,7 @@ fn create_test_director(
     let descriptor = SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
 }
 
 #[test]

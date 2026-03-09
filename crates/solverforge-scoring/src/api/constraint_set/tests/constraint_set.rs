@@ -1,7 +1,7 @@
 // Tests for constraint set types.
 
 use super::super::{ConstraintSet, IncrementalConstraint};
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
 
 // Simple test constraint that counts entities matching a predicate.
@@ -26,17 +26,17 @@ where
     }
 }
 
-impl<S, F> IncrementalConstraint<S, SimpleScore> for CountingConstraint<S, F>
+impl<S, F> IncrementalConstraint<S, SoftScore> for CountingConstraint<S, F>
 where
     S: Send + Sync,
     F: Fn(&S, usize) -> bool + Send + Sync,
 {
-    fn evaluate(&self, solution: &S) -> SimpleScore {
+    fn evaluate(&self, solution: &S) -> SoftScore {
         let count = (self.extractor)(solution);
         let matches = (0..count)
             .filter(|&i| (self.predicate)(solution, i))
             .count() as i64;
-        SimpleScore::of(-matches * self.weight)
+        SoftScore::of(-matches * self.weight)
     }
 
     fn match_count(&self, solution: &S) -> usize {
@@ -46,7 +46,7 @@ where
             .count()
     }
 
-    fn initialize(&mut self, solution: &S) -> SimpleScore {
+    fn initialize(&mut self, solution: &S) -> SoftScore {
         self.evaluate(solution)
     }
 
@@ -55,11 +55,11 @@ where
         solution: &S,
         entity_index: usize,
         _descriptor_index: usize,
-    ) -> SimpleScore {
+    ) -> SoftScore {
         if (self.predicate)(solution, entity_index) {
-            SimpleScore::of(-self.weight)
+            SoftScore::of(-self.weight)
         } else {
-            SimpleScore::of(0)
+            SoftScore::of(0)
         }
     }
 
@@ -68,11 +68,11 @@ where
         solution: &S,
         entity_index: usize,
         _descriptor_index: usize,
-    ) -> SimpleScore {
+    ) -> SoftScore {
         if (self.predicate)(solution, entity_index) {
-            SimpleScore::of(self.weight)
+            SoftScore::of(self.weight)
         } else {
-            SimpleScore::of(0)
+            SoftScore::of(0)
         }
     }
 
@@ -103,10 +103,10 @@ fn test_empty_constraint_set() {
         values: vec![Some(1), None],
     };
 
-    let score: SimpleScore = constraints.evaluate_all(&solution);
-    assert_eq!(score, SimpleScore::of(0));
+    let score: SoftScore = constraints.evaluate_all(&solution);
+    assert_eq!(score, SoftScore::of(0));
     assert_eq!(
-        <() as ConstraintSet<TestSolution, SimpleScore>>::constraint_count(&constraints),
+        <() as ConstraintSet<TestSolution, SoftScore>>::constraint_count(&constraints),
         0
     );
 }
@@ -125,7 +125,7 @@ fn test_single_constraint() {
         values: vec![Some(1), None, None],
     };
 
-    assert_eq!(constraints.evaluate_all(&solution), SimpleScore::of(-2));
+    assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-2));
     assert_eq!(constraints.constraint_count(), 1);
 }
 
@@ -151,7 +151,7 @@ fn test_two_constraints() {
 
     // c1: 1 unassigned (-1)
     // c2: 1 high value (-2)
-    assert_eq!(constraints.evaluate_all(&solution), SimpleScore::of(-3));
+    assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-3));
     assert_eq!(constraints.constraint_count(), 2);
 }
 
@@ -171,11 +171,11 @@ fn test_incremental_insert() {
 
     // Entity 0 is unassigned -> delta = -1
     let delta = constraints.on_insert_all(&solution, 0, 0);
-    assert_eq!(delta, SimpleScore::of(-1));
+    assert_eq!(delta, SoftScore::of(-1));
 
     // Entity 1 is assigned -> delta = 0
     let delta = constraints.on_insert_all(&solution, 1, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 }
 
 #[test]
@@ -194,11 +194,11 @@ fn test_incremental_retract() {
 
     // Retract unassigned entity -> delta = +1 (removes penalty)
     let delta = constraints.on_retract_all(&solution, 0, 0);
-    assert_eq!(delta, SimpleScore::of(1));
+    assert_eq!(delta, SoftScore::of(1));
 
     // Retract assigned entity -> delta = 0
     let delta = constraints.on_retract_all(&solution, 1, 0);
-    assert_eq!(delta, SimpleScore::of(0));
+    assert_eq!(delta, SoftScore::of(0));
 }
 
 #[test]
@@ -237,6 +237,6 @@ fn test_sixteen_constraints() {
     };
 
     // Only values 5, 10, 15 match -> 3 penalties
-    assert_eq!(constraints.evaluate_all(&solution), SimpleScore::of(-3));
+    assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-3));
     assert_eq!(constraints.constraint_count(), 16);
 }

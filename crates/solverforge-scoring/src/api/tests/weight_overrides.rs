@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use solverforge_core::score::{HardSoftScore, SimpleScore};
+use solverforge_core::score::{HardSoftScore, SoftScore};
 
 use crate::api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
@@ -15,44 +15,44 @@ use crate::api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 #[test]
 fn test_new_is_empty() {
-    let overrides = ConstraintWeightOverrides::<SimpleScore>::new();
+    let overrides = ConstraintWeightOverrides::<SoftScore>::new();
     assert!(overrides.is_empty());
     assert_eq!(overrides.len(), 0);
 }
 
 #[test]
 fn test_put_and_get() {
-    let mut overrides = ConstraintWeightOverrides::<SimpleScore>::new();
-    overrides.put("test", SimpleScore::of(5));
+    let mut overrides = ConstraintWeightOverrides::<SoftScore>::new();
+    overrides.put("test", SoftScore::of(5));
 
     assert!(overrides.contains("test"));
-    assert_eq!(overrides.get("test"), Some(&SimpleScore::of(5)));
+    assert_eq!(overrides.get("test"), Some(&SoftScore::of(5)));
 }
 
 #[test]
 fn test_get_or_default_with_override() {
-    let mut overrides = ConstraintWeightOverrides::<SimpleScore>::new();
-    overrides.put("test", SimpleScore::of(5));
+    let mut overrides = ConstraintWeightOverrides::<SoftScore>::new();
+    overrides.put("test", SoftScore::of(5));
 
-    let weight = overrides.get_or_default("test", SimpleScore::of(1));
-    assert_eq!(weight, SimpleScore::of(5));
+    let weight = overrides.get_or_default("test", SoftScore::of(1));
+    assert_eq!(weight, SoftScore::of(5));
 }
 
 #[test]
 fn test_get_or_default_without_override() {
-    let overrides = ConstraintWeightOverrides::<SimpleScore>::new();
+    let overrides = ConstraintWeightOverrides::<SoftScore>::new();
 
-    let weight = overrides.get_or_default("test", SimpleScore::of(1));
-    assert_eq!(weight, SimpleScore::of(1));
+    let weight = overrides.get_or_default("test", SoftScore::of(1));
+    assert_eq!(weight, SoftScore::of(1));
 }
 
 #[test]
 fn test_remove() {
-    let mut overrides = ConstraintWeightOverrides::<SimpleScore>::new();
-    overrides.put("test", SimpleScore::of(5));
+    let mut overrides = ConstraintWeightOverrides::<SoftScore>::new();
+    overrides.put("test", SoftScore::of(5));
 
     let removed = overrides.remove("test");
-    assert_eq!(removed, Some(SimpleScore::of(5)));
+    assert_eq!(removed, Some(SoftScore::of(5)));
     assert!(!overrides.contains("test"));
 }
 
@@ -76,24 +76,24 @@ fn test_from_pairs() {
 
 #[test]
 fn test_weight_provider_trait() {
-    let mut overrides = ConstraintWeightOverrides::<SimpleScore>::new();
-    overrides.put("test", SimpleScore::of(5));
+    let mut overrides = ConstraintWeightOverrides::<SoftScore>::new();
+    overrides.put("test", SoftScore::of(5));
 
-    let provider: &dyn WeightProvider<SimpleScore> = &overrides;
-    assert_eq!(provider.weight("test"), Some(SimpleScore::of(5)));
+    let provider: &dyn WeightProvider<SoftScore> = &overrides;
+    assert_eq!(provider.weight("test"), Some(SoftScore::of(5)));
     assert_eq!(provider.weight("other"), None);
     assert_eq!(
-        provider.weight_or_default("other", SimpleScore::of(1)),
-        SimpleScore::of(1)
+        provider.weight_or_default("other", SoftScore::of(1)),
+        SoftScore::of(1)
     );
 }
 
 #[test]
 fn test_arc_weight_provider() {
-    let mut overrides = ConstraintWeightOverrides::<SimpleScore>::new();
-    overrides.put("test", SimpleScore::of(5));
-    let arc_overrides: Arc<ConstraintWeightOverrides<SimpleScore>> = overrides.into_arc();
+    let mut overrides = ConstraintWeightOverrides::<SoftScore>::new();
+    overrides.put("test", SoftScore::of(5));
+    let arc_overrides: Arc<ConstraintWeightOverrides<SoftScore>> = overrides.into_arc();
 
-    let provider: &dyn WeightProvider<SimpleScore> = &arc_overrides;
-    assert_eq!(provider.weight("test"), Some(SimpleScore::of(5)));
+    let provider: &dyn WeightProvider<SoftScore> = &arc_overrides;
+    assert_eq!(provider.weight("test"), Some(SoftScore::of(5)));
 }

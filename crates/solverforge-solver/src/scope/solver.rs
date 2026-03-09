@@ -7,7 +7,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::stats::SolverStats;
 
@@ -38,7 +38,7 @@ impl<S, F: Fn(&S) + Send + Sync> BestSolutionCallback<S> for F {
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type (default `()` means no callback)
-pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb = ()> {
+pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, BestCb = ()> {
     // The score director managing the working solution.
     score_director: D,
     // The best solution found so far.
@@ -67,7 +67,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb = ()
     pub inphase_score_calc_count_limit: Option<u64>,
 }
 
-impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D, ()> {
+impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
     /// Creates a new solver scope with the given score director and no callback.
     pub fn new(score_director: D) -> Self {
         Self {
@@ -88,7 +88,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D, ()> {
     }
 }
 
-impl<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     SolverScope<'t, S, D, BestCb>
 {
     /// Creates a new solver scope with the given score director and callback.
@@ -115,7 +115,7 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<
     }
 }
 
-impl<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     SolverScope<'t, S, D, BestCb>
 {
     /// Sets the termination flag.

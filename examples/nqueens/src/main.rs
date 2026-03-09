@@ -3,7 +3,7 @@
 //! Place N queens on an N×N board so no two threaten each other.
 
 use rand::Rng;
-use solverforge::__internal::TypedScoreDirector;
+use solverforge::__internal::ScoreDirector;
 use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
 
@@ -22,7 +22,7 @@ pub struct NQueensSolution {
     #[planning_entity_collection]
     pub queens: Vec<Queen>,
     #[planning_score]
-    pub score: Option<SimpleScore>,
+    pub score: Option<SoftScore>,
 }
 
 impl NQueensSolution {
@@ -56,8 +56,8 @@ impl NQueensSolution {
     }
 }
 
-fn define_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
-    let factory = ConstraintFactory::<NQueensSolution, SimpleScore>::new();
+fn define_constraints() -> impl ConstraintSet<NQueensSolution, SoftScore> {
+    let factory = ConstraintFactory::<NQueensSolution, SoftScore>::new();
 
     let row_conflict = factory
         .clone()
@@ -66,7 +66,7 @@ fn define_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
             joiner::equal(|q: &Queen| q.row),
         )
         .filter(|a: &Queen, b: &Queen| a.row.is_some() && b.row.is_some())
-        .penalize(SimpleScore::of(1))
+        .penalize(SoftScore::of(1))
         .as_constraint("Row conflict");
 
     let asc_diagonal = factory
@@ -76,7 +76,7 @@ fn define_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
             joiner::equal(|q: &Queen| q.row.map(|r| r - q.column)),
         )
         .filter(|a: &Queen, b: &Queen| a.row.is_some() && b.row.is_some())
-        .penalize(SimpleScore::of(1))
+        .penalize(SoftScore::of(1))
         .as_constraint("Ascending diagonal");
 
     let desc_diagonal = factory
@@ -85,7 +85,7 @@ fn define_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
             joiner::equal(|q: &Queen| q.row.map(|r| r + q.column)),
         )
         .filter(|a: &Queen, b: &Queen| a.row.is_some() && b.row.is_some())
-        .penalize(SimpleScore::of(1))
+        .penalize(SoftScore::of(1))
         .as_constraint("Descending diagonal");
 
     (row_conflict, asc_diagonal, desc_diagonal)
@@ -93,7 +93,7 @@ fn define_constraints() -> impl ConstraintSet<NQueensSolution, SimpleScore> {
 
 fn solve(solution: NQueensSolution) -> NQueensSolution {
     let n = solution.n;
-    let mut director = TypedScoreDirector::new(solution, define_constraints());
+    let mut director = ScoreDirector::new(solution, define_constraints());
     let mut rng = rand::thread_rng();
 
     // Construction: round-robin row assignment

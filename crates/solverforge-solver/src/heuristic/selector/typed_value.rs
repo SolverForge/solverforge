@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 /// A typed value selector that yields values of type `V` directly.
 ///
@@ -19,7 +19,7 @@ use solverforge_scoring::ScoreDirector;
 /// * `V` - The value type
 pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
     /// Returns an iterator over typed values for the given entity.
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
         descriptor_index: usize,
@@ -27,7 +27,7 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
     ) -> impl Iterator<Item = V> + 'a;
 
     /// Returns the number of values.
-    fn size<D: ScoreDirector<S>>(
+    fn size<D: Director<S>>(
         &self,
         score_director: &D,
         descriptor_index: usize,
@@ -83,7 +83,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, D: Director<S>>(
         &'a self,
         _score_director: &'a D,
         _descriptor_index: usize,
@@ -92,7 +92,7 @@ where
         self.values.iter().cloned()
     }
 
-    fn size<D: ScoreDirector<S>>(
+    fn size<D: Director<S>>(
         &self,
         _score_director: &D,
         _descriptor_index: usize,
@@ -129,7 +129,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
         _descriptor_index: usize,
@@ -139,7 +139,7 @@ where
         values.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(
+    fn size<D: Director<S>>(
         &self,
         score_director: &D,
         _descriptor_index: usize,
@@ -177,7 +177,7 @@ impl<S> TypedValueSelector<S, usize> for RangeValueSelector<S>
 where
     S: PlanningSolution,
 {
-    fn iter_typed<'a, D: ScoreDirector<S>>(
+    fn iter_typed<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
         _descriptor_index: usize,
@@ -187,7 +187,7 @@ where
         0..count
     }
 
-    fn size<D: ScoreDirector<S>>(
+    fn size<D: Director<S>>(
         &self,
         score_director: &D,
         _descriptor_index: usize,
@@ -201,8 +201,8 @@ where
 mod tests {
     use super::*;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::ScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -214,11 +214,11 @@ mod tests {
     #[derive(Clone, Debug)]
     struct TaskSolution {
         tasks: Vec<Task>,
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TaskSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -227,9 +227,7 @@ mod tests {
         }
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         let solution = TaskSolution { tasks, score: None };
         let extractor = Box::new(TypedEntityExtractor::new(
             "Task",
@@ -241,7 +239,7 @@ mod tests {
             EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>())
             .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
     }
 
     #[test]

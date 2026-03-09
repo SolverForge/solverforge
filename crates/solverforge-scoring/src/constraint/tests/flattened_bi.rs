@@ -2,7 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::flattened_bi::FlattenedBiConstraint;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone)]
@@ -38,8 +38,8 @@ fn create_test_constraint() -> FlattenedBiConstraint<
     impl Fn(&u32) -> u32,
     impl Fn(&Shift) -> u32,
     impl Fn(&Schedule, &Shift, &u32) -> bool,
-    impl Fn(&Shift, &u32) -> SimpleScore,
-    SimpleScore,
+    impl Fn(&Shift, &u32) -> SoftScore,
+    SoftScore,
 > {
     FlattenedBiConstraint::new(
         ConstraintRef::new("", "Unavailable employee"),
@@ -52,7 +52,7 @@ fn create_test_constraint() -> FlattenedBiConstraint<
         |day: &u32| *day,
         |shift: &Shift| shift.day,
         |_s: &Schedule, shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day,
-        |_shift: &Shift, _day: &u32| SimpleScore::of(1),
+        |_shift: &Shift, _day: &u32| SoftScore::of(1),
         false,
     )
 }
@@ -78,7 +78,7 @@ fn test_evaluate_single_match() {
     };
 
     // Day 5 shift conflicts with employee's unavailable day 5
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn test_evaluate_no_match() {
     };
 
     // Day 10 doesn't conflict
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(0));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(0));
 }
 
 #[test]
@@ -121,15 +121,15 @@ fn test_incremental() {
 
     // Initialize
     let initial = constraint.initialize(&schedule);
-    assert_eq!(initial, SimpleScore::of(-1));
+    assert_eq!(initial, SoftScore::of(-1));
 
     // Retract conflicting shift
     let delta = constraint.on_retract(&schedule, 0, 0);
-    assert_eq!(delta, SimpleScore::of(1)); // Removing penalty
+    assert_eq!(delta, SoftScore::of(1)); // Removing penalty
 
     // Re-insert it
     let delta = constraint.on_insert(&schedule, 0, 0);
-    assert_eq!(delta, SimpleScore::of(-1)); // Adding penalty back
+    assert_eq!(delta, SoftScore::of(-1)); // Adding penalty back
 }
 
 #[test]
@@ -147,5 +147,5 @@ fn test_unassigned_shift() {
     };
 
     // Unassigned shift doesn't match
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(0));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(0));
 }

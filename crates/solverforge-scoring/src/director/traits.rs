@@ -9,7 +9,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 // - Calculating scores (incrementally when possible)
 // - Notifying about variable changes for incremental updates
 // - Providing access to solution metadata via descriptors
-pub trait ScoreDirector<S: PlanningSolution>: Send {
+pub trait Director<S: PlanningSolution>: Send {
     // Returns a reference to the working solution.
     fn working_solution(&self) -> &S;
 
@@ -52,6 +52,6 @@ pub trait ScoreDirector<S: PlanningSolution>: Send {
     //
     // Default implementation does nothing (for non-recording directors).
     fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>) {
-        // Default: no-op - only RecordingScoreDirector stores undo closures
+        // Default: no-op - only RecordingDirector stores undo closures
     }
 }

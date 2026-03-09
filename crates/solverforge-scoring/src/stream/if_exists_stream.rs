@@ -37,7 +37,7 @@ use super::filter::UniFilter;
 // use solverforge_scoring::stream::ConstraintFactory;
 // use solverforge_scoring::stream::joiner::equal_bi;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Shift { id: usize, employee_idx: Option<usize> }
@@ -49,7 +49,7 @@ use super::filter::UniFilter;
 // struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
 //
 // // Penalize shifts assigned to employees who are on vacation
-// let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+// let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
 //     .for_each(|s: &Schedule| s.shifts.as_slice())
 //     .filter(|shift: &Shift| shift.employee_idx.is_some())
 //     .if_exists_filtered(
@@ -59,7 +59,7 @@ use super::filter::UniFilter;
 //             |emp: &Employee| Some(emp.id),
 //         ),
 //     )
-//     .penalize(SimpleScore::of(1))
+//     .penalize(SoftScore::of(1))
 //     .as_constraint("Vacation conflict");
 //
 // let schedule = Schedule {
@@ -75,7 +75,7 @@ use super::filter::UniFilter;
 // };
 //
 // // Shift 0 is assigned to employee 0 who is on vacation
-// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
 // ```
 pub struct IfExistsStream<S, A, B, K, EA, EB, KA, KB, FA, Sc>
 where

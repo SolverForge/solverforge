@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Move;
 
@@ -33,13 +33,13 @@ use super::Move;
 /// ```
 /// use solverforge_solver::heuristic::r#move::ListRuinMove;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
-/// struct Route { stops: Vec<i32>, score: Option<SimpleScore> }
+/// struct Route { stops: Vec<i32>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Route {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -161,7 +161,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.element_indices.is_empty() {
             return false;
         }
@@ -170,7 +170,7 @@ where
         self.element_indices.iter().all(|&idx| idx < len)
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let list_len = self.list_len;

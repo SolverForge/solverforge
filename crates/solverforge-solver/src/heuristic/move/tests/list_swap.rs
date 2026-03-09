@@ -10,11 +10,11 @@ struct Vehicle {
 #[derive(Clone, Debug)]
 struct RoutingSolution {
     vehicles: Vec<Vehicle>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for RoutingSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -46,9 +46,7 @@ fn list_set(s: &mut RoutingSolution, entity_idx: usize, pos: usize, val: i32) {
     }
 }
 
-fn create_director(
-    vehicles: Vec<Vehicle>,
-) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
+fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<RoutingSolution, ()> {
     let solution = RoutingSolution {
         vehicles,
         score: None,
@@ -63,7 +61,7 @@ fn create_director(
         .with_extractor(extractor);
     let descriptor = SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
         .with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.vehicles.len())
 }
 
 #[test]
@@ -80,7 +78,7 @@ fn intra_list_swap() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         let visits = &recording.working_solution().vehicles[0].visits;
@@ -112,7 +110,7 @@ fn inter_list_swap() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         let sol = recording.working_solution();

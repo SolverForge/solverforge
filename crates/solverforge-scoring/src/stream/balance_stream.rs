@@ -32,7 +32,7 @@ use crate::constraint::balance::BalanceConstraint;
 // ```
 // use solverforge_scoring::stream::ConstraintFactory;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Shift { employee_id: Option<usize> }
@@ -40,10 +40,10 @@ use crate::constraint::balance::BalanceConstraint;
 // #[derive(Clone)]
 // struct Solution { shifts: Vec<Shift> }
 //
-// let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+// let constraint = ConstraintFactory::<Solution, SoftScore>::new()
 //     .for_each(|s: &Solution| &s.shifts)
 //     .balance(|shift: &Shift| shift.employee_id)
-//     .penalize(SimpleScore::of(1000))
+//     .penalize(SoftScore::of(1000))
 //     .as_constraint("Balance workload");
 //
 // let solution = Solution {
@@ -56,7 +56,7 @@ use crate::constraint::balance::BalanceConstraint;
 // };
 //
 // // std_dev = 1.0, penalty = -1000
-// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1000));
+// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1000));
 // ```
 pub struct BalanceConstraintStream<S, A, K, E, F, KF, Sc>
 where

@@ -10,7 +10,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Move;
 
@@ -28,16 +28,16 @@ use super::Move;
 /// ```
 /// use solverforge_solver::heuristic::r#move::ListChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Vehicle { id: usize, visits: Vec<i32> }
 ///
 /// #[derive(Clone, Debug)]
-/// struct Solution { vehicles: Vec<Vehicle>, score: Option<SimpleScore> }
+/// struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -170,7 +170,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
         // Check source position is valid
@@ -210,7 +210,7 @@ where
         true
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         // Notify before changes
         score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
         if !self.is_intra_list() {

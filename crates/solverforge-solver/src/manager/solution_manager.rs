@@ -37,32 +37,32 @@ pub struct ScoreAnalysis<Sc> {
 ///
 /// ```
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_solver::manager::{Analyzable, ScoreAnalysis, ConstraintAnalysis};
 ///
 /// #[derive(Clone)]
 /// struct Schedule {
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
 /// impl Analyzable for Schedule {
-///     fn analyze(&self) -> ScoreAnalysis<SimpleScore> {
+///     fn analyze(&self) -> ScoreAnalysis<SoftScore> {
 ///         ScoreAnalysis {
-///             score: SimpleScore::of(0),
+///             score: SoftScore::of(0),
 ///             constraints: vec![],
 ///         }
 ///     }
 /// }
 ///
-/// let schedule = Schedule { score: Some(SimpleScore::of(0)) };
+/// let schedule = Schedule { score: Some(SoftScore::of(0)) };
 /// let analysis = schedule.analyze();
-/// assert_eq!(analysis.score, SimpleScore::of(0));
+/// assert_eq!(analysis.score, SoftScore::of(0));
 /// ```
 pub trait Analyzable: PlanningSolution + Clone + Send + 'static {
     /// Analyzes the solution and returns constraint breakdowns.
@@ -77,27 +77,27 @@ pub trait Analyzable: PlanningSolution + Clone + Send + 'static {
 ///
 /// ```
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_solver::manager::{analyze, Analyzable, ScoreAnalysis};
 ///
 /// #[derive(Clone)]
-/// struct Schedule { score: Option<SimpleScore> }
+/// struct Schedule { score: Option<SoftScore> }
 ///
 /// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
 /// impl Analyzable for Schedule {
-///     fn analyze(&self) -> ScoreAnalysis<SimpleScore> {
-///         ScoreAnalysis { score: SimpleScore::of(0), constraints: vec![] }
+///     fn analyze(&self) -> ScoreAnalysis<SoftScore> {
+///         ScoreAnalysis { score: SoftScore::of(0), constraints: vec![] }
 ///     }
 /// }
 ///
-/// let schedule = Schedule { score: Some(SimpleScore::of(0)) };
+/// let schedule = Schedule { score: Some(SoftScore::of(0)) };
 /// let result = analyze(&schedule);
-/// assert_eq!(result.score, SimpleScore::of(0));
+/// assert_eq!(result.score, SoftScore::of(0));
 /// ```
 pub fn analyze<S>(solution: &S) -> ScoreAnalysis<S::Score>
 where

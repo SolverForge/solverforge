@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 /// A change to the problem that can be applied during solving.
 ///
@@ -21,9 +21,9 @@ use solverforge_scoring::ScoreDirector;
 ///
 /// ```
 /// use solverforge_solver::realtime::ProblemChange;
-/// use solverforge_scoring::ScoreDirector;
+/// use solverforge_scoring::Director;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Employee { id: usize, shift: Option<i32> }
@@ -31,11 +31,11 @@ use solverforge_scoring::ScoreDirector;
 /// #[derive(Clone, Debug)]
 /// struct Schedule {
 ///     employees: Vec<Employee>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for Schedule {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -47,7 +47,7 @@ use solverforge_scoring::ScoreDirector;
 /// }
 ///
 /// impl ProblemChange<Schedule> for AddEmployee {
-///     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
+///     fn apply(&self, score_director: &mut dyn Director<Schedule>) {
 ///         // Add the new employee
 ///         score_director.working_solution_mut().employees.push(Employee {
 ///             id: self.employee_id,
@@ -64,7 +64,7 @@ use solverforge_scoring::ScoreDirector;
 /// }
 ///
 /// impl ProblemChange<Schedule> for RemoveEmployee {
-///     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
+///     fn apply(&self, score_director: &mut dyn Director<Schedule>) {
 ///         // Remove the employee
 ///         let id = self.employee_id;
 ///         score_director.working_solution_mut().employees.retain(|e| e.id != id);
@@ -77,7 +77,7 @@ pub trait ProblemChange<S: PlanningSolution>: Send + Debug {
     /// This method is called by the solver at a safe point (between steps).
     /// Access the working solution via `score_director.working_solution_mut()`.
     ///
-    fn apply(&self, score_director: &mut dyn ScoreDirector<S>);
+    fn apply(&self, score_director: &mut dyn Director<S>);
 }
 
 /// A boxed problem change for type-erased storage.
@@ -92,9 +92,9 @@ pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
 ///
 /// ```
 /// use solverforge_solver::realtime::ClosureProblemChange;
-/// use solverforge_scoring::ScoreDirector;
+/// use solverforge_scoring::Director;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { id: usize, done: bool }
@@ -102,11 +102,11 @@ pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
 /// #[derive(Clone, Debug)]
 /// struct Solution {
 ///     tasks: Vec<Task>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -120,7 +120,7 @@ pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
 /// ```
 pub struct ClosureProblemChange<S: PlanningSolution, F>
 where
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    F: Fn(&mut dyn Director<S>) + Send,
 {
     name: &'static str,
     change_fn: F,
@@ -130,7 +130,7 @@ where
 impl<S, F> ClosureProblemChange<S, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    F: Fn(&mut dyn Director<S>) + Send,
 {
     /// Creates a new closure-based problem change.
     ///
@@ -149,7 +149,7 @@ where
 impl<S, F> Debug for ClosureProblemChange<S, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    F: Fn(&mut dyn Director<S>) + Send,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClosureProblemChange")
@@ -161,9 +161,9 @@ where
 impl<S, F> ProblemChange<S> for ClosureProblemChange<S, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn ScoreDirector<S>) + Send,
+    F: Fn(&mut dyn Director<S>) + Send,
 {
-    fn apply(&self, score_director: &mut dyn ScoreDirector<S>) {
+    fn apply(&self, score_director: &mut dyn Director<S>) {
         (self.change_fn)(score_director);
     }
 }
@@ -172,8 +172,8 @@ where
 mod tests {
     use super::*;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::ScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -184,11 +184,11 @@ mod tests {
     #[derive(Clone, Debug)]
     struct TaskSchedule {
         tasks: Vec<Task>,
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TaskSchedule {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -204,9 +204,7 @@ mod tests {
         &mut s.tasks
     }
 
-    fn create_director(
-        tasks: Vec<Task>,
-    ) -> SimpleScoreDirector<TaskSchedule, impl Fn(&TaskSchedule) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSchedule, ()> {
         let solution = TaskSchedule { tasks, score: None };
         let extractor = Box::new(TypedEntityExtractor::new(
             "Task",
@@ -218,7 +216,7 @@ mod tests {
             EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
         let descriptor = SolutionDescriptor::new("TaskSchedule", TypeId::of::<TaskSchedule>())
             .with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
     }
 
     #[derive(Debug)]
@@ -227,7 +225,7 @@ mod tests {
     }
 
     impl ProblemChange<TaskSchedule> for AddTask {
-        fn apply(&self, score_director: &mut dyn ScoreDirector<TaskSchedule>) {
+        fn apply(&self, score_director: &mut dyn Director<TaskSchedule>) {
             score_director
                 .working_solution_mut()
                 .tasks

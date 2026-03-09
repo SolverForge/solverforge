@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::Move;
 use crate::phase::construction::{
@@ -78,7 +78,7 @@ where
 impl<S, D, M, P, Fo> PhaseFactory<S, D> for ConstructionPhaseFactory<S, M, P, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     M: Move<S> + Clone + Send + Sync + 'static,
     P: EntityPlacer<S, M> + Clone + Send + Sync + 'static,
     Fo: ConstructionForager<S, M> + Clone + Send + Sync + 'static,

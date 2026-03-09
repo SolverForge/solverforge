@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::k_opt_reconnection::{
     enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
@@ -136,7 +136,7 @@ where
     DM: ListPositionDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: ScoreDirector<S>>(
+    fn iter_moves<'a, SD: Director<S>>(
         &'a self,
         score_director: &'a SD,
     ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
@@ -179,7 +179,7 @@ where
             })
     }
 
-    fn size<SD: ScoreDirector<S>>(&self, score_director: &SD) -> usize {
+    fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
         // Approximate size: n * m^(k-1) * patterns
         let k = self.config.k;
         let m = self.max_nearby;

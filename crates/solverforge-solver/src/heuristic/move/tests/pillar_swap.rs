@@ -11,11 +11,11 @@ struct Employee {
 #[derive(Clone, Debug)]
 struct Solution {
     employees: Vec<Employee>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for Solution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -34,9 +34,7 @@ fn set_shift(s: &mut Solution, idx: usize, v: Option<i32>) {
     }
 }
 
-fn create_director(
-    employees: Vec<Employee>,
-) -> SimpleScoreDirector<Solution, impl Fn(&Solution) -> SimpleScore> {
+fn create_director(employees: Vec<Employee>) -> ScoreDirector<Solution, ()> {
     let solution = Solution {
         employees,
         score: None,
@@ -51,7 +49,7 @@ fn create_director(
         .with_extractor(extractor);
     let descriptor =
         SolutionDescriptor::new("Solution", TypeId::of::<Solution>()).with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.employees.len())
 }
 
 #[test]
@@ -86,7 +84,7 @@ fn test_pillar_swap_all_entities() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         assert_eq!(get_shift(recording.working_solution(), 0), Some(2));

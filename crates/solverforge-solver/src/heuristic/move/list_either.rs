@@ -6,7 +6,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::{
     KOptMove, ListChangeMove, ListReverseMove, ListRuinMove, ListSwapMove, Move, SubListChangeMove,
@@ -69,7 +69,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         match self {
             Self::ListChange(m) => m.is_doable(score_director),
             Self::ListSwap(m) => m.is_doable(score_director),
@@ -81,7 +81,7 @@ where
         }
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         match self {
             Self::ListChange(m) => m.do_move(score_director),
             Self::ListSwap(m) => m.do_move(score_director),

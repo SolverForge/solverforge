@@ -19,13 +19,13 @@ use std::collections::BinaryHeap;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 use crate::scope::BestSolutionCallback;
 use crate::scope::{PhaseScope, SolverScope};
 
-pub use bounder::{BounderType, FixedOffsetBounder, ScoreBounder, SimpleScoreBounder};
+pub use bounder::{BounderType, FixedOffsetBounder, ScoreBounder, SoftScoreBounder};
 pub use decider::{ExhaustiveSearchDecider, SimpleDecider};
 pub use node::{ExhaustiveSearchNode, MoveSequence};
 
@@ -162,16 +162,16 @@ impl<S: PlanningSolution> PartialOrd for PriorityNode<S> {
 /// ```
 /// use solverforge_solver::phase::exhaustive::{ExhaustiveSearchPhase, SimpleDecider, ExhaustiveSearchConfig};
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct MySolution {
 ///     values: Vec<Option<i32>>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -247,7 +247,7 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
 impl<S, D, BestCb, Dec> Phase<S, D, BestCb> for ExhaustiveSearchPhase<Dec>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     Dec: ExhaustiveSearchDecider<S, D>,
 {
@@ -359,15 +359,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
 
     #[derive(Clone, Debug)]
     struct TestSolution {
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
 
         fn score(&self) -> Option<Self::Score> {
             self.score

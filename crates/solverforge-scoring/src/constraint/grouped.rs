@@ -44,7 +44,7 @@ use crate::stream::filter::UniFilter;
 // use solverforge_scoring::stream::filter::TrueFilter;
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 // use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone, Hash, PartialEq, Eq)]
 // struct Shift { employee_id: usize }
@@ -60,7 +60,7 @@ use crate::stream::filter::UniFilter;
 //     TrueFilter,
 //     |shift: &Shift| shift.employee_id,
 //     count::<Shift>(),
-//     |count: &usize| SimpleScore::of((*count * *count) as i64),
+//     |count: &usize| SoftScore::of((*count * *count) as i64),
 //     false,
 // );
 //
@@ -76,7 +76,7 @@ use crate::stream::filter::UniFilter;
 // // Employee 1: 3 shifts -> 9 penalty
 // // Employee 2: 1 shift -> 1 penalty
 // // Total: -10
-// assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-10));
+// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
 // ```
 pub struct GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where

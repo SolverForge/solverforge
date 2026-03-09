@@ -11,14 +11,14 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Move;
 
 /// A move that assigns a value to all entities in a pillar.
 ///
 /// Stores entity indices and typed function pointers for zero-erasure access.
-/// Undo is handled by `RecordingScoreDirector`, not by this move.
+/// Undo is handled by `RecordingDirector`, not by this move.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -102,7 +102,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.entity_indices.is_empty() {
             return false;
         }
@@ -127,7 +127,7 @@ where
         }
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         // Capture old values using typed getter - zero erasure
         let old_values: Vec<(usize, Option<V>)> = self
             .entity_indices

@@ -51,7 +51,7 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | `random_seed` | `Option<u64>` | `None` | |
 | `move_thread_count` | `MoveThreadCount` | `Auto` | `#[serde(default)]` |
 | `termination` | `Option<TerminationConfig>` | `None` | |
-| `score_director` | `Option<ScoreDirectorConfig>` | `None` | |
+| `score_director` | `Option<DirectorConfig>` | `None` | |
 | `phases` | `Vec<PhaseConfig>` | `[]` | `#[serde(default)]` |
 
 **Methods:**
@@ -89,7 +89,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `time_limit` | `fn(&self) -> Option<Duration>` | Combines seconds + minutes × 60 |
 | `unimproved_time_limit` | `fn(&self) -> Option<Duration>` | Maps unimproved seconds to Duration |
 
-### `ScoreDirectorConfig`
+### `DirectorConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 

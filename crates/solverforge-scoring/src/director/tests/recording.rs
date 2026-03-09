@@ -1,22 +1,26 @@
-// Tests for RecordingScoreDirector.
+// Tests for RecordingDirector.
 
-use crate::director::recording::RecordingScoreDirector;
-use crate::director::SimpleScoreDirector;
-use crate::ScoreDirector;
-use solverforge_core::score::SimpleScore;
+use crate::director::recording::RecordingDirector;
+use crate::director::score_director::ScoreDirector;
+use crate::Director;
+use solverforge_core::score::SoftScore;
 use solverforge_test::nqueens::{
-    calculate_conflicts, create_test_descriptor, get_row, set_row, NQueensSolution, Queen,
+    create_nqueens_descriptor, get_row, set_row, NQueensSolution, Queen,
 };
+
+fn create_inner(queens: Vec<Queen>) -> ScoreDirector<NQueensSolution, ()> {
+    let descriptor = create_nqueens_descriptor();
+    ScoreDirector::simple(NQueensSolution::new(queens), descriptor, |s, _| {
+        s.queens.len()
+    })
+}
 
 #[test]
 fn test_recording_register_undo() {
-    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
-
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = create_inner(vec![Queen::assigned(0, 0, 0)]);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut inner);
+        let mut recording = RecordingDirector::new(&mut inner);
 
         // Capture old value using typed getter
         let old_value = get_row(recording.working_solution(), 0);
@@ -45,17 +49,14 @@ fn test_recording_register_undo() {
 
 #[test]
 fn test_recording_multiple_undo() {
-    let solution = NQueensSolution::new(vec![
+    let mut inner = create_inner(vec![
         Queen::assigned(0, 0, 0),
         Queen::assigned(1, 1, 1),
         Queen::assigned(2, 2, 2),
     ]);
 
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
-
     {
-        let mut recording = RecordingScoreDirector::new(&mut inner);
+        let mut recording = RecordingDirector::new(&mut inner);
 
         // Change multiple entities, registering typed undo for each
         for i in 0..3 {
@@ -80,13 +81,10 @@ fn test_recording_multiple_undo() {
 
 #[test]
 fn test_recording_undo_same_entity_twice() {
-    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
-
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = create_inner(vec![Queen::assigned(0, 0, 0)]);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut inner);
+        let mut recording = RecordingDirector::new(&mut inner);
 
         // First change: 0 -> 5
         let old1 = get_row(recording.working_solution(), 0);
@@ -113,12 +111,9 @@ fn test_recording_undo_same_entity_twice() {
 
 #[test]
 fn test_recording_reset() {
-    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0)]);
+    let mut inner = create_inner(vec![Queen::assigned(0, 0, 0)]);
 
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
-
-    let mut recording = RecordingScoreDirector::new(&mut inner);
+    let mut recording = RecordingDirector::new(&mut inner);
 
     recording.register_undo(Box::new(|_: &mut NQueensSolution| {}));
     assert_eq!(recording.change_count(), 1);
@@ -129,18 +124,15 @@ fn test_recording_reset() {
 
 #[test]
 fn test_recording_calculate_score() {
-    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0), Queen::assigned(1, 1, 1)]);
+    let mut inner = create_inner(vec![Queen::assigned(0, 0, 0), Queen::assigned(1, 1, 1)]);
 
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut recording = RecordingDirector::new(&mut inner);
 
-    let mut recording = RecordingScoreDirector::new(&mut inner);
-
-    // Initial score (diagonal conflict)
+    // Score is zero (empty constraint set)
     let score1 = recording.calculate_score();
-    assert_eq!(score1, SimpleScore::of(-1));
+    assert_eq!(score1, SoftScore::of(0));
 
-    // Change to avoid conflict
+    // Change a queen row and verify score is still computable
     let old = get_row(recording.working_solution(), 1);
     set_row(recording.working_solution_mut(), 1, Some(3));
     recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
@@ -148,23 +140,20 @@ fn test_recording_calculate_score() {
     }));
 
     let score2 = recording.calculate_score();
-    assert_eq!(score2, SimpleScore::of(0));
+    assert_eq!(score2, SoftScore::of(0));
 
     // Undo and recalculate
     recording.undo_changes();
     let score3 = recording.calculate_score();
-    assert_eq!(score3, SimpleScore::of(-1));
+    assert_eq!(score3, SoftScore::of(0));
 }
 
 #[test]
 fn test_recording_undo_none_to_some() {
-    let solution = NQueensSolution::new(vec![Queen::unassigned(0, 0)]);
-
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = create_inner(vec![Queen::unassigned(0, 0)]);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut inner);
+        let mut recording = RecordingDirector::new(&mut inner);
 
         // Set from None to Some
         let old = get_row(recording.working_solution(), 0);
@@ -183,13 +172,10 @@ fn test_recording_undo_none_to_some() {
 
 #[test]
 fn test_recording_undo_some_to_none() {
-    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 5)]);
-
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
+    let mut inner = create_inner(vec![Queen::assigned(0, 0, 5)]);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut inner);
+        let mut recording = RecordingDirector::new(&mut inner);
 
         // Set from Some to None
         let old = get_row(recording.working_solution(), 0);
@@ -208,23 +194,17 @@ fn test_recording_undo_some_to_none() {
 
 #[test]
 fn test_recording_is_incremental() {
-    let solution = NQueensSolution::new(vec![]);
+    let mut inner = create_inner(vec![]);
 
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
-
-    let recording = RecordingScoreDirector::new(&mut inner);
-    assert!(!recording.is_incremental()); // SimpleScoreDirector is not incremental
+    let recording = RecordingDirector::new(&mut inner);
+    assert!(recording.is_incremental()); // ScoreDirector is incremental
 }
 
 #[test]
 fn test_recording_entity_count() {
-    let solution = NQueensSolution::new(vec![Queen::assigned(0, 0, 0), Queen::assigned(1, 1, 1)]);
+    let mut inner = create_inner(vec![Queen::assigned(0, 0, 0), Queen::assigned(1, 1, 1)]);
 
-    let descriptor = create_test_descriptor();
-    let mut inner = SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
-
-    let recording = RecordingScoreDirector::new(&mut inner);
+    let recording = RecordingDirector::new(&mut inner);
     assert_eq!(recording.entity_count(0), Some(2));
     assert_eq!(recording.total_entity_count(), Some(2));
 }

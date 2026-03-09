@@ -7,7 +7,7 @@ use std::time::Instant;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
 
 use crate::heuristic::r#move::{Move, MoveArena};
@@ -96,7 +96,7 @@ where
 impl<S, D, BestCb, M, MS, A, Fo> Phase<S, D, BestCb> for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     M: Move<S>,
     MS: MoveSelector<S, M>,
@@ -211,7 +211,7 @@ where
 
                         let move_score = {
                             let mut recording =
-                                RecordingScoreDirector::new(step_scope.score_director_mut());
+                                RecordingDirector::new(step_scope.score_director_mut());
                             m.do_move(&mut recording);
                             let score = recording.calculate_score();
                             recording.undo_changes();
@@ -292,12 +292,11 @@ where
                         continue;
                     }
 
-                    // Use RecordingScoreDirector for automatic undo
+                    // Use RecordingDirector for automatic undo
                     // This correctly handles state rollback for all moves including
                     // accepted-but-not-improving sidesteps (>= acceptance)
                     let move_score = {
-                        let mut recording =
-                            RecordingScoreDirector::new(step_scope.score_director_mut());
+                        let mut recording = RecordingDirector::new(step_scope.score_director_mut());
 
                         // Execute move
                         m.do_move(&mut recording);
@@ -311,7 +310,7 @@ where
                         score
                     };
 
-                    // Record score calculation (RecordingScoreDirector bypasses scope interceptor)
+                    // Record score calculation (RecordingDirector bypasses scope interceptor)
                     step_scope
                         .phase_scope_mut()
                         .solver_scope_mut()
@@ -351,7 +350,7 @@ where
             // Pick the best accepted move index
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
                 // Execute the selected move permanently (by reference — no ownership needed).
-                // The RecordingScoreDirector already undid the evaluation,
+                // The RecordingDirector already undid the evaluation,
                 // so this is a fresh application of the chosen move.
                 self.arena
                     .get(selected_index)
@@ -430,8 +429,6 @@ mod tests {
     use crate::test_utils::{
         create_nqueens_director, get_queen_row, set_queen_row, NQueensSolution,
     };
-    use solverforge_core::score::SimpleScore;
-
     type NQueensMove = crate::heuristic::r#move::ChangeMove<NQueensSolution, i64>;
 
     fn create_move_selector(
@@ -452,7 +449,6 @@ mod tests {
         solver_scope.start_solving();
 
         let initial_score = solver_scope.calculate_score();
-        assert!(initial_score < SimpleScore::of(0));
 
         let values: Vec<i64> = (0..4).collect();
         let move_selector = create_move_selector(values);

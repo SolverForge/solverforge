@@ -15,13 +15,13 @@ use super::Acceptor;
 ///
 /// ```
 /// use solverforge_solver::phase::localsearch::LateAcceptanceAcceptor;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }

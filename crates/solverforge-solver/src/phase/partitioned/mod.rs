@@ -27,7 +27,7 @@ use std::marker::PhantomData;
 
 use rayon::prelude::*;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 use crate::scope::BestSolutionCallback;
@@ -75,8 +75,8 @@ impl Default for PartitionedSearchConfig {
 pub struct PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    PD: ScoreDirector<S>,
+    D: Director<S>,
+    PD: Director<S>,
     Part: SolutionPartitioner<S>,
     SDF: Fn(S) -> PD + Send + Sync,
     PF: Fn() -> CP + Send + Sync,
@@ -100,8 +100,8 @@ where
 impl<S, D, PD, Part, SDF, PF, CP> PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    PD: ScoreDirector<S>,
+    D: Director<S>,
+    PD: Director<S>,
     Part: SolutionPartitioner<S>,
     SDF: Fn(S) -> PD + Send + Sync,
     PF: Fn() -> CP + Send + Sync,
@@ -138,8 +138,8 @@ where
 impl<S, D, PD, Part, SDF, PF, CP> Debug for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    PD: ScoreDirector<S>,
+    D: Director<S>,
+    PD: Director<S>,
     Part: SolutionPartitioner<S> + Debug,
     SDF: Fn(S) -> PD + Send + Sync,
     PF: Fn() -> CP + Send + Sync,
@@ -157,9 +157,9 @@ impl<S, D, BestCb, PD, Part, SDF, PF, CP> Phase<S, D, BestCb>
     for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution + 'static,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
-    PD: ScoreDirector<S> + 'static,
+    PD: Director<S> + 'static,
     Part: SolutionPartitioner<S>,
     SDF: Fn(S) -> PD + Send + Sync,
     PF: Fn() -> CP + Send + Sync,
@@ -238,8 +238,8 @@ where
 impl<S, D, PD, Part, SDF, PF, CP> PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
-    PD: ScoreDirector<S>,
+    D: Director<S>,
+    PD: Director<S>,
     Part: SolutionPartitioner<S>,
     SDF: Fn(S) -> PD + Send + Sync,
     PF: Fn() -> CP + Send + Sync,
@@ -268,7 +268,7 @@ where
 pub trait ChildPhases<S, D>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     /// Runs all child phases on the solver scope.
     fn solve_all(&mut self, solver_scope: &mut SolverScope<S, D>);
@@ -280,7 +280,7 @@ macro_rules! impl_child_phases_tuple {
         impl<S, D, $($P),+> ChildPhases<S, D> for ($($P,)+)
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
+            D: Director<S>,
             $($P: Phase<S, D>,)+
         {
             fn solve_all(&mut self, solver_scope: &mut SolverScope<S, D>) {

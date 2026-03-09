@@ -3,8 +3,8 @@
 use crate::heuristic::selector::list_ruin::ListRuinMoveSelector;
 use crate::heuristic::selector::MoveSelector;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -15,11 +15,11 @@ struct Route {
 #[derive(Clone, Debug)]
 struct VrpSolution {
     routes: Vec<Route>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for VrpSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -46,16 +46,14 @@ fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
     }
 }
 
-fn create_director(
-    routes: Vec<Vec<i32>>,
-) -> SimpleScoreDirector<VrpSolution, impl Fn(&VrpSolution) -> SimpleScore> {
+fn create_director(routes: Vec<Vec<i32>>) -> ScoreDirector<VrpSolution, ()> {
     let routes = routes.into_iter().map(|stops| Route { stops }).collect();
     let solution = VrpSolution {
         routes,
         score: None,
     };
     let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>());
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.routes.len())
 }
 
 #[test]

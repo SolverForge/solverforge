@@ -1,7 +1,7 @@
 //! Step count termination.
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Termination;
 use crate::scope::BestSolutionCallback;
@@ -27,8 +27,8 @@ impl StepCountTermination {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
-    Termination<S, D, BestCb> for StepCountTermination
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+    for StepCountTermination
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope.total_step_count() >= self.limit

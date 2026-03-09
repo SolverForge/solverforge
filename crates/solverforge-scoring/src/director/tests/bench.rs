@@ -8,9 +8,9 @@
 mod benchmarks {
     use crate::constraint::incremental::IncrementalUniConstraint;
     use crate::constraint::IncrementalBiConstraint;
-    use crate::director::typed::TypedScoreDirector;
+    use crate::director::score_director::ScoreDirector;
     use solverforge_core::domain::PlanningSolution;
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
     use solverforge_core::{ConstraintRef, ImpactType};
     use std::time::Instant;
 
@@ -29,11 +29,11 @@ mod benchmarks {
     #[derive(Clone, Debug)]
     struct Schedule {
         shifts: Vec<Shift>,
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for Schedule {
-        type Score = SimpleScore;
+        type Score = SoftScore;
 
         fn score(&self) -> Option<Self::Score> {
             self.score
@@ -45,7 +45,7 @@ mod benchmarks {
     }
 
     /// Full recalculation scoring function (for comparison).
-    fn calculate_full(schedule: &Schedule) -> SimpleScore {
+    fn calculate_full(schedule: &Schedule) -> SoftScore {
         let shifts = &schedule.shifts;
         let mut penalty = 0i64;
 
@@ -71,7 +71,7 @@ mod benchmarks {
             }
         }
 
-        SimpleScore::of(-penalty)
+        SoftScore::of(-penalty)
     }
 
     /// Creates a schedule with n shifts, all assigned to the same employee.
@@ -146,7 +146,7 @@ mod benchmarks {
             ImpactType::Penalty,
             |s: &Schedule| s.shifts.as_slice(),
             |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
-            |_s: &Shift| SimpleScore::of(1),
+            |_s: &Shift| SoftScore::of(1),
             false,
         );
 
@@ -160,13 +160,13 @@ mod benchmarks {
                     && a.start_hour < b.end_hour
                     && b.start_hour < a.end_hour
             },
-            |_s: &Schedule, _a_idx: usize, _b_idx: usize| SimpleScore::of(10),
+            |_s: &Schedule, _a_idx: usize, _b_idx: usize| SoftScore::of(10),
             false,
         );
 
         let constraints = (unassigned, overlapping);
 
-        let mut director = TypedScoreDirector::new(schedule, constraints);
+        let mut director = ScoreDirector::new(schedule, constraints);
 
         // Initialize
         let initial = director.calculate_score();
@@ -236,7 +236,7 @@ mod benchmarks {
                 ImpactType::Penalty,
                 |s: &Schedule| s.shifts.as_slice(),
                 |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
-                |_s: &Shift| SimpleScore::of(1),
+                |_s: &Shift| SoftScore::of(1),
                 false,
             );
 
@@ -248,12 +248,12 @@ mod benchmarks {
                 |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                     a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
                 },
-                |_s: &Schedule, _a_idx: usize, _b_idx: usize| SimpleScore::of(10),
+                |_s: &Schedule, _a_idx: usize, _b_idx: usize| SoftScore::of(10),
                 false,
             );
 
             let constraints = (unassigned, overlapping);
-            let mut director = TypedScoreDirector::new(schedule.clone(), constraints);
+            let mut director = ScoreDirector::new(schedule.clone(), constraints);
             director.calculate_score();
 
             let start = Instant::now();

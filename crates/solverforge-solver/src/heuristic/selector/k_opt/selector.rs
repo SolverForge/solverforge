@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::r#move::k_opt_reconnection::{
@@ -93,7 +93,7 @@ where
     ES: EntitySelector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
@@ -133,7 +133,7 @@ where
             })
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let pattern_count = self.owned_patterns.len();

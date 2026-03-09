@@ -3,7 +3,7 @@ Zero-erasure incremental constraint scoring for SolverForge.
 
 This crate provides fully-typed incremental scoring infrastructure:
 - Zero-erasure incremental constraints (IncrementalUniConstraint, IncrementalBiConstraint, etc.)
-- Typed score directors (TypedScoreDirector)
+- Typed score directors (ScoreDirector)
 - Tuple-based constraint sets (zero virtual dispatch)
 
 Architecture:
@@ -41,11 +41,8 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 // Score Directors
 // ============================================================================
 
-pub use director::typed::TypedScoreDirector;
-pub use director::{
-    RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
-    SolvableSolution,
-};
+pub use director::score_director::ScoreDirector;
+pub use director::{Director, RecordingDirector, ShadowVariableSupport, SolvableSolution};
 
 // ============================================================================
 // Analysis (for score explanation)

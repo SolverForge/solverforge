@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::{Move, MoveSelector};
 use crate::phase::localsearch::{
@@ -136,7 +136,7 @@ where
 impl<S, D, M, MS, A, Fo> PhaseFactory<S, D> for LocalSearchPhaseFactory<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     M: Move<S> + Send + Sync + 'static,
     MS: MoveSelector<S, M> + Clone + Send + Sync + 'static,
     A: Acceptor<S> + Clone + Send + Sync + 'static,

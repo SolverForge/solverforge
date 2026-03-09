@@ -6,7 +6,7 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::bounder::ScoreBounder;
 use super::node::ExhaustiveSearchNode;
@@ -17,7 +17,7 @@ use super::node::ExhaustiveSearchNode;
 /// - Finding the next entity to assign
 /// - Generating all possible value assignments
 /// - Creating child nodes for each assignment
-pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + Debug {
     /// Expands a node by generating all child nodes.
     ///
     /// Returns a vector of child nodes, one for each possible assignment.
@@ -107,7 +107,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
     B: ScoreBounder<S, D>,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     fn expand(
         &self,
@@ -178,7 +178,7 @@ where
 }
 
 // Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for () {
+impl<S: PlanningSolution, D: Director<S>> ScoreBounder<S, D> for () {
     fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
         None
     }
@@ -187,15 +187,15 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
 
     #[derive(Clone, Debug)]
     struct TestSolution {
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
 
         fn score(&self) -> Option<Self::Score> {
             self.score

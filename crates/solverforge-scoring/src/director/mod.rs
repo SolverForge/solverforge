@@ -4,21 +4,18 @@
 //
 // # Score Director Types
 //
-// - [`SimpleScoreDirector`] - Full recalculation (baseline)
-// - [`TypedScoreDirector`] - Zero-erasure incremental scoring
-// - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
+// - [`ScoreDirector`] - Zero-erasure incremental scoring
+// - [`RecordingDirector`] - Automatic undo tracking wrapper
 
-mod simple;
 mod traits;
 
 pub mod recording;
+pub mod score_director;
 pub mod shadow_aware;
-pub mod typed;
 
 #[cfg(test)]
 mod tests;
 
-pub use recording::RecordingScoreDirector;
+pub use recording::RecordingDirector;
 pub use shadow_aware::{ShadowVariableSupport, SolvableSolution};
-pub use simple::SimpleScoreDirector;
-pub use traits::ScoreDirector;
+pub use traits::Director;

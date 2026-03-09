@@ -1,6 +1,6 @@
 // IfExistsUniConstraint tests
 
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
@@ -36,7 +36,7 @@ fn test_if_exists_penalizes_assigned_to_unavailable() {
         |t: &Task| t.assignee,
         |w: &Worker| Some(w.id),
         |_s: &TaskSchedule, t: &Task| t.assignee.is_some(),
-        |_t: &Task| SimpleScore::of(1),
+        |_t: &Task| SoftScore::of(1),
         false,
     );
 
@@ -68,7 +68,7 @@ fn test_if_exists_penalizes_assigned_to_unavailable() {
     };
 
     // Only task 0 matches
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
     assert_eq!(constraint.match_count(&schedule), 1);
 }
 
@@ -84,7 +84,7 @@ fn test_if_not_exists_penalizes_unassigned() {
         |t: &Task| t.assignee,
         |w: &Worker| Some(w.id),
         |_s: &TaskSchedule, t: &Task| t.assignee.is_some(),
-        |_t: &Task| SimpleScore::of(1),
+        |_t: &Task| SoftScore::of(1),
         false,
     );
 
@@ -116,6 +116,6 @@ fn test_if_not_exists_penalizes_unassigned() {
     };
 
     // Task 0 is assigned but worker 0 is not available
-    assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
     assert_eq!(constraint.match_count(&schedule), 1);
 }

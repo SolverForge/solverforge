@@ -19,13 +19,13 @@ use super::Acceptor;
 ///
 /// ```
 /// use solverforge_solver::phase::localsearch::StepCountingHillClimbingAcceptor;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
@@ -121,15 +121,15 @@ impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
 
     #[derive(Clone)]
     struct TestSolution {
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -141,88 +141,88 @@ mod tests {
     #[test]
     fn test_accepts_improving_moves() {
         let mut acceptor = StepCountingHillClimbingAcceptor::<TestSolution>::new(5);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Improving move: -100 -> -50
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-50)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-50)));
     }
 
     #[test]
     fn test_accepts_non_improving_within_limit() {
         let mut acceptor = StepCountingHillClimbingAcceptor::<TestSolution>::new(5);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Non-improving move accepted because step count < limit
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-110)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-110)));
     }
 
     #[test]
     fn test_rejects_after_limit_exceeded() {
         let mut acceptor = StepCountingHillClimbingAcceptor::<TestSolution>::new(3);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Accept non-improving moves until limit is reached
-        assert!(acceptor.is_accepted(&SimpleScore::of(-100), &SimpleScore::of(-110))); // step 0
-        acceptor.step_ended(&SimpleScore::of(-110));
+        assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-110))); // step 0
+        acceptor.step_ended(&SoftScore::of(-110));
 
-        assert!(acceptor.is_accepted(&SimpleScore::of(-110), &SimpleScore::of(-120))); // step 1
-        acceptor.step_ended(&SimpleScore::of(-120));
+        assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-120))); // step 1
+        acceptor.step_ended(&SoftScore::of(-120));
 
-        assert!(acceptor.is_accepted(&SimpleScore::of(-120), &SimpleScore::of(-130))); // step 2
-        acceptor.step_ended(&SimpleScore::of(-130));
+        assert!(acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-130))); // step 2
+        acceptor.step_ended(&SoftScore::of(-130));
 
         // Now at step 3, should reject non-improving
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-130), &SimpleScore::of(-140)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-130), &SoftScore::of(-140)));
         // step 3
     }
 
     #[test]
     fn test_resets_on_improvement() {
         let mut acceptor = StepCountingHillClimbingAcceptor::<TestSolution>::new(3);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Two non-improving steps
-        acceptor.step_ended(&SimpleScore::of(-110));
-        acceptor.step_ended(&SimpleScore::of(-120));
+        acceptor.step_ended(&SoftScore::of(-110));
+        acceptor.step_ended(&SoftScore::of(-120));
         assert_eq!(acceptor.steps_since_improvement, 2);
 
         // Now an improving step (better than -100 initial)
-        acceptor.step_ended(&SimpleScore::of(-50));
+        acceptor.step_ended(&SoftScore::of(-50));
         assert_eq!(acceptor.steps_since_improvement, 0);
 
         // Can take more non-improving steps again
-        acceptor.step_ended(&SimpleScore::of(-60));
-        acceptor.step_ended(&SimpleScore::of(-70));
-        assert!(acceptor.is_accepted(&SimpleScore::of(-70), &SimpleScore::of(-80)));
+        acceptor.step_ended(&SoftScore::of(-60));
+        acceptor.step_ended(&SoftScore::of(-70));
+        assert!(acceptor.is_accepted(&SoftScore::of(-70), &SoftScore::of(-80)));
         // still within limit
     }
 
     #[test]
     fn test_improving_always_accepted_even_after_limit() {
         let mut acceptor = StepCountingHillClimbingAcceptor::<TestSolution>::new(2);
-        acceptor.phase_started(&SimpleScore::of(-100));
+        acceptor.phase_started(&SoftScore::of(-100));
 
         // Exhaust the limit
-        acceptor.step_ended(&SimpleScore::of(-110));
-        acceptor.step_ended(&SimpleScore::of(-120));
+        acceptor.step_ended(&SoftScore::of(-110));
+        acceptor.step_ended(&SoftScore::of(-120));
 
         // Non-improving should be rejected
-        assert!(!acceptor.is_accepted(&SimpleScore::of(-120), &SimpleScore::of(-130)));
+        assert!(!acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-130)));
 
         // But improving should still be accepted
-        assert!(acceptor.is_accepted(&SimpleScore::of(-120), &SimpleScore::of(-50)));
+        assert!(acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-50)));
     }
 
     #[test]
     fn test_phase_reset() {
         let mut acceptor = StepCountingHillClimbingAcceptor::<TestSolution>::new(3);
-        acceptor.phase_started(&SimpleScore::of(-100));
-        acceptor.step_ended(&SimpleScore::of(-110));
-        acceptor.step_ended(&SimpleScore::of(-120));
+        acceptor.phase_started(&SoftScore::of(-100));
+        acceptor.step_ended(&SoftScore::of(-110));
+        acceptor.step_ended(&SoftScore::of(-120));
         acceptor.phase_ended();
 
         // After reset, counter should be back to 0
-        acceptor.phase_started(&SimpleScore::of(-200));
+        acceptor.phase_started(&SoftScore::of(-200));
         assert_eq!(acceptor.steps_since_improvement, 0);
     }
 }

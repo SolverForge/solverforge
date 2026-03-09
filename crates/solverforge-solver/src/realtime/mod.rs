@@ -15,9 +15,9 @@
 //!
 //! ```
 //! use solverforge_solver::realtime::ProblemChange;
-//! use solverforge_scoring::ScoreDirector;
+//! use solverforge_scoring::Director;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::SoftScore;
 //!
 //! #[derive(Clone, Debug)]
 //! struct Task { id: usize, priority: Option<i32> }
@@ -25,11 +25,11 @@
 //! #[derive(Clone, Debug)]
 //! struct Schedule {
 //!     tasks: Vec<Task>,
-//!     score: Option<SimpleScore>,
+//!     score: Option<SoftScore>,
 //! }
 //!
 //! impl PlanningSolution for Schedule {
-//!     type Score = SimpleScore;
+//!     type Score = SoftScore;
 //!     fn score(&self) -> Option<Self::Score> { self.score }
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
@@ -39,7 +39,7 @@
 //! struct AddTask { id: usize }
 //!
 //! impl ProblemChange<Schedule> for AddTask {
-//!     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
+//!     fn apply(&self, score_director: &mut dyn Director<Schedule>) {
 //!         let task = Task { id: self.id, priority: None };
 //!         score_director.working_solution_mut().tasks.push(task);
 //!     }

@@ -1,7 +1,7 @@
 //! Tests for selector module.
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::EntityReference;
 

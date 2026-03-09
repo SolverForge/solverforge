@@ -6,7 +6,7 @@
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 use crate::scope::SolverScope;
@@ -37,7 +37,7 @@ pub struct SolverFactory<S, D, C, P, T> {
 impl<S, D, C, P, T> SolverFactory<S, D, C, P, T>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     C: Fn(&S) -> S::Score + Send + Sync,
     P: Phase<S, D>,
     T: Termination<S, D>,
@@ -115,21 +115,21 @@ impl<S: PlanningSolution> SolverFactory<S, (), (), (), ()> {
     ///
     /// ```
     /// use solverforge_core::domain::PlanningSolution;
-    /// use solverforge_core::score::SimpleScore;
+    /// use solverforge_core::score::SoftScore;
     /// use solverforge_solver::manager::solver_factory_builder;
     ///
     /// #[derive(Clone)]
     /// struct MySolution {
-    ///     score: Option<SimpleScore>,
+    ///     score: Option<SoftScore>,
     /// }
     ///
     /// impl PlanningSolution for MySolution {
-    ///     type Score = SimpleScore;
+    ///     type Score = SoftScore;
     ///     fn score(&self) -> Option<Self::Score> { self.score }
     ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
     /// }
     ///
-    /// let builder = solver_factory_builder::<MySolution, (), _>(|_s| SimpleScore::of(0));
+    /// let builder = solver_factory_builder::<MySolution, (), _>(|_s| SoftScore::of(0));
     /// ```
     pub fn builder<D, C>(score_calculator: C) -> SolverFactoryBuilder<S, D, C, (), NoTermination>
     where

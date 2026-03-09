@@ -1,7 +1,7 @@
 //! Step-level scope.
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::solver::BestSolutionCallback;
 use super::PhaseScope;
@@ -15,7 +15,7 @@ use super::PhaseScope;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type
-pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>, BestCb = ()> {
+pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = ()> {
     // Reference to the parent phase scope.
     phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>,
     // Index of this step within the phase (0-based).
@@ -24,7 +24,7 @@ pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>, BestC
     step_score: Option<S::Score>,
 }
 
-impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     StepScope<'t, 'a, 'b, S, D, BestCb>
 {
     /// Creates a new step scope.

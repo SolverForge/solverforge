@@ -14,8 +14,8 @@
 //! use solverforge_solver::heuristic::selector::{MoveSelector, ListRuinMoveSelector};
 //! use solverforge_solver::heuristic::r#move::ListRuinMove;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
-//! use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
+//! use solverforge_core::score::SoftScore;
+//! use solverforge_scoring::{Director, ScoreDirector};
 //! use solverforge_core::domain::SolutionDescriptor;
 //! use std::any::TypeId;
 //!
@@ -23,10 +23,10 @@
 //! struct Route { stops: Vec<i32> }
 //!
 //! #[derive(Clone, Debug)]
-//! struct VrpSolution { routes: Vec<Route>, score: Option<SimpleScore> }
+//! struct VrpSolution { routes: Vec<Route>, score: Option<SoftScore> }
 //!
 //! impl PlanningSolution for VrpSolution {
-//!     type Score = SimpleScore;
+//!     type Score = SoftScore;
 //!     fn score(&self) -> Option<Self::Score> { self.score }
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
@@ -56,8 +56,8 @@
 //!     score: None,
 //! };
 //! let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>());
-//! let director = SimpleScoreDirector::with_calculator(
-//!     solution, descriptor, |_| SimpleScore::of(0)
+//! let director = ScoreDirector::simple(
+//!     solution, descriptor, |s, _| s.routes.len()
 //! );
 //!
 //! let moves: Vec<_> = selector.iter_moves(&director).collect();
@@ -71,7 +71,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListRuinMove;
 
@@ -204,7 +204,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: ScoreDirector<S>>(
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = ListRuinMove<S, V>> + 'a {
@@ -268,7 +268,7 @@ where
         moves.into_iter()
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let total = (self.entity_count)(score_director.working_solution());
         if total == 0 {
             return 0;

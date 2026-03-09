@@ -11,11 +11,11 @@ struct Task {
 #[derive(Clone, Debug)]
 struct TaskSolution {
     tasks: Vec<Task>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TaskSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -34,12 +34,10 @@ fn set_priority(s: &mut TaskSolution, i: usize, v: Option<i32>) {
     }
 }
 
-fn create_director(
-    tasks: Vec<Task>,
-) -> SimpleScoreDirector<TaskSolution, impl Fn(&TaskSolution) -> SimpleScore> {
+fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     let solution = TaskSolution { tasks, score: None };
     let descriptor = SolutionDescriptor::new("TaskSolution", TypeId::of::<TaskSolution>());
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
 }
 
 #[test]

@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;
 
@@ -18,11 +18,11 @@ use super::*;
 #[derive(Clone, Debug)]
 struct TestSolution {
     value: i64,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -32,7 +32,7 @@ impl PlanningSolution for TestSolution {
 }
 
 /// Score director type for tests
-type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> SimpleScore>;
+type TestDirector = ScoreDirector<TestSolution, ()>;
 
 // ============================================================================
 // 1. SolverFactory Creation with Builder Pattern
@@ -41,14 +41,14 @@ type TestDirector = SimpleScoreDirector<TestSolution, fn(&TestSolution) -> Simpl
 #[test]
 fn test_solver_factory_builder_creation() {
     let _builder = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     });
 }
 
 #[test]
 fn test_solver_factory_builder_builds_successfully() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .build()
     .expect("Failed to build factory");
@@ -58,13 +58,13 @@ fn test_solver_factory_builder_builds_successfully() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-10));
+    assert_eq!(score, SoftScore::of(-10));
 }
 
 #[test]
 fn test_solver_factory_builder_with_time_limit() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_time_limit(Duration::from_secs(30))
     .build()
@@ -75,13 +75,13 @@ fn test_solver_factory_builder_with_time_limit() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-5));
+    assert_eq!(score, SoftScore::of(-5));
 }
 
 #[test]
 fn test_solver_factory_builder_with_step_limit() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_step_limit(100)
     .build()
@@ -92,7 +92,7 @@ fn test_solver_factory_builder_with_step_limit() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-7));
+    assert_eq!(score, SoftScore::of(-7));
 }
 
 // ============================================================================
@@ -103,7 +103,7 @@ fn test_solver_factory_builder_with_step_limit() {
 #[derive(Debug, Clone)]
 struct NoOpPhase;
 
-impl<S: PlanningSolution, D: solverforge_scoring::ScoreDirector<S>> crate::phase::Phase<S, D>
+impl<S: PlanningSolution, D: solverforge_scoring::Director<S>> crate::phase::Phase<S, D>
     for NoOpPhase
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
@@ -118,7 +118,7 @@ impl<S: PlanningSolution, D: solverforge_scoring::ScoreDirector<S>> crate::phase
 #[test]
 fn test_solver_factory_with_phase() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .build()
@@ -129,13 +129,13 @@ fn test_solver_factory_with_phase() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-5));
+    assert_eq!(score, SoftScore::of(-5));
 }
 
 #[test]
 fn test_solver_factory_with_multiple_phases() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_phase(NoOpPhase)
@@ -147,13 +147,13 @@ fn test_solver_factory_with_multiple_phases() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-3));
+    assert_eq!(score, SoftScore::of(-3));
 }
 
 #[test]
 fn test_solver_factory_with_phase_and_step_limit() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .with_phase(NoOpPhase)
     .with_step_limit(50)
@@ -165,7 +165,7 @@ fn test_solver_factory_with_phase_and_step_limit() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-8));
+    assert_eq!(score, SoftScore::of(-8));
 }
 
 // ============================================================================
@@ -175,7 +175,7 @@ fn test_solver_factory_with_phase_and_step_limit() {
 #[test]
 fn test_score_calculator_returns_reference() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .build()
     .expect("Failed to build factory");
@@ -187,13 +187,13 @@ fn test_score_calculator_returns_reference() {
         score: None,
     };
     let score = calculator(&solution);
-    assert_eq!(score, SimpleScore::of(-15));
+    assert_eq!(score, SoftScore::of(-15));
 }
 
 #[test]
 fn test_calculate_score_basic() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .build()
     .expect("Failed to build factory");
@@ -203,13 +203,13 @@ fn test_calculate_score_basic() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-10));
+    assert_eq!(score, SoftScore::of(-10));
 }
 
 #[test]
 fn test_calculate_score_zero() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .build()
     .expect("Failed to build factory");
@@ -219,13 +219,13 @@ fn test_calculate_score_zero() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(0));
+    assert_eq!(score, SoftScore::of(0));
 }
 
 #[test]
 fn test_calculate_score_negative_value() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .build()
     .expect("Failed to build factory");
@@ -235,13 +235,13 @@ fn test_calculate_score_negative_value() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(5)); // -(-5) = 5
+    assert_eq!(score, SoftScore::of(5)); // -(-5) = 5
 }
 
 #[test]
 fn test_calculate_score_multiple_solutions() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value)
+        SoftScore::of(-s.value)
     })
     .build()
     .expect("Failed to build factory");
@@ -263,14 +263,14 @@ fn test_calculate_score_multiple_solutions() {
 
     for (i, solution) in solutions.iter().enumerate() {
         let score = factory.calculate_score(solution);
-        assert_eq!(score, SimpleScore::of(-((i + 1) as i64)));
+        assert_eq!(score, SoftScore::of(-((i + 1) as i64)));
     }
 }
 
 #[test]
 fn test_calculate_score_complex_calculator() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-(s.value * s.value))
+        SoftScore::of(-(s.value * s.value))
     })
     .build()
     .expect("Failed to build factory");
@@ -280,13 +280,13 @@ fn test_calculate_score_complex_calculator() {
         score: None,
     };
     let score = factory.calculate_score(&solution);
-    assert_eq!(score, SimpleScore::of(-16)); // -(4^2) = -16
+    assert_eq!(score, SoftScore::of(-16)); // -(4^2) = -16
 }
 
 #[test]
 fn test_score_calculator_and_calculate_score_consistent() {
     let factory = solver_factory_builder::<TestSolution, TestDirector, _>(|s: &TestSolution| {
-        SimpleScore::of(-s.value * 2)
+        SoftScore::of(-s.value * 2)
     })
     .build()
     .expect("Failed to build factory");
@@ -301,5 +301,5 @@ fn test_score_calculator_and_calculate_score_consistent() {
     let score_via_method = factory.calculate_score(&solution);
 
     assert_eq!(score_via_calculator, score_via_method);
-    assert_eq!(score_via_method, SimpleScore::of(-14));
+    assert_eq!(score_via_method, SoftScore::of(-14));
 }

@@ -10,11 +10,11 @@ struct Task {
 #[derive(Clone, Debug)]
 struct Schedule {
     tasks: Vec<Task>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for Schedule {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -39,9 +39,7 @@ fn set_assigned(s: &mut Schedule, idx: usize, v: Option<i32>) {
     }
 }
 
-fn create_director(
-    assignments: &[Option<i32>],
-) -> SimpleScoreDirector<Schedule, impl Fn(&Schedule) -> SimpleScore> {
+fn create_director(assignments: &[Option<i32>]) -> ScoreDirector<Schedule, ()> {
     let tasks: Vec<Task> = assignments
         .iter()
         .map(|&a| Task { assigned_to: a })
@@ -57,7 +55,7 @@ fn create_director(
         EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
     let descriptor =
         SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>()).with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
 }
 
 #[test]
@@ -69,7 +67,7 @@ fn ruin_single_entity() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         assert_eq!(get_assigned(recording.working_solution(), 0), Some(1));
@@ -93,7 +91,7 @@ fn ruin_multiple_entities() {
     assert_eq!(m.ruin_count(), 3);
 
     {
-        let mut recording = RecordingScoreDirector::new(&mut director);
+        let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
         assert_eq!(get_assigned(recording.working_solution(), 0), None);

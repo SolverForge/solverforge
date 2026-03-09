@@ -16,17 +16,17 @@ use crate::score::Score;
 /// # Example
 ///
 /// ```
-/// use solverforge_core::{PlanningSolution, score::SimpleScore};
+/// use solverforge_core::{PlanningSolution, score::SoftScore};
 ///
 /// #[derive(Clone)]
 /// struct NQueens {
 ///     n: usize,
 ///     rows: Vec<Option<usize>>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for NQueens {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///
 ///     fn score(&self) -> Option<Self::Score> {
 ///         self.score
@@ -176,7 +176,7 @@ pub trait PlanningId {
 /// ```
 /// use solverforge_core::domain::ListVariableSolution;
 /// use solverforge_core::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone)]
 /// struct Vehicle {
@@ -187,11 +187,11 @@ pub trait PlanningId {
 /// struct VrpSolution {
 ///     vehicles: Vec<Vehicle>,
 ///     visit_count: usize,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for VrpSolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }

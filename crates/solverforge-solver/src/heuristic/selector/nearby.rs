@@ -15,7 +15,7 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::entity::{EntityReference, EntitySelector};
 use super::mimic::MimicRecorder;
@@ -123,7 +123,7 @@ pub trait DynDistanceMeter: Send + Sync + Debug {
     /// Measures distance between two entity references.
     fn distance_between<S: PlanningSolution>(
         &self,
-        score_director: &dyn ScoreDirector<S>,
+        score_director: &dyn Director<S>,
         origin: EntityReference,
         destination: EntityReference,
     ) -> f64;
@@ -186,7 +186,7 @@ where
     M: DynDistanceMeter + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
@@ -221,7 +221,7 @@ where
         candidates.into_iter().map(|(entity, _)| entity)
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         // This is an estimate; the actual size depends on the origin
         let child_size = self.child.size(score_director);
         match self.config.max_nearby_size {

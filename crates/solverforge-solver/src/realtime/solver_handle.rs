@@ -31,9 +31,9 @@ pub enum ProblemChangeResult {
 ///
 /// ```
 /// use solverforge_solver::realtime::{SolverHandle, ProblemChange, ProblemChangeResult};
-/// use solverforge_scoring::ScoreDirector;
+/// use solverforge_scoring::Director;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Task { id: usize }
@@ -41,11 +41,11 @@ pub enum ProblemChangeResult {
 /// #[derive(Clone, Debug)]
 /// struct Solution {
 ///     tasks: Vec<Task>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for Solution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -54,7 +54,7 @@ pub enum ProblemChangeResult {
 /// struct AddTask { id: usize }
 ///
 /// impl ProblemChange<Solution> for AddTask {
-///     fn apply(&self, sd: &mut dyn ScoreDirector<Solution>) {
+///     fn apply(&self, sd: &mut dyn Director<Solution>) {
 ///         sd.working_solution_mut().tasks.push(Task { id: self.id });
 ///     }
 /// }
@@ -235,17 +235,17 @@ impl<S: PlanningSolution> Debug for ProblemChangeReceiver<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::ScoreDirector;
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::Director;
 
     #[derive(Clone, Debug)]
     struct TestSolution {
         value: i32,
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for TestSolution {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -258,7 +258,7 @@ mod tests {
     struct IncrementValue;
 
     impl ProblemChange<TestSolution> for IncrementValue {
-        fn apply(&self, score_director: &mut dyn ScoreDirector<TestSolution>) {
+        fn apply(&self, score_director: &mut dyn Director<TestSolution>) {
             score_director.working_solution_mut().value += 1;
         }
     }

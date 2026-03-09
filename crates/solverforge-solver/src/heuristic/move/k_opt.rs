@@ -16,13 +16,13 @@
 //! use solverforge_solver::heuristic::r#move::{KOptMove, CutPoint};
 //! use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::SoftScore;
 //!
 //! #[derive(Clone, Debug)]
-//! struct Tour { cities: Vec<i32>, score: Option<SimpleScore> }
+//! struct Tour { cities: Vec<i32>, score: Option<SoftScore> }
 //!
 //! impl PlanningSolution for Tour {
-//!     type Score = SimpleScore;
+//!     type Score = SoftScore;
 //!     fn score(&self) -> Option<Self::Score> { self.score }
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }
@@ -61,7 +61,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::k_opt_reconnection::KOptReconnection;
 use super::Move;
@@ -258,7 +258,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn is_doable<D: ScoreDirector<S>>(&self, score_director: &D) -> bool {
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         let k = self.cut_count as usize;
 
@@ -296,7 +296,7 @@ where
         true
     }
 
-    fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         let k = self.cut_count as usize;
         let entity = self.entity_index;
 

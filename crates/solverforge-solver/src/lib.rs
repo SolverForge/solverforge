@@ -89,7 +89,7 @@ pub use phase::{
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,
         ExhaustiveSearchPhase, ExplorationType, FixedOffsetBounder, MoveSequence, ScoreBounder,
-        SimpleDecider, SimpleScoreBounder,
+        SimpleDecider, SoftScoreBounder,
     },
     localsearch::{
         AcceptedCountForager, Acceptor, AcceptorType, BestScoreForager,

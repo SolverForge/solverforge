@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
 use crate::phase::Phase;
@@ -30,7 +30,7 @@ use super::super::PhaseFactory;
 /// use solverforge_solver::KOptPhaseBuilder;
 /// use solverforge_solver::heuristic::selector::{DefaultDistanceMeter, FromSolutionEntitySelector};
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct Vehicle { visits: Vec<usize> }
@@ -38,11 +38,11 @@ use super::super::PhaseFactory;
 /// #[derive(Clone, Debug)]
 /// struct Plan {
 ///     vehicles: Vec<Vehicle>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for Plan {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -190,7 +190,7 @@ impl<S, V, D> Phase<S, D> for KOptPhase<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         use crate::heuristic::r#move::Move;
@@ -234,10 +234,9 @@ where
                     continue;
                 }
 
-                // Use RecordingScoreDirector for automatic undo
+                // Use RecordingDirector for automatic undo
                 {
-                    let mut recording =
-                        RecordingScoreDirector::new(step_scope.score_director_mut());
+                    let mut recording = RecordingDirector::new(step_scope.score_director_mut());
                     mv.do_move(&mut recording);
                     let move_score = recording.calculate_score();
 
@@ -286,7 +285,7 @@ where
     V: Clone + Send + Sync + Debug + 'static,
     DM: Send + Sync,
     ESF: Send + Sync,
-    D: ScoreDirector<S>,
+    D: Director<S>,
 {
     type Phase = KOptPhase<S, V>;
 

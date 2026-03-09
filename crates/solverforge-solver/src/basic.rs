@@ -16,7 +16,7 @@ use std::time::Duration;
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, ScoreDirector, TypedScoreDirector};
+use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -44,7 +44,7 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 ///
 /// Avoids repeated branching across `solve_with_termination` overloads by
 /// capturing the selected termination variant upfront.
-pub(crate) enum AnyBasicTermination<S: PlanningSolution, D: ScoreDirector<S>> {
+pub(crate) enum AnyBasicTermination<S: PlanningSolution, D: Director<S>> {
     Default(OrTermination<(TimeTermination,), S, D>),
     WithBestScore(OrTermination<(TimeTermination, BestScoreTermination<S::Score>), S, D>),
     WithStepCount(OrTermination<(TimeTermination, StepCountTermination), S, D>),
@@ -52,7 +52,7 @@ pub(crate) enum AnyBasicTermination<S: PlanningSolution, D: ScoreDirector<S>> {
     WithUnimprovedTime(OrTermination<(TimeTermination, UnimprovedTimeTermination<S>), S, D>),
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> fmt::Debug for AnyBasicTermination<S, D> {
+impl<S: PlanningSolution, D: Director<S>> fmt::Debug for AnyBasicTermination<S, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Default(_) => write!(f, "AnyBasicTermination::Default"),
@@ -64,8 +64,8 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> fmt::Debug for AnyBasicTerminatio
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
-    Termination<S, D, BestCb> for AnyBasicTermination<S, D>
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+    for AnyBasicTermination<S, D>
 where
     S::Score: Score,
 {
@@ -150,7 +150,7 @@ where
 
     // Create score director with real entity counter for selector iteration
     let constraints = constraints_fn();
-    let director = TypedScoreDirector::with_descriptor(
+    let director = ScoreDirector::with_descriptor(
         solution,
         constraints,
         descriptor(),
@@ -204,7 +204,7 @@ where
         .and_then(|c| c.best_score_limit.as_ref())
         .and_then(|s| S::Score::parse(s).ok());
 
-    let termination: AnyBasicTermination<S, TypedScoreDirector<S, C>> =
+    let termination: AnyBasicTermination<S, ScoreDirector<S, C>> =
         if let Some(target) = best_score_target {
             AnyBasicTermination::WithBestScore(OrTermination::new((
                 time,

@@ -6,8 +6,8 @@ use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSel
 use crate::phase::construction::{EntityPlacer, ForagerType, QueuedEntityPlacer};
 use crate::scope::SolverScope;
 use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::{Director, ScoreDirector};
 use std::any::TypeId;
 
 // ==================== Test Domain ====================
@@ -21,11 +21,11 @@ struct Task {
 #[derive(Clone, Debug)]
 struct TestSolution {
     tasks: Vec<Task>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -56,7 +56,7 @@ fn set_task_priority(s: &mut TestSolution, idx: usize, v: Option<i64>) {
 }
 
 /// Score calculator: sum of priorities (higher is better), penalty for unassigned.
-fn calculate_score(solution: &TestSolution) -> SimpleScore {
+fn calculate_score(solution: &TestSolution) -> SoftScore {
     let mut score = 0i64;
     for task in &solution.tasks {
         match task.priority {
@@ -64,13 +64,13 @@ fn calculate_score(solution: &TestSolution) -> SimpleScore {
             None => score -= 100, // Penalty for unassigned
         }
     }
-    SimpleScore::of(score)
+    SoftScore::of(score)
 }
 
 /// Creates a score director with the given tasks.
 fn create_test_director(
     tasks: Vec<Task>,
-) -> SimpleScoreDirector<TestSolution, impl Fn(&TestSolution) -> SimpleScore> {
+) -> ScoreDirector<TestSolution, ()> {
     let solution = TestSolution { tasks, score: None };
 
     let extractor = Box::new(TypedEntityExtractor::new(
@@ -85,13 +85,13 @@ fn create_test_director(
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, calculate_score)
+    ScoreDirector::with_calculator(solution, descriptor, calculate_score)
 }
 
 /// Creates a solver scope with unassigned tasks.
 fn create_unassigned_solver_scope(
     count: usize,
-) -> SolverScope<TestSolution, impl ScoreDirector<TestSolution>> {
+) -> SolverScope<TestSolution, impl Director<TestSolution>> {
     let tasks: Vec<Task> = (0..count).map(|id| Task { id, priority: None }).collect();
     let director = create_test_director(tasks);
     SolverScope::new(director)

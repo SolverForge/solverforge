@@ -8,17 +8,17 @@
 //!
 //! ```
 //! use solverforge_test::nqueens::{NQueensSolution, calculate_conflicts};
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::SoftScore;
 //!
 //! let solution = NQueensSolution::with_rows(&[1, 3, 0, 2]);
 //! let score = calculate_conflicts(&solution);
-//! assert_eq!(score, SimpleScore::of(0)); // No conflicts
+//! assert_eq!(score, SoftScore::of(0)); // No conflicts
 //! ```
 
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use std::any::TypeId;
 
 /// A queen entity in the N-Queens problem.
@@ -66,7 +66,7 @@ impl Queen {
 #[derive(Clone, Debug)]
 pub struct NQueensSolution {
     pub queens: Vec<Queen>,
-    pub score: Option<SimpleScore>,
+    pub score: Option<SoftScore>,
 }
 
 impl NQueensSolution {
@@ -121,7 +121,7 @@ impl NQueensSolution {
 }
 
 impl PlanningSolution for NQueensSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -162,7 +162,7 @@ pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
 ///
 /// Counts row conflicts and diagonal conflicts between all pairs of queens.
 /// Returns a negative score where 0 means no conflicts (optimal).
-pub fn calculate_conflicts(solution: &NQueensSolution) -> SimpleScore {
+pub fn calculate_conflicts(solution: &NQueensSolution) -> SoftScore {
     let mut conflicts = 0i64;
     let queens = &solution.queens;
 
@@ -182,7 +182,7 @@ pub fn calculate_conflicts(solution: &NQueensSolution) -> SimpleScore {
         }
     }
 
-    SimpleScore::of(-conflicts)
+    SoftScore::of(-conflicts)
 }
 
 /// Creates a SolutionDescriptor for NQueensSolution.
@@ -257,7 +257,7 @@ mod tests {
         // A valid 4-queens solution: rows [1, 3, 0, 2]
         let solution = NQueensSolution::with_rows(&[1, 3, 0, 2]);
         let score = calculate_conflicts(&solution);
-        assert_eq!(score, SimpleScore::of(0));
+        assert_eq!(score, SoftScore::of(0));
     }
 
     #[test]
@@ -265,7 +265,7 @@ mod tests {
         // Two queens on the same row
         let solution = NQueensSolution::with_rows(&[0, 0, 2, 3]);
         let score = calculate_conflicts(&solution);
-        assert!(score < SimpleScore::of(0));
+        assert!(score < SoftScore::of(0));
     }
 
     #[test]
@@ -273,6 +273,6 @@ mod tests {
         // Diagonal conflict: queens at (0,0) and (1,1)
         let solution = NQueensSolution::with_rows(&[0, 1, 3, 2]);
         let score = calculate_conflicts(&solution);
-        assert!(score < SimpleScore::of(0));
+        assert!(score < SoftScore::of(0));
     }
 }

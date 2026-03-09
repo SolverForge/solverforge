@@ -206,7 +206,7 @@ where
     // ```
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone)]
     // struct Shift { employee_id: Option<usize> }
@@ -214,10 +214,10 @@ where
     // #[derive(Clone)]
     // struct Solution { shifts: Vec<Shift> }
     //
-    // let constraint = ConstraintFactory::<Solution, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| &s.shifts)
     //     .balance(|shift: &Shift| shift.employee_id)
-    //     .penalize(SimpleScore::of(1000))
+    //     .penalize(SoftScore::of(1000))
     //     .as_constraint("Balance workload");
     //
     // let solution = Solution {
@@ -231,7 +231,7 @@ where
     //
     // // Employee 0: 3 shifts, Employee 1: 1 shift
     // // std_dev = 1.0, penalty = -1000
-    // assert_eq!(constraint.evaluate(&solution), SimpleScore::of(-1000));
+    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1000));
     // ```
     pub fn balance<K, KF>(self, key_fn: KF) -> BalanceConstraintStream<S, A, K, E, F, KF, Sc>
     where
@@ -254,7 +254,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::joiner::equal_bi;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone)]
     // struct Shift { id: usize, employee_idx: Option<usize> }
@@ -266,7 +266,7 @@ where
     // struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
     //
     // // Penalize shifts assigned to employees who are on vacation
-    // let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
     //     .for_each(|s: &Schedule| s.shifts.as_slice())
     //     .filter(|shift: &Shift| shift.employee_idx.is_some())
     //     .if_exists_filtered(
@@ -276,7 +276,7 @@ where
     //             |emp: &Employee| Some(emp.id),
     //         ),
     //     )
-    //     .penalize(SimpleScore::of(1))
+    //     .penalize(SoftScore::of(1))
     //     .as_constraint("Vacation conflict");
     //
     // let schedule = Schedule {
@@ -292,7 +292,7 @@ where
     // };
     //
     // // Only shift 0 matches (assigned to employee 0 who is on vacation)
-    // assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    // assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
     // ```
     pub fn if_exists_filtered<B, EB, K, KA, KB>(
         self,
@@ -330,7 +330,7 @@ where
     // use solverforge_scoring::stream::ConstraintFactory;
     // use solverforge_scoring::stream::joiner::equal_bi;
     // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone)]
     // struct Task { id: usize, assignee: Option<usize> }
@@ -342,7 +342,7 @@ where
     // struct Schedule { tasks: Vec<Task>, workers: Vec<Worker> }
     //
     // // Penalize tasks assigned to workers who are not available
-    // let constraint = ConstraintFactory::<Schedule, SimpleScore>::new()
+    // let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
     //     .for_each(|s: &Schedule| s.tasks.as_slice())
     //     .filter(|task: &Task| task.assignee.is_some())
     //     .if_not_exists_filtered(
@@ -352,7 +352,7 @@ where
     //             |worker: &Worker| Some(worker.id),
     //         ),
     //     )
-    //     .penalize(SimpleScore::of(1))
+    //     .penalize(SoftScore::of(1))
     //     .as_constraint("Unavailable worker");
     //
     // let schedule = Schedule {
@@ -368,7 +368,7 @@ where
     // };
     //
     // // Task 0's worker (id=0) is NOT in the available workers list
-    // assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+    // assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
     // ```
     pub fn if_not_exists_filtered<B, EB, K, KA, KB>(
         self,

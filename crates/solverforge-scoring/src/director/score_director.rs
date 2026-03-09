@@ -1,6 +1,6 @@
 // Typed score director for zero-erasure incremental scoring.
 //
-// This module provides `TypedScoreDirector` that uses monomorphized
+// This module provides `ScoreDirector` that uses monomorphized
 // constraint sets instead of trait-object-based scoring.
 
 use std::marker::PhantomData;
@@ -9,11 +9,11 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
 use crate::api::constraint_set::ConstraintSet;
-use crate::director::ScoreDirector;
+use crate::director::Director;
 
 // A typed score director for zero-erasure incremental scoring.
 //
-// Unlike `IncrementalScoreDirector` which uses BAVET session with trait objects,
+// Unlike `IncrementalDirector` which uses BAVET session with trait objects,
 // this director uses a fully typed `ConstraintSet` where all constraint types
 // are known at compile time, enabling complete monomorphization.
 //
@@ -25,21 +25,21 @@ use crate::director::ScoreDirector;
 // # Example
 //
 // ```
-// use solverforge_scoring::director::typed::TypedScoreDirector;
+// use solverforge_scoring::director::score_director::ScoreDirector;
 // use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 // use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
 // use solverforge_core::domain::PlanningSolution;
 // use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Solution {
 //     values: Vec<Option<i32>>,
-//     score: Option<SimpleScore>,
+//     score: Option<SoftScore>,
 // }
 //
 // impl PlanningSolution for Solution {
-//     type Score = SimpleScore;
+//     type Score = SoftScore;
 //     fn score(&self) -> Option<Self::Score> { self.score }
 //     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 // }
@@ -50,23 +50,23 @@ use crate::director::ScoreDirector;
 //     ImpactType::Penalty,
 //     |s: &Solution| s.values.as_slice(),
 //     |_s: &Solution, v: &Option<i32>| v.is_none(),
-//     |_: &Option<i32>| SimpleScore::of(1),
+//     |_: &Option<i32>| SoftScore::of(1),
 //     false,
 // );
 //
 // // Create typed director with tuple-based constraint set
 // let solution = Solution { values: vec![Some(1), None, Some(2)], score: None };
-// let mut director = TypedScoreDirector::new(solution, (c1,));
+// let mut director = ScoreDirector::new(solution, (c1,));
 //
 // // First calculation evaluates all constraints
 // let score = director.calculate_score();
-// assert_eq!(score, SimpleScore::of(-1)); // One unassigned
+// assert_eq!(score, SoftScore::of(-1)); // One unassigned
 //
 // // Subsequent calculations are O(1) - return cached score
 // let score2 = director.calculate_score();
 // assert_eq!(score, score2);
 // ```
-pub struct TypedScoreDirector<S, C>
+pub struct ScoreDirector<S, C>
 where
     S: PlanningSolution,
     C: ConstraintSet<S, S::Score>,
@@ -91,7 +91,7 @@ where
     _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, C> TypedScoreDirector<S, C>
+impl<S, C> ScoreDirector<S, C>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -99,7 +99,7 @@ where
 {
     // Creates a new typed score director with an empty descriptor.
     //
-    // Use this for manual solver loops that don't need the `ScoreDirector` trait.
+    // Use this for manual solver loops that don't need the `Director` trait.
     // For full solver infrastructure integration, use `with_descriptor()`.
     //
     // The constraints should be a tuple of typed constraints (e.g., `(C1, C2, C3)`).
@@ -115,7 +115,7 @@ where
 
     // Creates a new typed score director with a solution descriptor.
     //
-    // This constructor enables the `ScoreDirector` trait implementation for
+    // This constructor enables the `Director` trait implementation for
     // integration with the full solver infrastructure (phases, move selectors, etc.).
     //
     // # Arguments
@@ -140,6 +140,55 @@ where
             _phantom: PhantomData,
         }
     }
+
+    // =========================================================================
+    // Private implementation methods (shared between inherent and trait impl)
+    // =========================================================================
+
+    fn calculate_score_impl(&mut self) -> S::Score {
+        if !self.initialized {
+            self.cached_score = self.constraints.initialize_all(&self.working_solution);
+            self.initialized = true;
+        }
+        self.working_solution.set_score(Some(self.cached_score));
+        self.cached_score
+    }
+
+    fn before_variable_changed_impl(&mut self, descriptor_index: usize, entity_index: usize) {
+        if !self.initialized {
+            return;
+        }
+        let delta =
+            self.constraints
+                .on_retract_all(&self.working_solution, entity_index, descriptor_index);
+        self.cached_score = self.cached_score + delta;
+    }
+
+    fn after_variable_changed_impl(&mut self, descriptor_index: usize, entity_index: usize) {
+        if !self.initialized {
+            return;
+        }
+        let delta =
+            self.constraints
+                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
+        self.cached_score = self.cached_score + delta;
+    }
+
+    fn reset_impl(&mut self) {
+        self.constraints.reset_all();
+        self.initialized = false;
+        self.cached_score = S::Score::zero();
+    }
+
+    fn clone_working_solution_impl(&self) -> S {
+        let mut cloned = self.working_solution.clone();
+        cloned.set_score(Some(self.cached_score));
+        cloned
+    }
+
+    // =========================================================================
+    // Public API
+    // =========================================================================
 
     // Returns a reference to the working solution.
     pub fn working_solution(&self) -> &S {
@@ -167,12 +216,7 @@ where
     //
     // Also sets the score on the working solution to keep it in sync.
     pub fn calculate_score(&mut self) -> S::Score {
-        if !self.initialized {
-            self.cached_score = self.constraints.initialize_all(&self.working_solution);
-            self.initialized = true;
-        }
-        self.working_solution.set_score(Some(self.cached_score));
-        self.cached_score
+        self.calculate_score_impl()
     }
 
     // Called before changing an entity's variable.
@@ -186,15 +230,7 @@ where
     // * `entity_index` - Index of the entity being changed
     #[inline]
     pub fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
-        if !self.initialized {
-            // If not initialized, full calculation will happen on next calculate_score
-            return;
-        }
-
-        let delta =
-            self.constraints
-                .on_retract_all(&self.working_solution, entity_index, descriptor_index);
-        self.cached_score = self.cached_score + delta;
+        self.before_variable_changed_impl(descriptor_index, entity_index);
     }
 
     // Called after changing an entity's variable.
@@ -208,14 +244,7 @@ where
     // * `entity_index` - Index of the entity that was changed
     #[inline]
     pub fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
-        if !self.initialized {
-            return;
-        }
-
-        let delta =
-            self.constraints
-                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
-        self.cached_score = self.cached_score + delta;
+        self.after_variable_changed_impl(descriptor_index, entity_index);
     }
 
     // Called after changing an entity's variable, with shadow update.
@@ -319,18 +348,14 @@ where
     // Call this after major solution changes that bypass the
     // before/after_variable_changed protocol.
     pub fn reset(&mut self) {
-        self.constraints.reset_all();
-        self.initialized = false;
-        self.cached_score = S::Score::zero();
+        self.reset_impl();
     }
 
     // Clones the working solution.
     //
     // The cloned solution includes the current cached score.
     pub fn clone_working_solution(&self) -> S {
-        let mut cloned = self.working_solution.clone();
-        cloned.set_score(Some(self.cached_score));
-        cloned
+        self.clone_working_solution_impl()
     }
 
     // Returns a reference to the constraint set.
@@ -379,24 +404,24 @@ where
     // # Examples
     //
     // ```
-    // use solverforge_scoring::director::typed::TypedScoreDirector;
+    // use solverforge_scoring::director::score_director::ScoreDirector;
     // use solverforge_core::domain::PlanningSolution;
-    // use solverforge_core::score::SimpleScore;
+    // use solverforge_core::score::SoftScore;
     //
     // #[derive(Clone)]
     // struct Solution {
     //     values: Vec<i32>,
-    //     score: Option<SimpleScore>,
+    //     score: Option<SoftScore>,
     // }
     //
     // impl PlanningSolution for Solution {
-    //     type Score = SimpleScore;
+    //     type Score = SoftScore;
     //     fn score(&self) -> Option<Self::Score> { self.score }
     //     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
     // }
     //
     // let solution = Solution { values: vec![1, 2, 3], score: None };
-    // let director = TypedScoreDirector::new(solution, ());
+    // let director = ScoreDirector::new(solution, ());
     // let result = director.take_solution();
     // assert_eq!(result.values, vec![1, 2, 3]);
     // ```
@@ -405,14 +430,51 @@ where
     }
 }
 
-impl<S, C> std::fmt::Debug for TypedScoreDirector<S, C>
+impl<S> ScoreDirector<S, ()>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
+    // Creates a non-incremental director for use in tests and simple scenarios.
+    //
+    // Uses an empty constraint set — `calculate_score()` always returns zero.
+    // For tests that set score directly on the solution, this is sufficient.
+    //
+    // # Arguments
+    //
+    // * `solution` - The initial solution
+    // * `descriptor` - Solution descriptor for solver infrastructure
+    // * `entity_counter` - Function returning entity count for descriptor index
+    pub fn simple(
+        solution: S,
+        descriptor: SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
+    ) -> Self {
+        Self::with_descriptor(solution, (), descriptor, entity_counter)
+    }
+
+    // Creates a non-incremental director with empty descriptor and zero entity counter.
+    //
+    // Use this for tests that don't need descriptor metadata or entity counts.
+    pub fn simple_zero(solution: S) -> Self {
+        use std::any::TypeId;
+        Self::with_descriptor(
+            solution,
+            (),
+            SolutionDescriptor::new("", TypeId::of::<()>()),
+            |_, _| 0,
+        )
+    }
+}
+
+impl<S, C> std::fmt::Debug for ScoreDirector<S, C>
 where
     S: PlanningSolution + std::fmt::Debug,
     S::Score: std::fmt::Debug,
     C: ConstraintSet<S, S::Score>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TypedScoreDirector")
+        f.debug_struct("ScoreDirector")
             .field("initialized", &self.initialized)
             .field("cached_score", &self.cached_score)
             .field("constraint_count", &self.constraints.constraint_count())
@@ -420,7 +482,7 @@ where
     }
 }
 
-impl<S, C> ScoreDirector<S> for TypedScoreDirector<S, C>
+impl<S, C> Director<S> for ScoreDirector<S, C>
 where
     S: PlanningSolution,
     S::Score: Score,
@@ -435,12 +497,7 @@ where
     }
 
     fn calculate_score(&mut self) -> S::Score {
-        if !self.initialized {
-            self.cached_score = self.constraints.initialize_all(&self.working_solution);
-            self.initialized = true;
-        }
-        self.working_solution.set_score(Some(self.cached_score));
-        self.cached_score
+        self.calculate_score_impl()
     }
 
     fn solution_descriptor(&self) -> &SolutionDescriptor {
@@ -448,29 +505,15 @@ where
     }
 
     fn clone_working_solution(&self) -> S {
-        let mut cloned = self.working_solution.clone();
-        cloned.set_score(Some(self.cached_score));
-        cloned
+        self.clone_working_solution_impl()
     }
 
     fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
-        if !self.initialized {
-            return;
-        }
-        let delta =
-            self.constraints
-                .on_retract_all(&self.working_solution, entity_index, descriptor_index);
-        self.cached_score = self.cached_score + delta;
+        self.before_variable_changed_impl(descriptor_index, entity_index);
     }
 
     fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
-        if !self.initialized {
-            return;
-        }
-        let delta =
-            self.constraints
-                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
-        self.cached_score = self.cached_score + delta;
+        self.after_variable_changed_impl(descriptor_index, entity_index);
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
@@ -493,8 +536,6 @@ where
     }
 
     fn reset(&mut self) {
-        self.constraints.reset_all();
-        self.initialized = false;
-        self.cached_score = S::Score::zero();
+        self.reset_impl();
     }
 }

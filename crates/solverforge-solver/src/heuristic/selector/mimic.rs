@@ -15,7 +15,7 @@ use std::fmt::Debug;
 use std::ptr::NonNull;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::entity::{EntityReference, EntitySelector};
 
@@ -218,7 +218,7 @@ where
     S: PlanningSolution,
     ES: EntitySelector<S>,
 {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
@@ -232,7 +232,7 @@ where
         }
     }
 
-    fn size<D: ScoreDirector<S>>(&self, score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.child.size(score_director)
     }
 
@@ -290,7 +290,7 @@ impl Debug for MimicReplayingEntitySelector {
 }
 
 impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
-    fn iter<'a, D: ScoreDirector<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         _score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
@@ -300,7 +300,7 @@ impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
         }
     }
 
-    fn size<D: ScoreDirector<S>>(&self, _score_director: &D) -> usize {
+    fn size<D: Director<S>>(&self, _score_director: &D) -> usize {
         // At most one entity is returned
         if self.recorder.get_recorded_entity().is_some() {
             1

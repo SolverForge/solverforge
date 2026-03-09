@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 use crate::solver::NoTermination;
@@ -65,7 +65,7 @@ where
         factory: F,
     ) -> SolverFactoryBuilder<S, D, C, (P, F::Phase), T>
     where
-        D: ScoreDirector<S>,
+        D: Director<S>,
         F: PhaseFactory<S, D>,
     {
         let phase = factory.create();
@@ -127,7 +127,7 @@ where
         duration: Duration,
     ) -> SolverFactoryBuilder<S, D, C, P, OrTermination<(T, TimeTermination), S, D>>
     where
-        D: ScoreDirector<S>,
+        D: Director<S>,
     {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
@@ -141,7 +141,7 @@ where
 impl<S, D, C, P, T> SolverFactoryBuilder<S, D, C, P, T>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     C: Fn(&S) -> S::Score + Send + Sync,
     P: Phase<S, D>,
     T: Termination<S, D>,

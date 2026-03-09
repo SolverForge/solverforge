@@ -7,8 +7,8 @@ use crate::heuristic::selector::MoveSelector;
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -19,11 +19,11 @@ struct Vehicle {
 #[derive(Clone, Debug)]
 struct Solution {
     vehicles: Vec<Vehicle>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for Solution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -51,9 +51,7 @@ fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
     }
 }
 
-fn create_director(
-    vehicles: Vec<Vehicle>,
-) -> SimpleScoreDirector<Solution, impl Fn(&Solution) -> SimpleScore> {
+fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<Solution, ()> {
     let solution = Solution {
         vehicles,
         score: None,
@@ -68,7 +66,7 @@ fn create_director(
         .with_extractor(extractor);
     let descriptor =
         SolutionDescriptor::new("Solution", TypeId::of::<Solution>()).with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.vehicles.len())
 }
 
 #[test]

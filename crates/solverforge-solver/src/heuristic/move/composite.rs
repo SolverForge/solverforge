@@ -11,7 +11,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::{Move, MoveArena};
 
@@ -61,7 +61,7 @@ where
     }
 
     /// Checks if this composite move is doable given both arenas.
-    pub fn is_doable_with_arenas<D: ScoreDirector<S>>(
+    pub fn is_doable_with_arenas<D: Director<S>>(
         &self,
         arena_1: &MoveArena<M1>,
         arena_2: &MoveArena<M2>,
@@ -77,7 +77,7 @@ where
     }
 
     /// Executes both moves using the arenas.
-    pub fn do_move_with_arenas<D: ScoreDirector<S>>(
+    pub fn do_move_with_arenas<D: Director<S>>(
         &self,
         arena_1: &MoveArena<M1>,
         arena_2: &MoveArena<M2>,

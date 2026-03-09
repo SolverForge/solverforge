@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::test_utils::create_simple_nqueens_director;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 
 #[test]
 fn test_solver_scope_creation() {
@@ -64,8 +64,8 @@ fn test_step_scope() {
             let mut step_scope = StepScope::new(&mut phase_scope);
             assert_eq!(step_scope.step_index(), 0);
 
-            step_scope.set_step_score(SimpleScore::of(-5));
-            assert_eq!(step_scope.step_score(), Some(&SimpleScore::of(-5)));
+            step_scope.set_step_score(SoftScore::of(-5));
+            assert_eq!(step_scope.step_score(), Some(&SoftScore::of(-5)));
 
             step_scope.complete();
         }

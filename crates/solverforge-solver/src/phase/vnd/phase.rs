@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
+use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -30,16 +30,16 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_solver::heuristic::selector::ChangeMoveSelector;
 /// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// #[derive(Clone, Debug)]
 /// struct MySolution {
 ///     values: Vec<Option<i32>>,
-///     score: Option<SimpleScore>,
+///     score: Option<SoftScore>,
 /// }
 ///
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { self.score }
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
@@ -82,7 +82,7 @@ macro_rules! impl_vnd_phase {
         impl<S, D, BestCb, M, $MS> Phase<S, D, BestCb> for VndPhase<($MS,), M>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
+            D: Director<S>,
             BestCb: BestSolutionCallback<S>,
             M: Move<S>,
             $MS: MoveSelector<S, M>,
@@ -124,7 +124,7 @@ macro_rules! impl_vnd_phase {
         impl<S, D, BestCb, M, $($MS),+> Phase<S, D, BestCb> for VndPhase<($($MS,)+), M>
         where
             S: PlanningSolution,
-            D: ScoreDirector<S>,
+            D: Director<S>,
             BestCb: BestSolutionCallback<S>,
             M: Move<S>,
             $($MS: MoveSelector<S, M>,)+
@@ -185,7 +185,7 @@ fn find_best_improving_move_index<S, D, BestCb, M>(
 ) -> Option<(usize, S::Score)>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     M: Move<S>,
 {
@@ -198,7 +198,7 @@ where
             continue;
         }
 
-        let mut recording = RecordingScoreDirector::new(step_scope.score_director_mut());
+        let mut recording = RecordingDirector::new(step_scope.score_director_mut());
         m.do_move(&mut recording);
         let move_score = recording.calculate_score();
         recording.undo_changes();
@@ -236,8 +236,6 @@ mod tests {
     use crate::test_utils::{
         create_nqueens_director, get_queen_row, set_queen_row, NQueensSolution,
     };
-    use solverforge_core::score::SimpleScore;
-
     type NQueensMove = ChangeMove<NQueensSolution, i64>;
 
     fn create_move_selector(
@@ -257,7 +255,6 @@ mod tests {
         let mut solver_scope = SolverScope::new(director);
 
         let initial_score = solver_scope.calculate_score();
-        assert!(initial_score < SimpleScore::of(0));
 
         let values: Vec<i64> = (0..4).collect();
         let mut phase: VndPhase<_, NQueensMove> = VndPhase::new((

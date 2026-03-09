@@ -1,7 +1,7 @@
 // Tests for score analysis types.
 
 use crate::api::analysis::*;
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -88,13 +88,13 @@ fn test_detailed_evaluation() {
 
     let match1 = DetailedConstraintMatch::new(
         constraint_ref.clone(),
-        SimpleScore::of(-1),
+        SoftScore::of(-1),
         ConstraintJustification::new(vec![EntityRef::new(&entity)]),
     );
 
-    let eval = DetailedConstraintEvaluation::new(SimpleScore::of(-1), vec![match1]);
+    let eval = DetailedConstraintEvaluation::new(SoftScore::of(-1), vec![match1]);
 
-    assert_eq!(eval.total_score, SimpleScore::of(-1));
+    assert_eq!(eval.total_score, SoftScore::of(-1));
     assert_eq!(eval.match_count, 1);
     assert_eq!(eval.matches.len(), 1);
 }
@@ -113,7 +113,7 @@ fn test_indictment_map() {
 
     let match1 = DetailedConstraintMatch::new(
         constraint_ref.clone(),
-        SimpleScore::of(-1),
+        SoftScore::of(-1),
         ConstraintJustification::new(vec![EntityRef::new(&entity1), EntityRef::new(&entity2)]),
     );
 
@@ -124,7 +124,7 @@ fn test_indictment_map() {
     let alice_ref = EntityRef::new(&entity1);
     let alice_indictment = map.get(&alice_ref).unwrap();
     assert_eq!(alice_indictment.match_count(), 1);
-    assert_eq!(alice_indictment.score, SimpleScore::of(-1));
+    assert_eq!(alice_indictment.score, SoftScore::of(-1));
 }
 
 #[test]
@@ -133,15 +133,15 @@ fn test_score_explanation() {
 
     let analysis = ConstraintAnalysis::new(
         constraint_ref,
-        SimpleScore::of(1),
-        SimpleScore::of(-3),
+        SoftScore::of(1),
+        SoftScore::of(-3),
         vec![],
         false,
     );
 
-    let explanation = ScoreExplanation::new(SimpleScore::of(-3), vec![analysis]);
+    let explanation = ScoreExplanation::new(SoftScore::of(-3), vec![analysis]);
 
-    assert_eq!(explanation.score, SimpleScore::of(-3));
+    assert_eq!(explanation.score, SoftScore::of(-3));
     assert_eq!(explanation.constraint_analyses.len(), 1);
     assert_eq!(explanation.non_zero_constraints().len(), 1);
 }

@@ -12,7 +12,7 @@ mod unimproved;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
@@ -32,11 +32,8 @@ pub use unimproved::{UnimprovedStepCountTermination, UnimprovedTimeTermination};
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type (default `()`)
-pub trait Termination<
-    S: PlanningSolution,
-    D: ScoreDirector<S>,
-    BestCb: BestSolutionCallback<S> = (),
->: Send + Debug
+pub trait Termination<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>:
+    Send + Debug
 {
     /// Returns true if solving should terminate.
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool;

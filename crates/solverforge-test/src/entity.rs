@@ -18,7 +18,7 @@
 use solverforge_core::domain::{
     EntityDescriptor, EntityExtractor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
+use solverforge_core::score::SoftScore;
 use std::any::TypeId;
 
 /// A simple test entity with an id and optional value.
@@ -52,7 +52,7 @@ impl TestEntity {
 #[derive(Clone, Debug)]
 pub struct TestSolution {
     pub entities: Vec<TestEntity>,
-    pub score: Option<SimpleScore>,
+    pub score: Option<SoftScore>,
 }
 
 impl TestSolution {
@@ -73,7 +73,7 @@ impl TestSolution {
     }
 
     /// Creates a test solution with the given score (no entities).
-    pub fn with_score(score: SimpleScore) -> Self {
+    pub fn with_score(score: SoftScore) -> Self {
         Self {
             entities: Vec::new(),
             score: Some(score),
@@ -92,7 +92,7 @@ impl TestSolution {
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Termination;
 use crate::scope::BestSolutionCallback;
@@ -27,13 +27,13 @@ use crate::scope::SolverScope;
 /// ```
 /// use std::time::Duration;
 /// use solverforge_solver::termination::DiminishedReturnsTermination;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 /// use solverforge_core::domain::PlanningSolution;
 ///
 /// #[derive(Clone)]
 /// struct MySolution;
 /// impl PlanningSolution for MySolution {
-///     type Score = SimpleScore;
+///     type Score = SoftScore;
 ///     fn score(&self) -> Option<Self::Score> { None }
 ///     fn set_score(&mut self, _: Option<Self::Score>) {}
 /// }
@@ -107,8 +107,8 @@ impl<S: PlanningSolution> DiminishedReturnsTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for DiminishedReturnsTermination<S> {}
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
-    Termination<S, D, BestCb> for DiminishedReturnsTermination<S>
+impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+    for DiminishedReturnsTermination<S>
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         let Some(current_score) = solver_scope.best_score() else {
@@ -175,7 +175,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
         let oldest_levels = oldest_score.to_level_numbers();
 
         // Use the last level (soft score) for improvement rate
-        // For SimpleScore: the only value
+        // For SoftScore: the only value
         // For HardSoftScore: the soft value
         let current_value = *current_levels.last().unwrap_or(&0);
         let oldest_value = *oldest_levels.last().unwrap_or(&0);
@@ -193,7 +193,7 @@ impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
 mod tests {
     use super::*;
     use crate::test_utils::{create_test_scope, create_test_scope_with_score, TestSolution};
-    use solverforge_core::score::SimpleScore;
+    use solverforge_core::score::SoftScore;
     use std::thread::sleep;
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.0);
 
-        let scope = create_test_scope_with_score(SimpleScore::of(-100));
+        let scope = create_test_scope_with_score(SoftScore::of(-100));
 
         // During grace period, should not terminate even with no improvement
         assert!(!termination.is_terminated(&scope));
@@ -212,7 +212,7 @@ mod tests {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(500), 0.1);
 
-        let scope = create_test_scope_with_score(SimpleScore::of(-100));
+        let scope = create_test_scope_with_score(SoftScore::of(-100));
 
         // First call starts tracking
         assert!(!termination.is_terminated(&scope));
@@ -231,7 +231,7 @@ mod tests {
         let termination =
             DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(50), 10.0);
 
-        let mut scope = create_test_scope_with_score(SimpleScore::of(-100));
+        let mut scope = create_test_scope_with_score(SoftScore::of(-100));
 
         // Check once to start tracking
         assert!(!termination.is_terminated(&scope));
@@ -242,9 +242,9 @@ mod tests {
         // Rate = 100 / 0.060 = ~1667/s, well above 10/s threshold
         scope.set_best_solution(
             TestSolution {
-                score: Some(SimpleScore::of(0)),
+                score: Some(SoftScore::of(0)),
             },
-            SimpleScore::of(0),
+            SoftScore::of(0),
         );
         assert!(!termination.is_terminated(&scope));
     }

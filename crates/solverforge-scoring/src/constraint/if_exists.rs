@@ -46,7 +46,7 @@ pub enum ExistenceMode {
 // use solverforge_scoring::constraint::if_exists::{IfExistsUniConstraint, ExistenceMode};
 // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 // use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SimpleScore;
+// use solverforge_core::score::SoftScore;
 //
 // #[derive(Clone)]
 // struct Shift { id: usize, employee_idx: Option<usize> }
@@ -67,7 +67,7 @@ pub enum ExistenceMode {
 //     |shift: &Shift| shift.employee_idx,
 //     |emp: &Employee| Some(emp.id),
 //     |_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
-//     |_shift: &Shift| SimpleScore::of(1),
+//     |_shift: &Shift| SoftScore::of(1),
 //     false,
 // );
 //
@@ -84,7 +84,7 @@ pub enum ExistenceMode {
 // };
 //
 // // Only shift 0 matches (assigned to employee on vacation)
-// assert_eq!(constraint.evaluate(&schedule), SimpleScore::of(-1));
+// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
 // ```
 pub struct IfExistsUniConstraint<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
 where

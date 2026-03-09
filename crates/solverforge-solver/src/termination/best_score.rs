@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use super::Termination;
 use crate::scope::BestSolutionCallback;
@@ -19,10 +19,10 @@ use crate::scope::SolverScope;
 ///
 /// ```
 /// use solverforge_solver::termination::BestScoreTermination;
-/// use solverforge_core::score::SimpleScore;
+/// use solverforge_core::score::SoftScore;
 ///
 /// // Terminate when score reaches 0 (no constraint violations)
-/// let term: BestScoreTermination<SimpleScore> = BestScoreTermination::new(SimpleScore::of(0));
+/// let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
 /// ```
 #[derive(Debug, Clone)]
 pub struct BestScoreTermination<Sc: Score> {
@@ -39,7 +39,7 @@ impl<Sc: Score> BestScoreTermination<Sc> {
 impl<S, D, BestCb, Sc> Termination<S, D, BestCb> for BestScoreTermination<Sc>
 where
     S: PlanningSolution<Score = Sc>,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     Sc: Score,
 {
@@ -106,7 +106,7 @@ impl<S: PlanningSolution> BestScoreFeasibleTermination<S, fn(&S::Score) -> bool>
 impl<S, D, BestCb, F> Termination<S, D, BestCb> for BestScoreFeasibleTermination<S, F>
 where
     S: PlanningSolution,
-    D: ScoreDirector<S>,
+    D: Director<S>,
     BestCb: BestSolutionCallback<S>,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {

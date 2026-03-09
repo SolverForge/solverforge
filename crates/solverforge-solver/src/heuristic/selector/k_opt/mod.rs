@@ -15,13 +15,13 @@
 //! use solverforge_solver::heuristic::selector::k_opt::{KOptMoveSelector, KOptConfig};
 //! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
 //! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SimpleScore;
+//! use solverforge_core::score::SoftScore;
 //!
 //! #[derive(Clone, Debug)]
-//! struct Tour { cities: Vec<i32>, score: Option<SimpleScore> }
+//! struct Tour { cities: Vec<i32>, score: Option<SoftScore> }
 //!
 //! impl PlanningSolution for Tour {
-//!     type Score = SimpleScore;
+//!     type Score = SoftScore;
 //!     fn score(&self) -> Option<Self::Score> { self.score }
 //!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 //! }

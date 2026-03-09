@@ -6,14 +6,14 @@
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 /// Calculates score bounds for exhaustive search pruning.
 ///
 /// The bounder estimates the best possible score that can be achieved
 /// from a partial solution state. If this optimistic bound is worse than
 /// the best complete solution found so far, the branch can be pruned.
-pub trait ScoreBounder<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+pub trait ScoreBounder<S: PlanningSolution, D: Director<S>>: Send + Debug {
     /// Calculates the optimistic bound for the current solution state.
     ///
     /// The optimistic bound is an upper bound on the score achievable
@@ -43,16 +43,16 @@ pub trait ScoreBounder<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
 /// This is useful when constraint violations can only increase (get worse)
 /// as more assignments are made, which is common for most constraint problems.
 #[derive(Debug, Clone, Default)]
-pub struct SimpleScoreBounder;
+pub struct SoftScoreBounder;
 
-impl SimpleScoreBounder {
+impl SoftScoreBounder {
     /// Creates a new simple score bounder.
     pub fn new() -> Self {
         Self
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for SimpleScoreBounder {
+impl<S: PlanningSolution, D: Director<S>> ScoreBounder<S, D> for SoftScoreBounder {
     fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
         // The simple bounder doesn't compute bounds
         // This effectively disables pruning
@@ -85,7 +85,7 @@ impl<S: PlanningSolution> FixedOffsetBounder<S> {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreBounder<S, D> for FixedOffsetBounder<S>
+impl<S: PlanningSolution, D: Director<S>> ScoreBounder<S, D> for FixedOffsetBounder<S>
 where
     S::Score: Clone + std::ops::Add<Output = S::Score> + std::ops::Mul<i32, Output = S::Score>,
 {
@@ -133,10 +133,10 @@ mod tests {
 
     #[test]
     fn test_simple_bounder_returns_none() {
-        let bounder = SimpleScoreBounder::new();
-        // SimpleScoreBounder returns None by default (disables pruning)
+        let bounder = SoftScoreBounder::new();
+        // SoftScoreBounder returns None by default (disables pruning)
         // Verify Default trait works
-        assert!(format!("{:?}", bounder).contains("SimpleScoreBounder"));
+        assert!(format!("{:?}", bounder).contains("SoftScoreBounder"));
     }
 
     #[test]

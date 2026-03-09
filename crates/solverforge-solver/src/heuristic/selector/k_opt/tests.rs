@@ -7,8 +7,8 @@ use crate::heuristic::selector::typed_move_selector::MoveSelector;
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::SimpleScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -19,11 +19,11 @@ struct Tour {
 #[derive(Clone, Debug)]
 struct TspSolution {
     tours: Vec<Tour>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TspSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
     fn score(&self) -> Option<Self::Score> {
         self.score
     }
@@ -55,9 +55,7 @@ fn sublist_insert(s: &mut TspSolution, entity_idx: usize, pos: usize, items: Vec
     }
 }
 
-fn create_director(
-    tours: Vec<Tour>,
-) -> SimpleScoreDirector<TspSolution, impl Fn(&TspSolution) -> SimpleScore> {
+fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
     let solution = TspSolution { tours, score: None };
     let extractor = Box::new(TypedEntityExtractor::new(
         "Tour",
@@ -69,7 +67,7 @@ fn create_director(
         EntityDescriptor::new("Tour", TypeId::of::<Tour>(), "tours").with_extractor(extractor);
     let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
         .with_entity(entity_desc);
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tours.len())
 }
 
 #[test]

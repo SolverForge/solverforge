@@ -168,14 +168,14 @@ where
 mod tests {
     use super::*;
     use solverforge_core::domain::PlanningSolution;
-    use solverforge_core::score::{HardSoftScore, SimpleScore};
+    use solverforge_core::score::{HardSoftScore, SoftScore};
 
     #[derive(Clone, Debug)]
     struct SimpleSol {
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
     impl PlanningSolution for SimpleSol {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -201,8 +201,8 @@ mod tests {
     #[test]
     fn accepts_improving_moves() {
         let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1000.0, 0.99, 42);
-        let last = SimpleScore::of(-10);
-        let better = SimpleScore::of(-5);
+        let last = SoftScore::of(-10);
+        let better = SoftScore::of(-5);
         assert!(Acceptor::<SimpleSol>::is_accepted(
             &mut acceptor,
             &last,
@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn accepts_equal_moves() {
         let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1000.0, 0.99, 42);
-        let score = SimpleScore::of(-10);
+        let score = SoftScore::of(-10);
         assert!(Acceptor::<SimpleSol>::is_accepted(
             &mut acceptor,
             &score,
@@ -225,8 +225,8 @@ mod tests {
     fn rejects_at_zero_temperature() {
         let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.0, 0.99, 42);
         acceptor.current_temperature = 0.0;
-        let last = SimpleScore::of(-10);
-        let worse = SimpleScore::of(-20);
+        let last = SoftScore::of(-10);
+        let worse = SoftScore::of(-20);
         assert!(!Acceptor::<SimpleSol>::is_accepted(
             &mut acceptor,
             &last,
@@ -237,8 +237,8 @@ mod tests {
     #[test]
     fn high_temperature_accepts_most() {
         let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1_000_000.0, 0.99, 42);
-        let last = SimpleScore::of(-10);
-        let worse = SimpleScore::of(-11);
+        let last = SoftScore::of(-10);
+        let worse = SoftScore::of(-11);
         let mut accepted = 0;
         for _ in 0..100 {
             if Acceptor::<SimpleSol>::is_accepted(&mut acceptor, &last, &worse) {
@@ -251,8 +251,8 @@ mod tests {
     #[test]
     fn low_temperature_rejects_most() {
         let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.001, 0.99, 42);
-        let last = SimpleScore::of(-10);
-        let worse = SimpleScore::of(-20);
+        let last = SoftScore::of(-10);
+        let worse = SoftScore::of(-20);
         let mut accepted = 0;
         for _ in 0..100 {
             if Acceptor::<SimpleSol>::is_accepted(&mut acceptor, &last, &worse) {
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn temperature_decays_each_step() {
         let mut acceptor = SimulatedAnnealingAcceptor::with_seed(100.0, 0.5, 42);
-        let score = SimpleScore::of(0);
+        let score = SoftScore::of(0);
         Acceptor::<SimpleSol>::phase_started(&mut acceptor, &score);
         assert!((acceptor.current_temperature - 100.0).abs() < f64::EPSILON);
         Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score);

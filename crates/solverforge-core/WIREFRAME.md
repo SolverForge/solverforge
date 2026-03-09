@@ -24,14 +24,14 @@ src/
 │   ├── traits.rs                          — Score trait, ParseableScore trait, ScoreParseError
 │   ├── macros.rs                          — Declarative macros: impl_score_ops!, impl_score_scale!, impl_score_parse!
 │   ├── level.rs                           — ScoreLevel enum (Hard, Medium, Soft)
-│   ├── simple.rs                          — SimpleScore: single i64 level
+│   ├── simple.rs                          — SoftScore: single i64 level
 │   ├── hard_soft.rs                       — HardSoftScore: two i64 levels (hard, soft)
 │   ├── hard_medium_soft.rs                — HardMediumSoftScore: three i64 levels
 │   ├── hard_soft_decimal.rs               — HardSoftDecimalScore: two levels with x100000 scaling
 │   ├── bendable.rs                        — BendableScore<H, S>: const-generic multi-level score
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
-│       ├── simple_score.rs                — SimpleScore tests
+│       ├── simple_score.rs                — SoftScore tests
 │       ├── hard_soft_score.rs             — HardSoftScore tests
 │       ├── hard_medium_soft_score.rs      — HardMediumSoftScore tests
 │       ├── hard_soft_decimal_score.rs     — HardSoftDecimalScore tests
@@ -78,7 +78,7 @@ pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use error::SolverForgeError;
 pub use score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
-    ParseableScore, Score, ScoreParseError, SimpleScore,
+    ParseableScore, Score, ScoreParseError, SoftScore,
 };
 ```
 
@@ -223,7 +223,7 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 
 ### Score Types
 
-#### `SimpleScore`
+#### `SoftScore`
 
 Fields: `score: i64` (private)
 
@@ -576,7 +576,7 @@ Three declarative macros reduce boilerplate for score types:
 - `impl_score_scale!($type { $fields } => $ctor)` — generates `multiply`, `divide`, `abs` method bodies (used inside `impl Score`)
 - `impl_score_parse!($type { $field => $suffix } => $ctor)` — generates `ParseableScore` impl for slash-separated formats
 
-`SimpleScore` and `HardSoftDecimalScore` have custom parse logic and do not use `impl_score_parse!`.
+`SoftScore` and `HardSoftDecimalScore` have custom parse logic and do not use `impl_score_parse!`.
 
 ### Score Scalar Weighting
 

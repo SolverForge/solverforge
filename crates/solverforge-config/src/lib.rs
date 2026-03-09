@@ -84,7 +84,7 @@ pub struct SolverConfig {
 
     /// Score director configuration.
     #[serde(default)]
-    pub score_director: Option<ScoreDirectorConfig>,
+    pub score_director: Option<DirectorConfig>,
 
     /// Phase configurations.
     #[serde(default)]
@@ -248,7 +248,7 @@ impl TerminationConfig {
 /// Score director configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ScoreDirectorConfig {
+pub struct DirectorConfig {
     /// Fully qualified name of the constraint provider type.
     pub constraint_provider: Option<String>,
 

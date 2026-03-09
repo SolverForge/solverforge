@@ -9,8 +9,8 @@ use crate::heuristic::selector::{EntityReference, EntitySelector};
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
 };
-use solverforge_core::score::SimpleScore;
-use solverforge_scoring::{ScoreDirector, SimpleScoreDirector};
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::{Director, ScoreDirector};
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -23,11 +23,11 @@ struct Location {
 #[derive(Clone, Debug)]
 struct RoutingSolution {
     locations: Vec<Location>,
-    score: Option<SimpleScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for RoutingSolution {
-    type Score = SimpleScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -64,7 +64,7 @@ impl EuclideanDistanceMeter {
 impl DynDistanceMeter for EuclideanDistanceMeter {
     fn distance_between<S: PlanningSolution>(
         &self,
-        _score_director: &dyn ScoreDirector<S>,
+        _score_director: &dyn Director<S>,
         origin: EntityReference,
         destination: EntityReference,
     ) -> f64 {
@@ -76,8 +76,7 @@ impl DynDistanceMeter for EuclideanDistanceMeter {
     }
 }
 
-fn create_test_director(
-) -> SimpleScoreDirector<RoutingSolution, impl Fn(&RoutingSolution) -> SimpleScore> {
+fn create_test_director() -> ScoreDirector<RoutingSolution, ()> {
     // Create a grid of locations: (0,0), (1,0), (2,0), (0,1), (1,1), (2,1)
     let locations = vec![
         Location {
@@ -129,7 +128,7 @@ fn create_test_director(
     let descriptor = SolutionDescriptor::new("RoutingSolution", TypeId::of::<RoutingSolution>())
         .with_entity(entity_desc);
 
-    SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+    ScoreDirector::simple(solution, descriptor, |s, _| s.locations.len())
 }
 
 #[test]

@@ -13,7 +13,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
@@ -62,7 +62,7 @@ where
     /// Populates arena 1 from a move selector.
     pub fn populate_first<D, MS>(&mut self, selector: &MS, score_director: &D)
     where
-        D: ScoreDirector<S>,
+        D: Director<S>,
         MS: MoveSelector<S, M1>,
     {
         self.arena_1.extend(selector.iter_moves(score_director));
@@ -71,7 +71,7 @@ where
     /// Populates arena 2 from a move selector.
     pub fn populate_second<D, MS>(&mut self, selector: &MS, score_director: &D)
     where
-        D: ScoreDirector<S>,
+        D: Director<S>,
         MS: MoveSelector<S, M2>,
     {
         self.arena_2.extend(selector.iter_moves(score_director));
@@ -145,8 +145,8 @@ mod tests {
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
     use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
-    use solverforge_core::score::SimpleScore;
-    use solverforge_scoring::SimpleScoreDirector;
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::ScoreDirector;
     use std::any::TypeId;
 
     #[derive(Clone, Debug)]
@@ -158,11 +158,11 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Sol {
         tasks: Vec<Task>,
-        score: Option<SimpleScore>,
+        score: Option<SoftScore>,
     }
 
     impl PlanningSolution for Sol {
-        type Score = SimpleScore;
+        type Score = SoftScore;
         fn score(&self) -> Option<Self::Score> {
             self.score
         }
@@ -194,7 +194,7 @@ mod tests {
         }
     }
 
-    fn create_director(tasks: Vec<Task>) -> SimpleScoreDirector<Sol, impl Fn(&Sol) -> SimpleScore> {
+    fn create_director(tasks: Vec<Task>) -> ScoreDirector<Sol, ()> {
         let solution = Sol { tasks, score: None };
         let extractor = Box::new(TypedEntityExtractor::new(
             "Task",
@@ -206,7 +206,7 @@ mod tests {
             EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks").with_extractor(extractor);
         let descriptor =
             SolutionDescriptor::new("Sol", TypeId::of::<Sol>()).with_entity(entity_desc);
-        SimpleScoreDirector::with_calculator(solution, descriptor, |_| SimpleScore::of(0))
+        ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
     }
 
     #[test]

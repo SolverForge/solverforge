@@ -74,9 +74,10 @@ pub use solverforge_scoring::{Director, ScoreDirector};
 // Solver
 // ============================================================================
 
+pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverManager,
-    SolverStatus,
+    analyze, run_list_solver, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
+    SolverManager, SolverStatus,
 };
 
 // ============================================================================

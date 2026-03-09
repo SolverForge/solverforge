@@ -25,6 +25,11 @@ struct ShadowConfig {
     // Computed shadow fields on the list owner entity.
     // Format: "field_name:method_name" (e.g., "total_driving_time:compute_driving_time")
     entity_computes: Vec<String>,
+
+    // Optional distance meter type paths for nearby selectors.
+    // Defaults to DefaultDistanceMeter when not specified.
+    distance_meter: Option<String>,
+    intra_distance_meter: Option<String>,
 }
 
 /*
@@ -82,6 +87,8 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.element_type = parse_attribute_string(attr, "element_type");
         config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
         config.entity_computes = parse_attribute_list(attr, "entity_compute");
+        config.distance_meter = parse_attribute_string(attr, "distance_meter");
+        config.intra_distance_meter = parse_attribute_string(attr, "intra_distance_meter");
     }
 
     config
@@ -198,7 +205,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    let list_operations = generate_list_operations(&shadow_config, fields);
+    let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path, name);
     let basic_operations =
         generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
     let solvable_solution_impl =
@@ -245,6 +252,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 fn generate_list_operations(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    constraints_path: &Option<String>,
+    solution_name: &Ident,
 ) -> TokenStream {
     let (list_owner, list_field, element_type, element_collection) = match (
         &config.list_owner,
@@ -275,7 +284,83 @@ fn generate_list_operations(
         proc_macro2::Span::call_site(),
     );
 
-    let element_collection_ident2 = Ident::new(element_collection, proc_macro2::Span::call_site());
+    let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
+
+    // Generate finalize calls for all problem_fact_collection fields
+    let finalize_calls: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
+        .filter_map(|f| {
+            let field_name = f.ident.as_ref()?;
+            Some(quote! {
+                for item in &mut s.#field_name {
+                    item.finalize();
+                }
+            })
+        })
+        .collect();
+
+    // Build solve_internal if constraints path provided
+    let solve_impl = constraints_path.as_ref().map(|path| {
+        let constraints_fn: syn::Path =
+            syn::parse_str(path).expect("constraints path must be a valid Rust path");
+
+        // Distance meter types: use provided paths or DefaultDistanceMeter
+        let cross_dm: syn::Expr = if let Some(dm) = &config.distance_meter {
+            let dm_path: syn::Path = syn::parse_str(dm).expect("distance_meter must be a valid path");
+            syn::parse_quote! { #dm_path::default() }
+        } else {
+            syn::parse_quote! { ::solverforge::DefaultDistanceMeter }
+        };
+
+        let intra_dm: syn::Expr = if let Some(idm) = &config.intra_distance_meter {
+            let idm_path: syn::Path = syn::parse_str(idm).expect("intra_distance_meter must be a valid path");
+            syn::parse_quote! { #idm_path::default() }
+        } else {
+            syn::parse_quote! { ::solverforge::DefaultDistanceMeter }
+        };
+
+        let variable_name_str = list_field.as_str();
+
+        quote! {
+            fn solve_internal(
+                self,
+                terminate: Option<&std::sync::atomic::AtomicBool>,
+                sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+            ) -> Self {
+                ::solverforge::__internal::init_console();
+
+                ::solverforge::run_list_solver(
+                    self,
+                    #solution_name::finalize_all,
+                    #constraints_fn,
+                    #solution_name::list_len_static,
+                    #solution_name::list_remove,
+                    #solution_name::list_insert,
+                    #solution_name::list_get,
+                    #solution_name::list_set,
+                    #solution_name::list_reverse,
+                    #solution_name::sublist_remove,
+                    #solution_name::sublist_insert,
+                    #solution_name::ruin_remove,
+                    #solution_name::ruin_insert,
+                    #solution_name::element_count,
+                    #solution_name::assigned_elements,
+                    #solution_name::n_entities,
+                    #solution_name::list_remove_for_construction,
+                    #solution_name::index_to_element_static,
+                    #cross_dm,
+                    #intra_dm,
+                    #variable_name_str,
+                    #descriptor_index_lit,
+                    Self::descriptor,
+                    Self::entity_count,
+                    terminate,
+                    sender,
+                )
+            }
+        }
+    });
 
     quote! {
         #[inline]
@@ -286,27 +371,57 @@ fn generate_list_operations(
         }
 
         #[inline]
-        pub fn list_remove(&mut self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
-            self.#list_owner_ident
+        pub fn list_len_static(s: &Self, entity_idx: usize) -> usize {
+            s.#list_owner_ident
+                .get(entity_idx)
+                .map_or(0, |e| e.#list_field_ident.len())
+        }
+
+        #[inline]
+        pub fn list_remove(s: &mut Self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
+            s.#list_owner_ident
                 .get_mut(entity_idx)
                 .map(|e| e.#list_field_ident.remove(pos))
         }
 
         #[inline]
-        pub fn list_insert(&mut self, entity_idx: usize, pos: usize, val: #element_type_ident) {
-            if let Some(e) = self.#list_owner_ident.get_mut(entity_idx) {
+        pub fn list_insert(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
                 e.#list_field_ident.insert(pos, val);
             }
         }
 
         #[inline]
+        pub fn list_get(s: &Self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
+            s.#list_owner_ident
+                .get(entity_idx)
+                .and_then(|e| e.#list_field_ident.get(pos).copied())
+        }
+
+        #[inline]
+        pub fn list_set(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+                if pos < e.#list_field_ident.len() {
+                    e.#list_field_ident[pos] = val;
+                }
+            }
+        }
+
+        #[inline]
+        pub fn list_reverse(s: &mut Self, entity_idx: usize, start: usize, end: usize) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+                e.#list_field_ident[start..end].reverse();
+            }
+        }
+
+        #[inline]
         pub fn sublist_remove(
-            &mut self,
+            s: &mut Self,
             entity_idx: usize,
             start: usize,
             end: usize,
         ) -> Vec<#element_type_ident> {
-            self.#list_owner_ident
+            s.#list_owner_ident
                 .get_mut(entity_idx)
                 .map(|e| e.#list_field_ident.drain(start..end).collect())
                 .unwrap_or_default()
@@ -314,16 +429,36 @@ fn generate_list_operations(
 
         #[inline]
         pub fn sublist_insert(
-            &mut self,
+            s: &mut Self,
             entity_idx: usize,
             pos: usize,
             items: Vec<#element_type_ident>,
         ) {
-            if let Some(e) = self.#list_owner_ident.get_mut(entity_idx) {
+            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
                 for (i, item) in items.into_iter().enumerate() {
                     e.#list_field_ident.insert(pos + i, item);
                 }
             }
+        }
+
+        #[inline]
+        pub fn ruin_remove(s: &mut Self, entity_idx: usize, pos: usize) -> #element_type_ident {
+            s.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+        }
+
+        #[inline]
+        pub fn ruin_insert(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
+            s.#list_owner_ident[entity_idx].#list_field_ident.insert(pos, val);
+        }
+
+        #[inline]
+        pub fn list_remove_for_construction(s: &mut Self, entity_idx: usize, pos: usize) -> #element_type_ident {
+            s.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+        }
+
+        #[inline]
+        pub fn index_to_element_static(s: &Self, idx: usize) -> #element_type_ident {
+            s.#element_collection_ident[idx]
         }
 
         #[inline]
@@ -333,7 +468,7 @@ fn generate_list_operations(
 
         #[inline]
         pub fn element_count(s: &Self) -> usize {
-            s.#element_collection_ident2.len()
+            s.#element_collection_ident.len()
         }
 
         #[inline]
@@ -355,6 +490,13 @@ fn generate_list_operations(
                 e.#list_field_ident.push(elem);
             }
         }
+
+        #[inline]
+        pub fn finalize_all(s: &mut Self) {
+            #(#finalize_calls)*
+        }
+
+        #solve_impl
     }
 }
 

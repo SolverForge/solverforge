@@ -74,11 +74,11 @@ pub use heuristic::{
     TypedValueSelector,
 };
 pub use manager::{
-    Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
+    analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListCheapestInsertionPhase, ListConstructionPhase,
     ListConstructionPhaseBuilder, ListRegretInsertionPhase, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, SolutionManager, Solvable, SolverFactory,
-    SolverFactoryBuilder, SolverManager, SolverStatus,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverFactory, SolverFactoryBuilder,
+    SolverManager, SolverStatus,
 };
 pub use phase::{
     construction::{

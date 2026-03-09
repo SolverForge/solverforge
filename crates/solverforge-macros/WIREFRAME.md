@@ -96,7 +96,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` (when any variable config present) — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
-- `impl Analyzable for T` (when constraints path specified) — `analyze()` creates ShadowAwareScoreDirector and returns ScoreAnalysis
+- `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `TypedScoreDirector` and returns `ScoreAnalysis`
 - `fn solve_internal()` (when constraints path specified) — calls `run_solver()`
 
 ### `ProblemFactImpl`
@@ -173,7 +173,7 @@ All generated code references types via `::solverforge::__internal::*` paths, me
 - `EntityDescriptor`, `SolutionDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`
 - `TypedEntityExtractor`
 - `ShadowVariableKind`, `ShadowVariableSupport`, `SolvableSolution`
-- `TypedScoreDirector`, `ScoreDirector`, `ShadowAwareScoreDirector`
+- `TypedScoreDirector`, `ScoreDirector`
 
 Trait impls like `Solvable`, `Analyzable`, and `ScoreAnalysis` reference `::solverforge::*` directly.
 

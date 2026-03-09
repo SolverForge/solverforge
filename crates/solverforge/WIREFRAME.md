@@ -67,11 +67,11 @@ src/
 ### Solver (from `solverforge-solver`)
 
 - `run_solver`
+- `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
 - `SolverManager`
 - `SolverStatus`
-- `SolutionManager`
 - `ScoreAnalysis`
 - `ConstraintAnalysis`
 
@@ -115,7 +115,7 @@ Used exclusively by macro-generated code. Not public API.
 
 **Scoring (from `solverforge-scoring`):**
 - `ScoreDirector`, `TypedScoreDirector`
-- `SimpleScoreDirector`, `ShadowAwareScoreDirector`
+- `SimpleScoreDirector`
 - `ShadowVariableSupport`, `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**

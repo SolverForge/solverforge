@@ -165,7 +165,7 @@ src/
 │   ├── builder.rs                       — SolverFactoryBuilder, SolverBuildError
 │   ├── solver_factory.rs               — SolverFactory, solver_factory_builder() free fn
 │   ├── solver_manager.rs               — SolverManager, Solvable trait, SolverStatus
-│   ├── solution_manager.rs             — SolutionManager, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
+│   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
 │   ├── phase_factory/
 │   │   ├── mod.rs                       — Re-exports
 │   │   ├── construction.rs             — ConstructionPhaseFactory
@@ -639,9 +639,9 @@ Static lifetime manager: `solve()` returns `(job_id, receiver)`. Methods: `get_s
 
 Enum: `NotSolving`, `Solving`. Serde: `SCREAMING_SNAKE_CASE`.
 
-### `SolutionManager<S>`
+### `analyze<S>(solution: &S) -> ScoreAnalysis<S::Score>`
 
-Analysis: `analyze()` returns `ScoreAnalysis<S::Score>`.
+Free function. Requires `S: Analyzable, S::Score: Score`. Delegates to `solution.analyze()`.
 
 ### `ScoreAnalysis<Sc>` / `ConstraintAnalysis<Sc>`
 

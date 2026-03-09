@@ -1,6 +1,4 @@
 // LoadBalance collector for computing unfairness (sqrt of variance).
-//
-// Matches Timefold's LoadBalance implementation for fair workload distribution.
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -97,9 +95,7 @@ where
     }
 }
 
-// Accumulator for load balance with incremental variance computation.
-//
-// Uses Timefold's algorithm for O(1) incremental updates.
+// Accumulator for load balance with incremental variance computation (O(1) updates).
 pub struct LoadBalanceAccumulator<K> {
     // Count of items per balanced key (for duplicate tracking)
     item_counts: HashMap<K, usize>,
@@ -144,7 +140,7 @@ impl<K: Clone + Eq + Hash> LoadBalanceAccumulator<K> {
         }
     }
 
-    // Incremental variance update formula from Timefold.
+    // Incremental variance update formula.
     fn update_squared_deviation(&mut self, old_value: i64, new_value: i64) {
         // Term 1: x_new² - x_old²
         let term1 = new_value * new_value - old_value * old_value;
@@ -166,14 +162,14 @@ impl<K: Clone + Eq + Hash> LoadBalanceAccumulator<K> {
         self.squared_deviation_fraction_numerator += fraction_delta;
     }
 
-    // Returns unfairness as i64 (matching Timefold's formula, no pre-scaling).
+    // Returns unfairness as i64 (no pre-scaling).
     // Use with `of_soft()` which handles the decimal scaling.
     fn compute_unfairness(&self) -> i64 {
         let n = self.item_counts.len();
         match n {
             0 => 0,
             1 => {
-                // For n=1, Timefold uses: sqrt(fraction + integral)
+                // For n=1: sqrt(fraction + integral)
                 let tmp = self.squared_deviation_fraction_numerator as f64
                     + self.squared_deviation_integral as f64;
                 tmp.sqrt().round() as i64

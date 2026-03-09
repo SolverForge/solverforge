@@ -1,6 +1,6 @@
 //! SolverForge - A Constraint Solver in Rust
 //!
-//! SolverForge is a constraint satisfaction/optimization solver inspired by Timefold.
+//! SolverForge is a high-performance constraint satisfaction/optimization solver.
 //! It helps you optimize planning and scheduling problems.
 //!
 //! # Quick Start
@@ -75,8 +75,8 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable,
-    SolverManager, SolverStatus,
+    analyze, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverManager,
+    SolverStatus,
 };
 
 // ============================================================================

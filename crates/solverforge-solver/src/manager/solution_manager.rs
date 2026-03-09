@@ -1,13 +1,4 @@
-//! SolutionManager for stateless score analysis.
-//!
-//! This follows Timefold's `SolutionManager` pattern - stateless operations
-//! on solutions without job tracking:
-//! - Analyzing solutions for constraint violations
-//! - Score calculation and breakdown
-//!
-//! For async job management, see `SolverManager`.
-
-use std::marker::PhantomData;
+//! Stateless score analysis for planning solutions.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -78,42 +69,40 @@ pub trait Analyzable: PlanningSolution + Clone + Send + 'static {
     fn analyze(&self) -> ScoreAnalysis<Self::Score>;
 }
 
-/// Stateless service for score analysis.
+/// Analyzes a solution for constraint violations.
 ///
-/// This is the Rust equivalent of Timefold's `SolutionManager`. It provides
-/// stateless operations on solutions without tracking jobs.
+/// Returns a breakdown of each constraint's contribution to the score.
 ///
-/// # Type Parameters
+/// # Example
 ///
-/// * `S` - Solution type that implements `Analyzable`
-pub struct SolutionManager<S> {
-    _marker: PhantomData<fn() -> S>,
-}
-
-impl<S> Default for SolutionManager<S> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<S> SolutionManager<S> {
-    /// Creates a new SolutionManager.
-    pub fn new() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<S> SolutionManager<S>
+/// ```
+/// use solverforge_core::domain::PlanningSolution;
+/// use solverforge_core::score::SimpleScore;
+/// use solverforge_solver::manager::{analyze, Analyzable, ScoreAnalysis};
+///
+/// #[derive(Clone)]
+/// struct Schedule { score: Option<SimpleScore> }
+///
+/// impl PlanningSolution for Schedule {
+///     type Score = SimpleScore;
+///     fn score(&self) -> Option<Self::Score> { self.score }
+///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+/// }
+///
+/// impl Analyzable for Schedule {
+///     fn analyze(&self) -> ScoreAnalysis<SimpleScore> {
+///         ScoreAnalysis { score: SimpleScore::of(0), constraints: vec![] }
+///     }
+/// }
+///
+/// let schedule = Schedule { score: Some(SimpleScore::of(0)) };
+/// let result = analyze(&schedule);
+/// assert_eq!(result.score, SimpleScore::of(0));
+/// ```
+pub fn analyze<S>(solution: &S) -> ScoreAnalysis<S::Score>
 where
     S: Analyzable,
     S::Score: Score,
 {
-    /// Analyzes a solution for constraint violations.
-    ///
-    /// Returns a breakdown of each constraint's contribution to the score.
-    pub fn analyze(&self, solution: &S) -> ScoreAnalysis<S::Score> {
-        solution.analyze()
-    }
+    solution.analyze()
 }

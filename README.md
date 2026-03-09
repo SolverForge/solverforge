@@ -46,7 +46,7 @@ This enables aggressive compiler optimizations and cache-friendly data layouts.
   - Basic: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SubListChangeMove, SubListSwapMove, KOptMove, ListRuinMove
   - Nearby selection for list moves
-- **SolverManager/SolutionManager API**: Channel-based async solving with score analysis and telemetry
+- **SolverManager API**: Channel-based async solving with score analysis and telemetry
 - **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Configuration**: TOML support with builder API
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
@@ -320,15 +320,14 @@ while let Ok((solution, score)) = receiver.recv() {
 }
 ```
 
-## SolutionManager API
+## Score Analysis
 
 Analyze solutions without solving:
 
 ```rust
-use solverforge::SolutionManager;
+use solverforge::analyze;
 
-let manager = SolutionManager::<Schedule>::new();
-let analysis = manager.analyze(&solution);
+let analysis = analyze(&solution);
 
 println!("Score: {}", analysis.score);
 for constraint in &analysis.constraints {
@@ -431,7 +430,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 - Zero-erasure architecture across entire solver pipeline
 - ConstraintStream API with incremental SERIO scoring
-- Channel-based SolverManager/SolutionManager API
+- Channel-based SolverManager API with `analyze()` for score analysis
 - Console output with tracing-based progress display
 - Solution-aware filter traits
 - Macro-based codegen for N-ary incremental constraints
@@ -455,7 +454,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 | Selector decorators (8 types) | Complete |
 | Termination | Complete |
 | SolverManager | Complete |
-| SolutionManager | Complete |
+| Score Analysis (`analyze()`) | Complete |
 | Solve telemetry | Complete |
 | Console output | Complete |
 

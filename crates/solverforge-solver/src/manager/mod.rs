@@ -27,7 +27,7 @@ pub use phase_factory::{
     ListConstructionPhase, ListConstructionPhaseBuilder, ListRegretInsertionPhase,
     LocalSearchPhaseFactory,
 };
-pub use solution_manager::{Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager};
+pub use solution_manager::{analyze, Analyzable, ConstraintAnalysis, ScoreAnalysis};
 pub use solver_factory::{solver_factory_builder, SolverFactory};
 pub use solver_manager::{Solvable, SolverManager, SolverStatus};
 

@@ -1,8 +1,7 @@
 //! HardSoftDecimalScore - Two-level score with i64 precision and x100000 scaling
 //!
 //! This score type represents a decimal score without heap allocation.
-//! Internal values are scaled by 100000 to provide 5 decimal places of precision,
-//! matching Timefold's BigDecimal score display format.
+//! Internal values are scaled by 100000 to provide 5 decimal places of precision.
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -10,13 +9,13 @@ use std::fmt;
 use super::traits::{ParseableScore, Score, ScoreParseError};
 use super::ScoreLevel;
 
-/// Scale factor for 5 decimal places of precision (matching Timefold).
+/// Scale factor for 5 decimal places of precision.
 const SCALE: i64 = 100_000;
 
 /// A score with separate hard and soft constraint levels, using i64 with x100000 scaling.
 ///
-/// This provides 5 decimal places of precision (matching Timefold's BigDecimal display)
-/// while maintaining zero heap allocation and full type safety.
+/// This provides 5 decimal places of precision while maintaining zero heap allocation
+/// and full type safety.
 ///
 /// Internal values are stored pre-scaled. Use [`of`](Self::of) for unscaled input
 /// or [`of_scaled`](Self::of_scaled) for pre-scaled values.

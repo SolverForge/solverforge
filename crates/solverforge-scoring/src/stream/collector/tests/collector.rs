@@ -34,7 +34,6 @@ fn test_unbalanced() {
     acc.accumulate(&collector.extract(&1));
 
     let result = acc.finish();
-    // Timefold formula: sqrt((fraction/n) + integral)
     // For loads [2, 1], mean = 1.5
     // Squared deviations: (2-1.5)^2 + (1-1.5)^2 = 0.25 + 0.25 = 0.5
     // unfairness = sqrt(0.5) ~ 0.707 -> rounds to 1
@@ -77,14 +76,13 @@ fn test_single_item() {
 
     let result = acc.finish();
     // Single item always has 0 variance from mean (it IS the mean)
-    // But Timefold returns sqrt(squared_deviation) for n=1
     assert_eq!(result.loads().get(&0), Some(&3));
 }
 
-// Matches Timefold's InnerUniConstraintCollectorsTest.loadBalance() pattern.
-// Note: We return i64 (rounded) instead of BigDecimal, so 0.707 -> 1.
+// Standard load balance test: checks incremental add/retract correctness.
+// Note: We return i64 (rounded) so 0.707 -> 1.
 #[test]
-fn test_timefold_parity() {
+fn test_load_balance_standard_deviation() {
     struct LoadBalanced {
         value: &'static str,
         metric: i64,

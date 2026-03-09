@@ -301,7 +301,7 @@ where
         let entity = self.entity_index;
 
         // Notify before change
-        score_director.before_variable_changed(self.descriptor_index, entity, self.variable_name);
+        score_director.before_variable_changed(self.descriptor_index, entity);
 
         // For intra-route k-opt, we need to:
         // 1. Extract all segments
@@ -359,7 +359,7 @@ where
         );
 
         // Notify after change
-        score_director.after_variable_changed(self.descriptor_index, entity, self.variable_name);
+        score_director.after_variable_changed(self.descriptor_index, entity);
 
         // Register undo - need to restore original order
         let sublist_remove = self.sublist_remove;

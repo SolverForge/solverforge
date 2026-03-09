@@ -425,7 +425,7 @@ fn generate_basic_variable_operations(
             ) -> Self {
                 ::solverforge::__internal::init_console();
 
-                ::solverforge::run_solver_with_channel(
+                ::solverforge::run_solver(
                     self,
                     Self::finalize_all,
                     #constraints_fn,
@@ -437,6 +437,8 @@ fn generate_basic_variable_operations(
                     Self::entity_count,
                     terminate,
                     sender,
+                    Self::basic_variable_field_name(),
+                    Self::basic_variable_descriptor_index(),
                 )
             }
         }
@@ -533,17 +535,15 @@ fn generate_solvable_solution(
             impl ::solverforge::Analyzable for #solution_name {
                 fn analyze(&self) -> ::solverforge::ScoreAnalysis<<Self as ::solverforge::__internal::PlanningSolution>::Score> {
                     use ::solverforge::__internal::{
-                        TypedScoreDirector, ScoreDirector, ShadowAwareScoreDirector,
+                        TypedScoreDirector, ScoreDirector,
                     };
 
                     let constraints = #constraints_fn();
-                    let mut director = ShadowAwareScoreDirector::new(
-                        TypedScoreDirector::with_descriptor(
-                            self.clone(),
-                            constraints,
-                            Self::descriptor(),
-                            Self::entity_count,
-                        ),
+                    let mut director = TypedScoreDirector::with_descriptor(
+                        self.clone(),
+                        constraints,
+                        Self::descriptor(),
+                        Self::entity_count,
                     );
 
                     let score = director.calculate_score();

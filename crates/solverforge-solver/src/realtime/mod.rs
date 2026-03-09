@@ -42,7 +42,6 @@
 //!     fn apply(&self, score_director: &mut dyn ScoreDirector<Schedule>) {
 //!         let task = Task { id: self.id, priority: None };
 //!         score_director.working_solution_mut().tasks.push(task);
-//!         score_director.trigger_variable_listeners();
 //!     }
 //! }
 //! ```

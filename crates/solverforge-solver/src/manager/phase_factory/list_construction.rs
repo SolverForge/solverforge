@@ -53,7 +53,6 @@ use super::super::PhaseFactory;
 ///     |plan| plan.vehicles.len(),
 ///     |plan, entity_idx, element| { plan.vehicles[entity_idx].visits.push(element); },
 ///     |idx| idx,
-///     "visits",
 ///     1,
 /// );
 ///
@@ -70,7 +69,6 @@ where
     entity_count: fn(&S) -> usize,
     assign_element: fn(&mut S, usize, E),
     index_to_element: fn(usize) -> E,
-    variable_name: &'static str,
     descriptor_index: usize,
     _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
@@ -87,7 +85,6 @@ where
         entity_count: fn(&S) -> usize,
         assign_element: fn(&mut S, usize, E),
         index_to_element: fn(usize) -> E,
-        variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -96,7 +93,6 @@ where
             entity_count,
             assign_element,
             index_to_element,
-            variable_name,
             descriptor_index,
             _marker: PhantomData,
         }
@@ -110,7 +106,6 @@ where
             entity_count: self.entity_count,
             assign_element: self.assign_element,
             index_to_element: self.index_to_element,
-            variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _marker: PhantomData,
         }
@@ -141,7 +136,6 @@ where
     entity_count: fn(&S) -> usize,
     assign_element: fn(&mut S, usize, E),
     index_to_element: fn(usize) -> E,
-    variable_name: &'static str,
     descriptor_index: usize,
     _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
@@ -201,9 +195,9 @@ where
 
             {
                 let sd = step_scope.score_director_mut();
-                sd.before_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
+                sd.before_variable_changed(self.descriptor_index, entity_idx);
                 (self.assign_element)(sd.working_solution_mut(), entity_idx, element);
-                sd.after_variable_changed(self.descriptor_index, entity_idx, self.variable_name);
+                sd.after_variable_changed(self.descriptor_index, entity_idx);
             }
 
             let step_score = step_scope.calculate_score();
@@ -237,7 +231,6 @@ struct ScoredConstructionState<S, E> {
     list_insert: fn(&mut S, usize, usize, E),
     list_remove: fn(&mut S, usize, usize) -> E,
     index_to_element: fn(usize) -> E,
-    variable_name: &'static str,
     descriptor_index: usize,
 }
 
@@ -260,18 +253,17 @@ where
         let list_insert = self.list_insert;
         let list_remove = self.list_remove;
         let descriptor_index = self.descriptor_index;
-        let variable_name = self.variable_name;
 
         let mut recording = RecordingScoreDirector::new(score_director);
 
         // Before change notification
-        recording.before_variable_changed(descriptor_index, entity_idx, variable_name);
+        recording.before_variable_changed(descriptor_index, entity_idx);
 
         // Insert element
         list_insert(recording.working_solution_mut(), entity_idx, pos, element);
 
         // After change notification
-        recording.after_variable_changed(descriptor_index, entity_idx, variable_name);
+        recording.after_variable_changed(descriptor_index, entity_idx);
 
         // Register undo closure
         recording.register_undo(Box::new(move |s: &mut S| {
@@ -328,22 +320,14 @@ where
         pos: usize,
         score_director: &mut D,
     ) {
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            entity_idx,
-            self.variable_name,
-        );
+        score_director.before_variable_changed(self.descriptor_index, entity_idx);
         (self.list_insert)(
             score_director.working_solution_mut(),
             entity_idx,
             pos,
             element,
         );
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            entity_idx,
-            self.variable_name,
-        );
+        score_director.after_variable_changed(self.descriptor_index, entity_idx);
     }
 }
 
@@ -409,7 +393,6 @@ where
 ///     list_insert,
 ///     list_remove,
 ///     |idx| idx,
-///     "visits",
 ///     0,
 /// );
 /// ```
@@ -447,7 +430,6 @@ where
     /// * `list_insert` - Insert element at position (shifts right)
     /// * `list_remove` - Remove element at position (used for undo), returns removed element
     /// * `index_to_element` - Converts element index to element value
-    /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -458,7 +440,6 @@ where
         list_insert: fn(&mut S, usize, usize, E),
         list_remove: fn(&mut S, usize, usize) -> E,
         index_to_element: fn(usize) -> E,
-        variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -470,7 +451,6 @@ where
                 list_insert,
                 list_remove,
                 index_to_element,
-                variable_name,
                 descriptor_index,
             },
             _marker: PhantomData,
@@ -615,7 +595,6 @@ where
 ///     list_insert,
 ///     list_remove,
 ///     |idx| idx,
-///     "visits",
 ///     0,
 /// );
 /// ```
@@ -653,7 +632,6 @@ where
     /// * `list_insert` - Insert element at position (shifts right)
     /// * `list_remove` - Remove element at position (used for undo), returns removed element
     /// * `index_to_element` - Converts element index to element value
-    /// * `variable_name` - Name of the list variable
     /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -664,7 +642,6 @@ where
         list_insert: fn(&mut S, usize, usize, E),
         list_remove: fn(&mut S, usize, usize) -> E,
         index_to_element: fn(usize) -> E,
-        variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -676,7 +653,6 @@ where
                 list_insert,
                 list_remove,
                 index_to_element,
-                variable_name,
                 descriptor_index,
             },
             _marker: PhantomData,

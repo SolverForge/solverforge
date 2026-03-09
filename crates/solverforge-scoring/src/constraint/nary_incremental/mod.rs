@@ -8,16 +8,12 @@
 #[macro_use]
 mod bi;
 #[macro_use]
-mod penta;
-#[macro_use]
-mod quad;
-#[macro_use]
-mod tri;
+mod nary_unified;
 
 pub use bi::impl_incremental_bi_constraint;
-pub use penta::impl_incremental_penta_constraint;
-pub use quad::impl_incremental_quad_constraint;
-pub use tri::impl_incremental_tri_constraint;
+pub use nary_unified::impl_incremental_penta_constraint;
+pub use nary_unified::impl_incremental_quad_constraint;
+pub use nary_unified::impl_incremental_tri_constraint;
 
 // Generates an incremental N-ary constraint struct and implementations.
 //

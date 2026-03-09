@@ -14,8 +14,6 @@
 // Moves capture old values using typed getters and register undo closures
 // via `register_undo()`. No BoxedValue, no type erasure on the undo path.
 
-use std::any::Any;
-
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
 use super::ScoreDirector;
@@ -91,7 +89,7 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
         // Step 1: Retract current contributions before restoring values
         for &(descriptor_idx, entity_idx) in &self.modified_entities {
             self.inner
-                .before_variable_changed(descriptor_idx, entity_idx, "");
+                .before_variable_changed(descriptor_idx, entity_idx);
         }
 
         // Step 2: Process undo closures in reverse order
@@ -102,7 +100,7 @@ impl<'a, S: PlanningSolution, D: ScoreDirector<S>> RecordingScoreDirector<'a, S,
         // Step 3: Update shadows and insert restored contributions
         for (descriptor_idx, entity_idx) in self.modified_entities.drain(..) {
             self.inner
-                .after_variable_changed(descriptor_idx, entity_idx, "");
+                .after_variable_changed(descriptor_idx, entity_idx);
         }
     }
 
@@ -148,26 +146,14 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
         self.inner.clone_working_solution()
     }
 
-    fn before_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        variable_name: &str,
-    ) {
-        // Forward to inner for incremental scoring
+    fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.inner
-            .before_variable_changed(descriptor_index, entity_index, variable_name);
+            .before_variable_changed(descriptor_index, entity_index);
     }
 
-    fn after_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        variable_name: &str,
-    ) {
-        // Forward to inner for shadow updates and incremental scoring
+    fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.inner
-            .after_variable_changed(descriptor_index, entity_index, variable_name);
+            .after_variable_changed(descriptor_index, entity_index);
 
         // Track entity for post-undo shadow refresh (avoid duplicates)
         let key = (descriptor_index, entity_index);
@@ -176,20 +162,12 @@ impl<S: PlanningSolution, D: ScoreDirector<S>> ScoreDirector<S>
         }
     }
 
-    fn trigger_variable_listeners(&mut self) {
-        self.inner.trigger_variable_listeners();
-    }
-
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
         self.inner.entity_count(descriptor_index)
     }
 
     fn total_entity_count(&self) -> Option<usize> {
         self.inner.total_entity_count()
-    }
-
-    fn get_entity(&self, descriptor_index: usize, entity_index: usize) -> Option<&dyn Any> {
-        self.inner.get_entity(descriptor_index, entity_index)
     }
 
     fn is_incremental(&self) -> bool {

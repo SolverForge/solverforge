@@ -59,50 +59,12 @@ const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
 /// * `entity_count_fn` - Returns the number of entities
 /// * `descriptor` - Solution descriptor for solver infrastructure
 /// * `entity_count_by_descriptor` - Returns entity count for a given descriptor index
+/// * `terminate` - Optional external termination flag
+/// * `sender` - Channel for streaming best solutions as they are found
 /// * `_variable_field` - Variable field name (unused, for future extensions)
 /// * `_descriptor_index` - Descriptor index (unused, for future extensions)
 #[allow(clippy::too_many_arguments)]
 pub fn run_solver<S, C>(
-    solution: S,
-    finalize_fn: fn(&mut S),
-    constraints_fn: fn() -> C,
-    get_variable: fn(&S, usize) -> Option<usize>,
-    set_variable: fn(&mut S, usize, Option<usize>),
-    value_count: fn(&S) -> usize,
-    entity_count_fn: fn(&S) -> usize,
-    descriptor: fn() -> SolutionDescriptor,
-    entity_count_by_descriptor: fn(&S, usize) -> usize,
-    _variable_field: &'static str,
-    _descriptor_index: usize,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    C: ConstraintSet<S, S::Score>,
-{
-    // Create a channel but ignore the receiver - no streaming needed
-    let (sender, _receiver) = mpsc::unbounded_channel();
-    run_solver_with_channel(
-        solution,
-        finalize_fn,
-        constraints_fn,
-        get_variable,
-        set_variable,
-        value_count,
-        entity_count_fn,
-        descriptor,
-        entity_count_by_descriptor,
-        None,
-        sender,
-    )
-}
-
-/// Solves a basic variable problem with channel-based solution streaming.
-///
-/// Logs solver progress via `tracing`. Optionally accepts a termination flag.
-/// Solutions are sent through the channel as they improve.
-#[allow(clippy::too_many_arguments)]
-pub fn run_solver_with_channel<S, C>(
     mut solution: S,
     finalize_fn: fn(&mut S),
     constraints_fn: fn() -> C,
@@ -114,6 +76,8 @@ pub fn run_solver_with_channel<S, C>(
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     terminate: Option<&AtomicBool>,
     sender: mpsc::UnboundedSender<(S, S::Score)>,
+    _variable_field: &'static str,
+    _descriptor_index: usize,
 ) -> S
 where
     S: PlanningSolution,
@@ -197,6 +161,20 @@ where
     result.solution
 }
 
+macro_rules! build_and_solve_with {
+    ($construction:expr, $local_search:expr, $termination:expr, $terminate:expr, $director:expr, $time_limit:expr, $sender:expr) => {
+        build_and_solve(
+            $construction,
+            $local_search,
+            $termination,
+            $terminate,
+            $director,
+            $time_limit,
+            $sender,
+        )
+    };
+}
+
 fn solve_with_termination<S, D, M1, M2, P, Fo, MS, A, Fo2>(
     director: D,
     construction: ConstructionHeuristicPhase<S, M1, P, Fo>,
@@ -222,72 +200,67 @@ where
         .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS));
     let time = TimeTermination::new(time_limit);
 
-    // Check best_score_limit (T2: parse and wire to BestScoreTermination)
     let best_score_target: Option<S::Score> = term_config
         .and_then(|c| c.best_score_limit.as_ref())
         .and_then(|s| S::Score::parse(s).ok());
 
-    // Build termination based on config
     if let Some(target) = best_score_target {
-        let best_score = BestScoreTermination::new(target);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, best_score));
-        build_and_solve(
+        build_and_solve_with!(
             construction,
             local_search,
-            termination,
+            OrTermination::<_, S, D>::new((time, BestScoreTermination::new(target))),
             terminate,
             director,
             time_limit,
-            sender,
+            sender
         )
     } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
-        let step = StepCountTermination::new(step_limit);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, step));
-        build_and_solve(
+        build_and_solve_with!(
             construction,
             local_search,
-            termination,
+            OrTermination::<_, S, D>::new((time, StepCountTermination::new(step_limit))),
             terminate,
             director,
             time_limit,
-            sender,
+            sender
         )
     } else if let Some(unimproved_step_limit) =
         term_config.and_then(|c| c.unimproved_step_count_limit)
     {
-        let unimproved = UnimprovedStepCountTermination::<S>::new(unimproved_step_limit);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        build_and_solve(
+        build_and_solve_with!(
             construction,
             local_search,
-            termination,
+            OrTermination::<_, S, D>::new((
+                time,
+                UnimprovedStepCountTermination::<S>::new(unimproved_step_limit)
+            )),
             terminate,
             director,
             time_limit,
-            sender,
+            sender
         )
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
-        let unimproved = UnimprovedTimeTermination::<S>::new(unimproved_time);
-        let termination: OrTermination<_, S, D> = OrTermination::new((time, unimproved));
-        build_and_solve(
+        build_and_solve_with!(
             construction,
             local_search,
-            termination,
+            OrTermination::<_, S, D>::new((
+                time,
+                UnimprovedTimeTermination::<S>::new(unimproved_time)
+            )),
             terminate,
             director,
             time_limit,
-            sender,
+            sender
         )
     } else {
-        let termination: OrTermination<_, S, D> = OrTermination::new((time,));
-        build_and_solve(
+        build_and_solve_with!(
             construction,
             local_search,
-            termination,
+            OrTermination::<_, S, D>::new((time,)),
             terminate,
             director,
             time_limit,
-            sender,
+            sender
         )
     }
 }
@@ -324,8 +297,8 @@ where
         Some(flag) => Solver::new(((), construction, local_search))
             .with_termination(termination)
             .with_time_limit(time_limit)
-            .with_terminate(flag)
             .with_best_solution_callback(callback)
+            .with_terminate(flag)
             .solve(director),
         None => Solver::new(((), construction, local_search))
             .with_termination(termination)

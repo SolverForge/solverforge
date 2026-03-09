@@ -27,7 +27,7 @@ pub mod solver;
 pub mod stats;
 pub mod termination;
 
-pub use builder::AcceptorBuilder;
+pub use builder::{AcceptorBuilder, AnyAcceptor};
 pub use heuristic::{
     // K-opt reconnection patterns
     k_opt_reconnection,
@@ -116,4 +116,4 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use basic::{run_solver, run_solver_with_channel};
+pub use basic::run_solver;

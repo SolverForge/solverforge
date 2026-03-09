@@ -56,7 +56,6 @@ pub enum ProblemChangeResult {
 /// impl ProblemChange<Solution> for AddTask {
 ///     fn apply(&self, sd: &mut dyn ScoreDirector<Solution>) {
 ///         sd.working_solution_mut().tasks.push(Task { id: self.id });
-///         sd.trigger_variable_listeners();
 ///     }
 /// }
 ///

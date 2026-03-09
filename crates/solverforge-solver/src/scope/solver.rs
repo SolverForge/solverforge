@@ -41,10 +41,6 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     time_limit: Option<Duration>,
     // Callback invoked when the best solution improves.
     best_solution_callback: Option<Box<dyn Fn(&S) + Send + Sync + 't>>,
-    // Additional termination check (set by Solver before running a phase).
-    // Allows Termination trait implementations (step count, move count, etc.)
-    // to be checked inside the phase step loop, not only between phases.
-    termination_fn: Option<Box<dyn Fn(&SolverScope<'t, S, D>) -> bool + Send + Sync + 't>>,
     /// Optional maximum total step count for in-phase termination (T1).
     pub inphase_step_count_limit: Option<u64>,
     /// Optional maximum total move count for in-phase termination (T1).
@@ -67,51 +63,22 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             stats: SolverStats::default(),
             time_limit: None,
             best_solution_callback: None,
-            termination_fn: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
         }
     }
 
-    /// Creates a solver scope with a termination flag.
-    pub fn with_terminate(score_director: D, terminate: Option<&'t AtomicBool>) -> Self {
-        Self {
-            score_director,
-            best_solution: None,
-            best_score: None,
-            rng: StdRng::from_os_rng(),
-            start_time: None,
-            total_step_count: 0,
-            terminate,
-            stats: SolverStats::default(),
-            time_limit: None,
-            best_solution_callback: None,
-            termination_fn: None,
-            inphase_step_count_limit: None,
-            inphase_move_count_limit: None,
-            inphase_score_calc_count_limit: None,
-        }
+    /// Sets the termination flag.
+    pub fn with_terminate(mut self, terminate: Option<&'t AtomicBool>) -> Self {
+        self.terminate = terminate;
+        self
     }
 
-    /// Creates a solver scope with a specific random seed.
-    pub fn with_seed(score_director: D, seed: u64) -> Self {
-        Self {
-            score_director,
-            best_solution: None,
-            best_score: None,
-            rng: StdRng::seed_from_u64(seed),
-            start_time: None,
-            total_step_count: 0,
-            terminate: None,
-            stats: SolverStats::default(),
-            time_limit: None,
-            best_solution_callback: None,
-            termination_fn: None,
-            inphase_step_count_limit: None,
-            inphase_move_count_limit: None,
-            inphase_score_calc_count_limit: None,
-        }
+    /// Sets a specific random seed.
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = StdRng::seed_from_u64(seed);
+        self
     }
 
     /// Sets the best solution callback.
@@ -252,24 +219,6 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
         self.time_limit = Some(limit);
     }
 
-    /// Registers a termination check function that is called inside phase step loops.
-    ///
-    /// This allows `Termination` trait implementations (e.g., step count, move count,
-    /// score targets) to fire during a running phase, not only between phases.
-    ///
-    /// The solver sets this before calling `phase.solve()`.
-    pub fn set_termination_fn(
-        &mut self,
-        f: Box<dyn Fn(&SolverScope<'t, S, D>) -> bool + Send + Sync + 't>,
-    ) {
-        self.termination_fn = Some(f);
-    }
-
-    /// Clears the registered termination function.
-    pub fn clear_termination_fn(&mut self) {
-        self.termination_fn = None;
-    }
-
     /// Checks if construction heuristic should terminate.
     ///
     /// Construction phases must always complete — they build the initial solution.
@@ -316,12 +265,6 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
         // Check in-phase score calculation count limit
         if let Some(limit) = self.inphase_score_calc_count_limit {
             if self.stats.score_calculations >= limit {
-                return true;
-            }
-        }
-        // Check registered termination function (covers any additional conditions)
-        if let Some(ref f) = self.termination_fn {
-            if f(self) {
                 return true;
             }
         }

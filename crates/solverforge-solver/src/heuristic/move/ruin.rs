@@ -143,7 +143,6 @@ where
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;
-        let variable_name = self.variable_name;
 
         // Collect old values for undo
         let old_values: SmallVec<[(usize, Option<V>); 8]> = self
@@ -157,9 +156,9 @@ where
 
         // Unassign all entities
         for &idx in &self.entity_indices {
-            score_director.before_variable_changed(descriptor, idx, variable_name);
+            score_director.before_variable_changed(descriptor, idx);
             setter(score_director.working_solution_mut(), idx, None);
-            score_director.after_variable_changed(descriptor, idx, variable_name);
+            score_director.after_variable_changed(descriptor, idx);
         }
 
         // Register undo to restore old values

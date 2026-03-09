@@ -21,6 +21,7 @@ target
 #.idea/
 
 CLAUDE.md
+PRD.md
 
 # OSM routing cache
 .osm_cache/

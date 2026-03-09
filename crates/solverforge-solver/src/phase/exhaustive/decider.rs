@@ -128,11 +128,7 @@ where
 
         for (value_index, value) in self.values.iter().enumerate() {
             // Apply assignment using typed setter
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, entity_index);
 
             (self.setter)(
                 score_director.working_solution_mut(),
@@ -140,11 +136,7 @@ where
                 Some(value.clone()),
             );
 
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
 
             // Calculate score for this assignment
             let score = score_director.calculate_score();
@@ -168,19 +160,11 @@ where
             children.push(child);
 
             // Undo the assignment for the next iteration
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, entity_index);
 
             (self.setter)(score_director.working_solution_mut(), entity_index, None);
 
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                entity_index,
-                &self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
         }
 
         children

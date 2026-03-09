@@ -75,8 +75,8 @@ pub use solverforge_scoring::{ScoreDirector, TypedScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::{
-    run_solver, run_solver_with_channel, Analyzable, ConstraintAnalysis, ScoreAnalysis,
-    SolutionManager, Solvable, SolverManager, SolverStatus,
+    run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, SolutionManager, Solvable,
+    SolverManager, SolverStatus,
 };
 
 // ============================================================================
@@ -125,8 +125,8 @@ pub mod __internal {
 
     // Scoring
     pub use solverforge_scoring::{
-        ScoreDirector, ShadowAwareScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
-        SolvableSolution, TypedScoreDirector,
+        ScoreDirector, ShadowVariableSupport, SimpleScoreDirector, SolvableSolution,
+        TypedScoreDirector,
     };
 
     // Solver infrastructure

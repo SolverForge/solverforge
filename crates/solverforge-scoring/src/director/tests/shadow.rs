@@ -1,12 +1,11 @@
-// ShadowAwareScoreDirector tests
+// Shadow variable support tests using TypedScoreDirector directly.
 
 use solverforge_core::score::SimpleScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::incremental::IncrementalUniConstraint;
-use crate::director::shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport};
+use crate::director::shadow_aware::ShadowVariableSupport;
 use crate::director::typed::TypedScoreDirector;
-use crate::director::ScoreDirector;
 
 use solverforge_test::shadow::ShadowSolution;
 
@@ -50,59 +49,54 @@ fn make_sum_constraint() -> IncrementalUniConstraint<
     )
 }
 
-// Creates a ShadowAwareScoreDirector for testing.
-fn create_shadow_director(
+// Creates a TypedScoreDirector for testing shadow variable support.
+fn create_director(
     values: Vec<i32>,
-) -> ShadowAwareScoreDirector<
+) -> TypedScoreDirector<
     ShadowSolution,
-    TypedScoreDirector<
-        ShadowSolution,
-        (
-            IncrementalUniConstraint<
-                ShadowSolution,
-                i32,
-                fn(&ShadowSolution) -> &[i32],
-                fn(&ShadowSolution, &i32) -> bool,
-                fn(&i32) -> SimpleScore,
-                SimpleScore,
-            >,
-        ),
-    >,
+    (
+        IncrementalUniConstraint<
+            ShadowSolution,
+            i32,
+            fn(&ShadowSolution) -> &[i32],
+            fn(&ShadowSolution, &i32) -> bool,
+            fn(&i32) -> SimpleScore,
+            SimpleScore,
+        >,
+    ),
 > {
     let solution = ShadowSolution::new(values);
     let constraint = make_sum_constraint();
-    let inner = TypedScoreDirector::new(solution, (constraint,));
-    ShadowAwareScoreDirector::new(inner)
+    TypedScoreDirector::new(solution, (constraint,))
 }
 
 #[test]
 fn test_shadow_update_called_on_variable_change() {
-    let mut director = create_shadow_director(vec![10, 20, 30]);
+    let mut director = create_director(vec![10, 20, 30]);
 
     // Initialize
     director.calculate_score();
 
     // Shadow should have been updated during initialization
-    // (via working_solution_mut access pattern)
     assert_eq!(director.working_solution().cached_sum, 0);
 
-    // Change value and verify shadow update
-    director.before_variable_changed(0, 0, "values");
+    // Change value and verify shadow update via after_variable_changed_with_shadows
+    director.before_variable_changed(0, 0);
     director.working_solution_mut().values[0] = 50;
-    director.after_variable_changed(0, 0, "values");
+    director.after_variable_changed_with_shadows(0, 0);
 
     assert_eq!(director.working_solution().cached_sum, 100); // 50 + 20 + 30
 }
 
 #[test]
-fn test_shadow_inner_access() {
-    let director = create_shadow_director(vec![1, 2, 3]);
-    assert!(!director.inner().is_initialized());
+fn test_director_is_not_initialized_before_calculate() {
+    let director = create_director(vec![1, 2, 3]);
+    assert!(!director.is_initialized());
 }
 
 #[test]
-fn test_shadow_into_inner_consumes() {
-    let director = create_shadow_director(vec![1]);
-    let recovered = director.into_inner();
-    assert_eq!(recovered.working_solution().values.len(), 1);
+fn test_take_solution_after_use() {
+    let director = create_director(vec![1]);
+    let solution = director.take_solution();
+    assert_eq!(solution.values.len(), 1);
 }

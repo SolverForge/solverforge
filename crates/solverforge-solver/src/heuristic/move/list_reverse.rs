@@ -164,11 +164,7 @@ where
 
     fn do_move<D: ScoreDirector<S>>(&self, score_director: &mut D) {
         // Notify before change
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.entity_index,
-            self.variable_name,
-        );
+        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
 
         // Reverse the segment
         (self.list_reverse)(
@@ -179,11 +175,7 @@ where
         );
 
         // Notify after change
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.entity_index,
-            self.variable_name,
-        );
+        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
 
         // Register undo - reversing twice restores original
         let list_reverse = self.list_reverse;

@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -73,7 +73,7 @@ impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner> {
         Self {
             inner,
             weight_fn,
-            rng: RefCell::new(StdRng::from_os_rng()),
+            rng: RefCell::new(StdRng::from_rng(&mut rand::rng())),
             _phantom: PhantomData,
         }
     }

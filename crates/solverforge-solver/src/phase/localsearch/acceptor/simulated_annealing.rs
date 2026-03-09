@@ -2,8 +2,8 @@
 
 use std::fmt::Debug;
 
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
+use rand::{RngExt, SeedableRng};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
@@ -34,7 +34,7 @@ pub struct SimulatedAnnealingAcceptor {
     /// Temperature decay rate per step.
     decay_rate: f64,
     /// High-quality RNG for acceptance decisions.
-    rng: StdRng,
+    rng: SmallRng,
     /// Number of score levels, cached after phase_started.
     level_count: usize,
 }
@@ -52,7 +52,7 @@ impl SimulatedAnnealingAcceptor {
             starting_temperature,
             current_temperature: starting_temperature,
             decay_rate,
-            rng: StdRng::from_os_rng(),
+            rng: SmallRng::from_rng(&mut rand::rng()),
             level_count: 0,
         }
     }
@@ -63,7 +63,7 @@ impl SimulatedAnnealingAcceptor {
             starting_temperature,
             current_temperature: starting_temperature,
             decay_rate,
-            rng: StdRng::seed_from_u64(seed),
+            rng: SmallRng::seed_from_u64(seed),
             level_count: 0,
         }
     }
@@ -77,7 +77,7 @@ impl SimulatedAnnealingAcceptor {
             starting_temperature: 0.0, // Will be set in phase_started
             current_temperature: 0.0,
             decay_rate,
-            rng: StdRng::from_os_rng(),
+            rng: SmallRng::from_rng(&mut rand::rng()),
             level_count: 0,
         }
     }
@@ -134,7 +134,7 @@ where
 
         // delta is negative (worsening move). Acceptance probability = exp(delta / T).
         let probability = (delta / self.current_temperature).exp();
-        let roll: f64 = self.rng.random();
+        let roll: f64 = self.rng.random::<f64>();
 
         roll < probability
     }

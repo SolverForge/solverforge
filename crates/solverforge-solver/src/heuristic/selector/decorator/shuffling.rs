@@ -68,7 +68,7 @@ impl<S, M, Inner> ShufflingMoveSelector<S, M, Inner> {
     pub fn new(inner: Inner) -> Self {
         Self {
             inner,
-            rng: RefCell::new(StdRng::from_os_rng()),
+            rng: RefCell::new(StdRng::from_rng(&mut rand::rng())),
             _phantom: PhantomData,
         }
     }

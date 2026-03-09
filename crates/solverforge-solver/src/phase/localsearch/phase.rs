@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use rand::rngs::SmallRng;
-use rand::SeedableRng;
+use rand::SeedableRng as _;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
@@ -123,7 +123,7 @@ where
         let mut local_moves_evaluated: u64 = 0;
         let mut last_progress_time = Instant::now();
         let mut last_progress_moves: u64 = 0;
-        let mut rng = SmallRng::from_os_rng();
+        let mut rng = SmallRng::from_rng(&mut rand::rng());
 
         loop {
             // Check early termination

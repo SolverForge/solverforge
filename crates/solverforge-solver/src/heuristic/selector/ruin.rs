@@ -69,7 +69,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -188,7 +188,7 @@ impl<S, V> RuinMoveSelector<S, V> {
     fn create_rng(&self) -> StdRng {
         match self.seed {
             Some(seed) => StdRng::seed_from_u64(seed),
-            None => StdRng::from_os_rng(),
+            None => StdRng::from_rng(&mut rand::rng()),
         }
     }
 }

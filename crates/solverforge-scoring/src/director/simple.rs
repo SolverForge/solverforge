@@ -86,26 +86,12 @@ where
         self.working_solution.clone()
     }
 
-    fn before_variable_changed(
-        &mut self,
-        _descriptor_index: usize,
-        _entity_index: usize,
-        _variable_name: &str,
-    ) {
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {
         self.mark_dirty();
     }
 
-    fn after_variable_changed(
-        &mut self,
-        _descriptor_index: usize,
-        _entity_index: usize,
-        _variable_name: &str,
-    ) {
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {
         // Already marked dirty in before_variable_changed
-    }
-
-    fn trigger_variable_listeners(&mut self) {
-        // No shadow variables in simple score director
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
@@ -118,14 +104,6 @@ where
     fn total_entity_count(&self) -> Option<usize> {
         self.solution_descriptor
             .total_entity_count(&self.working_solution as &dyn Any)
-    }
-
-    fn get_entity(&self, descriptor_index: usize, entity_index: usize) -> Option<&dyn Any> {
-        self.solution_descriptor.get_entity(
-            &self.working_solution as &dyn Any,
-            descriptor_index,
-            entity_index,
-        )
     }
 
     fn is_incremental(&self) -> bool {
@@ -160,15 +138,11 @@ mod tests {
     }
 
     #[test]
-    fn test_score_director_factory() {
-        use super::super::factory::ScoreDirectorFactory;
-
+    fn test_simple_director_single_queen() {
         let solution = create_nqueens_solution(&[Some(0)]);
-
         let descriptor = create_test_descriptor();
-        let factory = ScoreDirectorFactory::new(descriptor, calculate_conflicts);
-
-        let mut director = factory.build_score_director(solution);
+        let mut director =
+            SimpleScoreDirector::with_calculator(solution, descriptor, calculate_conflicts);
         let score = director.calculate_score();
         assert_eq!(score, SimpleScore::of(0));
     }

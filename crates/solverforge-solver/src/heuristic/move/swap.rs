@@ -143,16 +143,8 @@ where
         let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);
 
         // Notify before changes
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.left_entity_index,
-            self.variable_name,
-        );
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.right_entity_index,
-            self.variable_name,
-        );
+        score_director.before_variable_changed(self.descriptor_index, self.left_entity_index);
+        score_director.before_variable_changed(self.descriptor_index, self.right_entity_index);
 
         // Swap: left gets right's value, right gets left's value
         (self.setter)(
@@ -167,16 +159,8 @@ where
         );
 
         // Notify after changes
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.left_entity_index,
-            self.variable_name,
-        );
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.right_entity_index,
-            self.variable_name,
-        );
+        score_director.after_variable_changed(self.descriptor_index, self.left_entity_index);
+        score_director.after_variable_changed(self.descriptor_index, self.right_entity_index);
 
         // Register typed undo closure - swap back
         let setter = self.setter;

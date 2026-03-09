@@ -25,7 +25,7 @@ use super::Acceptor;
 /// // High initial temperature (explores broadly), slow cooling
 /// let acceptor = SimulatedAnnealingAcceptor::new(1.0, 0.9999);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SimulatedAnnealingAcceptor {
     /// Initial temperature.
     starting_temperature: f64,

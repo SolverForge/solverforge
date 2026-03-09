@@ -3,7 +3,6 @@
 // This module provides `TypedScoreDirector` that uses monomorphized
 // constraint sets instead of trait-object-based scoring.
 
-use std::any::Any;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -454,12 +453,7 @@ where
         cloned
     }
 
-    fn before_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        _variable_name: &str,
-    ) {
+    fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         if !self.initialized {
             return;
         }
@@ -469,12 +463,7 @@ where
         self.cached_score = self.cached_score + delta;
     }
 
-    fn after_variable_changed(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        _variable_name: &str,
-    ) {
+    fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         if !self.initialized {
             return;
         }
@@ -482,10 +471,6 @@ where
             self.constraints
                 .on_insert_all(&self.working_solution, entity_index, descriptor_index);
         self.cached_score = self.cached_score + delta;
-    }
-
-    fn trigger_variable_listeners(&mut self) {
-        // No shadow variables in typed director (yet)
     }
 
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
@@ -501,11 +486,6 @@ where
             .map(|i| (self.entity_counter)(&self.working_solution, i))
             .sum();
         Some(count)
-    }
-
-    fn get_entity(&self, _descriptor_index: usize, _entity_index: usize) -> Option<&dyn Any> {
-        // Entity access through typed functions, not dyn Any
-        None
     }
 
     fn is_incremental(&self) -> bool {

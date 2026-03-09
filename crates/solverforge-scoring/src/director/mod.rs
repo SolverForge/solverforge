@@ -7,9 +7,7 @@
 // - [`SimpleScoreDirector`] - Full recalculation (baseline)
 // - [`TypedScoreDirector`] - Zero-erasure incremental scoring
 // - [`RecordingScoreDirector`] - Automatic undo tracking wrapper
-// - [`ShadowAwareScoreDirector`] - Shadow variable integration wrapper
 
-mod factory;
 mod simple;
 mod traits;
 
@@ -20,8 +18,7 @@ pub mod typed;
 #[cfg(test)]
 mod tests;
 
-pub use factory::ScoreDirectorFactory;
 pub use recording::RecordingScoreDirector;
-pub use shadow_aware::{ShadowAwareScoreDirector, ShadowVariableSupport, SolvableSolution};
+pub use shadow_aware::{ShadowVariableSupport, SolvableSolution};
 pub use simple::SimpleScoreDirector;
 pub use traits::ScoreDirector;

@@ -14,7 +14,6 @@ use solverforge_scoring::ScoreDirector;
 ///
 /// When implementing `ProblemChange`:
 /// - Use `score_director.working_solution_mut()` to access and modify the solution
-/// - Call `score_director.trigger_variable_listeners()` after modifications
 /// - Changes should be idempotent when possible
 /// - Avoid holding references to entities across changes
 ///
@@ -55,8 +54,6 @@ use solverforge_scoring::ScoreDirector;
 ///             shift: None,
 ///         });
 ///
-///         // Notify the solver of the change
-///         score_director.trigger_variable_listeners();
 ///     }
 /// }
 ///
@@ -71,9 +68,6 @@ use solverforge_scoring::ScoreDirector;
 ///         // Remove the employee
 ///         let id = self.employee_id;
 ///         score_director.working_solution_mut().employees.retain(|e| e.id != id);
-///
-///         // Notify the solver of the change
-///         score_director.trigger_variable_listeners();
 ///     }
 /// }
 /// ```
@@ -83,8 +77,6 @@ pub trait ProblemChange<S: PlanningSolution>: Send + Debug {
     /// This method is called by the solver at a safe point (between steps).
     /// Access the working solution via `score_director.working_solution_mut()`.
     ///
-    /// After making changes, call `score_director.trigger_variable_listeners()`
-    /// to ensure shadow variables and constraints are updated.
     fn apply(&self, score_director: &mut dyn ScoreDirector<S>);
 }
 
@@ -124,7 +116,6 @@ pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
 ///     if let Some(task) = sd.working_solution_mut().tasks.get_mut(0) {
 ///         task.done = true;
 ///     }
-///     sd.trigger_variable_listeners();
 /// });
 /// ```
 pub struct ClosureProblemChange<S: PlanningSolution, F>
@@ -241,7 +232,6 @@ mod tests {
                 .working_solution_mut()
                 .tasks
                 .push(Task { id: self.id });
-            score_director.trigger_variable_listeners();
         }
     }
 
@@ -262,7 +252,6 @@ mod tests {
 
         let change = ClosureProblemChange::<TaskSchedule, _>::new("remove_all", |sd| {
             sd.working_solution_mut().tasks.clear();
-            sd.trigger_variable_listeners();
         });
 
         change.apply(&mut director);

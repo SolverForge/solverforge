@@ -177,10 +177,9 @@ where
         let entity_count = self.entity_count;
         let src = self.entity_index;
         let descriptor = self.descriptor_index;
-        let variable_name = self.variable_name;
 
         // --- Ruin phase: remove elements from source entity ---
-        score_director.before_variable_changed(descriptor, src, variable_name);
+        score_director.before_variable_changed(descriptor, src);
         let mut removed: SmallVec<[V; 8]> = SmallVec::new();
         for &idx in self.element_indices.iter().rev() {
             let value = list_remove(score_director.working_solution_mut(), src, idx);
@@ -188,7 +187,7 @@ where
         }
         // removed is in reverse removal order; reverse to get original order
         removed.reverse();
-        score_director.after_variable_changed(descriptor, src, variable_name);
+        score_director.after_variable_changed(descriptor, src);
 
         // --- Recreate phase: greedily reinsert each element at best position ---
         // Track where each element ends up for the undo closure.
@@ -204,9 +203,9 @@ where
             for e in 0..n_entities {
                 let len = list_len(score_director.working_solution(), e);
                 for pos in 0..=len {
-                    score_director.before_variable_changed(descriptor, e, variable_name);
+                    score_director.before_variable_changed(descriptor, e);
                     list_insert(score_director.working_solution_mut(), e, pos, elem.clone());
-                    score_director.after_variable_changed(descriptor, e, variable_name);
+                    score_director.after_variable_changed(descriptor, e);
 
                     let candidate_score = score_director.calculate_score();
                     if best_score.is_none_or(|b| candidate_score > b) {
@@ -215,21 +214,21 @@ where
                         best_pos = pos;
                     }
 
-                    score_director.before_variable_changed(descriptor, e, variable_name);
+                    score_director.before_variable_changed(descriptor, e);
                     list_remove(score_director.working_solution_mut(), e, pos);
-                    score_director.after_variable_changed(descriptor, e, variable_name);
+                    score_director.after_variable_changed(descriptor, e);
                 }
             }
 
             // Apply the best insertion permanently
-            score_director.before_variable_changed(descriptor, best_entity, variable_name);
+            score_director.before_variable_changed(descriptor, best_entity);
             list_insert(
                 score_director.working_solution_mut(),
                 best_entity,
                 best_pos,
                 elem.clone(),
             );
-            score_director.after_variable_changed(descriptor, best_entity, variable_name);
+            score_director.after_variable_changed(descriptor, best_entity);
 
             // Store the placement as recorded at insertion time (no adjustment needed;
             // undo will compute actual current positions accounting for later insertions).

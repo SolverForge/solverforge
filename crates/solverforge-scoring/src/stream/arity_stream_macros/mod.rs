@@ -6,11 +6,7 @@
 #[macro_use]
 mod bi;
 #[macro_use]
-mod penta;
-#[macro_use]
-mod quad;
-#[macro_use]
-mod tri;
+mod nary_stream;
 
 // Generates the constraint stream struct, builder struct, and common methods.
 //

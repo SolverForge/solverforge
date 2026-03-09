@@ -232,7 +232,7 @@ macro_rules! impl_solver {
             /// Returns a `SolveResult` containing the best solution found
             /// and comprehensive solver statistics.
             pub fn solve(&mut self, score_director: D) -> SolveResult<S> {
-                let mut solver_scope = SolverScope::with_terminate(score_director, self.terminate);
+                let mut solver_scope = SolverScope::new(score_director).with_terminate(self.terminate);
                 if let Some(limit) = self.time_limit {
                     solver_scope.set_time_limit(limit);
                 }

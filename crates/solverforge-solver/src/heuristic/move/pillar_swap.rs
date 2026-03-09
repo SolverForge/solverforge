@@ -149,7 +149,7 @@ where
 
         // Notify before changes for all entities
         for &idx in self.left_indices.iter().chain(&self.right_indices) {
-            score_director.before_variable_changed(self.descriptor_index, idx, self.variable_name);
+            score_director.before_variable_changed(self.descriptor_index, idx);
         }
 
         // Swap: left gets right's value using typed setter - zero erasure
@@ -171,7 +171,7 @@ where
 
         // Notify after changes
         for &idx in self.left_indices.iter().chain(&self.right_indices) {
-            score_director.after_variable_changed(self.descriptor_index, idx, self.variable_name);
+            score_director.after_variable_changed(self.descriptor_index, idx);
         }
 
         // Register typed undo closure - restore all original values

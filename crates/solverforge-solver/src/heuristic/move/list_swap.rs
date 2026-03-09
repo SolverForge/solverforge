@@ -216,17 +216,9 @@ where
         .expect("second position should be valid");
 
         // Notify before changes
-        score_director.before_variable_changed(
-            self.descriptor_index,
-            self.first_entity_index,
-            self.variable_name,
-        );
+        score_director.before_variable_changed(self.descriptor_index, self.first_entity_index);
         if !self.is_intra_list() {
-            score_director.before_variable_changed(
-                self.descriptor_index,
-                self.second_entity_index,
-                self.variable_name,
-            );
+            score_director.before_variable_changed(self.descriptor_index, self.second_entity_index);
         }
 
         // Swap: first gets second's value, second gets first's value
@@ -244,17 +236,9 @@ where
         );
 
         // Notify after changes
-        score_director.after_variable_changed(
-            self.descriptor_index,
-            self.first_entity_index,
-            self.variable_name,
-        );
+        score_director.after_variable_changed(self.descriptor_index, self.first_entity_index);
         if !self.is_intra_list() {
-            score_director.after_variable_changed(
-                self.descriptor_index,
-                self.second_entity_index,
-                self.variable_name,
-            );
+            score_director.after_variable_changed(self.descriptor_index, self.second_entity_index);
         }
 
         // Register undo - swap back

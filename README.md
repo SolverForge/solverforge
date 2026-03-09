@@ -362,7 +362,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.7
+**Current Version**: 0.5.10
 
 ### What's New in 0.5.7
 

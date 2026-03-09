@@ -4,6 +4,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 /// Terminates after a step count.
@@ -26,12 +27,14 @@ impl StepCountTermination {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for StepCountTermination {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    Termination<S, D, BestCb> for StepCountTermination
+{
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope.total_step_count() >= self.limit
     }
 
-    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         // Take the minimum if multiple step limits are registered
         let limit = match solver_scope.inphase_step_count_limit {
             Some(existing) => existing.min(self.limit),

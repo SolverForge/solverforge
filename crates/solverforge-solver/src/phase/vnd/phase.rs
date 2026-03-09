@@ -9,6 +9,7 @@ use solverforge_scoring::{RecordingScoreDirector, ScoreDirector};
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::Phase;
+use crate::scope::BestSolutionCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 /// Variable Neighborhood Descent phase.
@@ -78,14 +79,15 @@ impl<T, M> VndPhase<T, M> {
 macro_rules! impl_vnd_phase {
     // Single neighborhood
     ($idx:tt: $MS:ident) => {
-        impl<S, D, M, $MS> Phase<S, D> for VndPhase<($MS,), M>
+        impl<S, D, BestCb, M, $MS> Phase<S, D, BestCb> for VndPhase<($MS,), M>
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
+            BestCb: BestSolutionCallback<S>,
             M: Move<S>,
             $MS: MoveSelector<S, M>,
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
                 let mut current_score = phase_scope.calculate_score();
@@ -119,14 +121,15 @@ macro_rules! impl_vnd_phase {
 
     // Multiple neighborhoods
     ($($idx:tt: $MS:ident),+) => {
-        impl<S, D, M, $($MS),+> Phase<S, D> for VndPhase<($($MS,)+), M>
+        impl<S, D, BestCb, M, $($MS),+> Phase<S, D, BestCb> for VndPhase<($($MS,)+), M>
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
+            BestCb: BestSolutionCallback<S>,
             M: Move<S>,
             $($MS: MoveSelector<S, M>,)+
         {
-            fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+            fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
                 let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -175,14 +178,15 @@ macro_rules! impl_vnd_phase {
 /// Finds the index of the best improving move in the arena.
 ///
 /// Returns `Some((index, score))` if an improving move is found, `None` otherwise.
-fn find_best_improving_move_index<S, D, M>(
+fn find_best_improving_move_index<S, D, BestCb, M>(
     arena: &MoveArena<M>,
-    step_scope: &mut StepScope<'_, '_, '_, S, D>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
     current_score: &S::Score,
 ) -> Option<(usize, S::Score)>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
     M: Move<S>,
 {
     let mut best: Option<(usize, S::Score)> = None;

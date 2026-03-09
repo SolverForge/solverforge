@@ -3,6 +3,7 @@
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use super::solver::BestSolutionCallback;
 use super::PhaseScope;
 
 /// Scope for a single step within a phase.
@@ -13,18 +14,21 @@ use super::PhaseScope;
 /// * `'b` - Lifetime of the solver scope reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> {
+/// * `BestCb` - The best-solution callback type
+pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>, BestCb = ()> {
     // Reference to the parent phase scope.
-    phase_scope: &'a mut PhaseScope<'t, 'b, S, D>,
+    phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>,
     // Index of this step within the phase (0-based).
     step_index: u64,
     // Score after this step.
     step_score: Option<S::Score>,
 }
 
-impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'t, 'a, 'b, S, D> {
+impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    StepScope<'t, 'a, 'b, S, D, BestCb>
+{
     /// Creates a new step scope.
-    pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D>) -> Self {
+    pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>) -> Self {
         let step_index = phase_scope.step_count();
         Self {
             phase_scope,
@@ -54,12 +58,12 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: ScoreDirector<S>> StepScope<'t, 'a, 'b,
     }
 
     /// Returns a reference to the phase scope.
-    pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D> {
+    pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D, BestCb> {
         self.phase_scope
     }
 
     /// Returns a mutable reference to the phase scope.
-    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D> {
+    pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D, BestCb> {
         self.phase_scope
     }
 

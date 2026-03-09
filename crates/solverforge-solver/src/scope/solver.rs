@@ -11,6 +11,24 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::stats::SolverStats;
 
+/// Sealed trait for invoking an optional best-solution callback.
+///
+/// Implemented for `()` (no-op) and for any `F: Fn(&S) + Send + Sync`.
+pub trait BestSolutionCallback<S>: Send + Sync {
+    /// Invokes the callback with the given solution, if one is registered.
+    fn invoke(&self, solution: &S);
+}
+
+impl<S> BestSolutionCallback<S> for () {
+    fn invoke(&self, _solution: &S) {}
+}
+
+impl<S, F: Fn(&S) + Send + Sync> BestSolutionCallback<S> for F {
+    fn invoke(&self, solution: &S) {
+        self(solution);
+    }
+}
+
 /// Top-level scope for the entire solving process.
 ///
 /// Holds the working solution, score director, and tracks the best solution found.
@@ -19,8 +37,8 @@ use crate::stats::SolverStats;
 /// * `'t` - Lifetime of the termination flag reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-#[allow(clippy::type_complexity)]
-pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
+/// * `BestCb` - The best-solution callback type (default `()` means no callback)
+pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb = ()> {
     // The score director managing the working solution.
     score_director: D,
     // The best solution found so far.
@@ -40,7 +58,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     // Time limit for solving (checked by phases).
     time_limit: Option<Duration>,
     // Callback invoked when the best solution improves.
-    best_solution_callback: Option<Box<dyn Fn(&S) + Send + Sync + 't>>,
+    best_solution_callback: BestCb,
     /// Optional maximum total step count for in-phase termination (T1).
     pub inphase_step_count_limit: Option<u64>,
     /// Optional maximum total move count for in-phase termination (T1).
@@ -49,8 +67,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: ScoreDirector<S>> {
     pub inphase_score_calc_count_limit: Option<u64>,
 }
 
-impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
-    /// Creates a new solver scope with the given score director.
+impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D, ()> {
+    /// Creates a new solver scope with the given score director and no callback.
     pub fn new(score_director: D) -> Self {
         Self {
             score_director,
@@ -62,13 +80,44 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             terminate: None,
             stats: SolverStats::default(),
             time_limit: None,
-            best_solution_callback: None,
+            best_solution_callback: (),
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
         }
     }
+}
 
+impl<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    SolverScope<'t, S, D, BestCb>
+{
+    /// Creates a new solver scope with the given score director and callback.
+    pub fn new_with_callback(
+        score_director: D,
+        callback: BestCb,
+        terminate: Option<&'t std::sync::atomic::AtomicBool>,
+    ) -> Self {
+        Self {
+            score_director,
+            best_solution: None,
+            best_score: None,
+            rng: StdRng::from_os_rng(),
+            start_time: None,
+            total_step_count: 0,
+            terminate,
+            stats: SolverStats::default(),
+            time_limit: None,
+            best_solution_callback: callback,
+            inphase_step_count_limit: None,
+            inphase_move_count_limit: None,
+            inphase_score_calc_count_limit: None,
+        }
+    }
+}
+
+impl<'t, S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    SolverScope<'t, S, D, BestCb>
+{
     /// Sets the termination flag.
     pub fn with_terminate(mut self, terminate: Option<&'t AtomicBool>) -> Self {
         self.terminate = terminate;
@@ -81,15 +130,28 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
         self
     }
 
-    /// Sets the best solution callback.
+    /// Sets the best solution callback, transitioning to a typed callback scope.
     ///
     /// The callback is invoked whenever the best solution improves during solving.
-    pub fn with_best_solution_callback(
-        mut self,
-        callback: Box<dyn Fn(&S) + Send + Sync + 't>,
-    ) -> Self {
-        self.best_solution_callback = Some(callback);
-        self
+    pub fn with_best_solution_callback<F: Fn(&S) + Send + Sync>(
+        self,
+        callback: F,
+    ) -> SolverScope<'t, S, D, F> {
+        SolverScope {
+            score_director: self.score_director,
+            best_solution: self.best_solution,
+            best_score: self.best_score,
+            rng: self.rng,
+            start_time: self.start_time,
+            total_step_count: self.total_step_count,
+            terminate: self.terminate,
+            stats: self.stats,
+            time_limit: self.time_limit,
+            best_solution_callback: callback,
+            inphase_step_count_limit: self.inphase_step_count_limit,
+            inphase_move_count_limit: self.inphase_move_count_limit,
+            inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
+        }
     }
 
     /// Marks the start of solving.
@@ -155,10 +217,8 @@ impl<'t, S: PlanningSolution, D: ScoreDirector<S>> SolverScope<'t, S, D> {
             self.best_score = Some(current_score);
 
             // Invoke callback if registered
-            if let Some(ref callback) = self.best_solution_callback {
-                if let Some(ref solution) = self.best_solution {
-                    callback(solution);
-                }
+            if let Some(ref solution) = self.best_solution {
+                self.best_solution_callback.invoke(solution);
             }
         }
     }

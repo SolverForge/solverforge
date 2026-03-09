@@ -10,6 +10,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 use crate::stats::SolverStats;
 use crate::termination::Termination;
@@ -70,19 +71,19 @@ impl<S: PlanningSolution> SolveResult<S> {
 /// * `T` - Termination condition (use `Option<ConcreteTermination>`)
 /// * `S` - Solution type
 /// * `D` - Score director type
-#[allow(clippy::type_complexity)]
-pub struct Solver<'t, P, T, S, D> {
+/// * `BestCb` - Best-solution callback type (default `()`)
+pub struct Solver<'t, P, T, S, D, BestCb = ()> {
     phases: P,
     termination: T,
     terminate: Option<&'t AtomicBool>,
     config: Option<SolverConfig>,
     time_limit: Option<Duration>,
     /// Callback invoked when a better solution is found during solving.
-    best_solution_callback: Option<Box<dyn Fn(&S) + Send + Sync + 't>>,
+    best_solution_callback: BestCb,
     _phantom: PhantomData<fn(S, D)>,
 }
 
-impl<P: Debug, T: Debug, S, D> Debug for Solver<'_, P, T, S, D> {
+impl<P: Debug, T: Debug, S, D, BestCb> Debug for Solver<'_, P, T, S, D, BestCb> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solver")
             .field("phases", &self.phases)
@@ -91,7 +92,7 @@ impl<P: Debug, T: Debug, S, D> Debug for Solver<'_, P, T, S, D> {
     }
 }
 
-impl<P, S, D> Solver<'static, P, NoTermination, S, D>
+impl<P, S, D> Solver<'static, P, NoTermination, S, D, ()>
 where
     S: PlanningSolution,
 {
@@ -103,13 +104,13 @@ where
             terminate: None,
             config: None,
             time_limit: None,
-            best_solution_callback: None,
+            best_solution_callback: (),
             _phantom: PhantomData,
         }
     }
 
     /// Sets the termination condition.
-    pub fn with_termination<T>(self, termination: T) -> Solver<'static, P, Option<T>, S, D> {
+    pub fn with_termination<T>(self, termination: T) -> Solver<'static, P, Option<T>, S, D, ()> {
         Solver {
             phases: self.phases,
             termination: Some(termination),
@@ -122,14 +123,14 @@ where
     }
 }
 
-impl<'t, P, T, S, D> Solver<'t, P, T, S, D>
+impl<'t, P, T, S, D, BestCb> Solver<'t, P, T, S, D, BestCb>
 where
     S: PlanningSolution,
 {
     /// Sets the external termination flag.
     ///
     /// The solver will check this flag periodically and terminate early if set.
-    pub fn with_terminate(self, terminate: &'t AtomicBool) -> Solver<'t, P, T, S, D> {
+    pub fn with_terminate(self, terminate: &'t AtomicBool) -> Solver<'t, P, T, S, D, BestCb> {
         Solver {
             phases: self.phases,
             termination: self.termination,
@@ -154,12 +155,21 @@ where
     }
 
     /// Sets a callback to be invoked when a better solution is found during solving.
-    pub fn with_best_solution_callback(
-        mut self,
-        callback: Box<dyn Fn(&S) + Send + Sync + 't>,
-    ) -> Self {
-        self.best_solution_callback = Some(callback);
-        self
+    ///
+    /// Transitions the `BestCb` type parameter to the concrete closure type.
+    pub fn with_best_solution_callback<F: Fn(&S) + Send + Sync>(
+        self,
+        callback: F,
+    ) -> Solver<'t, P, T, S, D, F> {
+        Solver {
+            phases: self.phases,
+            termination: self.termination,
+            terminate: self.terminate,
+            config: self.config,
+            time_limit: self.time_limit,
+            best_solution_callback: callback,
+            _phantom: PhantomData,
+        }
     }
 
     /// Returns the configuration if set.
@@ -173,9 +183,14 @@ where
 pub struct NoTermination;
 
 /// Marker trait for termination types that can be used in Solver.
-pub trait MaybeTermination<S: PlanningSolution, D: ScoreDirector<S>>: Send {
+pub trait MaybeTermination<
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S> = (),
+>: Send
+{
     /// Checks if the solver should terminate.
-    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D>) -> bool;
+    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool;
 
     /// Installs in-phase termination limits on the solver scope.
     ///
@@ -184,80 +199,105 @@ pub trait MaybeTermination<S: PlanningSolution, D: ScoreDirector<S>>: Send {
     ///
     /// The default implementation is a no-op. Override for terminations that
     /// express a concrete limit via a scope field.
-    fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<'_, S, D>) {}
+    fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>) {}
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>, T: Termination<S, D>> MaybeTermination<S, D>
-    for Option<T>
+impl<S, D, BestCb, T> MaybeTermination<S, D, BestCb> for Option<T>
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
+    T: Termination<S, D, BestCb>,
 {
-    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
+    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
         match self {
             Some(t) => t.is_terminated(solver_scope),
             None => false,
         }
     }
 
-    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<'_, S, D>) {
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
         if let Some(t) = self {
             t.install_inphase_limits(solver_scope);
         }
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> MaybeTermination<S, D> for NoTermination {
-    fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, D>) -> bool {
+impl<S, D, BestCb> MaybeTermination<S, D, BestCb> for NoTermination
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
+{
+    fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
         false
     }
 
     // install_inphase_limits: no-op (default)
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for NoTermination {
-    fn is_terminated(&self, _solver_scope: &SolverScope<'_, S, D>) -> bool {
+impl<S, D, BestCb> Termination<S, D, BestCb> for NoTermination
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
+{
+    fn is_terminated(&self, _solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
         false
     }
 }
 
 macro_rules! impl_solver {
     ($($idx:tt: $P:ident),+) => {
-        impl<'t, S, D, T, $($P),+> Solver<'t, ($($P,)+), T, S, D>
+        impl<'t, S, D, T, BestCb, $($P),+> Solver<'t, ($($P,)+), T, S, D, BestCb>
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            T: MaybeTermination<S, D>,
-            $($P: Phase<S, D>,)+
+            T: MaybeTermination<S, D, BestCb>,
+            BestCb: BestSolutionCallback<S>,
+            $($P: Phase<S, D, BestCb>,)+
         {
             /// Solves using the provided score director.
             ///
             /// Returns a `SolveResult` containing the best solution found
             /// and comprehensive solver statistics.
-            pub fn solve(&mut self, score_director: D) -> SolveResult<S> {
-                let mut solver_scope = SolverScope::new(score_director).with_terminate(self.terminate);
-                if let Some(limit) = self.time_limit {
+            pub fn solve(self, score_director: D) -> SolveResult<S> {
+                let Solver {
+                    mut phases,
+                    termination,
+                    terminate,
+                    time_limit,
+                    best_solution_callback,
+                    ..
+                } = self;
+
+                let mut solver_scope = SolverScope::new_with_callback(
+                    score_director,
+                    best_solution_callback,
+                    terminate,
+                );
+                if let Some(limit) = time_limit {
                     solver_scope.set_time_limit(limit);
-                }
-                if let Some(callback) = self.best_solution_callback.take() {
-                    solver_scope = solver_scope.with_best_solution_callback(callback);
                 }
                 solver_scope.start_solving();
 
                 // Install in-phase termination limits so phases can check them
                 // inside their step loops (T1: StepCountTermination, MoveCountTermination, etc.)
-                self.termination.install_inphase_limits(&mut solver_scope);
+                termination.install_inphase_limits(&mut solver_scope);
 
                 // Execute phases with termination checking
                 $(
-                    if !self.check_termination(&solver_scope) {
+                    if !check_termination(&termination, &solver_scope) {
                         tracing::debug!(
                             "Starting phase {} ({})",
                             $idx,
-                            self.phases.$idx.phase_type_name()
+                            phases.$idx.phase_type_name()
                         );
-                        self.phases.$idx.solve(&mut solver_scope);
+                        phases.$idx.solve(&mut solver_scope);
                         tracing::debug!(
                             "Finished phase {} ({}) with score {:?}",
                             $idx,
-                            self.phases.$idx.phase_type_name(),
+                            phases.$idx.phase_type_name(),
                             solver_scope.best_score()
                         );
                     }
@@ -267,36 +307,43 @@ macro_rules! impl_solver {
                 let (solution, stats) = solver_scope.take_solution_and_stats();
                 SolveResult { solution, stats }
             }
-
-            fn check_termination(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
-                // Check external termination flag first
-                if solver_scope.is_terminate_early() {
-                    return true;
-                }
-                // Then check configured termination conditions
-                self.termination.should_terminate(solver_scope)
-            }
-
-
         }
     };
 }
 
+fn check_termination<S, D, BestCb, T>(
+    termination: &T,
+    solver_scope: &SolverScope<'_, S, D, BestCb>,
+) -> bool
+where
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
+    T: MaybeTermination<S, D, BestCb>,
+{
+    if solver_scope.is_terminate_early() {
+        return true;
+    }
+    termination.should_terminate(solver_scope)
+}
+
 macro_rules! impl_solver_with_director {
     ($($idx:tt: $P:ident),+) => {
-        impl<'t, S, T, $($P),+> Solver<'t, ($($P,)+), T, S, ()>
+        impl<'t, S, T, BestCb, $($P),+> Solver<'t, ($($P,)+), T, S, (), BestCb>
         where
             S: PlanningSolution,
             T: Send,
+            BestCb: Send + Sync,
         {
             /// Solves using a provided score director.
             pub fn solve_with_director<D>(self, director: D) -> SolveResult<S>
             where
                 D: ScoreDirector<S>,
-                T: MaybeTermination<S, D>,
-                $($P: Phase<S, D>,)+
+                BestCb: BestSolutionCallback<S>,
+                T: MaybeTermination<S, D, BestCb>,
+                $($P: Phase<S, D, BestCb>,)+
             {
-                let mut solver: Solver<'t, ($($P,)+), T, S, D> = Solver {
+                let solver: Solver<'t, ($($P,)+), T, S, D, BestCb> = Solver {
                     phases: self.phases,
                     termination: self.termination,
                     terminate: self.terminate,

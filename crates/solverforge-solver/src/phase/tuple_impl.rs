@@ -3,6 +3,7 @@
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 use super::Phase;
@@ -15,14 +16,15 @@ use super::Phase;
 /// - `((((), P1), P2), P3)` — three phases, etc.
 ///
 /// Built by `SolverFactoryBuilder::with_phase()` which wraps `(self.phases, phase)`.
-impl<S, D, Prev, P> Phase<S, D> for (Prev, P)
+impl<S, D, BestCb, Prev, P> Phase<S, D, BestCb> for (Prev, P)
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
-    Prev: Phase<S, D>,
-    P: Phase<S, D>,
+    BestCb: BestSolutionCallback<S>,
+    Prev: Phase<S, D, BestCb>,
+    P: Phase<S, D, BestCb>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
         self.0.solve(solver_scope);
         self.1.solve(solver_scope);
     }

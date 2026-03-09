@@ -10,7 +10,7 @@ mod solver;
 mod step;
 
 pub use phase::PhaseScope;
-pub use solver::SolverScope;
+pub use solver::{BestSolutionCallback, SolverScope};
 pub use step::StepScope;
 
 #[cfg(test)]

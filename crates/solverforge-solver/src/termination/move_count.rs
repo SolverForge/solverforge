@@ -7,6 +7,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 /// Terminates when a maximum number of moves have been evaluated.
@@ -56,12 +57,14 @@ impl<S: PlanningSolution> MoveCountTermination<S> {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for MoveCountTermination<S> {
-    fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    Termination<S, D, BestCb> for MoveCountTermination<S>
+{
+    fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
         solver_scope.stats().moves_evaluated >= self.limit
     }
 
-    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let limit = match solver_scope.inphase_move_count_limit {
             Some(existing) => existing.min(self.limit),
             None => self.limit,

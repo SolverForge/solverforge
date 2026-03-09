@@ -6,6 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 /// Terminates after a time limit.
@@ -39,8 +40,10 @@ impl TimeTermination {
     }
 }
 
-impl<S: PlanningSolution, D: ScoreDirector<S>> Termination<S, D> for TimeTermination {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    Termination<S, D, BestCb> for TimeTermination
+{
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope.elapsed().is_some_and(|e| e >= self.limit)
     }
 }

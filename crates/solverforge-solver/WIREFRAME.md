@@ -180,13 +180,13 @@ src/
 │
 ├── scope/
 │   ├── mod.rs                           — Re-exports
-│   ├── solver.rs                        — SolverScope<'t, S, D>
-│   ├── phase.rs                         — PhaseScope<'t, 'a, S, D>
-│   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D>
+│   ├── solver.rs                        — SolverScope<'t, S, D, BestCb = ()>, BestSolutionCallback trait
+│   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
+│   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
 │   └── tests.rs                         — Tests
 │
 ├── termination/
-│   ├── mod.rs                           — Termination<S, D> trait, re-exports
+│   ├── mod.rs                           — Termination<S, D, BestCb = ()> trait, re-exports
 │   ├── time.rs                          — TimeTermination
 │   ├── step_count.rs                    — StepCountTermination
 │   ├── best_score.rs                    — BestScoreTermination<Sc>, BestScoreFeasibleTermination<S, F>
@@ -219,25 +219,27 @@ Requires: `Send + Sync + Debug`.
 
 Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
 
-### `Phase<S: PlanningSolution, D: ScoreDirector<S>>` — `phase/mod.rs`
+### `Phase<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S> = ()>` — `phase/mod.rs`
 
 Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `solve` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D>)` |
+| `solve` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>)` |
 | `phase_type_name` | `fn(&self) -> &'static str` |
 
-Tuple implementations for nested pairs `((), P1)`, `(((), P1), P2)`, etc. up to 4 phases.
+All concrete phase types implement `Phase<S, D, BestCb>` for all `BestCb: BestSolutionCallback<S>`. Tuple implementations via `tuple_impl.rs`.
 
-### `Termination<S: PlanningSolution, D: ScoreDirector<S>>` — `termination/mod.rs`
+### `Termination<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S> = ()>` — `termination/mod.rs`
 
 Requires: `Send + Debug`.
 
 | Method | Signature | Default |
 |--------|-----------|---------|
-| `is_terminated` | `fn(&self, solver_scope: &SolverScope<S, D>) -> bool` | — |
-| `install_inphase_limits` | `fn(&self, solver_scope: &mut SolverScope<S, D>)` | no-op |
+| `is_terminated` | `fn(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool` | — |
+| `install_inphase_limits` | `fn(&self, solver_scope: &mut SolverScope<S, D, BestCb>)` | no-op |
+
+All concrete termination types implement `Termination<S, D, BestCb>` for all `BestCb: BestSolutionCallback<S>`.
 
 ### `Acceptor<S: PlanningSolution>` — `acceptor/mod.rs`
 
@@ -587,19 +589,23 @@ Score bounders: `SimpleScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 
 ## Scope Hierarchy
 
-### `SolverScope<'t, S, D>`
+### `BestSolutionCallback<S>` — `scope/solver.rs`
+
+Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op) and any `F: Fn(&S) + Send + Sync`.
+
+### `SolverScope<'t, S, D, BestCb = ()>`
 
 Top-level scope for entire solve. Holds score director, best solution, RNG, stats, termination state.
 
-Key methods: `start_solving()`, `working_solution()`, `calculate_score()`, `update_best_solution()`, `is_terminate_early()`, `set_time_limit()`.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate)`, `with_best_solution_callback(F) -> SolverScope<.., F>`, `start_solving()`, `working_solution()`, `calculate_score()`, `update_best_solution()`, `is_terminate_early()`, `set_time_limit()`.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
-### `PhaseScope<'t, 'a, S, D>`
+### `PhaseScope<'t, 'a, S, D, BestCb = ()>`
 
 Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count, PhaseStats.
 
-### `StepScope<'t, 'a, 'b, S, D>`
+### `StepScope<'t, 'a, 'b, S, D, BestCb = ()>`
 
 Borrows `&mut PhaseScope`. Tracks per-step state: step_index, step_score. `complete()` records step in stats.
 
@@ -672,9 +678,11 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 
 ## Solver & Convenience Functions
 
-### `Solver<'t, P, T, S, D>`
+### `Solver<'t, P, T, S, D, BestCb = ()>`
 
-Main solver struct. Drives phases and checks termination. `impl_solver!` macro generates `solve()` for phase tuples up to 8.
+Main solver struct. Drives phases and checks termination. `impl_solver!` macro generates `solve(self, score_director: D) -> SolveResult<S>` for phase tuples up to 8.
+
+Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_best_solution_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `BestCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
 
 ### `SolveResult<S>`
 

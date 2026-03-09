@@ -9,13 +9,14 @@
 //! - **DEBUG**: Individual steps with timing and scores
 //! - **TRACE**: Move evaluation details
 
+use std::fmt;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, TypedScoreDirector};
+use solverforge_scoring::{ConstraintSet, ScoreDirector, TypedScoreDirector};
 use tokio::sync::mpsc;
 use tracing::info;
 
@@ -28,15 +29,66 @@ use crate::phase::construction::{BestFitForager, ConstructionHeuristicPhase, Que
 use crate::phase::localsearch::{
     AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
 };
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
-use crate::solver::{SolveResult, Solver};
+use crate::solver::Solver;
 use crate::termination::{
-    BestScoreTermination, OrTermination, StepCountTermination, TimeTermination,
+    BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
 /// Default time limit in seconds.
 const DEFAULT_TIME_LIMIT_SECS: u64 = 30;
+
+/// Monomorphized termination enum for basic solver configurations.
+///
+/// Avoids repeated branching across `solve_with_termination` overloads by
+/// capturing the selected termination variant upfront.
+pub(crate) enum AnyBasicTermination<S: PlanningSolution, D: ScoreDirector<S>> {
+    Default(OrTermination<(TimeTermination,), S, D>),
+    WithBestScore(OrTermination<(TimeTermination, BestScoreTermination<S::Score>), S, D>),
+    WithStepCount(OrTermination<(TimeTermination, StepCountTermination), S, D>),
+    WithUnimprovedStep(OrTermination<(TimeTermination, UnimprovedStepCountTermination<S>), S, D>),
+    WithUnimprovedTime(OrTermination<(TimeTermination, UnimprovedTimeTermination<S>), S, D>),
+}
+
+impl<S: PlanningSolution, D: ScoreDirector<S>> fmt::Debug for AnyBasicTermination<S, D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Default(_) => write!(f, "AnyBasicTermination::Default"),
+            Self::WithBestScore(_) => write!(f, "AnyBasicTermination::WithBestScore"),
+            Self::WithStepCount(_) => write!(f, "AnyBasicTermination::WithStepCount"),
+            Self::WithUnimprovedStep(_) => write!(f, "AnyBasicTermination::WithUnimprovedStep"),
+            Self::WithUnimprovedTime(_) => write!(f, "AnyBasicTermination::WithUnimprovedTime"),
+        }
+    }
+}
+
+impl<S: PlanningSolution, D: ScoreDirector<S>, BestCb: BestSolutionCallback<S>>
+    Termination<S, D, BestCb> for AnyBasicTermination<S, D>
+where
+    S::Score: Score,
+{
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+        match self {
+            Self::Default(t) => t.is_terminated(solver_scope),
+            Self::WithBestScore(t) => t.is_terminated(solver_scope),
+            Self::WithStepCount(t) => t.is_terminated(solver_scope),
+            Self::WithUnimprovedStep(t) => t.is_terminated(solver_scope),
+            Self::WithUnimprovedTime(t) => t.is_terminated(solver_scope),
+        }
+    }
+
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
+        match self {
+            Self::Default(t) => t.install_inphase_limits(solver_scope),
+            Self::WithBestScore(t) => t.install_inphase_limits(solver_scope),
+            Self::WithStepCount(t) => t.install_inphase_limits(solver_scope),
+            Self::WithUnimprovedStep(t) => t.install_inphase_limits(solver_scope),
+            Self::WithUnimprovedTime(t) => t.install_inphase_limits(solver_scope),
+        }
+    }
+}
 
 /// Solves a basic variable problem using construction heuristic + late acceptance local search.
 ///
@@ -141,60 +193,8 @@ where
     let forager = AcceptedCountForager::new(1);
     let local_search = LocalSearchPhase::new(move_selector, acceptor, forager, None);
 
-    // Build solver with termination configuration
-    let result = solve_with_termination(
-        director,
-        construction,
-        local_search,
-        terminate,
-        config.termination.as_ref(),
-        sender,
-    );
-
-    let score = result.solution.score().unwrap_or_default();
-    info!(
-        event = "solve_end",
-        score = %score,
-        steps = result.stats.step_count,
-        moves_evaluated = result.stats.moves_evaluated,
-    );
-    result.solution
-}
-
-macro_rules! build_and_solve_with {
-    ($construction:expr, $local_search:expr, $termination:expr, $terminate:expr, $director:expr, $time_limit:expr, $sender:expr) => {
-        build_and_solve(
-            $construction,
-            $local_search,
-            $termination,
-            $terminate,
-            $director,
-            $time_limit,
-            $sender,
-        )
-    };
-}
-
-fn solve_with_termination<S, D, M1, M2, P, Fo, MS, A, Fo2>(
-    director: D,
-    construction: ConstructionHeuristicPhase<S, M1, P, Fo>,
-    local_search: LocalSearchPhase<S, M2, MS, A, Fo2>,
-    terminate: Option<&AtomicBool>,
-    term_config: Option<&solverforge_config::TerminationConfig>,
-    sender: mpsc::UnboundedSender<(S, S::Score)>,
-) -> SolveResult<S>
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    D: solverforge_scoring::ScoreDirector<S>,
-    M1: crate::heuristic::r#move::Move<S>,
-    M2: crate::heuristic::r#move::Move<S>,
-    P: crate::phase::construction::EntityPlacer<S, M1>,
-    Fo: crate::phase::construction::ConstructionForager<S, M1>,
-    MS: crate::heuristic::selector::MoveSelector<S, M2>,
-    A: crate::phase::localsearch::Acceptor<S>,
-    Fo2: crate::phase::localsearch::LocalSearchForager<S, M2>,
-{
+    // Build termination from config
+    let term_config = config.termination.as_ref();
     let time_limit = term_config
         .and_then(|c| c.time_limit())
         .unwrap_or(Duration::from_secs(DEFAULT_TIME_LIMIT_SECS));
@@ -204,112 +204,59 @@ where
         .and_then(|c| c.best_score_limit.as_ref())
         .and_then(|s| S::Score::parse(s).ok());
 
-    if let Some(target) = best_score_target {
-        build_and_solve_with!(
-            construction,
-            local_search,
-            OrTermination::<_, S, D>::new((time, BestScoreTermination::new(target))),
-            terminate,
-            director,
-            time_limit,
-            sender
-        )
-    } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
-        build_and_solve_with!(
-            construction,
-            local_search,
-            OrTermination::<_, S, D>::new((time, StepCountTermination::new(step_limit))),
-            terminate,
-            director,
-            time_limit,
-            sender
-        )
-    } else if let Some(unimproved_step_limit) =
-        term_config.and_then(|c| c.unimproved_step_count_limit)
-    {
-        build_and_solve_with!(
-            construction,
-            local_search,
-            OrTermination::<_, S, D>::new((
+    let termination: AnyBasicTermination<S, TypedScoreDirector<S, C>> =
+        if let Some(target) = best_score_target {
+            AnyBasicTermination::WithBestScore(OrTermination::new((
                 time,
-                UnimprovedStepCountTermination::<S>::new(unimproved_step_limit)
-            )),
-            terminate,
-            director,
-            time_limit,
-            sender
-        )
-    } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
-        build_and_solve_with!(
-            construction,
-            local_search,
-            OrTermination::<_, S, D>::new((
+                BestScoreTermination::new(target),
+            )))
+        } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
+            AnyBasicTermination::WithStepCount(OrTermination::new((
                 time,
-                UnimprovedTimeTermination::<S>::new(unimproved_time)
-            )),
-            terminate,
-            director,
-            time_limit,
-            sender
-        )
-    } else {
-        build_and_solve_with!(
-            construction,
-            local_search,
-            OrTermination::<_, S, D>::new((time,)),
-            terminate,
-            director,
-            time_limit,
-            sender
-        )
-    }
-}
+                StepCountTermination::new(step_limit),
+            )))
+        } else if let Some(unimproved_step_limit) =
+            term_config.and_then(|c| c.unimproved_step_count_limit)
+        {
+            AnyBasicTermination::WithUnimprovedStep(OrTermination::new((
+                time,
+                UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
+            )))
+        } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
+            AnyBasicTermination::WithUnimprovedTime(OrTermination::new((
+                time,
+                UnimprovedTimeTermination::<S>::new(unimproved_time),
+            )))
+        } else {
+            AnyBasicTermination::Default(OrTermination::new((time,)))
+        };
 
-fn build_and_solve<S, D, M1, M2, P, Fo, MS, A, Fo2, Term>(
-    construction: ConstructionHeuristicPhase<S, M1, P, Fo>,
-    local_search: LocalSearchPhase<S, M2, MS, A, Fo2>,
-    termination: Term,
-    terminate: Option<&AtomicBool>,
-    director: D,
-    time_limit: Duration,
-    sender: mpsc::UnboundedSender<(S, S::Score)>,
-) -> SolveResult<S>
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    D: solverforge_scoring::ScoreDirector<S>,
-    M1: crate::heuristic::r#move::Move<S>,
-    M2: crate::heuristic::r#move::Move<S>,
-    P: crate::phase::construction::EntityPlacer<S, M1>,
-    Fo: crate::phase::construction::ConstructionForager<S, M1>,
-    MS: crate::heuristic::selector::MoveSelector<S, M2>,
-    A: crate::phase::localsearch::Acceptor<S>,
-    Fo2: crate::phase::localsearch::LocalSearchForager<S, M2>,
-    Term: crate::termination::Termination<S, D>,
-{
     let callback_sender = sender.clone();
-    let callback: Box<dyn Fn(&S) + Send + Sync> = Box::new(move |solution: &S| {
+    let callback = move |solution: &S| {
         let score = solution.score().unwrap_or_default();
         let _ = callback_sender.send((solution.clone(), score));
-    });
+    };
 
-    let result = match terminate {
-        Some(flag) => Solver::new(((), construction, local_search))
-            .with_termination(termination)
-            .with_time_limit(time_limit)
-            .with_best_solution_callback(callback)
-            .with_terminate(flag)
-            .solve(director),
-        None => Solver::new(((), construction, local_search))
-            .with_termination(termination)
-            .with_time_limit(time_limit)
-            .with_best_solution_callback(callback)
-            .solve(director),
+    let solver = Solver::new(((), construction, local_search))
+        .with_termination(termination)
+        .with_time_limit(time_limit)
+        .with_best_solution_callback(callback);
+
+    let result = if let Some(flag) = terminate {
+        solver.with_terminate(flag).solve(director)
+    } else {
+        solver.solve(director)
     };
 
     // Send the final solution so the receiver always gets the last state
     let final_score = result.solution.score().unwrap_or_default();
     let _ = sender.send((result.solution.clone(), final_score));
 
-    result
+    info!(
+        event = "solve_end",
+        score = %final_score,
+        steps = result.stats.step_count,
+        moves_evaluated = result.stats.moves_evaluated,
+    );
+    result.solution
 }

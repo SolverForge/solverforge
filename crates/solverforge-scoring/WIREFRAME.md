@@ -84,8 +84,7 @@ src/
 │   ├── if_exists_stream.rs                         — IfExistsStream, IfExistsBuilder
 │   ├── arity_stream_macros/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
-│   │   ├── bi.rs                                   — impl_bi_arity_stream! macro
-│   │   └── nary_stream.rs                          — impl_tri/quad/penta_arity_stream! macros
+│   │   └── nary_stream.rs                          — impl_bi/tri/quad/penta_arity_stream! macros
 │   ├── filter/
 │   │   ├── mod.rs                                  — Re-exports filter types
 │   │   ├── traits.rs                               — UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter traits
@@ -448,7 +447,7 @@ The `TypedScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_in
 
 ### Stream Arity Macros
 
-`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
+`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros are consolidated in `nary_stream.rs`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
 
 ### PhantomData Pattern
 

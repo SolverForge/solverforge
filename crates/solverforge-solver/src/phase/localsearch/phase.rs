@@ -14,6 +14,7 @@ use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
+use crate::scope::BestSolutionCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 /// Local search phase that improves an existing solution.
@@ -92,16 +93,17 @@ where
     }
 }
 
-impl<S, D, M, MS, A, Fo> Phase<S, D> for LocalSearchPhase<S, M, MS, A, Fo>
+impl<S, D, BestCb, M, MS, A, Fo> Phase<S, D, BestCb> for LocalSearchPhase<S, M, MS, A, Fo>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
     M: Move<S>,
     MS: MoveSelector<S, M>,
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
         let phase_index = phase_scope.phase_index();
 

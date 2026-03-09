@@ -30,6 +30,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::phase::Phase;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 pub use partitioner::{FunctionalPartitioner, SolutionPartitioner, ThreadCount};
@@ -152,18 +153,19 @@ where
     }
 }
 
-impl<S, D, PD, Part, SDF, PF, CP> Phase<S, D>
+impl<S, D, BestCb, PD, Part, SDF, PF, CP> Phase<S, D, BestCb>
     for PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>
 where
     S: PlanningSolution + 'static,
     D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
     PD: ScoreDirector<S> + 'static,
     Part: SolutionPartitioner<S>,
     SDF: Fn(S) -> PD + Send + Sync,
     PF: Fn() -> CP + Send + Sync,
     CP: ChildPhases<S, PD> + Send,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         // Get the current solution
         let solution = solver_scope.score_director().working_solution().clone();
 

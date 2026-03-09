@@ -7,6 +7,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 /// Terminates when the best score reaches or exceeds a target score.
@@ -35,13 +36,14 @@ impl<Sc: Score> BestScoreTermination<Sc> {
     }
 }
 
-impl<S, D, Sc> Termination<S, D> for BestScoreTermination<Sc>
+impl<S, D, BestCb, Sc> Termination<S, D, BestCb> for BestScoreTermination<Sc>
 where
     S: PlanningSolution<Score = Sc>,
     D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
     Sc: Score,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope
             .best_score()
             .map(|score| *score >= self.target_score)
@@ -101,13 +103,14 @@ impl<S: PlanningSolution> BestScoreFeasibleTermination<S, fn(&S::Score) -> bool>
     }
 }
 
-impl<S, D, F> Termination<S, D> for BestScoreFeasibleTermination<S, F>
+impl<S, D, BestCb, F> Termination<S, D, BestCb> for BestScoreFeasibleTermination<S, F>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope
             .best_score()
             .map(|score| (self.feasibility_check)(score))

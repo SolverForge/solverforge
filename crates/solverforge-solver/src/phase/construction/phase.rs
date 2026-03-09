@@ -10,6 +10,7 @@ use tracing::info;
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::{ConstructionForager, EntityPlacer};
 use crate::phase::Phase;
+use crate::scope::BestSolutionCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 /// Construction heuristic phase that builds an initial solution.
@@ -66,15 +67,16 @@ where
     }
 }
 
-impl<S, D, M, P, Fo> Phase<S, D> for ConstructionHeuristicPhase<S, M, P, Fo>
+impl<S, D, BestCb, M, P, Fo> Phase<S, D, BestCb> for ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
     D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S>,
     M: Move<S>,
     P: EntityPlacer<S, M>,
     Fo: ConstructionForager<S, M>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
         let phase_index = phase_scope.phase_index();
 

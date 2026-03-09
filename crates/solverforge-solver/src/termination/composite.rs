@@ -9,6 +9,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use super::Termination;
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 /// Combines multiple terminations with OR logic.
@@ -101,13 +102,14 @@ impl<T, S, D> AndTermination<T, S, D> {
 
 macro_rules! impl_composite_termination {
     ($($idx:tt: $T:ident),+) => {
-        impl<S, D, $($T),+> Termination<S, D> for OrTermination<($($T,)+), S, D>
+        impl<S, D, BestCb, $($T),+> Termination<S, D, BestCb> for OrTermination<($($T,)+), S, D>
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            $($T: Termination<S, D>,)+
+            BestCb: BestSolutionCallback<S>,
+            $($T: Termination<S, D, BestCb>,)+
         {
-            fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+            fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
                 $(
                     if self.0.$idx.is_terminated(solver_scope) {
                         return true;
@@ -116,7 +118,7 @@ macro_rules! impl_composite_termination {
                 false
             }
 
-            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 // Propagate in-phase limits from all child terminations.
                 // For OR, each child independently may set a limit.
                 $(
@@ -125,13 +127,14 @@ macro_rules! impl_composite_termination {
             }
         }
 
-        impl<S, D, $($T),+> Termination<S, D> for AndTermination<($($T,)+), S, D>
+        impl<S, D, BestCb, $($T),+> Termination<S, D, BestCb> for AndTermination<($($T,)+), S, D>
         where
             S: PlanningSolution,
             D: ScoreDirector<S>,
-            $($T: Termination<S, D>,)+
+            BestCb: BestSolutionCallback<S>,
+            $($T: Termination<S, D, BestCb>,)+
         {
-            fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool {
+            fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
                 $(
                     if !self.0.$idx.is_terminated(solver_scope) {
                         return false;
@@ -140,7 +143,7 @@ macro_rules! impl_composite_termination {
                 true
             }
 
-            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D>) {
+            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 $(
                     self.0.$idx.install_inphase_limits(solver_scope);
                 )+

@@ -14,6 +14,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
+use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
 pub use best_score::{BestScoreFeasibleTermination, BestScoreTermination};
@@ -30,15 +31,21 @@ pub use unimproved::{UnimprovedStepCountTermination, UnimprovedTimeTermination};
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-pub trait Termination<S: PlanningSolution, D: ScoreDirector<S>>: Send + Debug {
+/// * `BestCb` - The best-solution callback type (default `()`)
+pub trait Termination<
+    S: PlanningSolution,
+    D: ScoreDirector<S>,
+    BestCb: BestSolutionCallback<S> = (),
+>: Send + Debug
+{
     /// Returns true if solving should terminate.
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D>) -> bool;
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool;
 
     /// Installs this termination's limit as an in-phase limit on the solver scope.
     ///
     /// This allows the termination to fire inside the phase step loop (T1 fix).
     /// The default implementation is a no-op.
-    fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<S, D>) {}
+    fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<S, D, BestCb>) {}
 }
 
 #[cfg(test)]

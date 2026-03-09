@@ -4,8 +4,6 @@
 // which all follow the same pattern with different tuple sizes.
 
 #[macro_use]
-mod bi;
-#[macro_use]
 mod nary_stream;
 
 // Generates the constraint stream struct, builder struct, and common methods.

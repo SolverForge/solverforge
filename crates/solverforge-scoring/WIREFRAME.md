@@ -41,11 +41,9 @@ src/
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint<S,A,B,C,K,CK,EA,EB,KA,KB,Flatten,CKeyFn,ALookup,F,W,Sc>
 │   ├── if_exists.rs                                — IfExistsUniConstraint<S,A,B,K,EA,EB,KA,KB,FA,W,Sc>, ExistenceMode enum
 │   ├── nary_incremental/
-│   │   ├── mod.rs                                  — impl_incremental_nary_constraint! macro, re-exports
+│   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
-│   │   ├── tri.rs                                  — impl_incremental_tri_constraint! macro → IncrementalTriConstraint
-│   │   ├── quad.rs                                 — impl_incremental_quad_constraint! macro → IncrementalQuadConstraint
-│   │   └── penta.rs                                — impl_incremental_penta_constraint! macro → IncrementalPentaConstraint
+│   │   └── nary_unified.rs                         — impl_incremental_tri/quad/penta_constraint! macros → IncrementalTriConstraint, IncrementalQuadConstraint, IncrementalPentaConstraint
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── bi_incr.rs                              — IncrementalBiConstraint tests
@@ -62,9 +60,8 @@ src/
 │   ├── traits.rs                                   — ScoreDirector<S> trait
 │   ├── typed.rs                                    — TypedScoreDirector<S,C> (zero-erasure incremental)
 │   ├── simple.rs                                   — SimpleScoreDirector<S,C> (full recalculation)
-│   ├── factory.rs                                  — ScoreDirectorFactory<S,C>
 │   ├── recording.rs                                — RecordingScoreDirector<'a,S,D> (automatic undo tracking)
-│   ├── shadow_aware.rs                             — ShadowAwareScoreDirector<S,D>, ShadowVariableSupport trait, SolvableSolution trait
+│   ├── shadow_aware.rs                             — ShadowVariableSupport trait, SolvableSolution trait
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── typed.rs                                — TypedScoreDirector tests
@@ -86,11 +83,9 @@ src/
 │   ├── flattened_bi_stream.rs                      — FlattenedBiConstraintStream, FlattenedBiConstraintBuilder
 │   ├── if_exists_stream.rs                         — IfExistsStream, IfExistsBuilder
 │   ├── arity_stream_macros/
-│   │   ├── mod.rs                                  — impl_arity_stream! macro
+│   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
 │   │   ├── bi.rs                                   — impl_bi_arity_stream! macro
-│   │   ├── tri.rs                                  — impl_tri_arity_stream! macro
-│   │   ├── quad.rs                                 — impl_quad_arity_stream! macro
-│   │   └── penta.rs                                — impl_penta_arity_stream! macro
+│   │   └── nary_stream.rs                          — impl_tri/quad/penta_arity_stream! macros
 │   ├── filter/
 │   │   ├── mod.rs                                  — Re-exports filter types
 │   │   ├── traits.rs                               — UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter traits
@@ -135,8 +130,8 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 // Score Directors
 pub use director::typed::TypedScoreDirector;
 pub use director::{
-    RecordingScoreDirector, ScoreDirector, ScoreDirectorFactory, ShadowAwareScoreDirector,
-    ShadowVariableSupport, SimpleScoreDirector, SolvableSolution,
+    RecordingScoreDirector, ScoreDirector, ShadowVariableSupport, SimpleScoreDirector,
+    SolvableSolution,
 };
 
 // Analysis
@@ -163,14 +158,10 @@ pub use stream::{
 | `calculate_score` | `fn calculate_score(&mut self) -> S::Score` | Full score calculation |
 | `solution_descriptor` | `fn solution_descriptor(&self) -> &SolutionDescriptor` | Runtime metadata |
 | `clone_working_solution` | `fn clone_working_solution(&self) -> S` | Deep copy |
-| `before_variable_changed` | `fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize, variable_name: &str)` | Pre-change notification |
-| `after_variable_changed` | `fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize, variable_name: &str)` | Post-change notification |
-| `before_entity_changed` | `fn before_entity_changed(&mut self, entity_index: usize)` | Default: delegates to before_variable_changed |
-| `after_entity_changed` | `fn after_entity_changed(&mut self, entity_index: usize)` | Default: delegates to after_variable_changed |
-| `trigger_variable_listeners` | `fn trigger_variable_listeners(&mut self)` | Fire pending listeners |
+| `before_variable_changed` | `fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize)` | Pre-change notification |
+| `after_variable_changed` | `fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize)` | Post-change notification |
 | `entity_count` | `fn entity_count(&self, descriptor_index: usize) -> Option<usize>` | Count entities by descriptor |
 | `total_entity_count` | `fn total_entity_count(&self) -> Option<usize>` | Total across all descriptors |
-| `get_entity` | `fn get_entity(&self, descriptor_index: usize, entity_index: usize) -> Option<&dyn Any>` | Entity lookup |
 | `is_incremental` | `fn is_incremental(&self) -> bool` | Default: false |
 | `reset` | `fn reset(&mut self)` | Default: no-op |
 | `register_undo` | `fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>)` | Default: no-op |
@@ -281,18 +272,9 @@ All `Send + Sync`:
 - Key methods: `new()`, `with_calculator()`
 - Implements `ScoreDirector<S>`
 
-**`ScoreDirectorFactory<S, C>`** where `S: PlanningSolution`, `C: Fn(&S) -> S::Score + Send + Sync`
-- Factory for `SimpleScoreDirector`.
-- Key methods: `new()`, `build_score_director()`, `solution_descriptor()`
-
 **`RecordingScoreDirector<'a, S, D>`** where `S: PlanningSolution`, `D: ScoreDirector<S>`
 - Wraps any director with automatic undo tracking.
 - Key methods: `new()`, `undo_changes()`, `reset()`, `change_count()`, `is_empty()`
-- Implements `ScoreDirector<S>`
-
-**`ShadowAwareScoreDirector<S, D>`** where `S: ShadowVariableSupport`, `D: ScoreDirector<S>`
-- Wraps director with automatic shadow variable updates on `after_variable_changed`.
-- Key methods: `new()`, `inner()`, `inner_mut()`, `into_inner()`, `constraint_match_totals()`
 - Implements `ScoreDirector<S>`
 
 ### Constraint Types

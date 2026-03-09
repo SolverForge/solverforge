@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 
 /// A distance meter for list element positions.
-///
+/// 
 /// Measures distance between elements at two positions in a list.
 /// Used by `NearbyKOptMoveSelector` to limit k-opt search space.
 pub trait ListPositionDistanceMeter<S>: Send + Sync + Debug {

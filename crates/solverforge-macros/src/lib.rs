@@ -2,30 +2,14 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse::Parser;
-use syn::{parse_macro_input, Attribute, DeriveInput, Expr, ItemStruct, Lit, Meta};
+use syn::{parse_macro_input, DeriveInput, ItemStruct};
 
+mod attr_parse;
 mod planning_entity;
 mod planning_solution;
 mod problem_fact;
 
-// Checks if attribute stream contains the `serde` flag.
-fn has_serde_flag(attr: TokenStream) -> bool {
-    if attr.is_empty() {
-        return false;
-    }
-    let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-    if let Ok(nested) = parser.parse(attr) {
-        for meta in nested {
-            if let Meta::Path(path) = meta {
-                if path.is_ident("serde") {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
+use attr_parse::{has_serde_flag, parse_solution_flags};
 
 #[proc_macro_attribute]
 pub fn planning_entity(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -49,37 +33,6 @@ pub fn planning_entity(attr: TokenStream, item: TokenStream) -> TokenStream {
         #vis struct #name #generics #fields
     };
     expanded.into()
-}
-
-/// Parses planning_solution attribute flags: serde, constraints = "path".
-fn parse_solution_flags(attr: TokenStream) -> (bool, Option<String>) {
-    let mut has_serde = false;
-    let mut constraints_path = None;
-
-    if attr.is_empty() {
-        return (has_serde, constraints_path);
-    }
-
-    let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-    if let Ok(nested) = parser.parse(attr) {
-        for meta in nested {
-            match meta {
-                Meta::Path(path) if path.is_ident("serde") => {
-                    has_serde = true;
-                }
-                Meta::NameValue(nv) if nv.path.is_ident("constraints") => {
-                    if let Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(lit_str) = &expr_lit.lit {
-                            constraints_path = Some(lit_str.value());
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    (has_serde, constraints_path)
 }
 
 #[proc_macro_attribute]
@@ -179,73 +132,4 @@ pub fn derive_problem_fact(input: TokenStream) -> TokenStream {
     problem_fact::expand_derive(input)
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
-}
-
-fn has_attribute(attrs: &[Attribute], name: &str) -> bool {
-    attrs.iter().any(|attr| attr.path().is_ident(name))
-}
-
-fn get_attribute<'a>(attrs: &'a [Attribute], name: &str) -> Option<&'a Attribute> {
-    attrs.iter().find(|attr| attr.path().is_ident(name))
-}
-
-fn parse_attribute_bool(attr: &Attribute, key: &str) -> Option<bool> {
-    if let Meta::List(meta_list) = &attr.meta {
-        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-        if let Ok(nested) = parser.parse2(meta_list.tokens.clone()) {
-            for meta in nested {
-                if let Meta::NameValue(nv) = meta {
-                    if nv.path.is_ident(key) {
-                        if let Expr::Lit(expr_lit) = &nv.value {
-                            if let Lit::Bool(lit_bool) = &expr_lit.lit {
-                                return Some(lit_bool.value());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn parse_attribute_string(attr: &Attribute, key: &str) -> Option<String> {
-    if let Meta::List(meta_list) = &attr.meta {
-        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-        if let Ok(nested) = parser.parse2(meta_list.tokens.clone()) {
-            for meta in nested {
-                if let Meta::NameValue(nv) = meta {
-                    if nv.path.is_ident(key) {
-                        if let Expr::Lit(expr_lit) = &nv.value {
-                            if let Lit::Str(lit_str) = &expr_lit.lit {
-                                return Some(lit_str.value());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn parse_attribute_list(attr: &Attribute, key: &str) -> Vec<String> {
-    let mut result = Vec::new();
-    if let Meta::List(meta_list) = &attr.meta {
-        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-        if let Ok(nested) = parser.parse2(meta_list.tokens.clone()) {
-            for meta in nested {
-                if let Meta::NameValue(nv) = meta {
-                    if nv.path.is_ident(key) {
-                        if let Expr::Lit(expr_lit) = &nv.value {
-                            if let Lit::Str(lit_str) = &expr_lit.lit {
-                                result.push(lit_str.value());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    result
 }

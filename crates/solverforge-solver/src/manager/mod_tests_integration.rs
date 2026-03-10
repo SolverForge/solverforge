@@ -4,6 +4,7 @@ use super::*;
 use std::time::Duration;
 
 use solverforge_core::score::SoftScore;
+use solverforge_core::PlanningSolution;
 use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;

@@ -9,6 +9,7 @@
 mod builder;
 mod config;
 mod phase_factory;
+mod phase_factory_trait;
 mod solution_manager;
 mod solver_factory;
 mod solver_manager;
@@ -27,32 +28,7 @@ pub use phase_factory::{
     ListConstructionPhase, ListConstructionPhaseBuilder, ListRegretInsertionPhase,
     LocalSearchPhaseFactory,
 };
+pub use phase_factory_trait::PhaseFactory;
 pub use solution_manager::{analyze, Analyzable, ConstraintAnalysis, ScoreAnalysis};
 pub use solver_factory::{solver_factory_builder, SolverFactory};
 pub use solver_manager::{Solvable, SolverManager, SolverStatus};
-
-use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
-
-use crate::phase::Phase;
-
-/// Factory trait for creating phases with zero type erasure.
-///
-/// Returns a concrete phase type via associated type, preserving
-/// full type information through the pipeline.
-///
-/// # Type Parameters
-///
-/// * `S` - The solution type
-/// * `D` - The score director type
-pub trait PhaseFactory<S, D>: Send + Sync
-where
-    S: PlanningSolution,
-    D: Director<S>,
-{
-    /// The concrete phase type produced by this factory.
-    type Phase: Phase<S, D>;
-
-    /// Creates a new phase instance with concrete type.
-    fn create(&self) -> Self::Phase;
-}

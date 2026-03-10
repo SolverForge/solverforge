@@ -4,7 +4,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields, Ident, Lit, Meta};
 
-use crate::{get_attribute, has_attribute, parse_attribute_list, parse_attribute_string};
+use crate::attr_parse::{
+    get_attribute, has_attribute, parse_attribute_list, parse_attribute_string,
+};
 
 #[derive(Default)]
 struct ShadowConfig {

@@ -1,0 +1,31 @@
+//! Construction heuristic phase configuration.
+
+/// Construction heuristic phase configuration.
+#[derive(Debug, Clone)]
+pub struct ConstructionHeuristicConfig {
+    /// The forager type to use.
+    pub forager_type: ForagerType,
+}
+
+impl Default for ConstructionHeuristicConfig {
+    fn default() -> Self {
+        Self {
+            forager_type: ForagerType::FirstFit,
+        }
+    }
+}
+
+/// Type of forager to use in construction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ForagerType {
+    /// Accept the first feasible move.
+    FirstFit,
+    /// Evaluate all moves and pick the best.
+    BestFit,
+    /// Pick the first move that results in a feasible score.
+    FirstFeasible,
+    /// Pick the move with the lowest strength value.
+    WeakestFit,
+    /// Pick the move with the highest strength value.
+    StrongestFit,
+}

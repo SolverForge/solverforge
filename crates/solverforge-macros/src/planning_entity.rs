@@ -4,7 +4,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields};
 
-use crate::{get_attribute, has_attribute, parse_attribute_bool, parse_attribute_string};
+use crate::attr_parse::{
+    get_attribute, has_attribute, parse_attribute_bool, parse_attribute_string,
+};
 
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let name = &input.ident;

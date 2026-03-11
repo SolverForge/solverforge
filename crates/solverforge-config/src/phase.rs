@@ -77,6 +77,9 @@ pub enum ConstructionHeuristicType {
 
     /// List regret insertion: inserts elements in order of highest placement regret.
     ListRegretInsertion,
+
+    /// List Clarke-Wright savings: greedy route merging by savings value.
+    ListClarkeWright,
 }
 
 /// Local search configuration.

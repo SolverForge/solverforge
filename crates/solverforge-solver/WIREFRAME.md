@@ -180,6 +180,7 @@ src/
 │   │   ├── mod.rs                       — Re-exports
 │   │   ├── construction.rs             — ConstructionPhaseFactory
 │   │   ├── list_construction.rs        — ListConstructionPhaseBuilder, ListConstructionPhase, ListCheapestInsertionPhase, ListRegretInsertionPhase
+│   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── local_search.rs             — LocalSearchPhaseFactory
 │   │   └── k_opt.rs                     — KOptPhaseBuilder, KOptPhase
 │   ├── builder_tests.rs                — Tests
@@ -674,6 +675,7 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListConstructionPhaseBuilder<S, E>` | `ListConstructionPhase` |
 | `ListCheapestInsertionPhase<S, E>` | Self (implements Phase directly) |
 | `ListRegretInsertionPhase<S, E>` | Self (implements Phase directly) |
+| `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
 | `KOptPhaseBuilder<S, V, DM, ESF>` | `KOptPhase` |
 
 ## Real-Time Planning

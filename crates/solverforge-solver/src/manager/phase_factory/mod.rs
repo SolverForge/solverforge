@@ -19,11 +19,13 @@
 
 mod construction;
 mod k_opt;
+mod list_clarke_wright;
 mod list_construction;
 mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
 pub use k_opt::{KOptPhase, KOptPhaseBuilder};
+pub use list_clarke_wright::ListClarkeWrightPhase;
 pub use list_construction::{
     ListCheapestInsertionPhase, ListConstructionPhase, ListConstructionPhaseBuilder,
     ListRegretInsertionPhase,

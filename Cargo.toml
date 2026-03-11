@@ -9,7 +9,6 @@ members = [
     "crates/solverforge-console",
     "crates/solverforge",
     "crates/solverforge-test",
-    "examples/nqueens",
 ]
 
 [workspace.package]

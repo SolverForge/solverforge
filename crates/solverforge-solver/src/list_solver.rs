@@ -28,7 +28,7 @@ use crate::builder::{
 use crate::heuristic::r#move::ListMoveImpl;
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::manager::{ListCheapestInsertionPhase, ListRegretInsertionPhase};
+use crate::manager::{ListCheapestInsertionPhase, ListClarkeWrightPhase, ListRegretInsertionPhase};
 use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase};
 use crate::problem_spec::ProblemSpec;
 use crate::run::AnyTermination;
@@ -74,6 +74,7 @@ where
 {
     CheapestInsertion(ListCheapestInsertionPhase<S, V>),
     RegretInsertion(ListRegretInsertionPhase<S, V>),
+    ClarkeWright(ListClarkeWrightPhase<S, V>),
 }
 
 /// Problem specification for list variable problems.
@@ -101,6 +102,12 @@ pub struct ListSpec<S, V, DM, IDM> {
     // Distance meters
     pub cross_distance_meter: DM,
     pub intra_distance_meter: IDM,
+    // Clarke-Wright fields (all None if not using Clarke-Wright construction)
+    pub depot_fn: Option<fn(&S) -> usize>,
+    pub distance_fn: Option<fn(usize, usize) -> i64>,
+    pub element_load_fn: Option<fn(&S, usize) -> i64>,
+    pub capacity_fn: Option<fn(&S) -> i64>,
+    pub assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
     // Metadata
     pub variable_name: &'static str,
     pub descriptor_index: usize,
@@ -151,6 +158,11 @@ where
             self.list_remove_for_construction,
             self.index_to_element,
             self.descriptor_index,
+            self.depot_fn,
+            self.distance_fn,
+            self.element_load_fn,
+            self.capacity_fn,
+            self.assign_route_fn,
         );
 
         let ctx = ListContext::new(
@@ -218,6 +230,28 @@ where
                     solver.solve(director)
                 }
             }
+            (ListConstruction::ClarkeWright(c), ListLocalSearch::Default(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
+            (ListConstruction::ClarkeWright(c), ListLocalSearch::Config(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
         }
     }
 }
@@ -234,6 +268,11 @@ fn build_list_construction<S, V>(
     list_remove: fn(&mut S, usize, usize) -> V,
     index_to_element: fn(&S, usize) -> V,
     descriptor_index: usize,
+    depot_fn: Option<fn(&S) -> usize>,
+    distance_fn: Option<fn(usize, usize) -> i64>,
+    element_load_fn: Option<fn(&S, usize) -> i64>,
+    capacity_fn: Option<fn(&S) -> i64>,
+    assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
 ) -> ListConstruction<S, V>
 where
     S: PlanningSolution,
@@ -263,6 +302,47 @@ where
                 index_to_element,
                 descriptor_index,
             ))
+        }
+        ConstructionHeuristicType::ListClarkeWright => {
+            match (
+                depot_fn,
+                distance_fn,
+                element_load_fn,
+                capacity_fn,
+                assign_route_fn,
+            ) {
+                (Some(depot), Some(dist), Some(load), Some(cap), Some(assign)) => {
+                    ListConstruction::ClarkeWright(ListClarkeWrightPhase::new(
+                        element_count,
+                        get_assigned,
+                        entity_count,
+                        assign,
+                        index_to_element,
+                        depot,
+                        dist,
+                        load,
+                        cap,
+                        descriptor_index,
+                    ))
+                }
+                _ => {
+                    tracing::warn!(
+                        "ListClarkeWright selected but one or more required fields \
+                         (depot_fn, distance_fn, element_load_fn, capacity_fn, assign_route_fn) \
+                         are None — falling back to ListCheapestInsertion"
+                    );
+                    ListConstruction::CheapestInsertion(ListCheapestInsertionPhase::new(
+                        element_count,
+                        get_assigned,
+                        entity_count,
+                        list_len,
+                        list_insert,
+                        list_remove,
+                        index_to_element,
+                        descriptor_index,
+                    ))
+                }
+            }
         }
         _ => {
             // Default: ListCheapestInsertion

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.5.14](///compare/v0.5.13...v0.5.14) (2026-03-11)
+
+
+### Features
+
+* add ListKOptPhase, solverforge-cvrp lib, and fix doctest signatures 62eef42
+
 ## [0.5.13](///compare/v0.5.12...v0.5.13) (2026-03-11)
 
 

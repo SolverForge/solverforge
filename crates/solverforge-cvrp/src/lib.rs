@@ -4,7 +4,7 @@
 //! the `VrpSolution` trait, and a suite of free functions for Clarke-Wright
 //! and k-opt construction phases.
 
-use solverforge::CrossEntityDistanceMeter;
+use solverforge_solver::CrossEntityDistanceMeter;
 
 // ============================================================================
 // Problem data

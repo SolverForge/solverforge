@@ -82,6 +82,18 @@ pub use solverforge_solver::{
 };
 
 // ============================================================================
+// CVRP domain helpers
+// ============================================================================
+
+pub mod cvrp {
+    pub use solverforge_cvrp::{
+        MatrixDistanceMeter, MatrixIntraDistanceMeter, ProblemData, VrpSolution,
+        assign_route, capacity, depot_for_cw, depot_for_entity, distance,
+        element_load, get_route, is_kopt_feasible, is_time_feasible, set_route,
+    };
+}
+
+// ============================================================================
 // Console Output (feature-gated)
 // ============================================================================
 

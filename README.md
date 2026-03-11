@@ -38,6 +38,7 @@ This enables aggressive compiler optimizations and cache-friendly data layouts.
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Construction Heuristic (FirstFit, BestFit, FirstFeasible, WeakestFit, StrongestFit, CheapestInsertion, RegretInsertion)
+  - List Construction (CheapestInsertion, RegretInsertion, ClarkeWright savings, K-Opt polishing)
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
@@ -251,6 +252,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
 | `solverforge-config` | Configuration via TOML and builder API |
 | `solverforge-console` | Tracing-based console output with banner and progress display |
 | `solverforge-macros` | Procedural macros for domain model |
+| `solverforge-cvrp` | CVRP domain helpers: `VrpSolution`, `ProblemData`, distance meters, feasibility functions |
 
 ## Score Types
 
@@ -362,7 +364,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.10
+**Current Version**: 0.5.14
 
 ### What's New in 0.5.7
 

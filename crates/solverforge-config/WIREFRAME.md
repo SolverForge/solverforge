@@ -105,6 +105,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type | Default |
 |-------|------|---------|
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
+| `k` | `usize` | `2` (for `ListKOpt`) |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 ### `LocalSearchConfig`
@@ -372,6 +373,7 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `ListCheapestInsertion` | List variable: minimize insertion cost |
 | `ListRegretInsertion` | List variable: maximize regret |
 | `ListClarkeWright` | List variable: greedy route merging by savings |
+| `ListKOpt` | List variable: per-route k-opt polishing (k=2 = 2-opt) |
 
 ### `AcceptorConfig`
 

@@ -181,6 +181,7 @@ src/
 │   │   ├── construction.rs             — ConstructionPhaseFactory
 │   │   ├── list_construction.rs        — ListConstructionPhaseBuilder, ListConstructionPhase, ListCheapestInsertionPhase, ListRegretInsertionPhase
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
+│   │   ├── list_k_opt.rs               — ListKOptPhase
 │   │   ├── local_search.rs             — LocalSearchPhaseFactory
 │   │   └── k_opt.rs                     — KOptPhaseBuilder, KOptPhase
 │   ├── builder_tests.rs                — Tests

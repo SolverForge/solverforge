@@ -32,6 +32,23 @@ struct ShadowConfig {
     // Defaults to DefaultDistanceMeter when not specified.
     distance_meter: Option<String>,
     intra_distance_meter: Option<String>,
+
+    // Clarke-Wright feasibility gate: "path::to::fn" taking (&S, &[usize]) -> bool
+    merge_feasible_fn: Option<String>,
+
+    // Clarke-Wright construction function pointers
+    cw_depot_fn: Option<String>,
+    cw_distance_fn: Option<String>,
+    cw_element_load_fn: Option<String>,
+    cw_capacity_fn: Option<String>,
+    cw_assign_route_fn: Option<String>,
+
+    // K-opt polishing function pointers
+    k_opt_get_route: Option<String>,
+    k_opt_set_route: Option<String>,
+    k_opt_depot_fn: Option<String>,
+    k_opt_distance_fn: Option<String>,
+    k_opt_feasible_fn: Option<String>,
 }
 
 /*
@@ -91,6 +108,17 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.entity_computes = parse_attribute_list(attr, "entity_compute");
         config.distance_meter = parse_attribute_string(attr, "distance_meter");
         config.intra_distance_meter = parse_attribute_string(attr, "intra_distance_meter");
+        config.merge_feasible_fn = parse_attribute_string(attr, "merge_feasible_fn");
+        config.cw_depot_fn = parse_attribute_string(attr, "cw_depot_fn");
+        config.cw_distance_fn = parse_attribute_string(attr, "cw_distance_fn");
+        config.cw_element_load_fn = parse_attribute_string(attr, "cw_element_load_fn");
+        config.cw_capacity_fn = parse_attribute_string(attr, "cw_capacity_fn");
+        config.cw_assign_route_fn = parse_attribute_string(attr, "cw_assign_route_fn");
+        config.k_opt_get_route = parse_attribute_string(attr, "k_opt_get_route");
+        config.k_opt_set_route = parse_attribute_string(attr, "k_opt_set_route");
+        config.k_opt_depot_fn = parse_attribute_string(attr, "k_opt_depot_fn");
+        config.k_opt_distance_fn = parse_attribute_string(attr, "k_opt_distance_fn");
+        config.k_opt_feasible_fn = parse_attribute_string(attr, "k_opt_feasible_fn");
     }
 
     config
@@ -324,6 +352,83 @@ fn generate_list_operations(
 
         let variable_name_str = list_field.as_str();
 
+        let merge_feasible: syn::Expr = if let Some(mff) = &config.merge_feasible_fn {
+            let mff_path: syn::Path = syn::parse_str(mff).expect("merge_feasible_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#mff_path) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let cw_depot: syn::Expr = if let Some(f) = &config.cw_depot_fn {
+            let p: syn::Path = syn::parse_str(f).expect("cw_depot_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let cw_dist: syn::Expr = if let Some(f) = &config.cw_distance_fn {
+            let p: syn::Path = syn::parse_str(f).expect("cw_distance_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let cw_load: syn::Expr = if let Some(f) = &config.cw_element_load_fn {
+            let p: syn::Path = syn::parse_str(f).expect("cw_element_load_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let cw_cap: syn::Expr = if let Some(f) = &config.cw_capacity_fn {
+            let p: syn::Path = syn::parse_str(f).expect("cw_capacity_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let cw_assign: syn::Expr = if let Some(f) = &config.cw_assign_route_fn {
+            let p: syn::Path = syn::parse_str(f).expect("cw_assign_route_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let k_opt_get: syn::Expr = if let Some(f) = &config.k_opt_get_route {
+            let p: syn::Path = syn::parse_str(f).expect("k_opt_get_route must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let k_opt_set: syn::Expr = if let Some(f) = &config.k_opt_set_route {
+            let p: syn::Path = syn::parse_str(f).expect("k_opt_set_route must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let k_opt_depot: syn::Expr = if let Some(f) = &config.k_opt_depot_fn {
+            let p: syn::Path = syn::parse_str(f).expect("k_opt_depot_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let k_opt_dist: syn::Expr = if let Some(f) = &config.k_opt_distance_fn {
+            let p: syn::Path = syn::parse_str(f).expect("k_opt_distance_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
+        let k_opt_feasible: syn::Expr = if let Some(f) = &config.k_opt_feasible_fn {
+            let p: syn::Path = syn::parse_str(f).expect("k_opt_feasible_fn must be a valid path");
+            syn::parse_quote! { ::core::option::Option::Some(#p) }
+        } else {
+            syn::parse_quote! { ::core::option::Option::None }
+        };
+
         quote! {
             fn solve_internal(
                 self,
@@ -358,11 +463,17 @@ fn generate_list_operations(
                         index_to_element: #solution_name::index_to_element_static,
                         cross_distance_meter: #cross_dm,
                         intra_distance_meter: #intra_dm,
-                        depot_fn: ::core::option::Option::None,
-                        distance_fn: ::core::option::Option::None,
-                        element_load_fn: ::core::option::Option::None,
-                        capacity_fn: ::core::option::Option::None,
-                        assign_route_fn: ::core::option::Option::None,
+                        depot_fn: #cw_depot,
+                        distance_fn: #cw_dist,
+                        element_load_fn: #cw_load,
+                        capacity_fn: #cw_cap,
+                        assign_route_fn: #cw_assign,
+                        merge_feasible_fn: #merge_feasible,
+                        k_opt_get_route: #k_opt_get,
+                        k_opt_set_route: #k_opt_set,
+                        k_opt_depot_fn: #k_opt_depot,
+                        k_opt_distance_fn: #k_opt_dist,
+                        k_opt_feasible_fn: #k_opt_feasible,
                         variable_name: #variable_name_str,
                         descriptor_index: #descriptor_index_lit,
                         _phantom: ::std::marker::PhantomData,

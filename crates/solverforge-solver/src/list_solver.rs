@@ -28,7 +28,9 @@ use crate::builder::{
 use crate::heuristic::r#move::ListMoveImpl;
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::manager::{ListCheapestInsertionPhase, ListClarkeWrightPhase, ListRegretInsertionPhase};
+use crate::manager::{
+    ListCheapestInsertionPhase, ListClarkeWrightPhase, ListKOptPhase, ListRegretInsertionPhase,
+};
 use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase};
 use crate::problem_spec::ProblemSpec;
 use crate::run::AnyTermination;
@@ -75,6 +77,7 @@ where
     CheapestInsertion(ListCheapestInsertionPhase<S, V>),
     RegretInsertion(ListRegretInsertionPhase<S, V>),
     ClarkeWright(ListClarkeWrightPhase<S, V>),
+    KOpt(ListKOptPhase<S, V>),
 }
 
 /// Problem specification for list variable problems.
@@ -104,10 +107,17 @@ pub struct ListSpec<S, V, DM, IDM> {
     pub intra_distance_meter: IDM,
     // Clarke-Wright fields (all None if not using Clarke-Wright construction)
     pub depot_fn: Option<fn(&S) -> usize>,
-    pub distance_fn: Option<fn(usize, usize) -> i64>,
+    pub distance_fn: Option<fn(&S, usize, usize) -> i64>,
     pub element_load_fn: Option<fn(&S, usize) -> i64>,
     pub capacity_fn: Option<fn(&S) -> i64>,
     pub assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
+    pub merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
+    // KOpt fields (all None if not using KOpt polishing)
+    pub k_opt_get_route: Option<fn(&S, usize) -> Vec<usize>>,
+    pub k_opt_set_route: Option<fn(&mut S, usize, Vec<usize>)>,
+    pub k_opt_depot_fn: Option<fn(&S, usize) -> usize>,
+    pub k_opt_distance_fn: Option<fn(&S, usize, usize) -> i64>,
+    pub k_opt_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     // Metadata
     pub variable_name: &'static str,
     pub descriptor_index: usize,
@@ -163,6 +173,12 @@ where
             self.element_load_fn,
             self.capacity_fn,
             self.assign_route_fn,
+            self.merge_feasible_fn,
+            self.k_opt_get_route,
+            self.k_opt_set_route,
+            self.k_opt_depot_fn,
+            self.k_opt_distance_fn,
+            self.k_opt_feasible_fn,
         );
 
         let ctx = ListContext::new(
@@ -252,6 +268,28 @@ where
                     solver.solve(director)
                 }
             }
+            (ListConstruction::KOpt(c), ListLocalSearch::Default(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
+            (ListConstruction::KOpt(c), ListLocalSearch::Config(ls)) => {
+                let solver = Solver::new(((), c, ls))
+                    .with_termination(termination)
+                    .with_time_limit(time_limit)
+                    .with_best_solution_callback(callback);
+                if let Some(flag) = terminate {
+                    solver.with_terminate(flag).solve(director)
+                } else {
+                    solver.solve(director)
+                }
+            }
         }
     }
 }
@@ -269,26 +307,32 @@ fn build_list_construction<S, V>(
     index_to_element: fn(&S, usize) -> V,
     descriptor_index: usize,
     depot_fn: Option<fn(&S) -> usize>,
-    distance_fn: Option<fn(usize, usize) -> i64>,
+    distance_fn: Option<fn(&S, usize, usize) -> i64>,
     element_load_fn: Option<fn(&S, usize) -> i64>,
     capacity_fn: Option<fn(&S) -> i64>,
     assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
+    merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
+    k_opt_get_route: Option<fn(&S, usize) -> Vec<usize>>,
+    k_opt_set_route: Option<fn(&mut S, usize, Vec<usize>)>,
+    k_opt_depot_fn: Option<fn(&S, usize) -> usize>,
+    k_opt_distance_fn: Option<fn(&S, usize, usize) -> i64>,
+    k_opt_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
 ) -> ListConstruction<S, V>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
 {
-    let ch_type = config
+    let (ch_type, k) = config
         .phases
         .iter()
         .find_map(|p| {
             if let PhaseConfig::ConstructionHeuristic(ch) = p {
-                Some(ch.construction_heuristic_type)
+                Some((ch.construction_heuristic_type, ch.k))
             } else {
                 None
             }
         })
-        .unwrap_or(ConstructionHeuristicType::ListCheapestInsertion);
+        .unwrap_or((ConstructionHeuristicType::ListCheapestInsertion, 2));
 
     match ch_type {
         ConstructionHeuristicType::ListRegretInsertion => {
@@ -322,6 +366,7 @@ where
                         dist,
                         load,
                         cap,
+                        merge_feasible_fn,
                         descriptor_index,
                     ))
                 }
@@ -329,6 +374,44 @@ where
                     tracing::warn!(
                         "ListClarkeWright selected but one or more required fields \
                          (depot_fn, distance_fn, element_load_fn, capacity_fn, assign_route_fn) \
+                         are None — falling back to ListCheapestInsertion"
+                    );
+                    ListConstruction::CheapestInsertion(ListCheapestInsertionPhase::new(
+                        element_count,
+                        get_assigned,
+                        entity_count,
+                        list_len,
+                        list_insert,
+                        list_remove,
+                        index_to_element,
+                        descriptor_index,
+                    ))
+                }
+            }
+        }
+        ConstructionHeuristicType::ListKOpt => {
+            match (
+                k_opt_get_route,
+                k_opt_set_route,
+                k_opt_depot_fn,
+                k_opt_distance_fn,
+            ) {
+                (Some(get_route), Some(set_route), Some(ko_depot), Some(ko_dist)) => {
+                    ListConstruction::KOpt(ListKOptPhase::new(
+                        k,
+                        entity_count,
+                        get_route,
+                        set_route,
+                        ko_depot,
+                        ko_dist,
+                        k_opt_feasible_fn,
+                        descriptor_index,
+                    ))
+                }
+                _ => {
+                    tracing::warn!(
+                        "ListKOpt selected but one or more required fields \
+                         (k_opt_get_route, k_opt_set_route, k_opt_depot_fn, k_opt_distance_fn) \
                          are None — falling back to ListCheapestInsertion"
                     );
                     ListConstruction::CheapestInsertion(ListCheapestInsertionPhase::new(

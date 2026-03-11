@@ -110,10 +110,7 @@ pub struct Schedule {
 use solverforge::stream::{ConstraintFactory, joiner};
 
 fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
-    let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-
-    let required_skill = factory
-        .clone()
+    let required_skill = ConstraintFactory::<Schedule, HardSoftScore>::new()
         .for_each(|s: &Schedule| s.shifts.as_slice())
         .join(
             |s: &Schedule| s.employees.as_slice(),
@@ -128,7 +125,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
         .penalize(HardSoftScore::ONE_HARD)
         .as_constraint("Required skill");
 
-    let no_overlap = factory
+    let no_overlap = ConstraintFactory::<Schedule, HardSoftScore>::new()
         .for_each_unique_pair(
             |s: &Schedule| s.shifts.as_slice(),
             joiner::equal(|shift: &Shift| shift.employee_id),

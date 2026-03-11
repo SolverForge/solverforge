@@ -248,6 +248,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 |-------|------|---------|
 | `k` | `usize` | `3` |
 | `min_segment_len` | `usize` | `1` |
+| `max_nearby` | `usize` | `0` (full enumeration; >0 enables distance-pruned `NearbyKOptMoveSelector`) |
 | `variable_name` | `Option<String>` | `None` |
 
 ### `ListRuinMoveSelectorConfig`

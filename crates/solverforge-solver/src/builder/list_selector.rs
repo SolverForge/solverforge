@@ -11,8 +11,11 @@ use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::k_opt::KOptConfig;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::typed_move_selector::{
-    ListMoveKOptSelector, ListMoveListChangeSelector, ListMoveListRuinSelector, MoveSelector,
+    ListMoveKOptSelector, ListMoveListChangeSelector, ListMoveListRuinSelector,
+    ListMoveNearbyKOptSelector, MoveSelector,
 };
+
+use super::context::IntraDistanceAdapter;
 use crate::heuristic::selector::{
     FromSolutionEntitySelector, ListMoveListReverseSelector, ListMoveListSwapSelector,
     ListMoveNearbyListChangeSelector, ListMoveNearbyListSwapSelector,
@@ -43,6 +46,10 @@ where
     SubListChange(ListMoveSubListChangeSelector<S, V, FromSolutionEntitySelector>),
     /// K-opt.
     KOpt(ListMoveKOptSelector<S, V, FromSolutionEntitySelector>),
+    /// Nearby k-opt (distance-pruned).
+    NearbyKOpt(
+        ListMoveNearbyKOptSelector<S, V, IntraDistanceAdapter<IDM>, FromSolutionEntitySelector>,
+    ),
     /// List ruin (LNS).
     ListRuin(ListMoveListRuinSelector<S, V>),
     /// Full list change (unrestricted relocation).
@@ -67,6 +74,7 @@ where
             Self::ListReverse(s) => write!(f, "ListLeafSelector::ListReverse({s:?})"),
             Self::SubListChange(s) => write!(f, "ListLeafSelector::SubListChange({s:?})"),
             Self::KOpt(s) => write!(f, "ListLeafSelector::KOpt({s:?})"),
+            Self::NearbyKOpt(s) => write!(f, "ListLeafSelector::NearbyKOpt({s:?})"),
             Self::ListRuin(s) => write!(f, "ListLeafSelector::ListRuin({s:?})"),
             Self::ListChange(s) => write!(f, "ListLeafSelector::ListChange({s:?})"),
             Self::ListSwap(s) => write!(f, "ListLeafSelector::ListSwap({s:?})"),
@@ -80,7 +88,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     DM: CrossEntityDistanceMeter<S>,
-    IDM: CrossEntityDistanceMeter<S>,
+    IDM: CrossEntityDistanceMeter<S> + 'static,
 {
     fn iter_moves<'a, D: Director<S>>(
         &'a self,
@@ -92,6 +100,7 @@ where
             Self::ListReverse(s) => s.iter_moves(score_director).collect(),
             Self::SubListChange(s) => s.iter_moves(score_director).collect(),
             Self::KOpt(s) => s.iter_moves(score_director).collect(),
+            Self::NearbyKOpt(s) => s.iter_moves(score_director).collect(),
             Self::ListRuin(s) => s.iter_moves(score_director).collect(),
             Self::ListChange(s) => s.iter_moves(score_director).collect(),
             Self::ListSwap(s) => s.iter_moves(score_director).collect(),
@@ -107,6 +116,7 @@ where
             Self::ListReverse(s) => s.size(score_director),
             Self::SubListChange(s) => s.size(score_director),
             Self::KOpt(s) => s.size(score_director),
+            Self::NearbyKOpt(s) => s.size(score_director),
             Self::ListRuin(s) => s.size(score_director),
             Self::ListChange(s) => s.size(score_director),
             Self::ListSwap(s) => s.size(score_director),
@@ -171,7 +181,7 @@ impl ListMoveSelectorBuilder {
                 Self::push_sublist_swap(out, ctx, c.min_sublist_size, c.max_sublist_size);
             }
             MoveSelectorConfig::KOptMoveSelector(c) => {
-                Self::push_kopt(out, ctx, c.k, c.min_segment_len);
+                Self::push_kopt(out, ctx, c.k, c.min_segment_len, c.max_nearby);
             }
             MoveSelectorConfig::ListRuinMoveSelector(c) => {
                 Self::push_list_ruin(out, ctx, c.min_ruin_count, c.max_ruin_count);
@@ -330,25 +340,44 @@ impl ListMoveSelectorBuilder {
         ctx: &ListContext<S, V, DM, IDM>,
         k: usize,
         min_segment_len: usize,
+        max_nearby: usize,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
         DM: CrossEntityDistanceMeter<S> + Clone,
         IDM: CrossEntityDistanceMeter<S> + Clone,
     {
-        use crate::heuristic::selector::k_opt::KOptMoveSelector;
+        use crate::heuristic::selector::k_opt::{KOptMoveSelector, NearbyKOptMoveSelector};
 
         let config = KOptConfig::new(k.clamp(2, 5)).with_min_segment_len(min_segment_len);
-        let inner = KOptMoveSelector::new(
-            FromSolutionEntitySelector::new(ctx.descriptor_index),
-            config,
-            ctx.list_len,
-            ctx.sublist_remove,
-            ctx.sublist_insert,
-            ctx.variable_name,
-            ctx.descriptor_index,
-        );
-        out.push(ListLeafSelector::KOpt(ListMoveKOptSelector::new(inner)));
+        if max_nearby > 0 {
+            let adapter = IntraDistanceAdapter(ctx.intra_distance_meter.clone());
+            let inner = NearbyKOptMoveSelector::new(
+                FromSolutionEntitySelector::new(ctx.descriptor_index),
+                adapter,
+                max_nearby,
+                config,
+                ctx.list_len,
+                ctx.sublist_remove,
+                ctx.sublist_insert,
+                ctx.variable_name,
+                ctx.descriptor_index,
+            );
+            out.push(ListLeafSelector::NearbyKOpt(
+                ListMoveNearbyKOptSelector::new(inner),
+            ));
+        } else {
+            let inner = KOptMoveSelector::new(
+                FromSolutionEntitySelector::new(ctx.descriptor_index),
+                config,
+                ctx.list_len,
+                ctx.sublist_remove,
+                ctx.sublist_insert,
+                ctx.variable_name,
+                ctx.descriptor_index,
+            );
+            out.push(ListLeafSelector::KOpt(ListMoveKOptSelector::new(inner)));
+        }
     }
 
     fn push_list_ruin<S, V, DM, IDM>(

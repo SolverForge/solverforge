@@ -2,6 +2,24 @@
 
 use std::marker::PhantomData;
 
+use crate::heuristic::selector::k_opt::ListPositionDistanceMeter;
+use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+
+/// Adapts a `CrossEntityDistanceMeter` to `ListPositionDistanceMeter` for intra-entity use.
+///
+/// `NearbyKOptMoveSelector` requires a `ListPositionDistanceMeter` (4-param intra-entity),
+/// but `ListContext.intra_distance_meter` is a `CrossEntityDistanceMeter` (5-param).
+/// This adapter bridges the two by always calling with `src_entity_idx == dst_entity_idx`.
+#[derive(Debug, Clone)]
+pub struct IntraDistanceAdapter<T>(pub T);
+
+impl<S, T: CrossEntityDistanceMeter<S>> ListPositionDistanceMeter<S> for IntraDistanceAdapter<T> {
+    fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64 {
+        self.0
+            .distance(solution, entity_idx, pos_a, entity_idx, pos_b)
+    }
+}
+
 /// Function-pointer context for basic (non-list) variable solvers.
 ///
 /// Carries all domain callbacks needed to construct move selectors

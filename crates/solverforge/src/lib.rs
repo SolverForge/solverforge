@@ -75,6 +75,7 @@ pub use solverforge_scoring::{Director, ScoreDirector};
 // ============================================================================
 
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
+pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
     analyze, run_solver, Analyzable, BasicSpec, ConstraintAnalysis, ListSpec, ScoreAnalysis,
     Solvable, SolverManager, SolverStatus,

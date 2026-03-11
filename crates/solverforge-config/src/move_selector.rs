@@ -174,6 +174,9 @@ pub struct KOptMoveSelectorConfig {
     pub k: usize,
     /// Minimum segment length between cuts. Default: 1.
     pub min_segment_len: usize,
+    /// Maximum nearby positions to consider per cut. Default: 0 (full enumeration).
+    /// When > 0, uses distance-pruned NearbyKOptMoveSelector instead of full KOptMoveSelector.
+    pub max_nearby: usize,
     /// Variable name filter. If None, applies to all list variables.
     pub variable_name: Option<String>,
 }
@@ -183,6 +186,7 @@ impl Default for KOptMoveSelectorConfig {
         Self {
             k: 3,
             min_segment_len: 1,
+            max_nearby: 0,
             variable_name: None,
         }
     }

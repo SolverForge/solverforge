@@ -1,12 +1,10 @@
 //! Distance meters for k-opt nearby selection.
 
-use std::fmt::Debug;
-
 /// A distance meter for list element positions.
 ///
 /// Measures distance between elements at two positions in a list.
 /// Used by `NearbyKOptMoveSelector` to limit k-opt search space.
-pub trait ListPositionDistanceMeter<S>: Send + Sync + Debug {
+pub trait ListPositionDistanceMeter<S>: Send + Sync {
     /// Measures distance between elements at two positions in the same entity.
     fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64;
 }

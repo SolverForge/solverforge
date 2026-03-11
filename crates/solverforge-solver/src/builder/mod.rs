@@ -11,6 +11,6 @@ pub mod list_selector;
 
 pub use acceptor::{AcceptorBuilder, AnyAcceptor};
 pub use basic_selector::{BasicLeafSelector, BasicMoveSelectorBuilder};
-pub use context::{BasicContext, ListContext};
+pub use context::{BasicContext, IntraDistanceAdapter, ListContext};
 pub use forager::{AnyForager, ForagerBuilder};
 pub use list_selector::{ListLeafSelector, ListMoveSelectorBuilder};

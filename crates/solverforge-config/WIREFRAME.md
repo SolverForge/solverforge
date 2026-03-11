@@ -371,6 +371,7 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `ListRoundRobin` | List variable: even distribution |
 | `ListCheapestInsertion` | List variable: minimize insertion cost |
 | `ListRegretInsertion` | List variable: maximize regret |
+| `ListClarkeWright` | List variable: greedy route merging by savings |
 
 ### `AcceptorConfig`
 

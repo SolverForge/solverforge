@@ -364,7 +364,16 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.14
+**Current Version**: 0.5.15
+
+### What's New in 0.5.15
+
+- `solverforge-cvrp` wired into the facade: `solverforge::cvrp::VrpSolution`, `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`, and all CVRP free functions now accessible from the main crate
+- Fixed circular dependency: `solverforge-cvrp` now depends on `solverforge-solver` directly instead of the facade
+
+### What's New in 0.5.14
+
+- Added `ListKOptPhase`, `solverforge-cvrp` library, and fixed doctest signatures
 
 ### What's New in 0.5.7
 

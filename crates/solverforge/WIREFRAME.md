@@ -11,6 +11,7 @@ Facade crate: re-exports the public API from all sub-crates under a single `solv
 - `solverforge-scoring` (path) — Constraint API, Director
 - `solverforge-solver` (path) — Solver engine, manager, phases
 - `solverforge-config` (path) — Configuration types
+- `solverforge-cvrp` (path) — CVRP domain helpers
 - `solverforge-console` (path, optional) — Console output (feature-gated)
 
 ## Features
@@ -81,6 +82,19 @@ src/
 - `ConstraintAnalysis`
 - `DefaultDistanceMeter`
 - `CrossEntityDistanceMeter`
+
+### CVRP Domain Helpers (from `solverforge-cvrp`)
+
+Module: `solverforge::cvrp`
+
+- `VrpSolution` (trait)
+- `ProblemData`
+- `MatrixDistanceMeter`
+- `MatrixIntraDistanceMeter`
+- `assign_route`, `get_route`, `set_route`
+- `capacity`, `depot_for_cw`, `depot_for_entity`
+- `distance`, `element_load`
+- `is_kopt_feasible`, `is_time_feasible`
 
 ### Console (feature-gated)
 

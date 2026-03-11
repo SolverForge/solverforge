@@ -105,11 +105,11 @@ pub struct NearbyListSwapMoveSelector<S, V, D, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-impl<S, V: Debug, D: Debug, ES: Debug> Debug for NearbyListSwapMoveSelector<S, V, D, ES> {
+impl<S, V: Debug, D, ES: Debug> Debug for NearbyListSwapMoveSelector<S, V, D, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyListSwapMoveSelector")
             .field("entity_selector", &self.entity_selector)
-            .field("distance_meter", &self.distance_meter)
+            .field("distance_meter", &"<distance_meter>")
             .field("max_nearby", &self.max_nearby)
             .field("variable_name", &self.variable_name)
             .field("descriptor_index", &self.descriptor_index)
@@ -279,7 +279,7 @@ pub struct ListMoveNearbyListSwapSelector<S, V, D, ES> {
     inner: NearbyListSwapMoveSelector<S, V, D, ES>,
 }
 
-impl<S, V: Debug, D: Debug, ES: Debug> Debug for ListMoveNearbyListSwapSelector<S, V, D, ES> {
+impl<S, V: Debug, D, ES: Debug> Debug for ListMoveNearbyListSwapSelector<S, V, D, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListMoveNearbyListSwapSelector")
             .field("inner", &self.inner)

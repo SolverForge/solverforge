@@ -420,7 +420,7 @@ where
 // ListMoveImpl adaptor selectors
 // ---------------------------------------------------------------------------
 
-use super::k_opt::KOptMoveSelector;
+use super::k_opt::{KOptMoveSelector, ListPositionDistanceMeter, NearbyKOptMoveSelector};
 use super::list_change::ListChangeMoveSelector;
 use super::list_ruin::ListRuinMoveSelector;
 
@@ -500,6 +500,49 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
+        self.inner.size(score_director)
+    }
+}
+
+/// Wraps a `NearbyKOptMoveSelector` to yield `ListMoveImpl::KOpt`.
+pub struct ListMoveNearbyKOptSelector<S, V, D: ListPositionDistanceMeter<S>, ES> {
+    inner: NearbyKOptMoveSelector<S, V, D, ES>,
+}
+
+impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug
+    for ListMoveNearbyKOptSelector<S, V, D, ES>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ListMoveNearbyKOptSelector")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl<S, V, D: ListPositionDistanceMeter<S>, ES> ListMoveNearbyKOptSelector<S, V, D, ES> {
+    /// Wraps an existing [`NearbyKOptMoveSelector`].
+    pub fn new(inner: NearbyKOptMoveSelector<S, V, D, ES>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S, V, D, ES> MoveSelector<S, ListMoveImpl<S, V>> for ListMoveNearbyKOptSelector<S, V, D, ES>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S> + 'static,
+    ES: EntitySelector<S>,
+{
+    fn iter_moves<'a, Dir: Director<S>>(
+        &'a self,
+        score_director: &'a Dir,
+    ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
+        self.inner
+            .iter_moves(score_director)
+            .map(ListMoveImpl::KOpt)
+    }
+
+    fn size<Dir: Director<S>>(&self, score_director: &Dir) -> usize {
         self.inner.size(score_director)
     }
 }

@@ -44,6 +44,7 @@ pub use heuristic::{
     ChangeMove,
     ChangeMoveSelector,
     CompositeMove,
+    CrossEntityDistanceMeter,
     CutPoint,
     DefaultDistanceMeter,
     DefaultPillarSelector,

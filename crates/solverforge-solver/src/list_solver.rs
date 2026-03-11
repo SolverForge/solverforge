@@ -60,7 +60,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
     DM: CrossEntityDistanceMeter<S>,
-    IDM: CrossEntityDistanceMeter<S>,
+    IDM: CrossEntityDistanceMeter<S> + 'static,
 {
     Default(DefaultListLocalSearch<S, V, DM, IDM>),
     Config(ConfigListLocalSearch<S, V, DM, IDM>),
@@ -114,7 +114,7 @@ where
     V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
     C: ConstraintSet<S, S::Score>,
     DM: CrossEntityDistanceMeter<S> + Clone,
-    IDM: CrossEntityDistanceMeter<S> + Clone,
+    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
 {
     fn is_trivial(&self, solution: &S) -> bool {
         (self.entity_count)(solution) == 0

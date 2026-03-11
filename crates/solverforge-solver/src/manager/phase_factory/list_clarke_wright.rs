@@ -68,9 +68,10 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 ///     },
 ///     |_p, idx| idx,
 ///     |_p| 0,            // depot index
-///     |i, j| (i as i64 - j as i64).abs(),  // distance fn
+///     |_p, i, j| (i as i64 - j as i64).abs(),  // distance fn
 ///     |_p, _idx| 1,      // unit load per element
 ///     |_p| 10,           // capacity per route
+///     None,              // merge_feasible_fn: no extra feasibility check
 ///     0,
 /// );
 /// ```
@@ -85,9 +86,10 @@ where
     assign_route: fn(&mut S, usize, Vec<E>),
     index_to_element: fn(&S, usize) -> E,
     depot_fn: fn(&S) -> usize,
-    distance_fn: fn(usize, usize) -> i64,
+    distance_fn: fn(&S, usize, usize) -> i64,
     element_load_fn: fn(&S, usize) -> i64,
     capacity_fn: fn(&S) -> i64,
+    merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
     descriptor_index: usize,
     _marker: PhantomData<fn() -> (S, E)>,
 }
@@ -120,6 +122,9 @@ where
     /// * `distance_fn` — Distance between two element indices
     /// * `element_load_fn` — Load contributed by element at given index
     /// * `capacity_fn` — Maximum load per route
+    /// * `merge_feasible_fn` — Optional feasibility gate called after capacity and endpoint checks.
+    ///   Receives the solution and the candidate merged route (as element indices); return `false`
+    ///   to skip the merge.
     /// * `descriptor_index` — Entity descriptor index for change notification
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -129,9 +134,10 @@ where
         assign_route: fn(&mut S, usize, Vec<E>),
         index_to_element: fn(&S, usize) -> E,
         depot_fn: fn(&S) -> usize,
-        distance_fn: fn(usize, usize) -> i64,
+        distance_fn: fn(&S, usize, usize) -> i64,
         element_load_fn: fn(&S, usize) -> i64,
         capacity_fn: fn(&S) -> i64,
+        merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
         descriptor_index: usize,
     ) -> Self {
         Self {
@@ -144,6 +150,7 @@ where
             distance_fn,
             element_load_fn,
             capacity_fn,
+            merge_feasible_fn,
             descriptor_index,
             _marker: PhantomData,
         }
@@ -210,7 +217,9 @@ where
             for b in (a + 1)..n {
                 let i = unassigned_indices[a];
                 let j = unassigned_indices[b];
-                let saving = distance_fn(depot, i) + distance_fn(depot, j) - distance_fn(i, j);
+                let solution = phase_scope.score_director().working_solution();
+                let saving = distance_fn(solution, depot, i) + distance_fn(solution, depot, j)
+                    - distance_fn(solution, i, j);
                 savings.push((saving, i, j));
             }
         }
@@ -262,6 +271,24 @@ where
             let j_is_endpoint = routes[rj].first() == Some(&j) || routes[rj].last() == Some(&j);
             if !j_is_endpoint {
                 continue;
+            }
+
+            // Optional feasibility gate: build candidate using oriented copies BEFORE
+            // modifying routes, exactly matching the template's test-then-commit pattern.
+            if let Some(feasible) = self.merge_feasible_fn {
+                let solution = phase_scope.score_director().working_solution();
+                let mut test_ri = routes[ri].clone();
+                if routes[ri].first() == Some(&i) {
+                    test_ri.reverse();
+                }
+                let mut test_rj = routes[rj].clone();
+                if routes[rj].last() == Some(&j) {
+                    test_rj.reverse();
+                }
+                test_ri.extend(test_rj);
+                if !feasible(solution, &test_ri) {
+                    continue;
+                }
             }
 
             // Orient: i should be at the END of ri (so we can append rj after it)

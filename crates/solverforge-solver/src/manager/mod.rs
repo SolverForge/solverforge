@@ -25,7 +25,7 @@ pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListCheapestInsertionPhase,
-    ListClarkeWrightPhase, ListConstructionPhase, ListConstructionPhaseBuilder,
+    ListClarkeWrightPhase, ListConstructionPhase, ListConstructionPhaseBuilder, ListKOptPhase,
     ListRegretInsertionPhase, LocalSearchPhaseFactory,
 };
 pub use phase_factory_trait::PhaseFactory;

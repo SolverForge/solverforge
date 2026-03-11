@@ -200,6 +200,8 @@ With `features = ["console"]`, SolverForge displays colorful progress:
 
 ## Architecture
 
+![SERIO incremental scoring](assets/SERIO.jpg)
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         solverforge                             │

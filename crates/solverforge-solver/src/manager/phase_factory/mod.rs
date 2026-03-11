@@ -21,6 +21,7 @@ mod construction;
 mod k_opt;
 mod list_clarke_wright;
 mod list_construction;
+mod list_k_opt;
 mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
@@ -30,4 +31,5 @@ pub use list_construction::{
     ListCheapestInsertionPhase, ListConstructionPhase, ListConstructionPhaseBuilder,
     ListRegretInsertionPhase,
 };
+pub use list_k_opt::ListKOptPhase;
 pub use local_search::LocalSearchPhaseFactory;

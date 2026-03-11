@@ -86,7 +86,7 @@ pub use heuristic::{
 pub use manager::{
     analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
-    ListConstructionPhaseBuilder, ListRegretInsertionPhase, LocalSearchPhaseFactory,
+    ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchPhaseFactory,
     LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverFactory, SolverFactoryBuilder,
     SolverManager, SolverStatus,
 };

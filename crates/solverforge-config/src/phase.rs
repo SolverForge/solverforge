@@ -25,16 +25,34 @@ pub enum PhaseConfig {
     Custom(CustomPhaseConfig),
 }
 
+fn default_k() -> usize {
+    2
+}
+
 /// Construction heuristic configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ConstructionHeuristicConfig {
     /// Type of construction heuristic.
     #[serde(default)]
     pub construction_heuristic_type: ConstructionHeuristicType,
 
+    /// k for ListKOpt (default 2).
+    #[serde(default = "default_k")]
+    pub k: usize,
+
     /// Phase termination configuration.
     pub termination: Option<TerminationConfig>,
+}
+
+impl Default for ConstructionHeuristicConfig {
+    fn default() -> Self {
+        Self {
+            construction_heuristic_type: ConstructionHeuristicType::default(),
+            k: default_k(),
+            termination: None,
+        }
+    }
 }
 
 /// Construction heuristic types.
@@ -80,6 +98,9 @@ pub enum ConstructionHeuristicType {
 
     /// List Clarke-Wright savings: greedy route merging by savings value.
     ListClarkeWright,
+
+    /// List k-opt: per-route k-opt polishing (k=2 is exact 2-opt).
+    ListKOpt,
 }
 
 /// Local search configuration.

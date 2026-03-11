@@ -111,7 +111,7 @@ use super::typed_move_selector::MoveSelector;
 ///   the visit at `(src_entity, src_pos)` and the visit at `(dst_entity, dst_pos)`.
 /// - The distance can be asymmetric (e.g., directed graphs).
 /// - Returning `f64::INFINITY` for a pair excludes it from nearby candidates.
-pub trait CrossEntityDistanceMeter<S>: Send + Sync + Debug {
+pub trait CrossEntityDistanceMeter<S>: Send + Sync {
     /// Returns the distance from the element at `(src_entity, src_pos)` to the element
     /// at `(dst_entity, dst_pos)` in the current solution.
     fn distance(
@@ -171,11 +171,11 @@ pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-impl<S, V: Debug, D: Debug, ES: Debug> Debug for NearbyListChangeMoveSelector<S, V, D, ES> {
+impl<S, V: Debug, D, ES: Debug> Debug for NearbyListChangeMoveSelector<S, V, D, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyListChangeMoveSelector")
             .field("entity_selector", &self.entity_selector)
-            .field("distance_meter", &self.distance_meter)
+            .field("distance_meter", &"<distance_meter>")
             .field("max_nearby", &self.max_nearby)
             .field("variable_name", &self.variable_name)
             .field("descriptor_index", &self.descriptor_index)
@@ -336,7 +336,7 @@ pub struct ListMoveNearbyListChangeSelector<S, V, D, ES> {
     inner: NearbyListChangeMoveSelector<S, V, D, ES>,
 }
 
-impl<S, V: Debug, D: Debug, ES: Debug> Debug for ListMoveNearbyListChangeSelector<S, V, D, ES> {
+impl<S, V: Debug, D, ES: Debug> Debug for ListMoveNearbyListChangeSelector<S, V, D, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListMoveNearbyListChangeSelector")
             .field("inner", &self.inner)

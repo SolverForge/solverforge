@@ -80,6 +80,7 @@ src/
 - `ScoreAnalysis`
 - `ConstraintAnalysis`
 - `DefaultDistanceMeter`
+- `CrossEntityDistanceMeter`
 
 ### Console (feature-gated)
 

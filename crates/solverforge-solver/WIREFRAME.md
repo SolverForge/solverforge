@@ -31,7 +31,7 @@ src/
 │   ├── mod.rs                           — Re-exports from all builder submodules
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — BasicContext<S>, ListContext<S, V, DM, IDM>
+│   ├── context.rs                       — BasicContext<S>, ListContext<S, V, DM, IDM>, IntraDistanceAdapter<T>
 │   ├── basic_selector.rs               — BasicLeafSelector<S> enum, BasicMoveSelectorBuilder
 │   └── list_selector.rs                — ListLeafSelector<S, V, DM, IDM> enum, ListMoveSelectorBuilder
 ├── stats.rs                             — SolverStats, PhaseStats
@@ -484,7 +484,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Basic variable LNS |
 
 **ListMove* wrappers** adapt specific move selectors to produce `ListMoveImpl<S, V>`:
-`ListMoveListChangeSelector`, `ListMoveListSwapSelector`, `ListMoveListReverseSelector`, `ListMoveSubListChangeSelector`, `ListMoveSubListSwapSelector`, `ListMoveKOptSelector`, `ListMoveListRuinSelector`, `ListMoveNearbyListChangeSelector`, `ListMoveNearbyListSwapSelector`.
+`ListMoveListChangeSelector`, `ListMoveListSwapSelector`, `ListMoveListReverseSelector`, `ListMoveSubListChangeSelector`, `ListMoveSubListSwapSelector`, `ListMoveKOptSelector`, `ListMoveNearbyKOptSelector`, `ListMoveListRuinSelector`, `ListMoveNearbyListChangeSelector`, `ListMoveNearbyListSwapSelector`.
 
 ### Selector Decorators
 
@@ -511,6 +511,8 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 **`NearbySelectionConfig`** — Builder: `with_distribution_type()`, `with_max_nearby_size()`, `with_min_distance()`.
 
 **`KOptConfig`** — `{ k: usize, min_segment_len: usize, limited_patterns: bool }`. Methods: `new(k)`, `with_min_segment_len()`, `with_limited_patterns()`.
+
+**`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
 **`MimicRecorder`** — Shared state for recording/replaying entity selections. Methods: `new(id)`, `get_has_next()`, `get_recorded_entity()`, `reset()`.
 

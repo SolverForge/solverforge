@@ -50,7 +50,8 @@ pub use sublist_change::{ListMoveSubListChangeSelector, SubListChangeMoveSelecto
 pub use sublist_swap::{ListMoveSubListSwapSelector, SubListSwapMoveSelector};
 pub use typed_move_selector::{
     ChangeMoveSelector, EitherChangeMoveSelector, EitherSwapMoveSelector, ListMoveKOptSelector,
-    ListMoveListChangeSelector, ListMoveListRuinSelector, MoveSelector, SwapMoveSelector,
+    ListMoveListChangeSelector, ListMoveListRuinSelector, ListMoveNearbyKOptSelector, MoveSelector,
+    SwapMoveSelector,
 };
 pub use typed_value::{
     FromSolutionTypedValueSelector, StaticTypedValueSelector, TypedValueSelector,

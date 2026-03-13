@@ -241,6 +241,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let solvable_solution_impl =
         generate_solvable_solution(&shadow_config, &basic_config, name, &constraints_path);
 
+    let stream_extensions = generate_constraint_stream_extensions(fields, &basic_config, name);
+
     let expanded = quote! {
         impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
             type Score = #score_type;
@@ -274,6 +276,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         #shadow_support_impl
 
         #solvable_solution_impl
+
+        #stream_extensions
     };
 
     Ok(expanded)
@@ -969,6 +973,170 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
             }
         }
     }
+}
+
+fn generate_constraint_stream_extensions(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    basic_config: &BasicVariableConfig,
+    solution_name: &Ident,
+) -> TokenStream {
+    // Collect entity collection fields
+    let entity_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .collect();
+
+    // Collect problem fact collection fields
+    let fact_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
+        .collect();
+
+    // Build accessor methods for constraint factory extension trait
+    let mut accessor_methods: Vec<TokenStream> = Vec::new();
+    let mut accessor_impls: Vec<TokenStream> = Vec::new();
+
+    for f in entity_fields.iter().chain(fact_fields.iter()) {
+        let field_name = match f.ident.as_ref() {
+            Some(n) => n,
+            None => continue,
+        };
+        let element_type = match extract_collection_inner_type(&f.ty) {
+            Some(t) => t,
+            None => continue,
+        };
+
+        accessor_methods.push(quote! {
+            fn #field_name(self) -> ::solverforge::__internal::UniConstraintStream<
+                #solution_name,
+                #element_type,
+                fn(&#solution_name) -> &[#element_type],
+                ::solverforge::__internal::TrueFilter,
+                Sc>;
+        });
+
+        accessor_impls.push(quote! {
+            fn #field_name(self) -> ::solverforge::__internal::UniConstraintStream<
+                #solution_name,
+                #element_type,
+                fn(&#solution_name) -> &[#element_type],
+                ::solverforge::__internal::TrueFilter,
+                Sc>
+            {
+                self.for_each((|s: &#solution_name| s.#field_name.as_slice()) as fn(&#solution_name) -> &[#element_type])
+            }
+        });
+    }
+
+    if accessor_methods.is_empty() {
+        return TokenStream::new();
+    }
+
+    let trait_name = Ident::new(
+        &format!("{}ConstraintStreams", solution_name),
+        proc_macro2::Span::call_site(),
+    );
+
+    let mut result = quote! {
+        pub trait #trait_name<Sc: ::solverforge::Score + 'static> {
+            #(#accessor_methods)*
+        }
+
+        impl<Sc: ::solverforge::Score + 'static> #trait_name<Sc>
+            for ::solverforge::stream::ConstraintFactory<#solution_name, Sc>
+        {
+            #(#accessor_impls)*
+        }
+    };
+
+    // Generate `.unassigned()` filter for basic_variable_config
+    if let (Some(entity_collection), Some(variable_field)) = (
+        &basic_config.entity_collection,
+        &basic_config.variable_field,
+    ) {
+        // Find the entity type for this collection
+        let entity_field = fields.iter().find(|f| {
+            f.ident.as_ref().map(|i| i.to_string()).as_ref() == Some(entity_collection)
+        });
+
+        if let Some(ef) = entity_field {
+            if let Some(entity_type) = extract_collection_inner_type(&ef.ty) {
+                let entity_collection_ident =
+                    Ident::new(entity_collection, proc_macro2::Span::call_site());
+                let variable_field_ident =
+                    Ident::new(variable_field, proc_macro2::Span::call_site());
+
+                let unassigned_fn_name = Ident::new(
+                    &format!(
+                        "__{}__{}_unassigned",
+                        solution_name.to_string().to_lowercase(),
+                        entity_collection
+                    ),
+                    proc_macro2::Span::call_site(),
+                );
+
+                // Derive a simple name for the unassigned filter trait
+                let entity_type_name = if let syn::Type::Path(tp) = entity_type {
+                    tp.path.segments.last()
+                        .map(|s| s.ident.to_string())
+                        .unwrap_or_else(|| "Entity".to_string())
+                } else {
+                    "Entity".to_string()
+                };
+                let unassigned_filter_trait = Ident::new(
+                    &format!("{}UnassignedFilter", entity_type_name),
+                    proc_macro2::Span::call_site(),
+                );
+
+                result = quote! {
+                    #result
+
+                    #[allow(non_snake_case)]
+                    fn #unassigned_fn_name(_s: &#solution_name, entity: &#entity_type) -> bool {
+                        entity.#variable_field_ident.is_none()
+                    }
+
+                    pub trait #unassigned_filter_trait<Sc: ::solverforge::Score + 'static, E, F> {
+                        type Output;
+                        fn unassigned(self) -> Self::Output;
+                    }
+
+                    impl<Sc, E, F> #unassigned_filter_trait<Sc, E, F>
+                        for ::solverforge::__internal::UniConstraintStream<#solution_name, #entity_type, E, F, Sc>
+                    where
+                        Sc: ::solverforge::Score + 'static,
+                        E: Fn(&#solution_name) -> &[#entity_type] + Send + Sync,
+                        F: ::solverforge::__internal::UniFilter<#solution_name, #entity_type>,
+                    {
+                        type Output = ::solverforge::__internal::UniConstraintStream<
+                            #solution_name,
+                            #entity_type,
+                            E,
+                            ::solverforge::__internal::AndUniFilter<F,
+                                ::solverforge::__internal::FnUniFilter<fn(&#solution_name, &#entity_type) -> bool>>,
+                            Sc>;
+
+                        fn unassigned(self) -> Self::Output {
+                            let (extractor, filter) = self.into_parts();
+                            ::solverforge::__internal::UniConstraintStream::from_parts(
+                                extractor,
+                                ::solverforge::__internal::AndUniFilter::new(
+                                    filter,
+                                    ::solverforge::__internal::FnUniFilter::new(
+                                        #unassigned_fn_name as fn(&#solution_name, &#entity_type) -> bool
+                                    ),
+                                ),
+                            )
+                        }
+                    }
+                };
+
+                let _ = entity_collection_ident; // suppress unused warning
+            }
+        }
+    }
+
+    result
 }
 
 fn extract_option_inner_type(ty: &syn::Type) -> Result<&syn::Type, Error> {

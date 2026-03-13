@@ -18,7 +18,7 @@ use super::balance_stream::BalanceConstraintStream;
 use super::bi_stream::BiConstraintStream;
 use super::collector::UniCollector;
 use super::cross_bi_stream::CrossBiConstraintStream;
-use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter};
+use super::filter::{AndBiFilter, AndUniFilter, FnBiFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter};
 use super::grouped_stream::GroupedConstraintStream;
 use super::if_exists_stream::IfExistsStream;
 use super::joiner::EqualJoiner;
@@ -143,12 +143,12 @@ where
     //
     // Requires an `EqualJoiner` to enable key-based indexing for O(1) lookups.
     // Unlike `join_self` which pairs entities within the same collection,
-    // `join` creates pairs from two different collections (e.g., Shift joined
+    // `join_keyed` creates pairs from two different collections (e.g., Shift joined
     // with Employee).
     //
     // Any filters accumulated on this stream are applied to the A entity
     // before the join.
-    pub fn join<B, EB, K, KA, KB>(
+    pub fn join_keyed<B, EB, K, KA, KB>(
         self,
         extractor_b: EB,
         joiner: EqualJoiner<KA, KB, K>,
@@ -171,6 +171,43 @@ where
             key_a,
             key_b,
             bi_filter,
+        )
+    }
+
+    // Joins this stream with another stream using a predicate (O(n*m) nested loop).
+    //
+    // This is the ergonomic join API. Use `join_keyed` for performance-critical joins.
+    pub fn join<B, EB, FB, P>(
+        self,
+        other: UniConstraintStream<S, B, EB, FB, Sc>,
+        predicate: P,
+    ) -> CrossBiConstraintStream<
+        S,
+        A,
+        B,
+        u8,
+        E,
+        EB,
+        fn(&A) -> u8,
+        fn(&B) -> u8,
+        AndBiFilter<UniLeftBiFilter<F, B>, FnBiFilter<impl Fn(&S, &A, &B) -> bool + Send + Sync>>,
+        Sc,
+    >
+    where
+        B: Clone + Send + Sync + 'static,
+        EB: Fn(&S) -> &[B] + Send + Sync,
+        FB: UniFilter<S, B>,
+        P: Fn(&A, &B) -> bool + Send + Sync + 'static,
+    {
+        let (extractor_b, _filter_b) = other.into_parts();
+        let bi_filter = UniLeftBiFilter::new(self.filter);
+        let pred_filter = FnBiFilter::new(move |_s: &S, a: &A, b: &B| predicate(a, b));
+        CrossBiConstraintStream::new_with_filter(
+            self.extractor,
+            extractor_b,
+            (|_: &A| 0u8) as fn(&A) -> u8,
+            (|_: &B| 0u8) as fn(&B) -> u8,
+            AndBiFilter::new(bi_filter, pred_filter),
         )
     }
 
@@ -512,6 +549,59 @@ where
             _phantom: PhantomData,
         }
     }
+
+    // Penalizes each matching entity with one hard score unit.
+    pub fn penalize_hard(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_hard())
+    }
+
+    // Penalizes each matching entity with one soft score unit.
+    pub fn penalize_soft(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_soft())
+    }
+
+    // Rewards each matching entity with one hard score unit.
+    pub fn reward_hard(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_hard())
+    }
+
+    // Rewards each matching entity with one soft score unit.
+    pub fn reward_soft(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_soft())
+    }
+}
+
+impl<S, A, E, F, Sc: Score> UniConstraintStream<S, A, E, F, Sc> {
+    #[doc(hidden)]
+    pub fn extractor(&self) -> &E {
+        &self.extractor
+    }
+
+    #[doc(hidden)]
+    pub fn into_parts(self) -> (E, F) {
+        (self.extractor, self.filter)
+    }
+
+    #[doc(hidden)]
+    pub fn from_parts(extractor: E, filter: F) -> Self {
+        Self {
+            extractor,
+            filter,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, A, E, F, Sc: Score> std::fmt::Debug for UniConstraintStream<S, A, E, F, Sc> {
@@ -551,6 +641,11 @@ where
     pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
         self.expected_descriptor = Some(descriptor_index);
         self
+    }
+
+    // Alias for `as_constraint`.
+    pub fn named(self, name: &str) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
+        self.as_constraint(name)
     }
 
     // Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.

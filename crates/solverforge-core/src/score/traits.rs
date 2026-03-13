@@ -117,6 +117,42 @@ pub trait Score:
     fn is_equal_to(&self, other: &Self) -> bool {
         self == other
     }
+
+    /// Returns a score with 1 at the first Hard-labeled level and 0 elsewhere.
+    fn one_hard() -> Self {
+        let mut levels = vec![0i64; Self::levels_count()];
+        for i in 0..Self::levels_count() {
+            if Self::level_label(i) == ScoreLevel::Hard {
+                levels[i] = 1;
+                break;
+            }
+        }
+        Self::from_level_numbers(&levels)
+    }
+
+    /// Returns a score with 1 at the last Soft-labeled level and 0 elsewhere.
+    fn one_soft() -> Self {
+        let mut levels = vec![0i64; Self::levels_count()];
+        for i in (0..Self::levels_count()).rev() {
+            if Self::level_label(i) == ScoreLevel::Soft {
+                levels[i] = 1;
+                break;
+            }
+        }
+        Self::from_level_numbers(&levels)
+    }
+
+    /// Returns a score with 1 at the first Medium-labeled level and 0 elsewhere.
+    fn one_medium() -> Self {
+        let mut levels = vec![0i64; Self::levels_count()];
+        for i in 0..Self::levels_count() {
+            if Self::level_label(i) == ScoreLevel::Medium {
+                levels[i] = 1;
+                break;
+            }
+        }
+        Self::from_level_numbers(&levels)
+    }
 }
 
 /// Marker trait for scores that can be parsed from a string.

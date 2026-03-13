@@ -152,4 +152,10 @@ pub mod __internal {
 
     // Config
     pub use solverforge_config::SolverConfig;
+
+    // Stream types needed for macro-generated extension traits
+    pub use solverforge_scoring::stream::filter::{
+        AndUniFilter, FnUniFilter, TrueFilter, UniFilter,
+    };
+    pub use solverforge_scoring::stream::{UniConstraintBuilder, UniConstraintStream};
 }

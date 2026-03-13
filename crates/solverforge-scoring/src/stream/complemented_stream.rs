@@ -216,6 +216,50 @@ where
             _phantom: PhantomData,
         }
     }
+
+    // Penalizes each complemented group with one hard score unit.
+    pub fn penalize_hard(
+        self,
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_hard();
+        self.penalize_hard_with(move |_: &C::Result| w)
+    }
+
+    // Penalizes each complemented group with one soft score unit.
+    pub fn penalize_soft(
+        self,
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_soft();
+        self.penalize_with(move |_: &C::Result| w)
+    }
+
+    // Rewards each complemented group with one hard score unit.
+    pub fn reward_hard(
+        self,
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_hard();
+        self.reward_hard_with(move |_: &C::Result| w)
+    }
+
+    // Rewards each complemented group with one soft score unit.
+    pub fn reward_soft(
+        self,
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_soft();
+        self.reward_with(move |_: &C::Result| w)
+    }
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, D, Sc: Score> std::fmt::Debug
@@ -261,6 +305,14 @@ where
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    // Alias for `as_constraint`.
+    pub fn named(
+        self,
+        name: &str,
+    ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> {
+        self.as_constraint(name)
+    }
+
     // Finalizes the builder into a `ComplementedGroupConstraint`.
     pub fn as_constraint(
         self,

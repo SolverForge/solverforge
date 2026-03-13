@@ -216,6 +216,50 @@ where
         }
     }
 
+    // Penalizes each group with one hard score unit.
+    pub fn penalize_hard(
+        self,
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_hard();
+        self.penalize_hard_with(move |_: &C::Result| w)
+    }
+
+    // Penalizes each group with one soft score unit.
+    pub fn penalize_soft(
+        self,
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_soft();
+        self.penalize_with(move |_: &C::Result| w)
+    }
+
+    // Rewards each group with one hard score unit.
+    pub fn reward_hard(
+        self,
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_hard();
+        self.reward_hard_with(move |_: &C::Result| w)
+    }
+
+    // Rewards each group with one soft score unit.
+    pub fn reward_soft(
+        self,
+    ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        let w = Sc::one_soft();
+        self.reward_with(move |_: &C::Result| w)
+    }
+
     // Adds complement entities with default values for missing keys.
     //
     // This ensures all keys from the complement source are represented,
@@ -442,6 +486,11 @@ where
     //
     // assert_eq!(constraint.name(), "Category penalty");
     // ```
+    // Alias for `as_constraint`.
+    pub fn named(self, name: &str) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
+        self.as_constraint(name)
+    }
+
     pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
         self.expected_descriptor = Some(descriptor_index);
         self

@@ -264,6 +264,38 @@ where
             _phantom: PhantomData,
         }
     }
+
+    // Penalizes each matching entity with one hard score unit.
+    pub fn penalize_hard(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_hard())
+    }
+
+    // Penalizes each matching entity with one soft score unit.
+    pub fn penalize_soft(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_soft())
+    }
+
+    // Rewards each matching entity with one hard score unit.
+    pub fn reward_hard(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_hard())
+    }
+
+    // Rewards each matching entity with one soft score unit.
+    pub fn reward_soft(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_soft())
+    }
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, FA, Sc: Score> std::fmt::Debug
@@ -307,6 +339,26 @@ where
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    // Alias for `as_constraint`.
+    pub fn named(
+        self,
+        name: &str,
+    ) -> IfExistsUniConstraint<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
+        self.as_constraint(name)
+    }
+
     // Finalizes the builder into a zero-erasure `IfExistsUniConstraint`.
     pub fn as_constraint(
         self,

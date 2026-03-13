@@ -313,6 +313,38 @@ where
         }
     }
 
+    // Penalizes each matching pair with one hard score unit.
+    pub fn penalize_hard(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_hard())
+    }
+
+    // Penalizes each matching pair with one soft score unit.
+    pub fn penalize_soft(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_soft())
+    }
+
+    // Rewards each matching pair with one hard score unit.
+    pub fn reward_hard(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_hard())
+    }
+
+    // Rewards each matching pair with one soft score unit.
+    pub fn reward_soft(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_soft())
+    }
+
     // Expands items from entity B into separate (A, C) pairs with O(1) lookup.
     //
     // Pre-indexes C items by key for O(1) lookup on entity changes.
@@ -458,6 +490,26 @@ where
     W: Fn(&A, &B) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    // Alias for `as_constraint`.
+    pub fn named(
+        self,
+        name: &str,
+    ) -> IncrementalCrossBiConstraint<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A, &B) -> bool + Send + Sync,
+        impl Fn(&S, usize, usize) -> Sc + Send + Sync,
+        Sc,
+    > {
+        self.as_constraint(name)
+    }
+
     // Finalizes the builder into a zero-erasure `IncrementalCrossBiConstraint`.
     //
     // The resulting constraint has all types fully monomorphized with

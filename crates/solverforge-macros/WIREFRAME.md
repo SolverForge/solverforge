@@ -100,6 +100,8 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
 - `fn solve_internal()` (when constraints path specified) — calls `run_solver()` (basic) or `run_list_solver()` (list)
+- `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
+- `pub trait {Entity}UnassignedFilter<Sc, E, F>` (when `basic_variable_config` present) — `.unassigned()` method on `UniConstraintStream` filtering entities where the planning variable is `None`
 
 ### `ProblemFactImpl`
 
@@ -132,6 +134,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | `generate_basic_variable_operations` | `fn(&BasicVariableConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates basic variable methods |
 | `generate_solvable_solution` | `fn(&ShadowConfig, &BasicVariableConfig, &Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Ident) -> TokenStream` | Generates ShadowVariableSupport impl |
+| `generate_constraint_stream_extensions` | `fn(&Fields, &BasicVariableConfig, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory; generates `{Entity}UnassignedFilter` trait if basic_variable_config is present |
 | `extract_option_inner_type` | `fn(&Type) -> Result<&Type, Error>` | Extracts `T` from `Option<T>` |
 | `extract_collection_inner_type` | `fn(&Type) -> Option<&Type>` | Extracts `T` from `Vec<T>` |
 

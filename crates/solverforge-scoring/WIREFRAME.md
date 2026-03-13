@@ -333,38 +333,39 @@ All implement `IncrementalConstraint<S, Sc>`.
 - `new()`, `for_each()` → `UniConstraintStream`, `for_each_unique_pair()` → `BiConstraintStream`
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `join_self()`, `join()`, `group_by()`, `balance()`, `if_exists_filtered()`, `if_not_exists_filtered()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `reward()`, `reward_with()`, `reward_hard_with()`
+- Operations: `filter()`, `join_self()`, `join_keyed()`, `join()` (predicate-based O(n*m)), `group_by()`, `balance()`, `if_exists_filtered()`, `if_not_exists_filtered()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
-**`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `for_descriptor()`, `as_constraint()` → `IncrementalUniConstraint`
+**`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `for_descriptor()`, `as_constraint()`, `named()` → `IncrementalUniConstraint`
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
-- Operations: `filter()`, `join_self()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `reward()`, `reward_with()`, `reward_hard_with()`
+- Operations: `filter()`, `join_self()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
 
-**`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `as_constraint()` → `IncrementalBiConstraint`
+**`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `as_constraint()`, `named()` → `IncrementalBiConstraint`
 
-**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join_self()` → QuadStream.
+**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join_self()` → QuadStream. Same convenience methods.
 
-**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join_self()` → PentaStream.
+**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join_self()` → PentaStream. Same convenience methods.
 
-**`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins).
+**`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins). Same convenience methods.
 
 **`CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
-- Operations: `filter()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `reward()`, `reward_with()`, `reward_hard_with()`, `flatten_last()` → FlattenedBiStream
+- Operations: `filter()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `flatten_last()` → FlattenedBiStream
 
-**`CrossBiConstraintBuilder`** — `as_constraint()` → `IncrementalCrossBiConstraint`
+**`CrossBiConstraintBuilder`** — `as_constraint()`, `named()` → `IncrementalCrossBiConstraint`
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>`** — Grouped stream.
-- Operations: `penalize_with()`, `penalize_hard_with()`, `reward_with()`, `reward_hard_with()`, `complement()`, `complement_with_key()` → ComplementedStream
+- Operations: `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `complement()`, `complement_with_key()` → ComplementedStream
 
-**`GroupedConstraintBuilder`** — `as_constraint()` → `GroupedUniConstraint`
+**`GroupedConstraintBuilder`** — `as_constraint()`, `named()` → `GroupedUniConstraint`
 
-**`BalanceConstraintStream/Builder`** — Balance stream. `penalize()`, `reward()`, `as_constraint()` → `BalanceConstraint`
+**`BalanceConstraintStream/Builder`** — Balance stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `reward_with()`, `as_constraint()` → `ComplementedGroupConstraint`
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `ComplementedGroupConstraint`
 
-**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `reward()`, `as_constraint()` → `FlattenedBiConstraint`
+**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `FlattenedBiConstraint`
 
-**`IfExistsStream/IfExistsBuilder`** — If-exists stream. `penalize()`, `reward()`, `as_constraint()` → `IfExistsUniConstraint`
+**`IfExistsStream/IfExistsBuilder`** — If-exists stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `IfExistsUniConstraint`
 
 ### Filter Types
 

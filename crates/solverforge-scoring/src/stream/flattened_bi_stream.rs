@@ -364,6 +364,114 @@ where
         }
     }
 
+    // Penalizes each matching (A, C) pair with one hard score unit.
+    pub fn penalize_hard(
+        self,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        impl Fn(&A, &C) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_hard())
+    }
+
+    // Penalizes each matching (A, C) pair with one soft score unit.
+    pub fn penalize_soft(
+        self,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        impl Fn(&A, &C) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        Sc: Copy,
+    {
+        self.penalize(Sc::one_soft())
+    }
+
+    // Rewards each matching (A, C) pair with one hard score unit.
+    pub fn reward_hard(
+        self,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        impl Fn(&A, &C) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_hard())
+    }
+
+    // Rewards each matching (A, C) pair with one soft score unit.
+    pub fn reward_soft(
+        self,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        impl Fn(&A, &C) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        Sc: Copy,
+    {
+        self.reward(Sc::one_soft())
+    }
+
     // Rewards each matching (A, C) pair with a dynamic weight.
     pub fn reward_with<W>(
         self,
@@ -510,6 +618,31 @@ where
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    // Alias for `as_constraint`.
+    pub fn named(
+        self,
+        name: &str,
+    ) -> FlattenedBiConstraint<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        impl Fn(&S, &A, &C) -> bool + Send + Sync,
+        W,
+        Sc,
+    > {
+        self.as_constraint(name)
+    }
+
     // Finalizes the builder into an O(1) indexed constraint.
     pub fn as_constraint(
         self,

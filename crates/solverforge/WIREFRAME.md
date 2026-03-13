@@ -146,6 +146,10 @@ Used exclusively by macro-generated code. Not public API.
 **Config (from `solverforge-config`):**
 - `SolverConfig`
 
+**Stream types for macro-generated extension traits (from `solverforge-scoring`):**
+- `UniConstraintStream`, `UniConstraintBuilder`
+- `TrueFilter`, `UniFilter`, `FnUniFilter`, `AndUniFilter`
+
 **Derive macros (from `solverforge-macros`):**
 - `PlanningEntityImpl`, `PlanningSolutionImpl`, `ProblemFactImpl`
 

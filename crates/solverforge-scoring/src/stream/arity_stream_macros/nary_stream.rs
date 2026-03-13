@@ -195,6 +195,42 @@ macro_rules! impl_bi_arity_stream {
                     _phantom: std::marker::PhantomData,
                 }
             }
+
+            pub fn penalize_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_hard())
+            }
+
+            pub fn penalize_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_soft())
+            }
+
+            pub fn reward_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_hard())
+            }
+
+            pub fn reward_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_soft())
+            }
         }
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug
@@ -239,6 +275,22 @@ macro_rules! impl_bi_arity_stream {
             pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
                 self.expected_descriptor = Some(descriptor_index);
                 self
+            }
+
+            pub fn named(
+                self,
+                name: &str,
+            ) -> $constraint<
+                S,
+                A,
+                K,
+                E,
+                KE,
+                impl Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
+                impl Fn(&S, usize, usize) -> Sc + Send + Sync,
+                Sc,
+            > {
+                self.as_constraint(name)
             }
 
             pub fn as_constraint(
@@ -490,6 +542,42 @@ macro_rules! impl_tri_arity_stream {
                     _phantom: std::marker::PhantomData,
                 }
             }
+
+            pub fn penalize_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_hard())
+            }
+
+            pub fn penalize_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_soft())
+            }
+
+            pub fn reward_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_hard())
+            }
+
+            pub fn reward_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_soft())
+            }
         }
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug
@@ -529,6 +617,22 @@ macro_rules! impl_tri_arity_stream {
             pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
                 self.expected_descriptor = Some(descriptor_index);
                 self
+            }
+
+            pub fn named(
+                self,
+                name: &str,
+            ) -> $constraint<
+                S,
+                A,
+                K,
+                E,
+                KE,
+                impl Fn(&S, &A, &A, &A) -> bool + Send + Sync,
+                impl Fn(&S, usize, usize, usize) -> Sc + Send + Sync,
+                Sc,
+            > {
+                self.as_constraint(name)
             }
 
             pub fn as_constraint(
@@ -776,6 +880,42 @@ macro_rules! impl_quad_arity_stream {
                     _phantom: std::marker::PhantomData,
                 }
             }
+
+            pub fn penalize_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_hard())
+            }
+
+            pub fn penalize_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_soft())
+            }
+
+            pub fn reward_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_hard())
+            }
+
+            pub fn reward_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_soft())
+            }
         }
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug
@@ -815,6 +955,22 @@ macro_rules! impl_quad_arity_stream {
             pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
                 self.expected_descriptor = Some(descriptor_index);
                 self
+            }
+
+            pub fn named(
+                self,
+                name: &str,
+            ) -> $constraint<
+                S,
+                A,
+                K,
+                E,
+                KE,
+                impl Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync,
+                impl Fn(&S, usize, usize, usize, usize) -> Sc + Send + Sync,
+                Sc,
+            > {
+                self.as_constraint(name)
             }
 
             pub fn as_constraint(
@@ -1072,6 +1228,42 @@ macro_rules! impl_penta_arity_stream {
                     _phantom: std::marker::PhantomData,
                 }
             }
+
+            pub fn penalize_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_hard())
+            }
+
+            pub fn penalize_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.penalize(Sc::one_soft())
+            }
+
+            pub fn reward_hard(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_hard())
+            }
+
+            pub fn reward_soft(
+                self,
+            ) -> $builder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc>
+            where
+                Sc: Copy,
+            {
+                self.reward(Sc::one_soft())
+            }
         }
 
         impl<S, A, K, E, KE, F, Sc: solverforge_core::score::Score> std::fmt::Debug
@@ -1111,6 +1303,22 @@ macro_rules! impl_penta_arity_stream {
             pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
                 self.expected_descriptor = Some(descriptor_index);
                 self
+            }
+
+            pub fn named(
+                self,
+                name: &str,
+            ) -> $constraint<
+                S,
+                A,
+                K,
+                E,
+                KE,
+                impl Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync,
+                impl Fn(&S, usize, usize, usize, usize, usize) -> Sc + Send + Sync,
+                Sc,
+            > {
+                self.as_constraint(name)
             }
 
             pub fn as_constraint(

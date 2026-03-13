@@ -106,6 +106,9 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 | `is_better_than` | `fn is_better_than(&self, other: &Self) -> bool` | Default: `self > other` |
 | `is_worse_than` | `fn is_worse_than(&self, other: &Self) -> bool` | Default: `self < other` |
 | `is_equal_to` | `fn is_equal_to(&self, other: &Self) -> bool` | Default: `self == other` |
+| `one_hard` | `fn one_hard() -> Self` | Score with 1 at first Hard level, 0 elsewhere |
+| `one_soft` | `fn one_soft() -> Self` | Score with 1 at last Soft level, 0 elsewhere |
+| `one_medium` | `fn one_medium() -> Self` | Score with 1 at first Medium level, 0 elsewhere |
 
 ### `ParseableScore`
 

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.5.16](///compare/v0.5.12...v0.5.16) (2026-03-13)
+
+
+### Features
+
+* add ListClarkeWrightPhase and remove nqueens example e02deb9
+* add ListKOptPhase, solverforge-cvrp lib, and fix doctest signatures 79e9b38
+* add NearbyKOpt config support and remove Debug bound from distance meter API 1904b56
+* generated domain accessors for constraint streams 84212f4
+
+
+### Bug Fixes
+
+* replace needless range loops with iterator find in Score trait 0bf1f62
+
 ## [0.5.15](///compare/v0.5.14...v0.5.15) (2026-03-11)
 
 ## [0.5.14](///compare/v0.5.13...v0.5.14) (2026-03-11)

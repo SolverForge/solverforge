@@ -8,4 +8,4 @@ rust-version.workspace = true
 description = "CVRP domain helpers for SolverForge"
 
 [dependencies]
-solverforge-solver = { version = "0.5.15", path = "../solverforge-solver" }
+solverforge-solver = { version = "0.5.16", path = "../solverforge-solver" }

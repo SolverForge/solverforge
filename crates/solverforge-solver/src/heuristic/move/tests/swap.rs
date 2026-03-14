@@ -1,4 +1,4 @@
-//! Tests for SwapMove operations.
+// Tests for SwapMove operations.
 
 use super::*;
 

@@ -1,7 +1,8 @@
-//! K-opt phase builder for tour optimization.
-//!
-//! Creates a local search phase that uses k-opt moves to improve solutions.
-//! This is commonly used for vehicle routing and traveling salesman problems.
+/* K-opt phase builder for tour optimization.
+
+Creates a local search phase that uses k-opt moves to improve solutions.
+This is commonly used for vehicle routing and traveling salesman problems.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -120,14 +121,12 @@ where
         }
     }
 
-    /// Sets the k value for k-opt (2-5).
     pub fn with_k(mut self, k: usize) -> Self {
         assert!((2..=5).contains(&k), "k must be between 2 and 5");
         self.k = k;
         self
     }
 
-    /// Sets the step limit.
     pub fn with_step_limit(mut self, limit: u64) -> Self {
         self.step_limit = Some(limit);
         self

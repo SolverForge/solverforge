@@ -1,6 +1,7 @@
-// Runtime constraint weight configuration.
-//
-// Allows dynamic adjustment of constraint weights without recompiling.
+/* Runtime constraint weight configuration.
+
+Allows dynamic adjustment of constraint weights without recompiling.
+*/
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -8,10 +9,11 @@ use std::sync::Arc;
 
 use solverforge_core::Score;
 
-// Holds runtime overrides for constraint weights.
-//
-// Use this to adjust constraint weights without recompiling. Weights can be
-// changed between solver runs or even during solving (if you rebuild constraints).
+/* Holds runtime overrides for constraint weights.
+
+Use this to adjust constraint weights without recompiling. Weights can be
+changed between solver runs or even during solving (if you rebuild constraints).
+*/
 #[derive(Clone)]
 pub struct ConstraintWeightOverrides<Sc: Score> {
     weights: HashMap<String, Sc>,

@@ -1,7 +1,8 @@
-//! Exhaustive search decider for node expansion.
-//!
-//! The decider is responsible for expanding nodes and generating
-//! child nodes in the search tree.
+/* Exhaustive search decider for node expansion.
+
+The decider is responsible for expanding nodes and generating
+child nodes in the search tree.
+*/
 
 use std::fmt::Debug;
 
@@ -18,9 +19,10 @@ use super::node::ExhaustiveSearchNode;
 /// - Generating all possible value assignments
 /// - Creating child nodes for each assignment
 pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + Debug {
-    /// Expands a node by generating all child nodes.
-    ///
-    /// Returns a vector of child nodes, one for each possible assignment.
+    /* Expands a node by generating all child nodes.
+
+    Returns a vector of child nodes, one for each possible assignment.
+    */
     fn expand(
         &self,
         parent_index: usize,
@@ -28,7 +30,6 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + D
         score_director: &mut D,
     ) -> Vec<ExhaustiveSearchNode<S>>;
 
-    /// Returns the total number of entities to assign.
     fn total_entities(&self, score_director: &D) -> usize;
 }
 
@@ -41,15 +42,15 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + D
 /// * `V` - The value type to assign
 /// * `B` - The bounder type (use `Option<B>` for optional bounding)
 pub struct SimpleDecider<S: PlanningSolution, V: Clone + Send + Sync + 'static, B = ()> {
-    /// Descriptor index of the entity collection.
+    // Descriptor index of the entity collection.
     descriptor_index: usize,
-    /// Variable name to assign.
+    // Variable name to assign.
     variable_name: String,
-    /// Possible values to try.
+    // Possible values to try.
     values: Vec<V>,
-    /// Score bounder for optimistic bounds (None = no bounding).
+    // Score bounder for optimistic bounds (None = no bounding).
     bounder: Option<B>,
-    /// Typed setter for zero-erasure variable assignment.
+    // Typed setter for zero-erasure variable assignment.
     setter: fn(&mut S, usize, Option<V>),
 }
 
@@ -78,7 +79,6 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V, 
 }
 
 impl<S: PlanningSolution, V: Clone + Send + Sync + 'static, B> SimpleDecider<S, V, B> {
-    /// Sets the bounder for optimistic bound calculation.
     pub fn with_bounder<B2>(self, bounder: B2) -> SimpleDecider<S, V, B2> {
         SimpleDecider {
             descriptor_index: self.descriptor_index,

@@ -1,7 +1,8 @@
-//! Solution partitioner for dividing problems into independent sub-problems.
-//!
-//! Partitioners split a large problem into smaller pieces that can be
-//! solved independently (potentially in parallel), then merged back together.
+/* Solution partitioner for dividing problems into independent sub-problems.
+
+Partitioners split a large problem into smaller pieces that can be
+solved independently (potentially in parallel), then merged back together.
+*/
 
 use std::fmt::Debug;
 
@@ -23,40 +24,43 @@ use solverforge_core::domain::PlanningSolution;
 /// by room or by time period, where each partition contains lessons
 /// that don't interact with lessons in other partitions.
 pub trait SolutionPartitioner<S: PlanningSolution>: Send + Sync + Debug {
-    /// Splits the solution into independent partitions.
-    ///
-    /// Each returned solution should be a subset of the original that
-    /// can be optimized independently. The union of all partitions should
-    /// cover all entities in the original solution.
-    ///
-    /// # Arguments
-    ///
-    /// * `solution` - The solution to partition
-    ///
-    /// # Returns
-    ///
-    /// A vector of partial solutions, one per partition.
+    /* Splits the solution into independent partitions.
+
+    Each returned solution should be a subset of the original that
+    can be optimized independently. The union of all partitions should
+    cover all entities in the original solution.
+
+    # Arguments
+
+    * `solution` - The solution to partition
+
+    # Returns
+
+    A vector of partial solutions, one per partition.
+    */
     fn partition(&self, solution: &S) -> Vec<S>;
 
-    /// Merges solved partitions back into a complete solution.
-    ///
-    /// This is called after all partitions have been solved to combine
-    /// them into the final result.
-    ///
-    /// # Arguments
-    ///
-    /// * `original` - The original unpartitioned solution
-    /// * `partitions` - The solved partition solutions
-    ///
-    /// # Returns
-    ///
-    /// The merged complete solution.
+    /* Merges solved partitions back into a complete solution.
+
+    This is called after all partitions have been solved to combine
+    them into the final result.
+
+    # Arguments
+
+    * `original` - The original unpartitioned solution
+    * `partitions` - The solved partition solutions
+
+    # Returns
+
+    The merged complete solution.
+    */
     fn merge(&self, original: &S, partitions: Vec<S>) -> S;
 
-    /// Returns the recommended number of partitions.
-    ///
-    /// This can be used by the partitioned search phase to determine
-    /// how many threads to use. Returns `None` if no recommendation.
+    /* Returns the recommended number of partitions.
+
+    This can be used by the partitioned search phase to determine
+    how many threads to use. Returns `None` if no recommendation.
+    */
     fn recommended_partition_count(&self) -> Option<usize> {
         None
     }
@@ -84,7 +88,6 @@ where
     PF: Fn(&S) -> Vec<S> + Send + Sync,
     MF: Fn(&S, Vec<S>) -> S + Send + Sync,
 {
-    /// Creates a new functional partitioner.
     pub fn new(partition_fn: PF, merge_fn: MF) -> Self {
         Self {
             partition_fn,
@@ -94,7 +97,6 @@ where
         }
     }
 
-    /// Sets the recommended partition count.
     pub fn with_recommended_count(mut self, count: usize) -> Self {
         self.recommended_count = Some(count);
         self
@@ -133,15 +135,15 @@ where
     }
 }
 
-/// Thread count configuration for partitioned search.
+// Thread count configuration for partitioned search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThreadCount {
-    /// Automatically determine based on available CPU cores.
+    // Automatically determine based on available CPU cores.
     #[default]
     Auto,
-    /// Use all available CPU cores.
+    // Use all available CPU cores.
     Unlimited,
-    /// Use a specific number of threads.
+    // Use a specific number of threads.
     Specific(usize),
 }
 

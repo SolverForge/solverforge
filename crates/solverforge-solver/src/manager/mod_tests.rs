@@ -1,4 +1,4 @@
-//! Tests for SolverFactory and related types.
+// Tests for SolverFactory and related types.
 
 use std::time::Duration;
 
@@ -10,11 +10,12 @@ use crate::scope::SolverScope;
 
 use super::*;
 
-// ============================================================================
-// Test Solution Types
-// ============================================================================
+/* ============================================================================
+Test Solution Types
+============================================================================
+*/
 
-/// Simple test solution for basic tests
+// Simple test solution for basic tests
 #[derive(Clone, Debug)]
 struct TestSolution {
     value: i64,
@@ -31,12 +32,13 @@ impl PlanningSolution for TestSolution {
     }
 }
 
-/// Score director type for tests
+// Score director type for tests
 type TestDirector = ScoreDirector<TestSolution, ()>;
 
-// ============================================================================
-// 1. SolverFactory Creation with Builder Pattern
-// ============================================================================
+/* ============================================================================
+1. SolverFactory Creation with Builder Pattern
+============================================================================
+*/
 
 #[test]
 fn test_solver_factory_builder_creation() {
@@ -95,11 +97,12 @@ fn test_solver_factory_builder_with_step_limit() {
     assert_eq!(score, SoftScore::of(-7));
 }
 
-// ============================================================================
-// 2. Phase Tests
-// ============================================================================
+/* ============================================================================
+2. Phase Tests
+============================================================================
+*/
 
-/// A simple test phase that just sets best solution
+// A simple test phase that just sets best solution
 #[derive(Debug, Clone)]
 struct NoOpPhase;
 
@@ -168,9 +171,10 @@ fn test_solver_factory_with_phase_and_step_limit() {
     assert_eq!(score, SoftScore::of(-8));
 }
 
-// ============================================================================
-// 3. Score Calculator Tests
-// ============================================================================
+/* ============================================================================
+3. Score Calculator Tests
+============================================================================
+*/
 
 #[test]
 fn test_score_calculator_returns_reference() {

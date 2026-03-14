@@ -1,57 +1,58 @@
-//! List swap move selector for element exchange.
-//!
-//! Generates `ListSwapMove`s that swap elements within or between list variables.
-//! Useful for inter-route rebalancing in vehicle routing problems.
-//!
-//! # Complexity
-//!
-//! For n entities with average route length m:
-//! - Intra-entity swaps: O(n * m * (m-1) / 2)
-//! - Inter-entity swaps: O(n² * m²)
-//! - Total: O(n² * m²) worst case (triangular optimization halves constant)
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::list_swap::ListSwapMoveSelector;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, entity_idx: usize) -> usize {
-//!     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-//! }
-//! fn list_get(s: &Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-//!     s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos).copied())
-//! }
-//! fn list_set(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
-//!     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-//!         if let Some(elem) = v.visits.get_mut(pos) { *elem = val; }
-//!     }
-//! }
-//!
-//! let selector = ListSwapMoveSelector::<Solution, i32, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     list_len,
-//!     list_get,
-//!     list_set,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* List swap move selector for element exchange.
+
+Generates `ListSwapMove`s that swap elements within or between list variables.
+Useful for inter-route rebalancing in vehicle routing problems.
+
+# Complexity
+
+For n entities with average route length m:
+- Intra-entity swaps: O(n * m * (m-1) / 2)
+- Inter-entity swaps: O(n² * m²)
+- Total: O(n² * m²) worst case (triangular optimization halves constant)
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::list_swap::ListSwapMoveSelector;
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<i32> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, entity_idx: usize) -> usize {
+s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+}
+fn list_get(s: &Solution, entity_idx: usize, pos: usize) -> Option<i32> {
+s.vehicles.get(entity_idx).and_then(|v| v.visits.get(pos).copied())
+}
+fn list_set(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
+if let Some(v) = s.vehicles.get_mut(entity_idx) {
+if let Some(elem) = v.visits.get_mut(pos) { *elem = val; }
+}
+}
+
+let selector = ListSwapMoveSelector::<Solution, i32, _>::new(
+FromSolutionEntitySelector::new(0),
+list_len,
+list_get,
+list_set,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

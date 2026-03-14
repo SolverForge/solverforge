@@ -1,68 +1,69 @@
-//! List ruin move selector for Large Neighborhood Search on list variables.
-//!
-//! Generates `ListRuinMove` instances that remove elements from list variables,
-//! enabling exploration of distant regions in the solution space.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses `fn` pointers for list operations. No `Arc<dyn Fn>`, no trait objects
-//! in hot paths.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::{MoveSelector, ListRuinMoveSelector};
-//! use solverforge_solver::heuristic::r#move::ListRuinMove;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//! use solverforge_scoring::{Director, ScoreDirector};
-//! use solverforge_core::domain::SolutionDescriptor;
-//! use std::any::TypeId;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Route { stops: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct VrpSolution { routes: Vec<Route>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for VrpSolution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn entity_count(s: &VrpSolution) -> usize { s.routes.len() }
-//! fn list_len(s: &VrpSolution, idx: usize) -> usize {
-//!     s.routes.get(idx).map_or(0, |r| r.stops.len())
-//! }
-//! fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
-//!     s.routes.get_mut(entity_idx).map(|r| r.stops.remove(idx)).unwrap_or(0)
-//! }
-//! fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
-//!     if let Some(r) = s.routes.get_mut(entity_idx) { r.stops.insert(idx, v); }
-//! }
-//!
-//! // Create selector that removes 2-3 elements at a time
-//! let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-//!     2, 3,
-//!     entity_count,
-//!     list_len, list_remove, list_insert,
-//!     "stops", 0,
-//! );
-//!
-//! // Use with a score director
-//! let solution = VrpSolution {
-//!     routes: vec![Route { stops: vec![1, 2, 3, 4, 5] }],
-//!     score: None,
-//! };
-//! let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>());
-//! let director = ScoreDirector::simple(
-//!     solution, descriptor, |s, _| s.routes.len()
-//! );
-//!
-//! let moves: Vec<_> = selector.iter_moves(&director).collect();
-//! assert!(!moves.is_empty());
-//! ```
+/* List ruin move selector for Large Neighborhood Search on list variables.
+
+Generates `ListRuinMove` instances that remove elements from list variables,
+enabling exploration of distant regions in the solution space.
+
+# Zero-Erasure Design
+
+Uses `fn` pointers for list operations. No `Arc<dyn Fn>`, no trait objects
+in hot paths.
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::{MoveSelector, ListRuinMoveSelector};
+use solverforge_solver::heuristic::r#move::ListRuinMove;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::{Director, ScoreDirector};
+use solverforge_core::domain::SolutionDescriptor;
+use std::any::TypeId;
+
+#[derive(Clone, Debug)]
+struct Route { stops: Vec<i32> }
+
+#[derive(Clone, Debug)]
+struct VrpSolution { routes: Vec<Route>, score: Option<SoftScore> }
+
+impl PlanningSolution for VrpSolution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn entity_count(s: &VrpSolution) -> usize { s.routes.len() }
+fn list_len(s: &VrpSolution, idx: usize) -> usize {
+s.routes.get(idx).map_or(0, |r| r.stops.len())
+}
+fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
+s.routes.get_mut(entity_idx).map(|r| r.stops.remove(idx)).unwrap_or(0)
+}
+fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
+if let Some(r) = s.routes.get_mut(entity_idx) { r.stops.insert(idx, v); }
+}
+
+// Create selector that removes 2-3 elements at a time
+let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+2, 3,
+entity_count,
+list_len, list_remove, list_insert,
+"stops", 0,
+);
+
+// Use with a score director
+let solution = VrpSolution {
+routes: vec![Route { stops: vec![1, 2, 3, 4, 5] }],
+score: None,
+};
+let descriptor = SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>());
+let director = ScoreDirector::simple(
+solution, descriptor, |s, _| s.routes.len()
+);
+
+let moves: Vec<_> = selector.iter_moves(&director).collect();
+assert!(!moves.is_empty());
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -94,25 +95,25 @@ use super::MoveSelector;
 /// - `list_insert: fn(&mut S, usize, usize, V)` - inserts element
 /// - `entity_count: fn(&S) -> usize` - counts entities
 pub struct ListRuinMoveSelector<S, V> {
-    /// Minimum elements to remove per move.
+    // Minimum elements to remove per move.
     min_ruin_count: usize,
-    /// Maximum elements to remove per move.
+    // Maximum elements to remove per move.
     max_ruin_count: usize,
-    /// Random seed for reproducible subset selection.
+    // Random seed for reproducible subset selection.
     seed: Option<u64>,
-    /// Function to get entity count from solution.
+    // Function to get entity count from solution.
     entity_count: fn(&S) -> usize,
-    /// Function to get list length for an entity.
+    // Function to get list length for an entity.
     list_len: fn(&S, usize) -> usize,
-    /// Function to remove element at index, returning it.
+    // Function to remove element at index, returning it.
     list_remove: fn(&mut S, usize, usize) -> V,
-    /// Function to insert element at index.
+    // Function to insert element at index.
     list_insert: fn(&mut S, usize, usize, V),
-    /// Variable name.
+    // Variable name.
     variable_name: &'static str,
-    /// Entity descriptor index.
+    // Entity descriptor index.
     descriptor_index: usize,
-    /// Number of ruin moves to generate per iteration.
+    // Number of ruin moves to generate per iteration.
     moves_per_step: usize,
     _phantom: PhantomData<fn() -> V>,
 }
@@ -130,20 +131,21 @@ impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
 }
 
 impl<S, V> ListRuinMoveSelector<S, V> {
-    /// Creates a new list ruin move selector with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `min_ruin_count` - Minimum elements to remove (at least 1)
-    /// * `max_ruin_count` - Maximum elements to remove
-    /// * `entity_count` - Function to get total entity count
-    /// * `list_len` - Function to get list length for an entity
-    /// * `list_remove` - Function to remove element at index
-    /// * `list_insert` - Function to insert element at index
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
-    ///
-    /// # Panics
-    /// Panics if `min_ruin_count` is 0 or `max_ruin_count < min_ruin_count`.
+    /* Creates a new list ruin move selector with typed function pointers.
+
+    # Arguments
+    * `min_ruin_count` - Minimum elements to remove (at least 1)
+    * `max_ruin_count` - Maximum elements to remove
+    * `entity_count` - Function to get total entity count
+    * `list_len` - Function to get list length for an entity
+    * `list_remove` - Function to remove element at index
+    * `list_insert` - Function to insert element at index
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+
+    # Panics
+    Panics if `min_ruin_count` is 0 or `max_ruin_count < min_ruin_count`.
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         min_ruin_count: usize,
@@ -184,13 +186,11 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         self
     }
 
-    /// Sets the random seed for reproducible subset selection.
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = Some(seed);
         self
     }
 
-    /// Creates a random number generator.
     fn create_rng(&self) -> StdRng {
         match self.seed {
             Some(seed) => StdRng::seed_from_u64(seed),

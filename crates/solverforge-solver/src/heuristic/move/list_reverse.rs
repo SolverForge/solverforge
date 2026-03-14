@@ -1,11 +1,12 @@
-//! ListReverseMove - reverses a segment within a list variable.
-//!
-//! This move reverses the order of elements in a range. Essential for
-//! TSP 2-opt optimization where reversing a tour segment can reduce distance.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+/* ListReverseMove - reverses a segment within a list variable.
+
+This move reverses the order of elements in a range. Essential for
+TSP 2-opt optimization where reversing a tour segment can reduce distance.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -53,15 +54,14 @@ use super::Move;
 /// );
 /// ```
 pub struct ListReverseMove<S, V> {
-    /// Entity index
+    // Entity index
     entity_index: usize,
-    /// Start of range to reverse (inclusive)
+    // Start of range to reverse (inclusive)
     start: usize,
-    /// End of range to reverse (exclusive)
+    // End of range to reverse (exclusive)
     end: usize,
-    /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
-    /// Reverse elements in range [start, end)
+    // Reverse elements in range [start, end)
     list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
     descriptor_index: usize,
@@ -87,16 +87,17 @@ impl<S, V: Debug> Debug for ListReverseMove<S, V> {
 }
 
 impl<S, V> ListReverseMove<S, V> {
-    /// Creates a new list reverse move with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `entity_index` - Entity index
-    /// * `start` - Start of range (inclusive)
-    /// * `end` - End of range (exclusive)
-    /// * `list_len` - Function to get list length
-    /// * `list_reverse` - Function to reverse elements in range
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new list reverse move with typed function pointers.
+
+    # Arguments
+    * `entity_index` - Entity index
+    * `start` - Start of range (inclusive)
+    * `end` - End of range (exclusive)
+    * `list_len` - Function to get list length
+    * `list_reverse` - Function to reverse elements in range
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_index: usize,
@@ -119,22 +120,18 @@ impl<S, V> ListReverseMove<S, V> {
         }
     }
 
-    /// Returns the entity index.
     pub fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    /// Returns the range start.
     pub fn start(&self) -> usize {
         self.start
     }
 
-    /// Returns the range end.
     pub fn end(&self) -> usize {
         self.end
     }
 
-    /// Returns the segment length.
     pub fn segment_len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }

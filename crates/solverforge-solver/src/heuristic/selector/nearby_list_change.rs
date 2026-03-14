@@ -1,93 +1,94 @@
-//! Nearby list change move selector for distance-pruned element relocation.
-//!
-//! A distance-biased variant of [`ListChangeMoveSelector`] that dramatically
-//! reduces the move space by only considering destination positions that are
-//! close to the source element. This is critical for VRP scalability: without
-//! nearby selection, the move space is O(n²m²) which becomes impractical for
-//! large instances.
-//!
-//! # How It Works
-//!
-//! For each source (entity, position), instead of generating moves to every
-//! possible (dest_entity, dest_pos), only the `max_nearby` closest destination
-//! positions are considered. Closeness is measured by a user-supplied
-//! [`CrossEntityDistanceMeter`].
-//!
-//! # Complexity
-//!
-//! O(nm × k) per step where:
-//! - n = number of entities
-//! - m = average route length
-//! - k = `max_nearby` (typically 10–20)
-//!
-//! Compare to O(n²m²) for the full [`ListChangeMoveSelector`].
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::nearby_list_change::{
-//!     CrossEntityDistanceMeter, NearbyListChangeMoveSelector,
-//! };
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Visit { x: f64, y: f64 }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<Visit> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, e: usize) -> usize {
-//!     s.vehicles.get(e).map_or(0, |v| v.visits.len())
-//! }
-//! fn list_remove(s: &mut Solution, e: usize, pos: usize) -> Option<Visit> {
-//!     s.vehicles.get_mut(e).map(|v| v.visits.remove(pos))
-//! }
-//! fn list_insert(s: &mut Solution, e: usize, pos: usize, val: Visit) {
-//!     if let Some(v) = s.vehicles.get_mut(e) { v.visits.insert(pos, val); }
-//! }
-//!
-//! // Euclidean distance between visit elements across routes
-//! #[derive(Debug)]
-//! struct EuclideanMeter;
-//!
-//! impl CrossEntityDistanceMeter<Solution> for EuclideanMeter {
-//!     fn distance(
-//!         &self,
-//!         solution: &Solution,
-//!         src_entity: usize, src_pos: usize,
-//!         dst_entity: usize, dst_pos: usize,
-//!     ) -> f64 {
-//!         let src = &solution.vehicles[src_entity].visits[src_pos];
-//!         let dst = &solution.vehicles[dst_entity].visits[dst_pos];
-//!         let dx = src.x - dst.x;
-//!         let dy = src.y - dst.y;
-//!         (dx * dx + dy * dy).sqrt()
-//!     }
-//! }
-//!
-//! let selector = NearbyListChangeMoveSelector::<Solution, Visit, _, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     EuclideanMeter,
-//!     10,   // max_nearby: consider 10 closest destinations
-//!     list_len,
-//!     list_remove,
-//!     list_insert,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* Nearby list change move selector for distance-pruned element relocation.
+
+A distance-biased variant of [`ListChangeMoveSelector`] that dramatically
+reduces the move space by only considering destination positions that are
+close to the source element. This is critical for VRP scalability: without
+nearby selection, the move space is O(n²m²) which becomes impractical for
+large instances.
+
+# How It Works
+
+For each source (entity, position), instead of generating moves to every
+possible (dest_entity, dest_pos), only the `max_nearby` closest destination
+positions are considered. Closeness is measured by a user-supplied
+[`CrossEntityDistanceMeter`].
+
+# Complexity
+
+O(nm × k) per step where:
+- n = number of entities
+- m = average route length
+- k = `max_nearby` (typically 10–20)
+
+Compare to O(n²m²) for the full [`ListChangeMoveSelector`].
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::nearby_list_change::{
+CrossEntityDistanceMeter, NearbyListChangeMoveSelector,
+};
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Visit { x: f64, y: f64 }
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<Visit> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, e: usize) -> usize {
+s.vehicles.get(e).map_or(0, |v| v.visits.len())
+}
+fn list_remove(s: &mut Solution, e: usize, pos: usize) -> Option<Visit> {
+s.vehicles.get_mut(e).map(|v| v.visits.remove(pos))
+}
+fn list_insert(s: &mut Solution, e: usize, pos: usize, val: Visit) {
+if let Some(v) = s.vehicles.get_mut(e) { v.visits.insert(pos, val); }
+}
+
+// Euclidean distance between visit elements across routes
+#[derive(Debug)]
+struct EuclideanMeter;
+
+impl CrossEntityDistanceMeter<Solution> for EuclideanMeter {
+fn distance(
+&self,
+solution: &Solution,
+src_entity: usize, src_pos: usize,
+dst_entity: usize, dst_pos: usize,
+) -> f64 {
+let src = &solution.vehicles[src_entity].visits[src_pos];
+let dst = &solution.vehicles[dst_entity].visits[dst_pos];
+let dx = src.x - dst.x;
+let dy = src.y - dst.y;
+(dx * dx + dy * dy).sqrt()
+}
+}
+
+let selector = NearbyListChangeMoveSelector::<Solution, Visit, _, _>::new(
+FromSolutionEntitySelector::new(0),
+EuclideanMeter,
+10,   // max_nearby: consider 10 closest destinations
+list_len,
+list_remove,
+list_insert,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -112,8 +113,8 @@ use super::typed_move_selector::MoveSelector;
 /// - The distance can be asymmetric (e.g., directed graphs).
 /// - Returning `f64::INFINITY` for a pair excludes it from nearby candidates.
 pub trait CrossEntityDistanceMeter<S>: Send + Sync {
-    /// Returns the distance from the element at `(src_entity, src_pos)` to the element
-    /// at `(dst_entity, dst_pos)` in the current solution.
+    // Returns the distance from the element at `(src_entity, src_pos)` to the element
+    // at `(dst_entity, dst_pos)` in the current solution.
     fn distance(
         &self,
         solution: &S,
@@ -124,10 +125,11 @@ pub trait CrossEntityDistanceMeter<S>: Send + Sync {
     ) -> f64;
 }
 
-/// Default distance meter: uses absolute position difference within the same entity,
-/// and returns `f64::INFINITY` for cross-entity distances (no pruning across routes).
-///
-/// Useful for intra-route moves only.
+/* Default distance meter: uses absolute position difference within the same entity,
+and returns `f64::INFINITY` for cross-entity distances (no pruning across routes).
+
+Useful for intra-route moves only.
+*/
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultCrossEntityDistanceMeter;
 
@@ -184,17 +186,18 @@ impl<S, V: Debug, D, ES: Debug> Debug for NearbyListChangeMoveSelector<S, V, D, 
 }
 
 impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
-    /// Creates a new nearby list change move selector.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities to consider for moves
-    /// * `distance_meter` - Measures distance between position pairs
-    /// * `max_nearby` - Maximum destination positions to consider per source
-    /// * `list_len` - Function to get list length for an entity
-    /// * `list_remove` - Function to remove element at position
-    /// * `list_insert` - Function to insert element at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new nearby list change move selector.
+
+    # Arguments
+    * `entity_selector` - Selects entities to consider for moves
+    * `distance_meter` - Measures distance between position pairs
+    * `max_nearby` - Maximum destination positions to consider per source
+    * `list_len` - Function to get list length for an entity
+    * `list_remove` - Function to remove element at position
+    * `list_insert` - Function to insert element at position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,

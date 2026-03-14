@@ -1,75 +1,76 @@
-//! Nearby list swap move selector for distance-pruned element exchange.
-//!
-//! A distance-biased variant of [`ListSwapMoveSelector`] that only considers
-//! swap partners within a configurable distance of the source element.
-//! Reduces the move space from O(n²m²) to O(nm × k).
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::nearby_list_swap::NearbyListSwapMoveSelector;
-//! use solverforge_solver::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Visit { x: f64, y: f64 }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<Visit> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, e: usize) -> usize {
-//!     s.vehicles.get(e).map_or(0, |v| v.visits.len())
-//! }
-//! fn list_get(s: &Solution, e: usize, pos: usize) -> Option<Visit> {
-//!     s.vehicles.get(e).and_then(|v| v.visits.get(pos).cloned())
-//! }
-//! fn list_set(s: &mut Solution, e: usize, pos: usize, val: Visit) {
-//!     if let Some(v) = s.vehicles.get_mut(e) {
-//!         if let Some(elem) = v.visits.get_mut(pos) { *elem = val; }
-//!     }
-//! }
-//!
-//! #[derive(Debug)]
-//! struct EuclideanMeter;
-//!
-//! impl CrossEntityDistanceMeter<Solution> for EuclideanMeter {
-//!     fn distance(
-//!         &self,
-//!         solution: &Solution,
-//!         src_entity: usize, src_pos: usize,
-//!         dst_entity: usize, dst_pos: usize,
-//!     ) -> f64 {
-//!         let src = &solution.vehicles[src_entity].visits[src_pos];
-//!         let dst = &solution.vehicles[dst_entity].visits[dst_pos];
-//!         let dx = src.x - dst.x;
-//!         let dy = src.y - dst.y;
-//!         (dx * dx + dy * dy).sqrt()
-//!     }
-//! }
-//!
-//! let selector = NearbyListSwapMoveSelector::<Solution, Visit, _, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     EuclideanMeter,
-//!     10,
-//!     list_len,
-//!     list_get,
-//!     list_set,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* Nearby list swap move selector for distance-pruned element exchange.
+
+A distance-biased variant of [`ListSwapMoveSelector`] that only considers
+swap partners within a configurable distance of the source element.
+Reduces the move space from O(n²m²) to O(nm × k).
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::nearby_list_swap::NearbyListSwapMoveSelector;
+use solverforge_solver::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Visit { x: f64, y: f64 }
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<Visit> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, e: usize) -> usize {
+s.vehicles.get(e).map_or(0, |v| v.visits.len())
+}
+fn list_get(s: &Solution, e: usize, pos: usize) -> Option<Visit> {
+s.vehicles.get(e).and_then(|v| v.visits.get(pos).cloned())
+}
+fn list_set(s: &mut Solution, e: usize, pos: usize, val: Visit) {
+if let Some(v) = s.vehicles.get_mut(e) {
+if let Some(elem) = v.visits.get_mut(pos) { *elem = val; }
+}
+}
+
+#[derive(Debug)]
+struct EuclideanMeter;
+
+impl CrossEntityDistanceMeter<Solution> for EuclideanMeter {
+fn distance(
+&self,
+solution: &Solution,
+src_entity: usize, src_pos: usize,
+dst_entity: usize, dst_pos: usize,
+) -> f64 {
+let src = &solution.vehicles[src_entity].visits[src_pos];
+let dst = &solution.vehicles[dst_entity].visits[dst_pos];
+let dx = src.x - dst.x;
+let dy = src.y - dst.y;
+(dx * dx + dy * dy).sqrt()
+}
+}
+
+let selector = NearbyListSwapMoveSelector::<Solution, Visit, _, _>::new(
+FromSolutionEntitySelector::new(0),
+EuclideanMeter,
+10,
+list_len,
+list_get,
+list_set,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -118,17 +119,18 @@ impl<S, V: Debug, D, ES: Debug> Debug for NearbyListSwapMoveSelector<S, V, D, ES
 }
 
 impl<S, V, D, ES> NearbyListSwapMoveSelector<S, V, D, ES> {
-    /// Creates a new nearby list swap move selector.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities to consider for swaps
-    /// * `distance_meter` - Measures distance between position pairs
-    /// * `max_nearby` - Maximum partner positions to consider per source
-    /// * `list_len` - Function to get list length
-    /// * `list_get` - Function to get element at position
-    /// * `list_set` - Function to set element at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new nearby list swap move selector.
+
+    # Arguments
+    * `entity_selector` - Selects entities to consider for swaps
+    * `distance_meter` - Measures distance between position pairs
+    * `max_nearby` - Maximum partner positions to consider per source
+    * `list_len` - Function to get list length
+    * `list_get` - Function to get element at position
+    * `list_set` - Function to set element at position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,

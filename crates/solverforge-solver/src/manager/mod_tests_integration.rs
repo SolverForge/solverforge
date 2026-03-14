@@ -1,4 +1,4 @@
-//! Integration tests for SolverFactory with termination and solving.
+// Integration tests for SolverFactory with termination and solving.
 
 use super::*;
 use std::time::Duration;
@@ -9,19 +9,21 @@ use solverforge_scoring::ScoreDirector;
 
 use crate::scope::SolverScope;
 
-// ============================================================================
-// Type Aliases for Score Directors
-// ============================================================================
+/* ============================================================================
+Type Aliases for Score Directors
+============================================================================
+*/
 
-/// Score director type for TestSolution
+// Score director type for TestSolution
 type TestDirector = ScoreDirector<TestSolution, ()>;
 
-/// Score director type for EntityTestSolution
+// Score director type for EntityTestSolution
 type EntityTestDirector = ScoreDirector<EntityTestSolution, ()>;
 
-// ============================================================================
-// Test Solution Types
-// ============================================================================
+/* ============================================================================
+Test Solution Types
+============================================================================
+*/
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -69,11 +71,12 @@ fn calculate_entity_score(solution: &EntityTestSolution) -> SoftScore {
     SoftScore::of(-diff)
 }
 
-// ============================================================================
-// Test with Termination Conditions
-// ============================================================================
+/* ============================================================================
+Test with Termination Conditions
+============================================================================
+*/
 
-/// A simple test phase that just sets best solution
+// A simple test phase that just sets best solution
 #[derive(Debug, Clone)]
 struct NoOpPhase;
 

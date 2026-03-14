@@ -1,45 +1,46 @@
-// Zero-erasure quad-constraint stream for four-entity constraint patterns.
-//
-// A `QuadConstraintStream` operates on quadruples of entities and supports
-// filtering, weighting, and constraint finalization. All type information
-// is preserved at compile time - no Arc, no dyn.
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::stream::ConstraintFactory;
-// use solverforge_scoring::stream::joiner::equal;
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-// struct Task { team: u32 }
-//
-// #[derive(Clone)]
-// struct Solution { tasks: Vec<Task> }
-//
-// // Penalize when four tasks are on the same team
-// let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-//     .for_each(|s: &Solution| s.tasks.as_slice())
-//     .join(equal(|t: &Task| t.team))
-//     .join(equal(|t: &Task| t.team))
-//     .join(equal(|t: &Task| t.team))
-//     .penalize(SoftScore::of(1))
-//     .named("Team clustering");
-//
-// let solution = Solution {
-//     tasks: vec![
-//         Task { team: 1 },
-//         Task { team: 1 },
-//         Task { team: 1 },
-//         Task { team: 1 },
-//         Task { team: 2 },
-//     ],
-// };
-//
-// // One quadruple on team 1: (0, 1, 2, 3) = -1 penalty
-// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-// ```
+/* Zero-erasure quad-constraint stream for four-entity constraint patterns.
+
+A `QuadConstraintStream` operates on quadruples of entities and supports
+filtering, weighting, and constraint finalization. All type information
+is preserved at compile time - no Arc, no dyn.
+
+# Example
+
+```
+use solverforge_scoring::stream::ConstraintFactory;
+use solverforge_scoring::stream::joiner::equal;
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct Task { team: u32 }
+
+#[derive(Clone)]
+struct Solution { tasks: Vec<Task> }
+
+// Penalize when four tasks are on the same team
+let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+.for_each(|s: &Solution| s.tasks.as_slice())
+.join(equal(|t: &Task| t.team))
+.join(equal(|t: &Task| t.team))
+.join(equal(|t: &Task| t.team))
+.penalize(SoftScore::of(1))
+.named("Team clustering");
+
+let solution = Solution {
+tasks: vec![
+Task { team: 1 },
+Task { team: 1 },
+Task { team: 1 },
+Task { team: 1 },
+Task { team: 2 },
+],
+};
+
+// One quadruple on team 1: (0, 1, 2, 3) = -1 penalty
+assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+```
+*/
 
 use std::hash::Hash;
 
@@ -70,46 +71,47 @@ where
     F: QuadFilter<S, A, A, A, A>,
     Sc: Score + 'static,
 {
-    // Joins this stream with a fifth element to create quintuples.
-    //
-    // # Example
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Task { team: u32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { tasks: Vec<Task> }
-    //
-    // // Penalize when five tasks are on the same team
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join(equal(|t: &Task| t.team))
-    //     .join(equal(|t: &Task| t.team))
-    //     .join(equal(|t: &Task| t.team))
-    //     .join(equal(|t: &Task| t.team))
-    //     .penalize(SoftScore::of(1))
-    //     .named("Team clustering");
-    //
-    // let solution = Solution {
-    //     tasks: vec![
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 2 },
-    //     ],
-    // };
-    //
-    // // One quintuple on team 1: (0, 1, 2, 3, 4) = -1 penalty
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-    // ```
+    /* Joins this stream with a fifth element to create quintuples.
+
+    # Example
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Task { team: u32 }
+
+    #[derive(Clone)]
+    struct Solution { tasks: Vec<Task> }
+
+    // Penalize when five tasks are on the same team
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.tasks.as_slice())
+    .join(equal(|t: &Task| t.team))
+    .join(equal(|t: &Task| t.team))
+    .join(equal(|t: &Task| t.team))
+    .join(equal(|t: &Task| t.team))
+    .penalize(SoftScore::of(1))
+    .named("Team clustering");
+
+    let solution = Solution {
+    tasks: vec![
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 2 },
+    ],
+    };
+
+    // One quintuple on team 1: (0, 1, 2, 3, 4) = -1 penalty
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+    ```
+    */
     pub fn join<J>(
         self,
         joiner: J,
@@ -135,101 +137,102 @@ where
 
 #[cfg(doctest)]
 mod doctests {
-    // # Filter method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Item { group: u32, value: i32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { items: Vec<Item> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join(equal(|i: &Item| i.group))
-    //     .join(equal(|i: &Item| i.group))
-    //     .join(equal(|i: &Item| i.group))
-    //     .filter(|a: &Item, b: &Item, c: &Item, d: &Item| {
-    //         a.value + b.value + c.value + d.value > 15
-    //     })
-    //     .penalize(SoftScore::of(1))
-    //     .named("High sum quadruples");
-    //
-    // let solution = Solution {
-    //     items: vec![
-    //         Item { group: 1, value: 3 },
-    //         Item { group: 1, value: 4 },
-    //         Item { group: 1, value: 5 },
-    //         Item { group: 1, value: 6 },
-    //     ],
-    // };
-    //
-    // // 3+4+5+6=18 > 15, matches
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-    // ```
-    //
-    // # Penalize method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Task { priority: u32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { tasks: Vec<Task> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join(equal(|t: &Task| t.priority))
-    //     .join(equal(|t: &Task| t.priority))
-    //     .join(equal(|t: &Task| t.priority))
-    //     .penalize(SoftScore::of(5))
-    //     .named("Quadruple priority conflict");
-    //
-    // let solution = Solution {
-    //     tasks: vec![
-    //         Task { priority: 1 },
-    //         Task { priority: 1 },
-    //         Task { priority: 1 },
-    //         Task { priority: 1 },
-    //     ],
-    // };
-    //
-    // // One quadruple = -5
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
-    // ```
-    //
-    // # named method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Item { id: usize }
-    //
-    // #[derive(Clone)]
-    // struct Solution { items: Vec<Item> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join(equal(|i: &Item| i.id))
-    //     .join(equal(|i: &Item| i.id))
-    //     .join(equal(|i: &Item| i.id))
-    //     .penalize(SoftScore::of(1))
-    //     .named("Quadruple items");
-    //
-    // assert_eq!(constraint.name(), "Quadruple items");
-    // ```
+    /* # Filter method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Item { group: u32, value: i32 }
+
+    #[derive(Clone)]
+    struct Solution { items: Vec<Item> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.items.as_slice())
+    .join(equal(|i: &Item| i.group))
+    .join(equal(|i: &Item| i.group))
+    .join(equal(|i: &Item| i.group))
+    .filter(|a: &Item, b: &Item, c: &Item, d: &Item| {
+    a.value + b.value + c.value + d.value > 15
+    })
+    .penalize(SoftScore::of(1))
+    .named("High sum quadruples");
+
+    let solution = Solution {
+    items: vec![
+    Item { group: 1, value: 3 },
+    Item { group: 1, value: 4 },
+    Item { group: 1, value: 5 },
+    Item { group: 1, value: 6 },
+    ],
+    };
+
+    // 3+4+5+6=18 > 15, matches
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+    ```
+
+    # Penalize method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Task { priority: u32 }
+
+    #[derive(Clone)]
+    struct Solution { tasks: Vec<Task> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.tasks.as_slice())
+    .join(equal(|t: &Task| t.priority))
+    .join(equal(|t: &Task| t.priority))
+    .join(equal(|t: &Task| t.priority))
+    .penalize(SoftScore::of(5))
+    .named("Quadruple priority conflict");
+
+    let solution = Solution {
+    tasks: vec![
+    Task { priority: 1 },
+    Task { priority: 1 },
+    Task { priority: 1 },
+    Task { priority: 1 },
+    ],
+    };
+
+    // One quadruple = -5
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
+    ```
+
+    # named method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Item { id: usize }
+
+    #[derive(Clone)]
+    struct Solution { items: Vec<Item> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.items.as_slice())
+    .join(equal(|i: &Item| i.id))
+    .join(equal(|i: &Item| i.id))
+    .join(equal(|i: &Item| i.id))
+    .penalize(SoftScore::of(1))
+    .named("Quadruple items");
+
+    assert_eq!(constraint.name(), "Quadruple items");
+    ```
+    */
 }

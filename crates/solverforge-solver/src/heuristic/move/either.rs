@@ -1,8 +1,9 @@
-//! EitherMove - a monomorphized union of ChangeMove and SwapMove.
-//!
-//! This allows local search to use both move types without trait-object dispatch.
-//! The construction phase uses ChangeMove directly, while local search uses
-//! EitherMove<S, V> = ChangeMove | SwapMove.
+/* EitherMove - a monomorphized union of ChangeMove and SwapMove.
+
+This allows local search to use both move types without trait-object dispatch.
+The construction phase uses ChangeMove directly, while local search uses
+EitherMove<S, V> = ChangeMove | SwapMove.
+*/
 
 use std::fmt::Debug;
 

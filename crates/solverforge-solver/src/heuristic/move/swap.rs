@@ -1,12 +1,13 @@
-//! SwapMove - exchanges values between two entities.
-//!
-//! This move swaps the values of a planning variable between two entities.
-//! Useful for permutation-based problems.
-//!
-//! # Zero-Erasure Design
-//!
-//! SwapMove uses typed function pointers instead of `dyn Any` for complete
-//! compile-time type safety. No runtime type checks or downcasting.
+/* SwapMove - exchanges values between two entities.
+
+This move swaps the values of a planning variable between two entities.
+Useful for permutation-based problems.
+
+# Zero-Erasure Design
+
+SwapMove uses typed function pointers instead of `dyn Any` for complete
+compile-time type safety. No runtime type checks or downcasting.
+*/
 
 use std::fmt::Debug;
 
@@ -49,13 +50,13 @@ use super::Move;
 pub struct SwapMove<S, V> {
     left_entity_index: usize,
     right_entity_index: usize,
-    /// Typed getter function pointer - zero erasure.
+    // Typed getter function pointer - zero erasure.
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
+    // Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    /// Store indices inline for entity_indices() to return a slice.
+    // Store indices inline for entity_indices() to return a slice.
     indices: [usize; 2],
 }
 
@@ -107,12 +108,10 @@ impl<S, V> SwapMove<S, V> {
         }
     }
 
-    /// Returns the left entity index.
     pub fn left_entity_index(&self) -> usize {
         self.left_entity_index
     }
 
-    /// Returns the right entity index.
     pub fn right_entity_index(&self) -> usize {
         self.right_entity_index
     }

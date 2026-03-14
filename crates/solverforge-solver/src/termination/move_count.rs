@@ -1,4 +1,4 @@
-//! Move count termination.
+// Move count termination.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,26 +10,27 @@ use super::Termination;
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
-/// Terminates when a maximum number of moves have been evaluated.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::MoveCountTermination;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// // Terminate after evaluating 100,000 moves
-/// let termination = MoveCountTermination::<MySolution>::new(100_000);
-/// ```
+/* Terminates when a maximum number of moves have been evaluated.
+
+# Example
+
+```
+use solverforge_solver::termination::MoveCountTermination;
+use solverforge_core::score::SoftScore;
+use solverforge_core::domain::PlanningSolution;
+
+#[derive(Clone)]
+struct MySolution;
+impl PlanningSolution for MySolution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { None }
+fn set_score(&mut self, _: Option<Self::Score>) {}
+}
+
+// Terminate after evaluating 100,000 moves
+let termination = MoveCountTermination::<MySolution>::new(100_000);
+```
+*/
 #[derive(Clone)]
 pub struct MoveCountTermination<S: PlanningSolution> {
     limit: u64,

@@ -1,4 +1,4 @@
-//! Phase trait definition.
+// Phase trait definition.
 
 use std::fmt::Debug;
 
@@ -20,17 +20,17 @@ use crate::scope::SolverScope;
 pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>:
     Send + Debug
 {
-    /// Executes this phase.
-    ///
-    /// The phase should modify the working solution in the solver scope
-    /// and update the best solution when improvements are found.
+    /* Executes this phase.
+
+    The phase should modify the working solution in the solver scope
+    and update the best solution when improvements are found.
+    */
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>);
 
-    /// Returns the name of this phase type.
     fn phase_type_name(&self) -> &'static str;
 }
 
-/// Unit type implements Phase as a no-op (empty phase list).
+// Unit type implements Phase as a no-op (empty phase list).
 impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Phase<S, D, BestCb>
     for ()
 {

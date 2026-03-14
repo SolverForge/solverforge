@@ -1,6 +1,7 @@
-//! Diminished returns termination.
-//!
-//! Terminates when the rate of score improvement drops below a threshold.
+/* Diminished returns termination.
+
+Terminates when the rate of score improvement drops below a threshold.
+*/
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -45,11 +46,11 @@ use crate::scope::SolverScope;
 /// );
 /// ```
 pub struct DiminishedReturnsTermination<S: PlanningSolution> {
-    /// Time window for measuring improvement rate.
+    // Time window for measuring improvement rate.
     window: Duration,
-    /// Minimum improvement rate (score units per second) below which to terminate.
+    // Minimum improvement rate (score units per second) below which to terminate.
     min_rate: f64,
-    /// Internal state tracking improvements.
+    // Internal state tracking improvements.
     state: RefCell<DiminishedState<S::Score>>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -64,11 +65,11 @@ impl<S: PlanningSolution> Debug for DiminishedReturnsTermination<S> {
 }
 
 struct DiminishedState<Sc: Score> {
-    /// Score samples within the window: (timestamp, score).
+    // Score samples within the window: (timestamp, score).
     samples: VecDeque<(Instant, Sc)>,
-    /// Timestamp of first sample for initial grace period.
+    // Timestamp of first sample for initial grace period.
     start_time: Option<Instant>,
-    /// Oldest score seen — retained as baseline even after window eviction.
+    // Oldest score seen — retained as baseline even after window eviction.
     baseline: Option<(Instant, Sc)>,
 }
 
@@ -146,10 +147,11 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termi
         // Add current sample
         state.samples.push_back((now, *current_score));
 
-        // Use oldest available reference: whichever of the in-window front or the
-        // baseline is older. The baseline is the first sample ever recorded (during
-        // the grace period) and is never evicted, so it provides a stable reference
-        // even when macOS timer slop causes all window samples to be evicted.
+        /* Use oldest available reference: whichever of the in-window front or the
+        baseline is older. The baseline is the first sample ever recorded (during
+        the grace period) and is never evicted, so it provides a stable reference
+        even when macOS timer slop causes all window samples to be evicted.
+        */
         let reference = match (state.samples.front(), state.baseline.as_ref()) {
             (Some(w), Some(b)) => {
                 if b.0 <= w.0 {
@@ -174,9 +176,10 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termi
         let current_levels = current_score.to_level_numbers();
         let oldest_levels = oldest_score.to_level_numbers();
 
-        // Use the last level (soft score) for improvement rate
-        // For SoftScore: the only value
-        // For HardSoftScore: the soft value
+        /* Use the last level (soft score) for improvement rate
+        For SoftScore: the only value
+        For HardSoftScore: the soft value
+        */
         let current_value = *current_levels.last().unwrap_or(&0);
         let oldest_value = *oldest_levels.last().unwrap_or(&0);
 

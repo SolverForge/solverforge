@@ -1,4 +1,4 @@
-//! Move trait definition.
+// Move trait definition.
 
 use std::fmt::Debug;
 
@@ -19,26 +19,25 @@ use solverforge_scoring::Director;
 /// - Moves are NEVER cloned - ownership transfers via arena indices
 /// - Methods are generic over D to allow use with both concrete directors and RecordingDirector
 pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
-    /// Returns true if this move can be executed in the current state.
-    ///
-    /// A move is not doable if:
-    /// - The source value equals the destination value (no change)
-    /// - Required entities are pinned
-    /// - The move would violate hard constraints that can be detected early
+    /* Returns true if this move can be executed in the current state.
+
+    A move is not doable if:
+    - The source value equals the destination value (no change)
+    - Required entities are pinned
+    - The move would violate hard constraints that can be detected early
+    */
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool;
 
-    /// Executes this move, modifying the working solution.
-    ///
-    /// This method modifies the planning variables through the score director.
-    /// Use `RecordingDirector` to enable automatic undo via `undo_changes()`.
+    /* Executes this move, modifying the working solution.
+
+    This method modifies the planning variables through the score director.
+    Use `RecordingDirector` to enable automatic undo via `undo_changes()`.
+    */
     fn do_move<D: Director<S>>(&self, score_director: &mut D);
 
-    /// Returns the descriptor index of the entity type this move affects.
     fn descriptor_index(&self) -> usize;
 
-    /// Returns the entity indices involved in this move.
     fn entity_indices(&self) -> &[usize];
 
-    /// Returns the variable name this move affects.
     fn variable_name(&self) -> &str;
 }

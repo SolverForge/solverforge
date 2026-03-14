@@ -1,8 +1,9 @@
-//! Pillar selector for selecting groups of entities with the same variable value.
-//!
-//! A pillar is a group of entities that share the same planning variable value.
-//! Pillar moves operate on entire pillars, changing or swapping all entities
-//! in the pillar atomically.
+/* Pillar selector for selecting groups of entities with the same variable value.
+
+A pillar is a group of entities that share the same planning variable value.
+Pillar moves operate on entire pillars, changing or swapping all entities
+in the pillar atomically.
+*/
 
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -14,33 +15,30 @@ use solverforge_scoring::Director;
 
 use super::entity::{EntityReference, EntitySelector};
 
-/// A pillar is a group of entity references that share the same variable value.
-///
-/// All entities in a pillar have the same value for a specific planning variable,
-/// which allows them to be moved together atomically.
+/* A pillar is a group of entity references that share the same variable value.
+
+All entities in a pillar have the same value for a specific planning variable,
+which allows them to be moved together atomically.
+*/
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pillar {
-    /// The entity references in this pillar.
+    // The entity references in this pillar.
     pub entities: Vec<EntityReference>,
 }
 
 impl Pillar {
-    /// Creates a new pillar with the given entities.
     pub fn new(entities: Vec<EntityReference>) -> Self {
         Self { entities }
     }
 
-    /// Returns the number of entities in this pillar.
     pub fn size(&self) -> usize {
         self.entities.len()
     }
 
-    /// Returns true if this pillar is empty.
     pub fn is_empty(&self) -> bool {
         self.entities.is_empty()
     }
 
-    /// Returns the first entity reference in this pillar.
     pub fn first(&self) -> Option<&EntityReference> {
         self.entities.first()
     }
@@ -59,35 +57,34 @@ impl Pillar {
 /// # Type Parameters
 /// * `S` - The planning solution type
 pub trait PillarSelector<S: PlanningSolution>: Send + Debug {
-    /// Returns an iterator over pillars.
-    ///
-    /// Each pillar contains entity references for entities that share
-    /// the same variable value.
+    /* Returns an iterator over pillars.
+
+    Each pillar contains entity references for entities that share
+    the same variable value.
+    */
     fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = Pillar> + 'a;
 
-    /// Returns the approximate number of pillars.
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
-    /// Returns true if this selector may return the same pillar multiple times.
+    // Returns true if this selector may return the same pillar multiple times.
     fn is_never_ending(&self) -> bool {
         false
     }
 
-    /// Returns the descriptor index this selector operates on.
     fn descriptor_index(&self) -> usize;
 }
 
-/// Configuration for sub-pillar selection.
+// Configuration for sub-pillar selection.
 #[derive(Debug, Clone)]
 pub struct SubPillarConfig {
-    /// Whether sub-pillar selection is enabled.
+    // Whether sub-pillar selection is enabled.
     pub enabled: bool,
-    /// Minimum size of a sub-pillar (default: 1).
+    // Minimum size of a sub-pillar (default: 1).
     pub minimum_size: usize,
-    /// Maximum size of a sub-pillar (default: usize::MAX).
+    // Maximum size of a sub-pillar (default: usize::MAX).
     pub maximum_size: usize,
 }
 
@@ -102,12 +99,10 @@ impl Default for SubPillarConfig {
 }
 
 impl SubPillarConfig {
-    /// Creates a new sub-pillar config with sub-pillars disabled.
     pub fn none() -> Self {
         Self::default()
     }
 
-    /// Creates a new sub-pillar config with sub-pillars enabled.
     pub fn all() -> Self {
         Self {
             enabled: true,
@@ -116,13 +111,11 @@ impl SubPillarConfig {
         }
     }
 
-    /// Sets the minimum sub-pillar size.
     pub fn with_minimum_size(mut self, size: usize) -> Self {
         self.minimum_size = size.max(1);
         self
     }
 
-    /// Sets the maximum sub-pillar size.
     pub fn with_maximum_size(mut self, size: usize) -> Self {
         self.maximum_size = size;
         self
@@ -148,17 +141,17 @@ where
     ES: EntitySelector<S>,
     E: Fn(&dyn Director<S>, usize, usize) -> Option<V> + Send + Sync,
 {
-    /// The underlying entity selector (zero-erasure).
+    // The underlying entity selector (zero-erasure).
     entity_selector: ES,
-    /// The descriptor index.
+    // The descriptor index.
     descriptor_index: usize,
-    /// The variable name for grouping.
+    // The variable name for grouping.
     variable_name: &'static str,
-    /// Function to extract the value from an entity for grouping (zero-erasure).
+    // Function to extract the value from an entity for grouping (zero-erasure).
     value_extractor: E,
-    /// Sub-pillar configuration.
+    // Sub-pillar configuration.
     sub_pillar_config: SubPillarConfig,
-    /// Marker for solution and value types.
+    // Marker for solution and value types.
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
@@ -210,18 +203,16 @@ where
         }
     }
 
-    /// Sets the sub-pillar configuration.
     pub fn with_sub_pillar_config(mut self, config: SubPillarConfig) -> Self {
         self.sub_pillar_config = config;
         self
     }
 
-    /// Returns the variable name.
     pub fn variable_name(&self) -> &str {
         self.variable_name
     }
 
-    /// Builds the pillar list from the current solution state.
+    // Builds the pillar list from the current solution state.
     fn build_pillars<D: Director<S>>(&self, score_director: &D) -> Vec<Pillar> {
         // Group entities by their value
         let mut value_to_entities: HashMap<Option<V>, Vec<EntityReference>> = HashMap::new();

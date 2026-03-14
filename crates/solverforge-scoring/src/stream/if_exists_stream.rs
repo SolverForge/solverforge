@@ -1,7 +1,8 @@
-// Zero-erasure if_exists/if_not_exists constraint stream.
-//
-// A `IfExistsStream` is created from `UniConstraintStream::if_exists()` or
-// `if_not_exists()` and provides filtering, weighting, and finalization.
+/* Zero-erasure if_exists/if_not_exists constraint stream.
+
+A `IfExistsStream` is created from `UniConstraintStream::if_exists()` or
+`if_not_exists()` and provides filtering, weighting, and finalization.
+*/
 
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -14,70 +15,71 @@ use crate::constraint::if_exists::{ExistenceMode, IfExistsUniConstraint};
 use super::collection_extract::CollectionExtract;
 use super::filter::UniFilter;
 
-// Zero-erasure stream for building if_exists/if_not_exists constraints.
-//
-// Created by `UniConstraintStream::if_exists()` or `if_not_exists()`.
-// Filters A entities based on whether a matching B exists.
-//
-// # Type Parameters
-//
-// - `S` - Solution type
-// - `A` - Primary entity type (scored)
-// - `B` - Secondary entity type (checked for existence)
-// - `K` - Join key type
-// - `EA` - Extractor for A entities
-// - `EB` - Extractor for B entities (returns Vec for filtering)
-// - `KA` - Key extractor for A
-// - `KB` - Key extractor for B
-// - `FA` - Filter on A entities
-// - `Sc` - Score type
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::stream::ConstraintFactory;
-// use solverforge_scoring::stream::joiner::equal_bi;
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone)]
-// struct Shift { id: usize, employee_idx: Option<usize> }
-//
-// #[derive(Clone)]
-// struct Employee { id: usize, on_vacation: bool }
-//
-// #[derive(Clone)]
-// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
-//
-// // Penalize shifts assigned to employees who are on vacation
-// let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
-//     .for_each(|s: &Schedule| s.shifts.as_slice())
-//     .filter(|shift: &Shift| shift.employee_idx.is_some())
-//     .if_exists_filtered(
-//         |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect(),
-//         equal_bi(
-//             |shift: &Shift| shift.employee_idx,
-//             |emp: &Employee| Some(emp.id),
-//         ),
-//     )
-//     .penalize(SoftScore::of(1))
-//     .named("Vacation conflict");
-//
-// let schedule = Schedule {
-//     shifts: vec![
-//         Shift { id: 0, employee_idx: Some(0) },
-//         Shift { id: 1, employee_idx: Some(1) },
-//         Shift { id: 2, employee_idx: None },
-//     ],
-//     employees: vec![
-//         Employee { id: 0, on_vacation: true },
-//         Employee { id: 1, on_vacation: false },
-//     ],
-// };
-//
-// // Shift 0 is assigned to employee 0 who is on vacation
-// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
-// ```
+/* Zero-erasure stream for building if_exists/if_not_exists constraints.
+
+Created by `UniConstraintStream::if_exists()` or `if_not_exists()`.
+Filters A entities based on whether a matching B exists.
+
+# Type Parameters
+
+- `S` - Solution type
+- `A` - Primary entity type (scored)
+- `B` - Secondary entity type (checked for existence)
+- `K` - Join key type
+- `EA` - Extractor for A entities
+- `EB` - Extractor for B entities (returns Vec for filtering)
+- `KA` - Key extractor for A
+- `KB` - Key extractor for B
+- `FA` - Filter on A entities
+- `Sc` - Score type
+
+# Example
+
+```
+use solverforge_scoring::stream::ConstraintFactory;
+use solverforge_scoring::stream::joiner::equal_bi;
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone)]
+struct Shift { id: usize, employee_idx: Option<usize> }
+
+#[derive(Clone)]
+struct Employee { id: usize, on_vacation: bool }
+
+#[derive(Clone)]
+struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
+
+// Penalize shifts assigned to employees who are on vacation
+let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+.for_each(|s: &Schedule| s.shifts.as_slice())
+.filter(|shift: &Shift| shift.employee_idx.is_some())
+.if_exists_filtered(
+|s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect(),
+equal_bi(
+|shift: &Shift| shift.employee_idx,
+|emp: &Employee| Some(emp.id),
+),
+)
+.penalize(SoftScore::of(1))
+.named("Vacation conflict");
+
+let schedule = Schedule {
+shifts: vec![
+Shift { id: 0, employee_idx: Some(0) },
+Shift { id: 1, employee_idx: Some(1) },
+Shift { id: 2, employee_idx: None },
+],
+employees: vec![
+Employee { id: 0, on_vacation: true },
+Employee { id: 1, on_vacation: false },
+],
+};
+
+// Shift 0 is assigned to employee 0 who is on vacation
+assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
+```
+*/
 pub struct IfExistsStream<S, A, B, K, EA, EB, KA, KB, FA, Sc>
 where
     Sc: Score,

@@ -1,10 +1,11 @@
-// Zero-erasure constraint API.
-//
-// This module provides:
-// - ConstraintSet trait for tuple-based constraint evaluation
-// - IncrementalConstraint trait for incremental scoring
-// - Analysis types for score explanation
-// - Runtime weight override configuration
+/* Zero-erasure constraint API.
+
+This module provides:
+- ConstraintSet trait for tuple-based constraint evaluation
+- IncrementalConstraint trait for incremental scoring
+- Analysis types for score explanation
+- Runtime weight override configuration
+*/
 
 pub mod analysis;
 pub mod constraint_set;

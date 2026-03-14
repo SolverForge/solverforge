@@ -1,8 +1,9 @@
-// Score analysis types for detailed constraint tracking.
-//
-// This module provides types for analyzing constraint matches in detail,
-// including which entities are involved in each match, score explanations,
-// and entity-level indictments.
+/* Score analysis types for detailed constraint tracking.
+
+This module provides types for analyzing constraint matches in detail,
+including which entities are involved in each match, score explanations,
+and entity-level indictments.
+*/
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -13,9 +14,10 @@ use std::sync::Arc;
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
-// Reference to an entity involved in a constraint match.
-// Uses type erasure to allow storing references to different entity types
-// in a single collection.
+/* Reference to an entity involved in a constraint match.
+Uses type erasure to allow storing references to different entity types
+in a single collection.
+*/
 #[derive(Clone)]
 pub struct EntityRef {
     // Type name of the entity (e.g., "Shift", "Employee").

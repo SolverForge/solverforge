@@ -1,4 +1,4 @@
-//! Tests for k-opt move selectors.
+// Tests for k-opt move selectors.
 
 use super::*;
 use crate::heuristic::r#move::Move;
@@ -72,10 +72,11 @@ fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
 
 #[test]
 fn cut_combination_iterator_basic() {
-    // For k=3, len=8, min_seg=1:
-    // We need 4 segments of length >= 1
-    // Cuts can be at positions 1-7 (not 0 or 8)
-    // First combination: [1, 2, 3]
+    /* For k=3, len=8, min_seg=1:
+    We need 4 segments of length >= 1
+    Cuts can be at positions 1-7 (not 0 or 8)
+    First combination: [1, 2, 3]
+    */
     let mut iter = CutCombinationIterator::new(3, 8, 1, 0);
 
     let first = iter.next().unwrap();

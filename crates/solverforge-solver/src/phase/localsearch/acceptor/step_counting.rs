@@ -1,4 +1,4 @@
-//! Step Counting Hill Climbing acceptor.
+// Step Counting Hill Climbing acceptor.
 
 use std::fmt::Debug;
 
@@ -34,11 +34,11 @@ use super::Acceptor;
 /// let acceptor = StepCountingHillClimbingAcceptor::<MySolution>::new(100);
 /// ```
 pub struct StepCountingHillClimbingAcceptor<S: PlanningSolution> {
-    /// Maximum steps allowed without improvement.
+    // Maximum steps allowed without improvement.
     step_count_limit: u64,
-    /// Current steps since last improvement.
+    // Current steps since last improvement.
     steps_since_improvement: u64,
-    /// Best score seen so far.
+    // Best score seen so far.
     best_score: Option<S::Score>,
 }
 

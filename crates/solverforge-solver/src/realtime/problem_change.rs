@@ -1,4 +1,4 @@
-//! Problem change trait for real-time planning.
+// Problem change trait for real-time planning.
 
 use std::fmt::Debug;
 
@@ -40,7 +40,7 @@ use solverforge_scoring::Director;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// /// Adds a new employee to the schedule.
+// /// Adds a new employee to the schedule.
 /// #[derive(Debug)]
 /// struct AddEmployee {
 ///     employee_id: usize,
@@ -72,11 +72,12 @@ use solverforge_scoring::Director;
 /// }
 /// ```
 pub trait ProblemChange<S: PlanningSolution>: Send + Debug {
-    /// Applies this change to the working solution.
-    ///
-    /// This method is called by the solver at a safe point (between steps).
-    /// Access the working solution via `score_director.working_solution_mut()`.
-    ///
+    /* Applies this change to the working solution.
+
+    This method is called by the solver at a safe point (between steps).
+    Access the working solution via `score_director.working_solution_mut()`.
+
+    */
     fn apply(&self, score_director: &mut dyn Director<S>);
 }
 

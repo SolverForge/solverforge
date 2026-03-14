@@ -1,4 +1,4 @@
-//! Integration tests for termination conditions.
+// Integration tests for termination conditions.
 
 use super::*;
 use crate::scope::SolverScope;

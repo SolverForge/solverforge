@@ -1,4 +1,4 @@
-//! Tests for pillar selectors.
+// Tests for pillar selectors.
 
 use super::*;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;

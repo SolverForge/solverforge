@@ -4,33 +4,35 @@ use std::marker::PhantomData;
 
 use super::{Accumulator, UniCollector};
 
-// Creates a collector that counts entities.
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::stream::collector::{count, UniCollector, Accumulator};
-//
-// let collector = count::<i32>();
-// let mut acc = collector.create_accumulator();
-//
-// acc.accumulate(&collector.extract(&1));
-// acc.accumulate(&collector.extract(&2));
-// acc.accumulate(&collector.extract(&3));
-// assert_eq!(acc.get(), 3);
-//
-// acc.retract(&collector.extract(&2));
-// assert_eq!(acc.get(), 2);
-// ```
+/* Creates a collector that counts entities.
+
+# Example
+
+```
+use solverforge_scoring::stream::collector::{count, UniCollector, Accumulator};
+
+let collector = count::<i32>();
+let mut acc = collector.create_accumulator();
+
+acc.accumulate(&collector.extract(&1));
+acc.accumulate(&collector.extract(&2));
+acc.accumulate(&collector.extract(&3));
+assert_eq!(acc.get(), 3);
+
+acc.retract(&collector.extract(&2));
+assert_eq!(acc.get(), 2);
+```
+*/
 pub fn count<A>() -> CountCollector<A> {
     CountCollector {
         _phantom: PhantomData,
     }
 }
 
-// A collector that counts entities.
-//
-// Created by the [`count()`] function.
+/* A collector that counts entities.
+
+Created by the [`count()`] function.
+*/
 pub struct CountCollector<A> {
     _phantom: PhantomData<fn(&A)>,
 }

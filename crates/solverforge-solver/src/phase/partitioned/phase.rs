@@ -1,4 +1,4 @@
-//! PartitionedSearchPhase implementation.
+// PartitionedSearchPhase implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -44,16 +44,16 @@ where
     PF: Fn() -> CP + Send + Sync,
     CP: ChildPhases<S, PD>,
 {
-    /// The partitioner that splits and merges solutions.
+    // The partitioner that splits and merges solutions.
     partitioner: Part,
 
-    /// Factory for creating score directors for each partition.
+    // Factory for creating score directors for each partition.
     score_director_factory: SDF,
 
-    /// Factory for creating child phases for each partition.
+    // Factory for creating child phases for each partition.
     phase_factory: PF,
 
-    /// Configuration for this phase.
+    // Configuration for this phase.
     config: PartitionedSearchConfig,
 
     _marker: PhantomData<fn(S, D, PD, CP)>,
@@ -69,7 +69,6 @@ where
     PF: Fn() -> CP + Send + Sync,
     CP: ChildPhases<S, PD>,
 {
-    /// Creates a new partitioned search phase.
     pub fn new(partitioner: Part, score_director_factory: SDF, phase_factory: PF) -> Self {
         Self {
             partitioner,
@@ -80,7 +79,6 @@ where
         }
     }
 
-    /// Creates a partitioned search phase with custom configuration.
     pub fn with_config(
         partitioner: Part,
         score_director_factory: SDF,
@@ -207,7 +205,7 @@ where
     PF: Fn() -> CP + Send + Sync,
     CP: ChildPhases<S, PD>,
 {
-    /// Solves a single partition and returns the solved solution.
+    // Solves a single partition and returns the solved solution.
     fn solve_partition(&self, partition: S) -> S {
         // Create score director for this partition
         let director = (self.score_director_factory)(partition);

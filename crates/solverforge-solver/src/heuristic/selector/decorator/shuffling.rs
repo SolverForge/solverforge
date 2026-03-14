@@ -1,6 +1,7 @@
-//! Shuffling move selector decorator.
-//!
-//! Shuffles moves from an inner selector using Fisher-Yates.
+/* Shuffling move selector decorator.
+
+Shuffles moves from an inner selector using Fisher-Yates.
+*/
 
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -58,13 +59,13 @@ pub struct ShufflingMoveSelector<S, M, Inner> {
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
-// SAFETY: RefCell<StdRng> is only accessed from a single thread at a time
-// via the `iter_moves` method. The Send bound on MoveSelector ensures
-// the selector itself is only used from one thread.
+/* SAFETY: RefCell<StdRng> is only accessed from a single thread at a time
+via the `iter_moves` method. The Send bound on MoveSelector ensures
+the selector itself is only used from one thread.
+*/
 unsafe impl<S, M, Inner: Send> Send for ShufflingMoveSelector<S, M, Inner> {}
 
 impl<S, M, Inner> ShufflingMoveSelector<S, M, Inner> {
-    /// Creates a new shuffling selector with a random seed.
     pub fn new(inner: Inner) -> Self {
         Self {
             inner,

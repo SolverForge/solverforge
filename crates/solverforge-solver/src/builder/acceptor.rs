@@ -1,4 +1,4 @@
-//! Acceptor builder and `AnyAcceptor` enum.
+// Acceptor builder and `AnyAcceptor` enum.
 
 use std::fmt::Debug;
 
@@ -11,21 +11,22 @@ use crate::phase::localsearch::{
     SimulatedAnnealingAcceptor, TabuSearchAcceptor,
 };
 
-/// A concrete enum over all built-in acceptor types.
-///
-/// Returned by [`AcceptorBuilder::build`] to avoid `Box<dyn Acceptor<S>>`.
-/// Dispatches to the inner acceptor via `match` — fully monomorphized.
+/* A concrete enum over all built-in acceptor types.
+
+Returned by [`AcceptorBuilder::build`] to avoid `Box<dyn Acceptor<S>>`.
+Dispatches to the inner acceptor via `match` — fully monomorphized.
+*/
 #[allow(clippy::large_enum_variant)]
 pub enum AnyAcceptor<S: PlanningSolution> {
-    /// Hill climbing acceptor.
+    // Hill climbing acceptor.
     HillClimbing(HillClimbingAcceptor),
-    /// Tabu search acceptor.
+    // Tabu search acceptor.
     TabuSearch(TabuSearchAcceptor<S>),
-    /// Simulated annealing acceptor.
+    // Simulated annealing acceptor.
     SimulatedAnnealing(SimulatedAnnealingAcceptor),
-    /// Late acceptance acceptor.
+    // Late acceptance acceptor.
     LateAcceptance(LateAcceptanceAcceptor<S>),
-    /// Great deluge acceptor.
+    // Great deluge acceptor.
     GreatDeluge(GreatDelugeAcceptor<S>),
 }
 
@@ -157,22 +158,18 @@ impl AcceptorBuilder {
         }
     }
 
-    /// Creates a default hill climbing acceptor.
     pub fn hill_climbing<S: PlanningSolution>() -> HillClimbingAcceptor {
         HillClimbingAcceptor::new()
     }
 
-    /// Creates a tabu search acceptor with the given size.
     pub fn tabu_search<S: PlanningSolution>(tabu_size: usize) -> TabuSearchAcceptor<S> {
         TabuSearchAcceptor::<S>::new(tabu_size)
     }
 
-    /// Creates a simulated annealing acceptor.
     pub fn simulated_annealing(starting_temp: f64, decay_rate: f64) -> SimulatedAnnealingAcceptor {
         SimulatedAnnealingAcceptor::new(starting_temp, decay_rate)
     }
 
-    /// Creates a late acceptance acceptor.
     pub fn late_acceptance<S: PlanningSolution>(size: usize) -> LateAcceptanceAcceptor<S> {
         LateAcceptanceAcceptor::<S>::new(size)
     }

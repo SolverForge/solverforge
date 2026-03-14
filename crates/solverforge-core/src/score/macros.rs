@@ -1,16 +1,18 @@
-//! Declarative macros for reducing score type boilerplate.
-//!
-//! These macros generate the repetitive trait implementations that all
-//! field-based score types share: arithmetic ops, ordering, multiply/divide,
-//! and slash-separated parsing.
+/* Declarative macros for reducing score type boilerplate.
 
-/// Generates `PartialOrd`, `Add`, `Sub`, and `Neg` for a field-based score type.
-///
-/// The constructor must accept fields in the order they are listed.
-///
-/// # Usage
-///
-/// `impl_score_ops!(HardSoftScore { hard, soft } => of);`
+These macros generate the repetitive trait implementations that all
+field-based score types share: arithmetic ops, ordering, multiply/divide,
+and slash-separated parsing.
+*/
+
+/* Generates `PartialOrd`, `Add`, `Sub`, and `Neg` for a field-based score type.
+
+The constructor must accept fields in the order they are listed.
+
+# Usage
+
+`impl_score_ops!(HardSoftScore { hard, soft } => of);`
+*/
 macro_rules! impl_score_ops {
     ($type:ident { $($field:ident),+ } => $ctor:ident) => {
         impl PartialOrd for $type {
@@ -45,14 +47,15 @@ macro_rules! impl_score_ops {
     };
 }
 
-/// Generates `multiply`, `divide`, and `abs` methods for the `Score` trait impl.
-///
-/// Intended to be used *inside* an `impl Score for Type { ... }` block.
-/// Produces three method bodies that operate field-by-field.
-///
-/// # Usage
-///
-/// `impl_score_scale!(HardSoftScore { hard, soft } => of);` inside an `impl Score for T` block.
+/* Generates `multiply`, `divide`, and `abs` methods for the `Score` trait impl.
+
+Intended to be used *inside* an `impl Score for Type { ... }` block.
+Produces three method bodies that operate field-by-field.
+
+# Usage
+
+`impl_score_scale!(HardSoftScore { hard, soft } => of);` inside an `impl Score for T` block.
+*/
 macro_rules! impl_score_scale {
     ($type:ident { $($field:ident),+ } => $ctor:ident) => {
         fn multiply(&self, multiplicand: f64) -> Self {
@@ -69,14 +72,15 @@ macro_rules! impl_score_scale {
     };
 }
 
-/// Generates `ParseableScore` impl for scores using the `"Xsuffix/Ysuffix"` format.
-///
-/// Each field maps to a suffix label (e.g., `hard => "hard"`, `soft => "soft"`).
-/// All values are parsed as `i64`.
-///
-/// # Usage
-///
-/// `impl_score_parse!(HardSoftScore { hard => "hard", soft => "soft" } => of);`
+/* Generates `ParseableScore` impl for scores using the `"Xsuffix/Ysuffix"` format.
+
+Each field maps to a suffix label (e.g., `hard => "hard"`, `soft => "soft"`).
+All values are parsed as `i64`.
+
+# Usage
+
+`impl_score_parse!(HardSoftScore { hard => "hard", soft => "soft" } => of);`
+*/
 macro_rules! impl_score_parse {
     ($type:ident { $($field:ident => $suffix:literal),+ } => $ctor:ident) => {
         impl $crate::score::traits::ParseableScore for $type {

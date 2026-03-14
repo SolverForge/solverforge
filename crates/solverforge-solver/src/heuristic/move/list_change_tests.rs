@@ -1,4 +1,4 @@
-//! Tests for ListChangeMove.
+// Tests for ListChangeMove.
 
 use super::*;
 use solverforge_core::domain::{

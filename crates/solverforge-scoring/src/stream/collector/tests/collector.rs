@@ -1,14 +1,16 @@
-// Tests for collector module.
-//
-// Tests extracted from:
-// - load_balance.rs (6 tests)
+/* Tests for collector module.
+
+Tests extracted from:
+- load_balance.rs (6 tests)
+*/
 
 use super::super::load_balance::load_balance;
 use super::super::{Accumulator, UniCollector};
 
-// ============================================================================
-// LoadBalance collector tests
-// ============================================================================
+/* ============================================================================
+LoadBalance collector tests
+============================================================================
+*/
 
 #[test]
 fn test_perfectly_balanced() {
@@ -34,9 +36,10 @@ fn test_unbalanced() {
     acc.accumulate(&collector.extract(&1));
 
     let result = acc.finish();
-    // For loads [2, 1], mean = 1.5
-    // Squared deviations: (2-1.5)^2 + (1-1.5)^2 = 0.25 + 0.25 = 0.5
-    // unfairness = sqrt(0.5) ~ 0.707 -> rounds to 1
+    /* For loads [2, 1], mean = 1.5
+    Squared deviations: (2-1.5)^2 + (1-1.5)^2 = 0.25 + 0.25 = 0.5
+    unfairness = sqrt(0.5) ~ 0.707 -> rounds to 1
+    */
     assert_eq!(result.unfairness(), 1);
 }
 

@@ -1,4 +1,4 @@
-//! Hill climbing acceptor.
+// Hill climbing acceptor.
 
 use std::fmt::Debug;
 
@@ -6,23 +6,23 @@ use solverforge_core::domain::PlanningSolution;
 
 use super::Acceptor;
 
-/// Hill climbing acceptor - accepts only improving moves.
-///
-/// This is the simplest acceptor. It only accepts moves that result
-/// in a strictly better score. This can get stuck in local optima.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::localsearch::HillClimbingAcceptor;
-///
-/// let acceptor = HillClimbingAcceptor::new();
-/// ```
+/* Hill climbing acceptor - accepts only improving moves.
+
+This is the simplest acceptor. It only accepts moves that result
+in a strictly better score. This can get stuck in local optima.
+
+# Example
+
+```
+use solverforge_solver::phase::localsearch::HillClimbingAcceptor;
+
+let acceptor = HillClimbingAcceptor::new();
+```
+*/
 #[derive(Debug, Clone, Default)]
 pub struct HillClimbingAcceptor;
 
 impl HillClimbingAcceptor {
-    /// Creates a new hill climbing acceptor.
     pub fn new() -> Self {
         Self
     }

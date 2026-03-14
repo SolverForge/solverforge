@@ -1,4 +1,4 @@
-//! Termination conditions based on lack of improvement.
+// Termination conditions based on lack of improvement.
 
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -70,7 +70,6 @@ impl<Sc: Score> Default for UnimprovedState<Sc> {
 }
 
 impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
-    /// Creates a termination that stops after `limit` steps without improvement.
     pub fn new(limit: u64) -> Self {
         Self {
             limit,
@@ -181,7 +180,6 @@ impl<Sc: Score> Default for UnimprovedTimeState<Sc> {
 }
 
 impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
-    /// Creates a termination that stops after `limit` time without improvement.
     pub fn new(limit: Duration) -> Self {
         Self {
             limit,
@@ -190,12 +188,10 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
         }
     }
 
-    /// Creates a termination with limit in milliseconds.
     pub fn millis(ms: u64) -> Self {
         Self::new(Duration::from_millis(ms))
     }
 
-    /// Creates a termination with limit in seconds.
     pub fn seconds(secs: u64) -> Self {
         Self::new(Duration::from_secs(secs))
     }

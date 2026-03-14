@@ -1,4 +1,4 @@
-//! Local search phase implementation.
+// Local search phase implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -61,7 +61,6 @@ where
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
-    /// Creates a new local search phase.
     pub fn new(move_selector: MS, acceptor: A, forager: Fo, step_limit: Option<u64>) -> Self {
         Self {
             move_selector,
@@ -140,9 +139,10 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            // Reset forager and acceptor for this step.
-            // Pass best and last-step scores so foragers that implement
-            // pick-early-on-improvement strategies know their reference targets.
+            /* Reset forager and acceptor for this step.
+            Pass best and last-step scores so foragers that implement
+            pick-early-on-improvement strategies know their reference targets.
+            */
             let best_score = step_scope
                 .phase_scope()
                 .solver_scope()
@@ -152,16 +152,18 @@ where
             self.forager.step_started(best_score, last_step_score);
             self.acceptor.step_started();
 
-            // Regenerate moves every step so the move space reflects the
-            // current solution topology. This is essential for list variables
-            // (VRP-style) where positions change after each accepted move.
+            /* Regenerate moves every step so the move space reflects the
+            current solution topology. This is essential for list variables
+            (VRP-style) where positions change after each accepted move.
+            */
             self.arena.reset();
 
             if self.move_selector.is_never_ending() {
-                // Streaming path for random-sampling (never-ending) selectors.
-                // Pull moves in small batches to avoid holding an immutable borrow
-                // on the score director across the mutable evaluation calls.
-                // The selector provides its own randomization; no shuffle needed.
+                /* Streaming path for random-sampling (never-ending) selectors.
+                Pull moves in small batches to avoid holding an immutable borrow
+                on the score director across the mutable evaluation calls.
+                The selector provides its own randomization; no shuffle needed.
+                */
                 'streaming: loop {
                     let batch_start = self.arena.len();
                     {
@@ -292,9 +294,10 @@ where
                         continue;
                     }
 
-                    // Use RecordingDirector for automatic undo
-                    // This correctly handles state rollback for all moves including
-                    // accepted-but-not-improving sidesteps (>= acceptance)
+                    /* Use RecordingDirector for automatic undo
+                    This correctly handles state rollback for all moves including
+                    accepted-but-not-improving sidesteps (>= acceptance)
+                    */
                     let move_score = {
                         let mut recording = RecordingDirector::new(step_scope.score_director_mut());
 
@@ -349,9 +352,10 @@ where
 
             // Pick the best accepted move index
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
-                // Execute the selected move permanently (by reference — no ownership needed).
-                // The RecordingDirector already undid the evaluation,
-                // so this is a fresh application of the chosen move.
+                /* Execute the selected move permanently (by reference — no ownership needed).
+                The RecordingDirector already undid the evaluation,
+                so this is a fresh application of the chosen move.
+                */
                 self.arena
                     .get(selected_index)
                     .unwrap()
@@ -364,14 +368,16 @@ where
                 // Update best solution if improved
                 step_scope.phase_scope_mut().update_best_solution();
             }
-            // else: no accepted moves this step — that's fine, the acceptor
-            // history still needs to advance so Late Acceptance / SA / etc.
-            // can eventually escape the local optimum.
+            /* else: no accepted moves this step — that's fine, the acceptor
+            history still needs to advance so Late Acceptance / SA / etc.
+            can eventually escape the local optimum.
+            */
 
-            // Always notify acceptor that step ended. For stateful acceptors
-            // (Late Acceptance, Simulated Annealing, Great Deluge, SCHC),
-            // the history must advance every step — even steps where no move
-            // was accepted — otherwise the acceptor state stalls.
+            /* Always notify acceptor that step ended. For stateful acceptors
+            (Late Acceptance, Simulated Annealing, Great Deluge, SCHC),
+            the history must advance every step — even steps where no move
+            was accepted — otherwise the acceptor state stalls.
+            */
             self.acceptor.step_ended(&last_step_score);
 
             step_scope.complete();

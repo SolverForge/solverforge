@@ -1,14 +1,15 @@
-//! List variable solver for routing and scheduling problems.
-//!
-//! This module provides `ListSpec` for problems with list variables
-//! (e.g., vehicle routes, shift schedules). The solver configuration
-//! (construction type, move selectors, acceptor, forager, termination) is
-//! driven by `solver.toml`.
-//!
-//! Logging levels:
-//! - **INFO**: Solver start/end, phase summaries, problem scale
-//! - **DEBUG**: Individual steps with timing and scores
-//! - **TRACE**: Move evaluation details
+/* List variable solver for routing and scheduling problems.
+
+This module provides `ListSpec` for problems with list variables
+(e.g., vehicle routes, shift schedules). The solver configuration
+(construction type, move selectors, acceptor, forager, termination) is
+driven by `solver.toml`.
+
+Logging levels:
+- **INFO**: Solver start/end, phase summaries, problem scale
+- **DEBUG**: Individual steps with timing and scores
+- **TRACE**: Move evaluation details
+*/
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -54,7 +55,7 @@ type DefaultListLocalSearch<S, V, DM, IDM> = LocalSearchPhase<
     AcceptedCountForager<S>,
 >;
 
-/// Monomorphized local search enum for list solver.
+// Monomorphized local search enum for list solver.
 // Variants intentionally differ in size; this enum is constructed once per solve, not in hot paths.
 #[allow(clippy::large_enum_variant)]
 enum ListLocalSearch<S, V, DM, IDM>
@@ -68,7 +69,7 @@ where
     Config(ConfigListLocalSearch<S, V, DM, IDM>),
 }
 
-/// Construction phase enum for list solver.
+// Construction phase enum for list solver.
 enum ListConstruction<S, V>
 where
     S: PlanningSolution,
@@ -294,7 +295,7 @@ where
     }
 }
 
-/// Builds the construction phase from config or defaults to cheapest insertion.
+// Builds the construction phase from config or defaults to cheapest insertion.
 #[allow(clippy::too_many_arguments)]
 fn build_list_construction<S, V>(
     config: &SolverConfig,
@@ -443,7 +444,7 @@ where
     }
 }
 
-/// Builds the local search phase from config or defaults.
+// Builds the local search phase from config or defaults.
 fn build_list_local_search<S, V, DM, IDM>(
     config: &SolverConfig,
     ctx: &ListContext<S, V, DM, IDM>,

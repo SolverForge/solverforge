@@ -1,6 +1,7 @@
-//! Union move selector combinator.
-//!
-//! Combines moves from two selectors into a single stream.
+/* Union move selector combinator.
+
+Combines moves from two selectors into a single stream.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -57,7 +58,6 @@ pub struct UnionMoveSelector<S, M, A, B> {
 }
 
 impl<S, M, A, B> UnionMoveSelector<S, M, A, B> {
-    /// Creates a new union selector combining two selectors.
     pub fn new(first: A, second: B) -> Self {
         Self {
             first,

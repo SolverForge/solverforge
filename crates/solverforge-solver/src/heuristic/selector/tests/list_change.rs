@@ -1,4 +1,4 @@
-//! Tests for list change move selector.
+// Tests for list change move selector.
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
@@ -87,12 +87,13 @@ fn generates_intra_entity_moves() {
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
-    // 3 elements. For each position, moves are generated to all other positions
-    // EXCEPT forward by 1 (which is a no-op due to index adjustment).
-    // From 0: skip 1 (forward by 1), to 2 → 1 move
-    // From 1: to 0, skip 2 (forward by 1) → 1 move
-    // From 2: to 0, to 1 → 2 moves
-    // Total: 4 moves
+    /* 3 elements. For each position, moves are generated to all other positions
+    EXCEPT forward by 1 (which is a no-op due to index adjustment).
+    From 0: skip 1 (forward by 1), to 2 → 1 move
+    From 1: to 0, skip 2 (forward by 1) → 1 move
+    From 2: to 0, to 1 → 2 moves
+    Total: 4 moves
+    */
     assert_eq!(moves.len(), 4);
 
     // All should be intra-list

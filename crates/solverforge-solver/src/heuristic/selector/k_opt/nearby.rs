@@ -1,4 +1,4 @@
-//! Nearby k-opt move selector for improved performance.
+// Nearby k-opt move selector for improved performance.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -30,25 +30,24 @@ use super::distance_meter::ListPositionDistanceMeter;
 ///
 /// This dramatically reduces the search space for large routes.
 pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>, ES> {
-    /// Selects entities (routes) to apply k-opt to.
+    // Selects entities (routes) to apply k-opt to.
     entity_selector: ES,
-    /// Distance meter for nearby selection.
+    // Distance meter for nearby selection.
     distance_meter: D,
-    /// Maximum nearby positions to consider.
+    // Maximum nearby positions to consider.
     max_nearby: usize,
-    /// K-opt configuration.
+    // K-opt configuration.
     config: KOptConfig,
-    /// Reconnection patterns.
+    // Reconnection patterns.
     patterns: Vec<&'static KOptReconnection>,
-    /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
-    /// Remove sublist.
+    // Remove sublist.
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert sublist.
+    // Insert sublist.
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
-    /// Variable name.
+    // Variable name.
     variable_name: &'static str,
-    /// Descriptor index.
+    // Descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
@@ -69,7 +68,6 @@ impl<S, V: Debug, D: ListPositionDistanceMeter<S>, ES: Debug> Debug
 impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
     NearbyKOptMoveSelector<S, V, D, ES>
 {
-    /// Creates a new nearby k-opt move selector.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,
@@ -105,7 +103,6 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
         }
     }
 
-    /// Finds the m nearest positions to a given position.
     fn nearby_positions(
         &self,
         solution: &S,
@@ -201,7 +198,7 @@ where
     }
 }
 
-/// Iterator for nearby k-cut combinations.
+// Iterator for nearby k-cut combinations.
 struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
     selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
     solution: &'a S,
@@ -209,9 +206,9 @@ struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
     k: usize,
     len: usize,
     min_seg: usize,
-    /// Stack of (position, nearby_iterator_index)
+    // Stack of (position, nearby_iterator_index)
     stack: Vec<(usize, usize)>,
-    /// Nearby positions for each level
+    // Nearby positions for each level
     nearby_cache: Vec<Vec<usize>>,
     done: bool,
 }

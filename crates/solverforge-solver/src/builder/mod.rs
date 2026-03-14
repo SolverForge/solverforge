@@ -1,7 +1,8 @@
-//! Builder module for constructing solver components from configuration.
-//!
-//! Provides wiring between `SolverConfig` and the actual solver types.
-//! All builders return concrete monomorphized enums — no `Box<dyn Trait>`.
+/* Builder module for constructing solver components from configuration.
+
+Provides wiring between `SolverConfig` and the actual solver types.
+All builders return concrete monomorphized enums — no `Box<dyn Trait>`.
+*/
 
 pub mod acceptor;
 pub mod basic_selector;

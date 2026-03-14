@@ -1,11 +1,12 @@
-//! SubListChangeMove - relocates a contiguous sublist within or between list variables.
-//!
-//! This move removes a range of elements from one position and inserts them at another.
-//! Essential for vehicle routing where multiple consecutive stops need relocation.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+/* SubListChangeMove - relocates a contiguous sublist within or between list variables.
+
+This move removes a range of elements from one position and inserts them at another.
+Essential for vehicle routing where multiple consecutive stops need relocation.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -68,25 +69,24 @@ use super::Move;
 /// );
 /// ```
 pub struct SubListChangeMove<S, V> {
-    /// Source entity index
+    // Source entity index
     source_entity_index: usize,
-    /// Start of range in source list (inclusive)
+    // Start of range in source list (inclusive)
     source_start: usize,
-    /// End of range in source list (exclusive)
+    // End of range in source list (exclusive)
     source_end: usize,
-    /// Destination entity index
+    // Destination entity index
     dest_entity_index: usize,
-    /// Position in destination list to insert at
+    // Position in destination list to insert at
     dest_position: usize,
-    /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end), returns removed elements
+    // Remove sublist [start, end), returns removed elements
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position
+    // Insert elements at position
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    /// Store indices for entity_indices()
+    // Store indices for entity_indices()
     indices: [usize; 2],
     _phantom: PhantomData<fn() -> V>,
 }
@@ -112,19 +112,20 @@ impl<S, V: Debug> Debug for SubListChangeMove<S, V> {
 }
 
 impl<S, V> SubListChangeMove<S, V> {
-    /// Creates a new sublist change move with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `source_entity_index` - Entity index to remove from
-    /// * `source_start` - Start of range (inclusive)
-    /// * `source_end` - End of range (exclusive)
-    /// * `dest_entity_index` - Entity index to insert into
-    /// * `dest_position` - Position in destination list
-    /// * `list_len` - Function to get list length
-    /// * `sublist_remove` - Function to remove range [start, end)
-    /// * `sublist_insert` - Function to insert elements at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new sublist change move with typed function pointers.
+
+    # Arguments
+    * `source_entity_index` - Entity index to remove from
+    * `source_start` - Start of range (inclusive)
+    * `source_end` - End of range (exclusive)
+    * `dest_entity_index` - Entity index to insert into
+    * `dest_position` - Position in destination list
+    * `list_len` - Function to get list length
+    * `sublist_remove` - Function to remove range [start, end)
+    * `sublist_insert` - Function to insert elements at position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_entity_index: usize,
@@ -154,37 +155,30 @@ impl<S, V> SubListChangeMove<S, V> {
         }
     }
 
-    /// Returns the source entity index.
     pub fn source_entity_index(&self) -> usize {
         self.source_entity_index
     }
 
-    /// Returns the source range start (inclusive).
     pub fn source_start(&self) -> usize {
         self.source_start
     }
 
-    /// Returns the source range end (exclusive).
     pub fn source_end(&self) -> usize {
         self.source_end
     }
 
-    /// Returns the sublist length.
     pub fn sublist_len(&self) -> usize {
         self.source_end.saturating_sub(self.source_start)
     }
 
-    /// Returns the destination entity index.
     pub fn dest_entity_index(&self) -> usize {
         self.dest_entity_index
     }
 
-    /// Returns the destination position.
     pub fn dest_position(&self) -> usize {
         self.dest_position
     }
 
-    /// Returns true if this is an intra-list move (same entity).
     pub fn is_intra_list(&self) -> bool {
         self.source_entity_index == self.dest_entity_index
     }

@@ -1,8 +1,9 @@
-//! Arena allocator for moves.
-//!
-//! Provides O(1) step cleanup by reusing a pre-allocated buffer.
-//! Instead of allocating a new Vec each step, the arena is reset
-//! and reused.
+/* Arena allocator for moves.
+
+Provides O(1) step cleanup by reusing a pre-allocated buffer.
+Instead of allocating a new Vec each step, the arena is reset
+and reused.
+*/
 
 use std::fmt::Debug;
 use std::mem::MaybeUninit;
@@ -50,16 +51,15 @@ use rand::Rng;
 /// }
 /// ```
 pub struct MoveArena<M> {
-    /// Storage for moves. We use MaybeUninit to avoid requiring Default.
+    // Storage for moves. We use MaybeUninit to avoid requiring Default.
     storage: Vec<MaybeUninit<M>>,
-    /// Number of valid moves currently in the arena.
+    // Number of valid moves currently in the arena.
     len: usize,
-    /// Index of the taken move (if any). Only one move can be taken per step.
+    // Index of the taken move (if any). Only one move can be taken per step.
     taken: Option<usize>,
 }
 
 impl<M> MoveArena<M> {
-    /// Creates a new empty arena.
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -69,7 +69,6 @@ impl<M> MoveArena<M> {
         }
     }
 
-    /// Creates a new arena with pre-allocated capacity.
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -79,9 +78,10 @@ impl<M> MoveArena<M> {
         }
     }
 
-    /// Resets the arena, making it empty.
-    ///
-    /// Drops all moves except the one that was taken (if any).
+    /* Resets the arena, making it empty.
+
+    Drops all moves except the one that was taken (if any).
+    */
     #[inline]
     pub fn reset(&mut self) {
         // Drop existing moves except the taken one (already moved out)
@@ -96,7 +96,6 @@ impl<M> MoveArena<M> {
         self.taken = None;
     }
 
-    /// Adds a move to the arena.
     #[inline]
     pub fn push(&mut self, m: M) {
         if self.len < self.storage.len() {
@@ -109,19 +108,18 @@ impl<M> MoveArena<M> {
         self.len += 1;
     }
 
-    /// Returns the number of moves in the arena.
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Returns true if the arena is empty.
+    // Returns true if the arena is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    /// Returns an iterator over the moves.
+    // Returns an iterator over the moves.
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = &M> {
         self.storage[..self.len]
@@ -129,7 +127,7 @@ impl<M> MoveArena<M> {
             .map(|slot| unsafe { slot.assume_init_ref() })
     }
 
-    /// Returns a mutable iterator over the moves.
+    // Returns a mutable iterator over the moves.
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut M> {
         self.storage[..self.len]
@@ -137,7 +135,6 @@ impl<M> MoveArena<M> {
             .map(|slot| unsafe { slot.assume_init_mut() })
     }
 
-    /// Gets a move by index.
     #[inline]
     pub fn get(&self, index: usize) -> Option<&M> {
         if index < self.len {
@@ -147,30 +144,31 @@ impl<M> MoveArena<M> {
         }
     }
 
-    /// Takes ownership of a move by index.
-    ///
-    /// Only one move can be taken per step. Call `reset()` before taking another.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `index >= len` or if a move was already taken.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::MoveArena;
-    ///
-    /// let mut arena: MoveArena<String> = MoveArena::new();
-    /// arena.push("first".to_string());
-    /// arena.push("second".to_string());
-    ///
-    /// // Take ownership of the move at index 1
-    /// let taken = arena.take(1);
-    /// assert_eq!(taken, "second");
-    ///
-    /// // Reset before next step
-    /// arena.reset();
-    /// ```
+    /* Takes ownership of a move by index.
+
+    Only one move can be taken per step. Call `reset()` before taking another.
+
+    # Panics
+
+    Panics if `index >= len` or if a move was already taken.
+
+    # Example
+
+    ```
+    use solverforge_solver::heuristic::r#move::MoveArena;
+
+    let mut arena: MoveArena<String> = MoveArena::new();
+    arena.push("first".to_string());
+    arena.push("second".to_string());
+
+    // Take ownership of the move at index 1
+    let taken = arena.take(1);
+    assert_eq!(taken, "second");
+
+    // Reset before next step
+    arena.reset();
+    ```
+    */
     #[inline]
     pub fn take(&mut self, index: usize) -> M {
         assert!(index < self.len, "index out of bounds");
@@ -179,7 +177,7 @@ impl<M> MoveArena<M> {
         unsafe { self.storage[index].assume_init_read() }
     }
 
-    /// Extends the arena from an iterator.
+    // Extends the arena from an iterator.
     #[inline]
     pub fn extend<I: IntoIterator<Item = M>>(&mut self, iter: I) {
         for m in iter {
@@ -187,10 +185,11 @@ impl<M> MoveArena<M> {
         }
     }
 
-    /// Shuffles the initialized moves in-place using Fisher-Yates.
-    ///
-    /// This avoids re-generating and re-collecting all moves each step.
-    /// The arena keeps its existing storage and just randomises evaluation order.
+    /* Shuffles the initialized moves in-place using Fisher-Yates.
+
+    This avoids re-generating and re-collecting all moves each step.
+    The arena keeps its existing storage and just randomises evaluation order.
+    */
     #[inline]
     pub fn shuffle<R: Rng>(&mut self, rng: &mut R) {
         if self.len < 2 {
@@ -201,7 +200,6 @@ impl<M> MoveArena<M> {
         slice.shuffle(rng);
     }
 
-    /// Returns the capacity of the arena.
     #[inline]
     pub fn capacity(&self) -> usize {
         self.storage.capacity()

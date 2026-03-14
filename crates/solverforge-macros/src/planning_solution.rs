@@ -684,7 +684,7 @@ fn generate_basic_variable_operations(
             syn::parse_str(path).expect("constraints path must be a valid Rust path");
 
         quote! {
-            /// Internal solve implementation called by the Solvable trait.
+            // Internal solve implementation called by the Solvable trait.
             fn solve_internal(
                 self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,

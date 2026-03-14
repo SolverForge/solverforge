@@ -1,4 +1,4 @@
-//! Tests for construction foragers.
+// Tests for construction foragers.
 
 use super::*;
 use crate::heuristic::r#move::ChangeMove;

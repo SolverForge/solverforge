@@ -1,4 +1,4 @@
-//! Late acceptance acceptor.
+// Late acceptance acceptor.
 
 use std::fmt::Debug;
 
@@ -29,11 +29,11 @@ use super::Acceptor;
 /// let acceptor = LateAcceptanceAcceptor::<MySolution>::new(400);
 /// ```
 pub struct LateAcceptanceAcceptor<S: PlanningSolution> {
-    /// Size of the late acceptance list.
+    // Size of the late acceptance list.
     late_acceptance_size: usize,
-    /// Circular buffer of historical scores.
+    // Circular buffer of historical scores.
     score_history: Vec<Option<S::Score>>,
-    /// Current index in the buffer.
+    // Current index in the buffer.
     current_index: usize,
 }
 

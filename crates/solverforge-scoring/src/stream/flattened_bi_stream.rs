@@ -1,6 +1,7 @@
-// O(1) flattened bi-constraint stream.
-//
-// Provides O(1) lookup for flattened items by pre-indexing C items by key.
+/* O(1) flattened bi-constraint stream.
+
+Provides O(1) lookup for flattened items by pre-indexing C items by key.
+*/
 
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -13,27 +14,28 @@ use crate::constraint::flattened_bi::FlattenedBiConstraint;
 use super::collection_extract::CollectionExtract;
 use super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 
-// O(1) flattened bi-constraint stream.
-//
-// Pre-indexes C items by key for O(1) lookup.
-//
-// # Type Parameters
-//
-// - `S` - Solution type
-// - `A` - Entity type A (e.g., Shift)
-// - `B` - Entity type B (e.g., Employee)
-// - `C` - Flattened item type (e.g., NaiveDate)
-// - `K` - Join key type
-// - `CK` - C item key type for indexing
-// - `EA` - Extractor function for A entities
-// - `EB` - Extractor function for B entities
-// - `KA` - Key extractor for A
-// - `KB` - Key extractor for B
-// - `Flatten` - Function that extracts a slice from B
-// - `CKeyFn` - Function that extracts index key from C
-// - `ALookup` - Function that extracts lookup key from A
-// - `F` - Combined filter type over (A, C) pairs
-// - `Sc` - Score type
+/* O(1) flattened bi-constraint stream.
+
+Pre-indexes C items by key for O(1) lookup.
+
+# Type Parameters
+
+- `S` - Solution type
+- `A` - Entity type A (e.g., Shift)
+- `B` - Entity type B (e.g., Employee)
+- `C` - Flattened item type (e.g., NaiveDate)
+- `K` - Join key type
+- `CK` - C item key type for indexing
+- `EA` - Extractor function for A entities
+- `EB` - Extractor function for B entities
+- `KA` - Key extractor for A
+- `KB` - Key extractor for B
+- `Flatten` - Function that extracts a slice from B
+- `CKeyFn` - Function that extracts index key from C
+- `ALookup` - Function that extracts lookup key from A
+- `F` - Combined filter type over (A, C) pairs
+- `Sc` - Score type
+*/
 pub struct FlattenedBiConstraintStream<
     S,
     A,
@@ -106,9 +108,10 @@ where
     ALookup: Fn(&A) -> CK + Send + Sync,
     Sc: Score + 'static,
 {
-    // Creates a new O(1) indexed flattened bi-constraint stream.
-    //
-    // This is called from `CrossBiConstraintStream::flatten_last_indexed()`.
+    /* Creates a new O(1) indexed flattened bi-constraint stream.
+
+    This is called from `CrossBiConstraintStream::flatten_last_indexed()`.
+    */
     pub fn new(
         extractor_a: EA,
         extractor_b: EB,

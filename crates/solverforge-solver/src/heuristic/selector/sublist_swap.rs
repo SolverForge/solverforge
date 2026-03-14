@@ -1,64 +1,65 @@
-//! Sublist swap move selector for segment exchange.
-//!
-//! Generates `SubListSwapMove`s that swap contiguous segments within or between
-//! list variables. Useful for balanced inter-route segment exchanges in VRP.
-//!
-//! # Complexity
-//!
-//! For n entities with average route length m and max segment size k:
-//! - Intra-entity pairs: O(n * m² * k²) — triangular over non-overlapping segments
-//! - Inter-entity pairs: O(n² * m² * k²) — all pairs across entities
-//!
-//! Use a forager that quits early for large instances.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::sublist_swap::SubListSwapMoveSelector;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, entity_idx: usize) -> usize {
-//!     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-//! }
-//! fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
-//!     s.vehicles.get_mut(entity_idx)
-//!         .map(|v| v.visits.drain(start..end).collect())
-//!         .unwrap_or_default()
-//! }
-//! fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-//!     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-//!         for (i, item) in items.into_iter().enumerate() {
-//!             v.visits.insert(pos + i, item);
-//!         }
-//!     }
-//! }
-//!
-//! // Swap segments of size 1..=3 between routes
-//! let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     1, 3,
-//!     list_len,
-//!     sublist_remove,
-//!     sublist_insert,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* Sublist swap move selector for segment exchange.
+
+Generates `SubListSwapMove`s that swap contiguous segments within or between
+list variables. Useful for balanced inter-route segment exchanges in VRP.
+
+# Complexity
+
+For n entities with average route length m and max segment size k:
+- Intra-entity pairs: O(n * m² * k²) — triangular over non-overlapping segments
+- Inter-entity pairs: O(n² * m² * k²) — all pairs across entities
+
+Use a forager that quits early for large instances.
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::sublist_swap::SubListSwapMoveSelector;
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<i32> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, entity_idx: usize) -> usize {
+s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+}
+fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
+s.vehicles.get_mut(entity_idx)
+.map(|v| v.visits.drain(start..end).collect())
+.unwrap_or_default()
+}
+fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
+if let Some(v) = s.vehicles.get_mut(entity_idx) {
+for (i, item) in items.into_iter().enumerate() {
+v.visits.insert(pos + i, item);
+}
+}
+}
+
+// Swap segments of size 1..=3 between routes
+let selector = SubListSwapMoveSelector::<Solution, i32, _>::new(
+FromSolutionEntitySelector::new(0),
+1, 3,
+list_len,
+sublist_remove,
+sublist_insert,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -82,9 +83,9 @@ use super::typed_move_selector::MoveSelector;
 /// * `ES` - The entity selector type
 pub struct SubListSwapMoveSelector<S, V, ES> {
     entity_selector: ES,
-    /// Minimum segment size (inclusive).
+    // Minimum segment size (inclusive).
     min_sublist_size: usize,
-    /// Maximum segment size (inclusive).
+    // Maximum segment size (inclusive).
     max_sublist_size: usize,
     list_len: fn(&S, usize) -> usize,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -107,20 +108,21 @@ impl<S, V: Debug, ES: Debug> Debug for SubListSwapMoveSelector<S, V, ES> {
 }
 
 impl<S, V, ES> SubListSwapMoveSelector<S, V, ES> {
-    /// Creates a new sublist swap move selector.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities to consider for swaps
-    /// * `min_sublist_size` - Minimum segment length (must be ≥ 1)
-    /// * `max_sublist_size` - Maximum segment length
-    /// * `list_len` - Function to get list length for an entity
-    /// * `sublist_remove` - Function to drain range `[start, end)`, returning elements
-    /// * `sublist_insert` - Function to insert elements at a position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
-    ///
-    /// # Panics
-    /// Panics if `min_sublist_size == 0` or `max_sublist_size < min_sublist_size`.
+    /* Creates a new sublist swap move selector.
+
+    # Arguments
+    * `entity_selector` - Selects entities to consider for swaps
+    * `min_sublist_size` - Minimum segment length (must be ≥ 1)
+    * `max_sublist_size` - Maximum segment length
+    * `list_len` - Function to get list length for an entity
+    * `sublist_remove` - Function to drain range `[start, end)`, returning elements
+    * `sublist_insert` - Function to insert elements at a position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+
+    # Panics
+    Panics if `min_sublist_size == 0` or `max_sublist_size < min_sublist_size`.
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,

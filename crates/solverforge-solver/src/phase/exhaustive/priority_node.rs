@@ -1,4 +1,4 @@
-//! Priority node for exhaustive search frontier ordering.
+// Priority node for exhaustive search frontier ordering.
 
 use solverforge_core::domain::PlanningSolution;
 

@@ -1,7 +1,8 @@
-// Zero-erasure complemented group constraint.
-//
-// Evaluates grouped results plus complement entities with default values.
-// Provides true incremental scoring by tracking per-key accumulators.
+/* Zero-erasure complemented group constraint.
+
+Evaluates grouped results plus complement entities with default values.
+Provides true incremental scoring by tracking per-key accumulators.
+*/
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -13,76 +14,77 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collector::{Accumulator, UniCollector};
 
-// Zero-erasure constraint for complemented grouped results.
-//
-// Groups A entities by key, then iterates over B entities (complement source),
-// using grouped values where they exist and default values otherwise.
-//
-// The key function for A returns `Option<K>`, allowing entities to be skipped
-// when they don't have a valid key (e.g., unassigned shifts).
-//
-// # Type Parameters
-//
-// - `S` - Solution type
-// - `A` - Entity type being grouped (e.g., Shift)
-// - `B` - Complement entity type (e.g., Employee)
-// - `K` - Group key type
-// - `EA` - Extractor for A entities
-// - `EB` - Extractor for B entities
-// - `KA` - Key function for A (returns `Option<K>` to allow skipping)
-// - `KB` - Key function for B
-// - `C` - Collector type
-// - `D` - Default value function
-// - `W` - Weight function
-// - `Sc` - Score type
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::constraint::complemented::ComplementedGroupConstraint;
-// use solverforge_scoring::stream::collector::count;
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone, Hash, PartialEq, Eq)]
-// struct Employee { id: usize }
-//
-// #[derive(Clone)]
-// struct Shift { employee_id: Option<usize> }
-//
-// #[derive(Clone)]
-// struct Schedule {
-//     employees: Vec<Employee>,
-//     shifts: Vec<Shift>,
-// }
-//
-// let constraint = ComplementedGroupConstraint::new(
-//     ConstraintRef::new("", "Shift count"),
-//     ImpactType::Penalty,
-//     |s: &Schedule| s.shifts.as_slice(),
-//     |s: &Schedule| s.employees.as_slice(),
-//     |shift: &Shift| shift.employee_id,  // Returns Option<usize>
-//     |emp: &Employee| emp.id,
-//     count(),
-//     |_emp: &Employee| 0usize,
-//     |count: &usize| SoftScore::of(*count as i64),
-//     false,
-// );
-//
-// let schedule = Schedule {
-//     employees: vec![Employee { id: 0 }, Employee { id: 1 }],
-//     shifts: vec![
-//         Shift { employee_id: Some(0) },
-//         Shift { employee_id: Some(0) },
-//         Shift { employee_id: None },  // Skipped - no key
-//     ],
-// };
-//
-// // Employee 0: 2 shifts, Employee 1: 0 shifts → Total: -2
-// // Unassigned shift is skipped
-// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
-// ```
+/* Zero-erasure constraint for complemented grouped results.
+
+Groups A entities by key, then iterates over B entities (complement source),
+using grouped values where they exist and default values otherwise.
+
+The key function for A returns `Option<K>`, allowing entities to be skipped
+when they don't have a valid key (e.g., unassigned shifts).
+
+# Type Parameters
+
+- `S` - Solution type
+- `A` - Entity type being grouped (e.g., Shift)
+- `B` - Complement entity type (e.g., Employee)
+- `K` - Group key type
+- `EA` - Extractor for A entities
+- `EB` - Extractor for B entities
+- `KA` - Key function for A (returns `Option<K>` to allow skipping)
+- `KB` - Key function for B
+- `C` - Collector type
+- `D` - Default value function
+- `W` - Weight function
+- `Sc` - Score type
+
+# Example
+
+```
+use solverforge_scoring::constraint::complemented::ComplementedGroupConstraint;
+use solverforge_scoring::stream::collector::count;
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+struct Employee { id: usize }
+
+#[derive(Clone)]
+struct Shift { employee_id: Option<usize> }
+
+#[derive(Clone)]
+struct Schedule {
+employees: Vec<Employee>,
+shifts: Vec<Shift>,
+}
+
+let constraint = ComplementedGroupConstraint::new(
+ConstraintRef::new("", "Shift count"),
+ImpactType::Penalty,
+|s: &Schedule| s.shifts.as_slice(),
+|s: &Schedule| s.employees.as_slice(),
+|shift: &Shift| shift.employee_id,  // Returns Option<usize>
+|emp: &Employee| emp.id,
+count(),
+|_emp: &Employee| 0usize,
+|count: &usize| SoftScore::of(*count as i64),
+false,
+);
+
+let schedule = Schedule {
+employees: vec![Employee { id: 0 }, Employee { id: 1 }],
+shifts: vec![
+Shift { employee_id: Some(0) },
+Shift { employee_id: Some(0) },
+Shift { employee_id: None },  // Skipped - no key
+],
+};
+
+// Employee 0: 2 shifts, Employee 1: 0 shifts → Total: -2
+// Unassigned shift is skipped
+assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
+```
+*/
 pub struct ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
 where
     C: UniCollector<A>,

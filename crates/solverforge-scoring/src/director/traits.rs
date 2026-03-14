@@ -2,13 +2,14 @@
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
-// The score director manages solution state and score calculation.
-//
-// It is responsible for:
-// - Maintaining the working solution
-// - Calculating scores (incrementally when possible)
-// - Notifying about variable changes for incremental updates
-// - Providing access to solution metadata via descriptors
+/* The score director manages solution state and score calculation.
+
+It is responsible for:
+- Maintaining the working solution
+- Calculating scores (incrementally when possible)
+- Notifying about variable changes for incremental updates
+- Providing access to solution metadata via descriptors
+*/
 pub trait Director<S: PlanningSolution>: Send {
     // Returns a reference to the working solution.
     fn working_solution(&self) -> &S;
@@ -45,12 +46,13 @@ pub trait Director<S: PlanningSolution>: Send {
     // Resets the score director state.
     fn reset(&mut self) {}
 
-    // Registers a typed undo closure.
-    //
-    // Called by moves after applying changes to enable automatic undo.
-    // The closure will be called in reverse order during `undo_changes()`.
-    //
-    // Default implementation does nothing (for non-recording directors).
+    /* Registers a typed undo closure.
+
+    Called by moves after applying changes to enable automatic undo.
+    The closure will be called in reverse order during `undo_changes()`.
+
+    Default implementation does nothing (for non-recording directors).
+    */
     fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>) {
         // Default: no-op - only RecordingDirector stores undo closures
     }

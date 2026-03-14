@@ -1,15 +1,16 @@
-//! Context types that carry domain function pointers into the builder layer.
+// Context types that carry domain function pointers into the builder layer.
 
 use std::marker::PhantomData;
 
 use crate::heuristic::selector::k_opt::ListPositionDistanceMeter;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
-/// Adapts a `CrossEntityDistanceMeter` to `ListPositionDistanceMeter` for intra-entity use.
-///
-/// `NearbyKOptMoveSelector` requires a `ListPositionDistanceMeter` (4-param intra-entity),
-/// but `ListContext.intra_distance_meter` is a `CrossEntityDistanceMeter` (5-param).
-/// This adapter bridges the two by always calling with `src_entity_idx == dst_entity_idx`.
+/* Adapts a `CrossEntityDistanceMeter` to `ListPositionDistanceMeter` for intra-entity use.
+
+`NearbyKOptMoveSelector` requires a `ListPositionDistanceMeter` (4-param intra-entity),
+but `ListContext.intra_distance_meter` is a `CrossEntityDistanceMeter` (5-param).
+This adapter bridges the two by always calling with `src_entity_idx == dst_entity_idx`.
+*/
 #[derive(Debug, Clone)]
 pub struct IntraDistanceAdapter<T>(pub T);
 
@@ -25,15 +26,13 @@ impl<S, T: CrossEntityDistanceMeter<S>> ListPositionDistanceMeter<S> for IntraDi
 /// Carries all domain callbacks needed to construct move selectors
 /// without requiring `dyn` or closures.
 pub struct BasicContext<S> {
-    /// Gets the planning variable for entity `i`.
     pub get_variable: fn(&S, usize) -> Option<usize>,
-    /// Sets the planning variable for entity `i`.
     pub set_variable: fn(&mut S, usize, Option<usize>),
-    /// All valid values for the variable.
+    // All valid values for the variable.
     pub values: Vec<usize>,
-    /// Descriptor index for the entity collection.
+    // Descriptor index for the entity collection.
     pub descriptor_index: usize,
-    /// Variable field name.
+    // Variable field name.
     pub variable_field: &'static str,
 }
 
@@ -52,41 +51,37 @@ impl<S> std::fmt::Debug for BasicContext<S> {
 /// Carries all domain callbacks and distance meters needed to construct
 /// list move selectors without requiring `dyn` or closures.
 pub struct ListContext<S, V, DM, IDM> {
-    /// Returns the length of the list for entity `i`.
     pub list_len: fn(&S, usize) -> usize,
-    /// Removes element at `pos` from entity `i`, returning it (returns `None` if out of bounds).
+    // Removes element at `pos` from entity `i`, returning it (returns `None` if out of bounds).
     pub list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    /// Inserts `val` at `pos` in entity `i`.
+    // Inserts `val` at `pos` in entity `i`.
     pub list_insert: fn(&mut S, usize, usize, V),
-    /// Gets element at `pos` in entity `i`.
     pub list_get: fn(&S, usize, usize) -> Option<V>,
-    /// Replaces element at `pos` in entity `i`.
+    // Replaces element at `pos` in entity `i`.
     pub list_set: fn(&mut S, usize, usize, V),
-    /// Reverses the segment `[start, end)` in entity `i`.
+    // Reverses the segment `[start, end)` in entity `i`.
     pub list_reverse: fn(&mut S, usize, usize, usize),
-    /// Removes segment `[start, end)` from entity `i`.
+    // Removes segment `[start, end)` from entity `i`.
     pub sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Inserts `items` at `pos` in entity `i`.
+    // Inserts `items` at `pos` in entity `i`.
     pub sublist_insert: fn(&mut S, usize, usize, Vec<V>),
-    /// Removes element at `pos` from entity `i` for ruin moves (panics if out of bounds).
+    // Removes element at `pos` from entity `i` for ruin moves (panics if out of bounds).
     pub ruin_remove: fn(&mut S, usize, usize) -> V,
-    /// Inserts `val` at `pos` in entity `i` for ruin reinsertion.
+    // Inserts `val` at `pos` in entity `i` for ruin reinsertion.
     pub ruin_insert: fn(&mut S, usize, usize, V),
-    /// Returns the total number of list owner entities.
     pub entity_count: fn(&S) -> usize,
-    /// Cross-entity (inter-route) distance meter.
+    // Cross-entity (inter-route) distance meter.
     pub cross_distance_meter: DM,
-    /// Intra-entity (intra-route) distance meter.
+    // Intra-entity (intra-route) distance meter.
     pub intra_distance_meter: IDM,
-    /// List variable field name.
+    // List variable field name.
     pub variable_name: &'static str,
-    /// Descriptor index for the list owner entity collection.
+    // Descriptor index for the list owner entity collection.
     pub descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, DM, IDM> ListContext<S, V, DM, IDM> {
-    /// Creates a new list context.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         list_len: fn(&S, usize) -> usize,

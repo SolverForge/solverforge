@@ -1,9 +1,9 @@
-//! Integration tests for derive macros.
+// Integration tests for derive macros.
 
 use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
 use solverforge::prelude::*;
 
-/// A problem fact representing an employee.
+// A problem fact representing an employee.
 #[problem_fact]
 pub struct Employee {
     #[planning_id]
@@ -11,7 +11,7 @@ pub struct Employee {
     pub name: String,
 }
 
-/// A planning entity representing a shift.
+// A planning entity representing a shift.
 #[planning_entity]
 pub struct Shift {
     #[planning_id]
@@ -21,7 +21,7 @@ pub struct Shift {
     pub employee_id: Option<i64>,
 }
 
-/// A planning solution representing a schedule.
+// A planning solution representing a schedule.
 #[planning_solution]
 pub struct Schedule {
     #[problem_fact_collection]

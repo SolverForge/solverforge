@@ -1,4 +1,4 @@
-//! Tests for scope types.
+// Tests for scope types.
 
 use super::*;
 use crate::test_utils::create_simple_nqueens_director;

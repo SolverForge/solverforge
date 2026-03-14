@@ -1,11 +1,12 @@
-//! ListChangeMove - relocates an element within or between list variables.
-//!
-//! This move removes an element from one position and inserts it at another.
-//! Essential for vehicle routing and scheduling problems.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+/* ListChangeMove - relocates an element within or between list variables.
+
+This move removes an element from one position and inserts it at another.
+Essential for vehicle routing and scheduling problems.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 
@@ -60,23 +61,22 @@ use super::Move;
 /// );
 /// ```
 pub struct ListChangeMove<S, V> {
-    /// Source entity index (which entity's list to remove from)
+    // Source entity index (which entity's list to remove from)
     source_entity_index: usize,
-    /// Position in source list to remove from
+    // Position in source list to remove from
     source_position: usize,
-    /// Destination entity index (which entity's list to insert into)
+    // Destination entity index (which entity's list to insert into)
     dest_entity_index: usize,
-    /// Position in destination list to insert at
+    // Position in destination list to insert at
     dest_position: usize,
-    /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
-    /// Remove element at position, returns removed value
+    // Remove element at position, returns removed value
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    /// Insert element at position
+    // Insert element at position
     list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
-    /// Store indices for entity_indices()
+    // Store indices for entity_indices()
     indices: [usize; 2],
 }
 
@@ -101,18 +101,19 @@ impl<S, V: Debug> Debug for ListChangeMove<S, V> {
 }
 
 impl<S, V> ListChangeMove<S, V> {
-    /// Creates a new list change move with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `source_entity_index` - Entity index to remove from
-    /// * `source_position` - Position in source list
-    /// * `dest_entity_index` - Entity index to insert into
-    /// * `dest_position` - Position in destination list
-    /// * `list_len` - Function to get list length
-    /// * `list_remove` - Function to remove element at position
-    /// * `list_insert` - Function to insert element at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new list change move with typed function pointers.
+
+    # Arguments
+    * `source_entity_index` - Entity index to remove from
+    * `source_position` - Position in source list
+    * `dest_entity_index` - Entity index to insert into
+    * `dest_position` - Position in destination list
+    * `list_len` - Function to get list length
+    * `list_remove` - Function to remove element at position
+    * `list_insert` - Function to insert element at position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_entity_index: usize,
@@ -139,27 +140,22 @@ impl<S, V> ListChangeMove<S, V> {
         }
     }
 
-    /// Returns the source entity index.
     pub fn source_entity_index(&self) -> usize {
         self.source_entity_index
     }
 
-    /// Returns the source position.
     pub fn source_position(&self) -> usize {
         self.source_position
     }
 
-    /// Returns the destination entity index.
     pub fn dest_entity_index(&self) -> usize {
         self.dest_entity_index
     }
 
-    /// Returns the destination position.
     pub fn dest_position(&self) -> usize {
         self.dest_position
     }
 
-    /// Returns true if this is an intra-list move (same entity).
     pub fn is_intra_list(&self) -> bool {
         self.source_entity_index == self.dest_entity_index
     }
@@ -179,9 +175,10 @@ where
             return false;
         }
 
-        // Check destination position is valid
-        // For intra-list, dest can be 0..=len-1 (after removal)
-        // For inter-list, dest can be 0..=len
+        /* Check destination position is valid
+        For intra-list, dest can be 0..=len-1 (after removal)
+        For inter-list, dest can be 0..=len
+        */
         let dest_len = (self.list_len)(solution, self.dest_entity_index);
         let max_dest = if self.is_intra_list() {
             source_len - 1 // After removal, list is shorter
@@ -193,10 +190,11 @@ where
             return false;
         }
 
-        // For intra-list moves, check for no-ops
-        // Moving to same position is obviously a no-op
-        // Moving forward by 1 position is also a no-op due to index adjustment:
-        //   remove at source, adjusted_dest = dest-1 = source, insert at source → same list
+        /* For intra-list moves, check for no-ops
+        Moving to same position is obviously a no-op
+        Moving forward by 1 position is also a no-op due to index adjustment:
+        remove at source, adjusted_dest = dest-1 = source, insert at source → same list
+        */
         if self.is_intra_list() {
             if self.source_position == self.dest_position {
                 return false;

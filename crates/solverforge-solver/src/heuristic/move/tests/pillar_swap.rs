@@ -1,4 +1,4 @@
-//! Tests for PillarSwapMove operations.
+// Tests for PillarSwapMove operations.
 
 use super::*;
 

@@ -60,10 +60,11 @@ where
     }
 }
 
-// Combines a left uni-filter with a cross-entity predicate `Fn(&A, &B) -> bool`.
-//
-// Used by the predicate cross-join in `JoinTarget` to produce a named concrete type
-// that avoids `impl Trait` in associated type position.
+/* Combines a left uni-filter with a cross-entity predicate `Fn(&A, &B) -> bool`.
+
+Used by the predicate cross-join in `JoinTarget` to produce a named concrete type
+that avoids `impl Trait` in associated type position.
+*/
 pub struct UniLeftPredBiFilter<F, P, A> {
     left_filter: F,
     predicate: P,

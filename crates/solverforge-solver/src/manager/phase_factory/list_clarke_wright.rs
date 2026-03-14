@@ -1,7 +1,8 @@
-//! Clarke-Wright savings construction phase for list-variable problems.
-//!
-//! Builds routes by computing savings for every element pair, then greedily
-//! merging singleton routes in descending savings order subject to capacity.
+/* Clarke-Wright savings construction phase for list-variable problems.
+
+Builds routes by computing savings for every element pair, then greedily
+merging singleton routes in descending savings order subject to capacity.
+*/
 
 use std::marker::PhantomData;
 
@@ -109,23 +110,24 @@ where
     S: PlanningSolution,
     E: Copy + Send + Sync + 'static,
 {
-    /// Creates a new Clarke-Wright savings construction phase.
-    ///
-    /// # Arguments
-    ///
-    /// * `element_count` — Total number of elements (stops) to assign
-    /// * `get_assigned` — Returns currently assigned elements
-    /// * `entity_count` — Number of entities (vehicles/routes)
-    /// * `assign_route` — Assigns a complete route `Vec<E>` to entity at index
-    /// * `index_to_element` — Converts an element index to its domain value
-    /// * `depot_fn` — Returns the depot element index (excluded from savings pairs)
-    /// * `distance_fn` — Distance between two element indices
-    /// * `element_load_fn` — Load contributed by element at given index
-    /// * `capacity_fn` — Maximum load per route
-    /// * `merge_feasible_fn` — Optional feasibility gate called after capacity and endpoint checks.
-    ///   Receives the solution and the candidate merged route (as element indices); return `false`
-    ///   to skip the merge.
-    /// * `descriptor_index` — Entity descriptor index for change notification
+    /* Creates a new Clarke-Wright savings construction phase.
+
+    # Arguments
+
+    * `element_count` — Total number of elements (stops) to assign
+    * `get_assigned` — Returns currently assigned elements
+    * `entity_count` — Number of entities (vehicles/routes)
+    * `assign_route` — Assigns a complete route `Vec<E>` to entity at index
+    * `index_to_element` — Converts an element index to its domain value
+    * `depot_fn` — Returns the depot element index (excluded from savings pairs)
+    * `distance_fn` — Distance between two element indices
+    * `element_load_fn` — Load contributed by element at given index
+    * `capacity_fn` — Maximum load per route
+    * `merge_feasible_fn` — Optional feasibility gate called after capacity and endpoint checks.
+    Receives the solution and the candidate merged route (as element indices); return `false`
+    to skip the merge.
+    * `descriptor_index` — Entity descriptor index for change notification
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         element_count: fn(&S) -> usize,
@@ -191,11 +193,12 @@ where
 
         // Collect unassigned element indices (excluding depot)
         let assigned_set: std::collections::HashSet<usize> = {
-            // We work in index space; compare against depot index
-            // assigned elements are already placed — skip them
-            // Build a set of assigned indices by checking index_to_element
-            // Since assign_route is called at the end, at this point nothing is
-            // placed yet (construction start). We build from scratch.
+            /* We work in index space; compare against depot index
+            assigned elements are already placed — skip them
+            Build a set of assigned indices by checking index_to_element
+            Since assign_route is called at the end, at this point nothing is
+            placed yet (construction start). We build from scratch.
+            */
             std::collections::HashSet::new()
         };
 

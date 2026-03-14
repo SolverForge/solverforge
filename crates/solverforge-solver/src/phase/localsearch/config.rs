@@ -1,13 +1,13 @@
-//! Local search phase configuration.
+// Local search phase configuration.
 
-/// Local search phase configuration.
+// Local search phase configuration.
 #[derive(Debug, Clone)]
 pub struct LocalSearchConfig {
-    /// The acceptor type to use.
+    // The acceptor type to use.
     pub acceptor_type: AcceptorType,
-    /// Maximum number of steps (None = unlimited).
+    // Maximum number of steps (None = unlimited).
     pub step_limit: Option<u64>,
-    /// Number of accepted moves to collect before quitting early.
+    // Number of accepted moves to collect before quitting early.
     pub accepted_count_limit: Option<usize>,
 }
 
@@ -21,11 +21,11 @@ impl Default for LocalSearchConfig {
     }
 }
 
-/// Type of acceptor to use in local search.
+// Type of acceptor to use in local search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcceptorType {
-    /// Accept only improving moves.
+    // Accept only improving moves.
     HillClimbing,
-    /// Accept moves with probability based on temperature.
+    // Accept moves with probability based on temperature.
     SimulatedAnnealing,
 }

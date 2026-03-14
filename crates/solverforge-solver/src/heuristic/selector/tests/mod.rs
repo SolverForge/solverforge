@@ -1,4 +1,4 @@
-//! Tests for selector module.
+// Tests for selector module.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;

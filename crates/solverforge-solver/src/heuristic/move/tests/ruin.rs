@@ -1,4 +1,4 @@
-//! Tests for RuinMove operations.
+// Tests for RuinMove operations.
 
 use super::*;
 

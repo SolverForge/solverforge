@@ -1,14 +1,15 @@
-//! Mimic selectors for synchronized selection across multiple selectors.
-//!
-//! Mimic selectors enable multiple selectors to select the same element in lockstep.
-//! This is essential for:
-//! - Nearby selection: Get the "origin" entity that was already selected
-//! - Coordinated moves: Ensure multiple parts of a move reference the same entity
-//!
-//! # Architecture
-//!
-//! - [`MimicRecordingEntitySelector`]: Wraps a child selector and records each selected entity
-//! - [`MimicReplayingEntitySelector`]: Replays the entity recorded by a recording selector
+/* Mimic selectors for synchronized selection across multiple selectors.
+
+Mimic selectors enable multiple selectors to select the same element in lockstep.
+This is essential for:
+- Nearby selection: Get the "origin" entity that was already selected
+- Coordinated moves: Ensure multiple parts of a move reference the same entity
+
+# Architecture
+
+- [`MimicRecordingEntitySelector`]: Wraps a child selector and records each selected entity
+- [`MimicReplayingEntitySelector`]: Replays the entity recorded by a recording selector
+*/
 
 use std::cell::Cell;
 use std::fmt::Debug;
@@ -19,28 +20,30 @@ use solverforge_scoring::Director;
 
 use super::entity::{EntityReference, EntitySelector};
 
-/// Shared state between recording and replaying selectors.
-///
-/// Uses `Cell` for interior mutability — no locking overhead since all access
-/// is sequential single-threaded (record first, replay after).
+/* Shared state between recording and replaying selectors.
+
+Uses `Cell` for interior mutability — no locking overhead since all access
+is sequential single-threaded (record first, replay after).
+*/
 #[derive(Debug, Default, Clone, Copy)]
 struct MimicState {
-    /// Whether hasNext has been called on the recorder.
+    // Whether hasNext has been called on the recorder.
     has_next_recorded: bool,
-    /// The result of the last hasNext call.
+    // The result of the last hasNext call.
     has_next: bool,
-    /// Whether next has been called on the recorder.
+    // Whether next has been called on the recorder.
     next_recorded: bool,
-    /// The last recorded entity reference.
+    // The last recorded entity reference.
     recorded_entity: Option<EntityReference>,
 }
 
-/// Heap-allocated shared mimic state with manual reference counting.
-///
-/// Replaces `Arc<RwLock<MimicState>>` with zero-overhead shared access:
-/// - No atomic operations (non-atomic refcount)
-/// - No locking (Cell instead of RwLock)
-/// - All access is sequential single-threaded
+/* Heap-allocated shared mimic state with manual reference counting.
+
+Replaces `Arc<RwLock<MimicState>>` with zero-overhead shared access:
+- No atomic operations (non-atomic refcount)
+- No locking (Cell instead of RwLock)
+- All access is sequential single-threaded
+*/
 struct SharedMimicState {
     state: Cell<MimicState>,
     refcount: Cell<usize>,
@@ -52,12 +55,11 @@ struct SharedMimicState {
 /// mutability. No `Arc`, no `RwLock` — all access is sequential single-threaded.
 pub struct MimicRecorder {
     ptr: NonNull<SharedMimicState>,
-    /// Identifier for debugging.
+    // Identifier for debugging.
     id: String,
 }
 
 impl MimicRecorder {
-    /// Creates a new mimic recorder with the given identifier.
     pub fn new(id: impl Into<String>) -> Self {
         let shared = Box::new(SharedMimicState {
             state: Cell::new(MimicState::default()),
@@ -76,7 +78,7 @@ impl MimicRecorder {
         unsafe { self.ptr.as_ref() }
     }
 
-    /// Records a has_next result.
+    // Records a has_next result.
     fn record_has_next(&self, has_next: bool) {
         self.shared().state.set(MimicState {
             has_next_recorded: true,
@@ -86,7 +88,7 @@ impl MimicRecorder {
         });
     }
 
-    /// Records a next result.
+    // Records a next result.
     fn record_next(&self, entity: EntityReference) {
         self.shared().state.set(MimicState {
             has_next_recorded: true,
@@ -96,7 +98,6 @@ impl MimicRecorder {
         });
     }
 
-    /// Gets the recorded has_next state.
     pub fn get_has_next(&self) -> Option<bool> {
         let state = self.shared().state.get();
         if state.has_next_recorded {
@@ -106,7 +107,6 @@ impl MimicRecorder {
         }
     }
 
-    /// Gets the recorded entity.
     pub fn get_recorded_entity(&self) -> Option<EntityReference> {
         let state = self.shared().state.get();
         if state.next_recorded {
@@ -116,7 +116,6 @@ impl MimicRecorder {
         }
     }
 
-    /// Returns the ID of this recorder.
     pub fn id(&self) -> &str {
         &self.id
     }
@@ -163,9 +162,10 @@ impl Debug for MimicRecorder {
     }
 }
 
-// SAFETY: MimicRecorder is used single-threaded within a solver step.
-// The shared state is accessed sequentially: record first, replay after.
-// Send is needed because EntitySelector requires Send.
+/* SAFETY: MimicRecorder is used single-threaded within a solver step.
+The shared state is accessed sequentially: record first, replay after.
+Send is needed because EntitySelector requires Send.
+*/
 unsafe impl Send for MimicRecorder {}
 unsafe impl Sync for MimicRecorder {}
 
@@ -180,16 +180,15 @@ unsafe impl Sync for MimicRecorder {}
 /// The child entity selector `ES` is stored as a concrete generic type parameter,
 /// eliminating virtual dispatch overhead when iterating over entities.
 pub struct MimicRecordingEntitySelector<S, ES> {
-    /// The child selector that actually selects entities (zero-erasure).
+    // The child selector that actually selects entities (zero-erasure).
     child: ES,
-    /// The recorder that broadcasts selections.
+    // The recorder that broadcasts selections.
     recorder: MimicRecorder,
-    /// Marker for solution type.
+    // Marker for solution type.
     _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S, ES> MimicRecordingEntitySelector<S, ES> {
-    /// Creates a new recording selector wrapping the given child selector.
     pub fn new(child: ES, recorder: MimicRecorder) -> Self {
         Self {
             child,
@@ -198,7 +197,6 @@ impl<S, ES> MimicRecordingEntitySelector<S, ES> {
         }
     }
 
-    /// Returns the recorder for creating replaying selectors.
     pub fn recorder(&self) -> MimicRecorder {
         self.recorder.clone()
     }
@@ -241,7 +239,7 @@ where
     }
 }
 
-/// Iterator that records each entity as it's yielded.
+// Iterator that records each entity as it's yielded.
 struct RecordingIterator<'a, I> {
     inner: I,
     recorder: &'a MimicRecorder,
@@ -270,12 +268,11 @@ impl<'a, I: Iterator<Item = EntityReference>> Iterator for RecordingIterator<'a,
 /// This selector always yields exactly one entity (the last one recorded) or no entities
 /// if the recording selector hasn't recorded anything yet.
 pub struct MimicReplayingEntitySelector {
-    /// The recorder to replay from.
+    // The recorder to replay from.
     recorder: MimicRecorder,
 }
 
 impl MimicReplayingEntitySelector {
-    /// Creates a new replaying selector that replays from the given recorder.
     pub fn new(recorder: MimicRecorder) -> Self {
         Self { recorder }
     }
@@ -314,7 +311,7 @@ impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
     }
 }
 
-/// Iterator that replays a single recorded entity.
+// Iterator that replays a single recorded entity.
 struct ReplayingIterator<'a> {
     recorder: &'a MimicRecorder,
     returned: bool,

@@ -1,11 +1,12 @@
-//! SubListSwapMove - swaps two contiguous sublists within or between list variables.
-//!
-//! This move exchanges two ranges of elements. Essential for vehicle routing
-//! where segments need to be swapped between vehicles.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+/* SubListSwapMove - swaps two contiguous sublists within or between list variables.
+
+This move exchanges two ranges of elements. Essential for vehicle routing
+where segments need to be swapped between vehicles.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -68,27 +69,26 @@ use super::Move;
 /// );
 /// ```
 pub struct SubListSwapMove<S, V> {
-    /// First entity index
+    // First entity index
     first_entity_index: usize,
-    /// Start of first range (inclusive)
+    // Start of first range (inclusive)
     first_start: usize,
-    /// End of first range (exclusive)
+    // End of first range (exclusive)
     first_end: usize,
-    /// Second entity index
+    // Second entity index
     second_entity_index: usize,
-    /// Start of second range (inclusive)
+    // Start of second range (inclusive)
     second_start: usize,
-    /// End of second range (exclusive)
+    // End of second range (exclusive)
     second_end: usize,
-    /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end), returns removed elements
+    // Remove sublist [start, end), returns removed elements
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position
+    // Insert elements at position
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     variable_name: &'static str,
     descriptor_index: usize,
-    /// Store indices for entity_indices()
+    // Store indices for entity_indices()
     indices: [usize; 2],
     _phantom: PhantomData<fn() -> V>,
 }
@@ -114,20 +114,21 @@ impl<S, V: Debug> Debug for SubListSwapMove<S, V> {
 }
 
 impl<S, V> SubListSwapMove<S, V> {
-    /// Creates a new sublist swap move with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `first_entity_index` - First entity index
-    /// * `first_start` - Start of first range (inclusive)
-    /// * `first_end` - End of first range (exclusive)
-    /// * `second_entity_index` - Second entity index
-    /// * `second_start` - Start of second range (inclusive)
-    /// * `second_end` - End of second range (exclusive)
-    /// * `list_len` - Function to get list length
-    /// * `sublist_remove` - Function to remove range [start, end)
-    /// * `sublist_insert` - Function to insert elements at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new sublist swap move with typed function pointers.
+
+    # Arguments
+    * `first_entity_index` - First entity index
+    * `first_start` - Start of first range (inclusive)
+    * `first_end` - End of first range (exclusive)
+    * `second_entity_index` - Second entity index
+    * `second_start` - Start of second range (inclusive)
+    * `second_end` - End of second range (exclusive)
+    * `list_len` - Function to get list length
+    * `sublist_remove` - Function to remove range [start, end)
+    * `sublist_insert` - Function to insert elements at position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         first_entity_index: usize,
@@ -159,47 +160,38 @@ impl<S, V> SubListSwapMove<S, V> {
         }
     }
 
-    /// Returns the first entity index.
     pub fn first_entity_index(&self) -> usize {
         self.first_entity_index
     }
 
-    /// Returns the first range start.
     pub fn first_start(&self) -> usize {
         self.first_start
     }
 
-    /// Returns the first range end.
     pub fn first_end(&self) -> usize {
         self.first_end
     }
 
-    /// Returns the first sublist length.
     pub fn first_len(&self) -> usize {
         self.first_end.saturating_sub(self.first_start)
     }
 
-    /// Returns the second entity index.
     pub fn second_entity_index(&self) -> usize {
         self.second_entity_index
     }
 
-    /// Returns the second range start.
     pub fn second_start(&self) -> usize {
         self.second_start
     }
 
-    /// Returns the second range end.
     pub fn second_end(&self) -> usize {
         self.second_end
     }
 
-    /// Returns the second sublist length.
     pub fn second_len(&self) -> usize {
         self.second_end.saturating_sub(self.second_start)
     }
 
-    /// Returns true if this is an intra-list swap (same entity).
     pub fn is_intra_list(&self) -> bool {
         self.first_entity_index == self.second_entity_index
     }
@@ -295,9 +287,10 @@ where
                 late_elements,
             );
 
-            // Insert early elements at adjusted late position
-            // After removing early range, late_start shifts by early_len
-            // After inserting late elements, it shifts back by late_len
+            /* Insert early elements at adjusted late position
+            After removing early range, late_start shifts by early_len
+            After inserting late elements, it shifts back by late_len
+            */
             let new_late_pos = late_start - early_len + late_len;
             (self.sublist_insert)(
                 score_director.working_solution_mut(),

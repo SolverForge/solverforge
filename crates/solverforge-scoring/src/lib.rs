@@ -20,9 +20,10 @@ pub mod constraint;
 pub mod director;
 pub mod stream;
 
-// ============================================================================
-// Zero-Erasure Incremental Constraints
-// ============================================================================
+/* ============================================================================
+Zero-Erasure Incremental Constraints
+============================================================================
+*/
 
 pub use constraint::{
     GroupedUniConstraint, IncrementalBiConstraint, IncrementalCrossBiConstraint,
@@ -30,32 +31,36 @@ pub use constraint::{
     IncrementalUniConstraint,
 };
 
-// ============================================================================
-// Constraint Set (Tuple-Based, Zero-Erasure)
-// ============================================================================
+/* ============================================================================
+Constraint Set (Tuple-Based, Zero-Erasure)
+============================================================================
+*/
 
 pub use api::constraint_set::{ConstraintResult, ConstraintSet, IncrementalConstraint};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
-// ============================================================================
-// Score Directors
-// ============================================================================
+/* ============================================================================
+Score Directors
+============================================================================
+*/
 
 pub use director::score_director::ScoreDirector;
 pub use director::{Director, RecordingDirector, ShadowVariableSupport, SolvableSolution};
 
-// ============================================================================
-// Analysis (for score explanation)
-// ============================================================================
+/* ============================================================================
+Analysis (for score explanation)
+============================================================================
+*/
 
 pub use api::analysis::{
     ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
     DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
 };
 
-// ============================================================================
-// Fluent Constraint Stream API
-// ============================================================================
+/* ============================================================================
+Fluent Constraint Stream API
+============================================================================
+*/
 
 pub use stream::{
     BiConstraintBuilder, BiConstraintStream, ConstraintFactory, GroupedConstraintBuilder,

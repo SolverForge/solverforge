@@ -1,4 +1,4 @@
-//! Tests for typed move selectors.
+// Tests for typed move selectors.
 
 use super::*;
 use solverforge_core::domain::{

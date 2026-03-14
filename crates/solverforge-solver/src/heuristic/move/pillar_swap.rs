@@ -1,12 +1,13 @@
-//! PillarSwapMove - exchanges values between two pillars.
-//!
-//! A pillar is a group of entities that share the same variable value.
-//! This move swaps the values between two pillars atomically.
-//!
-//! # Zero-Erasure Design
-//!
-//! PillarSwapMove uses typed function pointers instead of `dyn Any` for complete
-//! compile-time type safety. No runtime type checks or downcasting.
+/* PillarSwapMove - exchanges values between two pillars.
+
+A pillar is a group of entities that share the same variable value.
+This move swaps the values between two pillars atomically.
+
+# Zero-Erasure Design
+
+PillarSwapMove uses typed function pointers instead of `dyn Any` for complete
+compile-time type safety. No runtime type checks or downcasting.
+*/
 
 use std::fmt::Debug;
 
@@ -28,9 +29,9 @@ pub struct PillarSwapMove<S, V> {
     right_indices: Vec<usize>,
     descriptor_index: usize,
     variable_name: &'static str,
-    /// Typed getter function pointer - zero erasure.
+    // Typed getter function pointer - zero erasure.
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
+    // Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
 }
 
@@ -86,12 +87,10 @@ impl<S, V> PillarSwapMove<S, V> {
         }
     }
 
-    /// Returns the left pillar indices.
     pub fn left_indices(&self) -> &[usize] {
         &self.left_indices
     }
 
-    /// Returns the right pillar indices.
     pub fn right_indices(&self) -> &[usize] {
         &self.right_indices
     }

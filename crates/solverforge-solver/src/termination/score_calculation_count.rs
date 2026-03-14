@@ -1,4 +1,4 @@
-//! Score calculation count termination.
+// Score calculation count termination.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,26 +10,27 @@ use super::Termination;
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
-/// Terminates when a maximum number of score calculations is reached.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::ScoreCalculationCountTermination;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// // Terminate after 10,000 score calculations
-/// let termination = ScoreCalculationCountTermination::<MySolution>::new(10_000);
-/// ```
+/* Terminates when a maximum number of score calculations is reached.
+
+# Example
+
+```
+use solverforge_solver::termination::ScoreCalculationCountTermination;
+use solverforge_core::score::SoftScore;
+use solverforge_core::domain::PlanningSolution;
+
+#[derive(Clone)]
+struct MySolution;
+impl PlanningSolution for MySolution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { None }
+fn set_score(&mut self, _: Option<Self::Score>) {}
+}
+
+// Terminate after 10,000 score calculations
+let termination = ScoreCalculationCountTermination::<MySolution>::new(10_000);
+```
+*/
 #[derive(Clone)]
 pub struct ScoreCalculationCountTermination<S: PlanningSolution> {
     limit: u64,

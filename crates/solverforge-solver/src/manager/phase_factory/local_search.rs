@@ -1,4 +1,4 @@
-//! Local search phase factory with zero type erasure.
+// Local search phase factory with zero type erasure.
 
 use std::marker::PhantomData;
 
@@ -48,7 +48,6 @@ where
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
-    /// Creates a new factory with concrete components.
     pub fn new(move_selector: MS, acceptor: A, forager: Fo) -> Self {
         Self {
             move_selector,
@@ -59,7 +58,6 @@ where
         }
     }
 
-    /// Sets step limit.
     pub fn with_step_limit(mut self, limit: u64) -> Self {
         self.step_limit = Some(limit);
         self
@@ -74,7 +72,6 @@ where
     M: Move<S>,
     MS: MoveSelector<S, M>,
 {
-    /// Creates a hill climbing local search.
     pub fn hill_climbing(move_selector: MS) -> Self {
         Self::new(
             move_selector,
@@ -90,7 +87,6 @@ where
     M: Move<S>,
     MS: MoveSelector<S, M>,
 {
-    /// Creates a tabu search local search.
     pub fn tabu_search(move_selector: MS, tabu_size: usize) -> Self {
         Self::new(
             move_selector,
@@ -107,7 +103,6 @@ where
     M: Move<S>,
     MS: MoveSelector<S, M>,
 {
-    /// Creates a simulated annealing local search.
     pub fn simulated_annealing(move_selector: MS, starting_temp: f64, decay_rate: f64) -> Self {
         Self::new(
             move_selector,
@@ -123,7 +118,6 @@ where
     M: Move<S>,
     MS: MoveSelector<S, M>,
 {
-    /// Creates a late acceptance local search.
     pub fn late_acceptance(move_selector: MS, size: usize) -> Self {
         Self::new(
             move_selector,

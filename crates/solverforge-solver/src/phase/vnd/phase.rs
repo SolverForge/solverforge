@@ -1,4 +1,4 @@
-//! Variable Neighborhood Descent phase implementation.
+// Variable Neighborhood Descent phase implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -69,13 +69,12 @@ impl<T: Debug, M> Debug for VndPhase<T, M> {
 }
 
 impl<T, M> VndPhase<T, M> {
-    /// Creates a new VND phase from a tuple of move selectors.
     pub fn new(neighborhoods: T) -> Self {
         Self(neighborhoods, PhantomData)
     }
 }
 
-/// Generates `Phase` implementations for VndPhase with tuple neighborhoods.
+// Generates `Phase` implementations for VndPhase with tuple neighborhoods.
 macro_rules! impl_vnd_phase {
     // Single neighborhood
     ($idx:tt: $MS:ident) => {
@@ -175,9 +174,10 @@ macro_rules! impl_vnd_phase {
     };
 }
 
-/// Finds the index of the best improving move in the arena.
-///
-/// Returns `Some((index, score))` if an improving move is found, `None` otherwise.
+/* Finds the index of the best improving move in the arena.
+
+Returns `Some((index, score))` if an improving move is found, `None` otherwise.
+*/
 fn find_best_improving_move_index<S, D, BestCb, M>(
     arena: &MoveArena<M>,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,

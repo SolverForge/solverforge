@@ -8,37 +8,36 @@ use crate::error::ConfigError;
 use crate::phase::PhaseConfig;
 use crate::termination::TerminationConfig;
 
-/// Main solver configuration.
+// Main solver configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SolverConfig {
-    /// Environment mode affecting reproducibility and assertions.
+    // Environment mode affecting reproducibility and assertions.
     #[serde(default)]
     pub environment_mode: EnvironmentMode,
 
-    /// Random seed for reproducible results.
+    // Random seed for reproducible results.
     #[serde(default)]
     pub random_seed: Option<u64>,
 
-    /// Number of threads for parallel move evaluation.
+    // Number of threads for parallel move evaluation.
     #[serde(default)]
     pub move_thread_count: MoveThreadCount,
 
-    /// Termination configuration.
+    // Termination configuration.
     #[serde(default)]
     pub termination: Option<TerminationConfig>,
 
-    /// Score director configuration.
+    // Score director configuration.
     #[serde(default)]
     pub score_director: Option<DirectorConfig>,
 
-    /// Phase configurations.
+    // Phase configurations.
     #[serde(default)]
     pub phases: Vec<PhaseConfig>,
 }
 
 impl SolverConfig {
-    /// Creates a new default configuration.
     pub fn new() -> Self {
         Self::default()
     }
@@ -74,7 +73,6 @@ impl SolverConfig {
         Ok(serde_yaml::from_str(s)?)
     }
 
-    /// Sets the termination time limit.
     pub fn with_termination_seconds(mut self, seconds: u64) -> Self {
         self.termination = Some(TerminationConfig {
             seconds_spent_limit: Some(seconds),
@@ -83,13 +81,11 @@ impl SolverConfig {
         self
     }
 
-    /// Sets the random seed.
     pub fn with_random_seed(mut self, seed: u64) -> Self {
         self.random_seed = Some(seed);
         self
     }
 
-    /// Adds a phase configuration.
     pub fn with_phase(mut self, phase: PhaseConfig) -> Self {
         self.phases.push(phase);
         self
@@ -117,48 +113,47 @@ impl SolverConfig {
     }
 }
 
-/// Environment mode affecting solver behavior.
+// Environment mode affecting solver behavior.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentMode {
-    /// Non-reproducible mode with minimal overhead.
+    // Non-reproducible mode with minimal overhead.
     #[default]
     NonReproducible,
 
-    /// Reproducible mode with deterministic behavior.
+    // Reproducible mode with deterministic behavior.
     Reproducible,
 
-    /// Fast assert mode with basic assertions.
+    // Fast assert mode with basic assertions.
     FastAssert,
 
-    /// Full assert mode with comprehensive assertions.
+    // Full assert mode with comprehensive assertions.
     FullAssert,
 }
 
-/// Move thread count configuration.
+// Move thread count configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MoveThreadCount {
-    /// Automatically determine thread count.
+    // Automatically determine thread count.
     #[default]
     Auto,
 
-    /// No parallel move evaluation.
+    // No parallel move evaluation.
     None,
 
-    /// Specific number of threads.
+    // Specific number of threads.
     Count(usize),
 }
 
-/// Runtime configuration overrides.
+// Runtime configuration overrides.
 #[derive(Debug, Clone, Default)]
 pub struct SolverConfigOverride {
-    /// Override termination configuration.
+    // Override termination configuration.
     pub termination: Option<TerminationConfig>,
 }
 
 impl SolverConfigOverride {
-    /// Creates a new override with termination configuration.
     pub fn with_termination(termination: TerminationConfig) -> Self {
         SolverConfigOverride {
             termination: Some(termination),

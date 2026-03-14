@@ -1,4 +1,4 @@
-//! K-opt move selector for tour optimization.
+// K-opt move selector for tour optimization.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -23,21 +23,20 @@ use super::iterators::CutCombinationIterator;
 /// Enumerates all valid cut point combinations for each selected entity
 /// and generates moves for each reconnection pattern.
 pub struct KOptMoveSelector<S, V, ES> {
-    /// Selects entities (routes) to apply k-opt to.
+    // Selects entities (routes) to apply k-opt to.
     entity_selector: ES,
-    /// K-opt configuration.
+    // K-opt configuration.
     config: KOptConfig,
-    /// Owned reconnection patterns (avoids `Box::leak` for non-k=3 cases).
+    // Owned reconnection patterns (avoids `Box::leak` for non-k=3 cases).
     owned_patterns: Vec<KOptReconnection>,
-    /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end).
+    // Remove sublist [start, end).
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position.
+    // Insert elements at position.
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
-    /// Variable name.
+    // Variable name.
     variable_name: &'static str,
-    /// Descriptor index.
+    // Descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
@@ -54,7 +53,6 @@ impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
 }
 
 impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
-    /// Creates a new k-opt move selector.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,

@@ -1,7 +1,8 @@
-//! ListMoveImpl - a monomorphized union of all list-variable move types.
-//!
-//! This allows local search to combine all list move types in a single arena
-//! without trait-object dispatch.
+/* ListMoveImpl - a monomorphized union of all list-variable move types.
+
+This allows local search to combine all list move types in a single arena
+without trait-object dispatch.
+*/
 
 use std::fmt::Debug;
 

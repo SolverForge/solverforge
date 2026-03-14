@@ -1,4 +1,4 @@
-//! Tests for KOptMove.
+// Tests for KOptMove.
 
 use super::*;
 use crate::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
@@ -71,14 +71,15 @@ fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
 
 #[test]
 fn three_opt_swap_segments() {
-    // Tour: [1, 2, 3, 4, 5, 6, 7, 8]
-    // Cuts at positions 2, 4, 6 creates segments:
-    //   Segment 0: [1, 2]
-    //   Segment 1: [3, 4]
-    //   Segment 2: [5, 6]
-    //   Segment 3: [7, 8]
-    // Pattern 3 (swap B and C, no reversal): [A, C, B, D]
-    // Result: [1, 2, 5, 6, 3, 4, 7, 8]
+    /* Tour: [1, 2, 3, 4, 5, 6, 7, 8]
+    Cuts at positions 2, 4, 6 creates segments:
+    Segment 0: [1, 2]
+    Segment 1: [3, 4]
+    Segment 2: [5, 6]
+    Segment 3: [7, 8]
+    Pattern 3 (swap B and C, no reversal): [A, C, B, D]
+    Result: [1, 2, 5, 6, 3, 4, 7, 8]
+    */
 
     let tours = vec![Tour {
         cities: vec![1, 2, 3, 4, 5, 6, 7, 8],
@@ -121,15 +122,17 @@ fn three_opt_swap_segments() {
 
 #[test]
 fn three_opt_reverse_segment() {
-    // Tour: [1, 2, 3, 4, 5, 6]
-    // Cuts at 2, 4 (only using 2 cuts for simpler test, but with 3-opt pattern)
-    // Wait, 3-opt needs 3 cuts. Let me use proper 3 cuts.
+    /* Tour: [1, 2, 3, 4, 5, 6]
+    Cuts at 2, 4 (only using 2 cuts for simpler test, but with 3-opt pattern)
+    Wait, 3-opt needs 3 cuts. Let me use proper 3 cuts.
+    */
 
-    // Tour: [1, 2, 3, 4, 5, 6, 7, 8]
-    // Cuts at 2, 4, 6
-    // Pattern 0 (reverse B only): segments [A, B', C, D]
-    // B = [3, 4], reversed = [4, 3]
-    // Result: [1, 2, 4, 3, 5, 6, 7, 8]
+    /* Tour: [1, 2, 3, 4, 5, 6, 7, 8]
+    Cuts at 2, 4, 6
+    Pattern 0 (reverse B only): segments [A, B', C, D]
+    B = [3, 4], reversed = [4, 3]
+    Result: [1, 2, 4, 3, 5, 6, 7, 8]
+    */
 
     let tours = vec![Tour {
         cities: vec![1, 2, 3, 4, 5, 6, 7, 8],

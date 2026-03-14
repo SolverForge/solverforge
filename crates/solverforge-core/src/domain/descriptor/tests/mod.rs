@@ -1,4 +1,4 @@
-//! Tests for descriptor types.
+// Tests for descriptor types.
 
 mod entity_descriptor;
 mod solution_descriptor;

@@ -1,7 +1,8 @@
-// Zero-erasure if_exists/if_not_exists uni-constraint.
-//
-// Filters A entities based on whether a matching B entity exists in another collection.
-// The result is still a uni-constraint over A, not a bi-constraint.
+/* Zero-erasure if_exists/if_not_exists uni-constraint.
+
+Filters A entities based on whether a matching B entity exists in another collection.
+The result is still a uni-constraint over A, not a bi-constraint.
+*/
 
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -21,71 +22,72 @@ pub enum ExistenceMode {
     NotExists,
 }
 
-// Zero-erasure uni-constraint with existence filtering.
-//
-// Scores A entities based on whether a matching B entity exists (or doesn't exist)
-// in another collection. Unlike join, this produces a uni-constraint over A.
-//
-// # Type Parameters
-//
-// - `S` - Solution type
-// - `A` - Primary entity type (scored)
-// - `B` - Secondary entity type (checked for existence)
-// - `K` - Join key type
-// - `EA` - Extractor for A entities
-// - `EB` - Extractor for B entities
-// - `KA` - Key extractor for A
-// - `KB` - Key extractor for B
-// - `FA` - Filter on A entities
-// - `W` - Weight function for A entities
-// - `Sc` - Score type
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::constraint::if_exists::{IfExistsUniConstraint, ExistenceMode};
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone)]
-// struct Shift { id: usize, employee_idx: Option<usize> }
-//
-// #[derive(Clone)]
-// struct Employee { id: usize, on_vacation: bool }
-//
-// #[derive(Clone)]
-// struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
-//
-// // Penalize shifts assigned to employees who are on vacation
-// let constraint = IfExistsUniConstraint::new(
-//     ConstraintRef::new("", "Vacation conflict"),
-//     ImpactType::Penalty,
-//     ExistenceMode::Exists,
-//     |s: &Schedule| s.shifts.as_slice(),
-//     |s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect::<Vec<_>>(),
-//     |shift: &Shift| shift.employee_idx,
-//     |emp: &Employee| Some(emp.id),
-//     |_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
-//     |_shift: &Shift| SoftScore::of(1),
-//     false,
-// );
-//
-// let schedule = Schedule {
-//     shifts: vec![
-//         Shift { id: 0, employee_idx: Some(0) },  // assigned to vacationing emp
-//         Shift { id: 1, employee_idx: Some(1) },  // assigned to working emp
-//         Shift { id: 2, employee_idx: None },     // unassigned
-//     ],
-//     employees: vec![
-//         Employee { id: 0, on_vacation: true },
-//         Employee { id: 1, on_vacation: false },
-//     ],
-// };
-//
-// // Only shift 0 matches (assigned to employee on vacation)
-// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
-// ```
+/* Zero-erasure uni-constraint with existence filtering.
+
+Scores A entities based on whether a matching B entity exists (or doesn't exist)
+in another collection. Unlike join, this produces a uni-constraint over A.
+
+# Type Parameters
+
+- `S` - Solution type
+- `A` - Primary entity type (scored)
+- `B` - Secondary entity type (checked for existence)
+- `K` - Join key type
+- `EA` - Extractor for A entities
+- `EB` - Extractor for B entities
+- `KA` - Key extractor for A
+- `KB` - Key extractor for B
+- `FA` - Filter on A entities
+- `W` - Weight function for A entities
+- `Sc` - Score type
+
+# Example
+
+```
+use solverforge_scoring::constraint::if_exists::{IfExistsUniConstraint, ExistenceMode};
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone)]
+struct Shift { id: usize, employee_idx: Option<usize> }
+
+#[derive(Clone)]
+struct Employee { id: usize, on_vacation: bool }
+
+#[derive(Clone)]
+struct Schedule { shifts: Vec<Shift>, employees: Vec<Employee> }
+
+// Penalize shifts assigned to employees who are on vacation
+let constraint = IfExistsUniConstraint::new(
+ConstraintRef::new("", "Vacation conflict"),
+ImpactType::Penalty,
+ExistenceMode::Exists,
+|s: &Schedule| s.shifts.as_slice(),
+|s: &Schedule| s.employees.iter().filter(|e| e.on_vacation).cloned().collect::<Vec<_>>(),
+|shift: &Shift| shift.employee_idx,
+|emp: &Employee| Some(emp.id),
+|_s: &Schedule, shift: &Shift| shift.employee_idx.is_some(),
+|_shift: &Shift| SoftScore::of(1),
+false,
+);
+
+let schedule = Schedule {
+shifts: vec![
+Shift { id: 0, employee_idx: Some(0) },  // assigned to vacationing emp
+Shift { id: 1, employee_idx: Some(1) },  // assigned to working emp
+Shift { id: 2, employee_idx: None },     // unassigned
+],
+employees: vec![
+Employee { id: 0, on_vacation: true },
+Employee { id: 1, on_vacation: false },
+],
+};
+
+// Only shift 0 matches (assigned to employee on vacation)
+assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
+```
+*/
 pub struct IfExistsUniConstraint<S, A, B, K, EA, EB, KA, KB, FA, W, Sc>
 where
     Sc: Score,

@@ -1,6 +1,7 @@
-//! Filtering move selector decorator.
-//!
-//! Filters moves from an inner selector based on a predicate function.
+/* Filtering move selector decorator.
+
+Filters moves from an inner selector based on a predicate function.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -59,7 +60,6 @@ pub struct FilteringMoveSelector<S, M, Inner> {
 }
 
 impl<S, M, Inner> FilteringMoveSelector<S, M, Inner> {
-    /// Creates a new filtering selector with the given predicate.
     pub fn new(inner: Inner, predicate: fn(&M) -> bool) -> Self {
         Self {
             inner,

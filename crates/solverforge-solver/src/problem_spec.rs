@@ -1,4 +1,4 @@
-//! `ProblemSpec` trait for parameterizing `run_solver` over problem types.
+// `ProblemSpec` trait for parameterizing `run_solver` over problem types.
 
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -21,16 +21,16 @@ where
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
 {
-    /// Returns `true` if the problem is trivially empty and solving can be skipped.
+    // Returns `true` if the problem is trivially empty and solving can be skipped.
     fn is_trivial(&self, solution: &S) -> bool;
 
-    /// Default solver time limit in seconds (used when config has no termination).
+    // Default solver time limit in seconds (used when config has no termination).
     fn default_time_limit_secs(&self) -> u64;
 
-    /// Logs the problem scale (entity count, value count, etc.).
+    // Logs the problem scale (entity count, value count, etc.).
     fn log_scale(&self, solution: &S);
 
-    /// Builds the construction + local search phases and runs the solver.
+    // Builds the construction + local search phases and runs the solver.
     fn build_and_solve(
         self,
         director: ScoreDirector<S, C>,

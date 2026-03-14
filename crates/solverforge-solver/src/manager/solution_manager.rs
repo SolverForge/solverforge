@@ -1,29 +1,29 @@
-//! Stateless score analysis for planning solutions.
+// Stateless score analysis for planning solutions.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
-/// Analysis of a single constraint's contribution to the score.
+// Analysis of a single constraint's contribution to the score.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConstraintAnalysis<Sc> {
-    /// Name of the constraint.
+    // Name of the constraint.
     pub name: String,
-    /// Weight of the constraint.
+    // Weight of the constraint.
     pub weight: Sc,
-    /// Score contribution from this constraint.
+    // Score contribution from this constraint.
     pub score: Sc,
-    /// Number of matches (violations or rewards).
+    // Number of matches (violations or rewards).
     pub match_count: usize,
 }
 
-/// Result of analyzing a solution's constraints.
+// Result of analyzing a solution's constraints.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScoreAnalysis<Sc> {
-    /// The total score.
+    // The total score.
     pub score: Sc,
-    /// Analysis of each constraint.
+    // Analysis of each constraint.
     pub constraints: Vec<ConstraintAnalysis<Sc>>,
 }
 
@@ -65,7 +65,7 @@ pub struct ScoreAnalysis<Sc> {
 /// assert_eq!(analysis.score, SoftScore::of(0));
 /// ```
 pub trait Analyzable: PlanningSolution + Clone + Send + 'static {
-    /// Analyzes the solution and returns constraint breakdowns.
+    // Analyzes the solution and returns constraint breakdowns.
     fn analyze(&self) -> ScoreAnalysis<Self::Score>;
 }
 

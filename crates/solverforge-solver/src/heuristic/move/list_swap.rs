@@ -1,11 +1,12 @@
-//! ListSwapMove - swaps two elements within or between list variables.
-//!
-//! This move exchanges two elements at different positions.
-//! Useful for TSP-style improvements and route optimization.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+/* ListSwapMove - swaps two elements within or between list variables.
+
+This move exchanges two elements at different positions.
+Useful for TSP-style improvements and route optimization.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 
@@ -62,23 +63,21 @@ use super::Move;
 /// );
 /// ```
 pub struct ListSwapMove<S, V> {
-    /// First entity index
+    // First entity index
     first_entity_index: usize,
-    /// Position in first entity's list
+    // Position in first entity's list
     first_position: usize,
-    /// Second entity index
+    // Second entity index
     second_entity_index: usize,
-    /// Position in second entity's list
+    // Position in second entity's list
     second_position: usize,
-    /// Get list length for an entity
     list_len: fn(&S, usize) -> usize,
-    /// Get element at position
     list_get: fn(&S, usize, usize) -> Option<V>,
-    /// Set element at position
+    // Set element at position
     list_set: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
-    /// Store indices for entity_indices()
+    // Store indices for entity_indices()
     indices: [usize; 2],
 }
 
@@ -103,18 +102,19 @@ impl<S, V: Debug> Debug for ListSwapMove<S, V> {
 }
 
 impl<S, V> ListSwapMove<S, V> {
-    /// Creates a new list swap move with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `first_entity_index` - First entity index
-    /// * `first_position` - Position in first entity's list
-    /// * `second_entity_index` - Second entity index
-    /// * `second_position` - Position in second entity's list
-    /// * `list_len` - Function to get list length
-    /// * `list_get` - Function to get element at position
-    /// * `list_set` - Function to set element at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new list swap move with typed function pointers.
+
+    # Arguments
+    * `first_entity_index` - First entity index
+    * `first_position` - Position in first entity's list
+    * `second_entity_index` - Second entity index
+    * `second_position` - Position in second entity's list
+    * `list_len` - Function to get list length
+    * `list_get` - Function to get element at position
+    * `list_set` - Function to set element at position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         first_entity_index: usize,
@@ -141,27 +141,22 @@ impl<S, V> ListSwapMove<S, V> {
         }
     }
 
-    /// Returns the first entity index.
     pub fn first_entity_index(&self) -> usize {
         self.first_entity_index
     }
 
-    /// Returns the first position.
     pub fn first_position(&self) -> usize {
         self.first_position
     }
 
-    /// Returns the second entity index.
     pub fn second_entity_index(&self) -> usize {
         self.second_entity_index
     }
 
-    /// Returns the second position.
     pub fn second_position(&self) -> usize {
         self.second_position
     }
 
-    /// Returns true if this is an intra-list swap (same entity).
     pub fn is_intra_list(&self) -> bool {
         self.first_entity_index == self.second_entity_index
     }

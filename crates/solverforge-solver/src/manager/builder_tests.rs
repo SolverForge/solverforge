@@ -1,4 +1,4 @@
-//! Tests for SolverFactoryBuilder.
+// Tests for SolverFactoryBuilder.
 
 use std::time::Duration;
 
@@ -24,7 +24,7 @@ impl PlanningSolution for TestSolution {
     }
 }
 
-/// Type alias for the score director used in tests.
+// Type alias for the score director used in tests.
 type TestDirector = ScoreDirector<TestSolution, ()>;
 
 #[test]

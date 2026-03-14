@@ -1,6 +1,7 @@
-//! Composite termination conditions (AND/OR).
-//!
-//! Uses macro-generated tuple implementations for zero-erasure architecture.
+/* Composite termination conditions (AND/OR).
+
+Uses macro-generated tuple implementations for zero-erasure architecture.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -12,35 +13,36 @@ use super::Termination;
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
-/// Combines multiple terminations with OR logic.
-///
-/// Terminates when ANY of the child terminations triggers.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::{OrTermination, TimeTermination, StepCountTermination};
-/// use solverforge_scoring::ScoreDirector;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SoftScore;
-/// use std::time::Duration;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// type MyDirector = ScoreDirector<MySolution, ()>;
-///
-/// // Terminate after 30 seconds OR 1000 steps
-/// let term: OrTermination<_, MySolution, MyDirector> = OrTermination::new((
-///     TimeTermination::seconds(30),
-///     StepCountTermination::new(1000),
-/// ));
-/// ```
+/* Combines multiple terminations with OR logic.
+
+Terminates when ANY of the child terminations triggers.
+
+# Example
+
+```
+use solverforge_solver::termination::{OrTermination, TimeTermination, StepCountTermination};
+use solverforge_scoring::ScoreDirector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+use std::time::Duration;
+
+#[derive(Clone)]
+struct MySolution;
+impl PlanningSolution for MySolution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { None }
+fn set_score(&mut self, _: Option<Self::Score>) {}
+}
+
+type MyDirector = ScoreDirector<MySolution, ()>;
+
+// Terminate after 30 seconds OR 1000 steps
+let term: OrTermination<_, MySolution, MyDirector> = OrTermination::new((
+TimeTermination::seconds(30),
+StepCountTermination::new(1000),
+));
+```
+*/
 #[derive(Clone)]
 pub struct OrTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
 
@@ -56,35 +58,36 @@ impl<T, S, D> OrTermination<T, S, D> {
     }
 }
 
-/// Combines multiple terminations with AND logic.
-///
-/// All terminations must agree before solving terminates.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::{AndTermination, TimeTermination, StepCountTermination};
-/// use solverforge_scoring::ScoreDirector;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-/// use std::time::Duration;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// type MyDirector = ScoreDirector<MySolution, ()>;
-///
-/// // Terminate when both conditions are met
-/// let term: AndTermination<_, MySolution, MyDirector> = AndTermination::new((
-///     TimeTermination::seconds(10),
-///     StepCountTermination::new(100),
-/// ));
-/// ```
+/* Combines multiple terminations with AND logic.
+
+All terminations must agree before solving terminates.
+
+# Example
+
+```
+use solverforge_solver::termination::{AndTermination, TimeTermination, StepCountTermination};
+use solverforge_scoring::ScoreDirector;
+use solverforge_core::score::SoftScore;
+use solverforge_core::domain::PlanningSolution;
+use std::time::Duration;
+
+#[derive(Clone)]
+struct MySolution;
+impl PlanningSolution for MySolution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { None }
+fn set_score(&mut self, _: Option<Self::Score>) {}
+}
+
+type MyDirector = ScoreDirector<MySolution, ()>;
+
+// Terminate when both conditions are met
+let term: AndTermination<_, MySolution, MyDirector> = AndTermination::new((
+TimeTermination::seconds(10),
+StepCountTermination::new(100),
+));
+```
+*/
 #[derive(Clone)]
 pub struct AndTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
 

@@ -1,32 +1,34 @@
-//! Shadow variable test fixtures.
-//!
-//! Provides a solution type for testing shadow variable infrastructure.
-//! The `ShadowVariableSupport` trait is defined in `solverforge-scoring`,
-//! so tests must implement it there.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_test::shadow::ShadowSolution;
-//!
-//! let solution = ShadowSolution::new(vec![10, 20, 30]);
-//! assert_eq!(solution.values, vec![10, 20, 30]);
-//! assert_eq!(solution.cached_sum, 0); // Not yet computed
-//! ```
+/* Shadow variable test fixtures.
+
+Provides a solution type for testing shadow variable infrastructure.
+The `ShadowVariableSupport` trait is defined in `solverforge-scoring`,
+so tests must implement it there.
+
+# Example
+
+```
+use solverforge_test::shadow::ShadowSolution;
+
+let solution = ShadowSolution::new(vec![10, 20, 30]);
+assert_eq!(solution.values, vec![10, 20, 30]);
+assert_eq!(solution.cached_sum, 0); // Not yet computed
+```
+*/
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 
-/// A solution with a shadow variable for testing.
-///
-/// Contains:
-/// - `values`: Planning variables (a vector of integers)
-/// - `cached_sum`: Shadow variable (sum of all values, updated by shadow logic)
-/// - `score`: The solution's score
+/* A solution with a shadow variable for testing.
+
+Contains:
+- `values`: Planning variables (a vector of integers)
+- `cached_sum`: Shadow variable (sum of all values, updated by shadow logic)
+- `score`: The solution's score
+*/
 #[derive(Clone, Debug)]
 pub struct ShadowSolution {
     pub values: Vec<i32>,
-    /// Shadow variable: cached sum of all values.
+    // Shadow variable: cached sum of all values.
     pub cached_sum: i32,
     pub score: Option<SoftScore>,
 }
@@ -44,7 +46,6 @@ impl ShadowSolution {
         }
     }
 
-    /// Creates a shadow solution with pre-computed cached_sum.
     pub fn with_cached_sum(values: Vec<i32>, cached_sum: i32) -> Self {
         Self {
             values,

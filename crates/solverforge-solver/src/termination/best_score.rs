@@ -1,4 +1,4 @@
-//! Score-based termination conditions.
+// Score-based termination conditions.
 
 use std::fmt::Debug;
 
@@ -10,27 +10,27 @@ use super::Termination;
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
-/// Terminates when the best score reaches or exceeds a target score.
-///
-/// This is useful when you know what score you're aiming for (e.g., a perfect
-/// score of 0 for constraint satisfaction problems).
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::BestScoreTermination;
-/// use solverforge_core::score::SoftScore;
-///
-/// // Terminate when score reaches 0 (no constraint violations)
-/// let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
-/// ```
+/* Terminates when the best score reaches or exceeds a target score.
+
+This is useful when you know what score you're aiming for (e.g., a perfect
+score of 0 for constraint satisfaction problems).
+
+# Example
+
+```
+use solverforge_solver::termination::BestScoreTermination;
+use solverforge_core::score::SoftScore;
+
+// Terminate when score reaches 0 (no constraint violations)
+let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
+```
+*/
 #[derive(Debug, Clone)]
 pub struct BestScoreTermination<Sc: Score> {
     target_score: Sc,
 }
 
 impl<Sc: Score> BestScoreTermination<Sc> {
-    /// Creates a termination that stops when best score >= target.
     pub fn new(target_score: Sc) -> Self {
         Self { target_score }
     }
@@ -85,7 +85,6 @@ where
     S: PlanningSolution,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
-    /// Creates a termination with a custom feasibility check.
     pub fn new(feasibility_check: F) -> Self {
         Self {
             feasibility_check,

@@ -1,4 +1,4 @@
-//! Construction phase factory with zero type erasure.
+// Construction phase factory with zero type erasure.
 
 use std::marker::PhantomData;
 
@@ -41,7 +41,6 @@ where
     P: EntityPlacer<S, M>,
     Fo: ConstructionForager<S, M>,
 {
-    /// Creates a new factory with concrete placer and forager.
     pub fn new(placer: P, forager: Fo) -> Self {
         Self {
             placer,
@@ -57,7 +56,6 @@ where
     M: Move<S>,
     P: EntityPlacer<S, M>,
 {
-    /// Creates a factory with FirstFit forager.
     pub fn first_fit(placer: P) -> Self {
         Self::new(placer, FirstFitForager::new())
     }
@@ -69,7 +67,6 @@ where
     M: Move<S>,
     P: EntityPlacer<S, M>,
 {
-    /// Creates a factory with BestFit forager.
     pub fn best_fit(placer: P) -> Self {
         Self::new(placer, BestFitForager::new())
     }

@@ -1,19 +1,20 @@
-//! N-Queens problem test fixtures.
-//!
-//! Provides data types and pure functions for the N-Queens problem.
-//! The N-Queens problem places N queens on an N×N chessboard such that
-//! no two queens threaten each other.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_test::nqueens::{NQueensSolution, calculate_conflicts};
-//! use solverforge_core::score::SoftScore;
-//!
-//! let solution = NQueensSolution::with_rows(&[1, 3, 0, 2]);
-//! let score = calculate_conflicts(&solution);
-//! assert_eq!(score, SoftScore::of(0)); // No conflicts
-//! ```
+/* N-Queens problem test fixtures.
+
+Provides data types and pure functions for the N-Queens problem.
+The N-Queens problem places N queens on an N×N chessboard such that
+no two queens threaten each other.
+
+# Example
+
+```
+use solverforge_test::nqueens::{NQueensSolution, calculate_conflicts};
+use solverforge_core::score::SoftScore;
+
+let solution = NQueensSolution::with_rows(&[1, 3, 0, 2]);
+let score = calculate_conflicts(&solution);
+assert_eq!(score, SoftScore::of(0)); // No conflicts
+```
+*/
 
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
@@ -21,12 +22,13 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use std::any::TypeId;
 
-/// A queen entity in the N-Queens problem.
-///
-/// Each queen has:
-/// - `id`: Unique identifier (typically the column index)
-/// - `column`: The column position on the board (fixed/problem fact)
-/// - `row`: The row position (planning variable, None if unassigned)
+/* A queen entity in the N-Queens problem.
+
+Each queen has:
+- `id`: Unique identifier (typically the column index)
+- `column`: The column position on the board (fixed/problem fact)
+- `row`: The row position (planning variable, None if unassigned)
+*/
 #[derive(Clone, Debug, PartialEq)]
 pub struct Queen {
     pub id: i64,
@@ -35,12 +37,10 @@ pub struct Queen {
 }
 
 impl Queen {
-    /// Creates a new queen at the given column with an optional row.
     pub fn new(id: i64, column: i64, row: Option<i64>) -> Self {
         Self { id, column, row }
     }
 
-    /// Creates a queen with an assigned row.
     pub fn assigned(id: i64, column: i64, row: i64) -> Self {
         Self {
             id,
@@ -49,7 +49,6 @@ impl Queen {
         }
     }
 
-    /// Creates a queen with no row assigned.
     pub fn unassigned(id: i64, column: i64) -> Self {
         Self {
             id,
@@ -59,10 +58,11 @@ impl Queen {
     }
 }
 
-/// N-Queens problem solution.
-///
-/// Contains a vector of queens and an optional score. The score is typically
-/// calculated as the negative count of conflicts (row + diagonal).
+/* N-Queens problem solution.
+
+Contains a vector of queens and an optional score. The score is typically
+calculated as the negative count of conflicts (row + diagonal).
+*/
 #[derive(Clone, Debug)]
 pub struct NQueensSolution {
     pub queens: Vec<Queen>,
@@ -70,7 +70,6 @@ pub struct NQueensSolution {
 }
 
 impl NQueensSolution {
-    /// Creates a new N-Queens solution with the given queens.
     pub fn new(queens: Vec<Queen>) -> Self {
         Self {
             queens,
@@ -106,7 +105,6 @@ impl NQueensSolution {
         }
     }
 
-    /// Creates an N-Queens solution with optional rows.
     pub fn with_optional_rows(rows: &[Option<i64>]) -> Self {
         let queens = rows
             .iter()
@@ -132,19 +130,14 @@ impl PlanningSolution for NQueensSolution {
     }
 }
 
-/// Gets a reference to the queens vector.
 pub fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
     &s.queens
 }
 
-/// Gets a mutable reference to the queens vector.
 pub fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
     &mut s.queens
 }
 
-/// Gets the row value for a queen at the given index.
-///
-/// This is the typed getter for the planning variable.
 pub fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
     s.queens.get(idx).and_then(|q| q.row)
 }
@@ -161,7 +154,6 @@ pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
 /// Calculates the number of conflicts in an N-Queens solution.
 ///
 /// Counts row conflicts and diagonal conflicts between all pairs of queens.
-/// Returns a negative score where 0 means no conflicts (optimal).
 pub fn calculate_conflicts(solution: &NQueensSolution) -> SoftScore {
     let mut conflicts = 0i64;
     let queens = &solution.queens;
@@ -185,7 +177,6 @@ pub fn calculate_conflicts(solution: &NQueensSolution) -> SoftScore {
     SoftScore::of(-conflicts)
 }
 
-/// Creates a SolutionDescriptor for NQueensSolution.
 pub fn create_nqueens_descriptor() -> SolutionDescriptor {
     let extractor = Box::new(TypedEntityExtractor::new(
         "Queen",

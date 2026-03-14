@@ -1,4 +1,4 @@
-//! Tests for SubListChangeMove operations.
+// Tests for SubListChangeMove operations.
 
 use super::*;
 

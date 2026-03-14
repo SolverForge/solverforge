@@ -1,27 +1,28 @@
-//! Entity reference types for dynamic entity access.
-//!
-//! These types enable the solver to work with entities at runtime without
-//! knowing their concrete types at compile time.
+/* Entity reference types for dynamic entity access.
+
+These types enable the solver to work with entities at runtime without
+knowing their concrete types at compile time.
+*/
 
 use std::any::Any;
 use std::fmt::Debug;
 
-/// A reference to a planning entity with its index in the solution.
-///
-/// This struct provides a way to identify and access entities during solving
-/// without needing to know the concrete entity type.
+/* A reference to a planning entity with its index in the solution.
+
+This struct provides a way to identify and access entities during solving
+without needing to know the concrete entity type.
+*/
 #[derive(Debug, Clone)]
 pub struct EntityRef {
-    /// Index of this entity in its collection.
+    // Index of this entity in its collection.
     pub index: usize,
-    /// Name of the entity type.
+    // Name of the entity type.
     pub type_name: &'static str,
-    /// Name of the collection field in the solution.
+    // Name of the collection field in the solution.
     pub collection_field: &'static str,
 }
 
 impl EntityRef {
-    /// Creates a new entity reference.
     pub fn new(index: usize, type_name: &'static str, collection_field: &'static str) -> Self {
         Self {
             index,
@@ -36,32 +37,29 @@ impl EntityRef {
 /// This trait is implemented by closures/functions that can extract
 /// entity references from a solution of a specific type.
 pub trait EntityExtractor: Send + Sync {
-    /// Returns the number of entities in the collection.
     fn count(&self, solution: &dyn Any) -> Option<usize>;
 
-    /// Gets a reference to an entity by index.
     fn get<'a>(&self, solution: &'a dyn Any, index: usize) -> Option<&'a dyn Any>;
 
-    /// Gets a mutable reference to an entity by index.
     fn get_mut<'a>(&self, solution: &'a mut dyn Any, index: usize) -> Option<&'a mut dyn Any>;
 
-    /// Returns an iterator over entity references.
+    // Returns an iterator over entity references.
     fn entity_refs(&self, solution: &dyn Any) -> Vec<EntityRef>;
 
-    /// Clone this extractor.
+    // Clone this extractor.
     fn clone_box(&self) -> Box<dyn EntityExtractor>;
 
-    /// Clones an entity as a boxed value for insertion into the constraint session.
-    ///
-    /// This is used for incremental scoring where entities need to be inserted
-    /// into the BAVET session as owned, type-erased values.
+    /* Clones an entity as a boxed value for insertion into the constraint session.
+
+    This is used for incremental scoring where entities need to be inserted
+    into the BAVET session as owned, type-erased values.
+    */
     fn clone_entity_boxed(
         &self,
         solution: &dyn Any,
         index: usize,
     ) -> Option<Box<dyn Any + Send + Sync>>;
 
-    /// Returns the TypeId of the entity type.
     fn entity_type_id(&self) -> std::any::TypeId;
 }
 
@@ -77,13 +75,13 @@ impl Clone for Box<dyn EntityExtractor> {
 /// * `S` - The solution type
 /// * `E` - The entity type
 pub struct TypedEntityExtractor<S, E> {
-    /// Name of the entity type.
+    // Name of the entity type.
     type_name: &'static str,
-    /// Name of the collection field in the solution.
+    // Name of the collection field in the solution.
     collection_field: &'static str,
-    /// Function to get the entity collection from a solution.
+    // Function to get the entity collection from a solution.
     get_collection: fn(&S) -> &Vec<E>,
-    /// Function to get the mutable entity collection from a solution.
+    // Function to get the mutable entity collection from a solution.
     get_collection_mut: fn(&mut S) -> &mut Vec<E>,
 }
 
@@ -92,7 +90,6 @@ where
     S: 'static,
     E: 'static,
 {
-    /// Creates a new typed entity extractor.
     pub fn new(
         type_name: &'static str,
         collection_field: &'static str,

@@ -1,16 +1,18 @@
 // Core joiner traits and types for defining match conditions.
 
-// A joiner defines matching conditions between two entities.
-//
-// Joiners are used in stream operations like `join()`
-// to determine which entity pairs should be matched.
+/* A joiner defines matching conditions between two entities.
+
+Joiners are used in stream operations like `join()`
+to determine which entity pairs should be matched.
+*/
 pub trait Joiner<A, B>: Send + Sync {
     // Returns true if the two entities should be joined.
     fn matches(&self, a: &A, b: &B) -> bool;
 
-    // Combines this joiner with another using AND semantics.
-    //
-    // The resulting joiner matches only if both joiners match.
+    /* Combines this joiner with another using AND semantics.
+
+    The resulting joiner matches only if both joiners match.
+    */
     fn and<J>(self, other: J) -> AndJoiner<Self, J>
     where
         Self: Sized,
@@ -23,9 +25,10 @@ pub trait Joiner<A, B>: Send + Sync {
     }
 }
 
-// A joiner that combines two joiners with AND semantics.
-//
-// Created by calling `joiner.and(other)`.
+/* A joiner that combines two joiners with AND semantics.
+
+Created by calling `joiner.and(other)`.
+*/
 pub struct AndJoiner<J1, J2> {
     first: J1,
     second: J2,

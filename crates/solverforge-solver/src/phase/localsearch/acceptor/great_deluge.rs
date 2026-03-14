@@ -1,4 +1,4 @@
-//! Great Deluge acceptor.
+// Great Deluge acceptor.
 
 use std::fmt::Debug;
 
@@ -38,11 +38,11 @@ use super::Acceptor;
 /// let acceptor = GreatDelugeAcceptor::<MySolution>::new(0.001);
 /// ```
 pub struct GreatDelugeAcceptor<S: PlanningSolution> {
-    /// Rain speed - ratio of |initial_score| to add per step.
+    // Rain speed - ratio of |initial_score| to add per step.
     rain_speed: f64,
-    /// Current water level.
+    // Current water level.
     water_level: Option<S::Score>,
-    /// Absolute value of initial score, used to compute increment.
+    // Absolute value of initial score, used to compute increment.
     initial_abs_score: Option<S::Score>,
 }
 

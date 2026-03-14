@@ -1,4 +1,4 @@
-//! Entity tabu acceptor.
+// Entity tabu acceptor.
 
 use std::fmt::Debug;
 
@@ -21,11 +21,11 @@ use super::Acceptor;
 /// assert!(!acceptor.is_entity_tabu(42));
 /// ```
 pub struct EntityTabuAcceptor {
-    /// Maximum number of entity changes to remember.
+    // Maximum number of entity changes to remember.
     entity_tabu_size: usize,
-    /// List of tabu entity identifiers (as u64 hashes).
+    // List of tabu entity identifiers (as u64 hashes).
     entity_tabu_list: Vec<u64>,
-    /// Current step's moved entities.
+    // Current step's moved entities.
     current_step_entities: Vec<u64>,
 }
 
@@ -68,7 +68,6 @@ impl EntityTabuAcceptor {
         self.current_step_entities.push(entity_id);
     }
 
-    /// Returns true if the given entity is in the tabu list.
     pub fn is_entity_tabu(&self, entity_id: u64) -> bool {
         self.entity_tabu_list.contains(&entity_id)
     }

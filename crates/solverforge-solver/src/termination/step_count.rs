@@ -1,4 +1,4 @@
-//! Step count termination.
+// Step count termination.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -7,15 +7,16 @@ use super::Termination;
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
-/// Terminates after a step count.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::StepCountTermination;
-///
-/// let term = StepCountTermination::new(1000);
-/// ```
+/* Terminates after a step count.
+
+# Example
+
+```
+use solverforge_solver::termination::StepCountTermination;
+
+let term = StepCountTermination::new(1000);
+```
+*/
 #[derive(Debug, Clone)]
 pub struct StepCountTermination {
     limit: u64,

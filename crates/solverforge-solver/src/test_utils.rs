@@ -1,7 +1,8 @@
-//! Test utilities for solverforge-solver
-//!
-//! Provides common test fixtures used across the crate's test modules.
-//! Re-exports types from solverforge-test and adds solver-specific helpers.
+/* Test utilities for solverforge-solver
+
+Provides common test fixtures used across the crate's test modules.
+Re-exports types from solverforge-test and adds solver-specific helpers.
+*/
 
 use crate::scope::SolverScope;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -15,26 +16,26 @@ pub use solverforge_test::nqueens::{
     Queen,
 };
 
-// ============================================================================
-// TestSolution - a minimal solution type for solver tests
-// ============================================================================
+/* ============================================================================
+TestSolution - a minimal solution type for solver tests
+============================================================================
+*/
 
-/// A minimal test solution with just a score field.
-///
-/// This is useful for testing components like termination conditions
-/// that only need to track score, not entities.
+/* A minimal test solution with just a score field.
+
+This is useful for testing components like termination conditions
+that only need to track score, not entities.
+*/
 #[derive(Clone, Debug)]
 pub struct TestSolution {
     pub score: Option<SoftScore>,
 }
 
 impl TestSolution {
-    /// Creates a new test solution with no score.
     pub fn new() -> Self {
         Self { score: None }
     }
 
-    /// Creates a test solution with the given score.
     pub fn with_score(score: SoftScore) -> Self {
         Self { score: Some(score) }
     }
@@ -61,41 +62,38 @@ impl PlanningSolution for TestSolution {
 /// Type alias for a ScoreDirector with empty constraint set.
 pub type TestDirector = ScoreDirector<TestSolution, ()>;
 
-/// Creates a SolutionDescriptor for TestSolution.
 pub fn create_minimal_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
 }
 
-/// Creates a ScoreDirector for TestSolution with empty constraints.
 pub fn create_minimal_director() -> TestDirector {
     let solution = TestSolution::new();
     let descriptor = create_minimal_descriptor();
     ScoreDirector::simple(solution, descriptor, |_, _| 0)
 }
 
-// ============================================================================
-// N-Queens director factories (solver-specific, using solverforge-scoring)
-// ============================================================================
+/* ============================================================================
+N-Queens director factories (solver-specific, using solverforge-scoring)
+============================================================================
+*/
 
-/// Creates a ScoreDirector for N-Queens with queens at the specified rows.
 pub fn create_nqueens_director(rows: &[i64]) -> ScoreDirector<NQueensSolution, ()> {
     let solution = NQueensSolution::with_rows(rows);
     let descriptor = create_nqueens_descriptor();
     ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
 }
 
-/// Creates a ScoreDirector for N-Queens with n uninitialized queens.
 pub fn create_simple_nqueens_director(n: usize) -> ScoreDirector<NQueensSolution, ()> {
     let solution = NQueensSolution::uninitialized(n);
     let descriptor = create_nqueens_descriptor();
     ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
 }
 
-// ============================================================================
-// SolverScope-specific helpers
-// ============================================================================
+/* ============================================================================
+SolverScope-specific helpers
+============================================================================
+*/
 
-/// Creates a SolverScope with the default zero calculator.
 pub fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
     let desc = create_minimal_descriptor();
     let director = ScoreDirector::simple(TestSolution::new(), desc, |_, _| 0);

@@ -1,13 +1,14 @@
-//! Basic variable solver for simple assignment problems.
-//!
-//! This module provides `BasicSpec` for problems using `#[basic_variable_config]`,
-//! where each entity has a single planning variable that can be assigned from a
-//! fixed value range.
-//!
-//! Logging levels:
-//! - **INFO**: Solver start/end, phase summaries, problem scale
-//! - **DEBUG**: Individual steps with timing and scores
-//! - **TRACE**: Move evaluation details
+/* Basic variable solver for simple assignment problems.
+
+This module provides `BasicSpec` for problems using `#[basic_variable_config]`,
+where each entity has a single planning variable that can be assigned from a
+fixed value range.
+
+Logging levels:
+- **INFO**: Solver start/end, phase summaries, problem scale
+- **DEBUG**: Individual steps with timing and scores
+- **TRACE**: Move evaluation details
+*/
 
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -63,7 +64,7 @@ type DefaultLocalSearch<S> = LocalSearchPhase<
     crate::phase::localsearch::AcceptedCountForager<S>,
 >;
 
-/// Monomorphized phase enum for config-driven basic solver.
+// Monomorphized phase enum for config-driven basic solver.
 enum BasicLocalSearch<S: PlanningSolution>
 where
     S::Score: Score,
@@ -166,7 +167,7 @@ where
     }
 }
 
-/// Builds the local search phase from config or falls back to defaults.
+// Builds the local search phase from config or falls back to defaults.
 fn build_local_search<S>(
     config: &SolverConfig,
     get_variable: fn(&S, usize) -> Option<usize>,

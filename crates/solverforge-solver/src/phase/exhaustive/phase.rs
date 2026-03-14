@@ -1,4 +1,4 @@
-//! ExhaustiveSearchPhase implementation.
+// ExhaustiveSearchPhase implementation.
 
 use std::collections::BinaryHeap;
 use std::fmt::Debug;
@@ -53,9 +53,9 @@ use super::priority_node::PriorityNode;
 /// let phase = ExhaustiveSearchPhase::depth_first(decider);
 /// ```
 pub struct ExhaustiveSearchPhase<Dec> {
-    /// The decider that generates child nodes.
+    // The decider that generates child nodes.
     decider: Dec,
-    /// Configuration for this phase.
+    // Configuration for this phase.
     config: ExhaustiveSearchConfig,
 }
 
@@ -69,12 +69,10 @@ impl<Dec: Debug> Debug for ExhaustiveSearchPhase<Dec> {
 }
 
 impl<Dec> ExhaustiveSearchPhase<Dec> {
-    /// Creates a new exhaustive search phase.
     pub fn new(decider: Dec, config: ExhaustiveSearchConfig) -> Self {
         Self { decider, config }
     }
 
-    /// Creates a depth-first exhaustive search phase.
     pub fn depth_first(decider: Dec) -> Self {
         Self::new(
             decider,
@@ -85,7 +83,6 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
         )
     }
 
-    /// Creates a breadth-first exhaustive search phase.
     pub fn breadth_first(decider: Dec) -> Self {
         Self::new(
             decider,
@@ -96,7 +93,6 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
         )
     }
 
-    /// Creates a score-first exhaustive search phase.
     pub fn score_first(decider: Dec) -> Self {
         Self::new(
             decider,
@@ -107,7 +103,6 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
         )
     }
 
-    /// Returns the phase type name.
     pub fn phase_type_name(&self) -> &'static str {
         "ExhaustiveSearch"
     }

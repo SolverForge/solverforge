@@ -1,21 +1,20 @@
-//! Entity selectors for iterating over planning entities
+// Entity selectors for iterating over planning entities
 
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-/// A reference to an entity within a solution.
+// A reference to an entity within a solution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EntityReference {
-    /// Index of the entity descriptor.
+    // Index of the entity descriptor.
     pub descriptor_index: usize,
-    /// Index of the entity within its collection.
+    // Index of the entity within its collection.
     pub entity_index: usize,
 }
 
 impl EntityReference {
-    /// Creates a new entity reference.
     pub fn new(descriptor_index: usize, entity_index: usize) -> Self {
         Self {
             descriptor_index,
@@ -32,33 +31,32 @@ impl EntityReference {
 /// # Type Parameters
 /// * `S` - The planning solution type
 pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
-    /// Returns an iterator over entity references.
-    ///
-    /// The iterator yields `EntityReference` values that identify entities
-    /// within the solution.
+    /* Returns an iterator over entity references.
+
+    The iterator yields `EntityReference` values that identify entities
+    within the solution.
+    */
     fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = EntityReference> + 'a;
 
-    /// Returns the approximate number of entities.
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
-    /// Returns true if this selector may return the same entity multiple times.
+    // Returns true if this selector may return the same entity multiple times.
     fn is_never_ending(&self) -> bool {
         false
     }
 }
 
-/// An entity selector that iterates over all entities from the solution.
+// An entity selector that iterates over all entities from the solution.
 #[derive(Clone, Debug)]
 pub struct FromSolutionEntitySelector {
-    /// The descriptor index to select from.
+    // The descriptor index to select from.
     descriptor_index: usize,
 }
 
 impl FromSolutionEntitySelector {
-    /// Creates a new entity selector for the given descriptor index.
     pub fn new(descriptor_index: usize) -> Self {
         Self { descriptor_index }
     }
@@ -83,12 +81,11 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
     }
 }
 
-/// An entity selector that iterates over all entities from all descriptors.
+// An entity selector that iterates over all entities from all descriptors.
 #[derive(Debug, Clone, Default)]
 pub struct AllEntitiesSelector;
 
 impl AllEntitiesSelector {
-    /// Creates a new selector for all entities.
     pub fn new() -> Self {
         Self
     }

@@ -1,7 +1,8 @@
-// Consolidated tests for api module.
-//
-// Tests extracted from:
-// - weight_overrides.rs (8 tests)
+/* Consolidated tests for api module.
+
+Tests extracted from:
+- weight_overrides.rs (8 tests)
+*/
 
 use std::sync::Arc;
 
@@ -9,9 +10,10 @@ use solverforge_core::score::{HardSoftScore, SoftScore};
 
 use crate::api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
-// ============================================================================
-// ConstraintWeightOverrides tests
-// ============================================================================
+/* ============================================================================
+ConstraintWeightOverrides tests
+============================================================================
+*/
 
 #[test]
 fn test_new_is_empty() {

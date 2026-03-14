@@ -1,13 +1,13 @@
-//! Configuration for k-opt move generation.
+// Configuration for k-opt move generation.
 
-/// Configuration for k-opt move generation.
+// Configuration for k-opt move generation.
 #[derive(Debug, Clone)]
 pub struct KOptConfig {
-    /// The k value (2-5).
+    // The k value (2-5).
     pub k: usize,
-    /// Minimum segment length between cuts (default: 1).
+    // Minimum segment length between cuts (default: 1).
     pub min_segment_len: usize,
-    /// Whether to use only a subset of reconnection patterns.
+    // Whether to use only a subset of reconnection patterns.
     pub limited_patterns: bool,
 }
 
@@ -26,7 +26,6 @@ impl KOptConfig {
         }
     }
 
-    /// Sets minimum segment length between cuts.
     pub fn with_min_segment_len(mut self, len: usize) -> Self {
         self.min_segment_len = len;
         self

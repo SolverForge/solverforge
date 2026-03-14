@@ -1,12 +1,13 @@
-//! Foragers for construction heuristic move selection
-//!
-//! Foragers determine which move to select from the candidates
-//! generated for each entity placement.
-//!
-//! # Zero-Erasure Design
-//!
-//! Foragers return indices into the placement's move Vec, not cloned moves.
-//! The caller takes ownership via the index.
+/* Foragers for construction heuristic move selection
+
+Foragers determine which move to select from the candidates
+generated for each entity placement.
+
+# Zero-Erasure Design
+
+Foragers return indices into the placement's move Vec, not cloned moves.
+The caller takes ownership via the index.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -22,7 +23,7 @@ use super::Placement;
 /// Trait for selecting a move during construction.
 ///
 /// Foragers evaluate candidate moves and pick one based on their strategy.
-/// Returns the index of the selected move, not a cloned move.
+// Returns the index of the selected move, not a cloned move.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -32,9 +33,10 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// Picks a move index from the placement's candidates.
-    ///
-    /// Returns None if no suitable move is found.
+    /* Picks a move index from the placement's candidates.
+
+    Returns None if no suitable move is found.
+    */
     fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
@@ -71,7 +73,6 @@ impl<S, M> Debug for FirstFitForager<S, M> {
 }
 
 impl<S, M> FirstFitForager<S, M> {
-    /// Creates a new First Fit forager.
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -128,7 +129,6 @@ impl<S, M> Debug for BestFitForager<S, M> {
 }
 
 impl<S, M> BestFitForager<S, M> {
-    /// Creates a new Best Fit forager.
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -215,7 +215,6 @@ impl<S, M> Debug for FirstFeasibleForager<S, M> {
 }
 
 impl<S, M> FirstFeasibleForager<S, M> {
-    /// Creates a new First Feasible forager.
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -286,7 +285,7 @@ where
 /// and selects the move with the minimum strength. This is useful for
 /// assigning the "weakest" or least constraining values first.
 pub struct WeakestFitForager<S, M> {
-    /// Function to evaluate strength of a move.
+    // Function to evaluate strength of a move.
     strength_fn: fn(&M) -> i64,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -359,7 +358,7 @@ where
 /// and selects the move with the maximum strength. This is useful for
 /// assigning the "strongest" or most constraining values first.
 pub struct StrongestFitForager<S, M> {
-    /// Function to evaluate strength of a move.
+    // Function to evaluate strength of a move.
     strength_fn: fn(&M) -> i64,
     _phantom: PhantomData<fn() -> S>,
 }

@@ -1,12 +1,13 @@
-//! PillarChangeMove - assigns a value to all entities in a pillar.
-//!
-//! A pillar is a group of entities that share the same variable value.
-//! This move changes all of them to a new value atomically.
-//!
-//! # Zero-Erasure Design
-//!
-//! PillarChangeMove uses typed function pointers instead of `dyn Any` for complete
-//! compile-time type safety. No runtime type checks or downcasting.
+/* PillarChangeMove - assigns a value to all entities in a pillar.
+
+A pillar is a group of entities that share the same variable value.
+This move changes all of them to a new value atomically.
+
+# Zero-Erasure Design
+
+PillarChangeMove uses typed function pointers instead of `dyn Any` for complete
+compile-time type safety. No runtime type checks or downcasting.
+*/
 
 use std::fmt::Debug;
 
@@ -28,9 +29,9 @@ pub struct PillarChangeMove<S, V> {
     descriptor_index: usize,
     variable_name: &'static str,
     to_value: Option<V>,
-    /// Typed getter function pointer - zero erasure.
+    // Typed getter function pointer - zero erasure.
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
+    // Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
 }
 
@@ -86,12 +87,10 @@ impl<S, V> PillarChangeMove<S, V> {
         }
     }
 
-    /// Returns the pillar size.
     pub fn pillar_size(&self) -> usize {
         self.entity_indices.len()
     }
 
-    /// Returns the target value.
     pub fn to_value(&self) -> Option<&V> {
         self.to_value.as_ref()
     }

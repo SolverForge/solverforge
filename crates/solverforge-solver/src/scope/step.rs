@@ -1,4 +1,4 @@
-//! Step-level scope.
+// Step-level scope.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -27,7 +27,6 @@ pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = (
 impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     StepScope<'t, 'a, 'b, S, D, BestCb>
 {
-    /// Creates a new step scope.
     pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>) -> Self {
         let step_index = phase_scope.step_count();
         Self {
@@ -37,17 +36,14 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallba
         }
     }
 
-    /// Returns the step index within the phase.
     pub fn step_index(&self) -> u64 {
         self.step_index
     }
 
-    /// Returns the step score.
     pub fn step_score(&self) -> Option<&S::Score> {
         self.step_score.as_ref()
     }
 
-    /// Sets the step score.
     pub fn set_step_score(&mut self, score: S::Score) {
         self.step_score = Some(score);
     }
@@ -57,22 +53,18 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallba
         self.phase_scope.increment_step_count();
     }
 
-    /// Returns a reference to the phase scope.
     pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D, BestCb> {
         self.phase_scope
     }
 
-    /// Returns a mutable reference to the phase scope.
     pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D, BestCb> {
         self.phase_scope
     }
 
-    /// Returns a reference to the score director.
     pub fn score_director(&self) -> &D {
         self.phase_scope.score_director()
     }
 
-    /// Returns a mutable reference to the score director.
     pub fn score_director_mut(&mut self) -> &mut D {
         self.phase_scope.score_director_mut()
     }

@@ -1,7 +1,8 @@
-//! Shared test infrastructure for decorator tests.
-//!
-//! Re-exports Task-based fixtures from solverforge-test and provides
-//! director factory functions.
+/* Shared test infrastructure for decorator tests.
+
+Re-exports Task-based fixtures from solverforge-test and provides
+director factory functions.
+*/
 
 use solverforge_scoring::ScoreDirector;
 

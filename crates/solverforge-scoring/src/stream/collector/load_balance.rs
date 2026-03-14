@@ -6,10 +6,11 @@ use std::marker::PhantomData;
 
 use super::{Accumulator, UniCollector};
 
-// Result of load balancing - tracks loads per item and computes unfairness.
-//
-// Unfairness is the square root of sum of squared deviations from mean.
-// Lower values indicate fairer distribution. Zero means perfectly balanced.
+/* Result of load balancing - tracks loads per item and computes unfairness.
+
+Unfairness is the square root of sum of squared deviations from mean.
+Lower values indicate fairer distribution. Zero means perfectly balanced.
+*/
 #[derive(Debug, Clone)]
 pub struct LoadBalance<K> {
     loads: HashMap<K, i64>,
@@ -31,29 +32,30 @@ impl<K> LoadBalance<K> {
     }
 }
 
-// Creates a load balance collector.
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::stream::collector::{load_balance, UniCollector, Accumulator};
-//
-// struct Shift { employee_id: usize }
-//
-// let collector = load_balance(
-//     |s: &Shift| s.employee_id,
-//     |_s: &Shift| 1i64,  // Each shift counts as 1
-// );
-//
-// let mut acc = collector.create_accumulator();
-// acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
-// acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
-// acc.accumulate(&collector.extract(&Shift { employee_id: 1 }));
-//
-// let result = acc.finish();
-// // Employee 0 has 2, Employee 1 has 1 → unfairness = sqrt(0.5) ≈ 1
-// assert_eq!(result.unfairness(), 1);
-// ```
+/* Creates a load balance collector.
+
+# Example
+
+```
+use solverforge_scoring::stream::collector::{load_balance, UniCollector, Accumulator};
+
+struct Shift { employee_id: usize }
+
+let collector = load_balance(
+|s: &Shift| s.employee_id,
+|_s: &Shift| 1i64,  // Each shift counts as 1
+);
+
+let mut acc = collector.create_accumulator();
+acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
+acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
+acc.accumulate(&collector.extract(&Shift { employee_id: 1 }));
+
+let result = acc.finish();
+// Employee 0 has 2, Employee 1 has 1 → unfairness = sqrt(0.5) ≈ 1
+assert_eq!(result.unfairness(), 1);
+```
+*/
 pub fn load_balance<A, K, F, M>(key_fn: F, metric_fn: M) -> LoadBalanceCollector<A, K, F, M>
 where
     K: Clone + Eq + Hash + Send + Sync,

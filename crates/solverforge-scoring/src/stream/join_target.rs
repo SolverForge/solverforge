@@ -1,9 +1,10 @@
-// JoinTarget trait for unified `.join()` dispatch on UniConstraintStream.
-//
-// Three impls cover all join patterns:
-// 1. `EqualJoiner<KA, KA, K>` — self-join, returns `BiConstraintStream`
-// 2. `(EB, EqualJoiner<KA, KB, K>)` — keyed cross-join, returns `CrossBiConstraintStream`
-// 3. `(UniConstraintStream<...>, P)` — predicate cross-join, returns `CrossBiConstraintStream`
+/* JoinTarget trait for unified `.join()` dispatch on UniConstraintStream.
+
+Three impls cover all join patterns:
+1. `EqualJoiner<KA, KA, K>` — self-join, returns `BiConstraintStream`
+2. `(EB, EqualJoiner<KA, KB, K>)` — keyed cross-join, returns `CrossBiConstraintStream`
+3. `(UniConstraintStream<...>, P)` — predicate cross-join, returns `CrossBiConstraintStream`
+*/
 
 use std::hash::Hash;
 
@@ -17,12 +18,13 @@ use super::joiner::EqualJoiner;
 use super::key_extract::EntityKeyAdapter;
 use super::UniConstraintStream;
 
-// Trait for unified `.join()` dispatch.
-//
-// `E` is the extractor type of the left stream.
-// `F` is the filter type of the left stream.
-// Implementors consume `self` and receive the left stream's extractor and filter,
-// producing the appropriate cross-stream type.
+/* Trait for unified `.join()` dispatch.
+
+`E` is the extractor type of the left stream.
+`F` is the filter type of the left stream.
+Implementors consume `self` and receive the left stream's extractor and filter,
+producing the appropriate cross-stream type.
+*/
 pub trait JoinTarget<S, A, E, F, Sc: Score> {
     // The resulting constraint stream type.
     type Output;

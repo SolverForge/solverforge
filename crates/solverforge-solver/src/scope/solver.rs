@@ -1,4 +1,4 @@
-//! Solver-level scope.
+// Solver-level scope.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -15,7 +15,7 @@ use crate::stats::SolverStats;
 ///
 /// Implemented for `()` (no-op) and for any `F: Fn(&S) + Send + Sync`.
 pub trait BestSolutionCallback<S>: Send + Sync {
-    /// Invokes the callback with the given solution, if one is registered.
+    // Invokes the callback with the given solution, if one is registered.
     fn invoke(&self, solution: &S);
 }
 
@@ -59,16 +59,15 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, BestCb = ()> {
     time_limit: Option<Duration>,
     // Callback invoked when the best solution improves.
     best_solution_callback: BestCb,
-    /// Optional maximum total step count for in-phase termination (T1).
+    // Optional maximum total step count for in-phase termination (T1).
     pub inphase_step_count_limit: Option<u64>,
-    /// Optional maximum total move count for in-phase termination (T1).
+    // Optional maximum total move count for in-phase termination (T1).
     pub inphase_move_count_limit: Option<u64>,
-    /// Optional maximum total score calculation count for in-phase termination (T1).
+    // Optional maximum total score calculation count for in-phase termination (T1).
     pub inphase_score_calc_count_limit: Option<u64>,
 }
 
 impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
-    /// Creates a new solver scope with the given score director and no callback.
     pub fn new(score_director: D) -> Self {
         Self {
             score_director,
@@ -91,7 +90,6 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
 impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     SolverScope<'t, S, D, BestCb>
 {
-    /// Creates a new solver scope with the given score director and callback.
     pub fn new_with_callback(
         score_director: D,
         callback: BestCb,
@@ -118,13 +116,11 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
 impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     SolverScope<'t, S, D, BestCb>
 {
-    /// Sets the termination flag.
     pub fn with_terminate(mut self, terminate: Option<&'t AtomicBool>) -> Self {
         self.terminate = terminate;
         self
     }
 
-    /// Sets a specific random seed.
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = StdRng::seed_from_u64(seed);
         self
@@ -161,27 +157,22 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self.stats.start();
     }
 
-    /// Returns the elapsed time since solving started.
     pub fn elapsed(&self) -> Option<std::time::Duration> {
         self.start_time.map(|t| t.elapsed())
     }
 
-    /// Returns a reference to the score director.
     pub fn score_director(&self) -> &D {
         &self.score_director
     }
 
-    /// Returns a mutable reference to the score director.
     pub fn score_director_mut(&mut self) -> &mut D {
         &mut self.score_director
     }
 
-    /// Returns a reference to the working solution.
     pub fn working_solution(&self) -> &S {
         self.score_director.working_solution()
     }
 
-    /// Returns a mutable reference to the working solution.
     pub fn working_solution_mut(&mut self) -> &mut S {
         self.score_director.working_solution_mut()
     }
@@ -194,12 +185,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self.score_director.calculate_score()
     }
 
-    /// Returns the best solution found so far.
     pub fn best_solution(&self) -> Option<&S> {
         self.best_solution.as_ref()
     }
 
-    /// Returns the best score found so far.
     pub fn best_score(&self) -> Option<&S::Score> {
         self.best_score.as_ref()
     }
@@ -229,7 +218,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self.best_score = Some(score);
     }
 
-    /// Returns a reference to the RNG.
     pub fn rng(&mut self) -> &mut StdRng {
         &mut self.rng
     }
@@ -241,7 +229,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self.total_step_count
     }
 
-    /// Returns the total step count.
     pub fn total_step_count(&self) -> u64 {
         self.total_step_count
     }
@@ -251,7 +238,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self.best_solution
     }
 
-    /// Returns the best solution or the current working solution if no best was set.
     pub fn take_best_or_working_solution(self) -> S {
         self.best_solution
             .unwrap_or_else(|| self.score_director.clone_working_solution())
@@ -268,22 +254,15 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         (solution, self.stats)
     }
 
-    /// Checks if early termination was requested (external flag only).
     pub fn is_terminate_early(&self) -> bool {
         self.terminate
             .is_some_and(|flag| flag.load(Ordering::SeqCst))
     }
 
-    /// Sets the time limit for solving.
     pub fn set_time_limit(&mut self, limit: Duration) {
         self.time_limit = Some(limit);
     }
 
-    /// Checks if construction heuristic should terminate.
-    ///
-    /// Construction phases must always complete — they build the initial solution.
-    /// Step/move/score-calculation count limits are for local search phases only,
-    /// so this method intentionally excludes those checks.
     pub fn should_terminate_construction(&self) -> bool {
         // Check external termination flag
         if self.is_terminate_early() {
@@ -298,7 +277,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         false
     }
 
-    /// Checks if solving should terminate (external flag, time limit, OR any registered limits).
     pub fn should_terminate(&self) -> bool {
         // Check external termination flag
         if self.is_terminate_early() {
@@ -331,12 +309,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         false
     }
 
-    /// Returns a reference to the solver statistics.
     pub fn stats(&self) -> &SolverStats {
         &self.stats
     }
 
-    /// Returns a mutable reference to the solver statistics.
     pub fn stats_mut(&mut self) -> &mut SolverStats {
         &mut self.stats
     }

@@ -1,4 +1,4 @@
-//! Tests for mimic selectors.
+// Tests for mimic selectors.
 
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,

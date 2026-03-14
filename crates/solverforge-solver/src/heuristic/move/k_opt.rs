@@ -1,61 +1,62 @@
-//! K-opt move for tour optimization.
-//!
-//! K-opt removes k edges from a tour and reconnects the resulting segments
-//! in a different order, potentially reversing some segments. This is a
-//! fundamental move for TSP and VRP optimization.
-//!
-//! # Zero-Erasure Design
-//!
-//! - Fixed arrays for cut points (no SmallVec for static data)
-//! - Reconnection pattern stored by value (`KOptReconnection` is `Copy`)
-//! - Typed function pointers for all list operations
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::r#move::{KOptMove, CutPoint};
-//! use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Tour { cities: Vec<i32>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Tour {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Tour, _: usize) -> usize { s.cities.len() }
-//! fn sublist_remove(s: &mut Tour, _: usize, start: usize, end: usize) -> Vec<i32> {
-//!     s.cities.drain(start..end).collect()
-//! }
-//! fn sublist_insert(s: &mut Tour, _: usize, pos: usize, items: Vec<i32>) {
-//!     for (i, item) in items.into_iter().enumerate() {
-//!         s.cities.insert(pos + i, item);
-//!     }
-//! }
-//!
-//! // Create a 3-opt move with cuts at positions 2, 4, 6
-//! // This creates 4 segments: [0..2), [2..4), [4..6), [6..)
-//! let cuts = [
-//!     CutPoint::new(0, 2),
-//!     CutPoint::new(0, 4),
-//!     CutPoint::new(0, 6),
-//! ];
-//! let reconnection = &THREE_OPT_RECONNECTIONS[3]; // Swap middle segments
-//!
-//! let m = KOptMove::<Tour, i32>::new(
-//!     &cuts,
-//!     reconnection,
-//!     list_len,
-//!     sublist_remove,
-//!     sublist_insert,
-//!     "cities",
-//!     0,
-//! );
-//! ```
+/* K-opt move for tour optimization.
+
+K-opt removes k edges from a tour and reconnects the resulting segments
+in a different order, potentially reversing some segments. This is a
+fundamental move for TSP and VRP optimization.
+
+# Zero-Erasure Design
+
+- Fixed arrays for cut points (no SmallVec for static data)
+- Reconnection pattern stored by value (`KOptReconnection` is `Copy`)
+- Typed function pointers for all list operations
+
+# Example
+
+```
+use solverforge_solver::heuristic::r#move::{KOptMove, CutPoint};
+use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Tour { cities: Vec<i32>, score: Option<SoftScore> }
+
+impl PlanningSolution for Tour {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Tour, _: usize) -> usize { s.cities.len() }
+fn sublist_remove(s: &mut Tour, _: usize, start: usize, end: usize) -> Vec<i32> {
+s.cities.drain(start..end).collect()
+}
+fn sublist_insert(s: &mut Tour, _: usize, pos: usize, items: Vec<i32>) {
+for (i, item) in items.into_iter().enumerate() {
+s.cities.insert(pos + i, item);
+}
+}
+
+// Create a 3-opt move with cuts at positions 2, 4, 6
+// This creates 4 segments: [0..2), [2..4), [4..6), [6..)
+let cuts = [
+CutPoint::new(0, 2),
+CutPoint::new(0, 4),
+CutPoint::new(0, 6),
+];
+let reconnection = &THREE_OPT_RECONNECTIONS[3]; // Swap middle segments
+
+let m = KOptMove::<Tour, i32>::new(
+&cuts,
+reconnection,
+list_len,
+sublist_remove,
+sublist_insert,
+"cities",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -66,31 +67,31 @@ use solverforge_scoring::Director;
 use super::k_opt_reconnection::KOptReconnection;
 use super::Move;
 
-/// A cut point in a route, defining where an edge is removed.
-///
-/// For k-opt, we have k cut points which divide the route into k+1 segments.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::CutPoint;
-///
-/// // Cut at position 5 in entity 0
-/// let cut = CutPoint::new(0, 5);
-/// assert_eq!(cut.entity_index(), 0);
-/// assert_eq!(cut.position(), 5);
-/// ```
+/* A cut point in a route, defining where an edge is removed.
+
+For k-opt, we have k cut points which divide the route into k+1 segments.
+
+# Example
+
+```
+use solverforge_solver::heuristic::r#move::CutPoint;
+
+// Cut at position 5 in entity 0
+let cut = CutPoint::new(0, 5);
+assert_eq!(cut.entity_index(), 0);
+assert_eq!(cut.position(), 5);
+```
+*/
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CutPoint {
-    /// Entity (route/vehicle) index.
+    // Entity (route/vehicle) index.
     entity_index: usize,
-    /// Position in the route where the cut occurs.
-    /// The edge between position-1 and position is removed.
+    // Position in the route where the cut occurs.
+    // The edge between position-1 and position is removed.
     position: usize,
 }
 
 impl CutPoint {
-    /// Creates a new cut point.
     #[inline]
     pub const fn new(entity_index: usize, position: usize) -> Self {
         Self {
@@ -99,13 +100,11 @@ impl CutPoint {
         }
     }
 
-    /// Returns the entity index.
     #[inline]
     pub const fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    /// Returns the position.
     #[inline]
     pub const fn position(&self) -> usize {
         self.position
@@ -128,23 +127,22 @@ impl CutPoint {
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
 pub struct KOptMove<S, V> {
-    /// Cut points (up to 5 for 5-opt).
+    // Cut points (up to 5 for 5-opt).
     cuts: [CutPoint; 5],
-    /// Number of actual cuts (k value).
+    // Number of actual cuts (k value).
     cut_count: u8,
-    /// Reconnection pattern to apply (stored by value — `KOptReconnection` is `Copy`).
+    // Reconnection pattern to apply (stored by value — `KOptReconnection` is `Copy`).
     reconnection: KOptReconnection,
-    /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
-    /// Remove sublist [start, end), returns removed elements.
+    // Remove sublist [start, end), returns removed elements.
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    /// Insert elements at position.
+    // Insert elements at position.
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
-    /// Variable name.
+    // Variable name.
     variable_name: &'static str,
-    /// Descriptor index.
+    // Descriptor index.
     descriptor_index: usize,
-    /// Entity index (for intra-route moves).
+    // Entity index (for intra-route moves).
     entity_index: usize,
     _phantom: PhantomData<fn() -> V>,
 }
@@ -183,21 +181,22 @@ impl<S, V: Debug> Debug for KOptMove<S, V> {
 }
 
 impl<S, V> KOptMove<S, V> {
-    /// Creates a new k-opt move.
-    ///
-    /// # Arguments
-    ///
-    /// * `cuts` - Slice of cut points (must be sorted by position for intra-route)
-    /// * `reconnection` - How to reconnect the segments
-    /// * `list_len` - Function to get list length
-    /// * `sublist_remove` - Function to remove a range
-    /// * `sublist_insert` - Function to insert elements
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
-    ///
-    /// # Panics
-    ///
-    /// Panics if cuts is empty or has more than 5 elements.
+    /* Creates a new k-opt move.
+
+    # Arguments
+
+    * `cuts` - Slice of cut points (must be sorted by position for intra-route)
+    * `reconnection` - How to reconnect the segments
+    * `list_len` - Function to get list length
+    * `sublist_remove` - Function to remove a range
+    * `sublist_insert` - Function to insert elements
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+
+    # Panics
+
+    Panics if cuts is empty or has more than 5 elements.
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         cuts: &[CutPoint],
@@ -232,19 +231,16 @@ impl<S, V> KOptMove<S, V> {
         }
     }
 
-    /// Returns the k value (number of edges removed).
     #[inline]
     pub fn k(&self) -> usize {
         self.cut_count as usize
     }
 
-    /// Returns the cut points.
     #[inline]
     pub fn cuts(&self) -> &[CutPoint] {
         &self.cuts[..self.cut_count as usize]
     }
 
-    /// Returns true if this is an intra-route move (all cuts on same entity).
     pub fn is_intra_route(&self) -> bool {
         let first = self.cuts[0].entity_index;
         self.cuts[..self.cut_count as usize]
@@ -303,18 +299,20 @@ where
         // Notify before change
         score_director.before_variable_changed(self.descriptor_index, entity);
 
-        // For intra-route k-opt, we need to:
-        // 1. Extract all segments
-        // 2. Reorder according to reconnection pattern
-        // 3. Reverse segments as needed
-        // 4. Rebuild the list
+        /* For intra-route k-opt, we need to:
+        1. Extract all segments
+        2. Reorder according to reconnection pattern
+        3. Reverse segments as needed
+        4. Rebuild the list
+        */
 
-        // Calculate segment boundaries (segments are between consecutive cuts)
-        // For k cuts at positions [p0, p1, ..., pk-1], we have k+1 segments:
-        // Segment 0: [0, p0)
-        // Segment 1: [p0, p1)
-        // ...
-        // Segment k: [pk-1, len)
+        /* Calculate segment boundaries (segments are between consecutive cuts)
+        For k cuts at positions [p0, p1, ..., pk-1], we have k+1 segments:
+        Segment 0: [0, p0)
+        Segment 1: [p0, p1)
+        ...
+        Segment k: [pk-1, len)
+        */
 
         let solution = score_director.working_solution_mut();
         let len = (self.list_len)(solution, entity);

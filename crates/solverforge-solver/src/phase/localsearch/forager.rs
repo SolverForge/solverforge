@@ -1,7 +1,8 @@
-//! Foragers for local search move selection
-//!
-//! Foragers collect accepted move indices during a step and select the
-//! best one to apply. Uses index-based API for zero-clone operation.
+/* Foragers for local search move selection
+
+Foragers collect accepted move indices during a step and select the
+best one to apply. Uses index-based API for zero-clone operation.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -26,26 +27,29 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// Called at the start of each step to reset state.
-    ///
-    /// `best_score` is the best solution score ever seen.
-    /// `last_step_score` is the score at the end of the previous step.
-    /// Foragers that implement pick-early-on-improvement use these to decide
-    /// when to stop evaluating moves.
+    /* Called at the start of each step to reset state.
+
+    `best_score` is the best solution score ever seen.
+    `last_step_score` is the score at the end of the previous step.
+    Foragers that implement pick-early-on-improvement use these to decide
+    when to stop evaluating moves.
+    */
     fn step_started(&mut self, best_score: S::Score, last_step_score: S::Score);
 
-    /// Adds an accepted move index to the forager.
-    ///
-    /// The index refers to a position in the MoveArena.
+    /* Adds an accepted move index to the forager.
+
+    The index refers to a position in the MoveArena.
+    */
     fn add_move_index(&mut self, index: usize, score: S::Score);
 
-    /// Returns true if the forager has collected enough moves and
-    /// wants to stop evaluating more.
+    // Returns true if the forager has collected enough moves and
+    // wants to stop evaluating more.
     fn is_quit_early(&self) -> bool;
 
-    /// Picks the best move index from those collected.
-    ///
-    /// Returns None if no moves were accepted.
+    /* Picks the best move index from those collected.
+
+    Returns None if no moves were accepted.
+    */
     fn pick_move_index(&mut self) -> Option<(usize, S::Score)>;
 }
 
@@ -57,9 +61,9 @@ pub struct AcceptedCountForager<S>
 where
     S: PlanningSolution,
 {
-    /// Maximum number of accepted moves to collect.
+    // Maximum number of accepted moves to collect.
     accepted_count_limit: usize,
-    /// Collected move indices with their scores.
+    // Collected move indices with their scores.
     accepted_moves: Vec<(usize, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -159,7 +163,7 @@ pub struct FirstAcceptedForager<S>
 where
     S: PlanningSolution,
 {
-    /// The first accepted move index.
+    // The first accepted move index.
     accepted_move: Option<(usize, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -179,7 +183,6 @@ impl<S> FirstAcceptedForager<S>
 where
     S: PlanningSolution,
 {
-    /// Creates a new first-accepted forager.
     pub fn new() -> Self {
         Self {
             accepted_move: None,
@@ -241,7 +244,7 @@ pub struct BestScoreForager<S>
 where
     S: PlanningSolution,
 {
-    /// Collected move indices with their scores.
+    // Collected move indices with their scores.
     accepted_moves: Vec<(usize, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -250,7 +253,6 @@ impl<S> BestScoreForager<S>
 where
     S: PlanningSolution,
 {
-    /// Creates a new best-score forager.
     pub fn new() -> Self {
         Self {
             accepted_moves: Vec::new(),
@@ -333,11 +335,11 @@ pub struct FirstBestScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    /// All-time best score — set at the start of each step.
+    // All-time best score — set at the start of each step.
     best_score: S::Score,
-    /// Collected move indices with their scores.
+    // Collected move indices with their scores.
     accepted_moves: Vec<(usize, S::Score)>,
-    /// Whether we found a move that beats the best score.
+    // Whether we found a move that beats the best score.
     found_best_improving: bool,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -346,7 +348,6 @@ impl<S> FirstBestScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    /// Creates a new first-best-score-improving forager.
     pub fn new() -> Self {
         Self {
             best_score: S::Score::zero(),
@@ -450,11 +451,11 @@ pub struct FirstLastStepScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    /// Score at the end of the previous step — set at the start of each step.
+    // Score at the end of the previous step — set at the start of each step.
     last_step_score: S::Score,
-    /// Collected move indices with their scores.
+    // Collected move indices with their scores.
     accepted_moves: Vec<(usize, S::Score)>,
-    /// Whether we found a move that beats the last step score.
+    // Whether we found a move that beats the last step score.
     found_last_step_improving: bool,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -463,7 +464,6 @@ impl<S> FirstLastStepScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    /// Creates a new first-last-step-score-improving forager.
     pub fn new() -> Self {
         Self {
             last_step_score: S::Score::zero(),

@@ -1,4 +1,4 @@
-//! Tests for ListRuinMove operations.
+// Tests for ListRuinMove operations.
 
 use super::*;
 
@@ -89,9 +89,10 @@ fn ruin_single_element() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        // After ruin-and-recreate: element 3 (was at index 2) is reinserted.
-        // With constant score=0, first tried position wins: (entity=0, pos=0).
-        // Route contains same elements, just possibly reordered.
+        /* After ruin-and-recreate: element 3 (was at index 2) is reinserted.
+        With constant score=0, first tried position wins: (entity=0, pos=0).
+        Route contains same elements, just possibly reordered.
+        */
         let stops = &recording.working_solution().routes[0].stops;
         assert_eq!(stops.len(), 5);
         let mut sorted = stops.clone();

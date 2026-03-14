@@ -1,4 +1,4 @@
-//! Tests for the move module.
+// Tests for the move module.
 
 use super::*;
 use solverforge_core::domain::{

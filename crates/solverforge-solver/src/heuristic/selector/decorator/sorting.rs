@@ -1,6 +1,7 @@
-//! Sorting move selector decorator.
-//!
-//! Sorts moves from an inner selector using a comparator function.
+/* Sorting move selector decorator.
+
+Sorts moves from an inner selector using a comparator function.
+*/
 
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -61,7 +62,6 @@ pub struct SortingMoveSelector<S, M, Inner> {
 }
 
 impl<S, M, Inner> SortingMoveSelector<S, M, Inner> {
-    /// Creates a new sorting selector with the given comparator.
     pub fn new(inner: Inner, comparator: fn(&M, &M) -> Ordering) -> Self {
         Self {
             inner,

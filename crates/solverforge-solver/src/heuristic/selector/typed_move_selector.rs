@@ -1,7 +1,8 @@
-//! Typed move selectors for zero-allocation move generation.
-//!
-//! Typed move selectors yield concrete move types directly, enabling
-//! monomorphization and arena allocation.
+/* Typed move selectors for zero-allocation move generation.
+
+Typed move selectors yield concrete move types directly, enabling
+monomorphization and arena allocation.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -23,16 +24,15 @@ use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
 /// * `S` - The planning solution type
 /// * `M` - The move type
 pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
-    /// Returns an iterator over typed moves.
+    // Returns an iterator over typed moves.
     fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = M> + 'a;
 
-    /// Returns the approximate number of moves.
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
-    /// Returns true if this selector may return the same move multiple times.
+    // Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {
         false
     }
@@ -95,7 +95,6 @@ impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
 {
-    /// Creates a simple selector with static values.
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
@@ -180,9 +179,9 @@ where
 pub struct SwapMoveSelector<S, V, LES, RES> {
     left_entity_selector: LES,
     right_entity_selector: RES,
-    /// Typed getter function pointer - zero erasure.
+    // Typed getter function pointer - zero erasure.
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer - zero erasure.
+    // Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
     descriptor_index: usize,
     variable_name: &'static str,
@@ -201,7 +200,6 @@ impl<S, V, LES: Debug, RES: Debug> Debug for SwapMoveSelector<S, V, LES, RES> {
 }
 
 impl<S: PlanningSolution, V, LES, RES> SwapMoveSelector<S, V, LES, RES> {
-    /// Creates a new swap move selector with typed function pointers.
     pub fn new(
         left_entity_selector: LES,
         right_entity_selector: RES,
@@ -307,9 +305,10 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
-// EitherMove adaptor selectors
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+EitherMove adaptor selectors
+---------------------------------------------------------------------------
+*/
 
 /// Wraps a `ChangeMoveSelector` to yield `EitherMove::Change`.
 pub struct EitherChangeMoveSelector<S, V, ES, VS> {
@@ -327,7 +326,6 @@ impl<S, V: Debug, ES: Debug, VS: Debug> Debug for EitherChangeMoveSelector<S, V,
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     EitherChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
 {
-    /// Creates a simple selector that yields `EitherMove::Change` variants.
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
@@ -384,7 +382,6 @@ impl<S, V: Debug, LES: Debug, RES: Debug> Debug for EitherSwapMoveSelector<S, V,
 impl<S: PlanningSolution, V>
     EitherSwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
 {
-    /// Creates a simple selector that yields `EitherMove::Swap` variants.
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
@@ -416,9 +413,10 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
-// ListMoveImpl adaptor selectors
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ListMoveImpl adaptor selectors
+---------------------------------------------------------------------------
+*/
 
 use super::k_opt::{KOptMoveSelector, ListPositionDistanceMeter, NearbyKOptMoveSelector};
 use super::list_change::ListChangeMoveSelector;
@@ -586,10 +584,11 @@ where
     }
 }
 
-// Note: ListMoveListSwapSelector, ListMoveSubListChangeSelector,
-// ListMoveSubListSwapSelector, and ListMoveListReverseSelector are defined
-// in their respective selector source files (list_swap.rs, sublist_change.rs,
-// sublist_swap.rs, list_reverse.rs) alongside the selectors they wrap.
+/* Note: ListMoveListSwapSelector, ListMoveSubListChangeSelector,
+ListMoveSubListSwapSelector, and ListMoveListReverseSelector are defined
+in their respective selector source files (list_swap.rs, sublist_change.rs,
+sublist_swap.rs, list_reverse.rs) alongside the selectors they wrap.
+*/
 
 #[cfg(test)]
 #[path = "typed_move_selector_tests.rs"]

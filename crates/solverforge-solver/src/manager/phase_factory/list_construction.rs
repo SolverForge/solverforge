@@ -1,11 +1,12 @@
-//! List construction phase for assigning list elements to entities.
-//!
-//! Provides several construction strategies for list variables
-//! (e.g., assigning visits to vehicles in VRP):
-//!
-//! - [`ListConstructionPhase`]: Simple round-robin assignment
-//! - [`ListCheapestInsertionPhase`]: Score-guided greedy insertion
-//! - [`ListRegretInsertionPhase`]: Regret-based insertion (reduces greedy myopia)
+/* List construction phase for assigning list elements to entities.
+
+Provides several construction strategies for list variables
+(e.g., assigning visits to vehicles in VRP):
+
+- [`ListConstructionPhase`]: Simple round-robin assignment
+- [`ListCheapestInsertionPhase`]: Score-guided greedy insertion
+- [`ListRegretInsertionPhase`]: Regret-based insertion (reduces greedy myopia)
+*/
 
 use std::marker::PhantomData;
 
@@ -78,7 +79,6 @@ where
     S: PlanningSolution,
     E: Copy + Send + Sync + 'static,
 {
-    /// Creates a new list construction phase builder.
     pub fn new(
         element_count: fn(&S) -> usize,
         get_assigned: fn(&S) -> Vec<E>,
@@ -217,14 +217,16 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
-// Shared utilities for scored construction phases
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+Shared utilities for scored construction phases
+---------------------------------------------------------------------------
+*/
 
-/// Common fields for scored list construction phases.
-///
-/// Holds all function pointers needed to enumerate elements, enumerate entities,
-/// try insertions, and apply the chosen insertion.
+/* Common fields for scored list construction phases.
+
+Holds all function pointers needed to enumerate elements, enumerate entities,
+try insertions, and apply the chosen insertion.
+*/
 struct ScoredConstructionState<S, E> {
     element_count: fn(&S) -> usize,
     get_assigned: fn(&S) -> Vec<E>,
@@ -241,10 +243,10 @@ where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
 {
-    /// Evaluate the score delta of inserting `element` at `(entity_idx, pos)`.
-    ///
-    /// Performs: before_changed → insert → score → remove → after_changed (undo).
-    /// Returns the score if the insertion is evaluable.
+    /* Evaluate the score delta of inserting `element` at `(entity_idx, pos)`.
+
+    Performs: before_changed → insert → score → remove → after_changed (undo).
+    */
     fn eval_insertion<D: Director<S>>(
         &self,
         element: E,
@@ -281,9 +283,10 @@ where
         Some(score)
     }
 
-    /// Find the best (entity_idx, pos, score) for inserting `element`.
-    ///
-    /// Returns `None` if there are no valid insertion points.
+    /* Find the best (entity_idx, pos, score) for inserting `element`.
+
+    Returns `None` if there are no valid insertion points.
+    */
     fn best_insertion<D: Director<S>>(
         &self,
         element: E,
@@ -312,9 +315,10 @@ where
         best
     }
 
-    /// Apply the best insertion for `element` permanently.
-    ///
-    /// Returns true if the element was inserted.
+    /* Apply the best insertion for `element` permanently.
+
+    Returns true if the element was inserted.
+    */
     fn apply_insertion<D: Director<S>>(
         &self,
         element: E,
@@ -333,9 +337,10 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
-// ListCheapestInsertionPhase
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ListCheapestInsertionPhase
+---------------------------------------------------------------------------
+*/
 
 /// List construction phase using greedy cheapest insertion.
 ///
@@ -422,17 +427,18 @@ where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
 {
-    /// Creates a new cheapest insertion phase.
-    ///
-    /// # Arguments
-    /// * `element_count` - Total number of elements to assign
-    /// * `get_assigned` - Returns currently assigned elements
-    /// * `entity_count` - Total number of entities (routes/vehicles)
-    /// * `list_len` - Length of entity's list
-    /// * `list_insert` - Insert element at position (shifts right)
-    /// * `list_remove` - Remove element at position (used for undo), returns removed element
-    /// * `index_to_element` - Converts element index to element value
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new cheapest insertion phase.
+
+    # Arguments
+    * `element_count` - Total number of elements to assign
+    * `get_assigned` - Returns currently assigned elements
+    * `entity_count` - Total number of entities (routes/vehicles)
+    * `list_len` - Length of entity's list
+    * `list_insert` - Insert element at position (shifts right)
+    * `list_remove` - Remove element at position (used for undo), returns removed element
+    * `index_to_element` - Converts element index to element value
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         element_count: fn(&S) -> usize,
@@ -535,9 +541,10 @@ where
     }
 }
 
-// ---------------------------------------------------------------------------
-// ListRegretInsertionPhase
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ListRegretInsertionPhase
+---------------------------------------------------------------------------
+*/
 
 /// List construction phase using regret-based insertion.
 ///
@@ -628,17 +635,18 @@ where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
 {
-    /// Creates a new regret insertion phase.
-    ///
-    /// # Arguments
-    /// * `element_count` - Total number of elements to assign
-    /// * `get_assigned` - Returns currently assigned elements
-    /// * `entity_count` - Total number of entities (routes/vehicles)
-    /// * `list_len` - Length of entity's list
-    /// * `list_insert` - Insert element at position (shifts right)
-    /// * `list_remove` - Remove element at position (used for undo), returns removed element
-    /// * `index_to_element` - Converts element index to element value
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new regret insertion phase.
+
+    # Arguments
+    * `element_count` - Total number of elements to assign
+    * `get_assigned` - Returns currently assigned elements
+    * `entity_count` - Total number of entities (routes/vehicles)
+    * `list_len` - Length of entity's list
+    * `list_insert` - Insert element at position (shifts right)
+    * `list_remove` - Remove element at position (used for undo), returns removed element
+    * `index_to_element` - Converts element index to element value
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         element_count: fn(&S) -> usize,
@@ -665,10 +673,11 @@ where
         }
     }
 
-    /// Evaluate best and second-best insertions for `element`.
-    ///
-    /// Returns `(regret, best_entity, best_pos)` where regret is the score
-    /// difference between first and second best insertion.
+    /* Evaluate best and second-best insertions for `element`.
+
+    Returns `(regret, best_entity, best_pos)` where regret is the score
+    difference between first and second best insertion.
+    */
     fn evaluate_regret<D: Director<S>>(
         &self,
         element: E,

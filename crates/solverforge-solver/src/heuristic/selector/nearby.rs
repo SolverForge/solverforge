@@ -1,15 +1,16 @@
-//! Nearby selection for distance-based filtering of candidates.
-//!
-//! Nearby selection improves move quality by preferring destinations that are
-//! geographically or otherwise "close" to an origin. This is critical for
-//! vehicle routing problems (VRP) where swapping with nearby customers
-//! is more likely to improve the solution than swapping with distant ones.
-//!
-//! # Architecture
-//!
-//! - [`NearbyDistanceMeter`]: User-defined function to measure distance between elements
-//! - [`NearbySelectionConfig`]: Configuration for nearby selection behavior
-//! - [`NearbyEntitySelector`]: Selects entities nearby to a reference entity
+/* Nearby selection for distance-based filtering of candidates.
+
+Nearby selection improves move quality by preferring destinations that are
+geographically or otherwise "close" to an origin. This is critical for
+vehicle routing problems (VRP) where swapping with nearby customers
+is more likely to improve the solution than swapping with distant ones.
+
+# Architecture
+
+- [`NearbyDistanceMeter`]: User-defined function to measure distance between elements
+- [`NearbySelectionConfig`]: Configuration for nearby selection behavior
+- [`NearbyEntitySelector`]: Selects entities nearby to a reference entity
+*/
 
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -49,37 +50,38 @@ use super::mimic::MimicRecorder;
 /// }
 /// ```
 pub trait NearbyDistanceMeter<Origin, Destination>: Send + Sync + Debug {
-    /// Measures the distance from the origin to the destination.
-    ///
-    /// The distance can be in any unit (meters, seconds, cost, etc.).
-    /// Distances can be asymmetrical: the distance from A to B may differ
-    /// from the distance from B to A.
-    ///
-    /// Returns a value >= 0.0. If origin == destination, typically returns 0.0.
+    /* Measures the distance from the origin to the destination.
+
+    The distance can be in any unit (meters, seconds, cost, etc.).
+    Distances can be asymmetrical: the distance from A to B may differ
+    from the distance from B to A.
+
+    Returns a value >= 0.0. If origin == destination, typically returns 0.0.
+    */
     fn distance(&self, origin: &Origin, destination: &Destination) -> f64;
 }
 
-/// Distribution type for nearby selection.
+// Distribution type for nearby selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NearbyDistributionType {
-    /// Select all candidates sorted by distance (up to a maximum).
+    // Select all candidates sorted by distance (up to a maximum).
     #[default]
     Linear,
-    /// Select candidates with probability proportional to distance (closer = more likely).
+    // Select candidates with probability proportional to distance (closer = more likely).
     Parabolic,
-    /// Use a block distribution for k-opt style moves.
+    // Use a block distribution for k-opt style moves.
     Block,
 }
 
-/// Configuration for nearby selection.
+// Configuration for nearby selection.
 #[derive(Debug, Clone)]
 pub struct NearbySelectionConfig {
-    /// The distribution type to use.
+    // The distribution type to use.
     pub distribution_type: NearbyDistributionType,
-    /// Maximum number of nearby candidates to consider.
-    /// If None, considers all candidates (sorted by distance).
+    // Maximum number of nearby candidates to consider.
+    // If None, considers all candidates (sorted by distance).
     pub max_nearby_size: Option<usize>,
-    /// Minimum distance to include a candidate (exclusive of origin).
+    // Minimum distance to include a candidate (exclusive of origin).
     pub min_distance: f64,
 }
 
@@ -94,24 +96,20 @@ impl Default for NearbySelectionConfig {
 }
 
 impl NearbySelectionConfig {
-    /// Creates a new configuration with default values.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Sets the distribution type.
     pub fn with_distribution_type(mut self, distribution_type: NearbyDistributionType) -> Self {
         self.distribution_type = distribution_type;
         self
     }
 
-    /// Sets the maximum number of nearby candidates.
     pub fn with_max_nearby_size(mut self, max_size: usize) -> Self {
         self.max_nearby_size = Some(max_size);
         self
     }
 
-    /// Sets the minimum distance threshold.
     pub fn with_min_distance(mut self, min_distance: f64) -> Self {
         self.min_distance = min_distance;
         self
@@ -120,7 +118,7 @@ impl NearbySelectionConfig {
 
 /// Type-erased distance meter for dynamic dispatch.
 pub trait DynDistanceMeter: Send + Sync + Debug {
-    /// Measures distance between two entity references.
+    // Measures distance between two entity references.
     fn distance_between<S: PlanningSolution>(
         &self,
         score_director: &dyn Director<S>,
@@ -139,20 +137,19 @@ pub trait DynDistanceMeter: Send + Sync + Debug {
 /// The child entity selector `ES` is stored as a concrete generic type parameter,
 /// eliminating virtual dispatch overhead when iterating over candidate entities.
 pub struct NearbyEntitySelector<S, M, ES> {
-    /// The child selector providing all candidate entities (zero-erasure).
+    // The child selector providing all candidate entities (zero-erasure).
     child: ES,
-    /// The recorder providing the origin entity.
+    // The recorder providing the origin entity.
     origin_recorder: MimicRecorder,
-    /// The distance meter for measuring nearness.
+    // The distance meter for measuring nearness.
     distance_meter: M,
-    /// Configuration for nearby selection.
+    // Configuration for nearby selection.
     config: NearbySelectionConfig,
-    /// Marker for solution type.
+    // Marker for solution type.
     _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S, M, ES> NearbyEntitySelector<S, M, ES> {
-    /// Creates a new nearby entity selector.
     pub fn new(
         child: ES,
         origin_recorder: MimicRecorder,

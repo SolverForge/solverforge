@@ -1,4 +1,4 @@
-//! Phase-level scope.
+// Phase-level scope.
 
 use std::time::Instant;
 
@@ -18,24 +18,23 @@ use crate::stats::PhaseStats;
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type
 pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb = ()> {
-    /// Reference to the parent solver scope.
+    // Reference to the parent solver scope.
     solver_scope: &'a mut SolverScope<'t, S, D, BestCb>,
-    /// Index of this phase (0-based).
+    // Index of this phase (0-based).
     phase_index: usize,
-    /// Score at the start of this phase.
+    // Score at the start of this phase.
     starting_score: Option<S::Score>,
-    /// Number of steps in this phase.
+    // Number of steps in this phase.
     step_count: u64,
-    /// When this phase started.
+    // When this phase started.
     start_time: Instant,
-    /// Phase statistics.
+    // Phase statistics.
     stats: PhaseStats,
 }
 
 impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     PhaseScope<'t, 'a, S, D, BestCb>
 {
-    /// Creates a new phase scope.
     pub fn new(solver_scope: &'a mut SolverScope<'t, S, D, BestCb>, phase_index: usize) -> Self {
         let starting_score = solver_scope.best_score().cloned();
         Self {
@@ -48,7 +47,6 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S
         }
     }
 
-    /// Creates a new phase scope with a specific phase type name.
     pub fn with_phase_type(
         solver_scope: &'a mut SolverScope<'t, S, D, BestCb>,
         phase_index: usize,
@@ -65,22 +63,18 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S
         }
     }
 
-    /// Returns the phase index.
     pub fn phase_index(&self) -> usize {
         self.phase_index
     }
 
-    /// Returns the starting score for this phase.
     pub fn starting_score(&self) -> Option<&S::Score> {
         self.starting_score.as_ref()
     }
 
-    /// Returns the elapsed time for this phase.
     pub fn elapsed(&self) -> std::time::Duration {
         self.start_time.elapsed()
     }
 
-    /// Returns the step count for this phase.
     pub fn step_count(&self) -> u64 {
         self.step_count
     }
@@ -92,22 +86,18 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S
         self.step_count
     }
 
-    /// Returns a reference to the solver scope.
     pub fn solver_scope(&self) -> &SolverScope<'t, S, D, BestCb> {
         self.solver_scope
     }
 
-    /// Returns a mutable reference to the solver scope.
     pub fn solver_scope_mut(&mut self) -> &mut SolverScope<'t, S, D, BestCb> {
         self.solver_scope
     }
 
-    /// Returns a reference to the score director.
     pub fn score_director(&self) -> &D {
         self.solver_scope.score_director()
     }
 
-    /// Returns a mutable reference to the score director.
     pub fn score_director_mut(&mut self) -> &mut D {
         self.solver_scope.score_director_mut()
     }
@@ -122,12 +112,10 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S
         self.solver_scope.update_best_solution()
     }
 
-    /// Returns a reference to the phase statistics.
     pub fn stats(&self) -> &PhaseStats {
         &self.stats
     }
 
-    /// Returns a mutable reference to the phase statistics.
     pub fn stats_mut(&mut self) -> &mut PhaseStats {
         &mut self.stats
     }

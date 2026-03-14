@@ -1,12 +1,13 @@
-//! RuinMove - unassigns a subset of entities for Large Neighborhood Search.
-//!
-//! This move "ruins" (unassigns) selected entities, allowing a construction
-//! heuristic to reassign them. This is the fundamental building block for
-//! Large Neighborhood Search (LNS) algorithms.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for variable access. No `dyn Any`, no downcasting.
+/* RuinMove - unassigns a subset of entities for Large Neighborhood Search.
+
+This move "ruins" (unassigns) selected entities, allowing a construction
+heuristic to reassign them. This is the fundamental building block for
+Large Neighborhood Search (LNS) algorithms.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for variable access. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 
@@ -59,11 +60,10 @@ use super::Move;
 /// );
 /// ```
 pub struct RuinMove<S, V> {
-    /// Indices of entities to unassign
+    // Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
-    /// Get current value for an entity
     getter: fn(&S, usize) -> Option<V>,
-    /// Set value for an entity
+    // Set value for an entity
     setter: fn(&mut S, usize, Option<V>),
     variable_name: &'static str,
     descriptor_index: usize,
@@ -115,12 +115,10 @@ impl<S, V> RuinMove<S, V> {
         }
     }
 
-    /// Returns the entity indices being ruined.
     pub fn entity_indices_slice(&self) -> &[usize] {
         &self.entity_indices
     }
 
-    /// Returns the number of entities being ruined.
     pub fn ruin_count(&self) -> usize {
         self.entity_indices.len()
     }

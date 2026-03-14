@@ -1,4 +1,4 @@
-//! Tests for phase factories.
+// Tests for phase factories.
 
 use super::*;
 use crate::heuristic::r#move::ChangeMove;
@@ -55,7 +55,7 @@ fn set_task_priority(s: &mut TestSolution, idx: usize, v: Option<i64>) {
     }
 }
 
-/// Score calculator: sum of priorities (higher is better), penalty for unassigned.
+// Score calculator: sum of priorities (higher is better), penalty for unassigned.
 fn calculate_score(solution: &TestSolution) -> SoftScore {
     let mut score = 0i64;
     for task in &solution.tasks {
@@ -67,7 +67,6 @@ fn calculate_score(solution: &TestSolution) -> SoftScore {
     SoftScore::of(score)
 }
 
-/// Creates a score director with the given tasks.
 fn create_test_director(
     tasks: Vec<Task>,
 ) -> ScoreDirector<TestSolution, ()> {
@@ -88,7 +87,6 @@ fn create_test_director(
     ScoreDirector::with_calculator(solution, descriptor, calculate_score)
 }
 
-/// Creates a solver scope with unassigned tasks.
 fn create_unassigned_solver_scope(
     count: usize,
 ) -> SolverScope<TestSolution, impl Director<TestSolution>> {
@@ -108,7 +106,6 @@ type TestPlacer = QueuedEntityPlacer<
     StaticTypedValueSelector<TestSolution, i64>,
 >;
 
-/// Creates a simple placer factory for construction phases.
 fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     || {
         QueuedEntityPlacer::new(

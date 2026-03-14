@@ -1,4 +1,4 @@
-//! Zero-erasure builder for SolverFactory.
+// Zero-erasure builder for SolverFactory.
 
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -32,7 +32,6 @@ where
     S: PlanningSolution,
     C: Fn(&S) -> S::Score + Send + Sync,
 {
-    /// Creates a new builder with a score calculator.
     pub fn new(score_calculator: C) -> Self {
         Self {
             score_calculator,
@@ -47,7 +46,6 @@ impl<S, D, C, P, T> SolverFactoryBuilder<S, D, C, P, T>
 where
     S: PlanningSolution,
 {
-    /// Adds a phase, returning a new builder with updated phase tuple.
     pub fn with_phase<P2>(self, phase: P2) -> SolverFactoryBuilder<S, D, C, (P, P2), T> {
         SolverFactoryBuilder {
             score_calculator: self.score_calculator,
@@ -77,9 +75,6 @@ where
         }
     }
 
-    /// Applies configuration from a SolverConfig.
-    ///
-    /// Currently applies termination settings from the config.
     pub fn with_config(
         self,
         config: SolverConfig,
@@ -94,7 +89,6 @@ where
         }
     }
 
-    /// Sets time limit termination.
     pub fn with_time_limit(
         self,
         duration: Duration,
@@ -107,7 +101,6 @@ where
         }
     }
 
-    /// Sets step limit termination.
     pub fn with_step_limit(
         self,
         steps: u64,
@@ -120,7 +113,7 @@ where
         }
     }
 
-    /// Combines current termination with time limit.
+    // Combines current termination with time limit.
     #[allow(clippy::type_complexity)]
     pub fn with_time_limit_or(
         self,
@@ -159,10 +152,10 @@ where
     }
 }
 
-/// Error type for SolverFactory building.
+// Error type for SolverFactory building.
 #[derive(Debug, Clone)]
 pub enum SolverBuildError {
-    /// Configuration is invalid.
+    // Configuration is invalid.
     InvalidConfig(String),
 }
 

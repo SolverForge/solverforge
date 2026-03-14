@@ -1,4 +1,4 @@
-//! Solver implementation.
+// Solver implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -15,46 +15,41 @@ use crate::scope::SolverScope;
 use crate::stats::SolverStats;
 use crate::termination::Termination;
 
-/// Result of a solve operation containing solution and telemetry.
-///
-/// This is the canonical return type for `Solver::solve()`. It provides
-/// both the optimized solution and comprehensive statistics about the
-/// solving process.
+/* Result of a solve operation containing solution and telemetry.
+
+This is the canonical return type for `Solver::solve()`. It provides
+both the optimized solution and comprehensive statistics about the
+solving process.
+*/
 #[derive(Debug)]
 pub struct SolveResult<S: PlanningSolution> {
-    /// The best solution found during solving.
+    // The best solution found during solving.
     pub solution: S,
-    /// Solver statistics including steps, moves evaluated, and acceptance rates.
+    // Solver statistics including steps, moves evaluated, and acceptance rates.
     pub stats: SolverStats,
 }
 
 impl<S: PlanningSolution> SolveResult<S> {
-    /// Returns a reference to the solution.
     pub fn solution(&self) -> &S {
         &self.solution
     }
 
-    /// Returns the solution, consuming this result.
     pub fn into_solution(self) -> S {
         self.solution
     }
 
-    /// Returns a reference to the solver statistics.
     pub fn stats(&self) -> &SolverStats {
         &self.stats
     }
 
-    /// Returns the total number of steps taken across all phases.
     pub fn step_count(&self) -> u64 {
         self.stats.step_count
     }
 
-    /// Returns the total number of moves evaluated across all phases.
     pub fn moves_evaluated(&self) -> u64 {
         self.stats.moves_evaluated
     }
 
-    /// Returns the total number of moves accepted across all phases.
     pub fn moves_accepted(&self) -> u64 {
         self.stats.moves_accepted
     }
@@ -78,7 +73,7 @@ pub struct Solver<'t, P, T, S, D, BestCb = ()> {
     terminate: Option<&'t AtomicBool>,
     config: Option<SolverConfig>,
     time_limit: Option<Duration>,
-    /// Callback invoked when a better solution is found during solving.
+    // Callback invoked when a better solution is found during solving.
     best_solution_callback: BestCb,
     _phantom: PhantomData<fn(S, D)>,
 }
@@ -96,7 +91,6 @@ impl<P, S, D> Solver<'static, P, NoTermination, S, D, ()>
 where
     S: PlanningSolution,
 {
-    /// Creates a new solver with the given phases tuple and no termination.
     pub fn new(phases: P) -> Self {
         Solver {
             phases,
@@ -109,7 +103,6 @@ where
         }
     }
 
-    /// Sets the termination condition.
     pub fn with_termination<T>(self, termination: T) -> Solver<'static, P, Option<T>, S, D, ()> {
         Solver {
             phases: self.phases,
@@ -142,13 +135,11 @@ where
         }
     }
 
-    /// Sets the time limit for solving.
     pub fn with_time_limit(mut self, limit: Duration) -> Self {
         self.time_limit = Some(limit);
         self
     }
 
-    /// Sets configuration.
     pub fn with_config(mut self, config: SolverConfig) -> Self {
         self.config = Some(config);
         self
@@ -172,13 +163,12 @@ where
         }
     }
 
-    /// Returns the configuration if set.
     pub fn config(&self) -> Option<&SolverConfig> {
         self.config.as_ref()
     }
 }
 
-/// Marker type indicating no termination.
+// Marker type indicating no termination.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoTermination;
 
@@ -189,16 +179,17 @@ pub trait MaybeTermination<
     BestCb: BestSolutionCallback<S> = (),
 >: Send
 {
-    /// Checks if the solver should terminate.
+    // Checks if the solver should terminate.
     fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool;
 
-    /// Installs in-phase termination limits on the solver scope.
-    ///
-    /// This allows `Termination` conditions (step count, move count, etc.) to fire
-    /// inside the phase step loop, not only between phases (T1 fix).
-    ///
-    /// The default implementation is a no-op. Override for terminations that
-    /// express a concrete limit via a scope field.
+    /* Installs in-phase termination limits on the solver scope.
+
+    This allows `Termination` conditions (step count, move count, etc.) to fire
+    inside the phase step loop, not only between phases (T1 fix).
+
+    The default implementation is a no-op. Override for terminations that
+    express a concrete limit via a scope field.
+    */
     fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>) {}
 }
 

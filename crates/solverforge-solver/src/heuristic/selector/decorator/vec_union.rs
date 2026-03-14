@@ -1,9 +1,10 @@
-//! Vec-backed union move selector for config-driven selector composition.
-//!
-//! Unlike `UnionMoveSelector` (which combines exactly two selectors), `VecUnionSelector`
-//! holds a `Vec<Leaf>` of selectors and chains their moves. This is the backbone of
-//! config-driven solver construction where the number of selectors is determined at
-//! runtime from `solver.toml`.
+/* Vec-backed union move selector for config-driven selector composition.
+
+Unlike `UnionMoveSelector` (which combines exactly two selectors), `VecUnionSelector`
+holds a `Vec<Leaf>` of selectors and chains their moves. This is the backbone of
+config-driven solver construction where the number of selectors is determined at
+runtime from `solver.toml`.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -26,7 +27,6 @@ pub struct VecUnionSelector<S, M, Leaf> {
 }
 
 impl<S, M, Leaf> VecUnionSelector<S, M, Leaf> {
-    /// Creates a new union selector from the given leaf selectors.
     pub fn new(selectors: Vec<Leaf>) -> Self {
         Self {
             selectors,
@@ -53,9 +53,10 @@ where
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = M> + 'a {
-        // Collect all moves upfront. Moves enter the arena immediately after
-        // iteration, so this Vec is ephemeral and avoids lifetime conflicts
-        // between multiple borrowed iterators.
+        /* Collect all moves upfront. Moves enter the arena immediately after
+        iteration, so this Vec is ephemeral and avoids lifetime conflicts
+        between multiple borrowed iterators.
+        */
         let mut moves: Vec<M> = Vec::new();
         for selector in &self.selectors {
             moves.extend(selector.iter_moves(score_director));

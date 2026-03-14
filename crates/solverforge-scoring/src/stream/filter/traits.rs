@@ -1,39 +1,42 @@
-// Filter traits for different arities.
-//
-// These traits are used internally for filter composition. The solution
-// parameter enables constraint evaluation but user-facing filter predicates
-// receive only the entity.
+/* Filter traits for different arities.
 
-// A filter over a single entity type.
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::stream::filter::UniFilter;
-//
-// struct ThresholdFilter {
-//     threshold: i32,
-// }
-//
-// impl UniFilter<(), i32> for ThresholdFilter {
-//     fn test(&self, _solution: &(), entity: &i32) -> bool {
-//         *entity > self.threshold
-//     }
-// }
-//
-// let filter = ThresholdFilter { threshold: 10 };
-// assert!(filter.test(&(), &15));
-// assert!(!filter.test(&(), &5));
-// ```
+These traits are used internally for filter composition. The solution
+parameter enables constraint evaluation but user-facing filter predicates
+receive only the entity.
+*/
+
+/* A filter over a single entity type.
+
+# Example
+
+```
+use solverforge_scoring::stream::filter::UniFilter;
+
+struct ThresholdFilter {
+threshold: i32,
+}
+
+impl UniFilter<(), i32> for ThresholdFilter {
+fn test(&self, _solution: &(), entity: &i32) -> bool {
+*entity > self.threshold
+}
+}
+
+let filter = ThresholdFilter { threshold: 10 };
+assert!(filter.test(&(), &15));
+assert!(!filter.test(&(), &5));
+```
+*/
 pub trait UniFilter<S, A>: Send + Sync {
     // Returns true if the entity passes the filter.
     fn test(&self, solution: &S, a: &A) -> bool;
 }
 
-// A filter over pairs of entities.
-// Indices (a_idx, b_idx) are the positions in the entity slice, passed
-// through from the constraint so JIT closures can use them directly
-// for flat-buffer access without HashMap lookups.
+/* A filter over pairs of entities.
+Indices (a_idx, b_idx) are the positions in the entity slice, passed
+through from the constraint so JIT closures can use them directly
+for flat-buffer access without HashMap lookups.
+*/
 pub trait BiFilter<S, A, B>: Send + Sync {
     // Returns true if the pair passes the filter.
     fn test(&self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize) -> bool;

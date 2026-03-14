@@ -1,4 +1,4 @@
-//! Tests for ListSwapMove operations.
+// Tests for ListSwapMove operations.
 
 use super::*;
 

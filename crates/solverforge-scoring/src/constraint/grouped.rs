@@ -1,8 +1,9 @@
-// Zero-erasure grouped constraint for group-by operations.
-//
-// Provides incremental scoring for constraints that group entities and
-// apply collectors to compute aggregate scores.
-// All type information is preserved at compile time - no Arc, no dyn.
+/* Zero-erasure grouped constraint for group-by operations.
+
+Provides incremental scoring for constraints that group entities and
+apply collectors to compute aggregate scores.
+All type information is preserved at compile time - no Arc, no dyn.
+*/
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -15,69 +16,70 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collector::{Accumulator, UniCollector};
 use crate::stream::filter::UniFilter;
 
-// Zero-erasure constraint that groups entities by key and scores based on collector results.
-//
-// This enables incremental scoring for group-by operations:
-// - Tracks which entities belong to which group
-// - Maintains collector state per group
-// - Computes score deltas when entities are added/removed
-//
-// All type parameters are concrete - no trait objects, no Arc allocations.
-//
-// # Type Parameters
-//
-// - `S` - Solution type
-// - `A` - Entity type
-// - `K` - Group key type
-// - `E` - Extractor function for entities
-// - `Fi` - Filter type (applied before grouping)
-// - `KF` - Key function
-// - `C` - Collector type
-// - `W` - Weight function
-// - `Sc` - Score type
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::constraint::grouped::GroupedUniConstraint;
-// use solverforge_scoring::stream::collector::count;
-// use solverforge_scoring::stream::filter::TrueFilter;
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone, Hash, PartialEq, Eq)]
-// struct Shift { employee_id: usize }
-//
-// #[derive(Clone)]
-// struct Solution { shifts: Vec<Shift> }
-//
-// // Penalize based on squared workload per employee
-// let constraint = GroupedUniConstraint::new(
-//     ConstraintRef::new("", "Balanced workload"),
-//     ImpactType::Penalty,
-//     |s: &Solution| &s.shifts,
-//     TrueFilter,
-//     |shift: &Shift| shift.employee_id,
-//     count::<Shift>(),
-//     |count: &usize| SoftScore::of((*count * *count) as i64),
-//     false,
-// );
-//
-// let solution = Solution {
-//     shifts: vec![
-//         Shift { employee_id: 1 },
-//         Shift { employee_id: 1 },
-//         Shift { employee_id: 1 },
-//         Shift { employee_id: 2 },
-//     ],
-// };
-//
-// // Employee 1: 3 shifts -> 9 penalty
-// // Employee 2: 1 shift -> 1 penalty
-// // Total: -10
-// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
-// ```
+/* Zero-erasure constraint that groups entities by key and scores based on collector results.
+
+This enables incremental scoring for group-by operations:
+- Tracks which entities belong to which group
+- Maintains collector state per group
+- Computes score deltas when entities are added/removed
+
+All type parameters are concrete - no trait objects, no Arc allocations.
+
+# Type Parameters
+
+- `S` - Solution type
+- `A` - Entity type
+- `K` - Group key type
+- `E` - Extractor function for entities
+- `Fi` - Filter type (applied before grouping)
+- `KF` - Key function
+- `C` - Collector type
+- `W` - Weight function
+- `Sc` - Score type
+
+# Example
+
+```
+use solverforge_scoring::constraint::grouped::GroupedUniConstraint;
+use solverforge_scoring::stream::collector::count;
+use solverforge_scoring::stream::filter::TrueFilter;
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+struct Shift { employee_id: usize }
+
+#[derive(Clone)]
+struct Solution { shifts: Vec<Shift> }
+
+// Penalize based on squared workload per employee
+let constraint = GroupedUniConstraint::new(
+ConstraintRef::new("", "Balanced workload"),
+ImpactType::Penalty,
+|s: &Solution| &s.shifts,
+TrueFilter,
+|shift: &Shift| shift.employee_id,
+count::<Shift>(),
+|count: &usize| SoftScore::of((*count * *count) as i64),
+false,
+);
+
+let solution = Solution {
+shifts: vec![
+Shift { employee_id: 1 },
+Shift { employee_id: 1 },
+Shift { employee_id: 1 },
+Shift { employee_id: 2 },
+],
+};
+
+// Employee 1: 3 shifts -> 9 penalty
+// Employee 2: 1 shift -> 1 penalty
+// Total: -10
+assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
+```
+*/
 pub struct GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
 where
     C: UniCollector<A>,
@@ -117,18 +119,19 @@ where
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    // Creates a new zero-erasure grouped constraint.
-    //
-    // # Arguments
-    //
-    // * `constraint_ref` - Identifier for this constraint
-    // * `impact_type` - Whether to penalize or reward
-    // * `extractor` - Function to get entity slice from solution
-    // * `filter` - Filter applied to entities before grouping
-    // * `key_fn` - Function to extract group key from entity
-    // * `collector` - Collector to aggregate entities per group
-    // * `weight_fn` - Function to compute score from collector result
-    // * `is_hard` - Whether this is a hard constraint
+    /* Creates a new zero-erasure grouped constraint.
+
+    # Arguments
+
+    * `constraint_ref` - Identifier for this constraint
+    * `impact_type` - Whether to penalize or reward
+    * `extractor` - Function to get entity slice from solution
+    * `filter` - Filter applied to entities before grouping
+    * `key_fn` - Function to extract group key from entity
+    * `collector` - Collector to aggregate entities per group
+    * `weight_fn` - Function to compute score from collector result
+    * `is_hard` - Whether this is a hard constraint
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,

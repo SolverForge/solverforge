@@ -1,4 +1,4 @@
-//! Tests for solver configuration.
+// Tests for solver configuration.
 
 use super::*;
 

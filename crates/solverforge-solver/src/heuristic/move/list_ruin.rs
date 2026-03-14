@@ -1,13 +1,14 @@
-//! ListRuinMove - ruin-and-recreate move for Large Neighborhood Search on list variables.
-//!
-//! Removes selected elements from a list entity, then greedily reinserts each
-//! one into the best available position across all entities. This makes the move
-//! self-contained: it can be accepted by a local search acceptor without leaving
-//! the solution in a degenerate state.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+/* ListRuinMove - ruin-and-recreate move for Large Neighborhood Search on list variables.
+
+Removes selected elements from a list entity, then greedily reinserts each
+one into the best available position across all entities. This makes the move
+self-contained: it can be accepted by a local search acceptor without leaving
+the solution in a degenerate state.
+
+# Zero-Erasure Design
+
+Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -59,17 +60,16 @@ use super::Move;
 /// );
 /// ```
 pub struct ListRuinMove<S, V> {
-    /// Entity index to ruin from
+    // Entity index to ruin from
     entity_index: usize,
-    /// Indices of elements to remove (sorted ascending)
+    // Indices of elements to remove (sorted ascending)
     element_indices: SmallVec<[usize; 8]>,
-    /// Number of entities in solution (for recreate phase)
+    // Number of entities in solution (for recreate phase)
     entity_count: fn(&S) -> usize,
-    /// Get list length
     list_len: fn(&S, usize) -> usize,
-    /// Remove element at index, returning it
+    // Remove element at index, returning it
     list_remove: fn(&mut S, usize, usize) -> V,
-    /// Insert element at index
+    // Insert element at index
     list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
     descriptor_index: usize,
@@ -103,17 +103,18 @@ impl<S, V: Debug> Debug for ListRuinMove<S, V> {
 }
 
 impl<S, V> ListRuinMove<S, V> {
-    /// Creates a new list ruin-and-recreate move.
-    ///
-    /// # Arguments
-    /// * `entity_index` - Entity index to ruin from
-    /// * `element_indices` - Indices of elements to remove
-    /// * `entity_count` - Function returning total entity count
-    /// * `list_len` - Function to get list length for an entity
-    /// * `list_remove` - Function to remove element at index
-    /// * `list_insert` - Function to insert element at index
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    /* Creates a new list ruin-and-recreate move.
+
+    # Arguments
+    * `entity_index` - Entity index to ruin from
+    * `element_indices` - Indices of elements to remove
+    * `entity_count` - Function returning total entity count
+    * `list_len` - Function to get list length for an entity
+    * `list_remove` - Function to remove element at index
+    * `list_insert` - Function to insert element at index
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_index: usize,
@@ -140,17 +141,14 @@ impl<S, V> ListRuinMove<S, V> {
         }
     }
 
-    /// Returns the entity index.
     pub fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    /// Returns the element indices being removed.
     pub fn element_indices(&self) -> &[usize] {
         &self.element_indices
     }
 
-    /// Returns the number of elements being removed.
     pub fn ruin_count(&self) -> usize {
         self.element_indices.len()
     }
@@ -235,21 +233,22 @@ where
             placements.push((best_entity, best_pos));
         }
 
-        // --- Register undo ---
-        // placements[i] = (entity, pos) at the moment element i was inserted.
-        // Later insertions j > i into the same entity at pos <= placements[i].pos
-        // shifted element i rightward by 1 for each such j.
-        // During undo we process in reverse: remove last-placed first.
-        // At that point, only placements[j] with j > i (already removed) have been
-        // undone, so the current position of element i is:
-        //   placements[i].pos + #{j > i : same entity AND placements[j].pos <= placements[i].pos}
-        // which we compute on the fly as we iterate in reverse.
-        //
-        // After collecting values, reinsert at original indices (ascending) in source entity.
-        // Reinserting at orig_indices[k] in order k=0,1,... shifts later indices by 1,
-        // but orig_indices is sorted ascending so each insertion at idx shifts positions > idx,
-        // which are exactly the later orig_indices — so we insert at orig_indices[k] + k
-        // to account for the k prior insertions that each shifted by 1.
+        /* --- Register undo ---
+        placements[i] = (entity, pos) at the moment element i was inserted.
+        Later insertions j > i into the same entity at pos <= placements[i].pos
+        shifted element i rightward by 1 for each such j.
+        During undo we process in reverse: remove last-placed first.
+        At that point, only placements[j] with j > i (already removed) have been
+        undone, so the current position of element i is:
+        placements[i].pos + #{j > i : same entity AND placements[j].pos <= placements[i].pos}
+        which we compute on the fly as we iterate in reverse.
+
+        After collecting values, reinsert at original indices (ascending) in source entity.
+        Reinserting at orig_indices[k] in order k=0,1,... shifts later indices by 1,
+        but orig_indices is sorted ascending so each insertion at idx shifts positions > idx,
+        which are exactly the later orig_indices — so we insert at orig_indices[k] + k
+        to account for the k prior insertions that each shifted by 1.
+        */
         let orig_entity = src;
         let orig_indices: SmallVec<[usize; 8]> = self.element_indices.clone();
 
@@ -265,16 +264,18 @@ where
                     .iter()
                     .filter(|&&(ej, pj)| ej == e_i && pj <= p_i)
                     .count();
-                // Note: this is an approximation when multiple later insertions interact.
-                // The exact value requires iterative computation, but for the common case
-                // (small ruin counts, distinct positions) this is exact.
+                /* Note: this is an approximation when multiple later insertions interact.
+                The exact value requires iterative computation, but for the common case
+                (small ruin counts, distinct positions) this is exact.
+                */
                 current_pos.push(p_i + shifted);
             }
 
-            // Remove in reverse insertion order (i = n-1 downto 0).
-            // When removing element i, elements j > i have already been removed.
-            // Each removed j that was at current_pos[j] < current_pos[i] in the same
-            // entity shifted element i left by 1.
+            /* Remove in reverse insertion order (i = n-1 downto 0).
+            When removing element i, elements j > i have already been removed.
+            Each removed j that was at current_pos[j] < current_pos[i] in the same
+            entity shifted element i left by 1.
+            */
             let mut vals: SmallVec<[V; 8]> = SmallVec::with_capacity(n);
             for i in (0..n).rev() {
                 let (e_i, _) = placements[i];
@@ -289,17 +290,18 @@ where
             // vals is in reverse original order; reverse to get forward original order.
             vals.reverse();
 
-            // Reinsert at original positions (ascending, sorted).
-            // orig_indices[k] is the position in the pre-ruin source entity.
-            // Inserting at orig_indices[k] shifts all positions > orig_indices[k] right.
-            // Since orig_indices is sorted ascending, each insertion k shifts positions
-            // that are >= orig_indices[k], which includes orig_indices[k+1..] only if
-            // they are >= orig_indices[k]. They are (sorted), so each later index needs
-            // +k adjustment (k prior insertions each shifted it once).
-            // But orig_indices[k] itself does not shift — we insert at the exact original
-            // index before any of the k prior insertions were accounted for.
-            // Actually: after k insertions at positions orig_indices[0..k] (all <= orig_indices[k]
-            // since sorted), orig_indices[k]'s effective position has shifted by k.
+            /* Reinsert at original positions (ascending, sorted).
+            orig_indices[k] is the position in the pre-ruin source entity.
+            Inserting at orig_indices[k] shifts all positions > orig_indices[k] right.
+            Since orig_indices is sorted ascending, each insertion k shifts positions
+            that are >= orig_indices[k], which includes orig_indices[k+1..] only if
+            they are >= orig_indices[k]. They are (sorted), so each later index needs
+            +k adjustment (k prior insertions each shifted it once).
+            But orig_indices[k] itself does not shift — we insert at the exact original
+            index before any of the k prior insertions were accounted for.
+            Actually: after k insertions at positions orig_indices[0..k] (all <= orig_indices[k]
+            since sorted), orig_indices[k]'s effective position has shifted by k.
+            */
             for (&idx, val) in orig_indices.iter().zip(vals.into_iter()) {
                 list_insert(s, orig_entity, idx, val);
             }

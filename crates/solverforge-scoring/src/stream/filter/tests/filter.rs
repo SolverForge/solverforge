@@ -1,15 +1,17 @@
-// Tests for filter module.
-//
-// Tests extracted from:
-// - mod.rs (5 tests)
+/* Tests for filter module.
+
+Tests extracted from:
+- mod.rs (5 tests)
+*/
 
 use super::super::composition::{AndBiFilter, AndUniFilter};
 use super::super::traits::{BiFilter, UniFilter};
 use super::super::wrappers::{FnBiFilter, FnUniFilter, TrueFilter};
 
-// ============================================================================
-// Filter tests
-// ============================================================================
+/* ============================================================================
+Filter tests
+============================================================================
+*/
 
 #[test]
 fn test_true_filter() {

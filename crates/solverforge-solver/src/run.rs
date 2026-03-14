@@ -1,7 +1,8 @@
-//! Unified solver entry point.
-//!
-//! This module provides the single `run_solver` function used by both basic
-//! variable and list variable problems via the `ProblemSpec` trait.
+/* Unified solver entry point.
+
+This module provides the single `run_solver` function used by both basic
+variable and list variable problems via the `ProblemSpec` trait.
+*/
 
 use std::fmt;
 use std::sync::atomic::AtomicBool;
@@ -120,12 +121,13 @@ where
     (termination, time_limit)
 }
 
-/// Solves a problem using the given `ProblemSpec` for problem-specific logic.
-///
-/// This is the unified entry point for both basic variable and list variable
-/// problems. The shared logic (config loading, director creation, trivial-case
-/// handling, termination building, callback setup, final send) lives here.
-/// Problem-specific construction and local search are delegated to `spec`.
+/* Solves a problem using the given `ProblemSpec` for problem-specific logic.
+
+This is the unified entry point for both basic variable and list variable
+problems. The shared logic (config loading, director creation, trivial-case
+handling, termination building, callback setup, final send) lives here.
+Problem-specific construction and local search are delegated to `spec`.
+*/
 #[allow(clippy::too_many_arguments)]
 pub fn run_solver<S, C, Spec>(
     mut solution: S,

@@ -1,11 +1,12 @@
-//! CompositeMove - applies two moves in sequence by arena indices.
-//!
-//! This move stores indices into two arenas. The moves themselves
-//! live in their respective arenas - CompositeMove just references them.
-//!
-//! # Zero-Erasure Design
-//!
-//! No cloning, no boxing - just typed arena indices.
+/* CompositeMove - applies two moves in sequence by arena indices.
+
+This move stores indices into two arenas. The moves themselves
+live in their respective arenas - CompositeMove just references them.
+
+# Zero-Erasure Design
+
+No cloning, no boxing - just typed arena indices.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -41,7 +42,6 @@ where
     M1: Move<S>,
     M2: Move<S>,
 {
-    /// Creates a new composite move from two arena indices.
     pub fn new(index_1: usize, index_2: usize) -> Self {
         Self {
             index_1,
@@ -50,17 +50,14 @@ where
         }
     }
 
-    /// Returns the first move's arena index.
     pub fn index_1(&self) -> usize {
         self.index_1
     }
 
-    /// Returns the second move's arena index.
     pub fn index_2(&self) -> usize {
         self.index_2
     }
 
-    /// Checks if this composite move is doable given both arenas.
     pub fn is_doable_with_arenas<D: Director<S>>(
         &self,
         arena_1: &MoveArena<M1>,

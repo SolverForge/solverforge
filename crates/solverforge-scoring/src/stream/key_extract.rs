@@ -1,14 +1,16 @@
-// KeyExtract trait and adapters for zero-erasure join key extraction.
-//
-// The `KeyExtract` trait replaces bare `Fn(&S, &A, usize) -> K` bounds,
-// allowing named adapter structs to be used as associated types in `JoinTarget`.
+/* KeyExtract trait and adapters for zero-erasure join key extraction.
+
+The `KeyExtract` trait replaces bare `Fn(&S, &A, usize) -> K` bounds,
+allowing named adapter structs to be used as associated types in `JoinTarget`.
+*/
 
 use std::marker::PhantomData;
 
-// Extracts a join key from a solution and entity.
-//
-// Blanket impl for `Fn(&S, &A, usize) -> K` preserves all existing usage.
-// `EntityKeyAdapter` wraps entity-only key functions for the self-join case.
+/* Extracts a join key from a solution and entity.
+
+Blanket impl for `Fn(&S, &A, usize) -> K` preserves all existing usage.
+`EntityKeyAdapter` wraps entity-only key functions for the self-join case.
+*/
 pub trait KeyExtract<S, A, K>: Send + Sync {
     // Extracts the key from the entity.
     fn extract(&self, s: &S, a: &A, idx: usize) -> K;
@@ -24,10 +26,11 @@ where
     }
 }
 
-// Wraps an entity-only key function `Fn(&A) -> K` as a `KeyExtract`.
-//
-// Used in the self-join case where the user passes `equal(|a: &A| key_fn(a))`.
-// The solution and index parameters are ignored.
+/* Wraps an entity-only key function `Fn(&A) -> K` as a `KeyExtract`.
+
+Used in the self-join case where the user passes `equal(|a: &A| key_fn(a))`.
+The solution and index parameters are ignored.
+*/
 pub struct EntityKeyAdapter<KA> {
     key_fn: KA,
 }

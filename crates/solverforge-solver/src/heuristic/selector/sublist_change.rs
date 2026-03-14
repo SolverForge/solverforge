@@ -1,67 +1,68 @@
-//! Sublist change move selector for segment relocation (Or-opt).
-//!
-//! Generates `SubListChangeMove`s that relocate contiguous segments within or
-//! between list variables. The Or-opt family of moves (segments of size 1, 2, 3, …)
-//! is among the most effective VRP improvements after basic 2-opt.
-//!
-//! # Complexity
-//!
-//! For n entities with average route length m and max segment size k:
-//! - Intra-entity: O(n * m * k) sources × O(m) destinations
-//! - Inter-entity: O(n * m * k) sources × O(n * m) destinations
-//! - Total: O(n² * m² * k)
-//!
-//! Use a forager that quits early (`FirstAccepted`, `AcceptedCount`) to keep
-//! iteration practical for large instances.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::sublist_change::SubListChangeMoveSelector;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, entity_idx: usize) -> usize {
-//!     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-//! }
-//! fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
-//!     s.vehicles.get_mut(entity_idx)
-//!         .map(|v| v.visits.drain(start..end).collect())
-//!         .unwrap_or_default()
-//! }
-//! fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-//!     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-//!         for (i, item) in items.into_iter().enumerate() {
-//!             v.visits.insert(pos + i, item);
-//!         }
-//!     }
-//! }
-//!
-//! // Or-opt: relocate segments of size 1..=3
-//! let selector = SubListChangeMoveSelector::<Solution, i32, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     1, 3,
-//!     list_len,
-//!     sublist_remove,
-//!     sublist_insert,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* Sublist change move selector for segment relocation (Or-opt).
+
+Generates `SubListChangeMove`s that relocate contiguous segments within or
+between list variables. The Or-opt family of moves (segments of size 1, 2, 3, …)
+is among the most effective VRP improvements after basic 2-opt.
+
+# Complexity
+
+For n entities with average route length m and max segment size k:
+- Intra-entity: O(n * m * k) sources × O(m) destinations
+- Inter-entity: O(n * m * k) sources × O(n * m) destinations
+- Total: O(n² * m² * k)
+
+Use a forager that quits early (`FirstAccepted`, `AcceptedCount`) to keep
+iteration practical for large instances.
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::sublist_change::SubListChangeMoveSelector;
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<i32> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, entity_idx: usize) -> usize {
+s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+}
+fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
+s.vehicles.get_mut(entity_idx)
+.map(|v| v.visits.drain(start..end).collect())
+.unwrap_or_default()
+}
+fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
+if let Some(v) = s.vehicles.get_mut(entity_idx) {
+for (i, item) in items.into_iter().enumerate() {
+v.visits.insert(pos + i, item);
+}
+}
+}
+
+// Or-opt: relocate segments of size 1..=3
+let selector = SubListChangeMoveSelector::<Solution, i32, _>::new(
+FromSolutionEntitySelector::new(0),
+1, 3,
+list_len,
+sublist_remove,
+sublist_insert,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -86,9 +87,9 @@ use super::typed_move_selector::MoveSelector;
 /// * `ES` - The entity selector type
 pub struct SubListChangeMoveSelector<S, V, ES> {
     entity_selector: ES,
-    /// Minimum segment size (inclusive). Usually 1.
+    // Minimum segment size (inclusive). Usually 1.
     min_sublist_size: usize,
-    /// Maximum segment size (inclusive). Usually 3-5.
+    // Maximum segment size (inclusive). Usually 3-5.
     max_sublist_size: usize,
     list_len: fn(&S, usize) -> usize,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -111,20 +112,21 @@ impl<S, V: Debug, ES: Debug> Debug for SubListChangeMoveSelector<S, V, ES> {
 }
 
 impl<S, V, ES> SubListChangeMoveSelector<S, V, ES> {
-    /// Creates a new sublist change move selector.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities to generate moves for
-    /// * `min_sublist_size` - Minimum segment length (must be ≥ 1)
-    /// * `max_sublist_size` - Maximum segment length
-    /// * `list_len` - Function to get list length
-    /// * `sublist_remove` - Function to drain a range `[start, end)`, returning removed elements
-    /// * `sublist_insert` - Function to insert a slice at a position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
-    ///
-    /// # Panics
-    /// Panics if `min_sublist_size == 0` or `max_sublist_size < min_sublist_size`.
+    /* Creates a new sublist change move selector.
+
+    # Arguments
+    * `entity_selector` - Selects entities to generate moves for
+    * `min_sublist_size` - Minimum segment length (must be ≥ 1)
+    * `max_sublist_size` - Maximum segment length
+    * `list_len` - Function to get list length
+    * `sublist_remove` - Function to drain a range `[start, end)`, returning removed elements
+    * `sublist_insert` - Function to insert a slice at a position
+    * `variable_name` - Name of the list variable
+    * `descriptor_index` - Entity descriptor index
+
+    # Panics
+    Panics if `min_sublist_size == 0` or `max_sublist_size < min_sublist_size`.
+    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,
@@ -195,14 +197,16 @@ where
                         break; // No larger segments fit at this start
                     }
 
-                    // Intra-entity destinations: insert at positions in the post-removal list
-                    // Post-removal list has src_len - seg_size elements.
-                    // Valid insertion points: 0..=(src_len - seg_size)
+                    /* Intra-entity destinations: insert at positions in the post-removal list
+                    Post-removal list has src_len - seg_size elements.
+                    Valid insertion points: 0..=(src_len - seg_size)
+                    */
                     let post_removal_len = src_len - seg_size;
                     for dst_pos in 0..=post_removal_len {
-                        // Skip no-ops: inserting at the same logical position
-                        // After removal, seg_start..seg_end are gone.
-                        // dst_pos == seg_start means insert right where we removed (no-op).
+                        /* Skip no-ops: inserting at the same logical position
+                        After removal, seg_start..seg_end are gone.
+                        dst_pos == seg_start means insert right where we removed (no-op).
+                        */
                         if dst_pos == seg_start {
                             continue;
                         }

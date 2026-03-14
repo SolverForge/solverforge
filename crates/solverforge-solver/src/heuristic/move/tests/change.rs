@@ -1,4 +1,4 @@
-//! Tests for ChangeMove operations.
+// Tests for ChangeMove operations.
 
 use super::*;
 

@@ -1,4 +1,4 @@
-//! List variable move selector enum and builder.
+// List variable move selector enum and builder.
 
 use std::fmt::Debug;
 
@@ -36,27 +36,27 @@ where
     DM: CrossEntityDistanceMeter<S>,
     IDM: CrossEntityDistanceMeter<S>,
 {
-    /// Nearby list change (distance-pruned relocation).
+    // Nearby list change (distance-pruned relocation).
     NearbyListChange(ListMoveNearbyListChangeSelector<S, V, DM, FromSolutionEntitySelector>),
-    /// Nearby list swap (distance-pruned swap).
+    // Nearby list swap (distance-pruned swap).
     NearbyListSwap(ListMoveNearbyListSwapSelector<S, V, IDM, FromSolutionEntitySelector>),
-    /// List reverse (2-opt).
+    // List reverse (2-opt).
     ListReverse(ListMoveListReverseSelector<S, V, FromSolutionEntitySelector>),
-    /// Sublist change (Or-opt).
+    // Sublist change (Or-opt).
     SubListChange(ListMoveSubListChangeSelector<S, V, FromSolutionEntitySelector>),
-    /// K-opt.
+    // K-opt.
     KOpt(ListMoveKOptSelector<S, V, FromSolutionEntitySelector>),
-    /// Nearby k-opt (distance-pruned).
+    // Nearby k-opt (distance-pruned).
     NearbyKOpt(
         ListMoveNearbyKOptSelector<S, V, IntraDistanceAdapter<IDM>, FromSolutionEntitySelector>,
     ),
-    /// List ruin (LNS).
+    // List ruin (LNS).
     ListRuin(ListMoveListRuinSelector<S, V>),
-    /// Full list change (unrestricted relocation).
+    // Full list change (unrestricted relocation).
     ListChange(ListMoveListChangeSelector<S, V, FromSolutionEntitySelector>),
-    /// Full list swap (unrestricted swap).
+    // Full list swap (unrestricted swap).
     ListSwap(ListMoveListSwapSelector<S, V, FromSolutionEntitySelector>),
-    /// Sublist swap.
+    // Sublist swap.
     SubListSwap(ListMoveSubListSwapSelector<S, V, FromSolutionEntitySelector>),
 }
 

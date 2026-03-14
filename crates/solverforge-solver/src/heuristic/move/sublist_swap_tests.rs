@@ -1,4 +1,4 @@
-//! Tests for SubListSwapMove.
+// Tests for SubListSwapMove.
 
 use super::*;
 use solverforge_core::domain::{

@@ -1,4 +1,4 @@
-//! ChildPhases trait and tuple implementations.
+// ChildPhases trait and tuple implementations.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -14,7 +14,7 @@ where
     S: PlanningSolution,
     D: Director<S>,
 {
-    /// Runs all child phases on the solver scope.
+    // Runs all child phases on the solver scope.
     fn solve_all(&mut self, solver_scope: &mut SolverScope<S, D>);
 }
 

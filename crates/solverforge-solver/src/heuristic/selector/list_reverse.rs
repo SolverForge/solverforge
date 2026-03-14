@@ -1,56 +1,57 @@
-//! List reverse move selector for 2-opt optimization.
-//!
-//! Generates `ListReverseMove`s that reverse contiguous segments within a single
-//! list. This is the fundamental 2-opt move for TSP and VRP: reversing a segment
-//! of the tour can eliminate crossing edges and reduce total distance.
-//!
-//! For VRP, 2-opt is applied independently within each route (intra-route 2-opt).
-//! Cross-route 2-opt would require inter-entity reversal, which is a different
-//! operation modeled by `SubListSwapMove` with same-size segments.
-//!
-//! # Complexity
-//!
-//! For n entities with average route length m:
-//! O(n * m²) — all (start, end) pairs per entity where end > start + 1.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::list_reverse::ListReverseMoveSelector;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, entity_idx: usize) -> usize {
-//!     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-//! }
-//! fn list_reverse(s: &mut Solution, entity_idx: usize, start: usize, end: usize) {
-//!     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-//!         v.visits[start..end].reverse();
-//!     }
-//! }
-//!
-//! let selector = ListReverseMoveSelector::<Solution, i32, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     list_len,
-//!     list_reverse,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* List reverse move selector for 2-opt optimization.
+
+Generates `ListReverseMove`s that reverse contiguous segments within a single
+list. This is the fundamental 2-opt move for TSP and VRP: reversing a segment
+of the tour can eliminate crossing edges and reduce total distance.
+
+For VRP, 2-opt is applied independently within each route (intra-route 2-opt).
+Cross-route 2-opt would require inter-entity reversal, which is a different
+operation modeled by `SubListSwapMove` with same-size segments.
+
+# Complexity
+
+For n entities with average route length m:
+O(n * m²) — all (start, end) pairs per entity where end > start + 1.
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::list_reverse::ListReverseMoveSelector;
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<i32> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, entity_idx: usize) -> usize {
+s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+}
+fn list_reverse(s: &mut Solution, entity_idx: usize, start: usize, end: usize) {
+if let Some(v) = s.vehicles.get_mut(entity_idx) {
+v.visits[start..end].reverse();
+}
+}
+
+let selector = ListReverseMoveSelector::<Solution, i32, _>::new(
+FromSolutionEntitySelector::new(0),
+list_len,
+list_reverse,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

@@ -1,69 +1,70 @@
-//! Ruin move selector for Large Neighborhood Search.
-//!
-//! Generates `RuinMove` instances that unassign subsets of entities,
-//! enabling exploration of distant regions in the solution space.
-//!
-//! # Zero-Erasure Design
-//!
-//! Uses `fn` pointers for variable access and entity counting.
-//! No `Arc<dyn Fn>`, no trait objects in hot paths.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::{MoveSelector, RuinMoveSelector};
-//! use solverforge_solver::heuristic::r#move::RuinMove;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//! use solverforge_scoring::{Director, ScoreDirector};
-//! use solverforge_core::domain::SolutionDescriptor;
-//! use std::any::TypeId;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Task { assigned_to: Option<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Schedule { tasks: Vec<Task>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Schedule {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn entity_count(s: &Schedule) -> usize { s.tasks.len() }
-//! fn get_task(s: &Schedule, idx: usize) -> Option<i32> {
-//!     s.tasks.get(idx).and_then(|t| t.assigned_to)
-//! }
-//! fn set_task(s: &mut Schedule, idx: usize, v: Option<i32>) {
-//!     if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
-//! }
-//!
-//! // Create selector that ruins 2-3 entities at a time
-//! let selector = RuinMoveSelector::<Schedule, i32>::new(
-//!     2, 3,
-//!     entity_count,
-//!     get_task, set_task,
-//!     "assigned_to", 0,
-//! );
-//!
-//! // Use with a score director
-//! let solution = Schedule {
-//!     tasks: vec![
-//!         Task { assigned_to: Some(1) },
-//!         Task { assigned_to: Some(2) },
-//!         Task { assigned_to: Some(3) },
-//!     ],
-//!     score: None,
-//! };
-//! let descriptor = SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>());
-//! let director = ScoreDirector::simple(
-//!     solution, descriptor, |s, _| s.tasks.len()
-//! );
-//!
-//! let moves: Vec<_> = selector.iter_moves(&director).collect();
-//! assert!(!moves.is_empty());
-//! ```
+/* Ruin move selector for Large Neighborhood Search.
+
+Generates `RuinMove` instances that unassign subsets of entities,
+enabling exploration of distant regions in the solution space.
+
+# Zero-Erasure Design
+
+Uses `fn` pointers for variable access and entity counting.
+No `Arc<dyn Fn>`, no trait objects in hot paths.
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::{MoveSelector, RuinMoveSelector};
+use solverforge_solver::heuristic::r#move::RuinMove;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+use solverforge_scoring::{Director, ScoreDirector};
+use solverforge_core::domain::SolutionDescriptor;
+use std::any::TypeId;
+
+#[derive(Clone, Debug)]
+struct Task { assigned_to: Option<i32> }
+
+#[derive(Clone, Debug)]
+struct Schedule { tasks: Vec<Task>, score: Option<SoftScore> }
+
+impl PlanningSolution for Schedule {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn entity_count(s: &Schedule) -> usize { s.tasks.len() }
+fn get_task(s: &Schedule, idx: usize) -> Option<i32> {
+s.tasks.get(idx).and_then(|t| t.assigned_to)
+}
+fn set_task(s: &mut Schedule, idx: usize, v: Option<i32>) {
+if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
+}
+
+// Create selector that ruins 2-3 entities at a time
+let selector = RuinMoveSelector::<Schedule, i32>::new(
+2, 3,
+entity_count,
+get_task, set_task,
+"assigned_to", 0,
+);
+
+// Use with a score director
+let solution = Schedule {
+tasks: vec![
+Task { assigned_to: Some(1) },
+Task { assigned_to: Some(2) },
+Task { assigned_to: Some(3) },
+],
+score: None,
+};
+let descriptor = SolutionDescriptor::new("Schedule", TypeId::of::<Schedule>());
+let director = ScoreDirector::simple(
+solution, descriptor, |s, _| s.tasks.len()
+);
+
+let moves: Vec<_> = selector.iter_moves(&director).collect();
+assert!(!moves.is_empty());
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -94,23 +95,23 @@ use super::MoveSelector;
 /// - `setter: fn(&mut S, usize, Option<V>)` - sets value
 /// - `entity_count: fn(&S) -> usize` - counts entities
 pub struct RuinMoveSelector<S, V> {
-    /// Minimum entities to include in each ruin move.
+    // Minimum entities to include in each ruin move.
     min_ruin_count: usize,
-    /// Maximum entities to include in each ruin move.
+    // Maximum entities to include in each ruin move.
     max_ruin_count: usize,
-    /// Random seed for reproducible subset selection.
+    // Random seed for reproducible subset selection.
     seed: Option<u64>,
-    /// Function to get entity count from solution.
+    // Function to get entity count from solution.
     entity_count: fn(&S) -> usize,
-    /// Function to get current value.
+    // Function to get current value.
     getter: fn(&S, usize) -> Option<V>,
-    /// Function to set value.
+    // Function to set value.
     setter: fn(&mut S, usize, Option<V>),
-    /// Variable name.
+    // Variable name.
     variable_name: &'static str,
-    /// Entity descriptor index.
+    // Entity descriptor index.
     descriptor_index: usize,
-    /// Number of ruin moves to generate per iteration.
+    // Number of ruin moves to generate per iteration.
     moves_per_step: usize,
     _phantom: PhantomData<fn() -> V>,
 }
@@ -178,13 +179,11 @@ impl<S, V> RuinMoveSelector<S, V> {
         self
     }
 
-    /// Sets the random seed for reproducible subset selection.
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = Some(seed);
         self
     }
 
-    /// Creates a random number generator.
     fn create_rng(&self) -> StdRng {
         match self.seed {
             Some(seed) => StdRng::seed_from_u64(seed),

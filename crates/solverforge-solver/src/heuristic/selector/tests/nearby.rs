@@ -1,4 +1,4 @@
-//! Tests for nearby entity selector.
+// Tests for nearby entity selector.
 
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use crate::heuristic::selector::mimic::{MimicRecorder, MimicRecordingEntitySelector};
@@ -46,10 +46,10 @@ fn get_locations_mut(s: &mut RoutingSolution) -> &mut Vec<Location> {
     &mut s.locations
 }
 
-/// Distance meter that uses Euclidean distance.
+// Distance meter that uses Euclidean distance.
 #[derive(Debug)]
 struct EuclideanDistanceMeter {
-    /// Cached locations for quick lookup.
+    // Cached locations for quick lookup.
     locations: Vec<(f64, f64)>,
 }
 

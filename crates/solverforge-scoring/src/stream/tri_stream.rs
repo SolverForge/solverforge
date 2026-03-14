@@ -1,43 +1,44 @@
-// Zero-erasure tri-constraint stream for three-entity constraint patterns.
-//
-// A `TriConstraintStream` operates on triples of entities and supports
-// filtering, weighting, and constraint finalization. All type information
-// is preserved at compile time - no Arc, no dyn.
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::stream::ConstraintFactory;
-// use solverforge_scoring::stream::joiner::equal;
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-// struct Task { team: u32 }
-//
-// #[derive(Clone)]
-// struct Solution { tasks: Vec<Task> }
-//
-// // Penalize when three tasks are on the same team
-// let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-//     .for_each(|s: &Solution| s.tasks.as_slice())
-//     .join(equal(|t: &Task| t.team))
-//     .join(equal(|t: &Task| t.team))
-//     .penalize(SoftScore::of(1))
-//     .named("Team clustering");
-//
-// let solution = Solution {
-//     tasks: vec![
-//         Task { team: 1 },
-//         Task { team: 1 },
-//         Task { team: 1 },
-//         Task { team: 2 },
-//     ],
-// };
-//
-// // One triple on team 1: (0, 1, 2) = -1 penalty
-// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-// ```
+/* Zero-erasure tri-constraint stream for three-entity constraint patterns.
+
+A `TriConstraintStream` operates on triples of entities and supports
+filtering, weighting, and constraint finalization. All type information
+is preserved at compile time - no Arc, no dyn.
+
+# Example
+
+```
+use solverforge_scoring::stream::ConstraintFactory;
+use solverforge_scoring::stream::joiner::equal;
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+struct Task { team: u32 }
+
+#[derive(Clone)]
+struct Solution { tasks: Vec<Task> }
+
+// Penalize when three tasks are on the same team
+let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+.for_each(|s: &Solution| s.tasks.as_slice())
+.join(equal(|t: &Task| t.team))
+.join(equal(|t: &Task| t.team))
+.penalize(SoftScore::of(1))
+.named("Team clustering");
+
+let solution = Solution {
+tasks: vec![
+Task { team: 1 },
+Task { team: 1 },
+Task { team: 1 },
+Task { team: 2 },
+],
+};
+
+// One triple on team 1: (0, 1, 2) = -1 penalty
+assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+```
+*/
 
 use std::hash::Hash;
 
@@ -68,44 +69,45 @@ where
     F: TriFilter<S, A, A, A>,
     Sc: Score + 'static,
 {
-    // Joins this stream with a fourth element to create quadruples.
-    //
-    // # Example
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Task { team: u32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { tasks: Vec<Task> }
-    //
-    // // Penalize when four tasks are on the same team
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join(equal(|t: &Task| t.team))
-    //     .join(equal(|t: &Task| t.team))
-    //     .join(equal(|t: &Task| t.team))
-    //     .penalize(SoftScore::of(1))
-    //     .named("Team clustering");
-    //
-    // let solution = Solution {
-    //     tasks: vec![
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 1 },
-    //         Task { team: 2 },
-    //     ],
-    // };
-    //
-    // // One quadruple on team 1: (0, 1, 2, 3) = -1 penalty
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-    // ```
+    /* Joins this stream with a fourth element to create quadruples.
+
+    # Example
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Task { team: u32 }
+
+    #[derive(Clone)]
+    struct Solution { tasks: Vec<Task> }
+
+    // Penalize when four tasks are on the same team
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.tasks.as_slice())
+    .join(equal(|t: &Task| t.team))
+    .join(equal(|t: &Task| t.team))
+    .join(equal(|t: &Task| t.team))
+    .penalize(SoftScore::of(1))
+    .named("Team clustering");
+
+    let solution = Solution {
+    tasks: vec![
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 1 },
+    Task { team: 2 },
+    ],
+    };
+
+    // One quadruple on team 1: (0, 1, 2, 3) = -1 penalty
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+    ```
+    */
     pub fn join<J>(
         self,
         joiner: J,
@@ -131,162 +133,163 @@ where
 
 #[cfg(doctest)]
 mod doctests {
-    // # Filter method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Item { group: u32, value: i32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { items: Vec<Item> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join(equal(|i: &Item| i.group))
-    //     .join(equal(|i: &Item| i.group))
-    //     .filter(|a: &Item, b: &Item, c: &Item| a.value + b.value + c.value > 10)
-    //     .penalize(SoftScore::of(1))
-    //     .named("High sum triples");
-    //
-    // let solution = Solution {
-    //     items: vec![
-    //         Item { group: 1, value: 3 },
-    //         Item { group: 1, value: 4 },
-    //         Item { group: 1, value: 5 },
-    //     ],
-    // };
-    //
-    // // 3+4+5=12 > 10, matches
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-    // ```
-    //
-    // # Penalize method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Task { priority: u32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { tasks: Vec<Task> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join(equal(|t: &Task| t.priority))
-    //     .join(equal(|t: &Task| t.priority))
-    //     .penalize(SoftScore::of(5))
-    //     .named("Triple priority conflict");
-    //
-    // let solution = Solution {
-    //     tasks: vec![
-    //         Task { priority: 1 },
-    //         Task { priority: 1 },
-    //         Task { priority: 1 },
-    //     ],
-    // };
-    //
-    // // One triple = -5
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
-    // ```
-    //
-    // # Penalize with dynamic weight
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Task { team: u32, cost: i64 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { tasks: Vec<Task> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join(equal(|t: &Task| t.team))
-    //     .join(equal(|t: &Task| t.team))
-    //     .penalize_with(|a: &Task, b: &Task, c: &Task| {
-    //         SoftScore::of(a.cost + b.cost + c.cost)
-    //     })
-    //     .named("Team cost");
-    //
-    // let solution = Solution {
-    //     tasks: vec![
-    //         Task { team: 1, cost: 2 },
-    //         Task { team: 1, cost: 3 },
-    //         Task { team: 1, cost: 5 },
-    //     ],
-    // };
-    //
-    // // Penalty: 2+3+5 = -10
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
-    // ```
-    //
-    // # Reward method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Person { team: u32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { people: Vec<Person> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.people.as_slice())
-    //     .join(equal(|p: &Person| p.team))
-    //     .join(equal(|p: &Person| p.team))
-    //     .reward(SoftScore::of(10))
-    //     .named("Team synergy");
-    //
-    // let solution = Solution {
-    //     people: vec![
-    //         Person { team: 1 },
-    //         Person { team: 1 },
-    //         Person { team: 1 },
-    //     ],
-    // };
-    //
-    // // One triple = +10
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(10));
-    // ```
-    //
-    // # named method
-    //
-    // ```
-    // use solverforge_scoring::stream::ConstraintFactory;
-    // use solverforge_scoring::stream::joiner::equal;
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Item { id: usize }
-    //
-    // #[derive(Clone)]
-    // struct Solution { items: Vec<Item> }
-    //
-    // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join(equal(|i: &Item| i.id))
-    //     .join(equal(|i: &Item| i.id))
-    //     .penalize(SoftScore::of(1))
-    //     .named("Triple items");
-    //
-    // assert_eq!(constraint.name(), "Triple items");
-    // ```
+    /* # Filter method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Item { group: u32, value: i32 }
+
+    #[derive(Clone)]
+    struct Solution { items: Vec<Item> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.items.as_slice())
+    .join(equal(|i: &Item| i.group))
+    .join(equal(|i: &Item| i.group))
+    .filter(|a: &Item, b: &Item, c: &Item| a.value + b.value + c.value > 10)
+    .penalize(SoftScore::of(1))
+    .named("High sum triples");
+
+    let solution = Solution {
+    items: vec![
+    Item { group: 1, value: 3 },
+    Item { group: 1, value: 4 },
+    Item { group: 1, value: 5 },
+    ],
+    };
+
+    // 3+4+5=12 > 10, matches
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+    ```
+
+    # Penalize method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Task { priority: u32 }
+
+    #[derive(Clone)]
+    struct Solution { tasks: Vec<Task> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.tasks.as_slice())
+    .join(equal(|t: &Task| t.priority))
+    .join(equal(|t: &Task| t.priority))
+    .penalize(SoftScore::of(5))
+    .named("Triple priority conflict");
+
+    let solution = Solution {
+    tasks: vec![
+    Task { priority: 1 },
+    Task { priority: 1 },
+    Task { priority: 1 },
+    ],
+    };
+
+    // One triple = -5
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
+    ```
+
+    # Penalize with dynamic weight
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Task { team: u32, cost: i64 }
+
+    #[derive(Clone)]
+    struct Solution { tasks: Vec<Task> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.tasks.as_slice())
+    .join(equal(|t: &Task| t.team))
+    .join(equal(|t: &Task| t.team))
+    .penalize_with(|a: &Task, b: &Task, c: &Task| {
+    SoftScore::of(a.cost + b.cost + c.cost)
+    })
+    .named("Team cost");
+
+    let solution = Solution {
+    tasks: vec![
+    Task { team: 1, cost: 2 },
+    Task { team: 1, cost: 3 },
+    Task { team: 1, cost: 5 },
+    ],
+    };
+
+    // Penalty: 2+3+5 = -10
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
+    ```
+
+    # Reward method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Person { team: u32 }
+
+    #[derive(Clone)]
+    struct Solution { people: Vec<Person> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.people.as_slice())
+    .join(equal(|p: &Person| p.team))
+    .join(equal(|p: &Person| p.team))
+    .reward(SoftScore::of(10))
+    .named("Team synergy");
+
+    let solution = Solution {
+    people: vec![
+    Person { team: 1 },
+    Person { team: 1 },
+    Person { team: 1 },
+    ],
+    };
+
+    // One triple = +10
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(10));
+    ```
+
+    # named method
+
+    ```
+    use solverforge_scoring::stream::ConstraintFactory;
+    use solverforge_scoring::stream::joiner::equal;
+    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    struct Item { id: usize }
+
+    #[derive(Clone)]
+    struct Solution { items: Vec<Item> }
+
+    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    .for_each(|s: &Solution| s.items.as_slice())
+    .join(equal(|i: &Item| i.id))
+    .join(equal(|i: &Item| i.id))
+    .penalize(SoftScore::of(1))
+    .named("Triple items");
+
+    assert_eq!(constraint.name(), "Triple items");
+    ```
+    */
 }

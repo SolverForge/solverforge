@@ -1,4 +1,4 @@
-//! Tests for constraint types
+// Tests for constraint types
 
 use super::constraint::*;
 

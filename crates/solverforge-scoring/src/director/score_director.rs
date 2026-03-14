@@ -1,7 +1,8 @@
-// Typed score director for zero-erasure incremental scoring.
-//
-// This module provides `ScoreDirector` that uses monomorphized
-// constraint sets instead of trait-object-based scoring.
+/* Typed score director for zero-erasure incremental scoring.
+
+This module provides `ScoreDirector` that uses monomorphized
+constraint sets instead of trait-object-based scoring.
+*/
 
 use std::marker::PhantomData;
 
@@ -11,61 +12,62 @@ use solverforge_core::score::Score;
 use crate::api::constraint_set::ConstraintSet;
 use crate::director::Director;
 
-// A typed score director for zero-erasure incremental scoring.
-//
-// Unlike `IncrementalDirector` which uses BAVET session with trait objects,
-// this director uses a fully typed `ConstraintSet` where all constraint types
-// are known at compile time, enabling complete monomorphization.
-//
-// # Type Parameters
-//
-// - `S`: The solution type (must implement `PlanningSolution`)
-// - `C`: The constraint set type (tuple of typed constraints)
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::director::score_director::ScoreDirector;
-// use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-// use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
-// use solverforge_core::domain::PlanningSolution;
-// use solverforge_core::{ConstraintRef, ImpactType};
-// use solverforge_core::score::SoftScore;
-//
-// #[derive(Clone)]
-// struct Solution {
-//     values: Vec<Option<i32>>,
-//     score: Option<SoftScore>,
-// }
-//
-// impl PlanningSolution for Solution {
-//     type Score = SoftScore;
-//     fn score(&self) -> Option<Self::Score> { self.score }
-//     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-// }
-//
-// // Create zero-erasure constraint (all closures as generics)
-// let c1 = IncrementalUniConstraint::new(
-//     ConstraintRef::new("", "Unassigned"),
-//     ImpactType::Penalty,
-//     |s: &Solution| s.values.as_slice(),
-//     |_s: &Solution, v: &Option<i32>| v.is_none(),
-//     |_: &Option<i32>| SoftScore::of(1),
-//     false,
-// );
-//
-// // Create typed director with tuple-based constraint set
-// let solution = Solution { values: vec![Some(1), None, Some(2)], score: None };
-// let mut director = ScoreDirector::new(solution, (c1,));
-//
-// // First calculation evaluates all constraints
-// let score = director.calculate_score();
-// assert_eq!(score, SoftScore::of(-1)); // One unassigned
-//
-// // Subsequent calculations are O(1) - return cached score
-// let score2 = director.calculate_score();
-// assert_eq!(score, score2);
-// ```
+/* A typed score director for zero-erasure incremental scoring.
+
+Unlike `IncrementalDirector` which uses BAVET session with trait objects,
+this director uses a fully typed `ConstraintSet` where all constraint types
+are known at compile time, enabling complete monomorphization.
+
+# Type Parameters
+
+- `S`: The solution type (must implement `PlanningSolution`)
+- `C`: The constraint set type (tuple of typed constraints)
+
+# Example
+
+```
+use solverforge_scoring::director::score_director::ScoreDirector;
+use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone)]
+struct Solution {
+values: Vec<Option<i32>>,
+score: Option<SoftScore>,
+}
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+// Create zero-erasure constraint (all closures as generics)
+let c1 = IncrementalUniConstraint::new(
+ConstraintRef::new("", "Unassigned"),
+ImpactType::Penalty,
+|s: &Solution| s.values.as_slice(),
+|_s: &Solution, v: &Option<i32>| v.is_none(),
+|_: &Option<i32>| SoftScore::of(1),
+false,
+);
+
+// Create typed director with tuple-based constraint set
+let solution = Solution { values: vec![Some(1), None, Some(2)], score: None };
+let mut director = ScoreDirector::new(solution, (c1,));
+
+// First calculation evaluates all constraints
+let score = director.calculate_score();
+assert_eq!(score, SoftScore::of(-1)); // One unassigned
+
+// Subsequent calculations are O(1) - return cached score
+let score2 = director.calculate_score();
+assert_eq!(score, score2);
+```
+*/
 pub struct ScoreDirector<S, C>
 where
     S: PlanningSolution,
@@ -81,11 +83,12 @@ where
     initialized: bool,
     // Solution descriptor for trait interface compatibility.
     solution_descriptor: SolutionDescriptor,
-    // Typed entity counter function.
-    //
-    // Returns the number of entities for the given descriptor index.
-    // This is a typed function pointer that preserves full type information
-    // throughout the solver pipeline.
+    /* Typed entity counter function.
+
+    Returns the number of entities for the given descriptor index.
+    This is a typed function pointer that preserves full type information
+    throughout the solver pipeline.
+    */
     entity_counter: fn(&S, usize) -> usize,
     // Phantom for score type.
     _phantom: PhantomData<fn() -> S>,
@@ -97,12 +100,13 @@ where
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    // Creates a new typed score director with an empty descriptor.
-    //
-    // Use this for manual solver loops that don't need the `Director` trait.
-    // For full solver infrastructure integration, use `with_descriptor()`.
-    //
-    // The constraints should be a tuple of typed constraints (e.g., `(C1, C2, C3)`).
+    /* Creates a new typed score director with an empty descriptor.
+
+    Use this for manual solver loops that don't need the `Director` trait.
+    For full solver infrastructure integration, use `with_descriptor()`.
+
+    The constraints should be a tuple of typed constraints (e.g., `(C1, C2, C3)`).
+    */
     pub fn new(solution: S, constraints: C) -> Self {
         use std::any::TypeId;
         Self::with_descriptor(
@@ -113,17 +117,18 @@ where
         )
     }
 
-    // Creates a new typed score director with a solution descriptor.
-    //
-    // This constructor enables the `Director` trait implementation for
-    // integration with the full solver infrastructure (phases, move selectors, etc.).
-    //
-    // # Arguments
-    //
-    // * `solution` - The initial solution
-    // * `constraints` - Tuple of typed constraints (e.g., `(C1, C2, C3)`)
-    // * `solution_descriptor` - Metadata for solver infrastructure
-    // * `entity_counter` - Typed function returning entity count for descriptor index
+    /* Creates a new typed score director with a solution descriptor.
+
+    This constructor enables the `Director` trait implementation for
+    integration with the full solver infrastructure (phases, move selectors, etc.).
+
+    # Arguments
+
+    * `solution` - The initial solution
+    * `constraints` - Tuple of typed constraints (e.g., `(C1, C2, C3)`)
+    * `solution_descriptor` - Metadata for solver infrastructure
+    * `entity_counter` - Typed function returning entity count for descriptor index
+    */
     pub fn with_descriptor(
         solution: S,
         constraints: C,
@@ -141,9 +146,10 @@ where
         }
     }
 
-    // =========================================================================
-    // Private implementation methods (shared between inherent and trait impl)
-    // =========================================================================
+    /* =========================================================================
+    Private implementation methods (shared between inherent and trait impl)
+    =========================================================================
+    */
 
     fn calculate_score_impl(&mut self) -> S::Score {
         if !self.initialized {
@@ -186,19 +192,21 @@ where
         cloned
     }
 
-    // =========================================================================
-    // Public API
-    // =========================================================================
+    /* =========================================================================
+    Public API
+    =========================================================================
+    */
 
     // Returns a reference to the working solution.
     pub fn working_solution(&self) -> &S {
         &self.working_solution
     }
 
-    // Returns a mutable reference to the working solution.
-    //
-    // Note: After modifying the solution directly, you must call
-    // `reset()` to recalculate the score from scratch.
+    /* Returns a mutable reference to the working solution.
+
+    Note: After modifying the solution directly, you must call
+    `reset()` to recalculate the score from scratch.
+    */
     pub fn working_solution_mut(&mut self) -> &mut S {
         &mut self.working_solution
     }
@@ -209,53 +217,57 @@ where
         self.working_solution
     }
 
-    // Calculates and returns the current score.
-    //
-    // On first call, initializes all constraints (O(n) for uni, O(n²) for bi).
-    // Subsequent calls return the cached score (O(1)).
-    //
-    // Also sets the score on the working solution to keep it in sync.
+    /* Calculates and returns the current score.
+
+    On first call, initializes all constraints (O(n) for uni, O(n²) for bi).
+    Subsequent calls return the cached score (O(1)).
+
+    Also sets the score on the working solution to keep it in sync.
+    */
     pub fn calculate_score(&mut self) -> S::Score {
         self.calculate_score_impl()
     }
 
-    // Called before changing an entity's variable.
-    //
-    // This retracts the entity from all constraints, computing the delta
-    // that will be applied when the change completes.
-    //
-    // # Arguments
-    //
-    // * `descriptor_index` - Index of the entity descriptor (entity class)
-    // * `entity_index` - Index of the entity being changed
+    /* Called before changing an entity's variable.
+
+    This retracts the entity from all constraints, computing the delta
+    that will be applied when the change completes.
+
+    # Arguments
+
+    * `descriptor_index` - Index of the entity descriptor (entity class)
+    * `entity_index` - Index of the entity being changed
+    */
     #[inline]
     pub fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.before_variable_changed_impl(descriptor_index, entity_index);
     }
 
-    // Called after changing an entity's variable.
-    //
-    // This inserts the entity (with new state) into all constraints,
-    // computing the delta and updating the cached score.
-    //
-    // # Arguments
-    //
-    // * `descriptor_index` - Index of the entity descriptor (entity class)
-    // * `entity_index` - Index of the entity that was changed
+    /* Called after changing an entity's variable.
+
+    This inserts the entity (with new state) into all constraints,
+    computing the delta and updating the cached score.
+
+    # Arguments
+
+    * `descriptor_index` - Index of the entity descriptor (entity class)
+    * `entity_index` - Index of the entity that was changed
+    */
     #[inline]
     pub fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.after_variable_changed_impl(descriptor_index, entity_index);
     }
 
-    // Called after changing an entity's variable, with shadow update.
-    //
-    // Updates shadow variables for the entity FIRST, then inserts into
-    // constraints. This ensures constraints see the updated shadow state.
-    //
-    // # Arguments
-    //
-    // * `descriptor_index` - Index of the entity descriptor (entity class)
-    // * `entity_index` - Index of the entity that was changed
+    /* Called after changing an entity's variable, with shadow update.
+
+    Updates shadow variables for the entity FIRST, then inserts into
+    constraints. This ensures constraints see the updated shadow state.
+
+    # Arguments
+
+    * `descriptor_index` - Index of the entity descriptor (entity class)
+    * `entity_index` - Index of the entity that was changed
+    */
     #[inline]
     pub fn after_variable_changed_with_shadows(
         &mut self,
@@ -277,18 +289,19 @@ where
         self.cached_score = self.cached_score + delta;
     }
 
-    // Convenience method for a complete variable change cycle.
-    //
-    // Equivalent to:
-    // 1. `before_variable_changed(descriptor_index, entity_index)`
-    // 2. Apply the change via `change_fn`
-    // 3. `after_variable_changed(descriptor_index, entity_index)`
-    //
-    // # Arguments
-    //
-    // * `descriptor_index` - Index of the entity descriptor (entity class)
-    // * `entity_index` - Index of the entity being changed
-    // * `change_fn` - Closure that applies the change to the solution
+    /* Convenience method for a complete variable change cycle.
+
+    Equivalent to:
+    1. `before_variable_changed(descriptor_index, entity_index)`
+    2. Apply the change via `change_fn`
+    3. `after_variable_changed(descriptor_index, entity_index)`
+
+    # Arguments
+
+    * `descriptor_index` - Index of the entity descriptor (entity class)
+    * `entity_index` - Index of the entity being changed
+    * `change_fn` - Closure that applies the change to the solution
+    */
     #[inline]
     pub fn do_change<F>(
         &mut self,
@@ -305,19 +318,20 @@ where
         self.cached_score
     }
 
-    // Variable change cycle with automatic shadow updates.
-    //
-    // Equivalent to:
-    // 1. `before_variable_changed(descriptor_index, entity_index)`
-    // 2. Apply the change via `change_fn`
-    // 3. Update shadow variables for entity
-    // 4. Insert into constraints
-    //
-    // # Arguments
-    //
-    // * `descriptor_index` - Index of the entity descriptor (entity class)
-    // * `entity_index` - Index of the entity being changed
-    // * `change_fn` - Closure that applies the change to the solution
+    /* Variable change cycle with automatic shadow updates.
+
+    Equivalent to:
+    1. `before_variable_changed(descriptor_index, entity_index)`
+    2. Apply the change via `change_fn`
+    3. Update shadow variables for entity
+    4. Insert into constraints
+
+    # Arguments
+
+    * `descriptor_index` - Index of the entity descriptor (entity class)
+    * `entity_index` - Index of the entity being changed
+    * `change_fn` - Closure that applies the change to the solution
+    */
     #[inline]
     pub fn do_change_with_shadows<F>(
         &mut self,
@@ -335,25 +349,28 @@ where
         self.cached_score
     }
 
-    // Returns the cached score without recalculation.
-    //
-    // Returns zero score if not yet initialized.
+    /* Returns the cached score without recalculation.
+
+    Returns zero score if not yet initialized.
+    */
     #[inline]
     pub fn get_score(&self) -> S::Score {
         self.cached_score
     }
 
-    // Resets the director state.
-    //
-    // Call this after major solution changes that bypass the
-    // before/after_variable_changed protocol.
+    /* Resets the director state.
+
+    Call this after major solution changes that bypass the
+    before/after_variable_changed protocol.
+    */
     pub fn reset(&mut self) {
         self.reset_impl();
     }
 
-    // Clones the working solution.
-    //
-    // The cloned solution includes the current cached score.
+    /* Clones the working solution.
+
+    The cloned solution includes the current cached score.
+    */
     pub fn clone_working_solution(&self) -> S {
         self.clone_working_solution_impl()
     }
@@ -378,9 +395,10 @@ where
         self.initialized
     }
 
-    // Returns constraint match totals for score analysis.
-    //
-    // Returns a vector of (name, weight, score, match_count) tuples.
+    /* Returns constraint match totals for score analysis.
+
+    Returns a vector of (name, weight, score, match_count) tuples.
+    */
     pub fn constraint_match_totals(&self) -> Vec<(String, S::Score, S::Score, usize)> {
         self.constraints
             .evaluate_each(&self.working_solution)
@@ -397,34 +415,35 @@ where
             .collect()
     }
 
-    // Consumes the director and returns the working solution.
-    //
-    // Use this to extract the final solution after solving.
-    //
-    // # Examples
-    //
-    // ```
-    // use solverforge_scoring::director::score_director::ScoreDirector;
-    // use solverforge_core::domain::PlanningSolution;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone)]
-    // struct Solution {
-    //     values: Vec<i32>,
-    //     score: Option<SoftScore>,
-    // }
-    //
-    // impl PlanningSolution for Solution {
-    //     type Score = SoftScore;
-    //     fn score(&self) -> Option<Self::Score> { self.score }
-    //     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    // }
-    //
-    // let solution = Solution { values: vec![1, 2, 3], score: None };
-    // let director = ScoreDirector::new(solution, ());
-    // let result = director.take_solution();
-    // assert_eq!(result.values, vec![1, 2, 3]);
-    // ```
+    /* Consumes the director and returns the working solution.
+
+    Use this to extract the final solution after solving.
+
+    # Examples
+
+    ```
+    use solverforge_scoring::director::score_director::ScoreDirector;
+    use solverforge_core::domain::PlanningSolution;
+    use solverforge_core::score::SoftScore;
+
+    #[derive(Clone)]
+    struct Solution {
+    values: Vec<i32>,
+    score: Option<SoftScore>,
+    }
+
+    impl PlanningSolution for Solution {
+    type Score = SoftScore;
+    fn score(&self) -> Option<Self::Score> { self.score }
+    fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+    }
+
+    let solution = Solution { values: vec![1, 2, 3], score: None };
+    let director = ScoreDirector::new(solution, ());
+    let result = director.take_solution();
+    assert_eq!(result.values, vec![1, 2, 3]);
+    ```
+    */
     pub fn take_solution(self) -> S {
         self.working_solution
     }
@@ -435,16 +454,17 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
-    // Creates a non-incremental director for use in tests and simple scenarios.
-    //
-    // Uses an empty constraint set — `calculate_score()` always returns zero.
-    // For tests that set score directly on the solution, this is sufficient.
-    //
-    // # Arguments
-    //
-    // * `solution` - The initial solution
-    // * `descriptor` - Solution descriptor for solver infrastructure
-    // * `entity_counter` - Function returning entity count for descriptor index
+    /* Creates a non-incremental director for use in tests and simple scenarios.
+
+    Uses an empty constraint set — `calculate_score()` always returns zero.
+    For tests that set score directly on the solution, this is sufficient.
+
+    # Arguments
+
+    * `solution` - The initial solution
+    * `descriptor` - Solution descriptor for solver infrastructure
+    * `entity_counter` - Function returning entity count for descriptor index
+    */
     pub fn simple(
         solution: S,
         descriptor: SolutionDescriptor,
@@ -453,9 +473,10 @@ where
         Self::with_descriptor(solution, (), descriptor, entity_counter)
     }
 
-    // Creates a non-incremental director with empty descriptor and zero entity counter.
-    //
-    // Use this for tests that don't need descriptor metadata or entity counts.
+    /* Creates a non-incremental director with empty descriptor and zero entity counter.
+
+    Use this for tests that don't need descriptor metadata or entity counts.
+    */
     pub fn simple_zero(solution: S) -> Self {
         use std::any::TypeId;
         Self::with_descriptor(

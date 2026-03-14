@@ -1,12 +1,13 @@
-//! ChangeMove - assigns a value to a planning variable.
-//!
-//! This is the most fundamental move type. It takes a value and assigns
-//! it to a planning variable on an entity.
-//!
-//! # Zero-Erasure Design
-//!
-//! This move stores typed function pointers that operate directly on
-//! the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
+/* ChangeMove - assigns a value to a planning variable.
+
+This is the most fundamental move type. It takes a value and assigns
+it to a planning variable on an entity.
+
+# Zero-Erasure Design
+
+This move stores typed function pointers that operate directly on
+the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
+*/
 
 use std::fmt::Debug;
 
@@ -86,22 +87,18 @@ impl<S, V> ChangeMove<S, V> {
         }
     }
 
-    /// Returns the entity index.
     pub fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    /// Returns the target value.
     pub fn to_value(&self) -> Option<&V> {
         self.to_value.as_ref()
     }
 
-    /// Returns the getter function pointer.
     pub fn getter(&self) -> fn(&S, usize) -> Option<V> {
         self.getter
     }
 
-    /// Returns the setter function pointer.
     pub fn setter(&self) -> fn(&mut S, usize, Option<V>) {
         self.setter
     }

@@ -1,8 +1,9 @@
-// Performance comparison: full recalc vs incremental scoring.
-//
-// This module demonstrates the performance difference between:
-// - Full recalculation on every move (O(n) or O(n²) per move)
-// - Incremental delta scoring (O(affected entities) per move)
+/* Performance comparison: full recalc vs incremental scoring.
+
+This module demonstrates the performance difference between:
+- Full recalculation on every move (O(n) or O(n²) per move)
+- Incremental delta scoring (O(affected entities) per move)
+*/
 
 #[cfg(test)]
 mod benchmarks {
@@ -14,9 +15,10 @@ mod benchmarks {
     use solverforge_core::{ConstraintRef, ImpactType};
     use std::time::Instant;
 
-    // ========================================================================
-    // Test domain: Simplified employee scheduling
-    // ========================================================================
+    /* ========================================================================
+    Test domain: Simplified employee scheduling
+    ========================================================================
+    */
 
     #[derive(Clone, Debug, Hash, PartialEq, Eq)]
     struct Shift {
@@ -48,7 +50,7 @@ mod benchmarks {
         s.shifts.as_slice()
     }
 
-    /// Full recalculation scoring function (for comparison).
+    // Full recalculation scoring function (for comparison).
     fn calculate_full(schedule: &Schedule) -> SoftScore {
         let shifts = &schedule.shifts;
         let mut penalty = 0i64;
@@ -78,7 +80,6 @@ mod benchmarks {
         SoftScore::of(-penalty)
     }
 
-    /// Creates a schedule with n shifts, all assigned to the same employee.
     fn create_schedule(n: usize) -> Schedule {
         let shifts: Vec<_> = (0..n)
             .map(|i| Shift {
@@ -95,9 +96,10 @@ mod benchmarks {
         }
     }
 
-    // ========================================================================
-    // Benchmark: Full recalculation
-    // ========================================================================
+    /* ========================================================================
+    Benchmark: Full recalculation
+    ========================================================================
+    */
 
     #[test]
     fn bench_full_recalc_moves() {
@@ -133,9 +135,10 @@ mod benchmarks {
         assert!(moves_per_sec > 0.0);
     }
 
-    // ========================================================================
-    // Benchmark: Incremental scoring
-    // ========================================================================
+    /* ========================================================================
+    Benchmark: Incremental scoring
+    ========================================================================
+    */
 
     #[test]
     fn bench_incremental_moves() {
@@ -212,9 +215,10 @@ mod benchmarks {
         assert!(moves_per_sec > 0.0);
     }
 
-    // ========================================================================
-    // Benchmark: Compare speedup
-    // ========================================================================
+    /* ========================================================================
+    Benchmark: Compare speedup
+    ========================================================================
+    */
 
     #[test]
     fn bench_compare_approaches() {

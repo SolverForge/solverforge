@@ -1,48 +1,49 @@
-//! List change move selector for element relocation.
-//!
-//! Generates `ListChangeMove`s that relocate elements within or between list variables.
-//! Essential for vehicle routing and scheduling problems.
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::selector::list_change::ListChangeMoveSelector;
-//! use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-//! use solverforge_solver::heuristic::selector::MoveSelector;
-//! use solverforge_core::domain::PlanningSolution;
-//! use solverforge_core::score::SoftScore;
-//!
-//! #[derive(Clone, Debug)]
-//! struct Vehicle { visits: Vec<i32> }
-//!
-//! #[derive(Clone, Debug)]
-//! struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-//!
-//! impl PlanningSolution for Solution {
-//!     type Score = SoftScore;
-//!     fn score(&self) -> Option<Self::Score> { self.score }
-//!     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-//! }
-//!
-//! fn list_len(s: &Solution, entity_idx: usize) -> usize {
-//!     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-//! }
-//! fn list_remove(s: &mut Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-//!     s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
-//! }
-//! fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
-//!     if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
-//! }
-//!
-//! let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
-//!     FromSolutionEntitySelector::new(0),
-//!     list_len,
-//!     list_remove,
-//!     list_insert,
-//!     "visits",
-//!     0,
-//! );
-//! ```
+/* List change move selector for element relocation.
+
+Generates `ListChangeMove`s that relocate elements within or between list variables.
+Essential for vehicle routing and scheduling problems.
+
+# Example
+
+```
+use solverforge_solver::heuristic::selector::list_change::ListChangeMoveSelector;
+use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
+use solverforge_solver::heuristic::selector::MoveSelector;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
+
+#[derive(Clone, Debug)]
+struct Vehicle { visits: Vec<i32> }
+
+#[derive(Clone, Debug)]
+struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
+
+impl PlanningSolution for Solution {
+type Score = SoftScore;
+fn score(&self) -> Option<Self::Score> { self.score }
+fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
+}
+
+fn list_len(s: &Solution, entity_idx: usize) -> usize {
+s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+}
+fn list_remove(s: &mut Solution, entity_idx: usize, pos: usize) -> Option<i32> {
+s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
+}
+fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
+if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
+}
+
+let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
+FromSolutionEntitySelector::new(0),
+list_len,
+list_remove,
+list_insert,
+"visits",
+0,
+);
+```
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -73,17 +74,16 @@ use super::typed_move_selector::MoveSelector;
 ///
 /// Use with a forager that quits early for better performance.
 pub struct ListChangeMoveSelector<S, V, ES> {
-    /// Selects entities (vehicles) for moves.
+    // Selects entities (vehicles) for moves.
     entity_selector: ES,
-    /// Get list length for an entity.
     list_len: fn(&S, usize) -> usize,
-    /// Remove element at position.
+    // Remove element at position.
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    /// Insert element at position.
+    // Insert element at position.
     list_insert: fn(&mut S, usize, usize, V),
-    /// Variable name for notifications.
+    // Variable name for notifications.
     variable_name: &'static str,
-    /// Entity descriptor index.
+    // Entity descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
@@ -167,9 +167,10 @@ where
             for src_pos in 0..src_len {
                 // Intra-entity moves
                 for dst_pos in 0..src_len {
-                    // Skip no-op moves:
-                    // - Same position is obviously a no-op
-                    // - Forward by 1 is a no-op due to index adjustment during do_move
+                    /* Skip no-op moves:
+                    - Same position is obviously a no-op
+                    - Forward by 1 is a no-op due to index adjustment during do_move
+                    */
                     if src_pos == dst_pos || dst_pos == src_pos + 1 {
                         continue;
                     }
@@ -228,9 +229,10 @@ where
         let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
         let total_elements: usize = route_lens.iter().sum();
 
-        // Approximate: each element can move to any position in any entity
-        // Intra: ~m positions per entity
-        // Inter: ~(n-1) * m positions
+        /* Approximate: each element can move to any position in any entity
+        Intra: ~m positions per entity
+        Inter: ~(n-1) * m positions
+        */
         let n = entities.len();
         if n == 0 || total_elements == 0 {
             return 0;

@@ -1,4 +1,4 @@
-//! Iterators for k-opt cut combinations.
+// Iterators for k-opt cut combinations.
 
 use crate::heuristic::r#move::CutPoint;
 
@@ -8,9 +8,9 @@ pub struct CutCombinationIterator {
     len: usize,
     min_seg: usize,
     entity_idx: usize,
-    /// Current cut positions.
+    // Current cut positions.
     positions: Vec<usize>,
-    /// Whether we've exhausted all combinations.
+    // Whether we've exhausted all combinations.
     done: bool,
 }
 
@@ -58,9 +58,10 @@ impl CutCombinationIterator {
         let min_seg = self.min_seg;
 
         for i in (0..k).rev() {
-            // Maximum position for cut i:
-            // Need to leave room for (k - i - 1) more cuts after this one,
-            // each separated by min_seg, plus min_seg at the end
+            /* Maximum position for cut i:
+            Need to leave room for (k - i - 1) more cuts after this one,
+            each separated by min_seg, plus min_seg at the end
+            */
             let max_pos = len - min_seg * (k - i);
 
             if self.positions[i] < max_pos {

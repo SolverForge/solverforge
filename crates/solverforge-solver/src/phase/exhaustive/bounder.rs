@@ -1,7 +1,8 @@
-//! Score bounder for exhaustive search pruning.
-//!
-//! Bounders calculate optimistic and pessimistic score bounds
-//! that enable branch-and-bound pruning.
+/* Score bounder for exhaustive search pruning.
+
+Bounders calculate optimistic and pessimistic score bounds
+that enable branch-and-bound pruning.
+*/
 
 use std::fmt::Debug;
 
@@ -14,23 +15,25 @@ use solverforge_scoring::Director;
 /// from a partial solution state. If this optimistic bound is worse than
 /// the best complete solution found so far, the branch can be pruned.
 pub trait ScoreBounder<S: PlanningSolution, D: Director<S>>: Send + Debug {
-    /// Calculates the optimistic bound for the current solution state.
-    ///
-    /// The optimistic bound is an upper bound on the score achievable
-    /// from this partial solution. It should be:
-    /// - Fast to compute
-    /// - Greater than or equal to any actual achievable score
-    ///
-    /// Returns `None` if no bound can be computed.
+    /* Calculates the optimistic bound for the current solution state.
+
+    The optimistic bound is an upper bound on the score achievable
+    from this partial solution. It should be:
+    - Fast to compute
+    - Greater than or equal to any actual achievable score
+
+    Returns `None` if no bound can be computed.
+    */
     fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score>;
 
-    /// Calculates the pessimistic bound for the current solution state.
-    ///
-    /// The pessimistic bound is a lower bound on the score achievable
-    /// from this partial solution. This is less commonly used but can
-    /// help with certain heuristics.
-    ///
-    /// Returns `None` if no bound can be computed.
+    /* Calculates the pessimistic bound for the current solution state.
+
+    The pessimistic bound is a lower bound on the score achievable
+    from this partial solution. This is less commonly used but can
+    help with certain heuristics.
+
+    Returns `None` if no bound can be computed.
+    */
     fn calculate_pessimistic_bound(&self, score_director: &D) -> Option<S::Score> {
         // Default: no pessimistic bound
         let _ = score_director;
@@ -38,15 +41,15 @@ pub trait ScoreBounder<S: PlanningSolution, D: Director<S>>: Send + Debug {
     }
 }
 
-/// A simple bounder that uses the current score as the optimistic bound.
-///
-/// This is useful when constraint violations can only increase (get worse)
-/// as more assignments are made, which is common for most constraint problems.
+/* A simple bounder that uses the current score as the optimistic bound.
+
+This is useful when constraint violations can only increase (get worse)
+as more assignments are made, which is common for most constraint problems.
+*/
 #[derive(Debug, Clone, Default)]
 pub struct SoftScoreBounder;
 
 impl SoftScoreBounder {
-    /// Creates a new simple score bounder.
     pub fn new() -> Self {
         Self
     }
@@ -60,13 +63,14 @@ impl<S: PlanningSolution, D: Director<S>> ScoreBounder<S, D> for SoftScoreBounde
     }
 }
 
-/// A bounder that uses a fixed offset from the current score.
-///
-/// This assumes that future assignments can at most improve the score
-/// by a fixed amount per remaining entity.
+/* A bounder that uses a fixed offset from the current score.
+
+This assumes that future assignments can at most improve the score
+by a fixed amount per remaining entity.
+*/
 #[derive(Clone)]
 pub struct FixedOffsetBounder<S: PlanningSolution> {
-    /// Maximum improvement per unassigned entity.
+    // Maximum improvement per unassigned entity.
     max_improvement_per_entity: S::Score,
 }
 
@@ -77,7 +81,6 @@ impl<S: PlanningSolution> std::fmt::Debug for FixedOffsetBounder<S> {
 }
 
 impl<S: PlanningSolution> FixedOffsetBounder<S> {
-    /// Creates a new fixed offset bounder.
     pub fn new(max_improvement_per_entity: S::Score) -> Self {
         Self {
             max_improvement_per_entity,
@@ -105,15 +108,15 @@ where
     }
 }
 
-/// Bounder type selection.
+// Bounder type selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BounderType {
-    /// No bounding (disables pruning).
+    // No bounding (disables pruning).
     #[default]
     None,
-    /// Simple score bounder.
+    // Simple score bounder.
     Simple,
-    /// Fixed offset bounder.
+    // Fixed offset bounder.
     FixedOffset,
 }
 

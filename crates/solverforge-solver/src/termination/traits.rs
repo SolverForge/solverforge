@@ -1,4 +1,4 @@
-//! Termination trait definition.
+// Termination trait definition.
 
 use std::fmt::Debug;
 
@@ -17,12 +17,13 @@ use crate::scope::SolverScope;
 pub trait Termination<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>:
     Send + Debug
 {
-    /// Returns true if solving should terminate.
+    // Returns true if solving should terminate.
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool;
 
-    /// Installs this termination's limit as an in-phase limit on the solver scope.
-    ///
-    /// This allows the termination to fire inside the phase step loop (T1 fix).
-    /// The default implementation is a no-op.
+    /* Installs this termination's limit as an in-phase limit on the solver scope.
+
+    This allows the termination to fire inside the phase step loop (T1 fix).
+    The default implementation is a no-op.
+    */
     fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<S, D, BestCb>) {}
 }

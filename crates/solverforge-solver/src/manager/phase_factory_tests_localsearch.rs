@@ -1,4 +1,4 @@
-//! Local search phase factory tests.
+// Local search phase factory tests.
 
 use super::*;
 use crate::heuristic::r#move::ChangeMove;

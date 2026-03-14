@@ -1,11 +1,12 @@
-// Score director implementations.
-//
-// The score director manages solution state and score calculation.
-//
-// # Score Director Types
-//
-// - [`ScoreDirector`] - Zero-erasure incremental scoring
-// - [`RecordingDirector`] - Automatic undo tracking wrapper
+/* Score director implementations.
+
+The score director manages solution state and score calculation.
+
+# Score Director Types
+
+- [`ScoreDirector`] - Zero-erasure incremental scoring
+- [`RecordingDirector`] - Automatic undo tracking wrapper
+*/
 
 mod traits;
 

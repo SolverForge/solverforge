@@ -91,9 +91,10 @@ fn test_complemented_skips_none_keys() {
         ],
     };
 
-    // Only 2 assigned shifts count, both to employee 0
-    // Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
-    // Total: -2 (unassigned shifts don't count)
+    /* Only 2 assigned shifts count, both to employee 0
+    Employee 0: 2 shifts -> -2, Employee 1: 0 shifts -> 0
+    Total: -2 (unassigned shifts don't count)
+    */
     assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 }
 
@@ -129,10 +130,11 @@ fn test_complemented_incremental() {
 
     // Initialize
     let total = constraint.initialize(&schedule);
-    // Employee 0: 2 shifts -> -2
-    // Employee 1: 1 shift -> -1
-    // Employee 2: 0 shifts -> 0
-    // Total: -3
+    /* Employee 0: 2 shifts -> -2
+    Employee 1: 1 shift -> -1
+    Employee 2: 0 shifts -> 0
+    Total: -3
+    */
     assert_eq!(total, SoftScore::of(-3));
 
     // Retract shift at index 0 (employee 0)
@@ -219,10 +221,11 @@ fn test_complemented_with_default() {
         ],
     };
 
-    // Employee 0: 3 shifts -> 9
-    // Employee 1: 0 shifts -> 0
-    // Employee 2: 0 shifts -> 0
-    // Total penalty: -9
+    /* Employee 0: 3 shifts -> 9
+    Employee 1: 0 shifts -> 0
+    Employee 2: 0 shifts -> 0
+    Total penalty: -9
+    */
     assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-9));
 }
 

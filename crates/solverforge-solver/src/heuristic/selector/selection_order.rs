@@ -1,52 +1,60 @@
-//! Selection order configuration for selectors.
-//!
-//! Defines the order in which elements are selected from a selector.
+/* Selection order configuration for selectors.
 
-/// Defines the order in which elements are selected from a selector.
-///
-/// This enum controls how entities, values, or moves are ordered when
-/// iterating through a selector.
+Defines the order in which elements are selected from a selector.
+*/
+
+/* Defines the order in which elements are selected from a selector.
+
+This enum controls how entities, values, or moves are ordered when
+iterating through a selector.
+*/
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum SelectionOrder {
-    /// Inherit the selection order from the parent configuration.
-    ///
-    /// If the parent is cached, defaults to `Original`.
-    /// If there is no parent, defaults to `Random`.
+    /* Inherit the selection order from the parent configuration.
+
+    If the parent is cached, defaults to `Original`.
+    If there is no parent, defaults to `Random`.
+    */
     #[default]
     Inherit,
 
-    /// Select elements in their original order.
-    ///
-    /// Elements are returned in the order they appear in the underlying
-    /// collection. This is deterministic and reproducible.
+    /* Select elements in their original order.
+
+    Elements are returned in the order they appear in the underlying
+    collection. This is deterministic and reproducible.
+    */
     Original,
 
-    /// Select elements in random order without shuffling.
-    ///
-    /// Elements are selected randomly from the pool on each call to next().
-    /// The same element may be selected multiple times.
-    /// This scales well because it does not require caching.
+    /* Select elements in random order without shuffling.
+
+    Elements are selected randomly from the pool on each call to next().
+    The same element may be selected multiple times.
+    This scales well because it does not require caching.
+    */
     Random,
 
-    /// Select elements in random order by shuffling.
-    ///
-    /// Elements are shuffled when a selection iterator is created.
-    /// Each element will be selected exactly once (if all elements are consumed).
-    /// Requires caching (at least step-level).
+    /* Select elements in random order by shuffling.
+
+    Elements are shuffled when a selection iterator is created.
+    Each element will be selected exactly once (if all elements are consumed).
+    Requires caching (at least step-level).
+    */
     Shuffled,
 
-    /// Select elements in sorted order.
-    ///
-    /// Elements are sorted according to a sorter before iteration.
-    /// Each element will be selected exactly once (if all elements are consumed).
-    /// Requires caching (at least step-level).
+    /* Select elements in sorted order.
+
+    Elements are sorted according to a sorter before iteration.
+    Each element will be selected exactly once (if all elements are consumed).
+    Requires caching (at least step-level).
+    */
     Sorted,
 
-    /// Select elements based on probability weights.
-    ///
-    /// Elements with higher probability have a greater chance of being selected.
-    /// The same element may be selected multiple times.
-    /// Requires caching (at least step-level).
+    /* Select elements based on probability weights.
+
+    Elements with higher probability have a greater chance of being selected.
+    The same element may be selected multiple times.
+    Requires caching (at least step-level).
+    */
     Probabilistic,
 }
 

@@ -1,7 +1,8 @@
-//! Entity placers for construction heuristic
-//!
-//! Placers enumerate the entities that need values assigned and
-//! generate candidate moves for each entity.
+/* Entity placers for construction heuristic
+
+Placers enumerate the entities that need values assigned and
+generate candidate moves for each entity.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -23,9 +24,9 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// The entity reference.
+    // The entity reference.
     pub entity_ref: EntityReference,
-    /// Candidate moves for this placement.
+    // Candidate moves for this placement.
     pub moves: Vec<M>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -35,7 +36,6 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// Creates a new placement.
     pub fn new(entity_ref: EntityReference, moves: Vec<M>) -> Self {
         Self {
             entity_ref,
@@ -44,7 +44,6 @@ where
         }
     }
 
-    /// Returns true if there are no candidate moves.
     pub fn is_empty(&self) -> bool {
         self.moves.is_empty()
     }
@@ -83,7 +82,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /// Returns all placements (entities + their candidate moves).
+    // Returns all placements (entities + their candidate moves).
     fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
 }
 
@@ -103,17 +102,17 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    /// The entity selector.
+    // The entity selector.
     entity_selector: ES,
-    /// The value selector.
+    // The value selector.
     value_selector: VS,
-    /// Typed getter function pointer.
+    // Typed getter function pointer.
     getter: fn(&S, usize) -> Option<V>,
-    /// Typed setter function pointer.
+    // Typed setter function pointer.
     setter: fn(&mut S, usize, Option<V>),
-    /// The variable name.
+    // The variable name.
     variable_name: &'static str,
-    /// The descriptor index.
+    // The descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<fn() -> V>,
 }
@@ -124,7 +123,6 @@ where
     ES: EntitySelector<S>,
     VS: TypedValueSelector<S, V>,
 {
-    /// Creates a new queued entity placer with typed function pointers.
     pub fn new(
         entity_selector: ES,
         value_selector: VS,
@@ -267,7 +265,7 @@ where
     Inner: EntityPlacer<S, M>,
 {
     inner: Inner,
-    /// Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
+    // Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
     comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
     _phantom: PhantomData<fn() -> (S, M)>,
 }

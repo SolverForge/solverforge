@@ -1,7 +1,8 @@
-//! SolverFactory with zero-erasure design.
-//!
-//! Low-level solver infrastructure for building and executing solve phases.
-//! For async job management, see [`SolverManager`](super::SolverManager).
+/* SolverFactory with zero-erasure design.
+
+Low-level solver infrastructure for building and executing solve phases.
+For async job management, see [`SolverManager`](super::SolverManager).
+*/
 
 use std::marker::PhantomData;
 
@@ -42,7 +43,6 @@ where
     P: Phase<S, D>,
     T: Termination<S, D>,
 {
-    /// Creates a new SolverFactory with concrete types.
     pub fn new(score_calculator: C, phases: P, termination: T) -> Self {
         Self {
             score_calculator,
@@ -52,7 +52,6 @@ where
         }
     }
 
-    /// Returns a reference to the score calculator.
     pub fn score_calculator(&self) -> &C {
         &self.score_calculator
     }
@@ -62,17 +61,14 @@ where
         (self.score_calculator)(solution)
     }
 
-    /// Returns a reference to the phases.
     pub fn phases(&self) -> &P {
         &self.phases
     }
 
-    /// Returns a mutable reference to the phases.
     pub fn phases_mut(&mut self) -> &mut P {
         &mut self.phases
     }
 
-    /// Returns a reference to the termination.
     pub fn termination(&self) -> &T {
         &self.termination
     }

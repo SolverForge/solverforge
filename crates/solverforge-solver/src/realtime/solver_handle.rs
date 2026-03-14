@@ -1,4 +1,4 @@
-//! Solver handle for submitting problem changes during solving.
+// Solver handle for submitting problem changes during solving.
 
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,14 +10,14 @@ use solverforge_core::domain::PlanningSolution;
 use super::problem_change::BoxedProblemChange;
 use super::ProblemChange;
 
-/// Result of a problem change submission.
+// Result of a problem change submission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProblemChangeResult {
-    /// Change was successfully queued.
+    // Change was successfully queued.
     Queued,
-    /// Solver is not running, change was not queued.
+    // Solver is not running, change was not queued.
     SolverNotRunning,
-    /// Change queue is full (solver is processing slowly).
+    // Change queue is full (solver is processing slowly).
     QueueFull,
 }
 
@@ -73,11 +73,11 @@ pub enum ProblemChangeResult {
 /// assert_eq!(result, ProblemChangeResult::SolverNotRunning);
 /// ```
 pub struct SolverHandle<S: PlanningSolution> {
-    /// Channel for sending problem changes to the solver.
+    // Channel for sending problem changes to the solver.
     change_tx: Sender<BoxedProblemChange<S>>,
-    /// Flag indicating whether solver is currently running.
+    // Flag indicating whether solver is currently running.
     solving: Arc<AtomicBool>,
-    /// Flag to request early termination.
+    // Flag to request early termination.
     terminate_early: Arc<AtomicBool>,
 }
 
@@ -108,7 +108,6 @@ impl<S: PlanningSolution> SolverHandle<S> {
     /// Submits a problem change to the solver.
     ///
     /// The change is queued and will be processed at the next step boundary.
-    /// Returns the result of the submission.
     pub fn add_problem_change<P: ProblemChange<S> + 'static>(
         &self,
         change: P,
@@ -135,7 +134,6 @@ impl<S: PlanningSolution> SolverHandle<S> {
         }
     }
 
-    /// Returns true if the solver is currently running.
     pub fn is_solving(&self) -> bool {
         self.solving.load(Ordering::SeqCst)
     }
@@ -147,7 +145,6 @@ impl<S: PlanningSolution> SolverHandle<S> {
         self.terminate_early.store(true, Ordering::SeqCst);
     }
 
-    /// Sets the solving flag (used internally by the solver).
     pub fn set_solving(&self, solving: bool) {
         self.solving.store(solving, Ordering::SeqCst);
     }
@@ -177,11 +174,11 @@ impl<S: PlanningSolution> Debug for SolverHandle<S> {
 
 /// Receiver for problem changes, used by the solver.
 pub struct ProblemChangeReceiver<S: PlanningSolution> {
-    /// Channel for receiving problem changes.
+    // Channel for receiving problem changes.
     change_rx: Receiver<BoxedProblemChange<S>>,
-    /// Shared solving flag.
+    // Shared solving flag.
     solving: Arc<AtomicBool>,
-    /// Shared terminate early flag.
+    // Shared terminate early flag.
     terminate_early: Arc<AtomicBool>,
 }
 
@@ -199,7 +196,6 @@ impl<S: PlanningSolution> ProblemChangeReceiver<S> {
 
     /// Receives all pending problem changes without blocking.
     ///
-    /// Returns a vector of all queued changes.
     pub fn drain_pending(&self) -> Vec<BoxedProblemChange<S>> {
         let mut changes = Vec::new();
         while let Some(change) = self.try_recv() {
@@ -208,12 +204,10 @@ impl<S: PlanningSolution> ProblemChangeReceiver<S> {
         changes
     }
 
-    /// Returns true if early termination has been requested.
     pub fn is_terminate_early_requested(&self) -> bool {
         self.terminate_early.load(Ordering::SeqCst)
     }
 
-    /// Sets the solving flag.
     pub fn set_solving(&self, solving: bool) {
         self.solving.store(solving, Ordering::SeqCst);
     }

@@ -156,9 +156,10 @@ fn test_balance_incremental() {
 
     // Retract one shift from employee 0
     let delta = constraint.on_retract(&solution, 0, 0);
-    // Now: employee 0 has 1, employee 1 has 2
-    // Mean = 1.5, variance = (0.25 + 0.25) / 2 = 0.25, std_dev = 0.5
-    // Score = -1000 * 0.5 = -500
+    /* Now: employee 0 has 1, employee 1 has 2
+    Mean = 1.5, variance = (0.25 + 0.25) / 2 = 0.25, std_dev = 0.5
+    Score = -1000 * 0.5 = -500
+    */
     assert_eq!(delta, SoftScore::of(-500));
 
     // Insert it back

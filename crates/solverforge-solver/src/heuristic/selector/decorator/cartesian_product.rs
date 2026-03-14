@@ -1,13 +1,14 @@
-//! Cartesian product move selector.
-//!
-//! Combines moves from two selectors by storing them in separate arenas
-//! and yielding CompositeMove references for each pair.
-//!
-//! # Zero-Erasure Design
-//!
-//! Moves are stored in typed arenas. The cartesian product iterator
-//! yields indices into both arenas. The caller creates CompositeMove
-//! references on-the-fly for each evaluation - no cloning.
+/* Cartesian product move selector.
+
+Combines moves from two selectors by storing them in separate arenas
+and yielding CompositeMove references for each pair.
+
+# Zero-Erasure Design
+
+Moves are stored in typed arenas. The cartesian product iterator
+yields indices into both arenas. The caller creates CompositeMove
+references on-the-fly for each evaluation - no cloning.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -44,7 +45,6 @@ where
     M1: Move<S>,
     M2: Move<S>,
 {
-    /// Creates a new empty cartesian product arena.
     pub fn new() -> Self {
         Self {
             arena_1: MoveArena::new(),
@@ -77,22 +77,18 @@ where
         self.arena_2.extend(selector.iter_moves(score_director));
     }
 
-    /// Returns the number of pairs (size of cartesian product).
     pub fn len(&self) -> usize {
         self.arena_1.len() * self.arena_2.len()
     }
 
-    /// Returns true if either arena is empty.
     pub fn is_empty(&self) -> bool {
         self.arena_1.is_empty() || self.arena_2.is_empty()
     }
 
-    /// Returns the first move at the given index.
     pub fn get_first(&self, index: usize) -> Option<&M1> {
         self.arena_1.get(index)
     }
 
-    /// Returns the second move at the given index.
     pub fn get_second(&self, index: usize) -> Option<&M2> {
         self.arena_2.get(index)
     }

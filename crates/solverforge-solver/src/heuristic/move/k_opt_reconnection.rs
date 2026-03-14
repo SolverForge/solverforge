@@ -1,93 +1,96 @@
-//! Reconnection patterns for k-opt moves.
-//!
-//! K-opt removes k edges from a tour, creating k+1 segments. These segments
-//! can be reconnected in different ways, with optional reversal of segments.
-//!
-//! # Zero-Erasure Design
-//!
-//! All data structures use plain arrays for compile-time construction:
-//! - `[u8; 6]` for segment order (max 6 segments for 5-opt)
-//! - `u8` bitmask for reversal flags
-//! - `const fn` constructors
-//!
-//! # Example
-//!
-//! ```
-//! use solverforge_solver::heuristic::r#move::k_opt_reconnection::{
-//!     KOptReconnection, THREE_OPT_RECONNECTIONS,
-//! };
-//!
-//! // 3-opt has 7 non-trivial reconnection patterns
-//! assert_eq!(THREE_OPT_RECONNECTIONS.len(), 7);
-//!
-//! // Each pattern specifies segment order and reversals
-//! let pattern = &THREE_OPT_RECONNECTIONS[0];
-//! assert_eq!(pattern.k(), 3);
-//! assert_eq!(pattern.segment_count(), 4);
-//! ```
+/* Reconnection patterns for k-opt moves.
 
-/// A reconnection pattern for k-opt.
-///
-/// Specifies how to reconnect segments after removing k edges.
-/// Uses plain arrays for zero-erasure compile-time construction.
-///
-/// # Fields
-///
-/// - `segment_order`: Permutation of segment indices `[0..segment_count)`.
-///   Index 0 is always 0 (first segment stays first).
-///   Unused slots (beyond `len`) are 0.
-///
-/// - `reverse_mask`: Bitmask indicating which segments to reverse.
-///   Bit i is set if segment i should be reversed.
-///
-/// - `len`: Number of valid segments (k+1 for k-opt).
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-///
-/// // 3-opt reconnection: swap B and C, reverse both
-/// // Original: A -> B -> C -> D
-/// // Result:   A -> C' -> B' -> D
-/// let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0b0110, 4);
-///
-/// assert_eq!(pattern.k(), 3);
-/// assert!(pattern.should_reverse(1));  // B reversed
-/// assert!(pattern.should_reverse(2));  // C reversed
-/// assert!(!pattern.should_reverse(0)); // A not reversed
-/// ```
+K-opt removes k edges from a tour, creating k+1 segments. These segments
+can be reconnected in different ways, with optional reversal of segments.
+
+# Zero-Erasure Design
+
+All data structures use plain arrays for compile-time construction:
+- `[u8; 6]` for segment order (max 6 segments for 5-opt)
+- `u8` bitmask for reversal flags
+- `const fn` constructors
+
+# Example
+
+```
+use solverforge_solver::heuristic::r#move::k_opt_reconnection::{
+KOptReconnection, THREE_OPT_RECONNECTIONS,
+};
+
+// 3-opt has 7 non-trivial reconnection patterns
+assert_eq!(THREE_OPT_RECONNECTIONS.len(), 7);
+
+// Each pattern specifies segment order and reversals
+let pattern = &THREE_OPT_RECONNECTIONS[0];
+assert_eq!(pattern.k(), 3);
+assert_eq!(pattern.segment_count(), 4);
+```
+*/
+
+/* A reconnection pattern for k-opt.
+
+Specifies how to reconnect segments after removing k edges.
+Uses plain arrays for zero-erasure compile-time construction.
+
+# Fields
+
+- `segment_order`: Permutation of segment indices `[0..segment_count)`.
+Index 0 is always 0 (first segment stays first).
+Unused slots (beyond `len`) are 0.
+
+- `reverse_mask`: Bitmask indicating which segments to reverse.
+Bit i is set if segment i should be reversed.
+
+- `len`: Number of valid segments (k+1 for k-opt).
+
+# Example
+
+```
+use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
+
+// 3-opt reconnection: swap B and C, reverse both
+// Original: A -> B -> C -> D
+// Result:   A -> C' -> B' -> D
+let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0b0110, 4);
+
+assert_eq!(pattern.k(), 3);
+assert!(pattern.should_reverse(1));  // B reversed
+assert!(pattern.should_reverse(2));  // C reversed
+assert!(!pattern.should_reverse(0)); // A not reversed
+```
+*/
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KOptReconnection {
-    /// Segment order as fixed array.
+    // Segment order as fixed array.
     segment_order: [u8; 6],
-    /// Bitmask of segments to reverse.
+    // Bitmask of segments to reverse.
     reverse_mask: u8,
-    /// Number of valid segments.
+    // Number of valid segments.
     len: u8,
 }
 
 impl KOptReconnection {
-    /// Creates a new reconnection pattern (const for compile-time use).
-    ///
-    /// # Arguments
-    ///
-    /// * `segment_order` - Permutation of segment indices
-    /// * `reverse_mask` - Bitmask of segments to reverse
-    /// * `len` - Number of valid segments (k+1)
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-    ///
-    /// const PATTERN: KOptReconnection = KOptReconnection::new(
-    ///     [0, 2, 1, 3, 0, 0],
-    ///     0b0000,
-    ///     4,
-    /// );
-    /// assert_eq!(PATTERN.segment_at(1), 2);
-    /// ```
+    /* Creates a new reconnection pattern (const for compile-time use).
+
+    # Arguments
+
+    * `segment_order` - Permutation of segment indices
+    * `reverse_mask` - Bitmask of segments to reverse
+    * `len` - Number of valid segments (k+1)
+
+    # Example
+
+    ```
+    use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
+
+    const PATTERN: KOptReconnection = KOptReconnection::new(
+    [0, 2, 1, 3, 0, 0],
+    0b0000,
+    4,
+    );
+    assert_eq!(PATTERN.segment_at(1), 2);
+    ```
+    */
     #[inline]
     pub const fn new(segment_order: [u8; 6], reverse_mask: u8, len: u8) -> Self {
         Self {
@@ -97,78 +100,81 @@ impl KOptReconnection {
         }
     }
 
-    /// Returns the k value (number of edges removed).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-    ///
-    /// assert_eq!(THREE_OPT_RECONNECTIONS[0].k(), 3);
-    /// ```
+    /* Returns the k value (number of edges removed).
+
+    # Example
+
+    ```
+    use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
+
+    assert_eq!(THREE_OPT_RECONNECTIONS[0].k(), 3);
+    ```
+    */
     #[inline]
     pub const fn k(&self) -> usize {
         (self.len - 1) as usize
     }
 
-    /// Returns the number of segments (k+1).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-    ///
-    /// assert_eq!(THREE_OPT_RECONNECTIONS[0].segment_count(), 4);
-    /// ```
+    /* Returns the number of segments (k+1).
+
+    # Example
+
+    ```
+    use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
+
+    assert_eq!(THREE_OPT_RECONNECTIONS[0].segment_count(), 4);
+    ```
+    */
     #[inline]
     pub const fn segment_count(&self) -> usize {
         self.len as usize
     }
 
-    /// Returns the segment index at position `pos` in the reconnected order.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-    ///
-    /// // Pattern swaps segments 1 and 2: [A, C, B, D]
-    /// let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0, 4);
-    /// assert_eq!(pattern.segment_at(0), 0); // A
-    /// assert_eq!(pattern.segment_at(1), 2); // C (was at position 2)
-    /// assert_eq!(pattern.segment_at(2), 1); // B (was at position 1)
-    /// assert_eq!(pattern.segment_at(3), 3); // D
-    /// ```
+    /* Returns the segment index at position `pos` in the reconnected order.
+
+    # Example
+
+    ```
+    use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
+
+    // Pattern swaps segments 1 and 2: [A, C, B, D]
+    let pattern = KOptReconnection::new([0, 2, 1, 3, 0, 0], 0, 4);
+    assert_eq!(pattern.segment_at(0), 0); // A
+    assert_eq!(pattern.segment_at(1), 2); // C (was at position 2)
+    assert_eq!(pattern.segment_at(2), 1); // B (was at position 1)
+    assert_eq!(pattern.segment_at(3), 3); // D
+    ```
+    */
     #[inline]
     pub const fn segment_at(&self, pos: usize) -> usize {
         self.segment_order[pos] as usize
     }
 
-    /// Returns true if segment at index `idx` should be reversed.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
-    ///
-    /// let pattern = KOptReconnection::new([0, 1, 2, 3, 0, 0], 0b0110, 4);
-    /// assert!(!pattern.should_reverse(0));
-    /// assert!(pattern.should_reverse(1));
-    /// assert!(pattern.should_reverse(2));
-    /// assert!(!pattern.should_reverse(3));
-    /// ```
+    /* Returns true if segment at index `idx` should be reversed.
+
+    # Example
+
+    ```
+    use solverforge_solver::heuristic::r#move::k_opt_reconnection::KOptReconnection;
+
+    let pattern = KOptReconnection::new([0, 1, 2, 3, 0, 0], 0b0110, 4);
+    assert!(!pattern.should_reverse(0));
+    assert!(pattern.should_reverse(1));
+    assert!(pattern.should_reverse(2));
+    assert!(!pattern.should_reverse(3));
+    ```
+    */
     #[inline]
     pub const fn should_reverse(&self, idx: usize) -> bool {
         (self.reverse_mask >> idx) & 1 == 1
     }
 
-    /// Returns the segment order as a slice.
     #[inline]
     pub fn segment_order(&self) -> &[u8] {
         &self.segment_order[..self.len as usize]
     }
 
-    /// Returns true if this is the identity reconnection (no change).
+    // Returns true if this is the identity reconnection (no change).
     const fn is_identity(&self) -> bool {
         if self.reverse_mask != 0 {
             return false;
@@ -291,7 +297,7 @@ pub fn enumerate_reconnections(k: usize) -> Vec<KOptReconnection> {
     result
 }
 
-/// Generates all permutations of a slice.
+// Generates all permutations of a slice.
 fn generate_permutations(items: &[u8]) -> Vec<Vec<u8>> {
     if items.is_empty() {
         return vec![vec![]];
@@ -316,9 +322,10 @@ fn generate_permutations(items: &[u8]) -> Vec<Vec<u8>> {
 mod tests {
     use super::*;
 
-    // Note: Public API tests (enumerate_*_count, enumerate_matches_static_3opt)
-    // are in heuristic/move/tests/k_opt.rs
-    // These tests verify internal invariants using private methods.
+    /* Note: Public API tests (enumerate_*_count, enumerate_matches_static_3opt)
+    are in heuristic/move/tests/k_opt.rs
+    These tests verify internal invariants using private methods.
+    */
 
     #[test]
     fn no_identity_in_patterns() {

@@ -1,4 +1,4 @@
-//! Move tabu acceptor.
+// Move tabu acceptor.
 
 use std::fmt::Debug;
 
@@ -25,15 +25,15 @@ use super::Acceptor;
 /// assert!(!acceptor.is_move_tabu(42));
 /// ```
 pub struct MoveTabuAcceptor {
-    /// Maximum number of moves to remember.
+    // Maximum number of moves to remember.
     move_tabu_size: usize,
-    /// List of tabu move hashes.
+    // List of tabu move hashes.
     move_tabu_list: Vec<u64>,
-    /// Current step's executed move hash.
+    // Current step's executed move hash.
     current_step_move: Option<u64>,
-    /// Whether to accept improving moves even if tabu (aspiration).
+    // Whether to accept improving moves even if tabu (aspiration).
     aspiration_enabled: bool,
-    /// Best score seen so far (for aspiration criterion).
+    // Best score seen so far (for aspiration criterion).
     best_score: Option<i64>,
 }
 
@@ -105,12 +105,10 @@ impl MoveTabuAcceptor {
         self.current_step_move = Some(move_hash);
     }
 
-    /// Returns true if the given move hash is in the tabu list.
     pub fn is_move_tabu(&self, move_hash: u64) -> bool {
         self.move_tabu_list.contains(&move_hash)
     }
 
-    /// Returns true if aspiration is enabled.
     pub fn aspiration_enabled(&self) -> bool {
         self.aspiration_enabled
     }

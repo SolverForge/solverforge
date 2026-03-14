@@ -41,9 +41,10 @@ fn test_grouped_constraint_evaluate() {
         ],
     };
 
-    // Employee 1: 3 shifts -> 9
-    // Employee 2: 1 shift -> 1
-    // Total penalty: -10
+    /* Employee 1: 3 shifts -> 9
+    Employee 2: 1 shift -> 1
+    Total penalty: -10
+    */
     assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
 }
 
@@ -70,9 +71,10 @@ fn test_grouped_constraint_incremental() {
 
     // Initialize
     let total = constraint.initialize(&solution);
-    // Employee 1: 2 shifts -> -2
-    // Employee 2: 1 shift -> -1
-    // Total: -3
+    /* Employee 1: 2 shifts -> -2
+    Employee 2: 1 shift -> -1
+    Total: -3
+    */
     assert_eq!(total, SoftScore::of(-3));
 
     // Retract shift at index 0 (employee 1)

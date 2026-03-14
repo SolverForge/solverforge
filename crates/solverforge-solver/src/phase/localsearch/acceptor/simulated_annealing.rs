@@ -1,4 +1,4 @@
-//! Simulated annealing acceptor with true Boltzmann distribution.
+// Simulated annealing acceptor with true Boltzmann distribution.
 
 use std::fmt::Debug;
 
@@ -9,33 +9,34 @@ use solverforge_core::score::Score;
 
 use super::Acceptor;
 
-/// Simulated annealing acceptor using the Boltzmann distribution.
-///
-/// Accepts improving moves unconditionally. For worsening moves, accepts with
-/// probability `exp(-delta / T)` where `delta` is the score degradation and
-/// `T` is the current temperature.
-///
-/// Temperature decays geometrically each step: `T *= decay_rate`.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::localsearch::SimulatedAnnealingAcceptor;
-///
-/// // High initial temperature (explores broadly), slow cooling
-/// let acceptor = SimulatedAnnealingAcceptor::new(1.0, 0.9999);
-/// ```
+/* Simulated annealing acceptor using the Boltzmann distribution.
+
+Accepts improving moves unconditionally. For worsening moves, accepts with
+probability `exp(-delta / T)` where `delta` is the score degradation and
+`T` is the current temperature.
+
+Temperature decays geometrically each step: `T *= decay_rate`.
+
+# Example
+
+```
+use solverforge_solver::phase::localsearch::SimulatedAnnealingAcceptor;
+
+// High initial temperature (explores broadly), slow cooling
+let acceptor = SimulatedAnnealingAcceptor::new(1.0, 0.9999);
+```
+*/
 #[derive(Debug, Clone)]
 pub struct SimulatedAnnealingAcceptor {
-    /// Initial temperature.
+    // Initial temperature.
     starting_temperature: f64,
-    /// Current temperature.
+    // Current temperature.
     current_temperature: f64,
-    /// Temperature decay rate per step.
+    // Temperature decay rate per step.
     decay_rate: f64,
-    /// High-quality RNG for acceptance decisions.
+    // High-quality RNG for acceptance decisions.
     rng: SmallRng,
-    /// Number of score levels, cached after phase_started.
+    // Number of score levels, cached after phase_started.
     level_count: usize,
 }
 
@@ -57,7 +58,6 @@ impl SimulatedAnnealingAcceptor {
         }
     }
 
-    /// Creates a new SA acceptor with a fixed seed for reproducibility.
     pub fn with_seed(starting_temperature: f64, decay_rate: f64, seed: u64) -> Self {
         Self {
             starting_temperature,
@@ -91,13 +91,14 @@ impl Default for SimulatedAnnealingAcceptor {
     }
 }
 
-/// Converts a multi-level score difference to a single scalar for SA.
-///
-/// Hard levels are weighted exponentially more than soft levels so that
-/// hard constraint improvements always dominate the acceptance probability.
-///
-/// NOTE: This is only used by `auto_calibrate` during `phase_started`.
-/// The hot-path `is_accepted` uses `Score::to_scalar()` directly (zero alloc).
+/* Converts a multi-level score difference to a single scalar for SA.
+
+Hard levels are weighted exponentially more than soft levels so that
+hard constraint improvements always dominate the acceptance probability.
+
+NOTE: This is only used by `auto_calibrate` during `phase_started`.
+The hot-path `is_accepted` uses `Score::to_scalar()` directly (zero alloc).
+*/
 fn score_delta_to_scalar(levels: &[i64]) -> f64 {
     if levels.is_empty() {
         return 0.0;
@@ -146,9 +147,10 @@ where
         if self.starting_temperature == 0.0 {
             let levels = initial_score.to_level_numbers();
             let magnitude = score_delta_to_scalar(&levels).abs();
-            // Set to 2% of score magnitude. For HardSoftScore, hard levels are
-            // weighted by 10^6, so this gives enough room to accept occasional
-            // hard-worsening moves at the start while cooling to pure hill-climbing.
+            /* Set to 2% of score magnitude. For HardSoftScore, hard levels are
+            weighted by 10^6, so this gives enough room to accept occasional
+            hard-worsening moves at the start while cooling to pure hill-climbing.
+            */
             self.starting_temperature = if magnitude > 0.0 {
                 magnitude * 0.02
             } else {

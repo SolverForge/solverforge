@@ -1,4 +1,4 @@
-//! Tests for score types.
+// Tests for score types.
 
 mod bendable_score;
 mod hard_medium_soft_score;

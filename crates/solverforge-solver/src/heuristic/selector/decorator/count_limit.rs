@@ -1,6 +1,7 @@
-//! Count limit move selector decorator.
-//!
-//! Limits the number of moves yielded from an inner selector.
+/* Count limit move selector decorator.
+
+Limits the number of moves yielded from an inner selector.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -55,7 +56,6 @@ pub struct SelectedCountLimitMoveSelector<S, M, Inner> {
 }
 
 impl<S, M, Inner> SelectedCountLimitMoveSelector<S, M, Inner> {
-    /// Creates a new count-limited selector.
     pub fn new(inner: Inner, limit: usize) -> Self {
         Self {
             inner,
@@ -64,7 +64,6 @@ impl<S, M, Inner> SelectedCountLimitMoveSelector<S, M, Inner> {
         }
     }
 
-    /// Returns the configured limit.
     pub fn limit(&self) -> usize {
         self.limit
     }

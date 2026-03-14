@@ -1,8 +1,9 @@
-// Unified N-ary constraint stream macros for bi/tri/quad/penta arities.
-//
-// All four stream arities share identical structure — only filter trait names,
-// entity ref counts in closures, and weight signatures differ. All four macros
-// are consolidated here.
+/* Unified N-ary constraint stream macros for bi/tri/quad/penta arities.
+
+All four stream arities share identical structure — only filter trait names,
+entity ref counts in closures, and weight signatures differ. All four macros
+are consolidated here.
+*/
 
 macro_rules! impl_bi_arity_stream {
     ($stream:ident, $builder:ident, $constraint:ident) => {
@@ -267,11 +268,12 @@ macro_rules! impl_bi_arity_stream {
             W: Fn(&A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
-            // Builds the constraint with an adapted weight function.
-            //
-            // The user-provided weight function `Fn(&A, &A) -> Sc` is adapted to the
-            // constraint's internal signature `Fn(&S, usize, usize) -> Sc` by extracting
-            // entities from the solution using the extractor and indices.
+            /* Builds the constraint with an adapted weight function.
+
+            The user-provided weight function `Fn(&A, &A) -> Sc` is adapted to the
+            constraint's internal signature `Fn(&S, usize, usize) -> Sc` by extracting
+            entities from the solution using the extractor and indices.
+            */
             pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
                 self.expected_descriptor = Some(descriptor_index);
                 self

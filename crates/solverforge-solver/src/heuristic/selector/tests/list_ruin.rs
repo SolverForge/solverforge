@@ -1,4 +1,4 @@
-//! Tests for list ruin move selector.
+// Tests for list ruin move selector.
 
 use crate::heuristic::selector::list_ruin::ListRuinMoveSelector;
 use crate::heuristic::selector::MoveSelector;

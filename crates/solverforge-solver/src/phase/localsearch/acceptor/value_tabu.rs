@@ -1,4 +1,4 @@
-//! Value tabu acceptor.
+// Value tabu acceptor.
 
 use std::fmt::Debug;
 
@@ -21,11 +21,11 @@ use super::Acceptor;
 /// assert!(!acceptor.is_value_tabu(42));
 /// ```
 pub struct ValueTabuAcceptor {
-    /// Maximum number of values to remember.
+    // Maximum number of values to remember.
     value_tabu_size: usize,
-    /// List of tabu value hashes.
+    // List of tabu value hashes.
     value_tabu_list: Vec<u64>,
-    /// Current step's assigned values.
+    // Current step's assigned values.
     current_step_values: Vec<u64>,
 }
 
@@ -73,7 +73,6 @@ impl ValueTabuAcceptor {
         self.current_step_values.push(value_hash);
     }
 
-    /// Returns true if the given value hash is in the tabu list.
     pub fn is_value_tabu(&self, value_hash: u64) -> bool {
         self.value_tabu_list.contains(&value_hash)
     }

@@ -1,16 +1,18 @@
-//! SolverForge Solver Engine
-//!
-//! This crate provides the main solver implementation including:
-//! - Solver and SolverFactory
-//! - Phases (construction heuristic, local search, exhaustive search)
-//! - Move system
-//! - Termination conditions
-//! - Tracing-based structured logging
-//! - Configuration wiring (builder module)
+/* SolverForge Solver Engine
 
-// PhantomData<(fn() -> T, ...)> is an intentional pattern to avoid inheriting
-// trait bounds from phantom type parameters. Clippy's type_complexity lint
-// triggers on these tuples but the pattern is architecturally required.
+This crate provides the main solver implementation including:
+- Solver and SolverFactory
+- Phases (construction heuristic, local search, exhaustive search)
+- Move system
+- Termination conditions
+- Tracing-based structured logging
+- Configuration wiring (builder module)
+*/
+
+/* PhantomData<(fn() -> T, ...)> is an intentional pattern to avoid inheriting
+trait bounds from phantom type parameters. Clippy's type_complexity lint
+triggers on these tuples but the pattern is architecturally required.
+*/
 #![allow(clippy::type_complexity)]
 
 #[cfg(test)]

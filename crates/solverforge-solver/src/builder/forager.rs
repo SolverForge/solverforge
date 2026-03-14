@@ -1,4 +1,4 @@
-//! Forager builder and `AnyForager` enum.
+// Forager builder and `AnyForager` enum.
 
 use solverforge_config::{ForagerConfig, PickEarlyType};
 use solverforge_core::domain::PlanningSolution;
@@ -11,21 +11,22 @@ use crate::phase::localsearch::{
     FirstLastStepScoreImprovingForager, LocalSearchForager,
 };
 
-/// A concrete enum over all built-in forager types.
-///
-/// Returned by [`ForagerBuilder::build`] to avoid `Box<dyn LocalSearchForager<S, M>>`.
-/// Dispatches to the inner forager via `match` — fully monomorphized.
+/* A concrete enum over all built-in forager types.
+
+Returned by [`ForagerBuilder::build`] to avoid `Box<dyn LocalSearchForager<S, M>>`.
+Dispatches to the inner forager via `match` — fully monomorphized.
+*/
 #[allow(clippy::large_enum_variant)]
 pub enum AnyForager<S: PlanningSolution> {
-    /// Collects up to `N` accepted moves, picks the best.
+    // Collects up to `N` accepted moves, picks the best.
     AcceptedCount(AcceptedCountForager<S>),
-    /// Picks the first accepted move.
+    // Picks the first accepted move.
     FirstAccepted(FirstAcceptedForager<S>),
-    /// Evaluates all moves, picks the best score overall.
+    // Evaluates all moves, picks the best score overall.
     BestScore(BestScoreForager<S>),
-    /// Picks the first move that improves on the all-time best.
+    // Picks the first move that improves on the all-time best.
     BestScoreImproving(FirstBestScoreImprovingForager<S>),
-    /// Picks the first move that improves on the last step's score.
+    // Picks the first move that improves on the last step's score.
     LastStepScoreImproving(FirstLastStepScoreImprovingForager<S>),
 }
 

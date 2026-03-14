@@ -1,7 +1,8 @@
-//! Typed value selectors for high-performance value iteration.
-//!
-//! Unlike the type-erased `ValueSelector` that yields `Arc<dyn Any>`,
-//! typed value selectors yield `V` directly with no heap allocation.
+/* Typed value selectors for high-performance value iteration.
+
+Unlike the type-erased `ValueSelector` that yields `Arc<dyn Any>`,
+typed value selectors yield `V` directly with no heap allocation.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -18,7 +19,7 @@ use solverforge_scoring::Director;
 /// * `S` - The planning solution type
 /// * `V` - The value type
 pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
-    /// Returns an iterator over typed values for the given entity.
+    // Returns an iterator over typed values for the given entity.
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
@@ -26,7 +27,6 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
         entity_index: usize,
     ) -> impl Iterator<Item = V> + 'a;
 
-    /// Returns the number of values.
     fn size<D: Director<S>>(
         &self,
         score_director: &D,
@@ -34,7 +34,7 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
         entity_index: usize,
     ) -> usize;
 
-    /// Returns true if this selector may return the same value multiple times.
+    // Returns true if this selector may return the same value multiple times.
     fn is_never_ending(&self) -> bool {
         false
     }
@@ -64,7 +64,6 @@ impl<S, V: Debug> Debug for StaticTypedValueSelector<S, V> {
 }
 
 impl<S, V: Clone> StaticTypedValueSelector<S, V> {
-    /// Creates a new static value selector with the given values.
     pub fn new(values: Vec<V>) -> Self {
         Self {
             values,
@@ -72,7 +71,6 @@ impl<S, V: Clone> StaticTypedValueSelector<S, V> {
         }
     }
 
-    /// Returns the values.
     pub fn values(&self) -> &[V] {
         &self.values
     }
@@ -115,7 +113,6 @@ impl<S, V> Debug for FromSolutionTypedValueSelector<S, V> {
 }
 
 impl<S, V> FromSolutionTypedValueSelector<S, V> {
-    /// Creates a new selector with the given extractor function pointer.
     pub fn new(extractor: fn(&S) -> Vec<V>) -> Self {
         Self {
             extractor,
@@ -164,7 +161,6 @@ impl<S> Debug for RangeValueSelector<S> {
 }
 
 impl<S> RangeValueSelector<S> {
-    /// Creates a new range value selector with the given count function.
     pub fn new(count_fn: fn(&S) -> usize) -> Self {
         Self {
             count_fn,

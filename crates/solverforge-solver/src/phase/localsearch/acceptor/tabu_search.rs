@@ -1,4 +1,4 @@
-//! Tabu search acceptor.
+// Tabu search acceptor.
 
 use std::fmt::Debug;
 
@@ -33,13 +33,13 @@ use super::Acceptor;
 /// let acceptor = TabuSearchAcceptor::<MySolution>::new(7);
 /// ```
 pub struct TabuSearchAcceptor<S: PlanningSolution> {
-    /// Maximum size of the tabu list.
+    // Maximum size of the tabu list.
     tabu_size: usize,
-    /// List of tabu (forbidden) scores.
+    // List of tabu (forbidden) scores.
     tabu_list: Vec<S::Score>,
-    /// Whether to accept improving moves even if tabu.
+    // Whether to accept improving moves even if tabu.
     aspiration_enabled: bool,
-    /// Best score seen so far (for aspiration criterion).
+    // Best score seen so far (for aspiration criterion).
     best_score: Option<S::Score>,
 }
 
@@ -101,12 +101,11 @@ impl<S: PlanningSolution> TabuSearchAcceptor<S> {
         }
     }
 
-    /// Returns true if the given score is in the tabu list.
+    // Returns true if the given score is in the tabu list.
     fn is_tabu(&self, score: &S::Score) -> bool {
         self.tabu_list.iter().any(|s| s == score)
     }
 
-    /// Adds a score to the tabu list, removing the oldest if at capacity.
     fn add_to_tabu(&mut self, score: S::Score) {
         if self.tabu_list.len() >= self.tabu_size {
             self.tabu_list.remove(0);

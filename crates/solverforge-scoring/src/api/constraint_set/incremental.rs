@@ -1,62 +1,68 @@
-// Typed constraint set for zero-erasure incremental scoring.
-//
-// This module provides the `ConstraintSet` trait which enables fully
-// monomorphized constraint evaluation without virtual dispatch.
+/* Typed constraint set for zero-erasure incremental scoring.
+
+This module provides the `ConstraintSet` trait which enables fully
+monomorphized constraint evaluation without virtual dispatch.
+*/
 
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
 use super::super::analysis::{ConstraintAnalysis, DetailedConstraintMatch};
 
-// A single constraint with incremental scoring capability.
-//
-// Unlike the trait-object `Constraint` trait, `IncrementalConstraint` is
-// designed for monomorphized code paths where the concrete type is known.
-//
-// # Incremental Protocol
-//
-// The incremental methods allow delta-based score updates:
-//
-// 1. Call `initialize` once to populate internal state
-// 2. Before changing an entity's variable: call `on_retract` with old state
-// 3. After changing the variable: call `on_insert` with new state
-// 4. Score delta = insert_delta - retract_delta
-//
-// This avoids full re-evaluation on every move.
+/* A single constraint with incremental scoring capability.
+
+Unlike the trait-object `Constraint` trait, `IncrementalConstraint` is
+designed for monomorphized code paths where the concrete type is known.
+
+# Incremental Protocol
+
+The incremental methods allow delta-based score updates:
+
+1. Call `initialize` once to populate internal state
+2. Before changing an entity's variable: call `on_retract` with old state
+3. After changing the variable: call `on_insert` with new state
+4. Score delta = insert_delta - retract_delta
+
+This avoids full re-evaluation on every move.
+*/
 pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
-    // Full evaluation of this constraint.
-    //
-    // Iterates all entities and computes the total score impact.
-    // Use this for initial scoring; use `on_insert`/`on_retract` for deltas.
+    /* Full evaluation of this constraint.
+
+    Iterates all entities and computes the total score impact.
+    Use this for initial scoring; use `on_insert`/`on_retract` for deltas.
+    */
     fn evaluate(&self, solution: &S) -> Sc;
 
     // Returns the number of matches for this constraint.
     fn match_count(&self, solution: &S) -> usize;
 
-    // Initializes internal state by inserting all entities.
-    //
-    // Must be called before using incremental methods (`on_insert`/`on_retract`).
-    // Returns the total score from initialization.
+    /* Initializes internal state by inserting all entities.
+
+    Must be called before using incremental methods (`on_insert`/`on_retract`).
+    Returns the total score from initialization.
+    */
     fn initialize(&mut self, solution: &S) -> Sc;
 
-    // Called when an entity is inserted or its variable changes.
-    //
-    // Returns the score delta from this insertion.
-    //
-    // # Arguments
-    // * `solution` - The planning solution
-    // * `entity_index` - Index of the entity within its class
-    // * `descriptor_index` - Index of the entity class (descriptor) being modified
+    /* Called when an entity is inserted or its variable changes.
+
+    Returns the score delta from this insertion.
+
+    # Arguments
+    * `solution` - The planning solution
+    * `entity_index` - Index of the entity within its class
+    * `descriptor_index` - Index of the entity class (descriptor) being modified
+    */
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
-    // Called when an entity is retracted or before its variable changes.
-    //
-    // Returns the score delta (negative) from this retraction.
-    //
-    // # Arguments
-    // * `solution` - The planning solution
-    // * `entity_index` - Index of the entity within its class
-    // * `descriptor_index` - Index of the entity class (descriptor) being modified
+    /* Called when an entity is retracted or before its variable changes.
+
+    Returns the score delta (negative) from this retraction.
+
+    # Arguments
+    * `solution` - The planning solution
+    * `entity_index` - Index of the entity within its class
+    * `descriptor_index` - Index of the entity class (descriptor) being modified
+    */
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     // Resets internal state for a new solving session.
@@ -70,28 +76,31 @@ pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
         false
     }
 
-    // Returns the constraint reference (package + name).
-    //
-    // Default implementation constructs from `name()`.
+    /* Returns the constraint reference (package + name).
+
+    Default implementation constructs from `name()`.
+    */
     fn constraint_ref(&self) -> ConstraintRef {
         ConstraintRef::new("", self.name())
     }
 
-    // Returns detailed matches with entity justifications.
-    //
-    // The default implementation returns an empty vector.
-    // Constraints should override this to provide detailed match information
-    // including the entities involved in each constraint violation.
-    //
-    // This enables score explanation features without requiring all constraints
-    // to implement detailed tracking.
+    /* Returns detailed matches with entity justifications.
+
+    The default implementation returns an empty vector.
+    Constraints should override this to provide detailed match information
+    including the entities involved in each constraint violation.
+
+    This enables score explanation features without requiring all constraints
+    to implement detailed tracking.
+    */
     fn get_matches(&self, _solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
         Vec::new()
     }
 
-    // Returns the constraint weight (score per match).
-    //
-    // Used for score explanation. Default returns zero.
+    /* Returns the constraint weight (score per match).
+
+    Used for score explanation. Default returns zero.
+    */
     fn weight(&self) -> Sc {
         Sc::zero()
     }
@@ -110,10 +119,11 @@ pub struct ConstraintResult<Sc> {
     pub is_hard: bool,
 }
 
-// A set of constraints that can be evaluated together.
-//
-// `ConstraintSet` is implemented for tuples of `IncrementalConstraint`,
-// enabling fully typed constraint evaluation without virtual dispatch.
+/* A set of constraints that can be evaluated together.
+
+`ConstraintSet` is implemented for tuples of `IncrementalConstraint`,
+enabling fully typed constraint evaluation without virtual dispatch.
+*/
 pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Evaluates all constraints and returns the total score.
     fn evaluate_all(&self, solution: &S) -> Sc;
@@ -121,50 +131,56 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Returns the number of constraints in this set.
     fn constraint_count(&self) -> usize;
 
-    // Evaluates each constraint individually and returns per-constraint results.
-    //
-    // Useful for score explanation and debugging.
+    /* Evaluates each constraint individually and returns per-constraint results.
+
+    Useful for score explanation and debugging.
+    */
     fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>>;
 
-    // Evaluates each constraint with detailed match information.
-    //
-    // Returns per-constraint analysis including all matches with entity
-    // justifications. This enables full score explanation features.
+    /* Evaluates each constraint with detailed match information.
+
+    Returns per-constraint analysis including all matches with entity
+    justifications. This enables full score explanation features.
+    */
     fn evaluate_detailed(&self, solution: &S) -> Vec<ConstraintAnalysis<Sc>>;
 
-    // Initializes all constraints by inserting all entities.
-    //
-    // Must be called before using incremental methods.
-    // Returns the total score from initialization.
+    /* Initializes all constraints by inserting all entities.
+
+    Must be called before using incremental methods.
+    Returns the total score from initialization.
+    */
     fn initialize_all(&mut self, solution: &S) -> Sc;
 
-    // Called when an entity is inserted.
-    //
-    // Returns the total score delta from all constraints.
-    //
-    // # Arguments
-    // * `solution` - The planning solution
-    // * `entity_index` - Index of the entity within its class
-    // * `descriptor_index` - Index of the entity class (descriptor) being modified
+    /* Called when an entity is inserted.
+
+    Returns the total score delta from all constraints.
+
+    # Arguments
+    * `solution` - The planning solution
+    * `entity_index` - Index of the entity within its class
+    * `descriptor_index` - Index of the entity class (descriptor) being modified
+    */
     fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
-    // Called when an entity is retracted.
-    //
-    // Returns the total score delta from all constraints.
-    //
-    // # Arguments
-    // * `solution` - The planning solution
-    // * `entity_index` - Index of the entity within its class
-    // * `descriptor_index` - Index of the entity class (descriptor) being modified
+    /* Called when an entity is retracted.
+
+    Returns the total score delta from all constraints.
+
+    # Arguments
+    * `solution` - The planning solution
+    * `entity_index` - Index of the entity within its class
+    * `descriptor_index` - Index of the entity class (descriptor) being modified
+    */
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     // Resets all constraints for a new solving session.
     fn reset_all(&mut self);
 }
 
-// ============================================================================
-// Tuple implementations
-// ============================================================================
+/* ============================================================================
+Tuple implementations
+============================================================================
+*/
 
 // Implement `ConstraintSet` for an empty tuple (no constraints).
 impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {

@@ -1,4 +1,4 @@
-//! Tests for entity placers.
+// Tests for entity placers.
 
 use super::*;
 use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};

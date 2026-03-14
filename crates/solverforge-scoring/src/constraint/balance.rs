@@ -1,10 +1,11 @@
-// Zero-erasure balance constraint for load distribution scoring.
-//
-// Provides a constraint that penalizes uneven distribution across groups
-// using standard deviation. Unlike grouped constraints which score per-group,
-// the balance constraint computes a GLOBAL statistic across all groups.
-//
-// All type information is preserved at compile time - no Arc, no dyn.
+/* Zero-erasure balance constraint for load distribution scoring.
+
+Provides a constraint that penalizes uneven distribution across groups
+using standard deviation. Unlike grouped constraints which score per-group,
+the balance constraint computes a GLOBAL statistic across all groups.
+
+All type information is preserved at compile time - no Arc, no dyn.
+*/
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -16,68 +17,69 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::UniFilter;
 
-// Zero-erasure balance constraint that penalizes uneven load distribution.
-//
-// This constraint:
-// 1. Groups entities by key (e.g., employee_id)
-// 2. Counts how many entities belong to each group
-// 3. Computes population standard deviation across all group counts
-// 4. Multiplies the base score by std_dev to produce the final score
-//
-// The key difference from `GroupedUniConstraint` is that balance computes
-// a GLOBAL statistic, not per-group scores.
-//
-// # Type Parameters
-//
-// - `S` - Solution type
-// - `A` - Entity type
-// - `K` - Group key type
-// - `E` - Extractor function for entities
-// - `F` - Filter type
-// - `KF` - Key function
-// - `Sc` - Score type
-//
-// # Example
-//
-// ```
-// use solverforge_scoring::constraint::balance::BalanceConstraint;
-// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-// use solverforge_scoring::stream::filter::TrueFilter;
-// use solverforge_core::{ConstraintRef, ImpactType, HardSoftDecimalScore};
-//
-// #[derive(Clone)]
-// struct Shift { employee_id: Option<usize> }
-//
-// #[derive(Clone)]
-// struct Solution { shifts: Vec<Shift> }
-//
-// // Base score of 1000 soft per unit of std_dev
-// let constraint = BalanceConstraint::new(
-//     ConstraintRef::new("", "Balance workload"),
-//     ImpactType::Penalty,
-//     |s: &Solution| &s.shifts,
-//     TrueFilter,
-//     |shift: &Shift| shift.employee_id,
-//     HardSoftDecimalScore::of_soft(1),  // 1 soft per unit std_dev (scaled internally)
-//     false,
-// );
-//
-// let solution = Solution {
-//     shifts: vec![
-//         Shift { employee_id: Some(0) },
-//         Shift { employee_id: Some(0) },
-//         Shift { employee_id: Some(0) },
-//         Shift { employee_id: Some(1) },
-//         Shift { employee_id: None },  // Unassigned, filtered out
-//     ],
-// };
-//
-// // Employee 0: 3 shifts, Employee 1: 1 shift
-// // Mean = 2, Variance = ((3-2)² + (1-2)²) / 2 = 1
-// // StdDev = 1.0, Score = -1 soft (base_score * std_dev, negated for penalty)
-// let score = constraint.evaluate(&solution);
-// assert_eq!(score, HardSoftDecimalScore::of_soft(-1));
-// ```
+/* Zero-erasure balance constraint that penalizes uneven load distribution.
+
+This constraint:
+1. Groups entities by key (e.g., employee_id)
+2. Counts how many entities belong to each group
+3. Computes population standard deviation across all group counts
+4. Multiplies the base score by std_dev to produce the final score
+
+The key difference from `GroupedUniConstraint` is that balance computes
+a GLOBAL statistic, not per-group scores.
+
+# Type Parameters
+
+- `S` - Solution type
+- `A` - Entity type
+- `K` - Group key type
+- `E` - Extractor function for entities
+- `F` - Filter type
+- `KF` - Key function
+- `Sc` - Score type
+
+# Example
+
+```
+use solverforge_scoring::constraint::balance::BalanceConstraint;
+use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+use solverforge_scoring::stream::filter::TrueFilter;
+use solverforge_core::{ConstraintRef, ImpactType, HardSoftDecimalScore};
+
+#[derive(Clone)]
+struct Shift { employee_id: Option<usize> }
+
+#[derive(Clone)]
+struct Solution { shifts: Vec<Shift> }
+
+// Base score of 1000 soft per unit of std_dev
+let constraint = BalanceConstraint::new(
+ConstraintRef::new("", "Balance workload"),
+ImpactType::Penalty,
+|s: &Solution| &s.shifts,
+TrueFilter,
+|shift: &Shift| shift.employee_id,
+HardSoftDecimalScore::of_soft(1),  // 1 soft per unit std_dev (scaled internally)
+false,
+);
+
+let solution = Solution {
+shifts: vec![
+Shift { employee_id: Some(0) },
+Shift { employee_id: Some(0) },
+Shift { employee_id: Some(0) },
+Shift { employee_id: Some(1) },
+Shift { employee_id: None },  // Unassigned, filtered out
+],
+};
+
+// Employee 0: 3 shifts, Employee 1: 1 shift
+// Mean = 2, Variance = ((3-2)² + (1-2)²) / 2 = 1
+// StdDev = 1.0, Score = -1 soft (base_score * std_dev, negated for penalty)
+let score = constraint.evaluate(&solution);
+assert_eq!(score, HardSoftDecimalScore::of_soft(-1));
+```
+*/
 pub struct BalanceConstraint<S, A, K, E, F, KF, Sc>
 where
     Sc: Score,
@@ -114,17 +116,18 @@ where
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
-    // Creates a new zero-erasure balance constraint.
-    //
-    // # Arguments
-    //
-    // * `constraint_ref` - Identifier for this constraint
-    // * `impact_type` - Whether to penalize or reward
-    // * `extractor` - Function to get entity slice from solution
-    // * `filter` - Filter to select which entities to consider
-    // * `key_fn` - Function to extract group key (returns None to skip entity)
-    // * `base_score` - Score per unit of standard deviation
-    // * `is_hard` - Whether this is a hard constraint
+    /* Creates a new zero-erasure balance constraint.
+
+    # Arguments
+
+    * `constraint_ref` - Identifier for this constraint
+    * `impact_type` - Whether to penalize or reward
+    * `extractor` - Function to get entity slice from solution
+    * `filter` - Filter to select which entities to consider
+    * `key_fn` - Function to extract group key (returns None to skip entity)
+    * `base_score` - Score per unit of standard deviation
+    * `is_hard` - Whether this is a hard constraint
+    */
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,

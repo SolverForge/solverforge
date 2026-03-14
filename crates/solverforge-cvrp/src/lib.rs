@@ -1,14 +1,16 @@
-//! CVRP domain helpers for SolverForge.
-//!
-//! Provides `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`,
-//! the `VrpSolution` trait, and a suite of free functions for Clarke-Wright
-//! and k-opt construction phases.
+/* CVRP domain helpers for SolverForge.
+
+Provides `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`,
+the `VrpSolution` trait, and a suite of free functions for Clarke-Wright
+and k-opt construction phases.
+*/
 
 use solverforge_solver::CrossEntityDistanceMeter;
 
-// ============================================================================
-// Problem data
-// ============================================================================
+/* ============================================================================
+Problem data
+============================================================================
+*/
 
 /// Immutable problem data shared by all vehicles.
 ///
@@ -25,9 +27,10 @@ pub struct ProblemData {
     pub vehicle_departure_time: i64,
 }
 
-// ============================================================================
-// VrpSolution trait
-// ============================================================================
+/* ============================================================================
+VrpSolution trait
+============================================================================
+*/
 
 /// Trait implemented by a planning solution that holds a fleet of vehicles,
 /// each carrying a `*const ProblemData` pointer and a list of visited stops.
@@ -42,9 +45,10 @@ pub trait VrpSolution {
     fn vehicle_count(&self) -> usize;
 }
 
-// ============================================================================
-// Free functions (callable as fn-pointer fields in ListSpec)
-// ============================================================================
+/* ============================================================================
+Free functions (callable as fn-pointer fields in ListSpec)
+============================================================================
+*/
 
 /// Distance between two element indices using the first vehicle's data pointer.
 pub fn distance<S: VrpSolution>(plan: &S, i: usize, j: usize) -> i64 {
@@ -56,7 +60,6 @@ pub fn distance<S: VrpSolution>(plan: &S, i: usize, j: usize) -> i64 {
     data.distance_matrix[i][j]
 }
 
-/// Returns the depot index (same for all vehicles).
 pub fn depot_for_entity<S: VrpSolution>(plan: &S, _entity_idx: usize) -> usize {
     if plan.vehicle_count() == 0 {
         return 0;
@@ -66,7 +69,6 @@ pub fn depot_for_entity<S: VrpSolution>(plan: &S, _entity_idx: usize) -> usize {
     data.depot
 }
 
-/// Returns the depot index for Clarke-Wright (plan-level, not per-entity).
 pub fn depot_for_cw<S: VrpSolution>(plan: &S) -> usize {
     if plan.vehicle_count() == 0 {
         return 0;
@@ -76,7 +78,6 @@ pub fn depot_for_cw<S: VrpSolution>(plan: &S) -> usize {
     data.depot
 }
 
-/// Returns the demand (load) for a single customer element.
 pub fn element_load<S: VrpSolution>(plan: &S, elem: usize) -> i64 {
     if plan.vehicle_count() == 0 {
         return 0;
@@ -86,7 +87,6 @@ pub fn element_load<S: VrpSolution>(plan: &S, elem: usize) -> i64 {
     data.demands[elem] as i64
 }
 
-/// Returns the vehicle capacity.
 pub fn capacity<S: VrpSolution>(plan: &S) -> i64 {
     if plan.vehicle_count() == 0 {
         return i64::MAX;
@@ -101,7 +101,6 @@ pub fn assign_route<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<
     *plan.vehicle_visits_mut(entity_idx) = route;
 }
 
-/// Returns the current route for entity `entity_idx`.
 pub fn get_route<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize> {
     plan.vehicle_visits(entity_idx).to_vec()
 }
@@ -153,11 +152,12 @@ fn check_time_feasible(route: &[usize], data: &ProblemData) -> bool {
     true
 }
 
-// ============================================================================
-// Distance meters
-// ============================================================================
+/* ============================================================================
+Distance meters
+============================================================================
+*/
 
-/// Cross-entity distance meter backed by the solution's distance matrix.
+// Cross-entity distance meter backed by the solution's distance matrix.
 #[derive(Clone, Default)]
 pub struct MatrixDistanceMeter;
 
@@ -181,7 +181,7 @@ impl<S: VrpSolution> CrossEntityDistanceMeter<S> for MatrixDistanceMeter {
     }
 }
 
-/// Intra-entity distance meter backed by the solution's distance matrix.
+// Intra-entity distance meter backed by the solution's distance matrix.
 #[derive(Clone, Default)]
 pub struct MatrixIntraDistanceMeter;
 

@@ -1,4 +1,4 @@
-//! Diversified late acceptance acceptor.
+// Diversified late acceptance acceptor.
 
 use std::fmt::Debug;
 
@@ -37,15 +37,15 @@ use super::Acceptor;
 /// let acceptor = DiversifiedLateAcceptanceAcceptor::<MySolution>::new(400, 0.05);
 /// ```
 pub struct DiversifiedLateAcceptanceAcceptor<S: PlanningSolution> {
-    /// Size of the late acceptance list.
+    // Size of the late acceptance list.
     late_acceptance_size: usize,
-    /// Circular buffer of historical scores.
+    // Circular buffer of historical scores.
     score_history: Vec<Option<S::Score>>,
-    /// Current index in the buffer.
+    // Current index in the buffer.
     current_index: usize,
-    /// Best score found so far in this phase.
+    // Best score found so far in this phase.
     best_score: Option<S::Score>,
-    /// Tolerance as a fraction (0.05 = 5% worse than best is acceptable).
+    // Tolerance as a fraction (0.05 = 5% worse than best is acceptable).
     tolerance: f64,
 }
 
@@ -206,9 +206,10 @@ mod tests {
         acceptor.step_ended(&SoftScore::of(-70));
         acceptor.step_ended(&SoftScore::of(-60));
 
-        // Now history is filled with newer scores
-        // Best is -60
-        // Threshold = -60 - 0.1 * 60 = -60 - 6 = -66
+        /* Now history is filled with newer scores
+        Best is -60
+        Threshold = -60 - 0.1 * 60 = -60 - 6 = -66
+        */
 
         // -65 is within tolerance of best (-60) and worse than late score (-60)
         // But -65 >= -66, so should be accepted
@@ -225,10 +226,11 @@ mod tests {
         acceptor.step_ended(&SoftScore::of(-40));
         acceptor.step_ended(&SoftScore::of(-40));
 
-        // History is now [-40, -40, -40], best = -40
-        // Late score at index 0 = -40
-        // Threshold = -40 - 0.05 * 40 = -42
-        // -50 is worse than late (-40) AND outside tolerance (-42)
+        /* History is now [-40, -40, -40], best = -40
+        Late score at index 0 = -40
+        Threshold = -40 - 0.05 * 40 = -42
+        -50 is worse than late (-40) AND outside tolerance (-42)
+        */
         assert!(!acceptor.is_accepted(&SoftScore::of(-40), &SoftScore::of(-50)));
     }
 

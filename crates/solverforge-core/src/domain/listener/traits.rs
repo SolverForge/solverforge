@@ -1,17 +1,18 @@
-//! Variable listener infrastructure for shadow variable updates.
-//!
-//! Variable listeners are notified when genuine planning variables change,
-//! allowing them to update shadow variables accordingly.
-//!
-//! # Architecture
-//!
-//! - [`VariableListener`]: Listens to basic/chained variable changes
-//! - [`ListVariableListener`]: Listens to list variable changes with range info
-//!
-//! # Listener Types
-//!
-//! - **Automatic listeners**: Built-in listeners for Index, Inverse, Next/Previous
-//! - **Custom listeners**: User-defined listeners for complex shadow variables
+/* Variable listener infrastructure for shadow variable updates.
+
+Variable listeners are notified when genuine planning variables change,
+allowing them to update shadow variables accordingly.
+
+# Architecture
+
+- [`VariableListener`]: Listens to basic/chained variable changes
+- [`ListVariableListener`]: Listens to list variable changes with range info
+
+# Listener Types
+
+- **Automatic listeners**: Built-in listeners for Index, Inverse, Next/Previous
+- **Custom listeners**: User-defined listeners for complex shadow variables
+*/
 
 /// A listener that is notified when a source planning variable changes.
 ///
@@ -32,35 +33,40 @@
 /// - `Solution`: The solution type (has `PlanningSolution` trait)
 /// - `Entity`: The entity type on which the source variable is declared
 pub trait VariableListener<Solution, Entity>: Send + Sync {
-    /// Called before the source variable changes on the entity.
-    ///
-    /// Use this to capture any old state needed for shadow variable calculation.
+    /* Called before the source variable changes on the entity.
+
+    Use this to capture any old state needed for shadow variable calculation.
+    */
     fn before_variable_changed(&mut self, solution: &Solution, entity: &Entity);
 
-    /// Called after the source variable has changed on the entity.
-    ///
-    /// Update shadow variables based on the new variable value.
+    /* Called after the source variable has changed on the entity.
+
+    Update shadow variables based on the new variable value.
+    */
     fn after_variable_changed(&mut self, solution: &mut Solution, entity: &Entity);
 
-    /// Whether this listener requires unique entity events.
-    ///
-    /// When `true`, each before/after method is guaranteed to be called only once
-    /// per entity instance per operation (add, change, or remove).
-    ///
-    /// When `false` (default), the same entity may receive multiple notifications
-    /// in a single operation, which can be more efficient but requires idempotent logic.
+    /* Whether this listener requires unique entity events.
+
+    When `true`, each before/after method is guaranteed to be called only once
+    per entity instance per operation (add, change, or remove).
+
+    When `false` (default), the same entity may receive multiple notifications
+    in a single operation, which can be more efficient but requires idempotent logic.
+    */
     fn requires_unique_entity_events(&self) -> bool {
         false
     }
 
-    /// Called when the working solution changes.
-    ///
-    /// Override this to reset any internal state when a new solution is loaded.
+    /* Called when the working solution changes.
+
+    Override this to reset any internal state when a new solution is loaded.
+    */
     fn reset_working_solution(&mut self, _solution: &Solution) {}
 
-    /// Called when the listener is no longer needed.
-    ///
-    /// Override this to clean up any resources.
+    /* Called when the listener is no longer needed.
+
+    Override this to clean up any resources.
+    */
     fn close(&mut self) {}
 }
 
@@ -84,16 +90,18 @@ pub trait VariableListener<Solution, Entity>: Send + Sync {
 /// - `Entity`: The entity type with the list variable
 /// - `Element`: The type of elements in the list
 pub trait ListVariableListener<Solution, Entity, Element>: Send + Sync {
-    /// Called when an element is unassigned from any list.
-    ///
-    /// This is called during move undo or element removal.
-    /// The listener should reset any shadow variables on the element to their
-    /// unassigned state (typically `None` or default values).
+    /* Called when an element is unassigned from any list.
+
+    This is called during move undo or element removal.
+    The listener should reset any shadow variables on the element to their
+    unassigned state (typically `None` or default values).
+    */
     fn after_element_unassigned(&mut self, solution: &mut Solution, element: &Element);
 
-    /// Called before elements in the range `[from_index, to_index)` change.
-    ///
-    /// Use this to capture any old state needed for shadow variable calculation.
+    /* Called before elements in the range `[from_index, to_index)` change.
+
+    Use this to capture any old state needed for shadow variable calculation.
+    */
     fn before_list_variable_changed(
         &mut self,
         solution: &Solution,
@@ -102,9 +110,10 @@ pub trait ListVariableListener<Solution, Entity, Element>: Send + Sync {
         to_index: usize,
     );
 
-    /// Called after elements in the range `[from_index, to_index)` have changed.
-    ///
-    /// Update shadow variables for elements within and potentially after the range.
+    /* Called after elements in the range `[from_index, to_index)` have changed.
+
+    Update shadow variables for elements within and potentially after the range.
+    */
     fn after_list_variable_changed(
         &mut self,
         solution: &mut Solution,
@@ -113,34 +122,34 @@ pub trait ListVariableListener<Solution, Entity, Element>: Send + Sync {
         to_index: usize,
     );
 
-    /// Called when the working solution changes.
+    // Called when the working solution changes.
     fn reset_working_solution(&mut self, _solution: &Solution) {}
 
-    /// Called when the listener is no longer needed.
+    // Called when the listener is no longer needed.
     fn close(&mut self) {}
 }
 
-/// Notification type for variable listener events.
+// Notification type for variable listener events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VariableNotification {
-    /// Entity was added to the working solution.
+    // Entity was added to the working solution.
     EntityAdded,
-    /// Entity was removed from the working solution.
+    // Entity was removed from the working solution.
     EntityRemoved,
-    /// A variable on the entity changed.
+    // A variable on the entity changed.
     VariableChanged,
 }
 
-/// Notification type for list variable listener events.
+// Notification type for list variable listener events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListVariableNotification {
-    /// An element was unassigned from all lists.
+    // An element was unassigned from all lists.
     ElementUnassigned,
-    /// Elements in a range changed.
+    // Elements in a range changed.
     RangeChanged {
-        /// Inclusive start of affected range.
+        // Inclusive start of affected range.
         from_index: usize,
-        /// Exclusive end of affected range.
+        // Exclusive end of affected range.
         to_index: usize,
     },
 }

@@ -1,8 +1,9 @@
-//! Value range providers for planning variables.
-//!
-//! Value range providers define the possible values that can be assigned to
-//! planning variables. They can be static (fixed list) or dynamic (computed
-//! from the solution state).
+/* Value range providers for planning variables.
+
+Value range providers define the possible values that can be assigned to
+planning variables. They can be static (fixed list) or dynamic (computed
+from the solution state).
+*/
 
 /// Provides values for a planning variable.
 ///
@@ -40,22 +41,24 @@
 /// assert_eq!(provider.value_count(&solution), 8);
 /// ```
 pub trait ValueRangeProvider<S, V>: Send + Sync {
-    /// Returns all possible values for the variable.
-    ///
-    /// This method is called during move generation to determine which
-    /// values can be assigned to a planning variable.
+    /* Returns all possible values for the variable.
+
+    This method is called during move generation to determine which
+    values can be assigned to a planning variable.
+    */
     fn get_values(&self, solution: &S) -> Vec<V>;
 
-    /// Returns the number of possible values.
-    ///
-    /// The default implementation calls `get_values` and returns the length,
-    /// but implementations may override this for efficiency if the count
-    /// can be computed without materializing the values.
+    /* Returns the number of possible values.
+
+    The default implementation calls `get_values` and returns the length,
+    but implementations may override this for efficiency if the count
+    can be computed without materializing the values.
+    */
     fn value_count(&self, solution: &S) -> usize {
         self.get_values(solution).len()
     }
 
-    /// Returns whether the value range is empty.
+    // Returns whether the value range is empty.
     fn is_empty(&self, solution: &S) -> bool {
         self.value_count(solution) == 0
     }
@@ -76,7 +79,6 @@ impl<S, V, F> FieldValueRangeProvider<S, V, F>
 where
     F: Fn(&S) -> &Vec<V> + Send + Sync,
 {
-    /// Creates a new field-based value range provider.
     pub fn new(getter: F) -> Self {
         Self {
             getter,
@@ -116,7 +118,6 @@ impl<S, V, F> ComputedValueRangeProvider<S, V, F>
 where
     F: Fn(&S) -> Vec<V> + Send + Sync,
 {
-    /// Creates a new computed value range provider.
     pub fn new(compute: F) -> Self {
         Self {
             compute,
@@ -150,7 +151,6 @@ pub struct StaticValueRange<V> {
 }
 
 impl<V> StaticValueRange<V> {
-    /// Creates a new static value range.
     pub fn new(values: Vec<V>) -> Self {
         Self { values }
     }
@@ -181,12 +181,10 @@ pub struct IntegerRange {
 use super::variable::ValueRangeType;
 
 impl IntegerRange {
-    /// Creates a new integer range [start, end).
     pub fn new(start: i64, end: i64) -> Self {
         Self { start, end }
     }
 
-    /// Creates a range from 0 to n (exclusive).
     pub fn from_zero(n: i64) -> Self {
         Self::new(0, n)
     }

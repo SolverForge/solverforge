@@ -1,4 +1,4 @@
-//! MoveArena tests.
+// MoveArena tests.
 
 use super::*;
 

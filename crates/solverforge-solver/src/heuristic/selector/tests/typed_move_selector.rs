@@ -1,4 +1,4 @@
-//! Tests for typed move selectors.
+// Tests for typed move selectors.
 
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,

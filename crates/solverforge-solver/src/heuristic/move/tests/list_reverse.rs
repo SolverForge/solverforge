@@ -1,4 +1,4 @@
-//! Tests for ListReverseMove operations.
+// Tests for ListReverseMove operations.
 
 use super::*;
 

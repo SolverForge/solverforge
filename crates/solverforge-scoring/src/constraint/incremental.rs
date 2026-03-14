@@ -1,6 +1,7 @@
-// Zero-erasure incremental uni-constraint.
-//
-// All closure types are concrete generics - no Arc, no dyn, fully monomorphized.
+/* Zero-erasure incremental uni-constraint.
+
+All closure types are concrete generics - no Arc, no dyn, fully monomorphized.
+*/
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -11,9 +12,10 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 use crate::api::constraint_set::IncrementalConstraint;
 
-// Zero-erasure incremental uni-constraint.
-//
-// All closure types are concrete generics - no Arc, no dyn, fully monomorphized.
+/* Zero-erasure incremental uni-constraint.
+
+All closure types are concrete generics - no Arc, no dyn, fully monomorphized.
+*/
 pub struct IncrementalUniConstraint<S, A, E, F, W, Sc>
 where
     Sc: Score,

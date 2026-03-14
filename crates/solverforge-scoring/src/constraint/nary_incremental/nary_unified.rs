@@ -1,8 +1,9 @@
-// Unified N-ary incremental constraint macro for tri/quad/penta arities.
-//
-// Tri/quad/penta share identical structure — only tuple width, loop depth,
-// filter/weight signatures, and destructuring differ. This macro generates
-// all three from a single parameterized definition.
+/* Unified N-ary incremental constraint macro for tri/quad/penta arities.
+
+Tri/quad/penta share identical structure — only tuple width, loop depth,
+filter/weight signatures, and destructuring differ. This macro generates
+all three from a single parameterized definition.
+*/
 
 #[macro_export]
 macro_rules! impl_incremental_tri_constraint {

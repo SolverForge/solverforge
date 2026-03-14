@@ -1,4 +1,4 @@
-//! Construction heuristic phase implementation.
+// Construction heuristic phase implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -42,7 +42,6 @@ where
     P: EntityPlacer<S, M>,
     Fo: ConstructionForager<S, M>,
 {
-    /// Creates a new construction heuristic phase.
     pub fn new(placer: P, forager: Fo) -> Self {
         Self {
             placer,

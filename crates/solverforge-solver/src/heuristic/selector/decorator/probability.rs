@@ -1,6 +1,7 @@
-//! Probability move selector decorator.
-//!
-//! Probabilistically filters moves from an inner selector.
+/* Probability move selector decorator.
+
+Probabilistically filters moves from an inner selector.
+*/
 
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -68,7 +69,6 @@ pub struct ProbabilityMoveSelector<S, M, Inner> {
 unsafe impl<S, M, Inner: Send> Send for ProbabilityMoveSelector<S, M, Inner> {}
 
 impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner> {
-    /// Creates a new probability selector with a random seed.
     pub fn new(inner: Inner, weight_fn: fn(&M) -> f64) -> Self {
         Self {
             inner,
@@ -78,7 +78,6 @@ impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner> {
         }
     }
 
-    /// Creates a new probability selector with a specific seed.
     pub fn with_seed(inner: Inner, weight_fn: fn(&M) -> f64, seed: u64) -> Self {
         Self {
             inner,

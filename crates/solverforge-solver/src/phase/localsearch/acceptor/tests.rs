@@ -1,4 +1,4 @@
-//! Tests for acceptors.
+// Tests for acceptors.
 
 use super::*;
 use solverforge_core::domain::PlanningSolution;

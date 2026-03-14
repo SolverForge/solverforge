@@ -1,23 +1,23 @@
-//! Exploration type for exhaustive search.
+// Exploration type for exhaustive search.
 
-/// Type of exploration strategy for exhaustive search.
+// Type of exploration strategy for exhaustive search.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExplorationType {
-    /// Depth-first search: explores deepest nodes first.
-    /// Most memory efficient, but may take longer to find optimal.
+    // Depth-first search: explores deepest nodes first.
+    // Most memory efficient, but may take longer to find optimal.
     #[default]
     DepthFirst,
 
-    /// Breadth-first search: explores level by level.
-    /// Memory intensive, but finds shortest solution paths.
+    // Breadth-first search: explores level by level.
+    // Memory intensive, but finds shortest solution paths.
     BreadthFirst,
 
-    /// Score-first search: explores best-scoring nodes first.
-    /// Greedy approach that may find good solutions quickly.
+    // Score-first search: explores best-scoring nodes first.
+    // Greedy approach that may find good solutions quickly.
     ScoreFirst,
 
-    /// Optimistic bound first: explores most promising nodes first.
-    /// A*-like behavior, requires a good bounder.
+    // Optimistic bound first: explores most promising nodes first.
+    // A*-like behavior, requires a good bounder.
     OptimisticBoundFirst,
 }
 

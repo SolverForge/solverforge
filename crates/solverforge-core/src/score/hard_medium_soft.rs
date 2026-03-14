@@ -1,4 +1,4 @@
-//! HardMediumSoftScore - Three-level score with hard, medium, and soft constraints
+// HardMediumSoftScore - Three-level score with hard, medium, and soft constraints
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -6,25 +6,26 @@ use std::fmt;
 use super::traits::Score;
 use super::ScoreLevel;
 
-/// A score with hard, medium, and soft constraint levels.
-///
-/// Hard constraints must be satisfied for feasibility.
-/// Medium constraints have higher priority than soft constraints.
-/// Soft constraints are the lowest priority optimization objectives.
-///
-/// Comparison order: hard > medium > soft
-///
-/// # Examples
-///
-/// ```
-/// use solverforge_core::HardMediumSoftScore;
-///
-/// let score1 = HardMediumSoftScore::of(0, -10, -100);
-/// let score2 = HardMediumSoftScore::of(0, -5, -200);
-///
-/// // Better medium score wins even with worse soft score
-/// assert!(score2 > score1);
-/// ```
+/* A score with hard, medium, and soft constraint levels.
+
+Hard constraints must be satisfied for feasibility.
+Medium constraints have higher priority than soft constraints.
+Soft constraints are the lowest priority optimization objectives.
+
+Comparison order: hard > medium > soft
+
+# Examples
+
+```
+use solverforge_core::HardMediumSoftScore;
+
+let score1 = HardMediumSoftScore::of(0, -10, -100);
+let score2 = HardMediumSoftScore::of(0, -5, -200);
+
+// Better medium score wins even with worse soft score
+assert!(score2 > score1);
+```
+*/
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HardMediumSoftScore {
@@ -62,13 +63,11 @@ impl HardMediumSoftScore {
         soft: 1,
     };
 
-    /// Creates a new HardMediumSoftScore.
     #[inline]
     pub const fn of(hard: i64, medium: i64, soft: i64) -> Self {
         HardMediumSoftScore { hard, medium, soft }
     }
 
-    /// Creates a score with only a hard component.
     #[inline]
     pub const fn of_hard(hard: i64) -> Self {
         HardMediumSoftScore {
@@ -78,7 +77,6 @@ impl HardMediumSoftScore {
         }
     }
 
-    /// Creates a score with only a medium component.
     #[inline]
     pub const fn of_medium(medium: i64) -> Self {
         HardMediumSoftScore {
@@ -88,7 +86,6 @@ impl HardMediumSoftScore {
         }
     }
 
-    /// Creates a score with only a soft component.
     #[inline]
     pub const fn of_soft(soft: i64) -> Self {
         HardMediumSoftScore {
@@ -98,19 +95,16 @@ impl HardMediumSoftScore {
         }
     }
 
-    /// Returns the hard score component.
     #[inline]
     pub const fn hard(&self) -> i64 {
         self.hard
     }
 
-    /// Returns the medium score component.
     #[inline]
     pub const fn medium(&self) -> i64 {
         self.medium
     }
 
-    /// Returns the soft score component.
     #[inline]
     pub const fn soft(&self) -> i64 {
         self.soft

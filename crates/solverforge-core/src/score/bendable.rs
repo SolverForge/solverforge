@@ -1,6 +1,7 @@
-//! BendableScore - Compile-time configurable multi-level score
-//!
-//! Uses const generics for zero-erasure. Level counts are determined at compile time.
+/* BendableScore - Compile-time configurable multi-level score
+
+Uses const generics for zero-erasure. Level counts are determined at compile time.
+*/
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -9,27 +10,28 @@ use std::ops::{Add, Neg, Sub};
 use super::traits::Score;
 use super::ScoreLevel;
 
-/// A score with a configurable number of hard and soft levels.
-///
-/// Level counts are const generic parameters, enabling Copy and zero heap allocation.
-///
-/// # Type Parameters
-///
-/// * `H` - Number of hard score levels
-/// * `S` - Number of soft score levels
-///
-/// # Examples
-///
-/// ```
-/// use solverforge_core::score::{BendableScore, Score};
-///
-/// // Create a score with 2 hard levels and 3 soft levels
-/// let score: BendableScore<2, 3> = BendableScore::of([-1, -2], [-10, -20, -30]);
-///
-/// assert_eq!(score.hard_levels_count(), 2);
-/// assert_eq!(score.soft_levels_count(), 3);
-/// assert!(!score.is_feasible());  // Negative hard scores
-/// ```
+/* A score with a configurable number of hard and soft levels.
+
+Level counts are const generic parameters, enabling Copy and zero heap allocation.
+
+# Type Parameters
+
+* `H` - Number of hard score levels
+* `S` - Number of soft score levels
+
+# Examples
+
+```
+use solverforge_core::score::{BendableScore, Score};
+
+// Create a score with 2 hard levels and 3 soft levels
+let score: BendableScore<2, 3> = BendableScore::of([-1, -2], [-10, -20, -30]);
+
+assert_eq!(score.hard_levels_count(), 2);
+assert_eq!(score.soft_levels_count(), 3);
+assert!(!score.is_feasible());  // Negative hard scores
+```
+*/
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BendableScore<const H: usize, const S: usize> {
     hard: [i64; H],
@@ -37,12 +39,10 @@ pub struct BendableScore<const H: usize, const S: usize> {
 }
 
 impl<const H: usize, const S: usize> BendableScore<H, S> {
-    /// Creates a new BendableScore with the given hard and soft score arrays.
     pub const fn of(hard: [i64; H], soft: [i64; S]) -> Self {
         BendableScore { hard, soft }
     }
 
-    /// Creates a zero score.
     pub const fn zero() -> Self {
         BendableScore {
             hard: [0; H],
@@ -50,12 +50,10 @@ impl<const H: usize, const S: usize> BendableScore<H, S> {
         }
     }
 
-    /// Returns the number of hard score levels.
     pub const fn hard_levels_count(&self) -> usize {
         H
     }
 
-    /// Returns the number of soft score levels.
     pub const fn soft_levels_count(&self) -> usize {
         S
     }
@@ -76,24 +74,20 @@ impl<const H: usize, const S: usize> BendableScore<H, S> {
         self.soft[level]
     }
 
-    /// Returns all hard scores as a slice.
     pub const fn hard_scores(&self) -> &[i64; H] {
         &self.hard
     }
 
-    /// Returns all soft scores as a slice.
     pub const fn soft_scores(&self) -> &[i64; S] {
         &self.soft
     }
 
-    /// Creates a score with a single hard level penalty at the given index.
     pub const fn one_hard(level: usize) -> Self {
         let mut hard = [0; H];
         hard[level] = 1;
         BendableScore { hard, soft: [0; S] }
     }
 
-    /// Creates a score with a single soft level penalty at the given index.
     pub const fn one_soft(level: usize) -> Self {
         let mut soft = [0; S];
         soft[level] = 1;

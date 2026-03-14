@@ -1,4 +1,4 @@
-//! Time-based termination.
+// Time-based termination.
 
 use std::time::Duration;
 
@@ -9,18 +9,19 @@ use super::Termination;
 use crate::scope::BestSolutionCallback;
 use crate::scope::SolverScope;
 
-/// Terminates after a time limit.
-///
-/// # Example
-///
-/// ```
-/// use std::time::Duration;
-/// use solverforge_solver::termination::TimeTermination;
-///
-/// let term = TimeTermination::new(Duration::from_secs(30));
-/// let term = TimeTermination::seconds(30);
-/// let term = TimeTermination::millis(500);
-/// ```
+/* Terminates after a time limit.
+
+# Example
+
+```
+use std::time::Duration;
+use solverforge_solver::termination::TimeTermination;
+
+let term = TimeTermination::new(Duration::from_secs(30));
+let term = TimeTermination::seconds(30);
+let term = TimeTermination::millis(500);
+```
+*/
 #[derive(Debug, Clone)]
 pub struct TimeTermination {
     limit: Duration,

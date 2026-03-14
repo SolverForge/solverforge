@@ -1,4 +1,4 @@
-//! Basic variable move selector enum and builder.
+// Basic variable move selector enum and builder.
 
 use std::fmt::Debug;
 
@@ -21,7 +21,7 @@ use super::context::BasicContext;
 /// `VecUnionSelector<S, EitherMove<S, usize>, BasicLeafSelector<S>>` has a
 /// single concrete type regardless of which selectors are active.
 pub enum BasicLeafSelector<S: PlanningSolution> {
-    /// A change move selector yielding `EitherMove::Change`.
+    // A change move selector yielding `EitherMove::Change`.
     Change(
         EitherChangeMoveSelector<
             S,
@@ -30,7 +30,7 @@ pub enum BasicLeafSelector<S: PlanningSolution> {
             crate::heuristic::selector::typed_value::StaticTypedValueSelector<S, usize>,
         >,
     ),
-    /// A swap move selector yielding `EitherMove::Swap`.
+    // A swap move selector yielding `EitherMove::Swap`.
     Swap(EitherSwapMoveSelector<S, usize, FromSolutionEntitySelector, FromSolutionEntitySelector>),
 }
 

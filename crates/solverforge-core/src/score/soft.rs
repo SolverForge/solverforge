@@ -1,4 +1,4 @@
-//! SoftScore - Single-level score implementation
+// SoftScore - Single-level score implementation
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -6,22 +6,23 @@ use std::fmt;
 use super::traits::{ParseableScore, Score, ScoreParseError};
 use super::ScoreLevel;
 
-/// A simple score with a single integer value.
-///
-/// This is the simplest score type, useful when there's only one
-/// type of constraint to optimize.
-///
-/// # Examples
-///
-/// ```
-/// use solverforge_core::{SoftScore, Score};
-///
-/// let score1 = SoftScore::of(-5);
-/// let score2 = SoftScore::of(-3);
-///
-/// assert!(score2 > score1);  // -3 is better than -5
-/// assert!(!score1.is_feasible());  // Negative scores are not feasible
-/// ```
+/* A simple score with a single integer value.
+
+This is the simplest score type, useful when there's only one
+type of constraint to optimize.
+
+# Examples
+
+```
+use solverforge_core::{SoftScore, Score};
+
+let score1 = SoftScore::of(-5);
+let score2 = SoftScore::of(-3);
+
+assert!(score2 > score1);  // -3 is better than -5
+assert!(!score1.is_feasible());  // Negative scores are not feasible
+```
+*/
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SoftScore {
@@ -35,13 +36,11 @@ impl SoftScore {
     /// A score of 1 (useful for incrementing).
     pub const ONE: SoftScore = SoftScore { score: 1 };
 
-    /// Creates a new SoftScore with the given value.
     #[inline]
     pub const fn of(score: i64) -> Self {
         SoftScore { score }
     }
 
-    /// Returns the score value.
     #[inline]
     pub const fn score(&self) -> i64 {
         self.score

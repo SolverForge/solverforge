@@ -1,4 +1,4 @@
-//! Core domain traits
+// Core domain traits
 
 use std::any::Any;
 use std::hash::Hash;
@@ -44,20 +44,21 @@ use crate::score::Score;
 ///
 /// Planning solutions must be `Send + Sync` to support multi-threaded solving.
 pub trait PlanningSolution: Clone + Send + Sync + 'static {
-    /// The score type used to evaluate this solution.
+    // The score type used to evaluate this solution.
     type Score: Score;
 
-    /// Returns the current score of this solution, if calculated.
-    ///
-    /// Returns `None` if the solution has not been scored yet.
+    /* Returns the current score of this solution, if calculated.
+
+    Returns `None` if the solution has not been scored yet.
+    */
     fn score(&self) -> Option<Self::Score>;
 
-    /// Sets the score of this solution.
     fn set_score(&mut self, score: Option<Self::Score>);
 
-    /// Returns true if this solution is fully initialized.
-    ///
-    /// A solution is initialized when all planning variables have been assigned.
+    /* Returns true if this solution is fully initialized.
+
+    A solution is initialized when all planning variables have been assigned.
+    */
     fn is_initialized(&self) -> bool {
         // Default implementation - can be overridden by derived code
         true
@@ -94,17 +95,18 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
 /// Entities can be "pinned" to prevent the solver from changing them.
 /// Override `is_pinned()` to return true for pinned entities.
 pub trait PlanningEntity: Clone + Send + Sync + Any + 'static {
-    /// Returns true if this entity is pinned (should not be changed).
-    ///
-    /// Default implementation returns false (entity can be changed).
+    /* Returns true if this entity is pinned (should not be changed).
+
+    Default implementation returns false (entity can be changed).
+    */
     fn is_pinned(&self) -> bool {
         false
     }
 
-    /// Cast to Any for dynamic typing support.
+    // Cast to Any for dynamic typing support.
     fn as_any(&self) -> &dyn Any;
 
-    /// Cast to mutable Any for dynamic typing support.
+    // Cast to mutable Any for dynamic typing support.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -130,7 +132,7 @@ pub trait PlanningEntity: Clone + Send + Sync + Any + 'static {
 /// }
 /// ```
 pub trait ProblemFact: Clone + Send + Sync + Any + 'static {
-    /// Cast to Any for dynamic typing support.
+    // Cast to Any for dynamic typing support.
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -157,12 +159,13 @@ pub trait ProblemFact: Clone + Send + Sync + Any + 'static {
 ///
 /// The ID type must be `Eq + Hash + Clone`.
 pub trait PlanningId {
-    /// The type of the unique identifier.
+    // The type of the unique identifier.
     type Id: Eq + Hash + Clone + Send + Sync + 'static;
 
-    /// Returns the unique identifier for this object.
-    ///
-    /// This must never return a value that changes during solving.
+    /* Returns the unique identifier for this object.
+
+    This must never return a value that changes during solving.
+    */
     fn planning_id(&self) -> Self::Id;
 }
 
@@ -240,30 +243,27 @@ pub trait PlanningId {
 /// }
 /// ```
 pub trait ListVariableSolution: PlanningSolution {
-    /// The type of elements in the list (typically an index or ID).
+    // The type of elements in the list (typically an index or ID).
     type Element: Copy + Send + Sync;
 
-    /// Returns the number of entities (list owners).
     fn entity_count(&self) -> usize;
 
-    /// Returns the length of the list for the given entity.
     fn list_len(&self, entity_idx: usize) -> usize;
 
-    /// Returns the element at the given position in the entity's list.
     fn list_get(&self, entity_idx: usize, position: usize) -> Self::Element;
 
-    /// Appends an element to the end of the entity's list.
+    // Appends an element to the end of the entity's list.
     fn list_push(&mut self, entity_idx: usize, elem: Self::Element);
 
-    /// Inserts an element at the given position in the entity's list.
+    // Inserts an element at the given position in the entity's list.
     fn list_insert(&mut self, entity_idx: usize, position: usize, elem: Self::Element);
 
-    /// Removes and returns the element at the given position.
+    // Removes and returns the element at the given position.
     fn list_remove(&mut self, entity_idx: usize, position: usize) -> Self::Element;
 
-    /// Reverses the elements in the range [start, end) for the entity's list.
+    // Reverses the elements in the range [start, end) for the entity's list.
     fn list_reverse(&mut self, entity_idx: usize, start: usize, end: usize);
 
-    /// Returns all elements not currently assigned to any entity.
+    // Returns all elements not currently assigned to any entity.
     fn unassigned_elements(&self) -> Vec<Self::Element>;
 }

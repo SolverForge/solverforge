@@ -44,7 +44,7 @@ use crate::constraint::balance::BalanceConstraint;
 //     .for_each(|s: &Solution| &s.shifts)
 //     .balance(|shift: &Shift| shift.employee_id)
 //     .penalize(SoftScore::of(1000))
-//     .as_constraint("Balance workload");
+//     .named("Balance workload");
 //
 // let solution = Solution {
 //     shifts: vec![
@@ -193,13 +193,7 @@ where
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
-    // Alias for `as_constraint`.
     pub fn named(self, name: &str) -> BalanceConstraint<S, A, K, E, F, KF, Sc> {
-        self.as_constraint(name)
-    }
-
-    // Finalizes the builder into a zero-erasure `BalanceConstraint`.
-    pub fn as_constraint(self, name: &str) -> BalanceConstraint<S, A, K, E, F, KF, Sc> {
         BalanceConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -210,6 +204,8 @@ where
             self.is_hard,
         )
     }
+
+    // Finalizes the builder into a zero-erasure `BalanceConstraint`.
 }
 
 impl<S, A, K, E, F, KF, Sc: Score> std::fmt::Debug

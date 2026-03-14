@@ -122,6 +122,8 @@ Re-exports the fluent constraint stream API:
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory};
 ```
 
+Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")` — no `as_constraint`, no `for_each_unique_pair`, no `join_self`/`join_keyed`. Use `.join(target)` for all join patterns (self-join, keyed, predicate).
+
 ## `__internal` Module (`#[doc(hidden)]`)
 
 Used exclusively by macro-generated code. Not public API.

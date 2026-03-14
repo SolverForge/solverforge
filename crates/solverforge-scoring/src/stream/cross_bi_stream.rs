@@ -451,7 +451,7 @@ where
     //     )
     //     .filter(|shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day)
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Unavailable employee");
+    //     .named("Unavailable employee");
     //
     // let schedule = Schedule {
     //     shifts: vec![
@@ -546,31 +546,7 @@ where
     W: Fn(&A, &B) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    // Alias for `as_constraint`.
     pub fn named(
-        self,
-        name: &str,
-    ) -> IncrementalCrossBiConstraint<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        impl Fn(&S, &A, &B) -> bool + Send + Sync,
-        impl Fn(&S, usize, usize) -> Sc + Send + Sync,
-        Sc,
-    > {
-        self.as_constraint(name)
-    }
-
-    // Finalizes the builder into a zero-erasure `IncrementalCrossBiConstraint`.
-    //
-    // The resulting constraint has all types fully monomorphized with
-    // key-based indexing for O(1) lookups.
-    pub fn as_constraint(
         self,
         name: &str,
     ) -> IncrementalCrossBiConstraint<
@@ -613,6 +589,11 @@ where
             self.is_hard,
         )
     }
+
+    // Finalizes the builder into a zero-erasure `IncrementalCrossBiConstraint`.
+    //
+    // The resulting constraint has all types fully monomorphized with
+    // key-based indexing for O(1) lookups.
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc: Score> std::fmt::Debug

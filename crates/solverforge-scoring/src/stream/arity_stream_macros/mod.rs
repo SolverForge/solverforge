@@ -8,7 +8,7 @@ mod nary_stream;
 
 // Generates the constraint stream struct, builder struct, and common methods.
 //
-// Doctests and unique methods (like join_self) should be defined outside the macro
+// Doctests and unique methods (should be defined outside the macro
 // in the individual stream files.
 macro_rules! impl_arity_stream {
     (bi, $stream:ident, $builder:ident, $constraint:ident) => {

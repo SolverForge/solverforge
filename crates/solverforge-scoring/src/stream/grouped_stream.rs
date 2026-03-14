@@ -51,7 +51,7 @@ use crate::constraint::grouped::GroupedUniConstraint;
 //     .for_each(|s: &Solution| &s.shifts)
 //     .group_by(|shift: &Shift| shift.employee_id, count())
 //     .penalize_with(|count: &usize| SoftScore::of((*count * *count) as i64))
-//     .as_constraint("Balanced workload");
+//     .named("Balanced workload");
 //
 // let solution = Solution {
 //     shifts: vec![
@@ -120,7 +120,7 @@ where
     //     .for_each(|s: &Solution| &s.tasks)
     //     .group_by(|t: &Task| t.priority, count())
     //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
-    //     .as_constraint("Priority distribution");
+    //     .named("Priority distribution");
     //
     // let solution = Solution {
     //     tasks: vec![
@@ -299,7 +299,7 @@ where
     //         |_emp: &Employee| 0usize,
     //     )
     //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
-    //     .as_constraint("Shift count");
+    //     .named("Shift count");
     //
     // let schedule = Schedule {
     //     employees: vec![Employee { id: 0 }, Employee { id: 1 }],
@@ -385,7 +385,7 @@ where
     //         |_emp: &Employee| 0usize,
     //     )
     //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
-    //     .as_constraint("Shift count");
+    //     .named("Shift count");
     //
     // let schedule = Schedule {
     //     employees: vec![Employee { id: 0 }, Employee { id: 1 }],
@@ -482,21 +482,11 @@ where
     //     .for_each(|s: &Solution| &s.items)
     //     .group_by(|i: &Item| i.category, count())
     //     .penalize_with(|n: &usize| SoftScore::of(*n as i64))
-    //     .as_constraint("Category penalty");
+    //     .named("Category penalty");
     //
     // assert_eq!(constraint.name(), "Category penalty");
     // ```
-    // Alias for `as_constraint`.
     pub fn named(self, name: &str) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
-        self.as_constraint(name)
-    }
-
-    pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
-        self.expected_descriptor = Some(descriptor_index);
-        self
-    }
-
-    pub fn as_constraint(self, name: &str) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
         let mut constraint = GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -511,6 +501,11 @@ where
             constraint = constraint.with_descriptor(d);
         }
         constraint
+    }
+
+    pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
+        self.expected_descriptor = Some(descriptor_index);
+        self
     }
 }
 

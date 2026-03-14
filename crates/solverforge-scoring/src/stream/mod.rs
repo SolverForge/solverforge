@@ -32,7 +32,7 @@
 //     .for_each(|s: &Schedule| &s.shifts)
 //     .filter(|shift: &Shift| shift.employee_idx.is_none())
 //     .penalize(SoftScore::of(1))
-//     .as_constraint("Unassigned shift");
+//     .named("Unassigned shift");
 //
 // // Use the constraint
 // let schedule = Schedule {
@@ -54,7 +54,7 @@
 //     .for_each(extractor)     -> UniConstraintStream<S, A, Sc>
 //     .filter(predicate)            -> UniConstraintStream (accumulates filters)
 //     .penalize(weight)             -> UniConstraintBuilder<S, A, Sc>
-//     .as_constraint(name)          -> IncrementalUniConstraint<S, A, Sc>
+//     .named(name)                  -> IncrementalUniConstraint<S, A, Sc>
 // ```
 //
 // The final `IncrementalUniConstraint` is fully monomorphized with no
@@ -72,7 +72,9 @@ pub mod filter;
 mod flattened_bi_stream;
 mod grouped_stream;
 mod if_exists_stream;
+pub mod join_target;
 pub mod joiner;
+pub mod key_extract;
 mod penta_stream;
 mod quad_stream;
 mod tri_stream;
@@ -86,6 +88,8 @@ pub use factory::ConstraintFactory;
 pub use flattened_bi_stream::{FlattenedBiConstraintBuilder, FlattenedBiConstraintStream};
 pub use grouped_stream::{GroupedConstraintBuilder, GroupedConstraintStream};
 pub use if_exists_stream::{IfExistsBuilder, IfExistsStream};
+pub use join_target::JoinTarget;
+pub use key_extract::{EntityKeyAdapter, KeyExtract};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};

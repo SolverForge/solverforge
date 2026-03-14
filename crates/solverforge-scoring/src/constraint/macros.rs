@@ -28,7 +28,10 @@ macro_rules! impl_get_matches_nary {
         use std::collections::HashMap;
         use $crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 
-        let entities = ($self.extractor)($solution);
+        let entities = $crate::stream::collection_extract::CollectionExtract::extract(
+            &$self.extractor,
+            $solution,
+        );
         let cref = $self.constraint_ref.clone();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
@@ -73,7 +76,10 @@ macro_rules! impl_get_matches_nary {
         use std::collections::HashMap;
         use $crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 
-        let entities = ($self.extractor)($solution);
+        let entities = $crate::stream::collection_extract::CollectionExtract::extract(
+            &$self.extractor,
+            $solution,
+        );
         let cref = $self.constraint_ref.clone();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
@@ -123,7 +129,10 @@ macro_rules! impl_get_matches_nary {
         use std::collections::HashMap;
         use $crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 
-        let entities = ($self.extractor)($solution);
+        let entities = $crate::stream::collection_extract::CollectionExtract::extract(
+            &$self.extractor,
+            $solution,
+        );
         let cref = $self.constraint_ref.clone();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
@@ -178,7 +187,10 @@ macro_rules! impl_get_matches_nary {
         use std::collections::HashMap;
         use $crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 
-        let entities = ($self.extractor)($solution);
+        let entities = $crate::stream::collection_extract::CollectionExtract::extract(
+            &$self.extractor,
+            $solution,
+        );
         let cref = $self.constraint_ref.clone();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();

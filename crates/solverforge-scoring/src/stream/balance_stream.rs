@@ -9,6 +9,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
+use super::collection_extract::CollectionExtract;
 use super::filter::UniFilter;
 use crate::constraint::balance::BalanceConstraint;
 
@@ -73,7 +74,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
@@ -188,7 +189,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,

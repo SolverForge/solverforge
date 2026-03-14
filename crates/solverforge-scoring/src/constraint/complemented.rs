@@ -116,8 +116,8 @@ where
     A: Clone + 'static,
     B: Clone + 'static,
     K: Clone + Eq + Hash,
-    EA: Fn(&S) -> &[A],
-    EB: Fn(&S) -> &[B],
+    EA: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
+    EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K>,
     KB: Fn(&B) -> K,
     C: UniCollector<A>,
@@ -198,8 +198,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
+    EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync,
@@ -211,8 +211,8 @@ where
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
 
         let groups = self.build_groups(entities_a);
 
@@ -230,15 +230,15 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
-        let entities_b = (self.extractor_b)(solution);
+        let entities_b = self.extractor_b.extract(solution);
         entities_b.len()
     }
 
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
 
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
 
         // Build B key -> index mapping
         for (idx, b) in entities_b.iter().enumerate() {
@@ -262,8 +262,8 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
 
         if entity_index >= entities_a.len() {
             return Sc::zero();
@@ -274,8 +274,8 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
 
         self.retract_entity(entities_a, entities_b, entity_index)
     }
@@ -307,8 +307,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
+    EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync,

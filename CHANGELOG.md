@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## [0.5.17](///compare/v0.5.16...v0.5.17) (2026-03-14)
+## [0.5.18](///compare/v0.5.16...v0.5.18) (2026-03-14)
 
 ## [0.5.16](///compare/v0.5.12...v0.5.16) (2026-03-14)
 

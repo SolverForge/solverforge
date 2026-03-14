@@ -22,7 +22,7 @@ macro_rules! impl_bi_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -41,7 +41,7 @@ macro_rules! impl_bi_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::BiFilter<S, A, A>,
             Sc: solverforge_core::score::Score + 'static,
@@ -261,7 +261,7 @@ macro_rules! impl_bi_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync + Clone,
+            E: super::collection_extract::CollectionExtract<S, Item = A> + Clone,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::BiFilter<S, A, A>,
             W: Fn(&A, &A) -> Sc + Send + Sync,
@@ -299,7 +299,10 @@ macro_rules! impl_bi_arity_stream {
                 let extractor_for_weight = self.extractor.clone();
                 let user_weight = self.weight;
                 let adapted_weight = move |solution: &S, a_idx: usize, b_idx: usize| {
-                    let entities = extractor_for_weight(solution);
+                    let entities = super::collection_extract::CollectionExtract::extract(
+                        &extractor_for_weight,
+                        solution,
+                    );
                     let a = &entities[a_idx];
                     let b = &entities[b_idx];
                     user_weight(a, b)
@@ -351,7 +354,7 @@ macro_rules! impl_tri_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -370,7 +373,7 @@ macro_rules! impl_tri_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::TriFilter<S, A, A, A>,
             Sc: solverforge_core::score::Score + 'static,
@@ -592,7 +595,7 @@ macro_rules! impl_tri_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync + Clone,
+            E: super::collection_extract::CollectionExtract<S, Item = A> + Clone,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::TriFilter<S, A, A, A>,
             W: Fn(&A, &A, &A) -> Sc + Send + Sync,
@@ -623,7 +626,10 @@ macro_rules! impl_tri_arity_stream {
                 let user_weight = self.weight;
                 let adapted_weight =
                     move |solution: &S, a_idx: usize, b_idx: usize, c_idx: usize| {
-                        let entities = extractor_for_weight(solution);
+                        let entities = super::collection_extract::CollectionExtract::extract(
+                            &extractor_for_weight,
+                            solution,
+                        );
                         user_weight(&entities[a_idx], &entities[b_idx], &entities[c_idx])
                     };
 
@@ -673,7 +679,7 @@ macro_rules! impl_quad_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -692,7 +698,7 @@ macro_rules! impl_quad_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::QuadFilter<S, A, A, A, A>,
             Sc: solverforge_core::score::Score + 'static,
@@ -914,7 +920,7 @@ macro_rules! impl_quad_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync + Clone,
+            E: super::collection_extract::CollectionExtract<S, Item = A> + Clone,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::QuadFilter<S, A, A, A, A>,
             W: Fn(&A, &A, &A, &A) -> Sc + Send + Sync,
@@ -946,7 +952,10 @@ macro_rules! impl_quad_arity_stream {
                 let user_weight = self.weight;
                 let adapted_weight =
                     move |solution: &S, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize| {
-                        let entities = extractor_for_weight(solution);
+                        let entities = super::collection_extract::CollectionExtract::extract(
+                            &extractor_for_weight,
+                            solution,
+                        );
                         user_weight(
                             &entities[a_idx],
                             &entities[b_idx],
@@ -1001,7 +1010,7 @@ macro_rules! impl_penta_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -1020,7 +1029,7 @@ macro_rules! impl_penta_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::PentaFilter<S, A, A, A, A, A>,
             Sc: solverforge_core::score::Score + 'static,
@@ -1246,7 +1255,7 @@ macro_rules! impl_penta_arity_stream {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync + Clone,
+            E: super::collection_extract::CollectionExtract<S, Item = A> + Clone,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::PentaFilter<S, A, A, A, A, A>,
             W: Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync,
@@ -1282,7 +1291,10 @@ macro_rules! impl_penta_arity_stream {
                                            c_idx: usize,
                                            d_idx: usize,
                                            e_idx: usize| {
-                    let entities = extractor_for_weight(solution);
+                    let entities = super::collection_extract::CollectionExtract::extract(
+                        &extractor_for_weight,
+                        solution,
+                    );
                     user_weight(
                         &entities[a_idx],
                         &entities[b_idx],

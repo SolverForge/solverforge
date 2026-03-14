@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
+use super::collection_extract::CollectionExtract;
 use super::filter::TrueFilter;
 use super::UniConstraintStream;
 
@@ -61,7 +62,7 @@ where
     pub fn for_each<A, E>(self, extractor: E) -> UniConstraintStream<S, A, E, TrueFilter, Sc>
     where
         A: Clone + Send + Sync + 'static,
-        E: Fn(&S) -> &[A] + Send + Sync,
+        E: CollectionExtract<S, Item = A>,
     {
         UniConstraintStream::new(extractor)
     }

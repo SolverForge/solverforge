@@ -15,6 +15,7 @@ use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::constraint::if_exists::ExistenceMode;
 
 use super::balance_stream::BalanceConstraintStream;
+use super::collection_extract::CollectionExtract;
 use super::collector::UniCollector;
 use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 use super::grouped_stream::GroupedConstraintStream;
@@ -49,7 +50,7 @@ impl<S, A, E, Sc> UniConstraintStream<S, A, E, TrueFilter, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     Sc: Score + 'static,
 {
     // Creates a new uni-constraint stream with the given extractor.
@@ -66,7 +67,7 @@ impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
@@ -538,7 +539,7 @@ impl<S, A, E, F, W, Sc> UniConstraintBuilder<S, A, E, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,

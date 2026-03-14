@@ -32,7 +32,7 @@ impl<S, A, E, F, W, Sc> IncrementalUniConstraint<S, A, E, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score,
@@ -91,13 +91,13 @@ impl<S, A, E, F, W, Sc> IncrementalConstraint<S, Sc> for IncrementalUniConstrain
 where
     S: Send + Sync + 'static,
     A: Clone + Debug + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: Fn(&S, &A) -> bool + Send + Sync,
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         let mut total = Sc::zero();
         for entity in entities {
             if self.matches(solution, entity) {
@@ -108,7 +108,7 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         entities
             .iter()
             .filter(|e| self.matches(solution, e))
@@ -125,7 +125,7 @@ where
                 return Sc::zero();
             }
         }
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
         }
@@ -143,7 +143,7 @@ where
                 return Sc::zero();
             }
         }
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
         }
@@ -172,7 +172,7 @@ where
     }
 
     fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         let cref = self.constraint_ref.clone();
         entities
             .iter()

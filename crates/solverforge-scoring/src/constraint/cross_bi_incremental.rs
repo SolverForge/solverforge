@@ -12,6 +12,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::stream::collection_extract::CollectionExtract;
 
 // Zero-erasure incremental cross-bi-constraint.
 //
@@ -42,8 +43,8 @@ where
     A: Clone + 'static,
     B: Clone + 'static,
     K: Eq + Hash + Clone,
-    EA: Fn(&S) -> &[A],
-    EB: Fn(&S) -> &[B],
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
     F: Fn(&S, &A, &B) -> bool,
@@ -172,8 +173,8 @@ where
     A: Clone + Debug + Send + Sync + 'static,
     B: Clone + Debug + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A> + Send + Sync,
+    EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     F: Fn(&S, &A, &B) -> bool + Send + Sync,
@@ -181,8 +182,8 @@ where
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         let mut total = Sc::zero();
 
         for (a_idx, a) in entities_a.iter().enumerate() {
@@ -198,8 +199,8 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         let mut count = 0;
 
         for a in entities_a {
@@ -217,8 +218,8 @@ where
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
 
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
 
         self.build_b_index(entities_b);
 
@@ -231,14 +232,14 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         self.insert_a(solution, entities_a, entities_b, entity_index)
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         self.retract_a(entities_a, entities_b, entity_index)
     }
 
@@ -261,8 +262,8 @@ where
     }
 
     fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         let cref = self.constraint_ref.clone();
 
         let mut matches = Vec::new();

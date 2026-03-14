@@ -81,6 +81,7 @@ src/
 │   ├── cross_bi_stream.rs                          — CrossBiConstraintStream, CrossBiConstraintBuilder
 │   ├── flattened_bi_stream.rs                      — FlattenedBiConstraintStream, FlattenedBiConstraintBuilder
 │   ├── if_exists_stream.rs                         — IfExistsStream, IfExistsBuilder
+│   ├── collection_extract.rs                       — CollectionExtract trait, VecExtract wrapper, vec() constructor
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
@@ -369,6 +370,23 @@ All implement `IncrementalConstraint<S, Sc>`.
 **`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `FlattenedBiConstraint`
 
 **`IfExistsStream/IfExistsBuilder`** — If-exists stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IfExistsUniConstraint`
+
+### Extractor Types
+
+**`CollectionExtract<S>`** — Trait for extracting an entity slice from the solution. All `E`/`EA`/`EB` type params in streams and constraints are bounded by `CollectionExtract<S, Item = A>` rather than raw `Fn(&S) -> &[A]`, allowing both closure forms.
+- Associated type: `type Item` — the entity type yielded.
+- Method: `fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]`
+- Blanket impl for `Fn(&S) -> &[A] + Send + Sync` — plain slice closures `|s| s.field.as_slice()` work directly.
+
+**`VecExtract<F>`** — Wraps `Fn(&S) -> &Vec<A>` closures so they satisfy `CollectionExtract<S>`. Construct via `vec(f)`.
+- Users can write `|s| &s.field` without `.as_slice()`.
+
+**`vec(f)`** — Free function: `fn vec<S, A, F>(f: F) -> VecExtract<F>`. Use when the extractor closure returns `&Vec<A>`:
+```rust
+factory.for_each(vec(|s: &Schedule| &s.employees))
+// or in a join:
+.join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
+```
 
 ### Join Support Types
 

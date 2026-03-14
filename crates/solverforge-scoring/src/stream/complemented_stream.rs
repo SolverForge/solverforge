@@ -9,6 +9,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
+use super::collection_extract::CollectionExtract;
 use super::collector::UniCollector;
 use crate::constraint::complemented::ComplementedGroupConstraint;
 
@@ -99,8 +100,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
@@ -346,8 +347,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,

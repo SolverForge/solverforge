@@ -108,7 +108,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
@@ -179,7 +179,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
@@ -190,7 +190,7 @@ where
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
 
         // Group entities by key, applying filter
         let mut groups: HashMap<K, C::Accumulator> = HashMap::new();
@@ -218,7 +218,7 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
 
         // Count unique groups (filtered)
         let mut groups: HashMap<K, ()> = HashMap::new();
@@ -236,7 +236,7 @@ where
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
 
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         let mut total = Sc::zero();
 
         for (idx, entity) in entities.iter().enumerate() {
@@ -255,7 +255,7 @@ where
                 return Sc::zero();
             }
         }
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
         }
@@ -273,7 +273,7 @@ where
                 return Sc::zero();
             }
         }
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         self.retract_entity(entities, entity_index)
     }
 
@@ -302,7 +302,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,

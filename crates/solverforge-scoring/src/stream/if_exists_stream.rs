@@ -11,6 +11,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::if_exists::{ExistenceMode, IfExistsUniConstraint};
 
+use super::collection_extract::CollectionExtract;
 use super::filter::UniFilter;
 
 // Zero-erasure stream for building if_exists/if_not_exists constraints.
@@ -96,7 +97,7 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
@@ -339,7 +340,7 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
     EB: Fn(&S) -> Vec<B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,

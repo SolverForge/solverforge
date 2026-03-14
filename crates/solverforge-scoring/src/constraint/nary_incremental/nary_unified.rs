@@ -31,7 +31,7 @@ macro_rules! impl_incremental_tri_constraint {
             S: 'static,
             A: Clone + 'static,
             K: Eq + Hash + Clone,
-            E: Fn(&S) -> &[A],
+            E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, &A) -> bool,
             W: Fn(&S, usize, usize, usize) -> Sc,
@@ -177,14 +177,14 @@ macro_rules! impl_incremental_tri_constraint {
             S: Send + Sync + 'static,
             A: Clone + Debug + Send + Sync + 'static,
             K: Eq + Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, &A) -> bool + Send + Sync,
             W: Fn(&S, usize, usize, usize) -> Sc + Send + Sync,
             Sc: Score,
         {
             fn evaluate(&self, solution: &S) -> Sc {
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut total = Sc::zero();
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
@@ -215,7 +215,7 @@ macro_rules! impl_incremental_tri_constraint {
             }
 
             fn match_count(&self, solution: &S) -> usize {
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut count = 0;
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
@@ -244,7 +244,7 @@ macro_rules! impl_incremental_tri_constraint {
 
             fn initialize(&mut self, solution: &S) -> Sc {
                 self.reset();
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut total = Sc::zero();
                 for i in 0..entities.len() {
                     total = total + self.insert_entity(solution, entities, i);
@@ -256,7 +256,7 @@ macro_rules! impl_incremental_tri_constraint {
                 if let Some(expected) = self.expected_descriptor {
                     if descriptor_index != expected { return Sc::zero(); }
                 }
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
@@ -264,7 +264,7 @@ macro_rules! impl_incremental_tri_constraint {
                 if let Some(expected) = self.expected_descriptor {
                     if descriptor_index != expected { return Sc::zero(); }
                 }
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.retract_entity(solution, entities, entity_index)
             }
 
@@ -323,7 +323,7 @@ macro_rules! impl_incremental_quad_constraint {
             S: 'static,
             A: Clone + 'static,
             K: Eq + Hash + Clone,
-            E: Fn(&S) -> &[A],
+            E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, &A, &A) -> bool,
             W: Fn(&S, usize, usize, usize, usize) -> Sc,
@@ -468,14 +468,14 @@ macro_rules! impl_incremental_quad_constraint {
             S: Send + Sync + 'static,
             A: Clone + Debug + Send + Sync + 'static,
             K: Eq + Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync,
             W: Fn(&S, usize, usize, usize, usize) -> Sc + Send + Sync,
             Sc: Score,
         {
             fn evaluate(&self, solution: &S) -> Sc {
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut total = Sc::zero();
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
@@ -510,7 +510,7 @@ macro_rules! impl_incremental_quad_constraint {
             }
 
             fn match_count(&self, solution: &S) -> usize {
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut count = 0;
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
@@ -542,7 +542,7 @@ macro_rules! impl_incremental_quad_constraint {
 
             fn initialize(&mut self, solution: &S) -> Sc {
                 self.reset();
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut total = Sc::zero();
                 for i in 0..entities.len() {
                     total = total + self.insert_entity(solution, entities, i);
@@ -554,7 +554,7 @@ macro_rules! impl_incremental_quad_constraint {
                 if let Some(expected) = self.expected_descriptor {
                     if descriptor_index != expected { return Sc::zero(); }
                 }
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
@@ -562,7 +562,7 @@ macro_rules! impl_incremental_quad_constraint {
                 if let Some(expected) = self.expected_descriptor {
                     if descriptor_index != expected { return Sc::zero(); }
                 }
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.retract_entity(solution, entities, entity_index)
             }
 
@@ -621,7 +621,7 @@ macro_rules! impl_incremental_penta_constraint {
             S: 'static,
             A: Clone + 'static,
             K: Eq + Hash + Clone,
-            E: Fn(&S) -> &[A],
+            E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, &A, &A, &A) -> bool,
             W: Fn(&S, usize, usize, usize, usize, usize) -> Sc,
@@ -771,14 +771,14 @@ macro_rules! impl_incremental_penta_constraint {
             S: Send + Sync + 'static,
             A: Clone + Debug + Send + Sync + 'static,
             K: Eq + Hash + Clone + Send + Sync,
-            E: Fn(&S) -> &[A] + Send + Sync,
+            E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync,
             W: Fn(&S, usize, usize, usize, usize, usize) -> Sc + Send + Sync,
             Sc: Score,
         {
             fn evaluate(&self, solution: &S) -> Sc {
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut total = Sc::zero();
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
@@ -817,7 +817,7 @@ macro_rules! impl_incremental_penta_constraint {
             }
 
             fn match_count(&self, solution: &S) -> usize {
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut count = 0;
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
@@ -852,7 +852,7 @@ macro_rules! impl_incremental_penta_constraint {
 
             fn initialize(&mut self, solution: &S) -> Sc {
                 self.reset();
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 let mut total = Sc::zero();
                 for i in 0..entities.len() {
                     total = total + self.insert_entity(solution, entities, i);
@@ -864,7 +864,7 @@ macro_rules! impl_incremental_penta_constraint {
                 if let Some(expected) = self.expected_descriptor {
                     if descriptor_index != expected { return Sc::zero(); }
                 }
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.insert_entity(solution, entities, entity_index)
             }
 
@@ -872,7 +872,7 @@ macro_rules! impl_incremental_penta_constraint {
                 if let Some(expected) = self.expected_descriptor {
                     if descriptor_index != expected { return Sc::zero(); }
                 }
-                let entities = (self.extractor)(solution);
+                let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.retract_entity(solution, entities, entity_index)
             }
 

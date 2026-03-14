@@ -60,7 +60,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: super::collection_extract::CollectionExtract<S, Item = A>,
     KE: Fn(&S, &A, usize) -> K + Send + Sync,
     F: BiFilter<S, A, A>,
     Sc: Score + 'static,

@@ -5,6 +5,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::grouped::GroupedUniConstraint;
+use crate::stream::collection_extract::vec;
 use crate::stream::collector::count;
 use crate::stream::filter::TrueFilter;
 
@@ -23,7 +24,7 @@ fn test_grouped_constraint_evaluate() {
     let constraint = GroupedUniConstraint::new(
         ConstraintRef::new("", "Workload"),
         ImpactType::Penalty,
-        |s: &GroupedSolution| &s.shifts,
+        vec(|s: &GroupedSolution| &s.shifts),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
@@ -51,7 +52,7 @@ fn test_grouped_constraint_incremental() {
     let mut constraint = GroupedUniConstraint::new(
         ConstraintRef::new("", "Workload"),
         ImpactType::Penalty,
-        |s: &GroupedSolution| &s.shifts,
+        vec(|s: &GroupedSolution| &s.shifts),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
@@ -90,7 +91,7 @@ fn test_grouped_constraint_reward() {
     let constraint = GroupedUniConstraint::new(
         ConstraintRef::new("", "Collaboration"),
         ImpactType::Reward,
-        |s: &GroupedSolution| &s.shifts,
+        vec(|s: &GroupedSolution| &s.shifts),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),

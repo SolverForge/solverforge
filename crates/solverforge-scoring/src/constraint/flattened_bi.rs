@@ -139,8 +139,8 @@ where
     C: Clone + 'static,
     K: Eq + Hash + Clone,
     CK: Eq + Hash + Clone,
-    EA: Fn(&S) -> &[A],
-    EB: Fn(&S) -> &[B],
+    EA: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
+    EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
     Flatten: Fn(&B) -> &[C],
@@ -261,8 +261,8 @@ where
     C: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     CK: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
+    EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     Flatten: Fn(&B) -> &[C] + Send + Sync,
@@ -273,8 +273,8 @@ where
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         let mut total = Sc::zero();
 
         // Build temporary index for standalone evaluation
@@ -307,8 +307,8 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
         let mut count = 0;
 
         // Build temporary index
@@ -343,8 +343,8 @@ where
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
 
-        let entities_a = (self.extractor_a)(solution);
-        let entities_b = (self.extractor_b)(solution);
+        let entities_a = self.extractor_a.extract(solution);
+        let entities_b = self.extractor_b.extract(solution);
 
         // Build C index once: O(B × C)
         self.build_c_index(entities_b);
@@ -359,7 +359,7 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities_a = (self.extractor_a)(solution);
+        let entities_a = self.extractor_a.extract(solution);
         self.insert_a(solution, entities_a, entity_index)
     }
 

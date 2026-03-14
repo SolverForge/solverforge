@@ -120,9 +120,12 @@ Re-exports the fluent constraint stream API:
 
 ```rust
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory};
+pub use solverforge_scoring::stream::collection_extract::{CollectionExtract, VecExtract, vec};
 ```
 
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")` — no `as_constraint`, no `for_each_unique_pair`, no `join_self`/`join_keyed`. Use `.join(target)` for all join patterns (self-join, keyed, predicate).
+
+Extractor ergonomics: all `for_each` and join extractor params accept `CollectionExtract<S, Item = A>`. Use `|s| s.field.as_slice()` for slices, or `vec(|s| &s.field)` when the field is a `Vec<A>` and you prefer `&field` syntax.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 

@@ -22,13 +22,21 @@ struct Schedule {
     shifts: Vec<Shift>,
 }
 
+fn shifts(s: &Schedule) -> &[Shift] {
+    s.shifts.as_slice()
+}
+
+fn employees(s: &Schedule) -> &[Employee] {
+    s.employees.as_slice()
+}
+
 #[test]
 fn test_complemented_evaluate() {
     let constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        |s: &Schedule| s.shifts.as_slice(),
-        |s: &Schedule| s.employees.as_slice(),
+        shifts,
+        employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -59,8 +67,8 @@ fn test_complemented_skips_none_keys() {
     let constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        |s: &Schedule| s.shifts.as_slice(),
-        |s: &Schedule| s.employees.as_slice(),
+        shifts,
+        employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -94,8 +102,8 @@ fn test_complemented_incremental() {
     let mut constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        |s: &Schedule| s.shifts.as_slice(),
-        |s: &Schedule| s.employees.as_slice(),
+        shifts,
+        employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -143,8 +151,8 @@ fn test_complemented_incremental_with_none_keys() {
     let mut constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        |s: &Schedule| s.shifts.as_slice(),
-        |s: &Schedule| s.employees.as_slice(),
+        shifts,
+        employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -186,8 +194,8 @@ fn test_complemented_with_default() {
     let constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Workload balance"),
         ImpactType::Penalty,
-        |s: &Schedule| s.shifts.as_slice(),
-        |s: &Schedule| s.employees.as_slice(),
+        shifts,
+        employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -223,8 +231,8 @@ fn test_complemented_incremental_matches_evaluate() {
     let mut constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        |s: &Schedule| s.shifts.as_slice(),
-        |s: &Schedule| s.employees.as_slice(),
+        shifts,
+        employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),

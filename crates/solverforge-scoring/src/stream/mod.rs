@@ -64,6 +64,7 @@
 mod arity_stream_macros;
 mod balance_stream;
 mod bi_stream;
+pub mod collection_extract;
 pub mod collector;
 mod complemented_stream;
 mod cross_bi_stream;
@@ -82,6 +83,7 @@ mod uni_stream;
 
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};
+pub use collection_extract::{CollectionExtract, VecExtract};
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
 pub use cross_bi_stream::{CrossBiConstraintBuilder, CrossBiConstraintStream};
 pub use factory::ConstraintFactory;

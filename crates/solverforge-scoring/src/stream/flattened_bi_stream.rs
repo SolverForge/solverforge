@@ -10,6 +10,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::flattened_bi::FlattenedBiConstraint;
 
+use super::collection_extract::CollectionExtract;
 use super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 
 // O(1) flattened bi-constraint stream.
@@ -96,8 +97,8 @@ where
     C: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     CK: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     Flatten: Fn(&B) -> &[C] + Send + Sync,
@@ -140,8 +141,8 @@ where
     C: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     CK: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     Flatten: Fn(&B) -> &[C] + Send + Sync,
@@ -607,8 +608,8 @@ where
     C: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     CK: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     Flatten: Fn(&B) -> &[C] + Send + Sync,

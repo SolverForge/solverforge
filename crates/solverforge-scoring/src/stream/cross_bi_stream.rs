@@ -12,6 +12,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::cross_bi_incremental::IncrementalCrossBiConstraint;
 
+use super::collection_extract::CollectionExtract;
 use super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 use super::flattened_bi_stream::FlattenedBiConstraintStream;
 
@@ -54,8 +55,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     Sc: Score + 'static,
@@ -81,8 +82,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Send + Sync,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     F: BiFilter<S, A, B>,
@@ -538,8 +539,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: Fn(&S) -> &[A] + Clone + Send + Sync,
-    EB: Fn(&S) -> &[B] + Clone + Send + Sync,
+    EA: CollectionExtract<S, Item = A> + Clone,
+    EB: CollectionExtract<S, Item = B> + Clone,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     F: BiFilter<S, A, B>,
@@ -570,8 +571,8 @@ where
         let extractor_b = self.extractor_b.clone();
         let weight = self.weight;
         let adapted_weight = move |s: &S, a_idx: usize, b_idx: usize| {
-            let entities_a = extractor_a(s);
-            let entities_b = extractor_b(s);
+            let entities_a = extractor_a.extract(s);
+            let entities_b = extractor_b.extract(s);
             let a = &entities_a[a_idx];
             let b = &entities_b[b_idx];
             weight(a, b)

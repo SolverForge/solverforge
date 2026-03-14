@@ -10,6 +10,7 @@ use std::hash::Hash;
 use solverforge_core::score::Score;
 
 use super::bi_stream::BiConstraintStream;
+use super::collection_extract::CollectionExtract;
 use super::cross_bi_stream::CrossBiConstraintStream;
 use super::filter::{UniFilter, UniLeftBiFilter, UniLeftPredBiFilter};
 use super::joiner::EqualJoiner;
@@ -35,7 +36,7 @@ impl<S, A, E, F, K, KA, Sc> JoinTarget<S, A, E, F, Sc> for EqualJoiner<KA, KA, K
 where
     S: Send + Sync + 'static,
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     K: Eq + Hash + Clone + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
@@ -57,9 +58,9 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EB: CollectionExtract<S, Item = B>,
     K: Eq + Hash + Clone + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
@@ -82,9 +83,9 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
-    EB: Fn(&S) -> &[B] + Send + Sync,
+    EB: CollectionExtract<S, Item = B>,
     FB: UniFilter<S, B>,
     P: Fn(&A, &B) -> bool + Send + Sync + 'static,
     Sc: Score + 'static,

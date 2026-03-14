@@ -45,6 +45,7 @@ use solverforge_core::score::Score;
 
 use crate::constraint::IncrementalTriConstraint;
 
+use super::collection_extract::CollectionExtract;
 use super::filter::{FnQuadFilter, QuadFilter, TriFilter};
 use super::joiner::Joiner;
 use super::quad_stream::QuadConstraintStream;
@@ -62,7 +63,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     KE: Fn(&S, &A, usize) -> K + Send + Sync,
     F: TriFilter<S, A, A, A>,
     Sc: Score + 'static,

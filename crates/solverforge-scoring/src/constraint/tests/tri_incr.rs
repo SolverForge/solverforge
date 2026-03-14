@@ -15,12 +15,16 @@ struct Solution {
     tasks: Vec<Task>,
 }
 
+fn tasks(s: &Solution) -> &[Task] {
+    s.tasks.as_slice()
+}
+
 #[test]
 fn test_tri_constraint_evaluate() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(1),
@@ -45,7 +49,7 @@ fn test_tri_constraint_multiple_triples() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(1),
@@ -70,7 +74,7 @@ fn test_tri_constraint_incremental() {
     let mut constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(1),
@@ -101,7 +105,7 @@ fn test_tri_constraint_reward() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Team bonus"),
         ImpactType::Reward,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(5),

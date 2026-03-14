@@ -44,6 +44,10 @@ mod benchmarks {
         }
     }
 
+    fn shifts(s: &Schedule) -> &[Shift] {
+        s.shifts.as_slice()
+    }
+
     /// Full recalculation scoring function (for comparison).
     fn calculate_full(schedule: &Schedule) -> SoftScore {
         let shifts = &schedule.shifts;
@@ -144,7 +148,7 @@ mod benchmarks {
         let unassigned = IncrementalUniConstraint::new(
             ConstraintRef::new("", "Unassigned"),
             ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
+            shifts,
             |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
             |_s: &Shift| SoftScore::of(1),
             false,
@@ -153,7 +157,7 @@ mod benchmarks {
         let overlapping = IncrementalBiConstraint::new(
             ConstraintRef::new("", "Overlapping"),
             ImpactType::Penalty,
-            |s: &Schedule| s.shifts.as_slice(),
+            shifts,
             |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id, // Key by employee_id
             |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                 a.id < b.id // Ordering to avoid duplicates
@@ -234,7 +238,7 @@ mod benchmarks {
             let unassigned = IncrementalUniConstraint::new(
                 ConstraintRef::new("", "Unassigned"),
                 ImpactType::Penalty,
-                |s: &Schedule| s.shifts.as_slice(),
+                shifts,
                 |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
                 |_s: &Shift| SoftScore::of(1),
                 false,
@@ -243,7 +247,7 @@ mod benchmarks {
             let overlapping = IncrementalBiConstraint::new(
                 ConstraintRef::new("", "Overlapping"),
                 ImpactType::Penalty,
-                |s: &Schedule| s.shifts.as_slice(),
+                shifts,
                 |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id,
                 |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                     a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour

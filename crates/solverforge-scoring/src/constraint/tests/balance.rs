@@ -2,6 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::balance::BalanceConstraint;
+use crate::stream::collection_extract::vec;
 use crate::stream::filter::TrueFilter;
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -21,7 +22,7 @@ fn test_balance_evaluate_equal_distribution() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000), // 1000 per unit std_dev
@@ -55,7 +56,7 @@ fn test_balance_evaluate_unequal_distribution() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000), // 1000 per unit std_dev
@@ -90,7 +91,7 @@ fn test_balance_filters_unassigned() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),
@@ -125,7 +126,7 @@ fn test_balance_incremental() {
     let mut constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),
@@ -171,7 +172,7 @@ fn test_balance_empty_solution() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),
@@ -187,7 +188,7 @@ fn test_balance_single_employee() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),
@@ -224,7 +225,7 @@ fn test_balance_reward() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance reward"),
         ImpactType::Reward,
-        |s: &Solution| &s.shifts,
+        vec(|s: &Solution| &s.shifts),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),

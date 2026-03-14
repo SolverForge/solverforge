@@ -21,7 +21,7 @@ fn test_evaluate_no_conflicts() {
     let constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row, // Key by row for grouping
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col, // Filter: only ordered pairs
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -46,7 +46,7 @@ fn test_evaluate_with_conflicts() {
     let constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -70,7 +70,7 @@ fn test_incremental_insert() {
     let mut constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -107,7 +107,7 @@ fn test_incremental_retract() {
     let mut constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -134,7 +134,7 @@ fn test_reward_type() {
     let constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Adjacent queens"),
         ImpactType::Reward,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row, // Group by row
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| {
             a.col < b.col && (a.col - b.col).abs() == 1
@@ -158,7 +158,7 @@ fn test_dynamic_weight() {
     let constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Column distance"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |s: &NQueensSolution, a_idx: usize, b_idx: usize| {
@@ -184,7 +184,7 @@ fn test_multiple_conflicts() {
     let constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -209,7 +209,7 @@ fn test_reset() {
     let mut constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -237,7 +237,7 @@ fn test_in_constraint_set() {
     let c1 = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),
@@ -261,7 +261,7 @@ fn test_out_of_bounds() {
     let mut constraint = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Row conflict"),
         ImpactType::Penalty,
-        |s: &NQueensSolution| s.queens.as_slice(),
+        (|s: &NQueensSolution| s.queens.as_slice()) as fn(&NQueensSolution) -> &[Queen],
         |_s: &NQueensSolution, q: &Queen, _idx: usize| q.row,
         |_s: &NQueensSolution, a: &Queen, b: &Queen, _ai: usize, _bi: usize| a.col < b.col,
         |_s: &NQueensSolution, _a_idx: usize, _b_idx: usize| SoftScore::of(1),

@@ -24,6 +24,10 @@ struct TaskSchedule {
     workers: Vec<Worker>,
 }
 
+fn tasks(s: &TaskSchedule) -> &[Task] {
+    s.tasks.as_slice()
+}
+
 #[test]
 fn test_if_exists_penalizes_assigned_to_unavailable() {
     // Penalize tasks assigned to unavailable workers
@@ -31,7 +35,7 @@ fn test_if_exists_penalizes_assigned_to_unavailable() {
         ConstraintRef::new("", "Unavailable worker"),
         ImpactType::Penalty,
         ExistenceMode::Exists,
-        |s: &TaskSchedule| s.tasks.as_slice(),
+        tasks,
         |s: &TaskSchedule| s.workers.iter().filter(|w| !w.available).cloned().collect(),
         |t: &Task| t.assignee,
         |w: &Worker| Some(w.id),
@@ -79,7 +83,7 @@ fn test_if_not_exists_penalizes_unassigned() {
         ConstraintRef::new("", "No available worker"),
         ImpactType::Penalty,
         ExistenceMode::NotExists,
-        |s: &TaskSchedule| s.tasks.as_slice(),
+        tasks,
         |s: &TaskSchedule| s.workers.iter().filter(|w| w.available).cloned().collect(),
         |t: &Task| t.assignee,
         |w: &Worker| Some(w.id),

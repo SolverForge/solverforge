@@ -109,7 +109,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
@@ -199,13 +199,13 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
 
         // Build counts from scratch
         let mut counts: HashMap<K, i64> = HashMap::new();
@@ -231,7 +231,7 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
 
         // Count groups that deviate from mean
         let mut counts: HashMap<K, i64> = HashMap::new();
@@ -261,7 +261,7 @@ where
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
 
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
 
         for (idx, entity) in entities.iter().enumerate() {
             if !self.filter.test(solution, entity) {
@@ -285,7 +285,7 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
         }
@@ -317,7 +317,7 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
-        let entities = (self.extractor)(solution);
+        let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
         }

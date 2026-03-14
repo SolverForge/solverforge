@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
+use super::collection_extract::CollectionExtract;
 use super::collector::UniCollector;
 use super::complemented_stream::ComplementedConstraintStream;
 use super::filter::UniFilter;
@@ -81,7 +82,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
@@ -332,7 +333,7 @@ where
     >
     where
         B: Clone + Send + Sync + 'static,
-        EB: Fn(&S) -> &[B] + Send + Sync,
+        EB: CollectionExtract<S, Item = B>,
         KB: Fn(&B) -> K + Send + Sync,
         D: Fn(&B) -> C::Result + Send + Sync,
     {
@@ -408,7 +409,7 @@ where
     ) -> ComplementedConstraintStream<S, A, B, K, E, EB, KA2, KB, C, D, Sc>
     where
         B: Clone + Send + Sync + 'static,
-        EB: Fn(&S) -> &[B] + Send + Sync,
+        EB: CollectionExtract<S, Item = B>,
         KA2: Fn(&A) -> Option<K> + Send + Sync,
         KB: Fn(&B) -> K + Send + Sync,
         D: Fn(&B) -> C::Result + Send + Sync,
@@ -453,7 +454,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    E: Fn(&S) -> &[A] + Send + Sync,
+    E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,

@@ -15,12 +15,16 @@ struct Solution {
     tasks: Vec<Task>,
 }
 
+fn tasks(s: &Solution) -> &[Task] {
+    s.tasks.as_slice()
+}
+
 #[test]
 fn test_penta_constraint_evaluate() {
     let constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
@@ -47,7 +51,7 @@ fn test_penta_constraint_multiple_pentas() {
     let constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
@@ -74,7 +78,7 @@ fn test_penta_constraint_incremental() {
     let mut constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
@@ -111,7 +115,7 @@ fn test_penta_constraint_reward() {
     let constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Team bonus"),
         ImpactType::Reward,
-        |s: &Solution| s.tasks.as_slice(),
+        tasks,
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(5),

@@ -60,7 +60,7 @@ use super::filter::UniFilter;
 //         ),
 //     )
 //     .penalize(SoftScore::of(1))
-//     .as_constraint("Vacation conflict");
+//     .named("Vacation conflict");
 //
 // let schedule = Schedule {
 //     shifts: vec![
@@ -347,28 +347,7 @@ where
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    // Alias for `as_constraint`.
     pub fn named(
-        self,
-        name: &str,
-    ) -> IfExistsUniConstraint<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        impl Fn(&S, &A) -> bool + Send + Sync,
-        W,
-        Sc,
-    > {
-        self.as_constraint(name)
-    }
-
-    // Finalizes the builder into a zero-erasure `IfExistsUniConstraint`.
-    pub fn as_constraint(
         self,
         name: &str,
     ) -> IfExistsUniConstraint<
@@ -400,6 +379,8 @@ where
             self.is_hard,
         )
     }
+
+    // Finalizes the builder into a zero-erasure `IfExistsUniConstraint`.
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, FA, W, Sc: Score> std::fmt::Debug

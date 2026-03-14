@@ -23,7 +23,7 @@ macro_rules! impl_bi_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn new_self_join(extractor: E, key_extractor: KE) -> Self {
@@ -42,7 +42,7 @@ macro_rules! impl_bi_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::BiFilter<S, A, A>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -262,7 +262,7 @@ macro_rules! impl_bi_arity_stream {
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync + Clone,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::BiFilter<S, A, A>,
             W: Fn(&A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
@@ -278,22 +278,6 @@ macro_rules! impl_bi_arity_stream {
             }
 
             pub fn named(
-                self,
-                name: &str,
-            ) -> $constraint<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                impl Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
-                impl Fn(&S, usize, usize) -> Sc + Send + Sync,
-                Sc,
-            > {
-                self.as_constraint(name)
-            }
-
-            pub fn as_constraint(
                 self,
                 name: &str,
             ) -> $constraint<
@@ -368,7 +352,7 @@ macro_rules! impl_tri_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn new_self_join(extractor: E, key_extractor: KE) -> Self {
@@ -387,7 +371,7 @@ macro_rules! impl_tri_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::TriFilter<S, A, A, A>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -609,7 +593,7 @@ macro_rules! impl_tri_arity_stream {
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync + Clone,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::TriFilter<S, A, A, A>,
             W: Fn(&A, &A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
@@ -620,22 +604,6 @@ macro_rules! impl_tri_arity_stream {
             }
 
             pub fn named(
-                self,
-                name: &str,
-            ) -> $constraint<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                impl Fn(&S, &A, &A, &A) -> bool + Send + Sync,
-                impl Fn(&S, usize, usize, usize) -> Sc + Send + Sync,
-                Sc,
-            > {
-                self.as_constraint(name)
-            }
-
-            pub fn as_constraint(
                 self,
                 name: &str,
             ) -> $constraint<
@@ -706,7 +674,7 @@ macro_rules! impl_quad_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn new_self_join(extractor: E, key_extractor: KE) -> Self {
@@ -725,7 +693,7 @@ macro_rules! impl_quad_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::QuadFilter<S, A, A, A, A>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -947,7 +915,7 @@ macro_rules! impl_quad_arity_stream {
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync + Clone,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::QuadFilter<S, A, A, A, A>,
             W: Fn(&A, &A, &A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
@@ -958,22 +926,6 @@ macro_rules! impl_quad_arity_stream {
             }
 
             pub fn named(
-                self,
-                name: &str,
-            ) -> $constraint<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                impl Fn(&S, &A, &A, &A, &A) -> bool + Send + Sync,
-                impl Fn(&S, usize, usize, usize, usize) -> Sc + Send + Sync,
-                Sc,
-            > {
-                self.as_constraint(name)
-            }
-
-            pub fn as_constraint(
                 self,
                 name: &str,
             ) -> $constraint<
@@ -1050,7 +1002,7 @@ macro_rules! impl_penta_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
             pub fn new_self_join(extractor: E, key_extractor: KE) -> Self {
@@ -1069,7 +1021,7 @@ macro_rules! impl_penta_arity_stream {
             A: Clone + std::hash::Hash + PartialEq + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::PentaFilter<S, A, A, A, A, A>,
             Sc: solverforge_core::score::Score + 'static,
         {
@@ -1295,7 +1247,7 @@ macro_rules! impl_penta_arity_stream {
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync + Clone,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::PentaFilter<S, A, A, A, A, A>,
             W: Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
@@ -1306,22 +1258,6 @@ macro_rules! impl_penta_arity_stream {
             }
 
             pub fn named(
-                self,
-                name: &str,
-            ) -> $constraint<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                impl Fn(&S, &A, &A, &A, &A, &A) -> bool + Send + Sync,
-                impl Fn(&S, usize, usize, usize, usize, usize) -> Sc + Send + Sync,
-                Sc,
-            > {
-                self.as_constraint(name)
-            }
-
-            pub fn as_constraint(
                 self,
                 name: &str,
             ) -> $constraint<

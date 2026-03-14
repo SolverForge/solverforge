@@ -33,7 +33,12 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)($solution, entity, i);
+            let key = $crate::stream::key_extract::KeyExtract::extract(
+                &$self.key_extractor,
+                $solution,
+                entity,
+                i,
+            );
             temp_index.entry(key).or_default().push(i);
         }
 
@@ -73,7 +78,12 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)($solution, entity, i);
+            let key = $crate::stream::key_extract::KeyExtract::extract(
+                &$self.key_extractor,
+                $solution,
+                entity,
+                i,
+            );
             temp_index.entry(key).or_default().push(i);
         }
 
@@ -118,7 +128,12 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)($solution, entity, i);
+            let key = $crate::stream::key_extract::KeyExtract::extract(
+                &$self.key_extractor,
+                $solution,
+                entity,
+                i,
+            );
             temp_index.entry(key).or_default().push(i);
         }
 
@@ -168,7 +183,12 @@ macro_rules! impl_get_matches_nary {
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
-            let key = ($self.key_extractor)($solution, entity, i);
+            let key = $crate::stream::key_extract::KeyExtract::extract(
+                &$self.key_extractor,
+                $solution,
+                entity,
+                i,
+            );
             temp_index.entry(key).or_default().push(i);
         }
 

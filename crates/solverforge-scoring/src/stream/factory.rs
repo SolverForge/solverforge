@@ -2,14 +2,11 @@
 //
 // The factory is the entry point for the fluent constraint API.
 
-use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
-use super::bi_stream::BiConstraintStream;
 use super::filter::TrueFilter;
-use super::joiner::EqualJoiner;
 use super::UniConstraintStream;
 
 // Factory for creating constraint streams.
@@ -35,7 +32,7 @@ use super::UniConstraintStream;
 //     .for_each(|s: &Solution| &s.values)
 //     .filter(|v: &Option<i32>| v.is_none())
 //     .penalize(SoftScore::of(1))
-//     .as_constraint("Unassigned");
+//     .named("Unassigned");
 //
 // let solution = Solution { values: vec![Some(1), None, None] };
 // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-2));
@@ -67,65 +64,6 @@ where
         E: Fn(&S) -> &[A] + Send + Sync,
     {
         UniConstraintStream::new(extractor)
-    }
-
-    // Creates a zero-erasure bi-constraint stream over unique pairs of entities.
-    //
-    // This is equivalent to `for_each(extractor).join_self(joiner)` but provides
-    // a more concise API for the common case of self-joins with key-based grouping.
-    //
-    // Pairs are ordered (i, j) where i < j to avoid duplicates and self-pairs.
-    //
-    // # Example
-    //
-    // ```
-    // use solverforge_scoring::stream::{ConstraintFactory, joiner::equal};
-    // use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    // use solverforge_core::score::SoftScore;
-    //
-    // #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    // struct Task { team: u32, priority: u32 }
-    //
-    // #[derive(Clone)]
-    // struct Solution { tasks: Vec<Task> }
-    //
-    // let factory = ConstraintFactory::<Solution, SoftScore>::new();
-    //
-    // // Penalize when two tasks on the same team conflict
-    // let constraint = factory
-    //     .for_each_unique_pair(
-    //         |s: &Solution| s.tasks.as_slice(),
-    //         equal(|t: &Task| t.team)
-    //     )
-    //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Team conflict");
-    //
-    // let solution = Solution {
-    //     tasks: vec![
-    //         Task { team: 1, priority: 1 },
-    //         Task { team: 1, priority: 2 },  // Same team as first
-    //         Task { team: 2, priority: 1 },
-    //     ],
-    // };
-    //
-    // // One pair on same team: (0, 1) = -1 penalty
-    // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-    // ```
-    pub fn for_each_unique_pair<A, E, K, KA>(
-        self,
-        extractor: E,
-        joiner: EqualJoiner<KA, KA, K>,
-    ) -> BiConstraintStream<S, A, K, E, impl Fn(&S, &A, usize) -> K + Send + Sync, TrueFilter, Sc>
-    where
-        A: Clone + Hash + PartialEq + Send + Sync + 'static,
-        E: Fn(&S) -> &[A] + Send + Sync,
-        K: Eq + Hash + Clone + Send + Sync,
-        KA: Fn(&A) -> K + Send + Sync,
-    {
-        let (key_extractor, _) = joiner.into_keys();
-        // Wrap to match the new KE: Fn(&S, &A, usize) -> K signature
-        let wrapped_ke = move |_s: &S, a: &A, _idx: usize| key_extractor(a);
-        BiConstraintStream::new_self_join(extractor, wrapped_ke)
     }
 }
 

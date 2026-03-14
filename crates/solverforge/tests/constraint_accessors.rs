@@ -64,10 +64,7 @@ fn test_penalize_hard_compiles_on_stream() {
     use ScheduleConstraintStreams;
 
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let constraint = factory
-        .shifts()
-        .penalize_hard()
-        .as_constraint("Test penalize hard");
+    let constraint = factory.shifts().penalize_hard().named("Test penalize hard");
 
     let _ = constraint;
 }
@@ -77,10 +74,7 @@ fn test_penalize_soft_compiles_on_stream() {
     use ScheduleConstraintStreams;
 
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let constraint = factory
-        .shifts()
-        .penalize_soft()
-        .as_constraint("Test penalize soft");
+    let constraint = factory.shifts().penalize_soft().named("Test penalize soft");
 
     let _ = constraint;
 }

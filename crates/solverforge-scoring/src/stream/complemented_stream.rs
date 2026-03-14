@@ -65,7 +65,7 @@ use crate::constraint::complemented::ComplementedGroupConstraint;
 //         |_emp: &Employee| 0usize,
 //     )
 //     .penalize_with(|count: &usize| SoftScore::of(*count as i64))
-//     .as_constraint("Shift count");
+//     .named("Shift count");
 //
 // let schedule = Schedule {
 //     employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
@@ -357,16 +357,7 @@ where
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    // Alias for `as_constraint`.
     pub fn named(
-        self,
-        name: &str,
-    ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> {
-        self.as_constraint(name)
-    }
-
-    // Finalizes the builder into a `ComplementedGroupConstraint`.
-    pub fn as_constraint(
         self,
         name: &str,
     ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> {
@@ -383,6 +374,8 @@ where
             self.is_hard,
         )
     }
+
+    // Finalizes the builder into a `ComplementedGroupConstraint`.
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc: Score> std::fmt::Debug

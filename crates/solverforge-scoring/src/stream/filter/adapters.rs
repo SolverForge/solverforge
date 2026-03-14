@@ -59,3 +59,37 @@ where
         self.filter.test(solution, a)
     }
 }
+
+// Combines a left uni-filter with a cross-entity predicate `Fn(&A, &B) -> bool`.
+//
+// Used by the predicate cross-join in `JoinTarget` to produce a named concrete type
+// that avoids `impl Trait` in associated type position.
+pub struct UniLeftPredBiFilter<F, P, A> {
+    left_filter: F,
+    predicate: P,
+    _phantom: PhantomData<fn() -> A>,
+}
+
+impl<F, P, A> UniLeftPredBiFilter<F, P, A> {
+    // Creates a combined filter from a left uni-filter and a cross-entity predicate.
+    #[inline]
+    pub fn new(left_filter: F, predicate: P) -> Self {
+        Self {
+            left_filter,
+            predicate,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, A, B, F, P> BiFilter<S, A, B> for UniLeftPredBiFilter<F, P, A>
+where
+    F: UniFilter<S, A>,
+    P: Fn(&A, &B) -> bool + Send + Sync,
+    B: Send + Sync,
+{
+    #[inline]
+    fn test(&self, solution: &S, a: &A, b: &B, _a_idx: usize, _b_idx: usize) -> bool {
+        self.left_filter.test(solution, a) && (self.predicate)(a, b)
+    }
+}

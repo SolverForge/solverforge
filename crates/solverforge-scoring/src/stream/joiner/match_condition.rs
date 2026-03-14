@@ -2,7 +2,7 @@
 
 // A joiner defines matching conditions between two entities.
 //
-// Joiners are used in stream operations like `join()` and `join_self()`
+// Joiners are used in stream operations like `join()`
 // to determine which entity pairs should be matched.
 pub trait Joiner<A, B>: Send + Sync {
     // Returns true if the two entities should be joined.

@@ -33,7 +33,7 @@ macro_rules! impl_incremental_bi_constraint {
             A: Clone + 'static,
             K: Eq + Hash + Clone,
             E: Fn(&S) -> &[A],
-            KE: Fn(&S, &A, usize) -> K,
+            KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, usize, usize) -> bool,
             W: Fn(&S, usize, usize) -> Sc,
             Sc: Score,
@@ -84,7 +84,7 @@ macro_rules! impl_incremental_bi_constraint {
                 }
 
                 let entity = &entities[index];
-                let key = (self.key_extractor)(solution, entity, index);
+                let key = $crate::stream::key_extract::KeyExtract::extract(&self.key_extractor, solution, entity, index);
 
                 self.index_to_key.insert(index, key.clone());
                 self.key_to_indices
@@ -176,7 +176,7 @@ macro_rules! impl_incremental_bi_constraint {
             A: Clone + Debug + Send + Sync + 'static,
             K: Eq + Hash + Clone + Send + Sync,
             E: Fn(&S) -> &[A] + Send + Sync,
-            KE: Fn(&S, &A, usize) -> K + Send + Sync,
+            KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
             W: Fn(&S, usize, usize) -> Sc + Send + Sync,
             Sc: Score,
@@ -187,7 +187,7 @@ macro_rules! impl_incremental_bi_constraint {
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
                 for (i, entity) in entities.iter().enumerate() {
-                    let key = (self.key_extractor)(solution, entity, i);
+                    let key = $crate::stream::key_extract::KeyExtract::extract(&self.key_extractor, solution, entity, i);
                     temp_index.entry(key).or_default().push(i);
                 }
 
@@ -214,7 +214,7 @@ macro_rules! impl_incremental_bi_constraint {
 
                 let mut temp_index: HashMap<K, Vec<usize>> = HashMap::new();
                 for (i, entity) in entities.iter().enumerate() {
-                    let key = (self.key_extractor)(solution, entity, i);
+                    let key = $crate::stream::key_extract::KeyExtract::extract(&self.key_extractor, solution, entity, i);
                     temp_index.entry(key).or_default().push(i);
                 }
 

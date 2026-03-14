@@ -81,6 +81,8 @@ src/
 │   ├── cross_bi_stream.rs                          — CrossBiConstraintStream, CrossBiConstraintBuilder
 │   ├── flattened_bi_stream.rs                      — FlattenedBiConstraintStream, FlattenedBiConstraintBuilder
 │   ├── if_exists_stream.rs                         — IfExistsStream, IfExistsBuilder
+│   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
+│   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
 │   │   └── nary_stream.rs                          — impl_bi/tri/quad/penta_arity_stream! macros
@@ -88,7 +90,7 @@ src/
 │   │   ├── mod.rs                                  — Re-exports filter types
 │   │   ├── traits.rs                               — UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter traits
 │   │   ├── wrappers.rs                             — TrueFilter, FnUniFilter, FnBiFilter, FnTriFilter, FnQuadFilter, FnPentaFilter
-│   │   ├── adapters.rs                             — UniBiFilter, UniLeftBiFilter adapters
+│   │   ├── adapters.rs                             — UniBiFilter, UniLeftBiFilter, UniLeftPredBiFilter adapters
 │   │   ├── composition.rs                          — AndUniFilter, AndBiFilter, AndTriFilter, AndQuadFilter, AndPentaFilter
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
@@ -330,42 +332,54 @@ All implement `IncrementalConstraint<S, Sc>`.
 ### Stream Builders (Fluent API)
 
 **`ConstraintFactory<S, Sc: Score>`** — Entry point.
-- `new()`, `for_each()` → `UniConstraintStream`, `for_each_unique_pair()` → `BiConstraintStream`
+- `new()`, `for_each()` → `UniConstraintStream`
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `join_self()`, `join_keyed()`, `join()` (predicate-based O(n*m)), `group_by()`, `balance()`, `if_exists_filtered()`, `if_not_exists_filtered()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `join(target)` (unified dispatch via `JoinTarget`), `group_by()`, `balance()`, `if_exists_filtered()`, `if_not_exists_filtered()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
-**`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `for_descriptor()`, `as_constraint()`, `named()` → `IncrementalUniConstraint`
+**`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `for_descriptor()`, `named()` → `IncrementalUniConstraint`
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
-- Operations: `filter()`, `join_self()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `join()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
 
-**`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `as_constraint()`, `named()` → `IncrementalBiConstraint`
+**`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `named()` → `IncrementalBiConstraint`
 
-**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join_self()` → QuadStream. Same convenience methods.
+**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join()` → QuadStream. Same convenience methods.
 
-**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join_self()` → PentaStream. Same convenience methods.
+**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join()` → PentaStream. Same convenience methods.
 
 **`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins). Same convenience methods.
 
 **`CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
 - Operations: `filter()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `flatten_last()` → FlattenedBiStream
 
-**`CrossBiConstraintBuilder`** — `as_constraint()`, `named()` → `IncrementalCrossBiConstraint`
+**`CrossBiConstraintBuilder`** — `named()` → `IncrementalCrossBiConstraint`
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>`** — Grouped stream.
 - Operations: `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `complement()`, `complement_with_key()` → ComplementedStream
 
-**`GroupedConstraintBuilder`** — `as_constraint()`, `named()` → `GroupedUniConstraint`
+**`GroupedConstraintBuilder`** — `named()` → `GroupedUniConstraint`
 
-**`BalanceConstraintStream/Builder`** — Balance stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `BalanceConstraint`
+**`BalanceConstraintStream/Builder`** — Balance stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `ComplementedGroupConstraint`
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard()`, `reward_soft()`, `named()` → `ComplementedGroupConstraint`
 
-**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `FlattenedBiConstraint`
+**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `FlattenedBiConstraint`
 
-**`IfExistsStream/IfExistsBuilder`** — If-exists stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `as_constraint()`, `named()` → `IfExistsUniConstraint`
+**`IfExistsStream/IfExistsBuilder`** — If-exists stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IfExistsUniConstraint`
+
+### Join Support Types
+
+**`JoinTarget<S, A, E, F, Sc>`** — Trait for unified `.join()` dispatch on `UniConstraintStream`.
+- Three impls: `EqualJoiner<KA, KA, K>` (self-join), `(EB, EqualJoiner<KA, KB, K>)` (keyed cross-join), `(UniConstraintStream<...>, P)` (predicate cross-join)
+
+**`KeyExtract<S, A, K>`** — Trait for key extraction. Blanket impl for `Fn(&S, &A, usize) -> K + Send + Sync`. Used as the bound on `KE` type params in nary stream/constraint macros.
+- Method: `fn extract(&self, s: &S, a: &A, idx: usize) -> K`
+
+**`EntityKeyAdapter<KA>`** — Wraps `KA: Fn(&A) -> K` as a `KeyExtract`. Used in self-join `JoinTarget` impl to adapt entity-only key functions.
+- `new(key_fn: KA)` → `EntityKeyAdapter<KA>`
 
 ### Filter Types
 
@@ -378,6 +392,8 @@ All implement `IncrementalConstraint<S, Sc>`.
 **`UniBiFilter<F, A>`** — Adapts UniFilter to BiFilter (tests both args same predicate).
 
 **`UniLeftBiFilter<F, B>`** — Adapts UniFilter to BiFilter (tests left arg only).
+
+**`UniLeftPredBiFilter<F, P, A>`** — Combines UniFilter (left element) and predicate `Fn(&A, &B) -> bool`. Used in the predicate cross-join case to avoid `impl Trait` in associated type position.
 
 ### Joiner Types
 
@@ -416,7 +432,7 @@ The entire pipeline from stream builder to constraint evaluation is fully monomo
 1. `ConstraintFactory::new().for_each(extractor)` — creates `UniConstraintStream`
 2. `.filter(predicate)` — composes filter via `AndUniFilter`
 3. `.penalize(weight)` — creates `UniConstraintBuilder`
-4. `.as_constraint("name")` — produces `IncrementalUniConstraint<S, A, E, impl Fn, W, Sc>`
+4. `.named("name")` — produces `IncrementalUniConstraint<S, A, E, impl Fn, W, Sc>`
 
 All closures are stored as concrete generic type parameters. No `Box<dyn Fn>`, no `Arc`. The constraint types carry the full closure types through their generics.
 

@@ -15,12 +15,8 @@ use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::constraint::if_exists::ExistenceMode;
 
 use super::balance_stream::BalanceConstraintStream;
-use super::bi_stream::BiConstraintStream;
 use super::collector::UniCollector;
-use super::cross_bi_stream::CrossBiConstraintStream;
-use super::filter::{
-    AndBiFilter, AndUniFilter, FnBiFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter,
-};
+use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 use super::grouped_stream::GroupedConstraintStream;
 use super::if_exists_stream::IfExistsStream;
 use super::joiner::EqualJoiner;
@@ -104,113 +100,17 @@ where
         }
     }
 
-    // Joins this stream with itself to create pairs (zero-erasure).
+    // Joins this stream using the provided join target.
     //
-    // Requires an `EqualJoiner` to enable key-based indexing for O(k) lookups.
-    // For self-joins, pairs are ordered (i < j) to avoid duplicates.
-    //
-    // Any filters accumulated on this stream are applied to both entities
-    // individually before the join.
-    pub fn join_self<K, KA, KB>(
-        self,
-        joiner: EqualJoiner<KA, KB, K>,
-    ) -> BiConstraintStream<
-        S,
-        A,
-        K,
-        E,
-        impl Fn(&S, &A, usize) -> K + Send + Sync,
-        UniLeftBiFilter<F, A>,
-        Sc,
-    >
+    // Dispatch depends on argument type:
+    // - `equal(|a: &A| key_fn(a))` — self-join, returns `BiConstraintStream`
+    // - `(extractor_b, equal_bi(ka, kb))` — keyed cross-join, returns `CrossBiConstraintStream`
+    // - `(other_stream, |a, b| predicate)` — predicate cross-join O(n*m)
+    pub fn join<J>(self, target: J) -> J::Output
     where
-        A: Hash + PartialEq,
-        K: Eq + Hash + Clone + Send + Sync,
-        KA: Fn(&A) -> K + Send + Sync,
-        KB: Fn(&A) -> K + Send + Sync,
+        J: super::join_target::JoinTarget<S, A, E, F, Sc>,
     {
-        let (key_extractor, _) = joiner.into_keys();
-
-        // Wrap key_extractor to match the new KE: Fn(&S, &A, usize) -> K signature.
-        // The static stream API doesn't need solution/index, so ignore them.
-        let wrapped_ke = move |_s: &S, a: &A, _idx: usize| key_extractor(a);
-
-        // Convert uni-filter to bi-filter that applies to left entity
-        let bi_filter = UniLeftBiFilter::new(self.filter);
-
-        BiConstraintStream::new_self_join_with_filter(self.extractor, wrapped_ke, bi_filter)
-    }
-
-    // Joins this stream with another collection to create cross-entity pairs (zero-erasure).
-    //
-    // Requires an `EqualJoiner` to enable key-based indexing for O(1) lookups.
-    // Unlike `join_self` which pairs entities within the same collection,
-    // `join_keyed` creates pairs from two different collections (e.g., Shift joined
-    // with Employee).
-    //
-    // Any filters accumulated on this stream are applied to the A entity
-    // before the join.
-    pub fn join_keyed<B, EB, K, KA, KB>(
-        self,
-        extractor_b: EB,
-        joiner: EqualJoiner<KA, KB, K>,
-    ) -> CrossBiConstraintStream<S, A, B, K, E, EB, KA, KB, UniLeftBiFilter<F, B>, Sc>
-    where
-        B: Clone + Send + Sync + 'static,
-        EB: Fn(&S) -> &[B] + Send + Sync,
-        K: Eq + Hash + Clone + Send + Sync,
-        KA: Fn(&A) -> K + Send + Sync,
-        KB: Fn(&B) -> K + Send + Sync,
-    {
-        let (key_a, key_b) = joiner.into_keys();
-
-        // Convert uni-filter to bi-filter that applies to left entity only
-        let bi_filter = UniLeftBiFilter::new(self.filter);
-
-        CrossBiConstraintStream::new_with_filter(
-            self.extractor,
-            extractor_b,
-            key_a,
-            key_b,
-            bi_filter,
-        )
-    }
-
-    // Joins this stream with another stream using a predicate (O(n*m) nested loop).
-    //
-    // This is the ergonomic join API. Use `join_keyed` for performance-critical joins.
-    pub fn join<B, EB, FB, P>(
-        self,
-        other: UniConstraintStream<S, B, EB, FB, Sc>,
-        predicate: P,
-    ) -> CrossBiConstraintStream<
-        S,
-        A,
-        B,
-        u8,
-        E,
-        EB,
-        fn(&A) -> u8,
-        fn(&B) -> u8,
-        AndBiFilter<UniLeftBiFilter<F, B>, FnBiFilter<impl Fn(&S, &A, &B) -> bool + Send + Sync>>,
-        Sc,
-    >
-    where
-        B: Clone + Send + Sync + 'static,
-        EB: Fn(&S) -> &[B] + Send + Sync,
-        FB: UniFilter<S, B>,
-        P: Fn(&A, &B) -> bool + Send + Sync + 'static,
-    {
-        let (extractor_b, _filter_b) = other.into_parts();
-        let bi_filter = UniLeftBiFilter::new(self.filter);
-        let pred_filter = FnBiFilter::new(move |_s: &S, a: &A, b: &B| predicate(a, b));
-        CrossBiConstraintStream::new_with_filter(
-            self.extractor,
-            extractor_b,
-            (|_: &A| 0u8) as fn(&A) -> u8,
-            (|_: &B| 0u8) as fn(&B) -> u8,
-            AndBiFilter::new(bi_filter, pred_filter),
-        )
+        target.apply(self.extractor, self.filter)
     }
 
     // Groups entities by key and aggregates with a collector.
@@ -257,7 +157,7 @@ where
     //     .for_each(|s: &Solution| &s.shifts)
     //     .balance(|shift: &Shift| shift.employee_id)
     //     .penalize(SoftScore::of(1000))
-    //     .as_constraint("Balance workload");
+    //     .named("Balance workload");
     //
     // let solution = Solution {
     //     shifts: vec![
@@ -316,7 +216,7 @@ where
     //         ),
     //     )
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Vacation conflict");
+    //     .named("Vacation conflict");
     //
     // let schedule = Schedule {
     //     shifts: vec![
@@ -392,7 +292,7 @@ where
     //         ),
     //     )
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Unavailable worker");
+    //     .named("Unavailable worker");
     //
     // let schedule = Schedule {
     //     tasks: vec![
@@ -653,16 +553,8 @@ where
         self
     }
 
-    // Alias for `as_constraint`.
-    pub fn named(
-        self,
-        name: &str,
-    ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
-        self.as_constraint(name)
-    }
-
     // Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.
-    pub fn as_constraint(
+    pub fn named(
         self,
         name: &str,
     ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {

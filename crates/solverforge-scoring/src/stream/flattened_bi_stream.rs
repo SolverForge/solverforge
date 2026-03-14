@@ -618,33 +618,7 @@ where
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    // Alias for `as_constraint`.
     pub fn named(
-        self,
-        name: &str,
-    ) -> FlattenedBiConstraint<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        impl Fn(&S, &A, &C) -> bool + Send + Sync,
-        W,
-        Sc,
-    > {
-        self.as_constraint(name)
-    }
-
-    // Finalizes the builder into an O(1) indexed constraint.
-    pub fn as_constraint(
         self,
         name: &str,
     ) -> FlattenedBiConstraint<
@@ -683,6 +657,8 @@ where
             self.is_hard,
         )
     }
+
+    // Finalizes the builder into an O(1) indexed constraint.
 }
 
 impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc: Score> std::fmt::Debug

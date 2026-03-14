@@ -21,12 +21,12 @@
 // // Penalize when five tasks are on the same team
 // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
 //     .for_each(|s: &Solution| s.tasks.as_slice())
-//     .join_self(equal(|t: &Task| t.team))
-//     .join_self(equal(|t: &Task| t.team))
-//     .join_self(equal(|t: &Task| t.team))
-//     .join_self(equal(|t: &Task| t.team))
+//     .join(equal(|t: &Task| t.team))
+//     .join(equal(|t: &Task| t.team))
+//     .join(equal(|t: &Task| t.team))
+//     .join(equal(|t: &Task| t.team))
 //     .penalize(SoftScore::of(1))
-//     .as_constraint("Team clustering");
+//     .named("Team clustering");
 //
 // let solution = Solution {
 //     tasks: vec![
@@ -72,15 +72,15 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join_self(equal(|i: &Item| i.group))
-    //     .join_self(equal(|i: &Item| i.group))
-    //     .join_self(equal(|i: &Item| i.group))
-    //     .join_self(equal(|i: &Item| i.group))
+    //     .join(equal(|i: &Item| i.group))
+    //     .join(equal(|i: &Item| i.group))
+    //     .join(equal(|i: &Item| i.group))
+    //     .join(equal(|i: &Item| i.group))
     //     .filter(|a: &Item, b: &Item, c: &Item, d: &Item, e: &Item| {
     //         a.value + b.value + c.value + d.value + e.value > 20
     //     })
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("High sum quintuples");
+    //     .named("High sum quintuples");
     //
     // let solution = Solution {
     //     items: vec![
@@ -112,12 +112,12 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join_self(equal(|t: &Task| t.priority))
-    //     .join_self(equal(|t: &Task| t.priority))
-    //     .join_self(equal(|t: &Task| t.priority))
-    //     .join_self(equal(|t: &Task| t.priority))
+    //     .join(equal(|t: &Task| t.priority))
+    //     .join(equal(|t: &Task| t.priority))
+    //     .join(equal(|t: &Task| t.priority))
+    //     .join(equal(|t: &Task| t.priority))
     //     .penalize(SoftScore::of(5))
-    //     .as_constraint("Quintuple priority conflict");
+    //     .named("Quintuple priority conflict");
     //
     // let solution = Solution {
     //     tasks: vec![
@@ -149,14 +149,14 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join_self(equal(|t: &Task| t.team))
-    //     .join_self(equal(|t: &Task| t.team))
-    //     .join_self(equal(|t: &Task| t.team))
-    //     .join_self(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
     //     .penalize_with(|a: &Task, b: &Task, c: &Task, d: &Task, e: &Task| {
     //         SoftScore::of(a.cost + b.cost + c.cost + d.cost + e.cost)
     //     })
-    //     .as_constraint("Team cost");
+    //     .named("Team cost");
     //
     // let solution = Solution {
     //     tasks: vec![
@@ -188,12 +188,12 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.people.as_slice())
-    //     .join_self(equal(|p: &Person| p.team))
-    //     .join_self(equal(|p: &Person| p.team))
-    //     .join_self(equal(|p: &Person| p.team))
-    //     .join_self(equal(|p: &Person| p.team))
+    //     .join(equal(|p: &Person| p.team))
+    //     .join(equal(|p: &Person| p.team))
+    //     .join(equal(|p: &Person| p.team))
+    //     .join(equal(|p: &Person| p.team))
     //     .reward(SoftScore::of(10))
-    //     .as_constraint("Team synergy");
+    //     .named("Team synergy");
     //
     // let solution = Solution {
     //     people: vec![
@@ -209,7 +209,7 @@ mod doctests {
     // assert_eq!(constraint.evaluate(&solution), SoftScore::of(10));
     // ```
     //
-    // # as_constraint method
+    // # named method
     //
     // ```
     // use solverforge_scoring::stream::ConstraintFactory;
@@ -225,12 +225,12 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join_self(equal(|i: &Item| i.id))
-    //     .join_self(equal(|i: &Item| i.id))
-    //     .join_self(equal(|i: &Item| i.id))
-    //     .join_self(equal(|i: &Item| i.id))
+    //     .join(equal(|i: &Item| i.id))
+    //     .join(equal(|i: &Item| i.id))
+    //     .join(equal(|i: &Item| i.id))
+    //     .join(equal(|i: &Item| i.id))
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Quintuple items");
+    //     .named("Quintuple items");
     //
     // assert_eq!(constraint.name(), "Quintuple items");
     // ```

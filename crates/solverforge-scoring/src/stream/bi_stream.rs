@@ -21,9 +21,9 @@
 // // Penalize when two tasks are on the same team
 // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
 //     .for_each(|s: &Solution| s.tasks.as_slice())
-//     .join_self(equal(|t: &Task| t.team))
+//     .join(equal(|t: &Task| t.team))
 //     .penalize(SoftScore::of(1))
-//     .as_constraint("Team conflict");
+//     .named("Team conflict");
 //
 // let solution = Solution {
 //     tasks: vec![
@@ -54,7 +54,7 @@ super::arity_stream_macros::impl_arity_stream!(
     IncrementalBiConstraint
 );
 
-// join_self method - transitions to TriConstraintStream
+// join method - transitions to TriConstraintStream
 impl<S, A, K, E, KE, F, Sc> BiConstraintStream<S, A, K, E, KE, F, Sc>
 where
     S: Send + Sync + 'static,
@@ -84,10 +84,10 @@ where
     // // Penalize when three tasks are on the same team
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join_self(equal(|t: &Task| t.team))
-    //     .join_self(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Team clustering");
+    //     .named("Team clustering");
     //
     // let solution = Solution {
     //     tasks: vec![
@@ -101,7 +101,7 @@ where
     // // One triple on team 1: (0, 1, 2) = -1 penalty
     // assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
     // ```
-    pub fn join_self<J>(
+    pub fn join<J>(
         self,
         joiner: J,
     ) -> TriConstraintStream<S, A, K, E, KE, impl TriFilter<S, A, A, A>, Sc>
@@ -141,10 +141,10 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join_self(equal(|i: &Item| i.group))
+    //     .join(equal(|i: &Item| i.group))
     //     .filter(|a: &Item, b: &Item| a.value + b.value > 10)
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("High sum pairs");
+    //     .named("High sum pairs");
     //
     // let solution = Solution {
     //     items: vec![
@@ -173,9 +173,9 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join_self(equal(|t: &Task| t.priority))
+    //     .join(equal(|t: &Task| t.priority))
     //     .penalize(SoftScore::of(5))
-    //     .as_constraint("Pair priority conflict");
+    //     .named("Pair priority conflict");
     //
     // let solution = Solution {
     //     tasks: vec![
@@ -204,11 +204,11 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.tasks.as_slice())
-    //     .join_self(equal(|t: &Task| t.team))
+    //     .join(equal(|t: &Task| t.team))
     //     .penalize_with(|a: &Task, b: &Task| {
     //         SoftScore::of(a.cost + b.cost)
     //     })
-    //     .as_constraint("Team cost");
+    //     .named("Team cost");
     //
     // let solution = Solution {
     //     tasks: vec![
@@ -237,9 +237,9 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.people.as_slice())
-    //     .join_self(equal(|p: &Person| p.team))
+    //     .join(equal(|p: &Person| p.team))
     //     .reward(SoftScore::of(10))
-    //     .as_constraint("Team synergy");
+    //     .named("Team synergy");
     //
     // let solution = Solution {
     //     people: vec![
@@ -252,7 +252,7 @@ mod doctests {
     // assert_eq!(constraint.evaluate(&solution), SoftScore::of(10));
     // ```
     //
-    // # as_constraint method
+    // # named method
     //
     // ```
     // use solverforge_scoring::stream::ConstraintFactory;
@@ -268,9 +268,9 @@ mod doctests {
     //
     // let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     //     .for_each(|s: &Solution| s.items.as_slice())
-    //     .join_self(equal(|i: &Item| i.id))
+    //     .join(equal(|i: &Item| i.id))
     //     .penalize(SoftScore::of(1))
-    //     .as_constraint("Pair items");
+    //     .named("Pair items");
     //
     // assert_eq!(constraint.name(), "Pair items");
     // ```

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.5.18](///compare/v0.5.17...v0.5.18) (2026-03-14)
+
+
+### Features
+
+* **scoring): CollectionExtract trait for ergonomic extractors + chore(release:** 0.5.18 e97fe9a
+
 ## [0.5.18](///compare/v0.5.16...v0.5.18) (2026-03-14)
 
 ## [0.5.16](///compare/v0.5.12...v0.5.16) (2026-03-14)

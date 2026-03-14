@@ -1055,9 +1055,9 @@ fn generate_constraint_stream_extensions(
         &basic_config.variable_field,
     ) {
         // Find the entity type for this collection
-        let entity_field = fields.iter().find(|f| {
-            f.ident.as_ref().map(|i| i.to_string()).as_ref() == Some(entity_collection)
-        });
+        let entity_field = fields
+            .iter()
+            .find(|f| f.ident.as_ref().map(|i| i.to_string()).as_ref() == Some(entity_collection));
 
         if let Some(ef) = entity_field {
             if let Some(entity_type) = extract_collection_inner_type(&ef.ty) {
@@ -1077,7 +1077,9 @@ fn generate_constraint_stream_extensions(
 
                 // Derive a simple name for the unassigned filter trait
                 let entity_type_name = if let syn::Type::Path(tp) = entity_type {
-                    tp.path.segments.last()
+                    tp.path
+                        .segments
+                        .last()
                         .map(|s| s.ident.to_string())
                         .unwrap_or_else(|| "Entity".to_string())
                 } else {

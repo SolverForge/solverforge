@@ -266,7 +266,9 @@ where
     }
 
     // Penalizes each matching entity with one hard score unit.
-    pub fn penalize_hard(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn penalize_hard(
+        self,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -274,7 +276,9 @@ where
     }
 
     // Penalizes each matching entity with one soft score unit.
-    pub fn penalize_soft(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn penalize_soft(
+        self,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -282,7 +286,9 @@ where
     }
 
     // Rewards each matching entity with one hard score unit.
-    pub fn reward_hard(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn reward_hard(
+        self,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -290,7 +296,9 @@ where
     }
 
     // Rewards each matching entity with one soft score unit.
-    pub fn reward_soft(self) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn reward_soft(
+        self,
+    ) -> IfExistsBuilder<S, A, B, K, EA, EB, KA, KB, FA, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {

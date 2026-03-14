@@ -18,7 +18,9 @@ use super::balance_stream::BalanceConstraintStream;
 use super::bi_stream::BiConstraintStream;
 use super::collector::UniCollector;
 use super::cross_bi_stream::CrossBiConstraintStream;
-use super::filter::{AndBiFilter, AndUniFilter, FnBiFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter};
+use super::filter::{
+    AndBiFilter, AndUniFilter, FnBiFilter, FnUniFilter, TrueFilter, UniFilter, UniLeftBiFilter,
+};
 use super::grouped_stream::GroupedConstraintStream;
 use super::if_exists_stream::IfExistsStream;
 use super::joiner::EqualJoiner;
@@ -551,7 +553,9 @@ where
     }
 
     // Penalizes each matching entity with one hard score unit.
-    pub fn penalize_hard(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn penalize_hard(
+        self,
+    ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -559,7 +563,9 @@ where
     }
 
     // Penalizes each matching entity with one soft score unit.
-    pub fn penalize_soft(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn penalize_soft(
+        self,
+    ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -567,7 +573,9 @@ where
     }
 
     // Rewards each matching entity with one hard score unit.
-    pub fn reward_hard(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn reward_hard(
+        self,
+    ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -575,7 +583,9 @@ where
     }
 
     // Rewards each matching entity with one soft score unit.
-    pub fn reward_soft(self) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
+    pub fn reward_soft(
+        self,
+    ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc>
     where
         Sc: Copy,
     {
@@ -644,7 +654,10 @@ where
     }
 
     // Alias for `as_constraint`.
-    pub fn named(self, name: &str) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
+    pub fn named(
+        self,
+        name: &str,
+    ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc> {
         self.as_constraint(name)
     }
 

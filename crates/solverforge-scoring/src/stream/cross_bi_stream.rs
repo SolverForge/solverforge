@@ -314,7 +314,21 @@ where
     }
 
     // Penalizes each matching pair with one hard score unit.
-    pub fn penalize_hard(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    pub fn penalize_hard(
+        self,
+    ) -> CrossBiConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        impl Fn(&A, &B) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {
@@ -322,7 +336,21 @@ where
     }
 
     // Penalizes each matching pair with one soft score unit.
-    pub fn penalize_soft(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    pub fn penalize_soft(
+        self,
+    ) -> CrossBiConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        impl Fn(&A, &B) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {
@@ -330,7 +358,21 @@ where
     }
 
     // Rewards each matching pair with one hard score unit.
-    pub fn reward_hard(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    pub fn reward_hard(
+        self,
+    ) -> CrossBiConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        impl Fn(&A, &B) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {
@@ -338,7 +380,21 @@ where
     }
 
     // Rewards each matching pair with one soft score unit.
-    pub fn reward_soft(self) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
+    pub fn reward_soft(
+        self,
+    ) -> CrossBiConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        impl Fn(&A, &B) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {

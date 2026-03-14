@@ -220,7 +220,20 @@ where
     // Penalizes each complemented group with one hard score unit.
     pub fn penalize_hard(
         self,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    ) -> ComplementedConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        C,
+        D,
+        impl Fn(&C::Result) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {
@@ -231,7 +244,20 @@ where
     // Penalizes each complemented group with one soft score unit.
     pub fn penalize_soft(
         self,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    ) -> ComplementedConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        C,
+        D,
+        impl Fn(&C::Result) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {
@@ -242,7 +268,20 @@ where
     // Rewards each complemented group with one hard score unit.
     pub fn reward_hard(
         self,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    ) -> ComplementedConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        C,
+        D,
+        impl Fn(&C::Result) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {
@@ -253,7 +292,20 @@ where
     // Rewards each complemented group with one soft score unit.
     pub fn reward_soft(
         self,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, impl Fn(&C::Result) -> Sc + Send + Sync, Sc>
+    ) -> ComplementedConstraintBuilder<
+        S,
+        A,
+        B,
+        K,
+        EA,
+        EB,
+        KA,
+        KB,
+        C,
+        D,
+        impl Fn(&C::Result) -> Sc + Send + Sync,
+        Sc,
+    >
     where
         Sc: Copy,
     {

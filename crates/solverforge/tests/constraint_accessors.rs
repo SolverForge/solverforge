@@ -90,10 +90,7 @@ fn test_named_alias_compiles() {
     use ScheduleConstraintStreams;
 
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let constraint = factory
-        .shifts()
-        .penalize_hard()
-        .named("Test named alias");
+    let constraint = factory.shifts().penalize_hard().named("Test named alias");
 
     let _ = constraint;
 }

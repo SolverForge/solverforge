@@ -10,10 +10,11 @@ members = [
     "crates/solverforge",
     "crates/solverforge-cvrp",
     "crates/solverforge-test",
+    "crates/solverforge-cli",
 ]
 
 [workspace.package]
-version = "0.5.18"
+version = "0.5.19"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge-rs"
@@ -46,6 +47,14 @@ rand = "0.10"
 rand_chacha = "0.10"
 rayon = "1.11"  # New - for parallel move evaluation
 smallvec = "1.15"  # Updated from 1.11
+
+# CLI dependencies
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+dialoguer = "0.11"
+include_dir = "0.7"
+owo-colors = "4"
+strsim = "0.11"
 
 # Proc-macro dependencies
 syn = { version = "2.0", features = ["full", "extra-traits"] }

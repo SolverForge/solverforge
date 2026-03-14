@@ -66,7 +66,7 @@ src/
 │       ├── typed.rs                                — ScoreDirector tests
 │       ├── recording.rs                            — RecordingDirector tests
 │       ├── shadow.rs                               — Shadow-aware director tests
-│       └── bench.rs                                — Benchmarks
+
 ├── stream/
 │   ├── mod.rs                                      — Module declarations and re-exports for all stream types
 │   ├── factory.rs                                  — ConstraintFactory<S,Sc>

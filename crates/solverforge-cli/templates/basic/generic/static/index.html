@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolverForge — Standard Variable</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #222; }
+    h1 { font-size: 1.6rem; }
+    pre { background: #f4f4f4; padding: 12px; border-radius: 4px; overflow-x: auto; }
+    button { padding: 8px 16px; margin-right: 8px; cursor: pointer; border: none; border-radius: 4px; background: #0066cc; color: white; font-size: 0.95rem; }
+    button:hover { background: #0052a3; }
+    #output { margin-top: 20px; }
+    .score { font-weight: bold; }
+    .feasible { color: #2a7a2a; }
+    .infeasible { color: #cc2200; }
+  </style>
+</head>
+<body>
+  <h1>SolverForge — Standard Variable</h1>
+  <p>This is the generic standard variable skeleton. Replace <code>Resource</code>, <code>Task</code>, and <code>Plan</code> with your domain types.</p>
+
+  <button onclick="loadDemo()">Load Demo Data</button>
+  <button onclick="solve()">Solve</button>
+  <button onclick="stop()" id="stopBtn" style="display:none; background:#cc2200;">Stop</button>
+
+  <div id="output"></div>
+
+  <script>
+    let currentId = null;
+    let pollInterval = null;
+
+    async function loadDemo() {
+      const res = await fetch('/demo-data');
+      const plan = await res.json();
+      render(plan);
+    }
+
+    async function solve() {
+      const res = await fetch('/demo-data');
+      const plan = await res.json();
+      const startRes = await fetch('/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(plan),
+      });
+      currentId = await startRes.text();
+      document.getElementById('stopBtn').style.display = 'inline';
+      pollInterval = setInterval(poll, 1000);
+    }
+
+    async function poll() {
+      if (!currentId) return;
+      const res = await fetch(`/plans/${currentId}`);
+      if (!res.ok) return;
+      const plan = await res.json();
+      render(plan);
+      if (plan.solverStatus === 'NOT_SOLVING') {
+        clearInterval(pollInterval);
+        document.getElementById('stopBtn').style.display = 'none';
+      }
+    }
+
+    async function stop() {
+      if (!currentId) return;
+      await fetch(`/plans/${currentId}`, { method: 'DELETE' });
+      clearInterval(pollInterval);
+      document.getElementById('stopBtn').style.display = 'none';
+    }
+
+    function render(plan) {
+      const feasible = plan.score && !plan.score.includes('-');
+      const scoreClass = feasible ? 'feasible' : 'infeasible';
+      let html = `<p>Score: <span class="score ${scoreClass}">${plan.score || '—'}</span>  Status: ${plan.solverStatus || '—'}</p>`;
+      html += '<table border="1" cellpadding="4" cellspacing="0"><tr><th>Task</th><th>Assigned Resource</th></tr>';
+      for (const t of plan.tasks) {
+        html += `<tr><td>${t.name}</td><td>${t.resource ? t.resource.name : '<em>unassigned</em>'}</td></tr>`;
+      }
+      html += '</table>';
+      document.getElementById('output').innerHTML = html;
+    }
+  </script>
+</body>
+</html>

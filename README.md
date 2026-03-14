@@ -20,6 +20,19 @@ A zero-erasure constraint solver in Rust.
 
 SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API with efficient incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
 
+## Get Started
+
+```bash
+cargo install solverforge-cli
+solverforge new my-scheduler --basic/employee-scheduling
+cd my-scheduler
+solverforge server
+```
+
+Open http://localhost:7860 to see your solver in action.
+
+The CLI scaffolds complete projects with domain models, constraints, a web UI, and sample data. Use `solverforge generate` to add entities, facts, and constraints interactively.
+
 ## Zero-Erasure Architecture
 
 SolverForge preserves concrete types through the entire solver pipeline:
@@ -146,14 +159,16 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
 ```rust
 use solverforge::{SolverManager, Solvable};
 
+static MANAGER: SolverManager<Schedule> = SolverManager::new();
+
 fn main() {
     let schedule = Schedule::new(employees, shifts);
 
-    // Channel-based solving with progress updates
-    let (job_id, receiver) = SolverManager::global().solve(schedule);
+    // Channel-based solving — solver runs via rayon, returns immediately
+    let (_job_id, mut receiver) = MANAGER.solve(schedule);
 
     // Receive best solutions as they're found
-    while let Ok((solution, score)) = receiver.recv() {
+    while let Ok((solution, score)) = receiver.try_recv() {
         println!("New best: {}", score);
     }
 }
@@ -170,7 +185,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.5.18 - Zero-Erasure Constraint Solver
+                   v0.5.19 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -295,31 +310,32 @@ let config = SolverConfig::load("solver.toml").unwrap_or_default();
 
 ## SolverManager API
 
-The `SolverManager` provides async solving with channel-based solution streaming:
+The `SolverManager` provides async solving with channel-based solution streaming. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
 
 ```rust
-use solverforge::{SolverManager, SolverStatus};
+use solverforge::{SolverManager, SolverStatus, Solvable};
 
-// Get global solver manager instance
-let manager = SolverManager::global();
+static MANAGER: SolverManager<MySchedule> = SolverManager::new();
 
-// Start solving (returns immediately)
-let (job_id, receiver) = manager.solve(problem);
+// Start solving (returns immediately, solver runs via rayon)
+let (job_id, mut receiver) = MANAGER.solve(problem);
 
 // Check status
-match manager.get_status(job_id) {
+match MANAGER.get_status(job_id) {
     SolverStatus::Solving => println!("Still working..."),
-    SolverStatus::Terminated => println!("Done!"),
-    SolverStatus::NotStarted => println!("Queued"),
+    SolverStatus::NotSolving => println!("Done!"),
+}
+
+// Drain improving solutions from the channel
+while let Ok((solution, score)) = receiver.try_recv() {
+    println!("New best: {}", score);
 }
 
 // Terminate early if needed
-manager.terminate_early(job_id);
+MANAGER.terminate_early(job_id);
 
-// Receive solutions as they improve
-while let Ok((solution, score)) = receiver.recv() {
-    // Process each improving solution
-}
+// Free the slot when done
+MANAGER.free_slot(job_id);
 ```
 
 ## Score Analysis
@@ -364,10 +380,11 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.18
+**Current Version**: 0.5.19
 
-### What's New in 0.5.18
+### What's New in 0.5.19
 
+- **Modern CLI templates**: All three scaffolded templates (`--basic`, `--basic/employee-scheduling`, `--list/vehicle-routing`) now use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities

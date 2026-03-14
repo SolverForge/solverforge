@@ -1,0 +1,14 @@
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "list_clarke_wright"
+
+[[phases]]
+type = "local_search"
+[phases.acceptor]
+type = "late_acceptance"
+late_acceptance_size = 400
+[phases.forager]
+accepted_count_limit = 4
+
+[termination]
+seconds_spent_limit = 60

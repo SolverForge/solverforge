@@ -23,7 +23,7 @@ RUST_VERSION := 1.80+
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
         lint fmt fmt-check clippy ci-local pre-release version bump-patch bump-minor bump-major \
-        bump-dry publish-crates-dry publish-crates clean watch
+        bump-dry publish-crates-dry publish-crates install-cli clean watch
 
 # ============== Default Target ==============
 .DEFAULT_GOAL := help
@@ -195,7 +195,7 @@ publish-crates-dry: test banner
 	@printf "$(CYAN)$(BOLD)║              Pre-Publish Verification                    ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
 	@printf "$(GREEN)$(CHECK) All tests passed$(RESET)\n"
-	@printf "$(ARROW) Publishing order: $(GRAY)core → macros → scoring → config → solver → benchmark → facade$(RESET)\n\n"
+	@printf "$(ARROW) Publishing order: $(GRAY)core → macros → scoring → config → solver → facade → cli$(RESET)\n\n"
 	@printf "$(GRAY)Note: cargo publish --dry-run cannot validate unpublished workspace inter-dependencies.$(RESET)\n"
 	@printf "$(GRAY)Tests passing indicates crates are ready. Use 'make publish-crates' to publish.$(RESET)\n\n"
 
@@ -207,26 +207,37 @@ publish-crates: banner
 	@printf "$(YELLOW)Press Ctrl+C to abort, or Enter to continue...$(RESET)\n"
 	@read dummy
 	@printf "\n$(PROGRESS) Publishing crates in dependency order...\n\n"
-	@printf "$(ARROW) [1/6] Publishing solverforge-core...\n"
+	@printf "$(ARROW) [1/7] Publishing solverforge-core...\n"
 	@cargo publish -p solverforge-core && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [2/6] Publishing solverforge-macros...\n"
+	@printf "$(ARROW) [2/7] Publishing solverforge-macros...\n"
 	@cargo publish -p solverforge-macros && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [3/6] Publishing solverforge-scoring...\n"
+	@printf "$(ARROW) [3/7] Publishing solverforge-scoring...\n"
 	@cargo publish -p solverforge-scoring && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [4/6] Publishing solverforge-config...\n"
+	@printf "$(ARROW) [4/7] Publishing solverforge-config...\n"
 	@cargo publish -p solverforge-config && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [5/6] Publishing solverforge-solver...\n"
+	@printf "$(ARROW) [5/7] Publishing solverforge-solver...\n"
 	@cargo publish -p solverforge-solver && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [6/6] Publishing solverforge (facade)...\n"
+	@printf "$(ARROW) [6/7] Publishing solverforge (facade)...\n"
 	@cargo publish -p solverforge && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
+	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
+	@printf "$(ARROW) [7/7] Publishing solverforge-cli...\n"
+	@cargo publish -p solverforge-cli && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "\n$(GREEN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)║          $(CHECK) All crates published successfully!            ║$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
+
+# ============== CLI ==============
+
+install-cli: banner
+	@printf "$(ARROW) $(BOLD)Installing solverforge CLI...$(RESET)\n"
+	@cargo install --path crates/solverforge-cli && \
+		printf "$(GREEN)$(CHECK) CLI installed — run 'solverforge --help'$(RESET)\n\n" || \
+		(printf "$(RED)$(CROSS) CLI install failed$(RESET)\n\n" && exit 1)
 
 # ============== Clean ==============
 
@@ -275,7 +286,10 @@ help: banner
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Publishing:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make publish-crates-dry$(RESET) - Dry-run publish to crates.io"
-	@/bin/echo -e "  $(GREEN)make publish-crates$(RESET) - $(RED)$(BOLD)Publish to crates.io (all 7 crates)$(RESET)"
+	@/bin/echo -e "  $(GREEN)make publish-crates$(RESET) - $(RED)$(BOLD)Publish to crates.io (all 8 crates)$(RESET)"
+	@/bin/echo -e ""
+	@/bin/echo -e "$(CYAN)$(BOLD)CLI:$(RESET)"
+	@/bin/echo -e "  $(GREEN)make install-cli$(RESET)    - Install solverforge CLI binary"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Other:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make clean$(RESET)          - Clean build artifacts"

@@ -20,7 +20,6 @@ const AVAILABLE_TEMPLATES: &str = "
     --basic=employee-scheduling     — assign employees to shifts
 
   List Variable (each entity owns an ordered sequence):
-    --list                          — generic list-variable skeleton  (coming soon)
     --list=vehicle-routing          — capacitated vehicle routing (CVRP)";
 
 pub fn run(
@@ -54,10 +53,6 @@ pub fn run(
             skip_readme,
             quiet,
         ),
-        Template::List => Err(CliError::with_hint(
-            "the generic list-variable skeleton is not yet available",
-            format!("Available templates:{AVAILABLE_TEMPLATES}"),
-        )),
         Template::ListVehicleRouting => scaffold(
             name,
             &crate_name,
@@ -350,7 +345,6 @@ fn generate_readme(project_name: &str, _crate_name: &str, label: &str) -> String
 pub enum Template {
     Basic,
     BasicEmployeeScheduling,
-    List,
     ListVehicleRouting,
 }
 
@@ -359,7 +353,10 @@ impl Template {
         match (basic, list, specialization) {
             (true, false, None) => Ok(Template::Basic),
             (true, false, Some("employee-scheduling")) => Ok(Template::BasicEmployeeScheduling),
-            (false, true, None) => Ok(Template::List),
+            (false, true, None) => Err(CliError::with_hint(
+                "the --list template requires a specialization",
+                "Use --list=vehicle-routing".to_string(),
+            )),
             (false, true, Some("vehicle-routing")) => Ok(Template::ListVehicleRouting),
             (false, false, None) => Err(CliError::with_hint(
                 "specify a template flag",

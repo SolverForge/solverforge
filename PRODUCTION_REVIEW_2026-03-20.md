@@ -179,3 +179,5 @@ The workspace architecture is coherent: the top-level manifest cleanly separates
 4. Add direct tests for `solverforge-console`, `solverforge-cvrp`, and macro expansion edge cases.
 5. Reduce unnecessary API surface in `solverforge-cvrp` by consolidating duplicate wrappers.
 6. Publish a stability/readiness matrix for crates and major features.
+
+See also `PRODUCTION_REVIEW_ISSUES_2026-03-20.md` for the issue-by-issue breakdown that can be opened and tracked.

@@ -223,3 +223,31 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
     Ok(expanded)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::expand_derive;
+    use syn::parse_quote;
+
+    #[test]
+    fn golden_entity_expansion_includes_descriptor_and_planning_id() {
+        let input = parse_quote! {
+            struct Task {
+                #[planning_id]
+                id: String,
+                #[planning_variable(allows_unassigned = true, value_range_provider = "workers")]
+                worker_idx: Option<usize>,
+            }
+        };
+
+        let expanded = expand_derive(input)
+            .expect("entity expansion should succeed")
+            .to_string();
+
+        assert!(expanded.contains("impl :: solverforge :: __internal :: PlanningEntity for Task"));
+        assert!(expanded.contains("impl :: solverforge :: __internal :: PlanningId for Task"));
+        assert!(expanded.contains("with_allows_unassigned (true)"));
+        assert!(expanded.contains("with_value_range (\"workers\")"));
+        assert!(expanded.contains("pub fn entity_descriptor"));
+    }
+}

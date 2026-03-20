@@ -37,7 +37,9 @@ VrpSolution trait
 ///
 /// # Safety
 /// Implementors must ensure every `vehicle_data_ptr` points to a valid
-/// `ProblemData` for the entire duration of a solve call.
+/// `ProblemData` for the entire duration of a solve call. Returning a null
+/// pointer is treated as "no shared problem data available" and causes the
+/// helper functions below to fall back to their empty-fleet defaults.
 pub trait VrpSolution {
     fn vehicle_data_ptr(&self, entity_idx: usize) -> *const ProblemData;
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize];
@@ -50,74 +52,69 @@ Free functions (callable as fn-pointer fields in ListSpec)
 ============================================================================
 */
 
+#[inline]
+fn problem_data_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> Option<&ProblemData> {
+    let ptr = plan.vehicle_data_ptr(entity_idx);
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: VrpSolution implementors guarantee valid pointers for the duration
+    // of the solve call; null is handled above and treated as missing data.
+    unsafe { ptr.as_ref() }
+}
+
+#[inline]
+fn first_problem_data<S: VrpSolution>(plan: &S) -> Option<&ProblemData> {
+    if plan.vehicle_count() == 0 {
+        return None;
+    }
+    problem_data_for_entity(plan, 0)
+}
+
 /// Distance between two element indices using the first vehicle's data pointer.
 pub fn distance<S: VrpSolution>(plan: &S, i: usize, j: usize) -> i64 {
-    if plan.vehicle_count() == 0 {
-        return 0;
-    }
-    // SAFETY: pointer is valid for the lifetime of solve (guaranteed by VrpSolution contract)
-    let data = unsafe { &*plan.vehicle_data_ptr(0) };
-    data.distance_matrix[i][j]
+    first_problem_data(plan).map_or(0, |data| data.distance_matrix[i][j])
 }
 
 pub fn depot_for_entity<S: VrpSolution>(plan: &S, _entity_idx: usize) -> usize {
-    if plan.vehicle_count() == 0 {
-        return 0;
-    }
-    // SAFETY: see distance()
-    let data = unsafe { &*plan.vehicle_data_ptr(0) };
-    data.depot
+    first_problem_data(plan).map_or(0, |data| data.depot)
 }
 
 pub fn depot_for_cw<S: VrpSolution>(plan: &S) -> usize {
-    if plan.vehicle_count() == 0 {
-        return 0;
-    }
-    // SAFETY: see distance()
-    let data = unsafe { &*plan.vehicle_data_ptr(0) };
-    data.depot
+    first_problem_data(plan).map_or(0, |data| data.depot)
 }
 
 pub fn element_load<S: VrpSolution>(plan: &S, elem: usize) -> i64 {
-    if plan.vehicle_count() == 0 {
-        return 0;
-    }
-    // SAFETY: see distance()
-    let data = unsafe { &*plan.vehicle_data_ptr(0) };
-    data.demands[elem] as i64
+    first_problem_data(plan).map_or(0, |data| data.demands[elem] as i64)
 }
 
 pub fn capacity<S: VrpSolution>(plan: &S) -> i64 {
-    if plan.vehicle_count() == 0 {
-        return i64::MAX;
-    }
-    // SAFETY: see distance()
-    let data = unsafe { &*plan.vehicle_data_ptr(0) };
-    data.capacity
+    first_problem_data(plan).map_or(i64::MAX, |data| data.capacity)
 }
 
-/// Assigns a constructed route to the given vehicle.
-pub fn assign_route<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>) {
+/// Replaces the current route for entity `entity_idx`.
+///
+/// Callers must pass a valid `entity_idx` for the current solution.
+pub fn replace_route<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>) {
     *plan.vehicle_visits_mut(entity_idx) = route;
 }
 
+/// Returns a cloned snapshot of the route for entity `entity_idx`.
+///
+/// Callers must pass a valid `entity_idx` for the current solution.
 pub fn get_route<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize> {
     plan.vehicle_visits(entity_idx).to_vec()
 }
 
-/// Replaces the current route for entity `entity_idx`.
-pub fn set_route<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>) {
-    *plan.vehicle_visits_mut(entity_idx) = route;
-}
-
 /// Returns `true` if the route satisfies all time-window constraints.
 pub fn is_time_feasible<S: VrpSolution>(plan: &S, route: &[usize]) -> bool {
-    if route.is_empty() || plan.vehicle_count() == 0 {
+    if route.is_empty() {
         return true;
     }
-    // SAFETY: see distance()
-    let data = unsafe { &*plan.vehicle_data_ptr(0) };
-    check_time_feasible(route, data)
+    match first_problem_data(plan) {
+        Some(data) => check_time_feasible(route, data),
+        None => true,
+    }
 }
 
 /// K-opt feasibility gate: returns `true` if the route satisfies all time-window constraints.
@@ -175,9 +172,9 @@ impl<S: VrpSolution> CrossEntityDistanceMeter<S> for MatrixDistanceMeter {
         if src_pos >= src_visits.len() || dst_pos >= dst_visits.len() {
             return f64::INFINITY;
         }
-        // SAFETY: see distance()
-        let data = unsafe { &*solution.vehicle_data_ptr(src_entity) };
-        data.distance_matrix[src_visits[src_pos]][dst_visits[dst_pos]] as f64
+        problem_data_for_entity(solution, src_entity).map_or(f64::INFINITY, |data| {
+            data.distance_matrix[src_visits[src_pos]][dst_visits[dst_pos]] as f64
+        })
     }
 }
 
@@ -198,9 +195,9 @@ impl<S: VrpSolution> CrossEntityDistanceMeter<S> for MatrixIntraDistanceMeter {
         if src_pos >= visits.len() || dst_pos >= visits.len() {
             return f64::INFINITY;
         }
-        // SAFETY: see distance()
-        let data = unsafe { &*solution.vehicle_data_ptr(src_entity) };
-        data.distance_matrix[visits[src_pos]][visits[dst_pos]] as f64
+        problem_data_for_entity(solution, src_entity).map_or(f64::INFINITY, |data| {
+            data.distance_matrix[visits[src_pos]][visits[dst_pos]] as f64
+        })
     }
 }
 
@@ -287,11 +284,11 @@ mod tests {
     fn route_helpers_replace_and_clone_routes() {
         let mut solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
 
-        assign_route(&mut solution, 0, vec![2, 3]);
+        replace_route(&mut solution, 0, vec![2, 3]);
         assert_eq!(solution.routes[0], vec![2, 3]);
         assert_eq!(get_route(&solution, 0), vec![2, 3]);
 
-        set_route(&mut solution, 1, vec![1]);
+        replace_route(&mut solution, 1, vec![1]);
         assert_eq!(solution.routes[1], vec![1]);
     }
 

@@ -16,7 +16,6 @@ const EXAMPLES: &str = "\x1b[1mExamples:\x1b[0m
   solverforge generate constraint no_overlap --pair --hard
   solverforge generate scaffold shift employee_idx:usize --entity --constraint no_overlap --pair
   solverforge server
-  solverforge console
   solverforge info
   solverforge check
   solverforge test
@@ -143,9 +142,6 @@ enum Command {
         #[command(subcommand)]
         subcommand: ConfigSubcommand,
     },
-    /// Interactive REPL console (stub — see help for alternatives)
-    #[command(after_help = "Examples:\n  solverforge console")]
-    Console,
     /// Generate shell completions
     #[command(
         after_help = "Examples:\n  solverforge completions bash >> ~/.bashrc\n  solverforge completions zsh >> ~/.zshrc\n  solverforge completions fish > ~/.config/fish/completions/solverforge.fish"
@@ -456,7 +452,6 @@ fn main() {
         Command::Config {
             subcommand: ConfigSubcommand::Set { key, value },
         } => commands::config::run_set(&key, &value),
-        Command::Console => commands::console::run(),
         Command::Generate {
             resource:
                 GenerateResource::Scaffold {

@@ -40,7 +40,6 @@ src/
 └── commands/
     ├── new.rs                       — Project scaffolding (git init, .gitignore, README, file listing, cargo check prompt)
     ├── server.rs                    — Wraps `cargo run` with --port and --debug support
-    ├── console.rs                   — REPL stub: prints guidance to use solver directly
     ├── destroy.rs                   — Resource removal + unwiring with confirmation prompts
     ├── info.rs                      — Project summary: entities, facts, constraints, score type
     ├── check.rs                     — Structural validation of project configuration
@@ -173,10 +172,6 @@ Manages `solver.toml` in the current project directory.
 |------------|------|--------|
 | `show` | — | Print the full contents of `solver.toml` |
 | `set <KEY> <VALUE>` | dotted key path, new value | Edit a key in `solver.toml` (integer, float, bool, or string auto-detected) |
-
-### `solverforge console`
-
-Stub command. Prints guidance explaining that the interactive console is not yet available and lists alternatives (`solverforge server`, `cargo run`, `solverforge test`).
 
 ### `solverforge completions <SHELL>`
 

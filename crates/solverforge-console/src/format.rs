@@ -295,3 +295,91 @@ fn calculate_problem_scale(entity_count: usize, value_count: usize) -> String {
 
     format!("{:.3} x 10^{}", mantissa, exponent)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_duration_covers_milliseconds_seconds_and_minutes() {
+        assert_eq!(format_duration_ms(750), "750ms");
+        assert_eq!(format_duration_ms(2_500), "2.50s");
+        assert_eq!(format_duration_ms(125_000), "2m 5s");
+    }
+
+    #[test]
+    fn calculate_problem_scale_handles_zero_and_nonzero_inputs() {
+        assert_eq!(calculate_problem_scale(0, 10), "0");
+        assert_eq!(calculate_problem_scale(10, 100), "1.000 x 10^20");
+    }
+
+    #[test]
+    fn format_score_handles_hard_soft_and_simple_scores() {
+        let hard_soft = format_score("-2hard/5soft");
+        assert!(hard_soft.contains("-2hard"));
+        assert!(hard_soft.contains("5soft"));
+
+        let simple = format_score("-7");
+        assert!(simple.contains("-7"));
+
+        let fallback = format_score("N/A");
+        assert!(fallback.contains("N/A"));
+    }
+
+    #[test]
+    fn format_event_renders_progress_and_trace_steps() {
+        let progress = EventVisitor {
+            event: Some("progress".to_string()),
+            steps: Some(12_345),
+            speed: Some(678),
+            score: Some("0hard/9soft".to_string()),
+            ..EventVisitor::default()
+        };
+        let progress_output = format_event(&progress, Level::INFO);
+        assert!(progress_output.contains("steps"));
+        assert!(progress_output.contains("678"));
+        assert!(progress_output.contains("0hard"));
+
+        let trace_step = EventVisitor {
+            event: Some("step".to_string()),
+            step: Some(42),
+            entity: Some(3),
+            accepted: Some(true),
+            score: Some("-1hard/0soft".to_string()),
+            ..EventVisitor::default()
+        };
+        let step_output = format_event(&trace_step, Level::TRACE);
+        assert!(step_output.contains("Step"));
+        assert!(step_output.contains("Entity"));
+        assert!(step_output.contains("-1hard"));
+
+        let hidden_step = format_event(&trace_step, Level::DEBUG);
+        assert!(hidden_step.is_empty());
+    }
+
+    #[test]
+    fn format_event_renders_solve_start_and_end_summaries() {
+        let start = EventVisitor {
+            event: Some("solve_start".to_string()),
+            entity_count: Some(120),
+            value_count: Some(25),
+            constraint_count: Some(7),
+            time_limit_secs: Some(30),
+            ..EventVisitor::default()
+        };
+        let start_output = format_event(&start, Level::INFO);
+        assert!(start_output.contains("Solving"));
+        assert!(start_output.contains("120"));
+        assert!(start_output.contains("constraints"));
+
+        let end = EventVisitor {
+            event: Some("solve_end".to_string()),
+            score: Some("0hard/-15soft".to_string()),
+            ..EventVisitor::default()
+        };
+        let end_output = format_event(&end, Level::INFO);
+        assert!(end_output.contains("Solving complete"));
+        assert!(end_output.contains("FEASIBLE"));
+        assert!(end_output.contains("Final Score:"));
+    }
+}

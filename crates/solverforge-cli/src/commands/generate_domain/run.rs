@@ -145,6 +145,7 @@ pub fn run_solution(name: &str, score: &str) -> CliResult {
 
     let domain_dir = Path::new("src/domain");
     ensure_domain_dir(domain_dir)?;
+    let pascal = snake_to_pascal(name);
 
     // Check if any solution already exists
     if let Some(domain) = parse_domain() {
@@ -161,7 +162,6 @@ pub fn run_solution(name: &str, score: &str) -> CliResult {
         }
     }
 
-    let pascal = snake_to_pascal(name);
     let file_path = domain_dir.join(format!("{}.rs", name));
     if file_path.exists() {
         return Err(CliError::ResourceExists {
@@ -254,7 +254,7 @@ fn is_default_scaffold() -> CliResult<bool> {
     Ok(content.contains("Rename this to something domain-specific"))
 }
 
-fn remove_default_scaffold() -> CliResult {
+pub(crate) fn remove_default_scaffold() -> CliResult {
     let domain_files = ["plan.rs", "task.rs", "resource.rs"];
     for file in &domain_files {
         let path = Path::new("src/domain").join(file);
@@ -303,7 +303,7 @@ fn remove_default_scaffold() -> CliResult {
 
     let data_mod = Path::new("src/data/mod.rs");
     if data_mod.exists() {
-        let stub_content = "// Data loading module\n\npub fn load() -> Result<(), Box<dyn std::error::Error>> {\n    todo!(\"Implement data loading\")\n}\n";
+        let stub_content = generate_data_loader_stub();
         fs::write(data_mod, stub_content).map_err(|e| CliError::IoError {
             context: "failed to stub data/mod.rs".to_string(),
             source: e,
@@ -312,4 +312,16 @@ fn remove_default_scaffold() -> CliResult {
 
     output::print_remove("default scaffold");
     Ok(())
+}
+
+pub(crate) fn generate_data_loader_stub() -> &'static str {
+    r#"/* Data loading module.
+
+   Replace `load()` with code that reads your real inputs and constructs the
+   domain objects your API or solver layer needs. */
+
+pub fn load() -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
+}
+"#
 }

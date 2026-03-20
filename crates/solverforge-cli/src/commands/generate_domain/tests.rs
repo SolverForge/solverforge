@@ -1,8 +1,10 @@
 use super::{
     generators::{generate_entity, generate_fact, generate_solution},
+    run::{generate_data_loader_stub, remove_default_scaffold},
     utils::{pluralize, snake_to_pascal, validate_score_type},
     wiring::{add_import, replace_score_type},
 };
+use std::sync::{Mutex, OnceLock};
 
 #[test]
 fn test_snake_to_pascal() {
@@ -137,4 +139,66 @@ fn test_update_domain_mod_format() {
     let use_line = format!("pub use {}::{};", "shift", "Shift");
     assert_eq!(mod_line, "mod shift;");
     assert_eq!(use_line, "pub use shift::Shift;");
+}
+
+#[test]
+fn test_generate_data_loader_stub_is_compile_safe() {
+    let stub = generate_data_loader_stub();
+    assert!(stub.contains("pub fn load() -> Result<(), Box<dyn std::error::Error>>"));
+    assert!(stub.contains("Ok(())"));
+    assert!(!stub.contains("todo!"));
+}
+
+#[test]
+fn test_remove_default_scaffold_rewrites_data_module_without_todo() {
+    static CWD_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    let _guard = CWD_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .expect("cwd lock poisoned");
+
+    let tmp = tempfile::tempdir().expect("failed to create temp dir");
+    let original_dir = std::env::current_dir().expect("failed to get current dir");
+
+    std::fs::create_dir_all(tmp.path().join("src/domain")).expect("failed to create domain dir");
+    std::fs::create_dir_all(tmp.path().join("src/constraints"))
+        .expect("failed to create constraints dir");
+    std::fs::create_dir_all(tmp.path().join("src/data")).expect("failed to create data dir");
+    std::fs::write(
+        tmp.path().join("src/domain/mod.rs"),
+        "pub mod plan;\npub mod task;\npub mod resource;\n",
+    )
+    .expect("failed to write domain mod");
+    std::fs::write(
+        tmp.path().join("src/domain/plan.rs"),
+        "// Rename this to something domain-specific\n",
+    )
+    .expect("failed to write plan");
+    std::fs::write(
+        tmp.path().join("src/constraints/all_assigned.rs"),
+        "placeholder",
+    )
+    .expect("failed to write all_assigned");
+    std::fs::write(
+        tmp.path().join("src/constraints/mod.rs"),
+        "mod all_assigned;\n(all_assigned::constraint(),)\n",
+    )
+    .expect("failed to write constraints mod");
+    std::fs::write(
+        tmp.path().join("src/data/mod.rs"),
+        "todo!(\"Implement data loading\")\n",
+    )
+    .expect("failed to write data mod");
+
+    std::env::set_current_dir(tmp.path()).expect("failed to enter temp dir");
+    let result = remove_default_scaffold();
+    std::env::set_current_dir(original_dir).expect("failed to restore current dir");
+
+    result.expect("remove_default_scaffold should succeed");
+
+    let data_mod = std::fs::read_to_string(tmp.path().join("src/data/mod.rs"))
+        .expect("failed to read rewritten data mod");
+    assert!(data_mod.contains("Ok(())"));
+    assert!(!data_mod.contains("todo!"));
 }

@@ -74,7 +74,10 @@ pub(crate) fn generate_skeleton(
             format!(
                 r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
-        .filter(|e: &{entity_type}| todo!("add your condition"))
+        .filter(|_e: &{entity_type}| {{
+            // Replace `false` with the condition that marks a violation or reward.
+            false
+        }})
 {action}
         .as_constraint("{constraint_name}")"#
             )
@@ -84,10 +87,11 @@ pub(crate) fn generate_skeleton(
             r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each_unique_pair(
             |s: &{solution_type}| s.{entity_field}.as_slice(),
-            joiner::equal(|e: &{entity_type}| e.{planning_var}),
+            joiner::equal(|_e: &{entity_type}| ()),
         )
-        .filter(|a: &{entity_type}, b: &{entity_type}| {{
-            a.{planning_var}.is_some() && todo!("add conflict condition")
+        .filter(|_a: &{entity_type}, _b: &{entity_type}| {{
+            // Replace the unit join key and `false` with your real overlap rule.
+            false
         }})
         .penalize({penalty_expr})
         .as_constraint("{constraint_name}")"#
@@ -99,12 +103,13 @@ pub(crate) fn generate_skeleton(
         .join(
             |s: &{solution_type}| s.{fact_field}.as_slice(),
             equal_bi(
-                |e: &{entity_type}| e.{planning_var},
-                |f: &{fact_type}| todo!("return matching key from {fact_type}"),
+                |_e: &{entity_type}| (),
+                |_f: &{fact_type}| (),
             ),
         )
-        .filter(|e: &{entity_type}, f: &{fact_type}| {{
-            e.{planning_var}.is_some() && todo!("add mismatch condition")
+        .filter(|_e: &{entity_type}, _f: &{fact_type}| {{
+            // Replace the unit join key and `false` with your real fact matching rule.
+            false
         }})
         .penalize({penalty_expr})
         .as_constraint("{constraint_name}")"#
@@ -121,7 +126,10 @@ pub(crate) fn generate_skeleton(
         Pattern::Reward => format!(
             r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
-        .filter(|e: &{entity_type}| todo!("add your condition"))
+        .filter(|_e: &{entity_type}| {{
+            // Replace `false` with the condition that should earn a reward.
+            false
+        }})
         .reward({penalty_expr})
         .as_constraint("{constraint_name}")"#
         ),

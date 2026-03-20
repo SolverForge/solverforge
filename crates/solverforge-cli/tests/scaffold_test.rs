@@ -230,3 +230,83 @@ fn test_new_employee_scheduling_cargo_check_passes() {
         "cargo check failed on employee-scheduling project"
     );
 }
+
+// Full cargo check on a scaffolded vehicle-routing project.
+// Run with: cargo test -p solverforge-cli -- --ignored
+#[test]
+#[ignore = "invokes cargo check in a temp dir; requires network + toolchain; run with --ignored"]
+fn test_new_vehicle_routing_cargo_check_passes() {
+    let tmp = tempfile::tempdir().expect("failed to create temp dir");
+    let project_name = "test_cargo_check_vehicle_routing";
+
+    let scaffold_status = Command::new(cli_bin())
+        .args([
+            "new",
+            project_name,
+            "--list=vehicle-routing",
+            "--skip-git",
+            "--skip-readme",
+            "--quiet",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .expect("failed to run solverforge new");
+
+    assert!(scaffold_status.success(), "scaffolding failed");
+
+    let project_dir = tmp.path().join(project_name);
+    let check_status = Command::new("cargo")
+        .arg("check")
+        .current_dir(&project_dir)
+        .status()
+        .expect("failed to run cargo check");
+
+    assert!(
+        check_status.success(),
+        "cargo check failed on vehicle-routing project"
+    );
+}
+
+// Generate a new constraint in a scaffolded project and verify the project still cargo-checks.
+// Run with: cargo test -p solverforge-cli -- --ignored
+#[test]
+#[ignore = "invokes cargo check in a temp dir; requires network + toolchain; run with --ignored"]
+fn test_generate_constraint_workflow_cargo_check_passes() {
+    let tmp = tempfile::tempdir().expect("failed to create temp dir");
+    let project_name = "test_generated_constraint_workflow";
+
+    let scaffold_status = Command::new(cli_bin())
+        .args([
+            "new",
+            project_name,
+            "--basic=employee-scheduling",
+            "--skip-git",
+            "--skip-readme",
+            "--quiet",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .expect("failed to run solverforge new");
+
+    assert!(scaffold_status.success(), "scaffolding failed");
+
+    let project_dir = tmp.path().join(project_name);
+    let generate_status = Command::new(cli_bin())
+        .args(["generate", "constraint", "coverage_gap", "--join", "--hard"])
+        .current_dir(&project_dir)
+        .status()
+        .expect("failed to run solverforge generate constraint");
+
+    assert!(generate_status.success(), "constraint generation failed");
+
+    let check_status = Command::new("cargo")
+        .arg("check")
+        .current_dir(&project_dir)
+        .status()
+        .expect("failed to run cargo check");
+
+    assert!(
+        check_status.success(),
+        "cargo check failed after generate constraint workflow"
+    );
+}

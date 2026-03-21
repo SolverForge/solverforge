@@ -8,7 +8,10 @@ use super::{
 fn test_snake_to_pascal() {
     assert_eq!(snake_to_pascal("shift"), "Shift");
     assert_eq!(snake_to_pascal("employee_schedule"), "EmployeeSchedule");
-    assert_eq!(snake_to_pascal("vehicle_routing_plan"), "VehicleRoutingPlan");
+    assert_eq!(
+        snake_to_pascal("vehicle_routing_plan"),
+        "VehicleRoutingPlan"
+    );
     assert_eq!(snake_to_pascal("plan"), "Plan");
 }
 

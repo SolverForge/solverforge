@@ -104,7 +104,10 @@ fn test_find_annotated_struct() {
 #[test]
 fn test_find_score_type() {
     let src = "#[planning_solution]\npub struct Plan {\n    pub score: Option<HardSoftScore>,\n}\n";
-    assert_eq!(find_score_type(src, "Plan"), Some("HardSoftScore".to_string()));
+    assert_eq!(
+        find_score_type(src, "Plan"),
+        Some("HardSoftScore".to_string())
+    );
 }
 
 #[test]

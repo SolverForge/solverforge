@@ -13,8 +13,8 @@ Release reference for the `release/0.6.0` line and later patch releases.
 | `solverforge-solver` | Stable | Publish on every coordinated release | Main solve engine and manager APIs |
 | `solverforge` | Stable | Publish on every coordinated release | Public facade crate and primary library entry point |
 | `solverforge-cli` | Beta | Publish when scaffold or operator workflow changes | User-facing binary; validate generated projects before release |
-| `solverforge-cvrp` | Beta | Publish whenever the facade version changes and CVRP helpers changed | Required by the facade's versioned dependency set |
-| `solverforge-console` | Beta | Publish whenever the facade version changes and console support changed | Optional facade dependency, but versioned independently |
+| `solverforge-cvrp` | Beta | Publish on every facade version change | Required by the facade's exact-version dependency set |
+| `solverforge-console` | Beta | Publish on every facade version change | Required for the facade's exact-version optional `console` feature |
 | `solverforge-test` | Internal | Do not publish | Shared test fixtures only |
 
 Status definitions:
@@ -51,15 +51,20 @@ When versions change across the workspace, publish crates in dependency order:
    Check `README.md`, crate `WIREFRAME.md` files, and this document for stale public-surface details.
 5. Run formatting and lint gates.
    `cargo fmt --all -- --check`
-   `cargo clippy --workspace --all-targets -- -D warnings`
+   `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 6. Run test gates.
-   `cargo test --workspace`
+   `cargo test --workspace --all-features`
    `make pre-release`
 7. Validate scaffolded user flows.
    Run `cargo test -p solverforge-cli`
    Run ignored scaffold cargo-check tests if template-affecting changes landed.
 8. Verify publishability.
-   `make publish-crates-dry`
+   Run real package dry-runs for crates that can be verified before publish:
+   `cargo publish --dry-run -p solverforge-core`
+   `cargo publish --dry-run -p solverforge-macros`
+   `cargo publish --dry-run -p solverforge-console`
+   `cargo publish --dry-run -p solverforge-cli`
+   For dependent crates (`solverforge-scoring`, `solverforge-config`, `solverforge-solver`, `solverforge-cvrp`, `solverforge`), rerun `cargo publish --dry-run -p <crate>` immediately before uploading each crate, after its exact-version dependencies are visible on crates.io.
 9. Publish crates in dependency order.
    Use `make publish-crates` or publish manually in the order listed above.
 10. Post-publish verification.

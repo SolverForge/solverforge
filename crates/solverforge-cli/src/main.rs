@@ -75,7 +75,7 @@ enum Command {
         #[arg(
             long = "list",
             value_name = "SPECIALIZATION",
-            num_args = 1,
+            num_args = 0..=1,
             require_equals = true
         )]
         list: Option<Option<String>>,

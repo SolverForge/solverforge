@@ -1,0 +1,7 @@
+error: #[planning_solution] requires a #[planning_score] field
+ --> tests/ui/fail/planning_solution_missing_score.rs:9:1
+  |
+9 | #[planning_solution]
+  | ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `planning_solution` (in Nightly builds, run with -Z macro-backtrace for more info)

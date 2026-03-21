@@ -1,0 +1,5 @@
+error: expected one of `;` or `where`, found `<eof>`
+ --> tests/ui/fail/planning_entity_tuple_struct.rs:4:12
+  |
+4 | struct Task(String);
+  |            ^^^^^^^^ expected one of `;` or `where`

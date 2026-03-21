@@ -72,7 +72,7 @@ enum Command {
         basic: Option<Option<String>>,
 
         /// Scaffold a list-variable project specialization (currently: --list=vehicle-routing)
-        #[arg(long = "list", value_name = "SPECIALIZATION", num_args = 1, require_equals = true)]
+        #[arg(long = "list", value_name = "SPECIALIZATION", num_args = 0..=1, require_equals = true)]
         list: Option<Option<String>>,
 
         /// Skip running `git init` and initial commit

@@ -91,7 +91,7 @@ Module: `solverforge::cvrp`
 - `ProblemData`
 - `MatrixDistanceMeter`
 - `MatrixIntraDistanceMeter`
-- `assign_route`, `get_route`, `set_route`
+- `replace_route`, `get_route`
 - `capacity`, `depot_for_cw`, `depot_for_entity`
 - `distance`, `element_load`
 - `is_kopt_feasible`, `is_time_feasible`

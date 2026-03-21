@@ -108,12 +108,11 @@ async fn drain_receiver(
     id: String,
     slot_id: usize,
     sse_tx: broadcast::Sender<String>,
-    mut receiver: mpsc::UnboundedReceiver<(Plan, HardSoftScore, u64)>,
+    mut receiver: mpsc::UnboundedReceiver<(Plan, HardSoftScore)>,
 ) {
-    let mut last_mps = 0u64;
-    while let Some((solution, score, mps)) = receiver.recv().await {
-        last_mps = mps;
-        let _ = sse_tx.send(sse_payload(Some(score), SolverStatus::Solving, mps));
+    let last_mps = 0u64;
+    while let Some((solution, score)) = receiver.recv().await {
+        let _ = sse_tx.send(sse_payload(Some(score), SolverStatus::Solving, last_mps));
         let mut jobs = jobs.write();
         if let Some(state) = jobs.get_mut(&id) {
             state.latest = Some(solution);

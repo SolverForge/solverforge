@@ -44,15 +44,29 @@ fn pin_generated_project_to_local_solverforge(project_dir: &std::path::Path) {
     let manifest =
         std::fs::read_to_string(&cargo_toml).expect("failed to read scaffold Cargo.toml");
     let solverforge_path = workspace_root().join("crates").join("solverforge");
-    let replacement = format!(
+    let standard_replacement = format!(
+        "solverforge = {{ path = {:?}, features = [\"serde\", \"console\", \"verbose-logging\"] }}",
+        solverforge_path
+    );
+    let basic_replacement = format!(
         "solverforge = {{ path = {:?}, features = [\"serde\"] }}",
         solverforge_path
     );
-    let updated = manifest.replacen(
-        "solverforge = { version = \"0.5.19\", features = [\"serde\"] }",
-        &replacement,
-        1,
-    );
+    let updated = if manifest.contains(
+        "solverforge = { version = \"0.5.19\", features = [\"serde\", \"console\", \"verbose-logging\"] }",
+    ) {
+        manifest.replacen(
+            "solverforge = { version = \"0.5.19\", features = [\"serde\", \"console\", \"verbose-logging\"] }",
+            &standard_replacement,
+            1,
+        )
+    } else {
+        manifest.replacen(
+            "solverforge = { version = \"0.5.19\", features = [\"serde\"] }",
+            &basic_replacement,
+            1,
+        )
+    };
     assert_ne!(
         manifest, updated,
         "failed to rewrite scaffold dependency to local solverforge path"

@@ -11,7 +11,7 @@ use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() {
-    solverforge::init_console();
+    solverforge::__internal::init_console();
 
     let state = Arc::new(api::AppState::new());
 

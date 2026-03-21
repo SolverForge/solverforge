@@ -1170,3 +1170,42 @@ fn extract_collection_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::expand_derive;
+    use syn::parse_quote;
+
+    #[test]
+    fn golden_solution_expansion_emits_constraint_streams_and_descriptor() {
+        let input = parse_quote! {
+            #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+            #[basic_variable_config(
+                entity_collection = "tasks",
+                variable_field = "worker_idx",
+                variable_type = "usize",
+                value_range = "workers"
+            )]
+            struct Plan {
+                #[problem_fact_collection]
+                workers: Vec<Worker>,
+                #[planning_entity_collection]
+                tasks: Vec<Task>,
+                #[planning_score]
+                score: Option<HardSoftScore>,
+            }
+        };
+
+        let expanded = expand_derive(input)
+            .expect("solution expansion should succeed")
+            .to_string();
+
+        assert!(expanded.contains("impl :: solverforge :: __internal :: PlanningSolution for Plan"));
+        assert!(expanded.contains("pub trait PlanConstraintStreams"));
+        assert!(expanded.contains("pub trait TaskUnassignedFilter"));
+        assert!(expanded.contains(
+            "pub fn descriptor () -> :: solverforge :: __internal :: SolutionDescriptor"
+        ));
+        assert!(expanded.contains("create_constraints"));
+    }
+}

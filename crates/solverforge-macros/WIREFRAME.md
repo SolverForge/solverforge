@@ -196,6 +196,7 @@ When `#[shadow_variable_updates]` is configured, `update_entity_shadows(entity_i
 7. Entity computes (call method to compute entity fields)
 8. Post-update listener (call method once per entity)
 
-### No Tests in Crate
+## Test Coverage
 
-This is a proc-macro crate. Tests are integration-level, run via the consuming crates (examples and the facade).
+- `tests/trybuild.rs` — compile-pass and compile-fail coverage for the public macros
+- Unit tests in `planning_entity.rs` and `planning_solution.rs` — token-level golden checks for generated code shape

@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn preserves_arbitrary_view_shape_when_updating_constraints() {
-        let _guard = test_support::lock_cwd();
+        let guard = test_support::lock_cwd();
 
         let tmp = tempfile::tempdir().expect("failed to create temp dir");
         let original_dir = std::env::current_dir().expect("failed to get current dir");
@@ -151,6 +151,7 @@ mod tests {
         let saved = std::fs::read_to_string(tmp.path().join("static").join("sf-config.json"))
             .expect("failed to read saved sf-config");
         std::env::set_current_dir(original_dir).expect("failed to restore current dir");
+        drop(guard);
 
         assert!(saved.contains("\"capacity_limit\""));
         assert!(saved.contains("\"assignment_board\""));

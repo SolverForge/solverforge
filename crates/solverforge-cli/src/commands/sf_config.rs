@@ -121,16 +121,11 @@ pub fn remove_fact(name: &str) -> CliResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    static CWD_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    use crate::test_support;
 
     #[test]
     fn preserves_arbitrary_view_shape_when_updating_constraints() {
-        let _guard = CWD_LOCK
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .expect("cwd lock poisoned");
+        let _guard = test_support::lock_cwd();
 
         let tmp = tempfile::tempdir().expect("failed to create temp dir");
         let original_dir = std::env::current_dir().expect("failed to get current dir");

@@ -6,6 +6,8 @@ mod error;
 mod output;
 mod rc;
 mod template;
+#[cfg(test)]
+mod test_support;
 
 use error::CliResult;
 

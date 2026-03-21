@@ -131,6 +131,33 @@ fn test_new_vehicle_routing_creates_domain() {
     );
 }
 
+// Bare --list should be rejected because the generic list scaffold is not supported.
+#[test]
+fn test_new_list_requires_specialization() {
+    let tmp = tempfile::tempdir().expect("failed to create temp dir");
+
+    let output = Command::new(cli_bin())
+        .args(["new", "test_list_project", "--list"])
+        .current_dir(tmp.path())
+        .output()
+        .expect("failed to run solverforge new");
+
+    assert!(
+        !output.status.success(),
+        "solverforge new --list unexpectedly succeeded"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("the --list template requires a specialization"),
+        "unexpected stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Use --list=vehicle-routing"),
+        "unexpected stderr: {stderr}"
+    );
+}
+
 // Full cargo check on a scaffolded basic project.
 // Requires network access and a full Rust toolchain.
 // Run with: cargo test -p solverforge-cli -- --ignored

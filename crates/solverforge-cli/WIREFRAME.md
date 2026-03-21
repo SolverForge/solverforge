@@ -87,7 +87,6 @@ Scaffolds a complete SolverForge project from embedded templates.
 |------|----------|----------------|
 | `--basic` | Generic skeleton | Standard (basic) variable |
 | `--basic=employee-scheduling` | Pre-built employee shift scheduling | Standard (basic) variable |
-| `--list` | Generic list-variable skeleton | List variable |
 | `--list=vehicle-routing` | Pre-built CVRP domain | List variable |
 
 **Optional flags:**

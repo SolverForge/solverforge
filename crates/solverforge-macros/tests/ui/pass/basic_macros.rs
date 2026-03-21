@@ -1,5 +1,4 @@
 use solverforge::prelude::*;
-use solverforge_macros::{planning_entity, planning_solution, problem_fact};
 
 #[planning_entity]
 struct Task {

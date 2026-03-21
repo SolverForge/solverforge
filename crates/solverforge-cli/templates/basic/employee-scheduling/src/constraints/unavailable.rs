@@ -7,14 +7,14 @@ use solverforge::IncrementalConstraint;
 /// HARD: An employee cannot be assigned to a shift on a day they are unavailable.
 pub fn constraint() -> impl IncrementalConstraint<EmployeeSchedule, HardSoftDecimalScore> {
     ConstraintFactory::<EmployeeSchedule, HardSoftDecimalScore>::new()
-        .for_each(|s: &EmployeeSchedule| s.shifts.as_slice())
-        .join(
-            |s: &EmployeeSchedule| s.employees.as_slice(),
+        .for_each(shifts)
+        .join((
+            employees,
             equal_bi(
                 |shift: &Shift| shift.employee_idx,
                 |emp: &Employee| Some(emp.index),
             ),
-        )
+        ))
         .flatten_last(
             |emp: &Employee| emp.unavailable_days.as_slice(),
             |date: &NaiveDate| *date,
@@ -26,7 +26,15 @@ pub fn constraint() -> impl IncrementalConstraint<EmployeeSchedule, HardSoftDeci
         .penalize_hard_with(|shift: &Shift, date: &NaiveDate| {
             HardSoftDecimalScore::of_hard_scaled(overlap_minutes(shift, *date) * 100_000)
         })
-        .as_constraint("Unavailable employee")
+        .named("Unavailable employee")
+}
+
+fn shifts(schedule: &EmployeeSchedule) -> &[Shift] {
+    schedule.shifts.as_slice()
+}
+
+fn employees(schedule: &EmployeeSchedule) -> &[Employee] {
+    schedule.employees.as_slice()
 }
 
 fn overlap_minutes(shift: &Shift, date: NaiveDate) -> i64 {

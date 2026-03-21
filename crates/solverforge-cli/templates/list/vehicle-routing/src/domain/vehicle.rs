@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use solverforge::prelude::*;
 
 use super::ProblemData;
@@ -7,6 +8,7 @@ use super::ProblemData;
 /// `visits` is the list variable: the solver inserts, removes, and reorders
 /// customer indices within and across vehicles to minimise total distance.
 #[planning_entity]
+#[derive(Serialize, Deserialize)]
 pub struct Vehicle {
     #[planning_id]
     pub id: usize,
@@ -14,6 +16,7 @@ pub struct Vehicle {
     pub visits: Vec<usize>,
     /// Raw pointer to shared problem data (capacity, demands, distances).
     /// Stored here so constraints can access it without an extra map lookup.
+    #[serde(skip)]
     pub data: *const ProblemData,
 }
 

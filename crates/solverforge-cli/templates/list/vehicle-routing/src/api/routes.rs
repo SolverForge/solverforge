@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::dto::{InstanceDto, SolutionDto};
 use crate::data::demo_instance;
 use crate::domain::{ProblemData, Vehicle, VrpPlan};
-use crate::solver::{SolverService, SolverStatus};
+use crate::solver::SolverService;
 
 pub struct AppState {
     pub solver: SolverService,

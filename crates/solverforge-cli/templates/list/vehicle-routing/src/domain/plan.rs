@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use solverforge::cvrp::{ProblemData, VrpSolution};
 use solverforge::prelude::*;
 
@@ -6,7 +7,7 @@ use super::Vehicle;
 /// The root planning solution: a fleet of vehicles and a score.
 #[planning_solution(constraints = "crate::constraints::create_constraints")]
 #[shadow_variable_updates(
-    list_owner = "Vehicle",
+    list_owner = "vehicles",
     list_field = "visits",
     element_type = "usize",
     element_collection = "all_visits",
@@ -18,6 +19,7 @@ use super::Vehicle;
     cw_capacity_fn = "solverforge::cvrp::capacity",
     cw_assign_route_fn = "solverforge::cvrp::replace_route",
 )]
+#[derive(Serialize, Deserialize)]
 pub struct VrpPlan {
     #[planning_entity_collection]
     pub vehicles: Vec<Vehicle>,

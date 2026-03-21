@@ -8,14 +8,14 @@ use solverforge::IncrementalConstraint;
 pub fn undesired_constraint() -> impl IncrementalConstraint<EmployeeSchedule, HardSoftDecimalScore>
 {
     ConstraintFactory::<EmployeeSchedule, HardSoftDecimalScore>::new()
-        .for_each(|s: &EmployeeSchedule| s.shifts.as_slice())
-        .join(
-            |s: &EmployeeSchedule| s.employees.as_slice(),
+        .for_each(shifts)
+        .join((
+            employees,
             equal_bi(
                 |shift: &Shift| shift.employee_idx,
                 |emp: &Employee| Some(emp.index),
             ),
-        )
+        ))
         .flatten_last(
             |emp: &Employee| emp.undesired_days.as_slice(),
             |date: &NaiveDate| *date,
@@ -23,20 +23,20 @@ pub fn undesired_constraint() -> impl IncrementalConstraint<EmployeeSchedule, Ha
         )
         .filter(|shift: &Shift, _date: &NaiveDate| shift.employee_idx.is_some())
         .penalize(HardSoftDecimalScore::ONE_SOFT)
-        .as_constraint("Undesired day for employee")
+        .named("Undesired day for employee")
 }
 
 /// SOFT: Reward shifts on days an employee marked as desired.
 pub fn desired_constraint() -> impl IncrementalConstraint<EmployeeSchedule, HardSoftDecimalScore> {
     ConstraintFactory::<EmployeeSchedule, HardSoftDecimalScore>::new()
-        .for_each(|s: &EmployeeSchedule| s.shifts.as_slice())
-        .join(
-            |s: &EmployeeSchedule| s.employees.as_slice(),
+        .for_each(shifts)
+        .join((
+            employees,
             equal_bi(
                 |shift: &Shift| shift.employee_idx,
                 |emp: &Employee| Some(emp.index),
             ),
-        )
+        ))
         .flatten_last(
             |emp: &Employee| emp.desired_days.as_slice(),
             |date: &NaiveDate| *date,
@@ -44,5 +44,13 @@ pub fn desired_constraint() -> impl IncrementalConstraint<EmployeeSchedule, Hard
         )
         .filter(|shift: &Shift, _date: &NaiveDate| shift.employee_idx.is_some())
         .reward(HardSoftDecimalScore::ONE_SOFT)
-        .as_constraint("Desired day for employee")
+        .named("Desired day for employee")
+}
+
+fn shifts(schedule: &EmployeeSchedule) -> &[Shift] {
+    schedule.shifts.as_slice()
+}
+
+fn employees(schedule: &EmployeeSchedule) -> &[Employee] {
+    schedule.employees.as_slice()
 }

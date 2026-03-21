@@ -102,6 +102,25 @@ fn test_find_annotated_struct() {
 }
 
 #[test]
+fn test_find_annotated_struct_skips_multiline_attrs() {
+    let src = r#"#[planning_solution(constraints = "crate::constraints::create_constraints")]
+#[basic_variable_config(
+    entity_collection = "shifts",
+    variable_field = "employee_idx",
+    variable_type = "usize",
+    value_range = "employees"
+)]
+pub struct EmployeeSchedule {
+    pub score: Option<HardSoftDecimalScore>,
+}
+"#;
+    assert_eq!(
+        find_annotated_struct(src, "planning_solution"),
+        Some("EmployeeSchedule".to_string())
+    );
+}
+
+#[test]
 fn test_find_score_type() {
     let src = "#[planning_solution]\npub struct Plan {\n    pub score: Option<HardSoftScore>,\n}\n";
     assert_eq!(
@@ -160,7 +179,7 @@ fn test_generate_skeleton_pair_hard() {
         "No Overlap",
         Some(&domain),
     );
-    assert!(result.contains("for_each_unique_pair"));
+    assert!(result.contains("for_each(|s: &EmployeeSchedule| s.shifts.as_slice())"));
     assert!(result.contains("joiner::equal(|e: &Shift| e.employee_idx)"));
     assert!(result.contains(
         "panic!(\"replace placeholder pair condition before enabling this constraint\")"

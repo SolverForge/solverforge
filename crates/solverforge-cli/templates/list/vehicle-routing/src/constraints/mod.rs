@@ -4,12 +4,12 @@
      - HARD  vehicleCapacity — penalise demand overload per vehicle
      - SOFT  totalDistance   — minimise sum of route distances */
 
-use crate::domain::{ProblemData, Vehicle, VrpPlan};
+use crate::domain::{ProblemData, Vehicle, VrpPlan, VrpPlanConstraintStreams};
 use solverforge::prelude::*;
 
 pub fn create_constraints() -> impl ConstraintSet<VrpPlan, HardSoftScore> {
     let capacity = ConstraintFactory::<VrpPlan, HardSoftScore>::new()
-        .for_each(|p: &VrpPlan| p.vehicles.as_slice())
+        .vehicles()
         .filter(|v: &Vehicle| !v.visits.is_empty())
         .penalize_hard_with(|v: &Vehicle| {
             let data = unsafe { &*(v.data as *const ProblemData) };
@@ -17,10 +17,10 @@ pub fn create_constraints() -> impl ConstraintSet<VrpPlan, HardSoftScore> {
             let overload = (demand - data.capacity).max(0);
             HardSoftScore::of(overload, 0)
         })
-        .as_constraint("vehicleCapacity");
+        .named("vehicleCapacity");
 
     let distance = ConstraintFactory::<VrpPlan, HardSoftScore>::new()
-        .for_each(|p: &VrpPlan| p.vehicles.as_slice())
+        .vehicles()
         .filter(|v: &Vehicle| !v.visits.is_empty())
         .penalize_with(|v: &Vehicle| {
             let data = unsafe { &*(v.data as *const ProblemData) };
@@ -32,7 +32,7 @@ pub fn create_constraints() -> impl ConstraintSet<VrpPlan, HardSoftScore> {
             dist += data.distance_matrix[*v.visits.last().unwrap()][depot];
             HardSoftScore::of(0, dist)
         })
-        .as_constraint("totalDistance");
+        .named("totalDistance");
 
     (capacity, distance)
 }

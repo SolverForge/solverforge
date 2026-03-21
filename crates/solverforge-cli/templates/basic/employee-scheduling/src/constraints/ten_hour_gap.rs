@@ -1,19 +1,17 @@
-use crate::domain::{EmployeeSchedule, Shift};
+use crate::domain::{EmployeeSchedule, EmployeeScheduleConstraintStreams, Shift};
 use solverforge::prelude::*;
 use solverforge::IncrementalConstraint;
 
 /// HARD: At least 10 hours must elapse between consecutive shifts for the same employee.
 pub fn constraint() -> impl IncrementalConstraint<EmployeeSchedule, HardSoftDecimalScore> {
     ConstraintFactory::<EmployeeSchedule, HardSoftDecimalScore>::new()
-        .for_each_unique_pair(
-            |s: &EmployeeSchedule| s.shifts.as_slice(),
-            joiner::equal(|shift: &Shift| shift.employee_idx),
-        )
-        .filter(|a: &Shift, b: &Shift| a.employee_idx.is_some() && gap_penalty(a, b) > 0)
+        .shifts()
+        .join(joiner::equal(|shift: &Shift| shift.employee_idx))
+        .filter(|a: &Shift, b: &Shift| a.id < b.id && a.employee_idx.is_some() && gap_penalty(a, b) > 0)
         .penalize_hard_with(|a: &Shift, b: &Shift| {
             HardSoftDecimalScore::of_hard_scaled(gap_penalty(a, b) * 100_000)
         })
-        .as_constraint("At least 10 hours between 2 shifts")
+        .named("At least 10 hours between 2 shifts")
 }
 
 fn gap_penalty(a: &Shift, b: &Shift) -> i64 {

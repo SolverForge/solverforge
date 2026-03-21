@@ -30,6 +30,36 @@ fn cli_bin() -> PathBuf {
     }
 }
 
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("solverforge-cli crate should live under crates/")
+        .parent()
+        .expect("workspace root should exist")
+        .to_path_buf()
+}
+
+fn pin_generated_project_to_local_solverforge(project_dir: &std::path::Path) {
+    let cargo_toml = project_dir.join("Cargo.toml");
+    let manifest =
+        std::fs::read_to_string(&cargo_toml).expect("failed to read scaffold Cargo.toml");
+    let solverforge_path = workspace_root().join("crates").join("solverforge");
+    let replacement = format!(
+        "solverforge = {{ path = {:?}, features = [\"serde\"] }}",
+        solverforge_path
+    );
+    let updated = manifest.replacen(
+        "solverforge = { version = \"0.5.19\", features = [\"serde\"] }",
+        &replacement,
+        1,
+    );
+    assert_ne!(
+        manifest, updated,
+        "failed to rewrite scaffold dependency to local solverforge path"
+    );
+    std::fs::write(&cargo_toml, updated).expect("failed to update scaffold Cargo.toml");
+}
+
 // Scaffold a basic project and verify the expected files are created.
 #[test]
 fn test_new_basic_creates_project_files() {
@@ -183,6 +213,7 @@ fn test_new_basic_cargo_check_passes() {
     assert!(scaffold_status.success(), "scaffolding failed");
 
     let project_dir = tmp.path().join(project_name);
+    pin_generated_project_to_local_solverforge(&project_dir);
     let check_status = Command::new("cargo")
         .arg("check")
         .current_dir(&project_dir)
@@ -219,6 +250,7 @@ fn test_new_employee_scheduling_cargo_check_passes() {
     assert!(scaffold_status.success(), "scaffolding failed");
 
     let project_dir = tmp.path().join(project_name);
+    pin_generated_project_to_local_solverforge(&project_dir);
     let check_status = Command::new("cargo")
         .arg("check")
         .current_dir(&project_dir)
@@ -255,6 +287,7 @@ fn test_new_vehicle_routing_cargo_check_passes() {
     assert!(scaffold_status.success(), "scaffolding failed");
 
     let project_dir = tmp.path().join(project_name);
+    pin_generated_project_to_local_solverforge(&project_dir);
     let check_status = Command::new("cargo")
         .arg("check")
         .current_dir(&project_dir)
@@ -291,6 +324,7 @@ fn test_generate_constraint_workflow_cargo_check_passes() {
     assert!(scaffold_status.success(), "scaffolding failed");
 
     let project_dir = tmp.path().join(project_name);
+    pin_generated_project_to_local_solverforge(&project_dir);
     let generate_status = Command::new(cli_bin())
         .args(["generate", "constraint", "coverage_gap", "--join", "--hard"])
         .current_dir(&project_dir)

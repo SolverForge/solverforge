@@ -20,4 +20,6 @@ impl Resource {
             name: name.into(),
         }
     }
+
+    pub fn finalize(&mut self) {}
 }

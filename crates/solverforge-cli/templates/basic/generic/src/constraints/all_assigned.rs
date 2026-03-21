@@ -1,4 +1,4 @@
-use crate::domain::{Plan, Task};
+use crate::domain::{Plan, PlanConstraintStreams, Task};
 use solverforge::prelude::*;
 use solverforge::IncrementalConstraint;
 
@@ -8,8 +8,8 @@ use solverforge::IncrementalConstraint;
 /// Common additions: capacity limits, skill matching, conflict avoidance, fairness.
 pub fn constraint() -> impl IncrementalConstraint<Plan, HardSoftScore> {
     ConstraintFactory::<Plan, HardSoftScore>::new()
-        .for_each(|p: &Plan| p.tasks.as_slice())
+        .tasks()
         .filter(|t: &Task| t.resource_idx.is_none())
-        .penalize(HardSoftScore::ONE_HARD)
-        .as_constraint("All tasks assigned")
+        .penalize_hard()
+        .named("All tasks assigned")
 }

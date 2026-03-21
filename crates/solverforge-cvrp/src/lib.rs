@@ -16,6 +16,7 @@ Problem data
 ///
 /// Stored via raw pointer in each vehicle so the framework can clone vehicles
 /// freely during local search without copying matrices.
+#[derive(Clone, Debug)]
 pub struct ProblemData {
     pub capacity: i64,
     pub depot: usize,

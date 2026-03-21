@@ -120,9 +120,12 @@ pub(crate) fn find_annotated_struct(src: &str, attr: &str) -> Option<String> {
     for (i, line) in lines.iter().enumerate() {
         let t = line.trim();
         if t.contains(&format!("#[{}]", attr)) || t.contains(&format!("#[{}(", attr)) {
-            // Look ahead for struct definition
-            for next_line in lines.iter().take(lines.len().min(i + 4)).skip(i + 1) {
+            // Look ahead past any additional attributes until the struct definition.
+            for next_line in lines.iter().skip(i + 1) {
                 let next = next_line.trim();
+                if next.is_empty() {
+                    continue;
+                }
                 if next.starts_with("pub struct ") || next.starts_with("struct ") {
                     let after = next
                         .trim_start_matches("pub ")

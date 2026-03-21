@@ -43,9 +43,13 @@ pub(crate) fn generate_skeleton(
     // Build import line(s)
     let imports = match pattern {
         Pattern::Join => {
-            if fact.is_some() {
+            if fact.is_some() && solution_type != entity_type {
                 format!(
                     "use crate::domain::{{{solution_type}, {entity_type}, {fact_type}}};\nuse solverforge::prelude::*;\nuse solverforge::stream::joiner::equal_bi;\nuse solverforge::IncrementalConstraint;",
+                )
+            } else if fact.is_some() {
+                format!(
+                    "use crate::domain::{{{solution_type}, {fact_type}}};\nuse solverforge::prelude::*;\nuse solverforge::stream::joiner::equal_bi;\nuse solverforge::IncrementalConstraint;",
                 )
             } else {
                 format!(
@@ -64,74 +68,97 @@ pub(crate) fn generate_skeleton(
         format!("{score_type}::ONE_HARD")
     };
 
-    let body = match pattern {
+    let (body, helpers) = match pattern {
         Pattern::Unary => {
             let action = if is_soft {
                 format!("        .reward({penalty_expr})")
             } else {
                 format!("        .penalize({penalty_expr})")
             };
-            format!(
-                r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
+            (
+                format!(
+                    r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
         .filter(|_e: &{entity_type}| {{
             panic!("replace placeholder condition before enabling this constraint")
         }})
 {action}
-        .as_constraint("{constraint_name}")"#
+        .named("{constraint_name}")"#
+                ),
+                String::new(),
             )
         }
 
-        Pattern::Pair => format!(
-            r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
-        .for_each_unique_pair(
-            |s: &{solution_type}| s.{entity_field}.as_slice(),
-            joiner::equal(|e: &{entity_type}| e.{planning_var}),
-        )
+        Pattern::Pair => (
+            format!(
+                r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
+        .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
+        .join(joiner::equal(|e: &{entity_type}| e.{planning_var}))
         .filter(|_a: &{entity_type}, _b: &{entity_type}| {{
             panic!("replace placeholder pair condition before enabling this constraint")
         }})
         .penalize({penalty_expr})
-        .as_constraint("{constraint_name}")"#
+        .named("{constraint_name}")"#
+            ),
+            String::new(),
         ),
 
-        Pattern::Join => format!(
-            r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
-        .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
-        .join(
-            |s: &{solution_type}| s.{fact_field}.as_slice(),
+        Pattern::Join => (
+            format!(
+                r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
+        .for_each(entity_items)
+        .join((
+            fact_items,
             equal_bi(
                 |e: &{entity_type}| e.{planning_var},
                 |_f: &{fact_type}| panic!("replace placeholder join key extractor before enabling this constraint"),
             ),
-        )
+        ))
         .filter(|_e: &{entity_type}, _f: &{fact_type}| {{
             panic!("replace placeholder join condition before enabling this constraint")
         }})
         .penalize({penalty_expr})
-        .as_constraint("{constraint_name}")"#
+        .named("{constraint_name}")"#
+            ),
+            format!(
+                r#"
+
+fn entity_items(solution: &{solution_type}) -> &[{entity_type}] {{
+    solution.{entity_field}.as_slice()
+}}
+
+fn fact_items(solution: &{solution_type}) -> &[{fact_type}] {{
+    solution.{fact_field}.as_slice()
+}}"#
+            ),
         ),
 
-        Pattern::Balance => format!(
-            r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
+        Pattern::Balance => (
+            format!(
+                r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
         .balance(|e: &{entity_type}| e.{planning_var})
         .penalize({score_type}::of_soft(1))
-        .as_constraint("{constraint_name}")"#
+        .named("{constraint_name}")"#
+            ),
+            String::new(),
         ),
 
-        Pattern::Reward => format!(
-            r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
+        Pattern::Reward => (
+            format!(
+                r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
         .filter(|_e: &{entity_type}| {{
             panic!("replace placeholder reward condition before enabling this constraint")
         }})
         .reward({penalty_expr})
-        .as_constraint("{constraint_name}")"#
+        .named("{constraint_name}")"#
+            ),
+            String::new(),
         ),
     };
 
     format!(
-        "{imports}\n\n/// {hardness_comment}\npub fn constraint() -> impl IncrementalConstraint<{solution_type}, {score_type}> {{\n{body}\n}}\n"
+        "{imports}\n\n/// {hardness_comment}\npub fn constraint() -> impl IncrementalConstraint<{solution_type}, {score_type}> {{\n{body}\n}}{helpers}\n"
     )
 }

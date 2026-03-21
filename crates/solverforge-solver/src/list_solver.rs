@@ -451,7 +451,7 @@ fn build_list_local_search<S, V, DM, IDM>(
 ) -> ListLocalSearch<S, V, DM, IDM>
 where
     S: PlanningSolution,
-    S::Score: Score,
+    S::Score: Score + ParseableScore,
     V: Clone + Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
     DM: CrossEntityDistanceMeter<S> + Clone,
     IDM: CrossEntityDistanceMeter<S> + Clone,

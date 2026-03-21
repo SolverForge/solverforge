@@ -16,7 +16,7 @@ use super::Vehicle;
     cw_distance_fn = "solverforge::cvrp::distance",
     cw_element_load_fn = "solverforge::cvrp::element_load",
     cw_capacity_fn = "solverforge::cvrp::capacity",
-    cw_assign_route_fn = "solverforge::cvrp::assign_route",
+    cw_assign_route_fn = "solverforge::cvrp::replace_route",
 )]
 pub struct VrpPlan {
     #[planning_entity_collection]

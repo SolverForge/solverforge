@@ -64,9 +64,8 @@ All functions are generic over `S: VrpSolution`.
 | `depot_for_cw` | `fn<S: VrpSolution>(plan: &S) -> usize` | Depot index for Clarke-Wright (plan-level) |
 | `element_load` | `fn<S: VrpSolution>(plan: &S, elem: usize) -> i64` | Demand for a single customer element |
 | `capacity` | `fn<S: VrpSolution>(plan: &S) -> i64` | Vehicle capacity |
-| `assign_route` | `fn<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>)` | Assign a constructed route to a vehicle |
+| `replace_route` | `fn<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>)` | Replace the current route for an entity |
 | `get_route` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize>` | Current route for an entity |
-| `set_route` | `fn<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>)` | Replace current route for an entity |
 | `is_time_feasible` | `fn<S: VrpSolution>(plan: &S, route: &[usize]) -> bool` | True if route satisfies all time-window constraints |
 | `is_kopt_feasible` | `fn<S: VrpSolution>(plan: &S, _entity_idx: usize, route: &[usize]) -> bool` | K-opt feasibility gate; `entity_idx` ignored, delegates to `is_time_feasible` |
 
@@ -79,9 +78,9 @@ All functions are generic over `S: VrpSolution`.
     cw_distance_fn    = "solverforge_cvrp_lib::distance",
     cw_element_load_fn= "solverforge_cvrp_lib::element_load",
     cw_capacity_fn    = "solverforge_cvrp_lib::capacity",
-    cw_assign_route_fn= "solverforge_cvrp_lib::assign_route",
+    cw_assign_route_fn= "solverforge_cvrp_lib::replace_route",
     k_opt_get_route   = "solverforge_cvrp_lib::get_route",
-    k_opt_set_route   = "solverforge_cvrp_lib::set_route",
+    k_opt_set_route   = "solverforge_cvrp_lib::replace_route",
     k_opt_depot_fn    = "solverforge_cvrp_lib::depot_for_entity",
     k_opt_distance_fn = "solverforge_cvrp_lib::distance",
     k_opt_feasible_fn = "solverforge_cvrp_lib::is_kopt_feasible",

@@ -11,6 +11,8 @@ static BASIC_GENERIC_TEMPLATE: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates
 static EMPLOYEE_SCHEDULING_TEMPLATE: Dir =
     include_dir!("$CARGO_MANIFEST_DIR/templates/basic/employee-scheduling");
 
+static LIST_GENERIC_TEMPLATE: Dir = include_dir!("$CARGO_MANIFEST_DIR/templates/list/generic");
+
 static VEHICLE_ROUTING_TEMPLATE: Dir =
     include_dir!("$CARGO_MANIFEST_DIR/templates/list/vehicle-routing");
 
@@ -20,6 +22,7 @@ const AVAILABLE_TEMPLATES: &str = "
     --basic=employee-scheduling     — assign employees to shifts
 
   List Variable (each entity owns an ordered sequence):
+    --list                          — generic list-variable skeleton
     --list=vehicle-routing          — capacitated vehicle routing (CVRP)";
 
 pub fn run(
@@ -49,6 +52,15 @@ pub fn run(
             &crate_name,
             &EMPLOYEE_SCHEDULING_TEMPLATE,
             "basic/employee-scheduling",
+            skip_git,
+            skip_readme,
+            quiet,
+        ),
+        Template::List => scaffold(
+            name,
+            &crate_name,
+            &LIST_GENERIC_TEMPLATE,
+            "list",
             skip_git,
             skip_readme,
             quiet,
@@ -269,6 +281,15 @@ fn print_template_guidance(project_name: &str, label: &str) {
             println!("    solverforge generate constraint all_assigned --unary --hard");
             println!("    solverforge server");
         }
+        "list" => {
+            println!("    solverforge server");
+            println!();
+            println!("  This template includes:");
+            println!("    - 2-phase solver (cheapest insertion + late acceptance)");
+            println!("    - Balanced load constraint (soft)");
+            println!("    - Sequence view at http://localhost:7860");
+            println!("    - REST API with SSE live updates");
+        }
         _ => {
             println!("    solverforge server");
         }
@@ -345,6 +366,7 @@ fn generate_readme(project_name: &str, _crate_name: &str, label: &str) -> String
 pub enum Template {
     Basic,
     BasicEmployeeScheduling,
+    List,
     ListVehicleRouting,
 }
 
@@ -353,10 +375,7 @@ impl Template {
         match (basic, list, specialization) {
             (true, false, None) => Ok(Template::Basic),
             (true, false, Some("employee-scheduling")) => Ok(Template::BasicEmployeeScheduling),
-            (false, true, None) => Err(CliError::with_hint(
-                "the --list template requires a specialization",
-                "Use --list=vehicle-routing".to_string(),
-            )),
+            (false, true, None) => Ok(Template::List),
             (false, true, Some("vehicle-routing")) => Ok(Template::ListVehicleRouting),
             (false, false, None) => Err(CliError::with_hint(
                 "specify a template flag",

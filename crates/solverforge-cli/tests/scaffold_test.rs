@@ -60,7 +60,7 @@ fn pin_generated_project_to_local_solverforge(project_dir: &std::path::Path) {
     std::fs::write(&cargo_toml, updated).expect("failed to update scaffold Cargo.toml");
 }
 
-// Scaffold a basic project and verify the expected files are created.
+// Scaffold a basic project and verify the enriched generic files are created.
 #[test]
 fn test_new_basic_creates_project_files() {
     let tmp = tempfile::tempdir().expect("failed to create temp dir");
@@ -96,6 +96,40 @@ fn test_new_basic_creates_project_files() {
         project_dir.join("solver.toml").exists(),
         "solver.toml missing"
     );
+    assert!(
+        project_dir.join("static").join("sf-config.json").exists(),
+        "static/sf-config.json missing"
+    );
+
+    let sf_config =
+        std::fs::read_to_string(project_dir.join("static").join("sf-config.json")).unwrap();
+    assert!(
+        sf_config.contains("\"type\": \"assignment_board\""),
+        "basic scaffold should default to assignment_board view: {}",
+        sf_config
+    );
+    assert!(
+        sf_config.contains("\"balanced_load\""),
+        "basic scaffold should wire balanced_load into sf-config.json: {}",
+        sf_config
+    );
+    assert!(
+        sf_config.contains("\"capacity_limit\"") && sf_config.contains("\"affinity_match\""),
+        "basic scaffold should wire enriched demo constraints into sf-config.json: {}",
+        sf_config
+    );
+
+    let app_js = std::fs::read_to_string(project_dir.join("static").join("app.js")).unwrap();
+    assert!(
+        app_js.contains("Assignment Overview"),
+        "basic scaffold should render assignment board hero: {}",
+        app_js
+    );
+    assert!(
+        app_js.contains("renderAssignmentBoard"),
+        "basic scaffold should include assignment board rendering: {}",
+        app_js
+    );
 }
 
 // Scaffold an employee-scheduling project and verify the domain files are created.
@@ -130,6 +164,38 @@ fn test_new_employee_scheduling_creates_domain() {
     assert!(constraints_dir.exists(), "src/constraints/ missing");
 }
 
+// Scaffold a generic list project and verify the domain files are created.
+#[test]
+fn test_new_list_creates_domain() {
+    let tmp = tempfile::tempdir().expect("failed to create temp dir");
+    let project_name = "test_list_project";
+
+    let status = Command::new(cli_bin())
+        .args([
+            "new",
+            project_name,
+            "--list",
+            "--skip-git",
+            "--skip-readme",
+            "--quiet",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .expect("failed to run solverforge new");
+
+    assert!(status.success(), "solverforge new --list failed");
+
+    let project_dir = tmp.path().join(project_name);
+    assert!(
+        project_dir.join("Cargo.toml").exists(),
+        "Cargo.toml missing"
+    );
+    assert!(
+        project_dir.join("static").join("sf-config.json").exists(),
+        "static/sf-config.json missing"
+    );
+}
+
 // Scaffold a vehicle-routing project and verify the domain files are created.
 #[test]
 fn test_new_vehicle_routing_creates_domain() {
@@ -158,33 +224,6 @@ fn test_new_vehicle_routing_creates_domain() {
     assert!(
         project_dir.join("Cargo.toml").exists(),
         "Cargo.toml missing"
-    );
-}
-
-// Bare --list should be rejected because the generic list scaffold is not supported.
-#[test]
-fn test_new_list_requires_specialization() {
-    let tmp = tempfile::tempdir().expect("failed to create temp dir");
-
-    let output = Command::new(cli_bin())
-        .args(["new", "test_list_project", "--list"])
-        .current_dir(tmp.path())
-        .output()
-        .expect("failed to run solverforge new");
-
-    assert!(
-        !output.status.success(),
-        "solverforge new --list unexpectedly succeeded"
-    );
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("the --list template requires a specialization"),
-        "unexpected stderr: {stderr}"
-    );
-    assert!(
-        stderr.contains("Use --list=vehicle-routing"),
-        "unexpected stderr: {stderr}"
     );
 }
 
@@ -224,6 +263,40 @@ fn test_new_basic_cargo_check_passes() {
         check_status.success(),
         "cargo check failed on scaffolded basic project"
     );
+}
+
+// Full cargo check on a scaffolded generic list project.
+// Run with: cargo test -p solverforge-cli -- --ignored
+#[test]
+#[ignore = "invokes cargo check in a temp dir; requires network + toolchain; run with --ignored"]
+fn test_new_list_cargo_check_passes() {
+    let tmp = tempfile::tempdir().expect("failed to create temp dir");
+    let project_name = "test_cargo_check_list";
+
+    let scaffold_status = Command::new(cli_bin())
+        .args([
+            "new",
+            project_name,
+            "--list",
+            "--skip-git",
+            "--skip-readme",
+            "--quiet",
+        ])
+        .current_dir(tmp.path())
+        .status()
+        .expect("failed to run solverforge new");
+
+    assert!(scaffold_status.success(), "scaffolding failed");
+
+    let project_dir = tmp.path().join(project_name);
+    pin_generated_project_to_local_solverforge(&project_dir);
+    let check_status = Command::new("cargo")
+        .arg("check")
+        .current_dir(&project_dir)
+        .status()
+        .expect("failed to run cargo check");
+
+    assert!(check_status.success(), "cargo check failed on list project");
 }
 
 // Full cargo check on a scaffolded employee-scheduling project.

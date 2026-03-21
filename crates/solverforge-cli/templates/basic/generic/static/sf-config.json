@@ -1,0 +1,19 @@
+{
+  "title": "{{project_name}}",
+  "subtitle": "Constraint Optimizer",
+  "constraints": ["all_assigned", "capacity_limit", "affinity_match", "balanced_load"],
+  "entities": [
+    {"name": "task", "label": "Tasks", "plural": "tasks"}
+  ],
+  "facts": [
+    {"name": "resource", "label": "Resources", "plural": "resources"}
+  ],
+  "view": {
+    "type": "assignment_board",
+    "resource": "resource",
+    "task": "task",
+    "fields": {
+      "label": "name"
+    }
+  }
+}

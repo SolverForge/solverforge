@@ -1,0 +1,13 @@
+{
+  "title": "{{project_name}}",
+  "subtitle": "List Variable Optimizer",
+  "constraints": ["balanced_load"],
+  "entities": [{ "name": "container", "label": "Containers", "plural": "containers" }],
+  "facts": [{ "name": "item", "label": "Items", "plural": "items" }],
+  "view": {
+    "type": "table",
+    "resource": "container",
+    "task": "item",
+    "fields": { "start": "index", "end": "index", "label": "name" }
+  }
+}

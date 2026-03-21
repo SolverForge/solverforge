@@ -8,17 +8,29 @@ use solverforge::SolverStatus;
 pub struct ResourceDto {
     pub index: usize,
     pub name: String,
+    pub capacity: i64,
+    pub affinity_group: String,
 }
 
 impl From<&Resource> for ResourceDto {
     fn from(r: &Resource) -> Self {
-        Self { index: r.index, name: r.name.clone() }
+        Self {
+            index: r.index,
+            name: r.name.clone(),
+            capacity: r.capacity,
+            affinity_group: r.affinity_group.clone(),
+        }
     }
 }
 
 impl ResourceDto {
     pub fn to_resource(&self) -> Resource {
-        Resource::new(self.index, &self.name)
+        Resource::new(
+            self.index,
+            &self.name,
+            self.capacity,
+            &self.affinity_group,
+        )
     }
 }
 
@@ -27,6 +39,8 @@ impl ResourceDto {
 pub struct TaskDto {
     pub id: String,
     pub name: String,
+    pub demand: i64,
+    pub preferred_group: String,
     pub resource: Option<ResourceDto>,
 }
 
@@ -41,6 +55,32 @@ pub struct PlanDto {
     pub solver_status: Option<SolverStatus>,
 }
 
+/// Constraint analysis result.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConstraintAnalysisDto {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub constraint_type: String,
+    pub weight: String,
+    pub score: String,
+    pub matches: Vec<ConstraintMatchDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConstraintMatchDto {
+    pub score: String,
+    pub justification: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeResponse {
+    pub score: String,
+    pub constraints: Vec<ConstraintAnalysisDto>,
+}
+
 impl PlanDto {
     pub fn from_plan(plan: &Plan, status: Option<SolverStatus>) -> Self {
         let resources: Vec<ResourceDto> = plan.resources.iter().map(ResourceDto::from).collect();
@@ -50,6 +90,8 @@ impl PlanDto {
             .map(|t| TaskDto {
                 id: t.id.clone(),
                 name: t.name.clone(),
+                demand: t.demand,
+                preferred_group: t.preferred_group.clone(),
                 resource: t
                     .resource_idx
                     .and_then(|idx| plan.resources.get(idx))
@@ -75,6 +117,8 @@ impl PlanDto {
             .map(|t| Task {
                 id: t.id.clone(),
                 name: t.name.clone(),
+                demand: t.demand,
+                preferred_group: t.preferred_group.clone(),
                 resource_idx: t
                     .resource
                     .as_ref()

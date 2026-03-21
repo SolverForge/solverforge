@@ -38,8 +38,8 @@ VrpSolution trait
 /// # Safety
 /// Implementors must ensure every `vehicle_data_ptr` points to a valid
 /// `ProblemData` for the entire duration of a solve call. Returning a null
-/// pointer is treated as "no shared problem data available" and causes the
-/// helper functions below to fall back to their empty-fleet defaults.
+/// pointer for a non-empty fleet is an initialization bug and will panic in
+/// the helper functions below.
 pub trait VrpSolution {
     fn vehicle_data_ptr(&self, entity_idx: usize) -> *const ProblemData;
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize];
@@ -55,11 +55,12 @@ Free functions (callable as fn-pointer fields in ListSpec)
 #[inline]
 fn problem_data_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> Option<&ProblemData> {
     let ptr = plan.vehicle_data_ptr(entity_idx);
-    if ptr.is_null() {
-        return None;
-    }
+    assert!(
+        !ptr.is_null(),
+        "VrpSolution::vehicle_data_ptr({entity_idx}) returned null for a non-empty fleet"
+    );
     // SAFETY: VrpSolution implementors guarantee valid pointers for the duration
-    // of the solve call; null is handled above and treated as missing data.
+    // of the solve call; null for a non-empty fleet is rejected above.
     unsafe { ptr.as_ref() }
 }
 
@@ -256,6 +257,28 @@ mod tests {
         }
     }
 
+    struct NullDataSolution {
+        routes: Vec<Vec<usize>>,
+    }
+
+    impl VrpSolution for NullDataSolution {
+        fn vehicle_data_ptr(&self, _entity_idx: usize) -> *const ProblemData {
+            std::ptr::null()
+        }
+
+        fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
+            &self.routes[entity_idx]
+        }
+
+        fn vehicle_visits_mut(&mut self, entity_idx: usize) -> &mut Vec<usize> {
+            &mut self.routes[entity_idx]
+        }
+
+        fn vehicle_count(&self) -> usize {
+            self.routes.len()
+        }
+    }
+
     #[test]
     fn helpers_use_problem_data_from_first_vehicle() {
         let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
@@ -278,6 +301,16 @@ mod tests {
         assert_eq!(capacity(&solution), i64::MAX);
         assert!(is_time_feasible(&solution, &[1, 2]));
         assert!(is_kopt_feasible(&solution, 0, &[1, 2]));
+    }
+
+    #[test]
+    #[should_panic(expected = "vehicle_data_ptr(0) returned null")]
+    fn helpers_reject_missing_problem_data_for_non_empty_fleets() {
+        let solution = NullDataSolution {
+            routes: vec![vec![1, 2]],
+        };
+
+        let _ = distance(&solution, 1, 2);
     }
 
     #[test]

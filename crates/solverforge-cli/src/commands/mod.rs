@@ -1,5 +1,6 @@
 pub mod check;
 pub mod config;
+pub mod console;
 pub mod destroy;
 pub mod generate_constraint;
 pub mod generate_domain;

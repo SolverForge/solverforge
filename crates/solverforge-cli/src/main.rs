@@ -142,6 +142,9 @@ enum Command {
         #[command(subcommand)]
         subcommand: ConfigSubcommand,
     },
+    /// Interactive REPL console (deprecated compatibility alias)
+    #[command(hide = true)]
+    Console,
     /// Generate shell completions
     #[command(
         after_help = "Examples:\n  solverforge completions bash >> ~/.bashrc\n  solverforge completions zsh >> ~/.zshrc\n  solverforge completions fish > ~/.config/fish/completions/solverforge.fish"
@@ -452,6 +455,7 @@ fn main() {
         Command::Config {
             subcommand: ConfigSubcommand::Set { key, value },
         } => commands::config::run_set(&key, &value),
+        Command::Console => commands::console::run(),
         Command::Generate {
             resource:
                 GenerateResource::Scaffold {

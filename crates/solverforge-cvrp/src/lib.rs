@@ -315,16 +315,15 @@ mod tests {
         let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
 
         assert_eq!(MatrixDistanceMeter.distance(&solution, 0, 0, 1, 0), 6.0);
-        assert_eq!(MatrixIntraDistanceMeter.distance(&solution, 0, 0, 0, 1), 4.0);
-        assert!(
-            MatrixDistanceMeter
-                .distance(&solution, 0, 4, 1, 0)
-                .is_infinite()
+        assert_eq!(
+            MatrixIntraDistanceMeter.distance(&solution, 0, 0, 0, 1),
+            4.0
         );
-        assert!(
-            MatrixIntraDistanceMeter
-                .distance(&solution, 0, 0, 0, 4)
-                .is_infinite()
-        );
+        assert!(MatrixDistanceMeter
+            .distance(&solution, 0, 4, 1, 0)
+            .is_infinite());
+        assert!(MatrixIntraDistanceMeter
+            .distance(&solution, 0, 0, 0, 4)
+            .is_infinite());
     }
 }

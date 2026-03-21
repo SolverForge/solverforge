@@ -196,8 +196,13 @@ publish-crates-dry: test banner
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
 	@printf "$(GREEN)$(CHECK) All tests passed$(RESET)\n"
 	@printf "$(ARROW) Publishing order: $(GRAY)core → macros → scoring → config → solver → cvrp → console → facade → cli$(RESET)\n\n"
-	@printf "$(GRAY)Note: cargo publish --dry-run cannot validate unpublished workspace inter-dependencies.$(RESET)\n"
-	@printf "$(GRAY)Tests passing indicates crates are ready. Use 'make publish-crates' to publish.$(RESET)\n\n"
+	@printf "$(PROGRESS) Running cargo publish --dry-run for standalone crates...\n"
+	@cargo publish --dry-run -p solverforge-core >/dev/null && printf "$(GREEN)$(CHECK) solverforge-core dry-run passed$(RESET)\n" || exit 1
+	@cargo publish --dry-run -p solverforge-macros >/dev/null && printf "$(GREEN)$(CHECK) solverforge-macros dry-run passed$(RESET)\n" || exit 1
+	@cargo publish --dry-run -p solverforge-console >/dev/null && printf "$(GREEN)$(CHECK) solverforge-console dry-run passed$(RESET)\n" || exit 1
+	@cargo publish --dry-run -p solverforge-cli >/dev/null && printf "$(GREEN)$(CHECK) solverforge-cli dry-run passed$(RESET)\n" || exit 1
+	@printf "$(GRAY)Dependent crates still need staggered dry-runs once their exact-version dependencies are visible on crates.io.$(RESET)\n"
+	@printf "$(GRAY)Run cargo publish --dry-run for scoring, config, solver, cvrp, and facade immediately before each upload.$(RESET)\n\n"
 
 publish-crates: banner
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"

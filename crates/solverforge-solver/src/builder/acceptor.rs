@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use solverforge_config::AcceptorConfig;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::Score;
+use solverforge_core::score::{ParseableScore, Score};
 
 use crate::phase::localsearch::{
     Acceptor, GreatDelugeAcceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
@@ -121,7 +121,7 @@ impl AcceptorBuilder {
     /// Builds a concrete [`AnyAcceptor`] from configuration.
     pub fn build<S: PlanningSolution>(config: &AcceptorConfig) -> AnyAcceptor<S>
     where
-        S::Score: Score,
+        S::Score: Score + ParseableScore,
     {
         match config {
             AcceptorConfig::HillClimbing => AnyAcceptor::HillClimbing(HillClimbingAcceptor::new()),
@@ -138,7 +138,12 @@ impl AcceptorBuilder {
                 let starting_temp = sa_config
                     .starting_temperature
                     .as_ref()
-                    .and_then(|s| s.parse::<f64>().ok())
+                    .map(|s| {
+                        let score = S::Score::parse(s).unwrap_or_else(|e| {
+                            panic!("Invalid starting_temperature '{}': {}", s, e)
+                        });
+                        score.to_scalar().abs()
+                    })
                     .unwrap_or(0.0);
                 AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::new(
                     starting_temp,
@@ -216,7 +221,7 @@ mod tests {
     #[test]
     fn test_acceptor_builder_simulated_annealing() {
         let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
-            starting_temperature: Some("1.5".to_string()),
+            starting_temperature: Some("2".to_string()),
         });
         let _acceptor: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
     }

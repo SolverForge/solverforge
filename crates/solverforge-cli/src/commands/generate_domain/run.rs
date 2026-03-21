@@ -54,6 +54,8 @@ pub fn run_entity(
 
     update_domain_mod(name, &pascal)?;
     wire_collection_into_solution(name, &pascal, "planning_entity_collection")?;
+    let plural = super::utils::pluralize(name);
+    crate::commands::sf_config::add_entity(name, &pascal, &plural)?;
 
     output::print_create(file_path.to_str().unwrap());
     print_diff_verbose("", &src);
@@ -94,6 +96,8 @@ pub fn run_fact(name: &str, fields: &[String], force: bool, pretend: bool) -> Cl
 
     update_domain_mod(name, &pascal)?;
     wire_collection_into_solution(name, &pascal, "problem_fact_collection")?;
+    let plural = super::utils::pluralize(name);
+    crate::commands::sf_config::add_fact(name, &pascal, &plural)?;
 
     output::print_create(file_path.to_str().unwrap());
     print_diff_verbose("", &src);

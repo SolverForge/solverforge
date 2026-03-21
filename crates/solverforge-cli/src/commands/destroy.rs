@@ -100,6 +100,7 @@ pub fn run_entity(name: &str, skip_confirm: bool) -> CliResult {
 
     remove_from_domain_mod(&file_name)?;
     unwire_collection_from_solution(&entity.field_name, &entity.item_type, &domain.solution_type)?;
+    crate::commands::sf_config::remove_entity(&snake)?;
 
     output::print_remove(&format!("src/domain/{}.rs", file_name));
     output::print_update("src/domain/mod.rs");
@@ -154,6 +155,7 @@ pub fn run_fact(name: &str, skip_confirm: bool) -> CliResult {
 
     remove_from_domain_mod(&file_name)?;
     unwire_collection_from_solution(&fact.field_name, &fact.item_type, &domain.solution_type)?;
+    crate::commands::sf_config::remove_fact(&snake)?;
 
     output::print_remove(&format!("src/domain/{}.rs", file_name));
     output::print_update("src/domain/mod.rs");
@@ -182,6 +184,7 @@ pub fn run_constraint(name: &str, skip_confirm: bool) -> CliResult {
     })?;
 
     remove_constraint_from_mod(&snake)?;
+    crate::commands::sf_config::remove_constraint(&snake)?;
 
     output::print_remove(&file_path);
     output::print_update("src/constraints/mod.rs");
@@ -284,34 +287,16 @@ fn remove_constraint_from_mod(name: &str) -> CliResult {
 
     let lines: Vec<&str> = content.lines().collect();
     let mut new_lines = Vec::new();
-    let mut in_tuple = false;
-    let mut removed_item = false;
 
     for line in lines {
         if line.trim() == format!("mod {};", name) {
             continue;
         }
 
-        if line.contains("pub fn all() ->") || line.contains("impl Constraint") {
-            in_tuple = true;
-            new_lines.push(line);
-        } else if in_tuple && line.contains(')') {
-            if removed_item && !new_lines.is_empty() {
-                let last_idx = new_lines.len() - 1;
-                if let Some(last) = new_lines.get_mut(last_idx) {
-                    if last.trim().ends_with(',') {
-                        *last = last.trim().trim_end_matches(',');
-                    }
-                }
-            }
-            in_tuple = false;
-            new_lines.push(line);
-        } else if in_tuple && line.contains(&format!("{}::", name)) {
-            removed_item = true;
+        if line.contains(&format!("{}::", name)) {
             continue;
-        } else {
-            new_lines.push(line);
         }
+        new_lines.push(line);
     }
 
     let result = new_lines.join("\n");

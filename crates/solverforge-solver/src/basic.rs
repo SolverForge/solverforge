@@ -178,7 +178,7 @@ fn build_local_search<S>(
 ) -> BasicLocalSearch<S>
 where
     S: PlanningSolution,
-    S::Score: Score,
+    S::Score: Score + ParseableScore,
 {
     // Find first local search phase config
     let ls_config = config.phases.iter().find_map(|p| {

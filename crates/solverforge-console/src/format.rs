@@ -299,6 +299,38 @@ fn calculate_problem_scale(entity_count: usize, value_count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+    use tracing::{Event, Level, Subscriber};
+    use tracing_subscriber::layer::{Context, SubscriberExt};
+    use tracing_subscriber::{Layer, Registry};
+
+    #[derive(Clone)]
+    struct CaptureLayer {
+        outputs: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl<S: Subscriber> Layer<S> for CaptureLayer {
+        fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+            let mut visitor = EventVisitor::default();
+            event.record(&mut visitor);
+
+            let output = format_event(&visitor, *event.metadata().level());
+            if !output.is_empty() {
+                self.outputs.lock().unwrap().push(output);
+            }
+        }
+    }
+
+    fn capture_events(f: impl FnOnce()) -> Vec<String> {
+        let outputs = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = Registry::default().with(CaptureLayer {
+            outputs: outputs.clone(),
+        });
+
+        tracing::subscriber::with_default(subscriber, f);
+        let captured = outputs.lock().unwrap().clone();
+        captured
+    }
 
     #[test]
     fn format_duration_covers_milliseconds_seconds_and_minutes() {
@@ -340,36 +372,49 @@ mod tests {
         assert!(progress_output.contains("678"));
         assert!(progress_output.contains("0hard"));
 
-        let trace_step = EventVisitor {
-            event: Some("step".to_string()),
-            step: Some(42),
-            entity: Some(3),
-            accepted: Some(true),
-            score: Some("-1hard/0soft".to_string()),
-            ..EventVisitor::default()
-        };
-        let step_output = format_event(&trace_step, Level::TRACE);
+        let outputs = capture_events(|| {
+            tracing::trace!(
+                target: "solverforge_solver::test",
+                event = "step",
+                step = 42u64,
+                move_index = 3u64,
+                score = "-1hard/0soft",
+                accepted = true,
+            );
+        });
+
+        let step_output = outputs
+            .iter()
+            .find(|output| output.contains("Step"))
+            .cloned()
+            .expect("expected trace step output");
         assert!(step_output.contains("Step"));
         assert!(step_output.contains("Entity"));
+        assert!(step_output.contains("3"));
         assert!(step_output.contains("-1hard"));
-
-        let hidden_step = format_event(&trace_step, Level::DEBUG);
-        assert!(hidden_step.is_empty());
     }
 
     #[test]
     fn format_event_renders_solve_start_and_end_summaries() {
-        let start = EventVisitor {
-            event: Some("solve_start".to_string()),
-            entity_count: Some(120),
-            value_count: Some(25),
-            constraint_count: Some(7),
-            time_limit_secs: Some(30),
-            ..EventVisitor::default()
-        };
-        let start_output = format_event(&start, Level::INFO);
+        let outputs = capture_events(|| {
+            tracing::info!(
+                target: "solverforge_solver::test",
+                event = "solve_start",
+                entity_count = 120u64,
+                element_count = 25u64,
+                constraint_count = 7u64,
+                time_limit_secs = 30u64,
+            );
+        });
+
+        let start_output = outputs
+            .iter()
+            .find(|output| output.contains("Solving"))
+            .cloned()
+            .expect("expected solve_start output");
         assert!(start_output.contains("Solving"));
         assert!(start_output.contains("120"));
+        assert!(start_output.contains("25"));
         assert!(start_output.contains("constraints"));
 
         let end = EventVisitor {

@@ -41,10 +41,12 @@ impl Visit for EventVisitor {
             "steps" => self.steps = Some(value),
             "speed" => self.speed = Some(value),
             "step" => self.step = Some(value),
-            "entity" => self.entity = Some(value),
+            // TRACE step events emit `move_index`; keep `entity` as a legacy alias.
+            "entity" | "move_index" => self.entity = Some(value),
             "duration_ms" => self.duration_ms = Some(value),
             "entity_count" => self.entity_count = Some(value),
-            "value_count" => self.value_count = Some(value),
+            // List solves emit `element_count`; keep `value_count` for legacy/basic solves.
+            "value_count" | "element_count" => self.value_count = Some(value),
             "constraint_count" => self.constraint_count = Some(value),
             "time_limit_secs" => self.time_limit_secs = Some(value),
             "moves_speed" => self.moves_speed = Some(value),

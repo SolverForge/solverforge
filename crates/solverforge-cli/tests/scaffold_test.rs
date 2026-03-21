@@ -149,7 +149,11 @@ fn test_new_list_requires_specialization() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("equal sign is needed when assigning values to '--list=<SPECIALIZATION>'"),
+        stderr.contains("the --list template requires a specialization"),
+        "unexpected stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Use --list=vehicle-routing"),
         "unexpected stderr: {stderr}"
     );
 }

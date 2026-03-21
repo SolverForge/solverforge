@@ -83,6 +83,10 @@ solverforge = { version = "0.5", features = ["console"] }
 | `decimal` | Decimal score support via `rust_decimal` |
 | `serde` | Serialization support for domain types |
 
+## Release Operations
+
+The workspace release checklist, publish order, and crate stability matrix live in [RELEASE.md](RELEASE.md).
+
 ## Quick Start
 
 ### 1. Define Your Domain Model

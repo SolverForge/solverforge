@@ -134,6 +134,9 @@ fn test_generate_skeleton_unary_hard() {
     assert!(result.contains("for_each(|s: &EmployeeSchedule| s.shifts.as_slice())"));
     assert!(result.contains("HardSoftDecimalScore::ONE_HARD"));
     assert!(result.contains("HARD:"));
+    assert!(!result.contains("todo!"));
+    assert!(result
+        .contains("panic!(\"replace placeholder condition before enabling this constraint\")"));
 }
 
 #[test]
@@ -159,6 +162,10 @@ fn test_generate_skeleton_pair_hard() {
     );
     assert!(result.contains("for_each_unique_pair"));
     assert!(result.contains("joiner::equal(|e: &Shift| e.employee_idx)"));
+    assert!(result.contains(
+        "panic!(\"replace placeholder pair condition before enabling this constraint\")"
+    ));
+    assert!(!result.contains("todo!"));
 }
 
 #[test]
@@ -188,6 +195,12 @@ fn test_generate_skeleton_join_hard() {
     assert!(result.contains("equal_bi"));
     assert!(result.contains("employees.as_slice()"));
     assert!(result.contains("Employee"));
+    assert!(result.contains("|e: &Shift| e.employee_idx"));
+    assert!(
+        result.contains("replace placeholder join key extractor before enabling this constraint")
+    );
+    assert!(result.contains("replace placeholder join condition before enabling this constraint"));
+    assert!(!result.contains("todo!"));
 }
 
 #[test]
@@ -213,4 +226,32 @@ fn test_generate_skeleton_balance_soft() {
     );
     assert!(result.contains(".balance(|e: &Shift| e.employee_idx)"));
     assert!(result.contains("SOFT:"));
+}
+
+#[test]
+fn test_generate_skeleton_reward_soft_is_compile_safe() {
+    let domain = DomainModel {
+        solution_type: "EmployeeSchedule".to_string(),
+        score_type: "HardSoftDecimalScore".to_string(),
+        entities: vec![EntityInfo {
+            field_name: "shifts".to_string(),
+            item_type: "Shift".to_string(),
+            planning_vars: vec!["employee_idx".to_string()],
+        }],
+        facts: vec![],
+    };
+    let result = generate_skeleton(
+        "preferred_assignment",
+        Pattern::Reward,
+        true,
+        "EmployeeSchedule",
+        "HardSoftDecimalScore",
+        "Preferred Assignment",
+        Some(&domain),
+    );
+    assert!(result.contains(".reward(HardSoftDecimalScore::ONE_SOFT)"));
+    assert!(result.contains(
+        "panic!(\"replace placeholder reward condition before enabling this constraint\")"
+    ));
+    assert!(!result.contains("todo!"));
 }

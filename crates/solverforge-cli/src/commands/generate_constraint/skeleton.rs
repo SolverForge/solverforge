@@ -74,7 +74,9 @@ pub(crate) fn generate_skeleton(
             format!(
                 r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
-        .filter(|e: &{entity_type}| todo!("add your condition"))
+        .filter(|_e: &{entity_type}| {{
+            panic!("replace placeholder condition before enabling this constraint")
+        }})
 {action}
         .as_constraint("{constraint_name}")"#
             )
@@ -86,8 +88,8 @@ pub(crate) fn generate_skeleton(
             |s: &{solution_type}| s.{entity_field}.as_slice(),
             joiner::equal(|e: &{entity_type}| e.{planning_var}),
         )
-        .filter(|a: &{entity_type}, b: &{entity_type}| {{
-            a.{planning_var}.is_some() && todo!("add conflict condition")
+        .filter(|_a: &{entity_type}, _b: &{entity_type}| {{
+            panic!("replace placeholder pair condition before enabling this constraint")
         }})
         .penalize({penalty_expr})
         .as_constraint("{constraint_name}")"#
@@ -100,11 +102,11 @@ pub(crate) fn generate_skeleton(
             |s: &{solution_type}| s.{fact_field}.as_slice(),
             equal_bi(
                 |e: &{entity_type}| e.{planning_var},
-                |f: &{fact_type}| todo!("return matching key from {fact_type}"),
+                |_f: &{fact_type}| panic!("replace placeholder join key extractor before enabling this constraint"),
             ),
         )
-        .filter(|e: &{entity_type}, f: &{fact_type}| {{
-            e.{planning_var}.is_some() && todo!("add mismatch condition")
+        .filter(|_e: &{entity_type}, _f: &{fact_type}| {{
+            panic!("replace placeholder join condition before enabling this constraint")
         }})
         .penalize({penalty_expr})
         .as_constraint("{constraint_name}")"#
@@ -121,7 +123,9 @@ pub(crate) fn generate_skeleton(
         Pattern::Reward => format!(
             r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
-        .filter(|e: &{entity_type}| todo!("add your condition"))
+        .filter(|_e: &{entity_type}| {{
+            panic!("replace placeholder reward condition before enabling this constraint")
+        }})
         .reward({penalty_expr})
         .as_constraint("{constraint_name}")"#
         ),

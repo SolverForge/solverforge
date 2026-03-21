@@ -142,7 +142,10 @@ fn test_new_list_requires_specialization() {
         .output()
         .expect("failed to run solverforge new");
 
-    assert!(!output.status.success(), "solverforge new --list unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "solverforge new --list unexpectedly succeeded"
+    );
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(

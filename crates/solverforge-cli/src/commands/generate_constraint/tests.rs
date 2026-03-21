@@ -104,7 +104,10 @@ fn test_find_annotated_struct() {
 #[test]
 fn test_find_score_type() {
     let src = "#[planning_solution]\npub struct Plan {\n    pub score: Option<HardSoftScore>,\n}\n";
-    assert_eq!(find_score_type(src, "Plan"), Some("HardSoftScore".to_string()));
+    assert_eq!(
+        find_score_type(src, "Plan"),
+        Some("HardSoftScore".to_string())
+    );
 }
 
 #[test]
@@ -132,7 +135,8 @@ fn test_generate_skeleton_unary_hard() {
     assert!(result.contains("HardSoftDecimalScore::ONE_HARD"));
     assert!(result.contains("HARD:"));
     assert!(!result.contains("todo!"));
-    assert!(result.contains("Replace `false` with the condition"));
+    assert!(result
+        .contains("panic!(\"replace placeholder condition before enabling this constraint\")"));
 }
 
 #[test]
@@ -157,7 +161,10 @@ fn test_generate_skeleton_pair_hard() {
         Some(&domain),
     );
     assert!(result.contains("for_each_unique_pair"));
-    assert!(result.contains("joiner::equal(|_e: &Shift| ())"));
+    assert!(result.contains("joiner::equal(|e: &Shift| e.employee_idx)"));
+    assert!(result.contains(
+        "panic!(\"replace placeholder pair condition before enabling this constraint\")"
+    ));
     assert!(!result.contains("todo!"));
 }
 
@@ -188,7 +195,11 @@ fn test_generate_skeleton_join_hard() {
     assert!(result.contains("equal_bi"));
     assert!(result.contains("employees.as_slice()"));
     assert!(result.contains("Employee"));
-    assert!(result.contains("|_f: &Employee| ()"));
+    assert!(result.contains("|e: &Shift| e.employee_idx"));
+    assert!(
+        result.contains("replace placeholder join key extractor before enabling this constraint")
+    );
+    assert!(result.contains("replace placeholder join condition before enabling this constraint"));
     assert!(!result.contains("todo!"));
 }
 
@@ -239,6 +250,8 @@ fn test_generate_skeleton_reward_soft_is_compile_safe() {
         Some(&domain),
     );
     assert!(result.contains(".reward(HardSoftDecimalScore::ONE_SOFT)"));
-    assert!(result.contains("Replace `false` with the condition that should earn a reward"));
+    assert!(result.contains(
+        "panic!(\"replace placeholder reward condition before enabling this constraint\")"
+    ));
     assert!(!result.contains("todo!"));
 }

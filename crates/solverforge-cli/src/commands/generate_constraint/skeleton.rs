@@ -75,8 +75,7 @@ pub(crate) fn generate_skeleton(
                 r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
         .filter(|_e: &{entity_type}| {{
-            // Replace `false` with the condition that marks a violation or reward.
-            false
+            panic!("replace placeholder condition before enabling this constraint")
         }})
 {action}
         .as_constraint("{constraint_name}")"#
@@ -87,11 +86,10 @@ pub(crate) fn generate_skeleton(
             r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each_unique_pair(
             |s: &{solution_type}| s.{entity_field}.as_slice(),
-            joiner::equal(|_e: &{entity_type}| ()),
+            joiner::equal(|e: &{entity_type}| e.{planning_var}),
         )
         .filter(|_a: &{entity_type}, _b: &{entity_type}| {{
-            // Replace the unit join key and `false` with your real overlap rule.
-            false
+            panic!("replace placeholder pair condition before enabling this constraint")
         }})
         .penalize({penalty_expr})
         .as_constraint("{constraint_name}")"#
@@ -103,13 +101,12 @@ pub(crate) fn generate_skeleton(
         .join(
             |s: &{solution_type}| s.{fact_field}.as_slice(),
             equal_bi(
-                |_e: &{entity_type}| (),
-                |_f: &{fact_type}| (),
+                |e: &{entity_type}| e.{planning_var},
+                |_f: &{fact_type}| panic!("replace placeholder join key extractor before enabling this constraint"),
             ),
         )
         .filter(|_e: &{entity_type}, _f: &{fact_type}| {{
-            // Replace the unit join key and `false` with your real fact matching rule.
-            false
+            panic!("replace placeholder join condition before enabling this constraint")
         }})
         .penalize({penalty_expr})
         .as_constraint("{constraint_name}")"#
@@ -127,8 +124,7 @@ pub(crate) fn generate_skeleton(
             r#"    ConstraintFactory::<{solution_type}, {score_type}>::new()
         .for_each(|s: &{solution_type}| s.{entity_field}.as_slice())
         .filter(|_e: &{entity_type}| {{
-            // Replace `false` with the condition that should earn a reward.
-            false
+            panic!("replace placeholder reward condition before enabling this constraint")
         }})
         .reward({penalty_expr})
         .as_constraint("{constraint_name}")"#

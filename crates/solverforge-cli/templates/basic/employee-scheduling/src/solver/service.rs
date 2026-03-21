@@ -2,7 +2,7 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use solverforge::{HardSoftDecimalScore, Solvable, SolverManager, SolverStatus};
+use solverforge::{HardSoftDecimalScore, SolverManager, SolverStatus};
 
 use crate::domain::EmployeeSchedule;
 

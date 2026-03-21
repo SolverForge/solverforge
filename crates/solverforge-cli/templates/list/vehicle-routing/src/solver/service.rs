@@ -2,7 +2,7 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use solverforge::{HardSoftScore, Solvable, SolverManager, SolverStatus};
+use solverforge::{HardSoftScore, SolverManager, SolverStatus};
 
 use crate::domain::VrpPlan;
 

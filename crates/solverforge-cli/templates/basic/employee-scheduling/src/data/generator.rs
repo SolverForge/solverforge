@@ -5,8 +5,9 @@
    generator (same seed, same algorithm, same output). */
 
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, Weekday};
-use rand::prelude::*;
 use rand::rngs::StdRng;
+use rand::RngExt;
+use rand::seq::{IndexedRandom, SliceRandom};
 use rand::SeedableRng;
 
 use crate::domain::{Employee, EmployeeSchedule, Shift};
@@ -57,7 +58,7 @@ pub fn generate(demo: DemoData) -> EmployeeSchedule {
         let opt_count = pick_count(&mut rng, &params.optional_skill_dist);
         let mut skills: Vec<String> = params
             .optional_skills
-            .choose_multiple(&mut rng, opt_count.min(params.optional_skills.len()))
+            .sample(&mut rng, opt_count.min(params.optional_skills.len()))
             .cloned()
             .collect();
         if let Some(req) = params.required_skills.choose(&mut rng) {
@@ -72,12 +73,12 @@ pub fn generate(demo: DemoData) -> EmployeeSchedule {
         let avail_count = pick_count(&mut rng, &params.availability_dist);
         let chosen: Vec<usize> = (0..params.employee_count)
             .collect::<Vec<_>>()
-            .choose_multiple(&mut rng, avail_count.min(params.employee_count))
+            .sample(&mut rng, avail_count.min(params.employee_count))
             .copied()
             .collect();
 
         for emp_idx in chosen {
-            match rng.gen_range(0..3) {
+            match rng.random_range(0..3) {
                 0 => {
                     employees[emp_idx].unavailable_dates.insert(date);
                 }
@@ -103,7 +104,7 @@ pub fn generate(demo: DemoData) -> EmployeeSchedule {
                 let end = start + Duration::hours(8);
                 let count = pick_count(&mut rng, &params.shift_count_dist);
                 for _ in 0..count {
-                    let skill = if rng.gen_bool(0.5) {
+                    let skill = if rng.random_bool(0.5) {
                         params.required_skills.choose(&mut rng)
                     } else {
                         params.optional_skills.choose(&mut rng)
@@ -211,7 +212,7 @@ fn next_monday(date: NaiveDate) -> NaiveDate {
 
 fn pick_count(rng: &mut StdRng, dist: &[(usize, f64)]) -> usize {
     let total: f64 = dist.iter().map(|(_, w)| w).sum();
-    let mut choice = rng.gen::<f64>() * total;
+    let mut choice = rng.random::<f64>() * total;
     for (count, weight) in dist {
         if choice < *weight {
             return *count;

@@ -1,6 +1,6 @@
 [[phases]]
 type = "construction_heuristic"
-construction_heuristic_type = "allocate_to_value_from_queue"
+construction_heuristic_type = "list_cheapest_insertion"
 
 [[phases]]
 type = "local_search"

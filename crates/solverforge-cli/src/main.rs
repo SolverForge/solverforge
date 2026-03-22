@@ -13,6 +13,8 @@ use error::CliResult;
 
 const EXAMPLES: &str = "\x1b[1mExamples:\x1b[0m
   solverforge new my-scheduler --basic=employee-scheduling
+  solverforge new my-planner --basic
+  solverforge new my-sorter --list
   solverforge new my-router --list=vehicle-routing
   solverforge generate entity shift --planning-variable employee_idx
   solverforge generate constraint no_overlap --pair --hard
@@ -56,14 +58,14 @@ enum Command {
     /// Variable class (required, mutually exclusive):
     ///
     ///   --basic     Standard variable — each entity holds one assigned value
-    ///   --list=...  List variable     — each entity owns an ordered sequence
+    ///   --list      List variable     — each entity owns an ordered sequence
     ///
     /// Specializations (append after the flag with =):
     ///
     ///   --basic=employee-scheduling
     ///   --list=vehicle-routing
     #[command(
-        after_help = "Examples:\n  solverforge new my-scheduler --basic=employee-scheduling\n  solverforge new my-router --list=vehicle-routing\n  solverforge new my-planner --basic"
+        after_help = "Examples:\n  solverforge new my-scheduler --basic=employee-scheduling\n  solverforge new my-planner --basic\n  solverforge new my-sorter --list\n  solverforge new my-router --list=vehicle-routing"
     )]
     New {
         /// Project name (directory that will be created)
@@ -73,7 +75,7 @@ enum Command {
         #[arg(long = "basic", value_name = "SPECIALIZATION", num_args = 0..=1, require_equals = true)]
         basic: Option<Option<String>>,
 
-        /// Scaffold a list-variable project specialization (currently: --list=vehicle-routing)
+        /// Scaffold a list-variable project (optionally: --list=vehicle-routing)
         #[arg(
             long = "list",
             value_name = "SPECIALIZATION",

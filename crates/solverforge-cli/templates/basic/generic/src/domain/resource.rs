@@ -11,13 +11,24 @@ pub struct Resource {
     /// Index into `Plan.resources` — used for O(1) joins in constraints.
     pub index: usize,
     pub name: String,
+    /// Generic capacity budget consumed by assigned entities.
+    pub capacity: i64,
+    /// Generic affinity label for assignment preferences.
+    pub affinity_group: String,
 }
 
 impl Resource {
-    pub fn new(index: usize, name: impl Into<String>) -> Self {
+    pub fn new(
+        index: usize,
+        name: impl Into<String>,
+        capacity: i64,
+        affinity_group: impl Into<String>,
+    ) -> Self {
         Self {
             index,
             name: name.into(),
+            capacity,
+            affinity_group: affinity_group.into(),
         }
     }
 

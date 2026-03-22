@@ -11,6 +11,10 @@ pub struct Task {
     #[planning_id]
     pub id: String,
     pub name: String,
+    /// Generic load contribution applied to the assigned resource.
+    pub demand: i64,
+    /// Generic affinity label for preferred assignments.
+    pub preferred_group: String,
     /// Index into `Plan.resources`. `None` means unassigned.
     ///
     /// This is the planning variable the solver optimizes.
@@ -20,10 +24,17 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        demand: i64,
+        preferred_group: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             name: name.into(),
+            demand,
+            preferred_group: preferred_group.into(),
             resource_idx: None,
         }
     }

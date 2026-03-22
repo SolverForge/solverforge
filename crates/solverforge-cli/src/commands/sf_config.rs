@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::error::CliResult;
 
@@ -29,6 +29,8 @@ struct SfConfig {
     facts: Vec<EntityEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     view: Option<Value>,
+    #[serde(flatten)]
+    extra: Map<String, Value>,
 }
 
 const CONFIG_PATH: &str = "static/sf-config.json";
@@ -157,5 +159,37 @@ mod tests {
         assert!(saved.contains("\"assignment_board\""));
         assert!(saved.contains("\"columns\""));
         assert!(saved.contains("\"accent\": \"red\""));
+    }
+
+    #[test]
+    fn preserves_unknown_top_level_keys_when_updating_constraints() {
+        let guard = test_support::lock_cwd();
+
+        let tmp = tempfile::tempdir().expect("failed to create temp dir");
+        let original_dir = std::env::current_dir().expect("failed to get current dir");
+
+        std::fs::create_dir_all(tmp.path().join("static")).expect("failed to create static dir");
+        std::fs::write(
+            tmp.path().join("static").join("sf-config.json"),
+            r#"{
+  "title": "demo",
+  "subtitle": "demo",
+  "constraints": ["all_assigned"],
+  "theme": {"accent": "red"},
+  "layout": "rail"
+}"#,
+        )
+        .expect("failed to write sf-config");
+
+        std::env::set_current_dir(tmp.path()).expect("failed to enter temp dir");
+        add_constraint("capacity_limit").expect("add_constraint should succeed");
+        let saved = std::fs::read_to_string(tmp.path().join("static").join("sf-config.json"))
+            .expect("failed to read saved sf-config");
+        std::env::set_current_dir(original_dir).expect("failed to restore current dir");
+        drop(guard);
+
+        assert!(saved.contains("\"capacity_limit\""));
+        assert!(saved.contains("\"theme\""));
+        assert!(saved.contains("\"layout\": \"rail\""));
     }
 }

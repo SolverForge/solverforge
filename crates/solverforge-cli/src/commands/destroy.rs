@@ -203,7 +203,7 @@ fn remove_from_domain_mod(mod_name: &str) -> CliResult {
     })?;
 
     let lines: Vec<&str> = content.lines().collect();
-    let mut new_lines = Vec::new();
+    let mut new_lines: Vec<String> = Vec::new();
 
     for line in lines {
         if line.trim() == format!("mod {};", mod_name)
@@ -211,7 +211,7 @@ fn remove_from_domain_mod(mod_name: &str) -> CliResult {
         {
             continue;
         }
-        new_lines.push(line);
+        new_lines.push(line.to_string());
     }
 
     let new_content = new_lines.join("\n");
@@ -286,17 +286,21 @@ fn remove_constraint_from_mod(name: &str) -> CliResult {
     })?;
 
     let lines: Vec<&str> = content.lines().collect();
-    let mut new_lines = Vec::new();
+    let mut new_lines: Vec<String> = Vec::new();
 
     for line in lines {
         if line.trim() == format!("mod {};", name) {
             continue;
         }
 
-        if line.contains(&format!("{}::", name)) {
+        if let Some(updated_line) = remove_constraint_call_from_line(line, name) {
+            if updated_line.trim().is_empty() {
+                continue;
+            }
+            new_lines.push(updated_line);
             continue;
         }
-        new_lines.push(line);
+        new_lines.push(line.to_string());
     }
 
     let result = new_lines.join("\n");
@@ -307,4 +311,69 @@ fn remove_constraint_from_mod(name: &str) -> CliResult {
     })?;
 
     Ok(())
+}
+
+fn remove_constraint_call_from_line(line: &str, name: &str) -> Option<String> {
+    let needle = format!("{name}::constraint()");
+    if !line.contains(&needle) {
+        return None;
+    }
+
+    let indent: String = line.chars().take_while(|c| c.is_whitespace()).collect();
+    let trimmed = line.trim();
+    let had_trailing_comma = trimmed.ends_with(',');
+    let without_trailing_comma = trimmed.trim_end_matches(',');
+    let has_tuple_wrapper =
+        without_trailing_comma.starts_with('(') && without_trailing_comma.ends_with(')');
+    let inner = if has_tuple_wrapper {
+        &without_trailing_comma[1..without_trailing_comma.len() - 1]
+    } else {
+        without_trailing_comma
+    };
+
+    let kept_parts: Vec<&str> = inner
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty() && *part != needle)
+        .collect();
+
+    if kept_parts.is_empty() {
+        return Some(String::new());
+    }
+
+    let mut rebuilt = if has_tuple_wrapper {
+        format!("({})", kept_parts.join(", "))
+    } else {
+        kept_parts.join(", ")
+    };
+
+    if had_trailing_comma {
+        rebuilt.push(',');
+    }
+
+    Some(format!("{indent}{rebuilt}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::remove_constraint_call_from_line;
+
+    #[test]
+    fn removes_constraint_from_multiline_tuple_entry() {
+        let line = "            all_assigned::constraint(),";
+        let updated = remove_constraint_call_from_line(line, "all_assigned")
+            .expect("line should be rewritten");
+        assert!(updated.is_empty());
+    }
+
+    #[test]
+    fn removes_constraint_from_flat_tuple_line() {
+        let line = "    (capacity::constraint(), extra::constraint(), distance::constraint())";
+        let updated =
+            remove_constraint_call_from_line(line, "extra").expect("line should be rewritten");
+        assert_eq!(
+            updated,
+            "    (capacity::constraint(), distance::constraint())"
+        );
+    }
 }

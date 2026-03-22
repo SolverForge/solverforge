@@ -139,10 +139,12 @@ impl AcceptorBuilder {
                     .starting_temperature
                     .as_ref()
                     .map(|s| {
-                        let score = S::Score::parse(s).unwrap_or_else(|e| {
-                            panic!("Invalid starting_temperature '{}': {}", s, e)
-                        });
-                        score.to_scalar().abs()
+                        s.parse::<f64>()
+                            .ok()
+                            .or_else(|| S::Score::parse(s).ok().map(|score| score.to_scalar().abs()))
+                            .unwrap_or_else(|| {
+                                panic!("Invalid starting_temperature '{}': expected scalar or score string", s)
+                            })
                     })
                     .unwrap_or(0.0);
                 AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::new(
@@ -222,6 +224,14 @@ mod tests {
     fn test_acceptor_builder_simulated_annealing() {
         let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
             starting_temperature: Some("2".to_string()),
+        });
+        let _acceptor: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
+    }
+
+    #[test]
+    fn test_acceptor_builder_simulated_annealing_accepts_fractional_scalar() {
+        let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+            starting_temperature: Some("2.5".to_string()),
         });
         let _acceptor: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
     }

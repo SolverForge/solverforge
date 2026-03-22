@@ -4,7 +4,7 @@ use super::{
     utils::{pluralize, snake_to_pascal, validate_score_type},
     wiring::{add_import, replace_score_type},
 };
-use std::sync::{Mutex, OnceLock};
+use crate::test_support;
 
 #[test]
 fn test_snake_to_pascal() {
@@ -151,12 +151,7 @@ fn test_generate_data_loader_stub_is_compile_safe() {
 
 #[test]
 fn test_remove_default_scaffold_rewrites_data_module_without_todo() {
-    static CWD_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-    let _guard = CWD_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .expect("cwd lock poisoned");
+    let guard = test_support::lock_cwd();
 
     let tmp = tempfile::tempdir().expect("failed to create temp dir");
     let original_dir = std::env::current_dir().expect("failed to get current dir");
@@ -194,6 +189,7 @@ fn test_remove_default_scaffold_rewrites_data_module_without_todo() {
     std::env::set_current_dir(tmp.path()).expect("failed to enter temp dir");
     let result = remove_default_scaffold();
     std::env::set_current_dir(original_dir).expect("failed to restore current dir");
+    drop(guard);
 
     result.expect("remove_default_scaffold should succeed");
 

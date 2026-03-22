@@ -669,6 +669,8 @@ dependencies = [
  "dialoguer",
  "include_dir",
  "owo-colors",
+ "serde",
+ "serde_json",
  "strsim",
  "tempfile",
  "toml",

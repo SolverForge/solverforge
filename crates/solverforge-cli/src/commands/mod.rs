@@ -9,4 +9,5 @@ pub mod info;
 pub mod new;
 pub mod routes;
 pub mod server;
+pub mod sf_config;
 pub mod test;

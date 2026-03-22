@@ -32,9 +32,15 @@ pub fn init() {
     INIT.get_or_init(|| {
         banner::print_banner();
 
+        #[cfg(feature = "verbose-logging")]
+        let solver_level = "solverforge_solver=debug";
+        #[cfg(not(feature = "verbose-logging"))]
+        let solver_level = "solverforge_solver=info";
+
         let filter = EnvFilter::builder()
-            .with_default_directive("solverforge_solver=info".parse().unwrap())
+            .with_default_directive(solver_level.parse().unwrap())
             .from_env_lossy()
+            .add_directive(solver_level.parse().unwrap())
             .add_directive("solverforge_dynamic=info".parse().unwrap());
 
         let _ = tracing_subscriber::registry()

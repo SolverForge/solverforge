@@ -108,6 +108,8 @@ pub fn run(
         source: e,
     })?;
 
+    crate::commands::sf_config::add_constraint(name)?;
+
     output::print_create(&format!("src/constraints/{}.rs", name));
     print_diff_verbose("", &skeleton);
     output::print_update("src/constraints/mod.rs");

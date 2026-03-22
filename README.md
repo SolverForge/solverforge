@@ -24,14 +24,14 @@ SolverForge optimizes planning and scheduling problems using metaheuristic algor
 
 ```bash
 cargo install solverforge-cli
-solverforge new my-scheduler --basic/employee-scheduling
+solverforge new my-scheduler --basic=employee-scheduling
 cd my-scheduler
 solverforge server
 ```
 
 Open http://localhost:7860 to see your solver in action.
 
-The CLI scaffolds complete projects with domain models, constraints, a web UI, and sample data. Use `solverforge generate` to add entities, facts, and constraints interactively.
+The standalone `solverforge-cli` repository scaffolds complete projects with domain models, constraints, a web UI, and sample data. Use `solverforge generate` to add entities, facts, and constraints interactively.
 
 ## Zero-Erasure Architecture
 
@@ -373,7 +373,7 @@ See the [`examples/`](examples/) directory:
 cargo run -p nqueens
 ```
 
-For comprehensive examples including employee scheduling and vehicle routing, see [SolverForge Quickstarts](https://github.com/solverforge/solverforge-quickstarts).
+For project scaffolding and end-to-end application templates, use the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository: `cargo install solverforge-cli`, then `solverforge new ...`.
 
 ## Performance
 
@@ -394,7 +394,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ### What's New in 0.6.0
 
-- **Modern CLI templates**: All three scaffolded templates (`--basic`, `--basic/employee-scheduling`, `--list/vehicle-routing`) now use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
+- **Modern CLI templates**: All three scaffolded templates (`--basic`, `--basic=employee-scheduling`, `--list=vehicle-routing`) now use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities

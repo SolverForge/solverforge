@@ -71,7 +71,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.5", features = ["console"] }
+solverforge = { version = "0.6", features = ["console"] }
 ```
 
 ### Feature Flags
@@ -189,7 +189,13 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
+<<<<<<< HEAD
                    v0.5.19 - Zero-Erasure Constraint Solver
+||||||| parent of 84beb87 (docs: update readme for 0.6.0)
+                   v0.5.18 - Zero-Erasure Constraint Solver
+=======
+                   v0.6.0 - Zero-Erasure Constraint Solver
+>>>>>>> 84beb87 (docs: update readme for 0.6.0)
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -384,9 +390,9 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.5.19
+**Current Version**: 0.6.0
 
-### What's New in 0.5.19
+### What's New in 0.6.0
 
 - **Modern CLI templates**: All three scaffolded templates (`--basic`, `--basic/employee-scheduling`, `--list/vehicle-routing`) now use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`

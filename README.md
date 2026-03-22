@@ -24,14 +24,14 @@ SolverForge optimizes planning and scheduling problems using metaheuristic algor
 
 ```bash
 cargo install solverforge-cli
-solverforge new my-scheduler --basic=employee-scheduling
+solverforge new my-scheduler --standard=employee-scheduling
 cd my-scheduler
 solverforge server
 ```
 
 Open http://localhost:7860 to see your solver in action.
 
-The standalone `solverforge-cli` repository scaffolds complete projects with domain models, constraints, a web UI, and sample data. Use `solverforge generate` to add entities, facts, and constraints interactively.
+The standalone `solverforge-cli` repository scaffolds complete projects for the two SolverForge problem classes: standard variable problems and list variable problems. It generates domain models, constraints, a web UI, and sample data. Use `solverforge generate` to add entities, facts, and constraints interactively.
 
 ## Zero-Erasure Architecture
 
@@ -189,13 +189,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-<<<<<<< HEAD
-                   v0.5.19 - Zero-Erasure Constraint Solver
-||||||| parent of 84beb87 (docs: update readme for 0.6.0)
-                   v0.5.18 - Zero-Erasure Constraint Solver
-=======
                    v0.6.0 - Zero-Erasure Constraint Solver
->>>>>>> 84beb87 (docs: update readme for 0.6.0)
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -394,7 +388,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ### What's New in 0.6.0
 
-- **Modern CLI templates**: All three scaffolded templates (`--basic`, `--basic=employee-scheduling`, `--list=vehicle-routing`) now use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
+- **Modern CLI templates**: The standalone CLI scaffolds standard variable and list variable projects via `solverforge new --standard ...` and `solverforge new --list ...`. The shipped templates use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities

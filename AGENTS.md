@@ -22,6 +22,8 @@ solverforge (facade + re-exports)
 
 Publishing order: `core -> macros -> scoring -> config -> solver -> facade`
 
+Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
+
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
 ## Wireframes Are Canonical
@@ -37,7 +39,6 @@ Current wireframes:
 - `crates/solverforge-solver/WIREFRAME.md`
 - `crates/solverforge-config/WIREFRAME.md`
 - `crates/solverforge-cvrp/WIREFRAME.md`
-- `crates/solverforge-cli/WIREFRAME.md`
 
 When public surface changes, update the matching wireframe in the same change:
 
@@ -96,7 +97,7 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 - Keep `mod.rs` files limited to module declarations and re-exports.
 - Move implementation code into dedicated files.
 - Prefer doctests for public APIs when practical, and make them compile meaningfully.
-- Keep examples and quickstarts on the public fluent API surface. If an example requires internal wiring, improve the public API instead.
+- Keep examples and scaffold-facing guidance on the public fluent API surface. If an example requires internal wiring, improve the public API instead.
 
 ## Change Policy
 

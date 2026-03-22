@@ -4,6 +4,8 @@ Facade crate: re-exports the public API from all sub-crates under a single `solv
 
 **Location:** `crates/solverforge/`
 
+The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
+
 ## Dependencies
 
 - `solverforge-core` (path) — Score types, domain traits

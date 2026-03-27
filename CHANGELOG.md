@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.6.0](///compare/v0.5.18...v0.6.0) (2026-03-27)
+
+
+### Features
+
+* **cli:** implement solverforge-cli crate with full scaffolding and codegen 9f2482c
+* **cli:** salvage generic scaffold refresh for review 27123e2
+
+
+### Bug Fixes
+
+* **cli:** fail fast in generated constraint scaffolds 871d654
+* **cli:** gate unfinished console command adaccaf
+* **cli:** hide unsupported generic list scaffold 70d8b02
+* **cli:** keep console subcommand as hidden compatibility alias 8bf6fb5
+* **cli:** make generated constraints compile safely f446968
+* **cli:** make salvaged scaffolds use published solverforge-ui 1279239
+* **cli:** preserve list specialization guidance 6986547
+* **cli:** replace data-loader panic stub 498bdc1
+* **cli:** restore scaffold smoke coverage afd5ac6
+* **cli:** satisfy strict clippy for test modules bf07e9a
+* **console:** cover production event payloads 7a25559
+* **cvrp:** reject missing shared problem data d0ce288
+* **macros:** remove duplicate pass fixture imports 565bffd
+* **release:** address integration review regressions c0f6571
+* **release:** document staged publish dry-runs f1783bb
+* **release:** port logging, score parsing, and sf-config wiring dac2498
+
 ## [0.5.19](///compare/v0.5.17...v0.5.19) (2026-03-14)
 
 

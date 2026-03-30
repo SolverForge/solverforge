@@ -166,11 +166,13 @@ pub mod __internal {
     pub use solverforge_solver::{
         build_descriptor_construction, build_descriptor_local_search,
         build_descriptor_move_selector, build_descriptor_vnd, build_list_construction,
-        build_mixed_local_search, build_mixed_vnd, descriptor_has_bindings, log_stock_solve_start,
+        build_mixed_local_search, build_mixed_stock_phases, build_mixed_vnd,
+        build_standard_stock_phases, descriptor_has_bindings, log_stock_solve_start,
         run_stock_solver, DescriptorConstruction, DescriptorLocalSearch, DescriptorVnd,
-        ListConstruction, MixedStockLocalSearch, MixedStockVnd, Phase, PhaseSequence,
-        SeedBestSolutionPhase, SolverEvent, SolverTelemetry, StockListEntity,
-        StockListVariableMetadata, StockVndPhase,
+        ListConstruction, MixedStockConstructionArgs, MixedStockLocalSearch, MixedStockVnd, Phase,
+        PhaseSequence, SeedBestSolutionPhase, SolverEvent, SolverTelemetry, StandardStockPhase,
+        StockListEntity, StockListVariableMetadata, StockPhase, StockVndPhase,
+        UnifiedMixedStockPhase,
     };
 
     // Config

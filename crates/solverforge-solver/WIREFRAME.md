@@ -25,6 +25,7 @@ src/
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── list_solver.rs                       — List construction/local-search builders, list phase enums, hidden macro metadata + `StockListEntity`
 ├── mixed_stock.rs                       — Mixed stock move envelope, selector builder, local-search/VND builders
+├── stock.rs                             — Shared stock phase enum and phase-sequence builders for standard and mixed stock solving
 ├── run.rs                               — AnyTermination, build_termination, run_solver(), run_stock_solver()
 ├── problem_spec.rs                      — ProblemSpec trait
 ├── builder/
@@ -715,11 +716,22 @@ Trait for user-authored low-level problem specs passed to `run_solver()`.
 
 ### `list_solver.rs`
 
-Public stock helpers: `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `StockListVariableMetadata<S, DM, IDM>`, `StockListEntity<S>`, `build_list_construction()`, `build_list_local_search()`
+Public stock helpers: `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `StockListVariableMetadata<S, DM, IDM>`, `StockListEntity<S>`, `build_list_construction(config: Option<&ConstructionHeuristicConfig>, ...)`, `build_list_local_search()`
 
 ### `mixed_stock.rs`
 
 Public stock helpers: `MixedStockMove<S, V>`, `MixedNeighborhood<S, V, DM, IDM>`, `MixedStockLocalSearch<S, V, DM, IDM>`, `MixedStockVnd<S, V, DM, IDM>`, `build_mixed_move_selector()`, `build_mixed_local_search()`, `build_mixed_vnd()`
+
+### `stock.rs`
+
+Shared stock runtime helpers:
+
+- `StockPhase<C, LS, VND>` — generic stock phase enum with `Seed`, `Construction`, `LocalSearch`, `Vnd`
+- `StandardStockPhase<S>` — alias over descriptor-standard construction/local-search/VND phases
+- `UnifiedMixedStockPhase<S, V, DM, IDM>` — alias over list construction plus mixed local-search/VND phases
+- `MixedStockConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
+- `build_standard_stock_phases()` — builds the full descriptor-standard stock phase sequence from `SolverConfig`
+- `build_mixed_stock_phases()` — builds the full list/mixed stock phase sequence from `SolverConfig`, `ListContext`, and `MixedStockConstructionArgs`
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 

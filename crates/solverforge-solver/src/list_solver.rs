@@ -11,7 +11,9 @@ Logging levels:
 - **TRACE**: Move evaluation details
 */
 
-use solverforge_config::{ConstructionHeuristicType, PhaseConfig, SolverConfig};
+use solverforge_config::{
+    ConstructionHeuristicConfig, ConstructionHeuristicType, PhaseConfig, SolverConfig,
+};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 use std::fmt;
@@ -234,7 +236,7 @@ where
 // Builds the construction phase from config or defaults to cheapest insertion.
 #[allow(clippy::too_many_arguments)]
 pub fn build_list_construction<S, V>(
-    config: &SolverConfig,
+    config: Option<&ConstructionHeuristicConfig>,
     element_count: fn(&S) -> usize,
     get_assigned: fn(&S) -> Vec<V>,
     entity_count: fn(&S) -> usize,
@@ -260,15 +262,7 @@ where
     V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
 {
     let (ch_type, k) = config
-        .phases
-        .iter()
-        .find_map(|p| {
-            if let PhaseConfig::ConstructionHeuristic(ch) = p {
-                Some((ch.construction_heuristic_type, ch.k))
-            } else {
-                None
-            }
-        })
+        .map(|cfg| (cfg.construction_heuristic_type, cfg.k))
         .unwrap_or((ConstructionHeuristicType::ListCheapestInsertion, 2));
 
     match ch_type {

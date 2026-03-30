@@ -31,6 +31,7 @@ pub mod run;
 pub mod scope;
 pub mod solver;
 pub mod stats;
+pub mod stock;
 pub mod termination;
 
 pub use builder::{
@@ -146,3 +147,7 @@ pub use list_solver::{
 };
 pub use problem_spec::ProblemSpec;
 pub use run::{log_stock_solve_start, run_solver, run_stock_solver};
+pub use stock::{
+    build_mixed_stock_phases, build_standard_stock_phases, MixedStockConstructionArgs,
+    StandardStockPhase, StockPhase, UnifiedMixedStockPhase,
+};

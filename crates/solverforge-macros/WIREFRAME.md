@@ -70,7 +70,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[value_range_provider]` — value range source
 
 **Consumed attributes on struct:**
-- `#[shadow_variable_updates(...)]` — configures shadow variable update generation only
+- `#[shadow_variable_updates(...)]` — configures shadow variable update generation only; stock solving does not depend on it
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 
 **`#[shadow_variable_updates]` parameters:**
@@ -95,12 +95,12 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable metadata is preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
-- List operations (when `list_owner` is configured): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
+- List operations (when `#[planning_list_element_collection(owner = "...")]` is present): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal()` (when constraints path specified) — calls `run_stock_solver()` for macro-generated stock solving (standard-only and list/mixed stock paths); explicit low-level `ProblemSpec` use remains on `run_solver()`
+- `fn solve_internal()` (when constraints path specified) — calls `run_stock_solver()` for macro-generated stock solving; generated stock helpers now delegate phase-sequence assembly to `solverforge-solver::stock` for both standard-only and list/mixed paths
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
 
 ### `ProblemFactImpl`
@@ -131,8 +131,9 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 |----------|-----------|------|
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
-| `find_list_owner_config` | `fn(&ShadowConfig, &Fields) -> Result<Option<ListOwnerConfig>, Error>` | Resolves `list_owner` to the entity collection field and descriptor index |
-| `find_list_element_collection_config` | `fn(&ListOwnerConfig, &Fields) -> Result<ListElementCollectionConfig, Error>` | Resolves `#[planning_list_element_collection(owner = "...")]` to the concrete `Vec<usize>` field |
+| `find_list_owner_config` | `fn(&ShadowConfig, &Fields) -> Result<Option<ListOwnerConfig>, Error>` | Resolves shadow `list_owner` to the entity collection field and descriptor index |
+| `find_list_element_collection_config` | `fn(&Fields) -> Result<Option<ListElementCollectionConfig>, Error>` | Resolves `#[planning_list_element_collection(owner = "...")]` to the concrete `Vec<usize>` field |
+| `find_stock_list_config` | `fn(&Fields) -> Result<Option<(ListOwnerConfig, ListElementCollectionConfig)>, Error>` | Resolves stock list ownership and the direct list element collection field without consulting `shadow_variable_updates` |
 | `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
 | `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates list variable methods from the entity-side stock registry |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |

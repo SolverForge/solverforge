@@ -209,6 +209,7 @@ struct ListOwnerConfig<'a> {
 
 struct ListElementCollectionConfig<'a> {
     field_ident: &'a Ident,
+    owner_field: String,
 }
 
 fn find_list_owner_config<'a>(
@@ -247,17 +248,13 @@ fn find_list_owner_config<'a>(
 }
 
 fn find_list_element_collection_config<'a>(
-    list_owner: &ListOwnerConfig<'_>,
     fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Result<ListElementCollectionConfig<'a>, Error> {
-    fields
+) -> Result<Option<ListElementCollectionConfig<'a>>, Error> {
+    let mut matches = fields
         .iter()
-        .find_map(|field| {
+        .filter_map(|field| {
             let attr = get_attribute(&field.attrs, "planning_list_element_collection")?;
             let owner = parse_attribute_string(attr, "owner")?;
-            if *list_owner.field_ident != owner {
-                return None;
-            }
             let field_ident = field.ident.as_ref()?;
             let inner = extract_collection_inner_type(&field.ty)?;
             let syn::Type::Path(type_path) = inner else {
@@ -267,18 +264,58 @@ fn find_list_element_collection_config<'a>(
             if segment.ident != "usize" {
                 return None;
             }
-            Some(ListElementCollectionConfig { field_ident })
+            Some(ListElementCollectionConfig {
+                field_ident,
+                owner_field: owner,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if matches.len() > 1 {
+        return Err(Error::new(
+            proc_macro2::Span::call_site(),
+            "#[planning_solution] currently supports at most one #[planning_list_element_collection(...)] field",
+        ));
+    }
+
+    Ok(matches.pop())
+}
+
+fn find_stock_list_config<'a>(
+    fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<Option<(ListOwnerConfig<'a>, ListElementCollectionConfig<'a>)>, Error> {
+    let Some(element_collection) = find_list_element_collection_config(fields)? else {
+        return Ok(None);
+    };
+
+    let owner = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .enumerate()
+        .find_map(|(descriptor_index, field)| {
+            let field_ident = field.ident.as_ref()?;
+            if *field_ident != element_collection.owner_field {
+                return None;
+            }
+            let entity_type = extract_collection_inner_type(&field.ty)?;
+            Some(ListOwnerConfig {
+                field_ident,
+                entity_type,
+                descriptor_index,
+            })
         })
         .ok_or_else(|| {
             Error::new(
                 proc_macro2::Span::call_site(),
                 format!(
                     "planning solution with list owner `{}` requires a `#[planning_list_element_collection(owner = \"{}\")]` field of type Vec<usize>",
-                    list_owner.field_ident,
-                    list_owner.field_ident,
+                    element_collection.owner_field,
+                    element_collection.owner_field,
                 ),
             )
-        })
+        })?;
+
+    Ok(Some((owner, element_collection)))
 }
 
 fn shadow_updates_requested(config: &ShadowConfig) -> bool {
@@ -292,14 +329,13 @@ fn shadow_updates_requested(config: &ShadowConfig) -> bool {
 }
 
 fn generate_list_operations(
-    config: &ShadowConfig,
+    _config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     _solution_name: &Ident,
 ) -> Result<TokenStream, Error> {
-    let Some(list_owner) = find_list_owner_config(config, fields)? else {
+    let Some((list_owner, element_collection)) = find_stock_list_config(fields)? else {
         return Ok(TokenStream::new());
     };
-    let element_collection = find_list_element_collection_config(&list_owner, fields)?;
 
     let descriptor_index_lit = syn::LitInt::new(
         &list_owner.descriptor_index.to_string(),
@@ -456,7 +492,6 @@ fn generate_stock_solve_internal(
 
     let constraints_fn: syn::Path =
         syn::parse_str(path).expect("constraints path must be a valid Rust path");
-
     quote! {
         fn solve_internal(
             self,
@@ -482,7 +517,7 @@ fn generate_stock_solve_internal(
 }
 
 fn generate_stock_phase_support(
-    shadow_config: &ShadowConfig,
+    _shadow_config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
     solution_name: &Ident,
@@ -491,15 +526,9 @@ fn generate_stock_phase_support(
         return TokenStream::new();
     }
 
-    let phase_name = syn::Ident::new(
-        &format!("__SolverforgeStockPhaseFor{}", solution_name),
-        proc_macro2::Span::call_site(),
-    );
-
-    if shadow_config.list_owner.is_some() {
-        let list_owner = find_list_owner_config(shadow_config, fields)
-            .expect("list owner validation should have succeeded")
-            .expect("list_owner presence should imply an owner config");
+    if let Some((list_owner, _element_collection)) =
+        find_stock_list_config(fields).expect("stock list config validation should have succeeded")
+    {
         let list_owner_type = list_owner.entity_type;
         let list_trait = quote! {
             <#list_owner_type as ::solverforge::__internal::StockListEntity<#solution_name>>
@@ -510,48 +539,6 @@ fn generate_stock_phase_support(
         );
 
         return quote! {
-            #[derive(Debug)]
-            enum #phase_name {
-                Seed(::solverforge::__internal::SeedBestSolutionPhase),
-                Construction(::solverforge::__internal::ListConstruction<#solution_name, usize>),
-                LocalSearch(
-                    ::solverforge::__internal::MixedStockLocalSearch<
-                        #solution_name,
-                        usize,
-                        #list_trait::CrossDistanceMeter,
-                        #list_trait::IntraDistanceMeter,
-                    >,
-                ),
-                Vnd(
-                    ::solverforge::__internal::MixedStockVnd<
-                        #solution_name,
-                        usize,
-                        #list_trait::CrossDistanceMeter,
-                        #list_trait::IntraDistanceMeter,
-                    >,
-                ),
-            }
-
-            impl<Dir, ProgressCb> ::solverforge::__internal::Phase<#solution_name, Dir, ProgressCb> for #phase_name
-            where
-                Dir: ::solverforge::__internal::Director<#solution_name>,
-                ProgressCb: ::solverforge::__internal::ProgressCallback<#solution_name>,
-            {
-                fn solve(
-                    &mut self,
-                    solver_scope: &mut ::solverforge::__internal::SolverScope<'_, #solution_name, Dir, ProgressCb>,
-                ) {
-                    match self {
-                        Self::Seed(phase) => phase.solve(solver_scope),
-                        Self::Construction(phase) => phase.solve(solver_scope),
-                        Self::LocalSearch(phase) => phase.solve(solver_scope),
-                        Self::Vnd(phase) => phase.solve(solver_scope),
-                    }
-                }
-
-                fn phase_type_name(&self) -> &'static str { "MixedStockPhase" }
-            }
-
             impl #solution_name {
                 const fn __solverforge_stock_default_time_limit_secs() -> u64 {
                     60
@@ -579,7 +566,14 @@ fn generate_stock_phase_support(
 
                 fn __solverforge_build_stock_phases(
                     config: &::solverforge::__internal::SolverConfig,
-                ) -> ::solverforge::__internal::PhaseSequence<#phase_name> {
+                ) -> ::solverforge::__internal::PhaseSequence<
+                    ::solverforge::__internal::UnifiedMixedStockPhase<
+                        #solution_name,
+                        usize,
+                        #list_trait::CrossDistanceMeter,
+                        #list_trait::IntraDistanceMeter,
+                    >
+                > {
                     let descriptor = Self::descriptor();
                     let metadata = #list_trait::stock_list_metadata();
                     let list_ctx = ::solverforge::__internal::ListContext::new(
@@ -599,146 +593,40 @@ fn generate_stock_phase_support(
                         #list_trait::STOCK_LIST_VARIABLE_NAME,
                         #descriptor_index_lit,
                     );
-
-                    let mut phases = ::std::vec::Vec::new();
-
-                    if config.phases.is_empty() {
-                        phases.push(#phase_name::Seed(::solverforge::__internal::SeedBestSolutionPhase::default()));
-                        phases.push(#phase_name::Construction(::solverforge::__internal::build_list_construction(
-                            config,
-                            Self::element_count,
-                            Self::assigned_elements,
-                            Self::n_entities,
-                            Self::list_len_static,
-                            Self::list_insert,
-                            Self::list_remove_for_construction,
-                            Self::index_to_element_static,
-                            #descriptor_index_lit,
-                            metadata.cw_depot_fn,
-                            metadata.cw_distance_fn,
-                            metadata.cw_element_load_fn,
-                            metadata.cw_capacity_fn,
-                            metadata.cw_assign_route_fn,
-                            metadata.merge_feasible_fn,
-                            metadata.k_opt_get_route,
-                            metadata.k_opt_set_route,
-                            metadata.k_opt_depot_fn,
-                            metadata.k_opt_distance_fn,
-                            metadata.k_opt_feasible_fn,
-                        )));
-                        phases.push(#phase_name::LocalSearch(::solverforge::__internal::build_mixed_local_search(
-                            None,
-                            &descriptor,
-                            &list_ctx,
-                        )));
-                        return ::solverforge::__internal::PhaseSequence::new(phases);
-                    }
-
-                    let mut saw_seed = false;
-                    for phase in &config.phases {
-                        match phase {
-                            ::solverforge::__internal::PhaseConfig::ConstructionHeuristic(ch) => {
-                                if let Some(variable_name) = ch.target.variable_name.as_deref() {
-                                    if variable_name != #list_trait::STOCK_LIST_VARIABLE_NAME {
-                                        panic!(
-                                            "construction heuristic targeting standard variables is not implemented in the unified stock path yet"
-                                        );
-                                    }
-                                } else if ch.target.entity_class.is_some() {
-                                    panic!(
-                                        "construction heuristic entity_class targeting is not implemented in the unified stock path yet"
-                                    );
-                                }
-                                if !saw_seed {
-                                    phases.push(#phase_name::Seed(::solverforge::__internal::SeedBestSolutionPhase::default()));
-                                    saw_seed = true;
-                                }
-                                phases.push(#phase_name::Construction(::solverforge::__internal::build_list_construction(
-                                    config,
-                                    Self::element_count,
-                                    Self::assigned_elements,
-                                    Self::n_entities,
-                                    Self::list_len_static,
-                                    Self::list_insert,
-                                    Self::list_remove_for_construction,
-                                    Self::index_to_element_static,
-                                    #descriptor_index_lit,
-                                    metadata.cw_depot_fn,
-                                    metadata.cw_distance_fn,
-                                    metadata.cw_element_load_fn,
-                                    metadata.cw_capacity_fn,
-                                    metadata.cw_assign_route_fn,
-                                    metadata.merge_feasible_fn,
-                                    metadata.k_opt_get_route,
-                                    metadata.k_opt_set_route,
-                                    metadata.k_opt_depot_fn,
-                                    metadata.k_opt_distance_fn,
-                                    metadata.k_opt_feasible_fn,
-                                )));
-                            }
-                            ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => {
-                                if !saw_seed {
-                                    phases.push(#phase_name::Seed(::solverforge::__internal::SeedBestSolutionPhase::default()));
-                                    saw_seed = true;
-                                }
-                                phases.push(#phase_name::LocalSearch(::solverforge::__internal::build_mixed_local_search(
-                                    ::core::option::Option::Some(ls),
-                                    &descriptor,
-                                    &list_ctx,
-                                )));
-                            }
-                            ::solverforge::__internal::PhaseConfig::Vnd(vnd) => {
-                                if !saw_seed {
-                                    phases.push(#phase_name::Seed(::solverforge::__internal::SeedBestSolutionPhase::default()));
-                                    saw_seed = true;
-                                }
-                                phases.push(#phase_name::Vnd(::solverforge::__internal::build_mixed_vnd(
-                                    vnd,
-                                    &descriptor,
-                                    &list_ctx,
-                                )));
-                            }
-                            _ => {
-                                panic!("unsupported stock phase in unified stock runtime");
-                            }
-                        }
-                    }
-
-                    ::solverforge::__internal::PhaseSequence::new(phases)
+                    let construction = ::solverforge::__internal::MixedStockConstructionArgs {
+                        element_count: Self::element_count,
+                        assigned_elements: Self::assigned_elements,
+                        entity_count: Self::n_entities,
+                        list_len: Self::list_len_static,
+                        list_insert: Self::list_insert,
+                        list_remove: Self::list_remove_for_construction,
+                        index_to_element: Self::index_to_element_static,
+                        descriptor_index: #descriptor_index_lit,
+                        depot_fn: metadata.cw_depot_fn,
+                        distance_fn: metadata.cw_distance_fn,
+                        element_load_fn: metadata.cw_element_load_fn,
+                        capacity_fn: metadata.cw_capacity_fn,
+                        assign_route_fn: metadata.cw_assign_route_fn,
+                        merge_feasible_fn: metadata.merge_feasible_fn,
+                        k_opt_get_route: metadata.k_opt_get_route,
+                        k_opt_set_route: metadata.k_opt_set_route,
+                        k_opt_depot_fn: metadata.k_opt_depot_fn,
+                        k_opt_distance_fn: metadata.k_opt_distance_fn,
+                        k_opt_feasible_fn: metadata.k_opt_feasible_fn,
+                    };
+                    ::solverforge::__internal::build_mixed_stock_phases(
+                        config,
+                        &descriptor,
+                        &list_ctx,
+                        construction,
+                        #list_trait::STOCK_LIST_VARIABLE_NAME,
+                    )
                 }
             }
         };
     }
 
     quote! {
-        #[derive(Debug)]
-        enum #phase_name {
-            Seed(::solverforge::__internal::SeedBestSolutionPhase),
-            Construction(::solverforge::__internal::DescriptorConstruction<#solution_name>),
-            LocalSearch(::solverforge::__internal::DescriptorLocalSearch<#solution_name>),
-            Vnd(::solverforge::__internal::DescriptorVnd<#solution_name>),
-        }
-
-        impl<Dir, ProgressCb> ::solverforge::__internal::Phase<#solution_name, Dir, ProgressCb> for #phase_name
-        where
-            Dir: ::solverforge::__internal::Director<#solution_name>,
-            ProgressCb: ::solverforge::__internal::ProgressCallback<#solution_name>,
-        {
-            fn solve(
-                &mut self,
-                solver_scope: &mut ::solverforge::__internal::SolverScope<'_, #solution_name, Dir, ProgressCb>,
-            ) {
-                match self {
-                    Self::Seed(phase) => phase.solve(solver_scope),
-                    Self::Construction(phase) => phase.solve(solver_scope),
-                    Self::LocalSearch(phase) => phase.solve(solver_scope),
-                    Self::Vnd(phase) => phase.solve(solver_scope),
-                }
-            }
-
-            fn phase_type_name(&self) -> &'static str { "StandardStockPhase" }
-        }
-
         impl #solution_name {
             const fn __solverforge_stock_default_time_limit_secs() -> u64 {
                 30
@@ -769,59 +657,11 @@ fn generate_stock_phase_support(
 
             fn __solverforge_build_stock_phases(
                 config: &::solverforge::__internal::SolverConfig,
-            ) -> ::solverforge::__internal::PhaseSequence<#phase_name> {
+            ) -> ::solverforge::__internal::PhaseSequence<
+                ::solverforge::__internal::StandardStockPhase<#solution_name>
+            > {
                 let descriptor = Self::descriptor();
-                let mut phases = ::std::vec::Vec::new();
-
-                if config.phases.is_empty() {
-                    phases.push(#phase_name::Construction(
-                        ::solverforge::__internal::build_descriptor_construction(None, &descriptor),
-                    ));
-                    phases.push(#phase_name::LocalSearch(
-                        ::solverforge::__internal::build_descriptor_local_search(None, &descriptor),
-                    ));
-                    return ::solverforge::__internal::PhaseSequence::new(phases);
-                }
-
-                let mut saw_seed = false;
-                for phase in &config.phases {
-                    match phase {
-                        ::solverforge::__internal::PhaseConfig::ConstructionHeuristic(ch) => {
-                            phases.push(#phase_name::Construction(
-                                ::solverforge::__internal::build_descriptor_construction(
-                                    ::core::option::Option::Some(ch),
-                                    &descriptor,
-                                ),
-                            ));
-                        }
-                        ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => {
-                            if !saw_seed {
-                                phases.push(#phase_name::Seed(::solverforge::__internal::SeedBestSolutionPhase::default()));
-                                saw_seed = true;
-                            }
-                            phases.push(#phase_name::LocalSearch(
-                                ::solverforge::__internal::build_descriptor_local_search(
-                                    ::core::option::Option::Some(ls),
-                                    &descriptor,
-                                ),
-                            ));
-                        }
-                        ::solverforge::__internal::PhaseConfig::Vnd(vnd) => {
-                            if !saw_seed {
-                                phases.push(#phase_name::Seed(::solverforge::__internal::SeedBestSolutionPhase::default()));
-                                saw_seed = true;
-                            }
-                            phases.push(#phase_name::Vnd(
-                                ::solverforge::__internal::build_descriptor_vnd(vnd, &descriptor),
-                            ));
-                        }
-                        _ => {
-                            panic!("unsupported stock phase in standard stock runtime");
-                        }
-                    }
-                }
-
-                ::solverforge::__internal::PhaseSequence::new(phases)
+                ::solverforge::__internal::build_standard_stock_phases(config, &descriptor)
             }
         }
     }
@@ -920,7 +760,18 @@ fn generate_shadow_support(
             "#[shadow_variable_updates(...)] requires `list_owner = \"entity_collection_field\"` when shadow updates are configured",
         ));
     };
-    let element_collection = find_list_element_collection_config(&list_owner, fields)?;
+    let Some(element_collection) = find_list_element_collection_config(fields)?
+        .filter(|element_collection| *list_owner.field_ident == element_collection.owner_field)
+    else {
+        return Err(Error::new(
+            proc_macro2::Span::call_site(),
+            format!(
+                "planning solution with list owner `{}` requires a `#[planning_list_element_collection(owner = \"{}\")]` field of type Vec<usize>",
+                list_owner.field_ident,
+                list_owner.field_ident,
+            ),
+        ));
+    };
 
     let list_owner_ident = list_owner.field_ident;
     let element_collection_ident = element_collection.field_ident;

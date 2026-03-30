@@ -23,8 +23,9 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── standard.rs                             — StandardSpec struct
-├── list_solver.rs                       — ListSpec struct
+├── standard.rs                          — Legacy single-variable standard stock runtime
+├── list_solver.rs                       — ListSpec, list construction/local-search builders, list phase enums
+├── mixed_stock.rs                       — Mixed stock move envelope, selector builder, local-search/VND builders
 ├── run.rs                               — AnyTermination, build_termination, run_solver(), run_stock_solver()
 ├── problem_spec.rs                      — ProblemSpec trait
 ├── builder/
@@ -713,13 +714,17 @@ Aggregate and per-phase metrics: step count, moves evaluated/accepted, score cal
 
 Trait that abstracts over basic and list-variable problems for config-driven solver construction.
 
-### `StandardSpec` — `standard.rs`
+### `standard.rs`
 
-Concrete `ProblemSpec` implementation for basic (non-list) variable problems. Wires construction + local search with `SimulatedAnnealing` + `AcceptedCountForager` using `UnionMoveSelector` of `EitherChangeMoveSelector` + `EitherSwapMoveSelector`.
+Legacy single-variable stock runtime kept for the old explicit `ProblemSpec` path.
 
-### `ListSpec` — `list_solver.rs`
+### `list_solver.rs`
 
-Concrete `ProblemSpec` implementation for list-variable problems. Wires list construction + local search phases for ordered/routed planning problems.
+Public stock helpers: `ListSpec`, `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `build_list_construction()`, `build_list_local_search()`
+
+### `mixed_stock.rs`
+
+Public stock helpers: `MixedStockMove<S, V>`, `MixedNeighborhood<S, V, DM, IDM>`, `MixedStockLocalSearch<S, V, DM, IDM>`, `MixedStockVnd<S, V, DM, IDM>`, `build_mixed_move_selector()`, `build_mixed_local_search()`, `build_mixed_vnd()`
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 

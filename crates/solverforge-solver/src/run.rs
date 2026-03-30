@@ -168,6 +168,21 @@ where
     (termination, time_limit)
 }
 
+pub fn log_stock_solve_start(
+    entity_count: usize,
+    element_count: Option<usize>,
+    has_standard: Option<bool>,
+    variable_count: Option<usize>,
+) {
+    info!(
+        event = "solve_start",
+        entity_count = entity_count,
+        element_count = ?element_count,
+        has_standard = ?has_standard,
+        variable_count = ?variable_count,
+    );
+}
+
 /* Solves a problem using the given `ProblemSpec` for problem-specific logic.
 
 This is the unified entry point for both standard variable and list variable

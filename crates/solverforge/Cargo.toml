@@ -20,6 +20,7 @@ solverforge-solver = { version = "0.7.0", path = "../solverforge-solver" }
 solverforge-config = { version = "0.7.0", path = "../solverforge-config" }
 
 solverforge-cvrp = { version = "0.7.0", path = "../solverforge-cvrp" }
+tokio = { workspace = true, features = ["sync"] }
 
 # Console output (optional)
 solverforge-console = { version = "0.7.0", path = "../solverforge-console", optional = true }

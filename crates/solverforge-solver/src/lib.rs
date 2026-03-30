@@ -23,6 +23,7 @@ pub mod descriptor_standard;
 pub mod heuristic;
 pub mod list_solver;
 pub mod manager;
+pub mod mixed_stock;
 pub mod phase;
 pub mod problem_spec;
 pub mod realtime;
@@ -36,6 +37,11 @@ pub mod termination;
 pub use builder::{
     AcceptorBuilder, AnyAcceptor, AnyForager, ForagerBuilder, ListContext, ListLeafSelector,
     ListMoveSelectorBuilder, StandardContext, StandardLeafSelector, StandardMoveSelectorBuilder,
+};
+pub use descriptor_standard::{
+    build_descriptor_construction, build_descriptor_local_search, build_descriptor_move_selector,
+    build_descriptor_vnd, descriptor_has_bindings, DescriptorConstruction, DescriptorEitherMove,
+    DescriptorLeafSelector, DescriptorLocalSearch, DescriptorVnd, SeedBestSolutionPhase,
 };
 pub use heuristic::{
     // K-opt reconnection patterns
@@ -92,6 +98,10 @@ pub use manager::{
     LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
+pub use mixed_stock::{
+    build_mixed_local_search, build_mixed_move_selector, build_mixed_vnd, MixedNeighborhood,
+    MixedStockLocalSearch, MixedStockMove, MixedStockVnd,
+};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
@@ -130,8 +140,8 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use descriptor_standard::DescriptorStandardSpec;
-pub use list_solver::ListSpec;
+pub use list_solver::{
+    build_list_construction, build_list_local_search, ListConstruction, ListLocalSearch, ListSpec,
+};
 pub use problem_spec::ProblemSpec;
-pub use run::{run_solver, run_stock_solver};
-pub use standard::StandardSpec;
+pub use run::{log_stock_solve_start, run_solver, run_stock_solver};

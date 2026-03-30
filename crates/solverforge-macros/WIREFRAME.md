@@ -101,7 +101,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` (when any variable config present) — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal()` (when constraints path specified) — calls `run_solver()` (basic) or `run_list_solver()` (list)
+- `fn solve_internal()` (when constraints path specified) — calls `run_stock_solver()` for macro-generated stock solving (standard-only and list/mixed stock paths); explicit low-level `ProblemSpec` use remains on `run_solver()`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
 - `pub trait {Entity}UnassignedFilter<Sc, E, F>` (when `standard_variable_config` present) — `.unassigned()` method on `UniConstraintStream` filtering entities where the planning variable is `None`
 

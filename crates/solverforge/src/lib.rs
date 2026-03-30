@@ -85,8 +85,8 @@ Solver
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverEvent,
-    SolverManager, SolverStatus, SolverTelemetry,
+    analyze, run_solver, run_stock_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
+    SolverEvent, SolverManager, SolverStatus, SolverTelemetry,
 };
 
 /* ============================================================================
@@ -152,21 +152,30 @@ pub mod __internal {
     pub use solverforge_scoring::{
         Director, ScoreDirector, ShadowVariableSupport, SolvableSolution,
     };
+    pub use tokio::sync::mpsc::UnboundedSender;
 
     // Solver infrastructure
+    pub use solverforge_solver::builder::ListContext;
+    pub use solverforge_solver::descriptor_standard::DescriptorStandardSpec;
     pub use solverforge_solver::heuristic::selector::{
         DefaultDistanceMeter, FromSolutionEntitySelector,
     };
     pub use solverforge_solver::manager::{
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
+    pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
+    pub use solverforge_solver::standard::StandardSpec;
     pub use solverforge_solver::{
-        run_stock_solver, DescriptorStandardSpec, ListSpec, SolverEvent, SolverTelemetry,
-        StandardSpec, StockVndPhase,
+        build_descriptor_construction, build_descriptor_local_search,
+        build_descriptor_move_selector, build_descriptor_vnd, build_list_construction,
+        build_mixed_local_search, build_mixed_vnd, descriptor_has_bindings, log_stock_solve_start,
+        run_stock_solver, DescriptorConstruction, DescriptorLocalSearch, DescriptorVnd,
+        ListConstruction, MixedStockLocalSearch, MixedStockVnd, Phase, PhaseSequence,
+        SeedBestSolutionPhase, SolverEvent, SolverTelemetry, StockVndPhase,
     };
 
     // Config
-    pub use solverforge_config::SolverConfig;
+    pub use solverforge_config::{PhaseConfig, SolverConfig};
 
     // Stream types needed for macro-generated extension traits
     pub use solverforge_scoring::stream::filter::{

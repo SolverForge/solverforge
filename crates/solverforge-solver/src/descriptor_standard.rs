@@ -4,7 +4,10 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use solverforge_config::{MoveSelectorConfig, PhaseConfig, SolverConfig};
+use solverforge_config::{
+    ConstructionHeuristicConfig, ConstructionHeuristicType, MoveSelectorConfig, PhaseConfig,
+    SolverConfig, VndConfig,
+};
 use solverforge_core::domain::{
     SolutionDescriptor, UsizeEntityValueProvider, UsizeGetter, UsizeSetter, ValueRangeType,
 };
@@ -16,9 +19,14 @@ use crate::builder::{AcceptorBuilder, AnyAcceptor, AnyForager, ForagerBuilder};
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::typed_move_selector::MoveSelector;
+use crate::heuristic::selector::EntityReference;
+use crate::phase::construction::{
+    BestFitForager, ConstructionHeuristicPhase, EntityPlacer, FirstFitForager, Placement,
+};
 use crate::phase::localsearch::{
     AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
 };
+use crate::phase::stock_vnd::StockVndPhase;
 use crate::problem_spec::ProblemSpec;
 use crate::run::AnyTermination;
 use crate::scope::{ProgressCallback, SolverScope};
@@ -527,7 +535,7 @@ where
     }
 }
 
-type DescriptorLocalSearch<S> = LocalSearchPhase<
+pub type DescriptorLocalSearch<S> = LocalSearchPhase<
     S,
     DescriptorEitherMove<S>,
     VecUnionSelector<S, DescriptorEitherMove<S>, DescriptorLeafSelector<S>>,
@@ -535,8 +543,56 @@ type DescriptorLocalSearch<S> = LocalSearchPhase<
     AnyForager<S>,
 >;
 
+pub type DescriptorVnd<S> = StockVndPhase<S, DescriptorEitherMove<S>, DescriptorLeafSelector<S>>;
+
+pub enum DescriptorConstruction<S: solverforge_core::domain::PlanningSolution> {
+    FirstFit(
+        ConstructionHeuristicPhase<
+            S,
+            DescriptorEitherMove<S>,
+            DescriptorEntityPlacer<S>,
+            FirstFitForager<S, DescriptorEitherMove<S>>,
+        >,
+    ),
+    BestFit(
+        ConstructionHeuristicPhase<
+            S,
+            DescriptorEitherMove<S>,
+            DescriptorEntityPlacer<S>,
+            BestFitForager<S, DescriptorEitherMove<S>>,
+        >,
+    ),
+}
+
+impl<S: solverforge_core::domain::PlanningSolution> Debug for DescriptorConstruction<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FirstFit(phase) => write!(f, "DescriptorConstruction::FirstFit({phase:?})"),
+            Self::BestFit(phase) => write!(f, "DescriptorConstruction::BestFit({phase:?})"),
+        }
+    }
+}
+
+impl<S, D, ProgressCb> crate::phase::Phase<S, D, ProgressCb> for DescriptorConstruction<S>
+where
+    S: solverforge_core::domain::PlanningSolution + 'static,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
+        match self {
+            Self::FirstFit(phase) => phase.solve(solver_scope),
+            Self::BestFit(phase) => phase.solve(solver_scope),
+        }
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "DescriptorConstruction"
+    }
+}
+
 #[derive(Debug, Default)]
-struct SeedBestSolutionPhase;
+pub struct SeedBestSolutionPhase;
 
 impl<S, D, ProgressCb> crate::phase::Phase<S, D, ProgressCb> for SeedBestSolutionPhase
 where
@@ -552,6 +608,88 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "SeedBestSolution"
+    }
+}
+
+#[derive(Clone)]
+pub struct DescriptorEntityPlacer<S> {
+    bindings: Vec<VariableBinding>,
+    solution_descriptor: SolutionDescriptor,
+    _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S> Debug for DescriptorEntityPlacer<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DescriptorEntityPlacer")
+            .field("bindings", &self.bindings)
+            .finish()
+    }
+}
+
+impl<S> DescriptorEntityPlacer<S> {
+    fn new(bindings: Vec<VariableBinding>, solution_descriptor: SolutionDescriptor) -> Self {
+        Self {
+            bindings,
+            solution_descriptor,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S> EntityPlacer<S, DescriptorEitherMove<S>> for DescriptorEntityPlacer<S>
+where
+    S: solverforge_core::domain::PlanningSolution + 'static,
+{
+    fn get_placements<D: Director<S>>(
+        &self,
+        score_director: &D,
+    ) -> Vec<Placement<S, DescriptorEitherMove<S>>> {
+        let mut placements = Vec::new();
+
+        for binding in &self.bindings {
+            let count = score_director
+                .entity_count(binding.descriptor_index)
+                .unwrap_or(0);
+
+            for entity_index in 0..count {
+                let entity = self
+                    .solution_descriptor
+                    .get_entity(
+                        score_director.working_solution() as &dyn Any,
+                        binding.descriptor_index,
+                        entity_index,
+                    )
+                    .expect("entity lookup failed for descriptor construction");
+                let current_value = (binding.getter)(entity);
+                if current_value.is_some() {
+                    continue;
+                }
+
+                let moves = binding
+                    .values_for_entity(entity)
+                    .into_iter()
+                    .map(|value| {
+                        DescriptorEitherMove::Change(DescriptorChangeMove::new(
+                            binding.clone(),
+                            entity_index,
+                            Some(value),
+                            self.solution_descriptor.clone(),
+                        ))
+                    })
+                    .collect::<Vec<_>>();
+
+                if moves.is_empty() {
+                    continue;
+                }
+
+                placements.push(Placement::new(
+                    EntityReference::new(binding.descriptor_index, entity_index),
+                    moves,
+                ));
+            }
+        }
+
+        placements
     }
 }
 
@@ -592,10 +730,14 @@ fn find_binding(
         .collect()
 }
 
-fn build_move_selector<S>(
+pub fn descriptor_has_bindings(descriptor: &SolutionDescriptor) -> bool {
+    !collect_bindings(descriptor).is_empty()
+}
+
+fn collect_descriptor_leaf_selectors<S>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
-) -> VecUnionSelector<S, DescriptorEitherMove<S>, DescriptorLeafSelector<S>>
+) -> Vec<DescriptorLeafSelector<S>>
 where
     S: solverforge_core::domain::PlanningSolution + 'static,
 {
@@ -688,7 +830,99 @@ where
         "stock move selector configuration produced no standard neighborhoods"
     );
 
-    VecUnionSelector::new(leaves)
+    leaves
+}
+
+pub fn build_descriptor_move_selector<S>(
+    config: Option<&MoveSelectorConfig>,
+    descriptor: &SolutionDescriptor,
+) -> VecUnionSelector<S, DescriptorEitherMove<S>, DescriptorLeafSelector<S>>
+where
+    S: solverforge_core::domain::PlanningSolution + 'static,
+{
+    VecUnionSelector::new(collect_descriptor_leaf_selectors(config, descriptor))
+}
+
+pub fn build_descriptor_local_search<S>(
+    config: Option<&solverforge_config::LocalSearchConfig>,
+    descriptor: &SolutionDescriptor,
+) -> DescriptorLocalSearch<S>
+where
+    S: solverforge_core::domain::PlanningSolution + 'static,
+    S::Score: Score + ParseableScore,
+{
+    let acceptor = config
+        .and_then(|ls| ls.acceptor.as_ref())
+        .map(AcceptorBuilder::build::<S>)
+        .unwrap_or_else(|| AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::default()));
+
+    let forager = config
+        .and_then(|ls| ls.forager.as_ref())
+        .map(|cfg| ForagerBuilder::build::<S>(Some(cfg)))
+        .unwrap_or_else(|| AnyForager::AcceptedCount(AcceptedCountForager::new(1)));
+
+    let move_selector =
+        build_descriptor_move_selector(config.and_then(|ls| ls.move_selector.as_ref()), descriptor);
+    DescriptorLocalSearch::new(move_selector, acceptor, forager, None)
+}
+
+pub fn build_descriptor_construction<S>(
+    config: Option<&ConstructionHeuristicConfig>,
+    descriptor: &SolutionDescriptor,
+) -> DescriptorConstruction<S>
+where
+    S: solverforge_core::domain::PlanningSolution + 'static,
+{
+    let placer = DescriptorEntityPlacer::new(collect_bindings(descriptor), descriptor.clone());
+    let construction_type = config
+        .map(|cfg| cfg.construction_heuristic_type)
+        .unwrap_or(ConstructionHeuristicType::FirstFit);
+
+    match construction_type {
+        ConstructionHeuristicType::FirstFit => DescriptorConstruction::FirstFit(
+            ConstructionHeuristicPhase::new(placer, FirstFitForager::new()),
+        ),
+        ConstructionHeuristicType::CheapestInsertion => DescriptorConstruction::BestFit(
+            ConstructionHeuristicPhase::new(placer, BestFitForager::new()),
+        ),
+        ConstructionHeuristicType::FirstFitDecreasing
+        | ConstructionHeuristicType::WeakestFit
+        | ConstructionHeuristicType::WeakestFitDecreasing
+        | ConstructionHeuristicType::StrongestFit
+        | ConstructionHeuristicType::StrongestFitDecreasing
+        | ConstructionHeuristicType::AllocateEntityFromQueue
+        | ConstructionHeuristicType::AllocateToValueFromQueue
+        | ConstructionHeuristicType::ListRoundRobin
+        | ConstructionHeuristicType::ListCheapestInsertion
+        | ConstructionHeuristicType::ListRegretInsertion
+        | ConstructionHeuristicType::ListClarkeWright
+        | ConstructionHeuristicType::ListKOpt => {
+            panic!(
+                "descriptor standard construction does not support {:?}",
+                construction_type
+            );
+        }
+    }
+}
+
+pub fn build_descriptor_vnd<S>(
+    config: &VndConfig,
+    descriptor: &SolutionDescriptor,
+) -> DescriptorVnd<S>
+where
+    S: solverforge_core::domain::PlanningSolution + 'static,
+{
+    let neighborhoods = if config.neighborhoods.is_empty() {
+        collect_descriptor_leaf_selectors::<S>(None, descriptor)
+    } else {
+        config
+            .neighborhoods
+            .iter()
+            .flat_map(|selector| collect_descriptor_leaf_selectors::<S>(Some(selector), descriptor))
+            .collect()
+    };
+
+    StockVndPhase::new(neighborhoods)
 }
 
 pub struct DescriptorStandardSpec;
@@ -752,7 +986,7 @@ where
             .map(|_| ForagerBuilder::build::<S>(ls_config.and_then(|ls| ls.forager.as_ref())))
             .unwrap_or_else(|| AnyForager::AcceptedCount(AcceptedCountForager::new(1)));
 
-        let move_selector = build_move_selector(
+        let move_selector = build_descriptor_move_selector(
             ls_config.and_then(|ls| ls.move_selector.as_ref()),
             &solution_descriptor,
         );

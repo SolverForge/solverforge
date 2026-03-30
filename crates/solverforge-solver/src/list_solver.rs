@@ -59,7 +59,7 @@ type DefaultListLocalSearch<S, V, DM, IDM> = LocalSearchPhase<
 // Monomorphized local search enum for list solver.
 // Variants intentionally differ in size; this enum is constructed once per solve, not in hot paths.
 #[allow(clippy::large_enum_variant)]
-enum ListLocalSearch<S, V, DM, IDM>
+pub enum ListLocalSearch<S, V, DM, IDM>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -70,8 +70,23 @@ where
     Config(ConfigListLocalSearch<S, V, DM, IDM>),
 }
 
+impl<S, V, DM, IDM> fmt::Debug for ListLocalSearch<S, V, DM, IDM>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + fmt::Debug,
+    IDM: CrossEntityDistanceMeter<S> + fmt::Debug + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Default(phase) => write!(f, "ListLocalSearch::Default({phase:?})"),
+            Self::Config(phase) => write!(f, "ListLocalSearch::Config({phase:?})"),
+        }
+    }
+}
+
 // Construction phase enum for list solver.
-enum ListConstruction<S, V>
+pub enum ListConstruction<S, V>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
@@ -80,6 +95,27 @@ where
     RegretInsertion(ListRegretInsertionPhase<S, V>),
     ClarkeWright(ListClarkeWrightPhase<S, V>),
     KOpt(ListKOptPhase<S, V>),
+}
+
+impl<S, V> fmt::Debug for ListConstruction<S, V>
+where
+    S: PlanningSolution,
+    V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CheapestInsertion(phase) => {
+                write!(f, "ListConstruction::CheapestInsertion({phase:?})")
+            }
+            Self::RegretInsertion(phase) => {
+                write!(f, "ListConstruction::RegretInsertion({phase:?})")
+            }
+            Self::ClarkeWright(phase) => {
+                write!(f, "ListConstruction::ClarkeWright({phase:?})")
+            }
+            Self::KOpt(phase) => write!(f, "ListConstruction::KOpt({phase:?})"),
+        }
+    }
 }
 
 /// Problem specification for list variable problems.
@@ -296,9 +332,53 @@ where
     }
 }
 
+impl<S, V, D, ProgressCb, DM, IDM> crate::phase::Phase<S, D, ProgressCb>
+    for ListLocalSearch<S, V, DM, IDM>
+where
+    S: PlanningSolution,
+    S::Score: Score + ParseableScore,
+    V: Clone + Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
+    D: solverforge_scoring::Director<S>,
+    ProgressCb: crate::scope::ProgressCallback<S>,
+    DM: CrossEntityDistanceMeter<S> + Clone + fmt::Debug,
+    IDM: CrossEntityDistanceMeter<S> + Clone + fmt::Debug + 'static,
+{
+    fn solve(&mut self, solver_scope: &mut crate::scope::SolverScope<'_, S, D, ProgressCb>) {
+        match self {
+            Self::Default(phase) => phase.solve(solver_scope),
+            Self::Config(phase) => phase.solve(solver_scope),
+        }
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "ListLocalSearch"
+    }
+}
+
+impl<S, V, D, ProgressCb> crate::phase::Phase<S, D, ProgressCb> for ListConstruction<S, V>
+where
+    S: PlanningSolution,
+    V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
+    D: solverforge_scoring::Director<S>,
+    ProgressCb: crate::scope::ProgressCallback<S>,
+{
+    fn solve(&mut self, solver_scope: &mut crate::scope::SolverScope<'_, S, D, ProgressCb>) {
+        match self {
+            Self::CheapestInsertion(phase) => phase.solve(solver_scope),
+            Self::RegretInsertion(phase) => phase.solve(solver_scope),
+            Self::ClarkeWright(phase) => phase.solve(solver_scope),
+            Self::KOpt(phase) => phase.solve(solver_scope),
+        }
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "ListConstruction"
+    }
+}
+
 // Builds the construction phase from config or defaults to cheapest insertion.
 #[allow(clippy::too_many_arguments)]
-fn build_list_construction<S, V>(
+pub fn build_list_construction<S, V>(
     config: &SolverConfig,
     element_count: fn(&S) -> usize,
     get_assigned: fn(&S) -> Vec<V>,
@@ -424,7 +504,7 @@ where
 }
 
 // Builds the local search phase from config or defaults.
-fn build_list_local_search<S, V, DM, IDM>(
+pub fn build_list_local_search<S, V, DM, IDM>(
     config: &SolverConfig,
     ctx: &ListContext<S, V, DM, IDM>,
 ) -> ListLocalSearch<S, V, DM, IDM>

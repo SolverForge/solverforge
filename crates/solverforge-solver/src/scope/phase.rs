@@ -5,7 +5,7 @@ use std::time::Instant;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::solver::BestSolutionCallback;
+use super::solver::ProgressCallback;
 use super::SolverScope;
 use crate::stats::PhaseStats;
 
@@ -32,7 +32,7 @@ pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb = ()> 
     stats: PhaseStats,
 }
 
-impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
+impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     PhaseScope<'t, 'a, S, D, BestCb>
 {
     pub fn new(solver_scope: &'a mut SolverScope<'t, S, D, BestCb>, phase_index: usize) -> Self {

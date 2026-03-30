@@ -7,7 +7,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::Termination;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
 /* Terminates when a maximum number of moves have been evaluated.
@@ -58,7 +58,7 @@ impl<S: PlanningSolution> MoveCountTermination<S> {
     }
 }
 
-impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for MoveCountTermination<S>
 {
     fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {

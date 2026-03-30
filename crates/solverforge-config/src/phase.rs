@@ -59,7 +59,7 @@ impl Default for ConstructionHeuristicConfig {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConstructionHeuristicType {
-    // First fit heuristic (basic variables).
+    // First fit heuristic (standard variables).
     #[default]
     FirstFit,
 
@@ -78,7 +78,7 @@ pub enum ConstructionHeuristicType {
     // Strongest fit decreasing.
     StrongestFitDecreasing,
 
-    // Cheapest insertion (greedy, basic variables).
+    // Cheapest insertion (greedy, standard variables).
     CheapestInsertion,
 
     // Allocate entity from queue.

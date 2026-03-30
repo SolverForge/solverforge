@@ -11,7 +11,7 @@ mod solver;
 mod step;
 
 pub use phase::PhaseScope;
-pub use solver::{BestSolutionCallback, SolverScope};
+pub use solver::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 pub use step::StepScope;
 
 #[cfg(test)]

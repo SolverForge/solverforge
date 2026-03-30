@@ -54,14 +54,14 @@ struct ShadowConfig {
 /*
 Configuration for basic (non-list) planning variables.
 
-Used with `#[basic_variable_config(...)]` attribute to specify:
+Used with `#[standard_variable_config(...)]` attribute to specify:
 - Which entity collection contains planning entities
 - Which field is the planning variable
 - The type of the variable
 - Where to get valid values from
 */
 #[derive(Default)]
-struct BasicVariableConfig {
+struct StandardVariableConfig {
     // Entity collection field name (e.g., "shifts")
     entity_collection: Option<String>,
 
@@ -124,10 +124,10 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
     config
 }
 
-fn parse_basic_variable_config(attrs: &[syn::Attribute]) -> BasicVariableConfig {
-    let mut config = BasicVariableConfig::default();
+fn parse_standard_variable_config(attrs: &[syn::Attribute]) -> StandardVariableConfig {
+    let mut config = StandardVariableConfig::default();
 
-    if let Some(attr) = get_attribute(attrs, "basic_variable_config") {
+    if let Some(attr) = get_attribute(attrs, "standard_variable_config") {
         config.entity_collection = parse_attribute_string(attr, "entity_collection");
         config.variable_field = parse_attribute_string(attr, "variable_field");
         config.variable_type = parse_attribute_string(attr, "variable_type");
@@ -181,16 +181,14 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let element_type = extract_collection_inner_type(&f.ty)?;
             Some(quote! {
-                .with_entity(::solverforge::__internal::EntityDescriptor::new(
-                    stringify!(#element_type),
-                    ::std::any::TypeId::of::<#element_type>(),
-                    #field_name_str,
-                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
-                    stringify!(#element_type),
-                    #field_name_str,
-                    |s: &#name| &s.#field_name,
-                    |s: &mut #name| &mut s.#field_name,
-                ))))
+                .with_entity(#element_type::entity_descriptor(#field_name_str).with_extractor(
+                    Box::new(::solverforge::__internal::TypedEntityExtractor::new(
+                        stringify!(#element_type),
+                        #field_name_str,
+                        |s: &#name| &s.#field_name,
+                        |s: &mut #name| &mut s.#field_name,
+                    ))
+                ))
             })
         })
         .collect();
@@ -223,7 +221,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let shadow_config = parse_shadow_config(&input.attrs);
     let shadow_support_impl = generate_shadow_support(&shadow_config, name);
     let constraints_path = parse_constraints_path(&input.attrs);
-    let basic_config = parse_basic_variable_config(&input.attrs);
+    let standard_config = parse_standard_variable_config(&input.attrs);
 
     let entity_count_arms: Vec<_> = fields
         .iter()
@@ -236,12 +234,19 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .collect();
 
     let list_operations = generate_list_operations(&shadow_config, fields, &constraints_path, name);
-    let basic_operations =
-        generate_basic_variable_operations(&basic_config, fields, &constraints_path, name);
+    let standard_operations =
+        generate_standard_variable_operations(&standard_config, fields, &constraints_path, name);
+    let descriptor_standard_operations = generate_descriptor_standard_operations(
+        &shadow_config,
+        &standard_config,
+        fields,
+        &constraints_path,
+        name,
+    );
     let solvable_solution_impl =
-        generate_solvable_solution(&shadow_config, &basic_config, name, &constraints_path);
+        generate_solvable_solution(&shadow_config, &standard_config, name, &constraints_path);
 
-    let stream_extensions = generate_constraint_stream_extensions(fields, &basic_config, name);
+    let stream_extensions = generate_constraint_stream_extensions(fields, &standard_config, name);
 
     let expanded = quote! {
         impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
@@ -270,7 +275,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             }
 
             #list_operations
-            #basic_operations
+            #standard_operations
+            #descriptor_standard_operations
         }
 
         #shadow_support_impl
@@ -341,14 +347,16 @@ fn generate_list_operations(
 
         // Distance meter types: use provided paths or DefaultDistanceMeter
         let cross_dm: syn::Expr = if let Some(dm) = &config.distance_meter {
-            let dm_path: syn::Path = syn::parse_str(dm).expect("distance_meter must be a valid path");
+            let dm_path: syn::Path =
+                syn::parse_str(dm).expect("distance_meter must be a valid path");
             syn::parse_quote! { #dm_path::default() }
         } else {
             syn::parse_quote! { ::solverforge::DefaultDistanceMeter }
         };
 
         let intra_dm: syn::Expr = if let Some(idm) = &config.intra_distance_meter {
-            let idm_path: syn::Path = syn::parse_str(idm).expect("intra_distance_meter must be a valid path");
+            let idm_path: syn::Path =
+                syn::parse_str(idm).expect("intra_distance_meter must be a valid path");
             syn::parse_quote! { #idm_path::default() }
         } else {
             syn::parse_quote! { ::solverforge::DefaultDistanceMeter }
@@ -357,7 +365,8 @@ fn generate_list_operations(
         let variable_name_str = list_field.as_str();
 
         let merge_feasible: syn::Expr = if let Some(mff) = &config.merge_feasible_fn {
-            let mff_path: syn::Path = syn::parse_str(mff).expect("merge_feasible_fn must be a valid path");
+            let mff_path: syn::Path =
+                syn::parse_str(mff).expect("merge_feasible_fn must be a valid path");
             syn::parse_quote! { ::core::option::Option::Some(#mff_path) }
         } else {
             syn::parse_quote! { ::core::option::Option::None }
@@ -437,7 +446,7 @@ fn generate_list_operations(
             fn solve_internal(
                 self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
-                sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+                sender: ::tokio::sync::mpsc::UnboundedSender<::solverforge::SolverEvent<Self>>,
             ) -> Self {
                 ::solverforge::__internal::init_console();
 
@@ -625,8 +634,8 @@ fn generate_list_operations(
     }
 }
 
-fn generate_basic_variable_operations(
-    config: &BasicVariableConfig,
+fn generate_standard_variable_operations(
+    config: &StandardVariableConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
     _solution_name: &Ident,
@@ -688,7 +697,7 @@ fn generate_basic_variable_operations(
             fn solve_internal(
                 self,
                 terminate: Option<&std::sync::atomic::AtomicBool>,
-                sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+                sender: ::tokio::sync::mpsc::UnboundedSender<::solverforge::SolverEvent<Self>>,
             ) -> Self {
                 ::solverforge::__internal::init_console();
 
@@ -700,13 +709,13 @@ fn generate_basic_variable_operations(
                     Self::entity_count,
                     terminate,
                     sender,
-                    ::solverforge::__internal::BasicSpec {
-                        get_variable: Self::basic_get_variable,
-                        set_variable: Self::basic_set_variable,
-                        value_count: Self::basic_value_count,
-                        entity_count_fn: Self::basic_entity_count,
-                        variable_field: Self::basic_variable_field_name(),
-                        descriptor_index: Self::basic_variable_descriptor_index(),
+                    ::solverforge::__internal::StandardSpec {
+                        get_variable: Self::standard_get_variable,
+                        set_variable: Self::standard_set_variable,
+                        value_count: Self::standard_value_count,
+                        entity_count_fn: Self::standard_entity_count,
+                        variable_field: Self::standard_variable_field_name(),
+                        descriptor_index: Self::standard_variable_descriptor_index(),
                     },
                 )
             }
@@ -715,36 +724,36 @@ fn generate_basic_variable_operations(
 
     quote! {
         #[inline]
-        pub fn basic_get_variable(s: &Self, entity_idx: usize) -> Option<#variable_type_ident> {
+        pub fn standard_get_variable(s: &Self, entity_idx: usize) -> Option<#variable_type_ident> {
             s.#entity_collection_ident
                 .get(entity_idx)
                 .and_then(|e| e.#variable_field_ident)
         }
 
         #[inline]
-        pub fn basic_set_variable(s: &mut Self, entity_idx: usize, v: Option<#variable_type_ident>) {
+        pub fn standard_set_variable(s: &mut Self, entity_idx: usize, v: Option<#variable_type_ident>) {
             if let Some(e) = s.#entity_collection_ident.get_mut(entity_idx) {
                 e.#variable_field_ident = v;
             }
         }
 
         #[inline]
-        pub fn basic_value_count(s: &Self) -> usize {
+        pub fn standard_value_count(s: &Self) -> usize {
             s.#value_range_ident.len()
         }
 
         #[inline]
-        pub fn basic_entity_count(s: &Self) -> usize {
+        pub fn standard_entity_count(s: &Self) -> usize {
             s.#entity_collection_ident.len()
         }
 
         #[inline]
-        pub const fn basic_variable_descriptor_index() -> usize {
+        pub const fn standard_variable_descriptor_index() -> usize {
             #descriptor_index_lit
         }
 
         #[inline]
-        pub const fn basic_variable_field_name() -> &'static str {
+        pub const fn standard_variable_field_name() -> &'static str {
             #variable_field_str
         }
 
@@ -759,17 +768,76 @@ fn generate_basic_variable_operations(
     }
 }
 
+fn generate_descriptor_standard_operations(
+    shadow_config: &ShadowConfig,
+    standard_config: &StandardVariableConfig,
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    constraints_path: &Option<String>,
+    solution_name: &Ident,
+) -> TokenStream {
+    if shadow_config.list_owner.is_some() || standard_config.entity_collection.is_some() {
+        return TokenStream::new();
+    }
+
+    let Some(path) = constraints_path.as_ref() else {
+        return TokenStream::new();
+    };
+
+    let constraints_fn: syn::Path =
+        syn::parse_str(path).expect("constraints path must be a valid Rust path");
+
+    let finalize_calls: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "problem_fact_collection"))
+        .filter_map(|f| {
+            let field_name = f.ident.as_ref()?;
+            Some(quote! {
+                for item in &mut s.#field_name {
+                    item.finalize();
+                }
+            })
+        })
+        .collect();
+
+    quote! {
+        #[inline]
+        pub fn finalize_all(s: &mut Self) {
+            #(#finalize_calls)*
+        }
+
+        fn solve_internal(
+            self,
+            terminate: Option<&std::sync::atomic::AtomicBool>,
+            sender: ::tokio::sync::mpsc::UnboundedSender<::solverforge::SolverEvent<Self>>,
+        ) -> Self {
+            ::solverforge::__internal::init_console();
+
+            ::solverforge::run_solver(
+                self,
+                #solution_name::finalize_all,
+                #constraints_fn,
+                Self::descriptor,
+                Self::entity_count,
+                terminate,
+                sender,
+                ::solverforge::__internal::DescriptorStandardSpec,
+            )
+        }
+    }
+}
+
 fn generate_solvable_solution(
     shadow_config: &ShadowConfig,
-    basic_config: &BasicVariableConfig,
+    standard_config: &StandardVariableConfig,
     solution_name: &Ident,
     constraints_path: &Option<String>,
 ) -> TokenStream {
-    // Generate SolvableSolution impl if either list or basic variable config is present
     let has_list_config = shadow_config.list_owner.is_some();
-    let has_basic_config = basic_config.entity_collection.is_some();
+    let has_standard_config = standard_config.entity_collection.is_some();
+    let has_descriptor_standard =
+        !has_list_config && !has_standard_config && constraints_path.is_some();
 
-    if !has_list_config && !has_basic_config {
+    if !has_list_config && !has_standard_config && !has_descriptor_standard {
         return TokenStream::new();
     }
 
@@ -795,7 +863,7 @@ fn generate_solvable_solution(
                 fn solve(
                     self,
                     terminate: Option<&std::sync::atomic::AtomicBool>,
-                    sender: ::tokio::sync::mpsc::UnboundedSender<(Self, <Self as ::solverforge::__internal::PlanningSolution>::Score)>,
+                    sender: ::tokio::sync::mpsc::UnboundedSender<::solverforge::SolverEvent<Self>>,
                 ) {
                     let _ = #solution_name::solve_internal(self, terminate, sender);
                 }
@@ -977,7 +1045,7 @@ fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> Toke
 
 fn generate_constraint_stream_extensions(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    basic_config: &BasicVariableConfig,
+    standard_config: &StandardVariableConfig,
     solution_name: &Ident,
 ) -> TokenStream {
     // Collect entity collection fields
@@ -1049,10 +1117,10 @@ fn generate_constraint_stream_extensions(
         }
     };
 
-    // Generate `.unassigned()` filter for basic_variable_config
+    // Generate `.unassigned()` filter for standard_variable_config
     if let (Some(entity_collection), Some(variable_field)) = (
-        &basic_config.entity_collection,
-        &basic_config.variable_field,
+        &standard_config.entity_collection,
+        &standard_config.variable_field,
     ) {
         // Find the entity type for this collection
         let entity_field = fields
@@ -1180,7 +1248,7 @@ mod tests {
     fn golden_solution_expansion_emits_constraint_streams_and_descriptor() {
         let input = parse_quote! {
             #[solverforge_constraints_path = "crate::constraints::create_constraints"]
-            #[basic_variable_config(
+            #[standard_variable_config(
                 entity_collection = "tasks",
                 variable_field = "worker_idx",
                 variable_type = "usize",

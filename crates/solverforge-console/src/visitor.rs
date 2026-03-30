@@ -22,6 +22,9 @@ pub(crate) struct EventVisitor {
     pub(crate) moves_speed: Option<u64>,
     pub(crate) calc_speed: Option<u64>,
     pub(crate) acceptance_rate: Option<String>,
+    pub(crate) moves_evaluated: Option<u64>,
+    pub(crate) moves_accepted: Option<u64>,
+    pub(crate) score_calculations: Option<u64>,
 }
 
 impl Visit for EventVisitor {
@@ -51,6 +54,9 @@ impl Visit for EventVisitor {
             "time_limit_secs" => self.time_limit_secs = Some(value),
             "moves_speed" => self.moves_speed = Some(value),
             "calc_speed" => self.calc_speed = Some(value),
+            "moves_evaluated" => self.moves_evaluated = Some(value),
+            "moves_accepted" => self.moves_accepted = Some(value),
+            "score_calculations" => self.score_calculations = Some(value),
             _ => {}
         }
     }

@@ -74,8 +74,6 @@ src/
 - `Solvable` (trait)
 - `Analyzable` (trait)
 - `ProblemSpec` (trait)
-- `BasicSpec`
-- `ListSpec`
 - `AnyTermination`
 - `build_termination`
 - `SolverManager`

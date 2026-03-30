@@ -197,7 +197,7 @@ impl ListMoveSelectorBuilder {
                     Self::collect_leaves(child, ctx, out);
                 }
             }
-            // Basic variable selectors — ignore for list solver
+            // Standard variable selectors — ignore for list solver
             _ => {}
         }
     }

@@ -155,21 +155,16 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let entity_count = self.entity_selector.size(score_director);
-        if entity_count == 0 {
-            return 0;
-        }
-
-        if let Some(entity_ref) = self.entity_selector.iter(score_director).next() {
-            let value_count = self.value_selector.size(
-                score_director,
-                entity_ref.descriptor_index,
-                entity_ref.entity_index,
-            );
-            entity_count * value_count
-        } else {
-            0
-        }
+        self.entity_selector
+            .iter(score_director)
+            .map(|entity_ref| {
+                self.value_selector.size(
+                    score_director,
+                    entity_ref.descriptor_index,
+                    entity_ref.entity_index,
+                )
+            })
+            .sum()
     }
 }
 

@@ -85,8 +85,8 @@ Solver
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_solver, Analyzable, BasicSpec, ConstraintAnalysis, ListSpec, ScoreAnalysis,
-    Solvable, SolverManager, SolverStatus,
+    analyze, run_solver, Analyzable, ConstraintAnalysis, DescriptorStandardSpec, ScoreAnalysis,
+    Solvable, SolverEvent, SolverManager, SolverStatus, SolverTelemetry,
 };
 
 /* ============================================================================
@@ -145,7 +145,7 @@ pub mod __internal {
     pub use solverforge_core::domain::{
         EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFact,
         ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor,
-        VariableDescriptor,
+        ValueRangeType, VariableDescriptor,
     };
 
     // Scoring
@@ -160,7 +160,9 @@ pub mod __internal {
     pub use solverforge_solver::manager::{
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
     };
-    pub use solverforge_solver::{BasicSpec, ListSpec};
+    pub use solverforge_solver::{
+        DescriptorStandardSpec, ListSpec, SolverEvent, SolverTelemetry, StandardSpec,
+    };
 
     // Config
     pub use solverforge_config::SolverConfig;

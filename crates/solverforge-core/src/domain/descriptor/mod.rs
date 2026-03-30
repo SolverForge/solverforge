@@ -13,7 +13,7 @@ mod var_descriptor;
 pub use entity::EntityDescriptor;
 pub use problem_fact::ProblemFactDescriptor;
 pub use solution::SolutionDescriptor;
-pub use var_descriptor::VariableDescriptor;
+pub use var_descriptor::{UsizeEntityValueProvider, UsizeGetter, UsizeSetter, VariableDescriptor};
 
 #[cfg(test)]
 mod tests;

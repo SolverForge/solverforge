@@ -1,6 +1,6 @@
-/* Basic variable solver for simple assignment problems.
+/* Standard variable solver for simple assignment problems.
 
-This module provides `BasicSpec` for problems using `#[basic_variable_config]`,
+This module provides `StandardSpec` for problems using `#[standard_variable_config]`,
 where each entity has a single planning variable that can be assigned from a
 fixed value range.
 
@@ -19,9 +19,9 @@ use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::{ConstraintSet, ScoreDirector};
 use tracing::info;
 
-use crate::builder::basic_selector::BasicLeafSelector;
+use crate::builder::standard_selector::StandardLeafSelector;
 use crate::builder::{
-    AcceptorBuilder, AnyAcceptor, BasicContext, BasicMoveSelectorBuilder, ForagerBuilder,
+    AcceptorBuilder, AnyAcceptor, ForagerBuilder, StandardContext, StandardMoveSelectorBuilder,
 };
 use crate::heuristic::r#move::EitherMove;
 use crate::heuristic::selector::decorator::UnionMoveSelector;
@@ -34,13 +34,14 @@ use crate::phase::construction::{BestFitForager, ConstructionHeuristicPhase, Que
 use crate::phase::localsearch::{LocalSearchPhase, SimulatedAnnealingAcceptor};
 use crate::problem_spec::ProblemSpec;
 use crate::run::AnyTermination;
+use crate::scope::ProgressCallback;
 use crate::solver::{SolveResult, Solver};
 
 // Type alias for the config-driven local search phase
 type ConfigLocalSearch<S> = LocalSearchPhase<
     S,
     EitherMove<S, usize>,
-    VecUnionSelector<S, EitherMove<S, usize>, BasicLeafSelector<S>>,
+    VecUnionSelector<S, EitherMove<S, usize>, StandardLeafSelector<S>>,
     AnyAcceptor<S>,
     crate::builder::AnyForager<S>,
 >;
@@ -65,7 +66,7 @@ type DefaultLocalSearch<S> = LocalSearchPhase<
 >;
 
 // Monomorphized phase enum for config-driven basic solver.
-enum BasicLocalSearch<S: PlanningSolution>
+enum StandardLocalSearch<S: PlanningSolution>
 where
     S::Score: Score,
 {
@@ -73,11 +74,11 @@ where
     Config(ConfigLocalSearch<S>),
 }
 
-/// Problem specification for basic variable problems.
+/// Problem specification for standard variable problems.
 ///
 /// Passed to `run_solver` to provide problem-specific construction and local
-/// search phases for solutions using `#[basic_variable_config]`.
-pub struct BasicSpec<S> {
+/// search phases for solutions using `#[standard_variable_config]`.
+pub struct StandardSpec<S> {
     pub get_variable: fn(&S, usize) -> Option<usize>,
     pub set_variable: fn(&mut S, usize, Option<usize>),
     pub value_count: fn(&S) -> usize,
@@ -86,7 +87,7 @@ pub struct BasicSpec<S> {
     pub descriptor_index: usize,
 }
 
-impl<S, C> ProblemSpec<S, C> for BasicSpec<S>
+impl<S, C> ProblemSpec<S, C> for StandardSpec<S>
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
@@ -115,7 +116,7 @@ where
         time_limit: Duration,
         termination: AnyTermination<S, ScoreDirector<S, C>>,
         terminate: Option<&AtomicBool>,
-        callback: impl Fn(&S) + Send + Sync,
+        callback: impl ProgressCallback<S>,
     ) -> SolveResult<S> {
         let n_values = (self.value_count)(director.working_solution());
         let values: Vec<usize> = (0..n_values).collect();
@@ -141,22 +142,22 @@ where
         );
 
         match local_search {
-            BasicLocalSearch::Default(ls) => {
+            StandardLocalSearch::Default(ls) => {
                 let solver = Solver::new(((), construction, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
                     solver.solve(director)
                 }
             }
-            BasicLocalSearch::Config(ls) => {
+            StandardLocalSearch::Config(ls) => {
                 let solver = Solver::new(((), construction, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -175,7 +176,7 @@ fn build_local_search<S>(
     values: Vec<usize>,
     variable_field: &'static str,
     descriptor_index: usize,
-) -> BasicLocalSearch<S>
+) -> StandardLocalSearch<S>
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
@@ -207,7 +208,7 @@ where
         let move_selector = UnionMoveSelector::new(change_selector, swap_selector);
         let acceptor = SimulatedAnnealingAcceptor::default();
         let forager = crate::phase::localsearch::AcceptedCountForager::new(1);
-        return BasicLocalSearch::Default(LocalSearchPhase::new(
+        return StandardLocalSearch::Default(LocalSearchPhase::new(
             move_selector,
             acceptor,
             forager,
@@ -224,7 +225,7 @@ where
 
     let forager = ForagerBuilder::build::<S>(ls.forager.as_ref());
 
-    let ctx = BasicContext {
+    let ctx = StandardContext {
         get_variable,
         set_variable,
         values,
@@ -232,9 +233,9 @@ where
         variable_field,
     };
 
-    let move_selector = BasicMoveSelectorBuilder::build(ls.move_selector.as_ref(), &ctx);
+    let move_selector = StandardMoveSelectorBuilder::build(ls.move_selector.as_ref(), &ctx);
 
-    BasicLocalSearch::Config(LocalSearchPhase::new(
+    StandardLocalSearch::Config(LocalSearchPhase::new(
         move_selector,
         acceptor,
         forager,

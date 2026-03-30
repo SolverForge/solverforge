@@ -1,4 +1,4 @@
-// Basic variable move selector enum and builder.
+// Standard variable move selector enum and builder.
 
 use std::fmt::Debug;
 
@@ -13,14 +13,14 @@ use crate::heuristic::selector::{
     EitherChangeMoveSelector, EitherSwapMoveSelector, FromSolutionEntitySelector,
 };
 
-use super::context::BasicContext;
+use super::context::StandardContext;
 
 /// A monomorphized leaf selector for basic (non-list) planning variables.
 ///
 /// Wraps either a change or swap move selector in a uniform enum so that
-/// `VecUnionSelector<S, EitherMove<S, usize>, BasicLeafSelector<S>>` has a
+/// `VecUnionSelector<S, EitherMove<S, usize>, StandardLeafSelector<S>>` has a
 /// single concrete type regardless of which selectors are active.
-pub enum BasicLeafSelector<S: PlanningSolution> {
+pub enum StandardLeafSelector<S: PlanningSolution> {
     // A change move selector yielding `EitherMove::Change`.
     Change(
         EitherChangeMoveSelector<
@@ -34,16 +34,16 @@ pub enum BasicLeafSelector<S: PlanningSolution> {
     Swap(EitherSwapMoveSelector<S, usize, FromSolutionEntitySelector, FromSolutionEntitySelector>),
 }
 
-impl<S: PlanningSolution> Debug for BasicLeafSelector<S> {
+impl<S: PlanningSolution> Debug for StandardLeafSelector<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Change(s) => write!(f, "BasicLeafSelector::Change({s:?})"),
-            Self::Swap(s) => write!(f, "BasicLeafSelector::Swap({s:?})"),
+            Self::Change(s) => write!(f, "StandardLeafSelector::Change({s:?})"),
+            Self::Swap(s) => write!(f, "StandardLeafSelector::Swap({s:?})"),
         }
     }
 }
 
-impl<S> MoveSelector<S, EitherMove<S, usize>> for BasicLeafSelector<S>
+impl<S> MoveSelector<S, EitherMove<S, usize>> for StandardLeafSelector<S>
 where
     S: PlanningSolution,
 {
@@ -71,24 +71,24 @@ where
     }
 }
 
-/// Builder that constructs a `VecUnionSelector` of `BasicLeafSelector` from config.
-pub struct BasicMoveSelectorBuilder;
+/// Builder that constructs a `VecUnionSelector` of `StandardLeafSelector` from config.
+pub struct StandardMoveSelectorBuilder;
 
-impl BasicMoveSelectorBuilder {
+impl StandardMoveSelectorBuilder {
     /// Builds a `VecUnionSelector` from the given move selector config and domain context.
     ///
-    /// - `ChangeMoveSelector` → `BasicLeafSelector::Change`
-    /// - `SwapMoveSelector` → `BasicLeafSelector::Swap`
+    /// - `ChangeMoveSelector` → `StandardLeafSelector::Change`
+    /// - `SwapMoveSelector` → `StandardLeafSelector::Swap`
     /// - `UnionMoveSelector` → flattens children recursively
     /// - `None` → default: Change + Swap
     pub fn build<S>(
         config: Option<&MoveSelectorConfig>,
-        ctx: &BasicContext<S>,
-    ) -> VecUnionSelector<S, EitherMove<S, usize>, BasicLeafSelector<S>>
+        ctx: &StandardContext<S>,
+    ) -> VecUnionSelector<S, EitherMove<S, usize>, StandardLeafSelector<S>>
     where
         S: PlanningSolution,
     {
-        let mut leaves: Vec<BasicLeafSelector<S>> = Vec::new();
+        let mut leaves: Vec<StandardLeafSelector<S>> = Vec::new();
         match config {
             None => {
                 Self::push_change(&mut leaves, ctx);
@@ -101,8 +101,8 @@ impl BasicMoveSelectorBuilder {
 
     fn collect_leaves<S>(
         config: &MoveSelectorConfig,
-        ctx: &BasicContext<S>,
-        out: &mut Vec<BasicLeafSelector<S>>,
+        ctx: &StandardContext<S>,
+        out: &mut Vec<StandardLeafSelector<S>>,
     ) where
         S: PlanningSolution,
     {
@@ -123,24 +123,26 @@ impl BasicMoveSelectorBuilder {
         }
     }
 
-    fn push_change<S>(out: &mut Vec<BasicLeafSelector<S>>, ctx: &BasicContext<S>)
+    fn push_change<S>(out: &mut Vec<StandardLeafSelector<S>>, ctx: &StandardContext<S>)
     where
         S: PlanningSolution,
     {
-        out.push(BasicLeafSelector::Change(EitherChangeMoveSelector::simple(
-            ctx.get_variable,
-            ctx.set_variable,
-            ctx.descriptor_index,
-            ctx.variable_field,
-            ctx.values.clone(),
-        )));
+        out.push(StandardLeafSelector::Change(
+            EitherChangeMoveSelector::simple(
+                ctx.get_variable,
+                ctx.set_variable,
+                ctx.descriptor_index,
+                ctx.variable_field,
+                ctx.values.clone(),
+            ),
+        ));
     }
 
-    fn push_swap<S>(out: &mut Vec<BasicLeafSelector<S>>, ctx: &BasicContext<S>)
+    fn push_swap<S>(out: &mut Vec<StandardLeafSelector<S>>, ctx: &StandardContext<S>)
     where
         S: PlanningSolution,
     {
-        out.push(BasicLeafSelector::Swap(EitherSwapMoveSelector::simple(
+        out.push(StandardLeafSelector::Swap(EitherSwapMoveSelector::simple(
             ctx.get_variable,
             ctx.set_variable,
             ctx.descriptor_index,

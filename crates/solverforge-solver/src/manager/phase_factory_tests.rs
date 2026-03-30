@@ -119,7 +119,7 @@ fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     }
 }
 
-// ==================== Basic Variant Tests ====================
+// ==================== Standard Variant Tests ====================
 
 #[test]
 fn test_local_search_type_variants() {

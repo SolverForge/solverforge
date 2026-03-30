@@ -3,7 +3,7 @@
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::solver::BestSolutionCallback;
+use super::solver::ProgressCallback;
 use super::PhaseScope;
 
 /// Scope for a single step within a phase.
@@ -24,7 +24,7 @@ pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = (
     step_score: Option<S::Score>,
 }
 
-impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
+impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     StepScope<'t, 'a, 'b, S, D, BestCb>
 {
     pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>) -> Self {

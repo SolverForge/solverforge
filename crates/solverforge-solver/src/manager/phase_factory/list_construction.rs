@@ -155,7 +155,7 @@ where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: Director<S>,
-    BestCb: crate::scope::BestSolutionCallback<S>,
+    BestCb: crate::scope::ProgressCallback<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -471,7 +471,7 @@ where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: Director<S>,
-    BestCb: crate::scope::BestSolutionCallback<S>,
+    BestCb: crate::scope::ProgressCallback<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -731,7 +731,7 @@ where
     S: PlanningSolution,
     E: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
     D: Director<S>,
-    BestCb: crate::scope::BestSolutionCallback<S>,
+    BestCb: crate::scope::ProgressCallback<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);

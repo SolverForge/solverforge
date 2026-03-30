@@ -10,7 +10,7 @@ use tracing::info;
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::{ConstructionForager, EntityPlacer};
 use crate::phase::Phase;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 /// Construction heuristic phase that builds an initial solution.
@@ -70,7 +70,7 @@ impl<S, D, BestCb, M, P, Fo> Phase<S, D, BestCb> for ConstructionHeuristicPhase<
 where
     S: PlanningSolution,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     M: Move<S>,
     P: EntityPlacer<S, M>,
     Fo: ConstructionForager<S, M>,
@@ -147,6 +147,7 @@ where
         } else {
             0
         };
+        let stats = phase_scope.solver_scope().stats();
 
         info!(
             event = "phase_end",
@@ -154,6 +155,9 @@ where
             phase_index = phase_index,
             duration_ms = duration.as_millis() as u64,
             steps = steps,
+            moves_evaluated = stats.moves_evaluated,
+            moves_accepted = stats.moves_accepted,
+            score_calculations = stats.score_calculations,
             speed = speed,
             score = best_score,
         );

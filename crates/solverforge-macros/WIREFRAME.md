@@ -43,6 +43,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 **Consumed attributes on fields:**
 - `#[planning_id]` — marks the unique ID field
 - `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable
+  `value_range = "name"` is accepted as an alias for `value_range_provider`
 - `#[planning_list_variable]` — list planning variable
 - `#[planning_pin]` — boolean field controlling entity pinning
 - `#[inverse_relation_shadow_variable(source_variable_name = "field")]` — inverse relation shadow
@@ -53,7 +54,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 **Generated code:**
 - `impl PlanningEntity for T` — `is_pinned()`, `as_any()`, `as_any_mut()`
 - `impl PlanningId for T` (if `#[planning_id]` present) — `type Id` set to field type, `planning_id()` returns field value
-- `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow)
+- `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow) and preserves `#[planning_id]` / `#[planning_pin]` metadata
 
 ### `PlanningSolutionImpl`
 
@@ -65,7 +66,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 
 **Consumed attributes on struct:**
 - `#[shadow_variable_updates(...)]` — configures shadow variable update generation
-- `#[basic_variable_config(...)]` — configures basic variable operations
+- `#[standard_variable_config(...)]` — configures standard variable operations
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 
 **`#[shadow_variable_updates]` parameters:**
@@ -83,7 +84,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `distance_meter = "path"` — optional cross-entity distance meter type (defaults to `DefaultDistanceMeter`)
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type (defaults to `DefaultDistanceMeter`)
 
-**`#[basic_variable_config]` parameters:**
+**`#[standard_variable_config]` parameters:**
 - `entity_collection = "field"` — entity collection field name
 - `variable_field = "field"` — planning variable field name on entity
 - `variable_type = "Type"` — variable type name
@@ -91,17 +92,17 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 
 **Generated code:**
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`
-- `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors
+- `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable metadata is preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - List operations (when shadow_variable_updates configured): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`, `finalize_all()`
-- Basic variable operations (when basic_variable_config configured): `basic_get_variable()`, `basic_set_variable()`, `basic_value_count()`, `basic_entity_count()`, `basic_variable_descriptor_index()`, `basic_variable_field_name()`, `finalize_all()`
+- Standard variable operations (when standard_variable_config configured): `standard_get_variable()`, `standard_set_variable()`, `standard_value_count()`, `standard_entity_count()`, `standard_variable_descriptor_index()`, `standard_variable_field_name()`, `finalize_all()`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` (when any variable config present) — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
 - `fn solve_internal()` (when constraints path specified) — calls `run_solver()` (basic) or `run_list_solver()` (list)
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
-- `pub trait {Entity}UnassignedFilter<Sc, E, F>` (when `basic_variable_config` present) — `.unassigned()` method on `UniConstraintStream` filtering entities where the planning variable is `None`
+- `pub trait {Entity}UnassignedFilter<Sc, E, F>` (when `standard_variable_config` present) — `.unassigned()` method on `UniConstraintStream` filtering entities where the planning variable is `None`
 
 ### `ProblemFactImpl`
 
@@ -129,12 +130,12 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 |----------|-----------|------|
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
-| `parse_basic_variable_config` | `fn(&[Attribute]) -> BasicVariableConfig` | Parses `#[basic_variable_config(...)]` |
+| `parse_standard_variable_config` | `fn(&[Attribute]) -> StandardVariableConfig` | Parses `#[standard_variable_config(...)]` |
 | `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates list variable methods + solve_internal |
-| `generate_basic_variable_operations` | `fn(&BasicVariableConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates basic variable methods |
-| `generate_solvable_solution` | `fn(&ShadowConfig, &BasicVariableConfig, &Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
+| `generate_standard_variable_operations` | `fn(&StandardVariableConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates standard variable methods |
+| `generate_solvable_solution` | `fn(&ShadowConfig, &StandardVariableConfig, &Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Ident) -> TokenStream` | Generates ShadowVariableSupport impl |
-| `generate_constraint_stream_extensions` | `fn(&Fields, &BasicVariableConfig, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory; generates `{Entity}UnassignedFilter` trait if basic_variable_config is present |
+| `generate_constraint_stream_extensions` | `fn(&Fields, &StandardVariableConfig, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory; generates `{Entity}UnassignedFilter` trait if standard_variable_config is present |
 | `extract_option_inner_type` | `fn(&Type) -> Result<&Type, Error>` | Extracts `T` from `Option<T>` |
 | `extract_collection_inner_type` | `fn(&Type) -> Option<&Type>` | Extracts `T` from `Vec<T>` |
 
@@ -160,10 +161,10 @@ struct ShadowConfig {
 }
 ```
 
-### `BasicVariableConfig`
+### `StandardVariableConfig`
 
 ```rust
-struct BasicVariableConfig {
+struct StandardVariableConfig {
     entity_collection: Option<String>,
     variable_field: Option<String>,
     variable_type: Option<String>,

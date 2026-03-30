@@ -62,6 +62,12 @@ fn format_solve_start(v: &EventVisitor) -> String {
 
 fn format_solve_end(v: &EventVisitor) -> String {
     let score = v.score.as_deref().unwrap_or("N/A");
+    let steps = v.steps.unwrap_or(0);
+    let moves_speed = v.moves_speed.or(v.speed).unwrap_or(0);
+    let moves_evaluated = v.moves_evaluated.unwrap_or(0);
+    let moves_accepted = v.moves_accepted.unwrap_or(0);
+    let score_calculations = v.score_calculations.unwrap_or(0);
+    let acceptance_rate = v.acceptance_rate.as_deref().unwrap_or("0.0%");
     let is_feasible = v
         .feasible
         .unwrap_or_else(|| !score.contains('-') || score.starts_with("0hard"));
@@ -128,6 +134,54 @@ fn format_solve_end(v: &EventVisitor) -> String {
         "║".bright_cyan()
     ));
     output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
+        "Steps:",
+        steps.to_formatted_string(&Locale::en),
+        "║".bright_cyan()
+    ));
+    output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
+        "Moves/s:",
+        moves_speed.to_formatted_string(&Locale::en),
+        "║".bright_cyan()
+    ));
+    output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
+        "Moves Evaluated:",
+        moves_evaluated.to_formatted_string(&Locale::en),
+        "║".bright_cyan()
+    ));
+    output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
+        "Moves Accepted:",
+        moves_accepted.to_formatted_string(&Locale::en),
+        "║".bright_cyan()
+    ));
+    output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
+        "Score Calcs:",
+        score_calculations.to_formatted_string(&Locale::en),
+        "║".bright_cyan()
+    ));
+    output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
+        "Acceptance:",
+        acceptance_rate,
+        "║".bright_cyan()
+    ));
+    output.push('\n');
 
     output.push_str(
         &"╚══════════════════════════════════════════════════════════╝"
@@ -154,6 +208,9 @@ fn format_phase_end(v: &EventVisitor) -> String {
     let phase = v.phase.as_deref().unwrap_or("Unknown");
     let steps = v.steps.unwrap_or(0);
     let moves_speed = v.moves_speed.unwrap_or(v.speed.unwrap_or(0));
+    let moves_evaluated = v.moves_evaluated.unwrap_or(0);
+    let moves_accepted = v.moves_accepted.unwrap_or(0);
+    let score_calculations = v.score_calculations.unwrap_or(0);
     let score = v.score.as_deref().unwrap_or("N/A");
     let duration = v.duration_ms.unwrap_or(0);
 
@@ -184,6 +241,33 @@ fn format_phase_end(v: &EventVisitor) -> String {
         output.push_str(&format!(" │ {} accepted", rate.bright_yellow()));
     }
 
+    if moves_evaluated > 0 {
+        output.push_str(&format!(
+            " │ {} moves",
+            moves_evaluated
+                .to_formatted_string(&Locale::en)
+                .bright_white()
+        ));
+    }
+
+    if moves_accepted > 0 {
+        output.push_str(&format!(
+            " │ {} accepted moves",
+            moves_accepted
+                .to_formatted_string(&Locale::en)
+                .bright_white()
+        ));
+    }
+
+    if score_calculations > 0 {
+        output.push_str(&format!(
+            " │ {} calcs",
+            score_calculations
+                .to_formatted_string(&Locale::en)
+                .bright_white()
+        ));
+    }
+
     output.push_str(&format!(" │ {}", format_score(score)));
 
     output
@@ -192,10 +276,14 @@ fn format_phase_end(v: &EventVisitor) -> String {
 fn format_progress(v: &EventVisitor) -> String {
     let steps = v.steps.unwrap_or(0);
     let speed = v.speed.unwrap_or(0);
+    let moves_evaluated = v.moves_evaluated.unwrap_or(0);
+    let moves_accepted = v.moves_accepted.unwrap_or(0);
+    let score_calculations = v.score_calculations.unwrap_or(0);
     let score = v.score.as_deref().unwrap_or("N/A");
+    let acceptance_rate = v.acceptance_rate.as_deref().unwrap_or("0.0%");
 
     format!(
-        "{} {} {:>10} steps │ {:>12}/s │ {}",
+        "{} {} {:>10} steps │ {:>12}/s │ {} moves │ {} accepted │ {} calcs │ {} │ {}",
         format_elapsed(),
         "⚡".bright_cyan(),
         steps.to_formatted_string(&Locale::en).white(),
@@ -203,6 +291,10 @@ fn format_progress(v: &EventVisitor) -> String {
             .to_formatted_string(&Locale::en)
             .bright_magenta()
             .bold(),
+        moves_evaluated.to_formatted_string(&Locale::en).white(),
+        moves_accepted.to_formatted_string(&Locale::en).white(),
+        score_calculations.to_formatted_string(&Locale::en).white(),
+        acceptance_rate.bright_yellow(),
         format_score(score)
     )
 }

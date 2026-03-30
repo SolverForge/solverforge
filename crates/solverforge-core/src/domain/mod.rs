@@ -19,7 +19,8 @@ mod variable;
 mod tests;
 
 pub use descriptor::{
-    EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, VariableDescriptor,
+    EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, UsizeEntityValueProvider,
+    UsizeGetter, UsizeSetter, VariableDescriptor,
 };
 pub use entity_ref::{EntityExtractor, EntityRef, TypedEntityExtractor};
 pub use listener::{

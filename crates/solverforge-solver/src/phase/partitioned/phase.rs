@@ -8,7 +8,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::phase::Phase;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
 use super::child_phases::ChildPhases;
@@ -118,7 +118,7 @@ impl<S, D, BestCb, PD, Part, SDF, PF, CP> Phase<S, D, BestCb>
 where
     S: PlanningSolution + 'static,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     PD: Director<S> + 'static,
     Part: SolutionPartitioner<S>,
     SDF: Fn(S) -> PD + Send + Sync,

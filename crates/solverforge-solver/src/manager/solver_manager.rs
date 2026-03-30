@@ -14,8 +14,11 @@ Fixed-size slot arrays avoid heap indirection.
 
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use tokio::sync::mpsc;
+
+use crate::stats::SolverTelemetry;
 
 /// Maximum concurrent jobs per SolverManager instance.
 pub const MAX_JOBS: usize = 16;
@@ -24,6 +27,24 @@ pub const MAX_JOBS: usize = 16;
 const SLOT_FREE: u8 = 0;
 const SLOT_SOLVING: u8 = 1;
 const SLOT_DONE: u8 = 2;
+
+#[derive(Debug)]
+pub enum SolverEvent<S: PlanningSolution> {
+    Progress {
+        score: Option<S::Score>,
+        telemetry: SolverTelemetry,
+    },
+    BestSolution {
+        solution: S,
+        score: S::Score,
+        telemetry: SolverTelemetry,
+    },
+    Finished {
+        solution: S,
+        score: S::Score,
+        telemetry: SolverTelemetry,
+    },
+}
 
 /// Trait for solutions that can be solved with channel-based solution streaming.
 ///
@@ -38,7 +59,7 @@ const SLOT_DONE: u8 = 2;
 /// The solution must be `Send + 'static` to support async job execution.
 /// Note: `Clone` is NOT required - ownership is transferred via channel.
 pub trait Solvable: solverforge_core::domain::PlanningSolution + Send + 'static {
-    /* Solves the solution, sending each new best through the channel.
+    /* Solves the solution, sending progress and owned solutions through the channel.
 
     The final solution is sent through the channel before this returns.
     Ownership of solutions transfers through the channel.
@@ -51,7 +72,7 @@ pub trait Solvable: solverforge_core::domain::PlanningSolution + Send + 'static 
     fn solve(
         self,
         terminate: Option<&AtomicBool>,
-        sender: mpsc::UnboundedSender<(Self, Self::Score)>,
+        sender: mpsc::UnboundedSender<SolverEvent<Self>>,
     );
 }
 
@@ -168,7 +189,7 @@ where
     /// # Panics
     ///
     /// Panics if no free slots are available.
-    pub fn solve(&'static self, solution: S) -> (usize, mpsc::UnboundedReceiver<(S, S::Score)>) {
+    pub fn solve(&'static self, solution: S) -> (usize, mpsc::UnboundedReceiver<SolverEvent<S>>) {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         // Find a free slot

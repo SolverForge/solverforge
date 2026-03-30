@@ -360,7 +360,7 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `FirstFit` | **Default.** Basic variable first fit |
+| `FirstFit` | **Default.** Standard variable first fit |
 | `FirstFitDecreasing` | First fit by entity difficulty |
 | `WeakestFit` | |
 | `WeakestFitDecreasing` | |

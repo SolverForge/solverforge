@@ -9,23 +9,42 @@ use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::manager::SolverStatus;
 use crate::stats::SolverStats;
 
-/// Sealed trait for invoking an optional best-solution callback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SolverProgressKind {
+    Progress,
+    BestSolution,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SolverProgressRef<'a, S: PlanningSolution> {
+    pub kind: SolverProgressKind,
+    pub status: SolverStatus,
+    pub solution: Option<&'a S>,
+    pub score: Option<&'a S::Score>,
+    pub telemetry: crate::stats::SolverTelemetry,
+}
+
+/// Sealed trait for invoking an optional progress callback.
 ///
-/// Implemented for `()` (no-op) and for any `F: Fn(&S) + Send + Sync`.
-pub trait BestSolutionCallback<S>: Send + Sync {
-    // Invokes the callback with the given solution, if one is registered.
-    fn invoke(&self, solution: &S);
+/// Implemented for `()` (no-op) and for any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`.
+pub trait ProgressCallback<S: PlanningSolution>: Send + Sync {
+    fn invoke(&self, progress: SolverProgressRef<'_, S>);
 }
 
-impl<S> BestSolutionCallback<S> for () {
-    fn invoke(&self, _solution: &S) {}
+impl<S: PlanningSolution> ProgressCallback<S> for () {
+    fn invoke(&self, _progress: SolverProgressRef<'_, S>) {}
 }
 
-impl<S, F: Fn(&S) + Send + Sync> BestSolutionCallback<S> for F {
-    fn invoke(&self, solution: &S) {
-        self(solution);
+impl<S, F> ProgressCallback<S> for F
+where
+    S: PlanningSolution,
+    F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync,
+{
+    fn invoke(&self, progress: SolverProgressRef<'_, S>) {
+        self(progress);
     }
 }
 
@@ -37,8 +56,8 @@ impl<S, F: Fn(&S) + Send + Sync> BestSolutionCallback<S> for F {
 /// * `'t` - Lifetime of the termination flag reference
 /// * `S` - The planning solution type
 /// * `D` - The score director type
-/// * `BestCb` - The best-solution callback type (default `()` means no callback)
-pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, BestCb = ()> {
+/// * `ProgressCb` - The progress callback type (default `()` means no callback)
+pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()> {
     // The score director managing the working solution.
     score_director: D,
     // The best solution found so far.
@@ -57,8 +76,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, BestCb = ()> {
     stats: SolverStats,
     // Time limit for solving (checked by phases).
     time_limit: Option<Duration>,
-    // Callback invoked when the best solution improves.
-    best_solution_callback: BestCb,
+    // Callback invoked when the solver should publish progress.
+    progress_callback: ProgressCb,
     // Optional maximum total step count for in-phase termination (T1).
     pub inphase_step_count_limit: Option<u64>,
     // Optional maximum total move count for in-phase termination (T1).
@@ -79,7 +98,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             terminate: None,
             stats: SolverStats::default(),
             time_limit: None,
-            best_solution_callback: (),
+            progress_callback: (),
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -87,12 +106,12 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
     }
 }
 
-impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
-    SolverScope<'t, S, D, BestCb>
+impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
+    SolverScope<'t, S, D, ProgressCb>
 {
     pub fn new_with_callback(
         score_director: D,
-        callback: BestCb,
+        callback: ProgressCb,
         terminate: Option<&'t std::sync::atomic::AtomicBool>,
     ) -> Self {
         Self {
@@ -105,7 +124,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
             terminate,
             stats: SolverStats::default(),
             time_limit: None,
-            best_solution_callback: callback,
+            progress_callback: callback,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -113,8 +132,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
     }
 }
 
-impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
-    SolverScope<'t, S, D, BestCb>
+impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
+    SolverScope<'t, S, D, ProgressCb>
 {
     pub fn with_terminate(mut self, terminate: Option<&'t AtomicBool>) -> Self {
         self.terminate = terminate;
@@ -126,10 +145,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self
     }
 
-    /// Sets the best solution callback, transitioning to a typed callback scope.
+    /// Sets the progress callback, transitioning to a typed callback scope.
     ///
-    /// The callback is invoked whenever the best solution improves during solving.
-    pub fn with_best_solution_callback<F: Fn(&S) + Send + Sync>(
+    /// The callback is invoked for exact progress updates and best-solution updates.
+    pub fn with_progress_callback<F: ProgressCallback<S>>(
         self,
         callback: F,
     ) -> SolverScope<'t, S, D, F> {
@@ -143,7 +162,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
             terminate: self.terminate,
             stats: self.stats,
             time_limit: self.time_limit,
-            best_solution_callback: callback,
+            progress_callback: callback,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
@@ -193,6 +212,26 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
         self.best_score.as_ref()
     }
 
+    pub fn report_progress(&self) {
+        self.progress_callback.invoke(SolverProgressRef {
+            kind: SolverProgressKind::Progress,
+            status: SolverStatus::Solving,
+            solution: self.best_solution.as_ref(),
+            score: self.best_score.as_ref(),
+            telemetry: self.stats.snapshot(),
+        });
+    }
+
+    pub fn report_best_solution(&self) {
+        self.progress_callback.invoke(SolverProgressRef {
+            kind: SolverProgressKind::BestSolution,
+            status: SolverStatus::Solving,
+            solution: self.best_solution.as_ref(),
+            score: self.best_score.as_ref(),
+            telemetry: self.stats.snapshot(),
+        });
+    }
+
     /// Updates the best solution if the current solution is better.
     pub fn update_best_solution(&mut self) {
         let current_score = self.score_director.calculate_score();
@@ -205,10 +244,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>>
             self.best_solution = Some(self.score_director.clone_working_solution());
             self.best_score = Some(current_score);
 
-            // Invoke callback if registered
-            if let Some(ref solution) = self.best_solution {
-                self.best_solution_callback.invoke(solution);
-            }
+            self.report_best_solution();
         }
     }
 

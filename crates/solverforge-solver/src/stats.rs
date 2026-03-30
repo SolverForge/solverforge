@@ -25,6 +25,17 @@ assert_eq!(stats.moves_evaluated, 2);
 assert_eq!(stats.moves_accepted, 1);
 ```
 */
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SolverTelemetry {
+    pub elapsed_ms: u64,
+    pub step_count: u64,
+    pub moves_evaluated: u64,
+    pub moves_accepted: u64,
+    pub score_calculations: u64,
+    pub moves_per_second: u64,
+    pub acceptance_rate: f64,
+}
+
 #[derive(Debug, Default)]
 pub struct SolverStats {
     start_time: Option<Instant>,
@@ -80,6 +91,18 @@ impl SolverStats {
             0.0
         } else {
             self.moves_accepted as f64 / self.moves_evaluated as f64
+        }
+    }
+
+    pub fn snapshot(&self) -> SolverTelemetry {
+        SolverTelemetry {
+            elapsed_ms: self.elapsed().as_millis() as u64,
+            step_count: self.step_count,
+            moves_evaluated: self.moves_evaluated,
+            moves_accepted: self.moves_accepted,
+            score_calculations: self.score_calculations,
+            moves_per_second: self.moves_per_second() as u64,
+            acceptance_rate: self.acceptance_rate(),
         }
     }
 }

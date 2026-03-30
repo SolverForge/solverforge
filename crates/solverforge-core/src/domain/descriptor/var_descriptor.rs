@@ -1,6 +1,12 @@
 // Variable descriptor.
 
+use std::any::Any;
+
 use crate::domain::variable::{ShadowVariableKind, ValueRangeType, VariableType};
+
+pub type UsizeGetter = for<'a> fn(&'a dyn Any) -> Option<usize>;
+pub type UsizeSetter = fn(&mut dyn Any, Option<usize>);
+pub type UsizeEntityValueProvider = for<'a> fn(&'a dyn Any) -> Vec<usize>;
 
 // Describes a planning variable at runtime.
 #[derive(Debug, Clone)]
@@ -19,6 +25,10 @@ pub struct VariableDescriptor {
     pub source_variable: Option<&'static str>,
     // For shadow variables: the source entity type name.
     pub source_entity: Option<&'static str>,
+    // Dynamic accessors for stock standard-variable solving.
+    pub usize_getter: Option<UsizeGetter>,
+    pub usize_setter: Option<UsizeSetter>,
+    pub entity_value_provider: Option<UsizeEntityValueProvider>,
 }
 
 impl VariableDescriptor {
@@ -31,6 +41,9 @@ impl VariableDescriptor {
             value_range_type: ValueRangeType::Collection,
             source_variable: None,
             source_entity: None,
+            usize_getter: None,
+            usize_setter: None,
+            entity_value_provider: None,
         }
     }
 
@@ -47,6 +60,9 @@ impl VariableDescriptor {
             value_range_type: ValueRangeType::Collection,
             source_variable: None,
             source_entity: None,
+            usize_getter: None,
+            usize_setter: None,
+            entity_value_provider: None,
         }
     }
 
@@ -59,6 +75,9 @@ impl VariableDescriptor {
             value_range_type: ValueRangeType::Collection,
             source_variable: None,
             source_entity: None,
+            usize_getter: None,
+            usize_setter: None,
+            entity_value_provider: None,
         }
     }
 
@@ -71,6 +90,9 @@ impl VariableDescriptor {
             value_range_type: ValueRangeType::Collection,
             source_variable: None,
             source_entity: None,
+            usize_getter: None,
+            usize_setter: None,
+            entity_value_provider: None,
         }
     }
 
@@ -97,6 +119,9 @@ impl VariableDescriptor {
             value_range_type: ValueRangeType::Collection,
             source_variable: Some(source_shadow),
             source_entity: None,
+            usize_getter: None,
+            usize_setter: None,
+            entity_value_provider: None,
         }
     }
 
@@ -108,6 +133,17 @@ impl VariableDescriptor {
     pub fn with_source(mut self, entity: &'static str, variable: &'static str) -> Self {
         self.source_entity = Some(entity);
         self.source_variable = Some(variable);
+        self
+    }
+
+    pub fn with_usize_accessors(mut self, getter: UsizeGetter, setter: UsizeSetter) -> Self {
+        self.usize_getter = Some(getter);
+        self.usize_setter = Some(setter);
+        self
+    }
+
+    pub fn with_entity_value_provider(mut self, provider: UsizeEntityValueProvider) -> Self {
+        self.entity_value_provider = Some(provider);
         self
     }
 }

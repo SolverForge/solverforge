@@ -10,7 +10,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::Termination;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
 /* Combines multiple terminations with OR logic.
@@ -109,7 +109,7 @@ macro_rules! impl_composite_termination {
         where
             S: PlanningSolution,
             D: Director<S>,
-            BestCb: BestSolutionCallback<S>,
+            BestCb: ProgressCallback<S>,
             $($T: Termination<S, D, BestCb>,)+
         {
             fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
@@ -134,7 +134,7 @@ macro_rules! impl_composite_termination {
         where
             S: PlanningSolution,
             D: Director<S>,
-            BestCb: BestSolutionCallback<S>,
+            BestCb: ProgressCallback<S>,
             $($T: Termination<S, D, BestCb>,)+
         {
             fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {

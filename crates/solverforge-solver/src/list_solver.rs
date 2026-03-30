@@ -35,6 +35,7 @@ use crate::manager::{
 use crate::phase::localsearch::{AcceptedCountForager, LateAcceptanceAcceptor, LocalSearchPhase};
 use crate::problem_spec::ProblemSpec;
 use crate::run::AnyTermination;
+use crate::scope::ProgressCallback;
 use crate::solver::{SolveResult, Solver};
 
 // Type alias for the config-driven list local search phase
@@ -157,7 +158,7 @@ where
         time_limit: Duration,
         termination: AnyTermination<S, ScoreDirector<S, C>>,
         terminate: Option<&AtomicBool>,
-        callback: impl Fn(&S) + Send + Sync,
+        callback: impl ProgressCallback<S>,
     ) -> SolveResult<S> {
         let construction = build_list_construction::<S, V>(
             config,
@@ -207,7 +208,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -218,7 +219,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -229,7 +230,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -240,7 +241,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -251,7 +252,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -262,7 +263,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -273,7 +274,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {
@@ -284,7 +285,7 @@ where
                 let solver = Solver::new(((), c, ls))
                     .with_termination(termination)
                     .with_time_limit(time_limit)
-                    .with_best_solution_callback(callback);
+                    .with_progress_callback(callback);
                 if let Some(flag) = terminate {
                     solver.with_terminate(flag).solve(director)
                 } else {

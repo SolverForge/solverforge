@@ -14,7 +14,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use super::Termination;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
 /// Terminates when the rate of score improvement falls below a threshold.
@@ -108,7 +108,7 @@ impl<S: PlanningSolution> DiminishedReturnsTermination<S> {
 // which is called from a single thread during solving.
 unsafe impl<S: PlanningSolution> Send for DiminishedReturnsTermination<S> {}
 
-impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
+impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for DiminishedReturnsTermination<S>
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {

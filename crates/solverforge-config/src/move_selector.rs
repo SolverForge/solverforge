@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MoveSelectorConfig {
-    // Change move selector (basic variables).
+    // Change move selector (standard variables).
     ChangeMoveSelector(ChangeMoveConfig),
 
-    // Swap move selector (basic variables).
+    // Swap move selector (standard variables).
     SwapMoveSelector(SwapMoveConfig),
 
     // List change move selector — relocates single elements within/between routes.

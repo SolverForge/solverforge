@@ -7,7 +7,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use super::Termination;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
 /* Terminates when the best score reaches or exceeds a target score.
@@ -40,7 +40,7 @@ impl<S, D, BestCb, Sc> Termination<S, D, BestCb> for BestScoreTermination<Sc>
 where
     S: PlanningSolution<Score = Sc>,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     Sc: Score,
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
@@ -106,7 +106,7 @@ impl<S, D, BestCb, F> Termination<S, D, BestCb> for BestScoreFeasibleTermination
 where
     S: PlanningSolution,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {

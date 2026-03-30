@@ -77,3 +77,21 @@ fn test_planning_solution_derives_correctly() {
         Some(HardSoftScore::of(-1, -5))
     );
 }
+
+#[test]
+fn test_solution_descriptor_preserves_entity_variable_metadata() {
+    let descriptor = Schedule::descriptor();
+    let shift_descriptor = descriptor
+        .find_entity_descriptor("Shift")
+        .expect("Shift descriptor should be present");
+
+    assert_eq!(shift_descriptor.solution_field, "shifts");
+    assert_eq!(shift_descriptor.id_field, Some("id"));
+
+    let employee_var = shift_descriptor
+        .find_variable("employee_id")
+        .expect("employee_id variable descriptor should be present");
+
+    assert!(employee_var.allows_unassigned);
+    assert_eq!(employee_var.value_range_provider, Some("employees"));
+}

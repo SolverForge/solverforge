@@ -196,11 +196,11 @@ All notable changes to this project will be documented in this file. See [commit
 * **jit:** add Cranelift JIT compiler for Expr trees 4560f38
 * **jit:** zero-fallback JIT, eliminate key extractor temp buffer, add Python .pyi stub 2ec55ca
 * **lib:** export stats module and types 6ac4bba
-* **macros:** add BasicVariableConfig struct and parser 351510f
+* **macros:** add StandardVariableConfig struct and parser 351510f
 * **macros:** add shadow variable attribute parsing d4396dd
 * **macros:** generate entity_count and list operation methods eeca2e1
 * **macros:** generate helper methods for basic variables 1bd8c7e
-* **macros:** generate solve() method for basic variable problems ff6a1b2
+* **macros:** generate solve() method for standard variable problems ff6a1b2
 * **macros:** implement SolvableSolution trait in planning_solution macro f3fd5e4
 * **macros:** parse constraints attribute and embed path in solve() 7ea88d6
 * **manager:** add with_phase_factory() to SolverManagerBuilder 7ab9aed
@@ -241,7 +241,7 @@ All notable changes to this project will be documented in this file. See [commit
 * **solver:** add ListChangeMoveSelector for element relocation 31357b3
 * **solver:** add ListConstructionPhaseBuilder with change notification ea67ba9
 * **solver:** add NearbyKOptMoveSelector for efficient k-opt 93855a0
-* **solver:** add run_solver for basic variable problems 6c6b228
+* **solver:** add run_solver for standard variable problems 6c6b228
 * **solver:** add shared test_utils module 12af820
 * **solver:** add SolverEvent and solve_with_events for real-time feedback 45215e7
 * **solver:** add SolverManager::builder() static method 1d2a063
@@ -259,7 +259,7 @@ All notable changes to this project will be documented in this file. See [commit
 * **solver:** propagate best_solution_callback in impl_solver! solve() 3b60d3b
 * **solver:** return SolveResult with telemetry from Solver::solve() 502bca1
 * **solver:** rewrite SimulatedAnnealingAcceptor with true Boltzmann distribution 26f6c60
-* **solver:** wire UnionMoveSelector + SimulatedAnnealing in basic.rs 8ef7d84
+* **solver:** wire UnionMoveSelector + SimulatedAnnealing in standard.rs 8ef7d84
 * **stats:** add zero-erasure SolverStats and PhaseStats fd54200
 * **telemetry:** wire stats recording in phases and scope be7ea2d
 * **termination:** export all termination types from fluent API 5fceaf6
@@ -383,11 +383,11 @@ All notable changes to this project will be documented in this file. See [commit
 * **core:** add ListVariableSolution trait for list-based planning 9e94edb
 * **deploy:** fix CI 5fc03a7
 * **lib:** export stats module and types 97cf39d
-* **macros:** add BasicVariableConfig struct and parser b0a811b
+* **macros:** add StandardVariableConfig struct and parser b0a811b
 * **macros:** add shadow variable attribute parsing cadf410
 * **macros:** generate entity_count and list operation methods 5a9061e
 * **macros:** generate helper methods for basic variables 1b95593
-* **macros:** generate solve() method for basic variable problems 8810993
+* **macros:** generate solve() method for standard variable problems 8810993
 * **macros:** implement SolvableSolution trait in planning_solution macro 68ee735
 * **macros:** parse constraints attribute and embed path in solve() a3c085e
 * **manager:** add with_phase_factory() to SolverManagerBuilder d351daa
@@ -410,7 +410,7 @@ All notable changes to this project will be documented in this file. See [commit
 * **solver:** add KOptPhaseBuilder for tour optimization 3876d17
 * **solver:** add ListChangeMoveSelector for element relocation eec2cf3
 * **solver:** add ListConstructionPhaseBuilder with change notification c44d3d5
-* **solver:** add run_solver for basic variable problems f4a8084
+* **solver:** add run_solver for standard variable problems f4a8084
 * **solver:** add SolverEvent and solve_with_events for real-time feedback 978c819
 * **solver:** add SolverManager::builder() static method b8ad45f
 * **solver:** add termination flag to run_solver_with_events de55f5f

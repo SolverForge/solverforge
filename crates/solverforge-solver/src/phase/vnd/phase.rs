@@ -9,7 +9,7 @@ use solverforge_scoring::{Director, RecordingDirector};
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::Phase;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 /// Variable Neighborhood Descent phase.
@@ -82,7 +82,7 @@ macro_rules! impl_vnd_phase {
         where
             S: PlanningSolution,
             D: Director<S>,
-            BestCb: BestSolutionCallback<S>,
+            BestCb: ProgressCallback<S>,
             M: Move<S>,
             $MS: MoveSelector<S, M>,
         {
@@ -124,7 +124,7 @@ macro_rules! impl_vnd_phase {
         where
             S: PlanningSolution,
             D: Director<S>,
-            BestCb: BestSolutionCallback<S>,
+            BestCb: ProgressCallback<S>,
             M: Move<S>,
             $($MS: MoveSelector<S, M>,)+
         {
@@ -186,7 +186,7 @@ fn find_best_improving_move_index<S, D, BestCb, M>(
 where
     S: PlanningSolution,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     M: Move<S>,
 {
     let mut best: Option<(usize, S::Score)> = None;

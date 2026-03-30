@@ -1,6 +1,6 @@
 /* Unified solver entry point.
 
-This module provides the single `run_solver` function used by both basic
+This module provides the single `run_solver` function used by both standard
 variable and list variable problems via the `ProblemSpec` trait.
 */
 
@@ -15,8 +15,9 @@ use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
 use tokio::sync::mpsc;
 use tracing::info;
 
+use crate::manager::SolverEvent;
 use crate::problem_spec::ProblemSpec;
-use crate::scope::{BestSolutionCallback, SolverScope};
+use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::termination::{
     BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
@@ -46,12 +47,12 @@ impl<S: PlanningSolution, D: Director<S>> fmt::Debug for AnyTermination<S, D> {
     }
 }
 
-impl<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S>> Termination<S, D, BestCb>
-    for AnyTermination<S, D>
+impl<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
+    Termination<S, D, ProgressCb> for AnyTermination<S, D>
 where
     S::Score: Score,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+    fn is_terminated(&self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool {
         match self {
             Self::Default(t) => t.is_terminated(solver_scope),
             Self::WithBestScore(t) => t.is_terminated(solver_scope),
@@ -61,7 +62,7 @@ where
         }
     }
 
-    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>) {
         match self {
             Self::Default(t) => t.install_inphase_limits(solver_scope),
             Self::WithBestScore(t) => t.install_inphase_limits(solver_scope),
@@ -123,7 +124,7 @@ where
 
 /* Solves a problem using the given `ProblemSpec` for problem-specific logic.
 
-This is the unified entry point for both basic variable and list variable
+This is the unified entry point for both standard variable and list variable
 problems. The shared logic (config loading, director creation, trivial-case
 handling, termination building, callback setup, final send) lives here.
 Problem-specific construction and local search are delegated to `spec`.
@@ -136,7 +137,7 @@ pub fn run_solver<S, C, Spec>(
     descriptor: fn() -> SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     terminate: Option<&AtomicBool>,
-    sender: mpsc::UnboundedSender<(S, S::Score)>,
+    sender: mpsc::UnboundedSender<SolverEvent<S>>,
     spec: Spec,
 ) -> S
 where
@@ -165,8 +166,13 @@ where
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
         info!(event = "solve_end", score = %score);
+        let telemetry = solver_scope.stats().snapshot();
         let solution = solver_scope.take_best_or_working_solution();
-        let _ = sender.send((solution.clone(), score));
+        let _ = sender.send(SolverEvent::Finished {
+            solution: solution.clone(),
+            score,
+            telemetry,
+        });
         return solution;
     }
 
@@ -174,9 +180,22 @@ where
         build_termination::<S, C>(&config, spec.default_time_limit_secs());
 
     let callback_sender = sender.clone();
-    let callback = move |solution: &S| {
-        let score = solution.score().unwrap_or_default();
-        let _ = callback_sender.send((solution.clone(), score));
+    let callback = move |progress: SolverProgressRef<'_, S>| match progress.kind {
+        SolverProgressKind::Progress => {
+            let _ = callback_sender.send(SolverEvent::Progress {
+                score: progress.score.cloned(),
+                telemetry: progress.telemetry,
+            });
+        }
+        SolverProgressKind::BestSolution => {
+            if let (Some(solution), Some(score)) = (progress.solution, progress.score) {
+                let _ = callback_sender.send(SolverEvent::BestSolution {
+                    solution: (*solution).clone(),
+                    score: *score,
+                    telemetry: progress.telemetry,
+                });
+            }
+        }
     };
 
     let result = spec.build_and_solve(
@@ -189,13 +208,22 @@ where
     );
 
     let final_score = result.solution.score().unwrap_or_default();
-    let _ = sender.send((result.solution.clone(), final_score));
+    let final_telemetry = result.stats.snapshot();
+    let _ = sender.send(SolverEvent::Finished {
+        solution: result.solution.clone(),
+        score: final_score,
+        telemetry: final_telemetry,
+    });
 
     info!(
         event = "solve_end",
         score = %final_score,
         steps = result.stats.step_count,
         moves_evaluated = result.stats.moves_evaluated,
+        moves_accepted = result.stats.moves_accepted,
+        score_calculations = result.stats.score_calculations,
+        moves_speed = final_telemetry.moves_per_second,
+        acceptance_rate = format!("{:.1}%", result.stats.acceptance_rate() * 100.0),
     );
     result.solution
 }

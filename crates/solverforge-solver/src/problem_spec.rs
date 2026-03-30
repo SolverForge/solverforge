@@ -9,9 +9,10 @@ use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::{ConstraintSet, ScoreDirector};
 
 use crate::run::AnyTermination;
+use crate::scope::ProgressCallback;
 use crate::solver::SolveResult;
 
-/// Parameterizes `run_solver` over basic-variable and list-variable problems.
+/// Parameterizes `run_solver` over standard-variable and list-variable problems.
 ///
 /// Implementors supply problem-specific trivial-case detection, logging,
 /// default time limit, and the actual construction + local search execution.
@@ -38,6 +39,6 @@ where
         time_limit: Duration,
         termination: AnyTermination<S, ScoreDirector<S, C>>,
         terminate: Option<&AtomicBool>,
-        callback: impl Fn(&S) + Send + Sync,
+        callback: impl ProgressCallback<S>,
     ) -> SolveResult<S>;
 }

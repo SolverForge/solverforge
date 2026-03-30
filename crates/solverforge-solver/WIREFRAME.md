@@ -23,7 +23,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── basic.rs                             — BasicSpec struct
+├── standard.rs                             — StandardSpec struct
 ├── list_solver.rs                       — ListSpec struct
 ├── run.rs                               — AnyTermination, build_termination, unified run_solver()
 ├── problem_spec.rs                      — ProblemSpec trait
@@ -31,8 +31,8 @@ src/
 │   ├── mod.rs                           — Re-exports from all builder submodules
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — BasicContext<S>, ListContext<S, V, DM, IDM>, IntraDistanceAdapter<T>
-│   ├── basic_selector.rs               — BasicLeafSelector<S> enum, BasicMoveSelectorBuilder
+│   ├── context.rs                       — StandardContext<S>, ListContext<S, V, DM, IDM>, IntraDistanceAdapter<T>
+│   ├── standard_selector.rs               — StandardLeafSelector<S> enum, StandardMoveSelectorBuilder
 │   └── list_selector.rs                — ListLeafSelector<S, V, DM, IDM> enum, ListMoveSelectorBuilder
 ├── stats.rs                             — SolverStats, PhaseStats
 ├── test_utils.rs                        — TestSolution, TestDirector, NQueens helpers
@@ -431,7 +431,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 ### Move Union Enums
 
-**`EitherMove<S, V>`** — Basic variable union:
+**`EitherMove<S, V>`** — Standard variable union:
 - `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`
 
 **`ListMoveImpl<S, V>`** — List variable union:
@@ -469,8 +469,8 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 | Selector | Produces | Note |
 |----------|----------|------|
-| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Basic variable change |
-| `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Basic variable swap |
+| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Standard variable change |
+| `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Standard variable swap |
 | `EitherChangeMoveSelector<S, V, ES, VS>` | `EitherMove<S, V>` | Wraps ChangeMoveSelector |
 | `EitherSwapMoveSelector<S, V, LES, RES>` | `EitherMove<S, V>` | Wraps SwapMoveSelector |
 | `ListChangeMoveSelector<S, V, ES>` | `ListChangeMove<S, V>` | List element relocation |
@@ -483,7 +483,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `NearbyKOptMoveSelector<S, V, D, ES>` | `KOptMove<S, V>` | Distance-pruned k-opt |
 | `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation |
 | `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap |
-| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Basic variable LNS |
+| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Standard variable LNS |
 
 **ListMove* wrappers** adapt specific move selectors to produce `ListMoveImpl<S, V>`:
 `ListMoveListChangeSelector`, `ListMoveListSwapSelector`, `ListMoveListReverseSelector`, `ListMoveSubListChangeSelector`, `ListMoveSubListSwapSelector`, `ListMoveKOptSelector`, `ListMoveNearbyKOptSelector`, `ListMoveListRuinSelector`, `ListMoveNearbyListChangeSelector`, `ListMoveNearbyListSwapSelector`.
@@ -711,7 +711,7 @@ Aggregate and per-phase metrics: step count, moves evaluated/accepted, score cal
 
 Trait that abstracts over basic and list-variable problems for config-driven solver construction.
 
-### `BasicSpec` — `basic.rs`
+### `StandardSpec` — `standard.rs`
 
 Concrete `ProblemSpec` implementation for basic (non-list) variable problems. Wires construction + local search with `SimulatedAnnealing` + `AcceptedCountForager` using `UnionMoveSelector` of `EitherChangeMoveSelector` + `EitherSwapMoveSelector`.
 

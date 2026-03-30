@@ -7,7 +7,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::phase::Phase;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope};
 
 use super::config::ExhaustiveSearchConfig;
@@ -112,7 +112,7 @@ impl<S, D, BestCb, Dec> Phase<S, D, BestCb> for ExhaustiveSearchPhase<Dec>
 where
     S: PlanningSolution,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     Dec: ExhaustiveSearchDecider<S, D>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {

@@ -14,7 +14,7 @@ use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 /// Local search phase that improves an existing solution.
@@ -96,7 +96,7 @@ impl<S, D, BestCb, M, MS, A, Fo> Phase<S, D, BestCb> for LocalSearchPhase<S, M, 
 where
     S: PlanningSolution,
     D: Director<S>,
-    BestCb: BestSolutionCallback<S>,
+    BestCb: ProgressCallback<S>,
     M: Move<S>,
     MS: MoveSelector<S, M>,
     A: Acceptor<S>,
@@ -192,9 +192,16 @@ where
                                     event = "progress",
                                     steps = step_scope.step_index(),
                                     moves_evaluated = local_moves_evaluated,
+                                    moves_accepted = step_scope.phase_scope().solver_scope().stats().moves_accepted,
+                                    score_calculations = step_scope.phase_scope().solver_scope().stats().score_calculations,
                                     speed = current_speed,
+                                    acceptance_rate = format!(
+                                        "{:.1}%",
+                                        step_scope.phase_scope().solver_scope().stats().acceptance_rate() * 100.0
+                                    ),
                                     score = %last_step_score,
                                 );
+                                step_scope.phase_scope().solver_scope().report_progress();
                                 last_progress_time = now;
                                 last_progress_moves = local_moves_evaluated;
                             }
@@ -274,9 +281,16 @@ where
                                 event = "progress",
                                 steps = step_scope.step_index(),
                                 moves_evaluated = local_moves_evaluated,
+                                moves_accepted = step_scope.phase_scope().solver_scope().stats().moves_accepted,
+                                score_calculations = step_scope.phase_scope().solver_scope().stats().score_calculations,
                                 speed = current_speed,
+                                acceptance_rate = format!(
+                                    "{:.1}%",
+                                    step_scope.phase_scope().solver_scope().stats().acceptance_rate() * 100.0
+                                ),
                                 score = %last_step_score,
                             );
+                            step_scope.phase_scope().solver_scope().report_progress();
                             last_progress_time = now;
                             last_progress_moves = local_moves_evaluated;
                         }
@@ -415,6 +429,9 @@ where
             phase_index = phase_index,
             duration_ms = duration.as_millis() as u64,
             steps = steps,
+            moves_evaluated = stats.moves_evaluated,
+            moves_accepted = stats.moves_accepted,
+            score_calculations = stats.score_calculations,
             moves_speed = speed,
             calc_speed = calc_speed,
             acceptance_rate = format!("{:.1}%", acceptance_rate),

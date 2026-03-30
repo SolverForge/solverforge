@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::scope::BestSolutionCallback;
+use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
 /// Trait for determining when to stop solving.
@@ -14,7 +14,7 @@ use crate::scope::SolverScope;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type (default `()`)
-pub trait Termination<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>:
+pub trait Termination<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S> = ()>:
     Send + Debug
 {
     // Returns true if solving should terminate.

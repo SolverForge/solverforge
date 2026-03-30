@@ -18,8 +18,8 @@ triggers on these tuples but the pattern is architecturally required.
 #[cfg(test)]
 pub mod test_utils;
 
-pub mod basic;
 pub mod builder;
+pub mod descriptor_standard;
 pub mod heuristic;
 pub mod list_solver;
 pub mod manager;
@@ -29,13 +29,13 @@ pub mod realtime;
 pub mod run;
 pub mod scope;
 pub mod solver;
+pub mod standard;
 pub mod stats;
 pub mod termination;
 
 pub use builder::{
-    AcceptorBuilder, AnyAcceptor, AnyForager, BasicContext, BasicLeafSelector,
-    BasicMoveSelectorBuilder, ForagerBuilder, ListContext, ListLeafSelector,
-    ListMoveSelectorBuilder,
+    AcceptorBuilder, AnyAcceptor, AnyForager, ForagerBuilder, ListContext, ListLeafSelector,
+    ListMoveSelectorBuilder, StandardContext, StandardLeafSelector, StandardMoveSelectorBuilder,
 };
 pub use heuristic::{
     // K-opt reconnection patterns
@@ -89,8 +89,8 @@ pub use manager::{
     analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
     ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverFactory, SolverFactoryBuilder,
-    SolverManager, SolverStatus,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverFactory,
+    SolverFactoryBuilder, SolverManager, SolverStatus,
 };
 pub use phase::{
     construction::{
@@ -120,7 +120,7 @@ pub use phase::{
 };
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};
-pub use stats::{PhaseStats, SolverStats};
+pub use stats::{PhaseStats, SolverStats, SolverTelemetry};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
     DiminishedReturnsTermination, MoveCountTermination, OrTermination,
@@ -128,7 +128,8 @@ pub use termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-pub use basic::BasicSpec;
+pub use descriptor_standard::DescriptorStandardSpec;
 pub use list_solver::ListSpec;
 pub use problem_spec::ProblemSpec;
 pub use run::run_solver;
+pub use standard::StandardSpec;

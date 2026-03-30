@@ -5,13 +5,13 @@ All builders return concrete monomorphized enums — no `Box<dyn Trait>`.
 */
 
 pub mod acceptor;
-pub mod basic_selector;
 pub mod context;
 pub mod forager;
 pub mod list_selector;
+pub mod standard_selector;
 
 pub use acceptor::{AcceptorBuilder, AnyAcceptor};
-pub use basic_selector::{BasicLeafSelector, BasicMoveSelectorBuilder};
-pub use context::{BasicContext, IntraDistanceAdapter, ListContext};
+pub use context::{IntraDistanceAdapter, ListContext, StandardContext};
 pub use forager::{AnyForager, ForagerBuilder};
 pub use list_selector::{ListLeafSelector, ListMoveSelectorBuilder};
+pub use standard_selector::{StandardLeafSelector, StandardMoveSelectorBuilder};

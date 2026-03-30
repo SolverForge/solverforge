@@ -50,6 +50,23 @@ pub struct StockListVariableMetadata<S, DM, IDM> {
     _phantom: PhantomData<fn() -> S>,
 }
 
+/// Hidden trait implemented by `#[planning_entity]` for list-stock entities so
+/// `#[planning_solution]` can consume typed list metadata without re-stating
+/// it on the solution.
+pub trait StockListEntity<S> {
+    type CrossDistanceMeter: CrossEntityDistanceMeter<S> + Clone + fmt::Debug;
+    type IntraDistanceMeter: CrossEntityDistanceMeter<S> + Clone + fmt::Debug + 'static;
+
+    const STOCK_LIST_VARIABLE_COUNT: usize;
+    const STOCK_LIST_VARIABLE_NAME: &'static str;
+    const STOCK_LIST_ELEMENT_COLLECTION: &'static str;
+
+    fn list_field(entity: &Self) -> &[usize];
+    fn list_field_mut(entity: &mut Self) -> &mut Vec<usize>;
+    fn stock_list_metadata(
+    ) -> StockListVariableMetadata<S, Self::CrossDistanceMeter, Self::IntraDistanceMeter>;
+}
+
 impl<S, DM, IDM> StockListVariableMetadata<S, DM, IDM> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(

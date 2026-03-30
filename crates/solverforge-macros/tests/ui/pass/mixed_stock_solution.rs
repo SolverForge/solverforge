@@ -20,10 +20,7 @@ struct Route {
 
 #[planning_solution]
 #[shadow_variable_updates(
-    list_owner = "routes",
-    list_field = "visits",
-    element_collection = "all_visits",
-    element_type = "usize"
+    list_owner = "routes"
 )]
 struct MixedPlan {
     #[problem_fact_collection]

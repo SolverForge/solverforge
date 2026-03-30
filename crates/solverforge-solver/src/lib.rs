@@ -53,6 +53,7 @@ pub use heuristic::{
     CompositeMove,
     CrossEntityDistanceMeter,
     CutPoint,
+    DefaultCrossEntityDistanceMeter,
     DefaultDistanceMeter,
     DefaultPillarSelector,
     EntityReference,
@@ -141,7 +142,7 @@ pub use termination::{
 
 pub use list_solver::{
     build_list_construction, build_list_local_search, ListConstruction, ListLocalSearch,
-    StockListVariableMetadata,
+    StockListEntity, StockListVariableMetadata,
 };
 pub use problem_spec::ProblemSpec;
 pub use run::{log_stock_solve_start, run_solver, run_stock_solver};

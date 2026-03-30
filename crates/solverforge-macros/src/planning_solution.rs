@@ -18,7 +18,6 @@ struct ShadowConfig {
     next_field: Option<String>,
     cascading_listener: Option<String>,
     post_update_listener: Option<String>,
-    element_type: Option<String>,
 
     // Aggregate shadow fields on the list owner entity.
     // Format: "field_name:aggregation:source_field" (e.g., "total_demand:sum:demand")
@@ -27,28 +26,6 @@ struct ShadowConfig {
     // Computed shadow fields on the list owner entity.
     // Format: "field_name:method_name" (e.g., "total_driving_time:compute_driving_time")
     entity_computes: Vec<String>,
-
-    // Optional distance meter type paths for nearby selectors.
-    // Defaults to DefaultDistanceMeter when not specified.
-    distance_meter: Option<String>,
-    intra_distance_meter: Option<String>,
-
-    // Clarke-Wright feasibility gate: "path::to::fn" taking (&S, &[usize]) -> bool
-    merge_feasible_fn: Option<String>,
-
-    // Clarke-Wright construction function pointers
-    cw_depot_fn: Option<String>,
-    cw_distance_fn: Option<String>,
-    cw_element_load_fn: Option<String>,
-    cw_capacity_fn: Option<String>,
-    cw_assign_route_fn: Option<String>,
-
-    // K-opt polishing function pointers
-    k_opt_get_route: Option<String>,
-    k_opt_set_route: Option<String>,
-    k_opt_depot_fn: Option<String>,
-    k_opt_distance_fn: Option<String>,
-    k_opt_feasible_fn: Option<String>,
 }
 
 // Parse the constraints path from #[solverforge_constraints_path = "path"]
@@ -79,22 +56,8 @@ fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
         config.next_field = parse_attribute_string(attr, "next_field");
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");
         config.post_update_listener = parse_attribute_string(attr, "post_update_listener");
-        config.element_type = parse_attribute_string(attr, "element_type");
         config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
         config.entity_computes = parse_attribute_list(attr, "entity_compute");
-        config.distance_meter = parse_attribute_string(attr, "distance_meter");
-        config.intra_distance_meter = parse_attribute_string(attr, "intra_distance_meter");
-        config.merge_feasible_fn = parse_attribute_string(attr, "merge_feasible_fn");
-        config.cw_depot_fn = parse_attribute_string(attr, "cw_depot_fn");
-        config.cw_distance_fn = parse_attribute_string(attr, "cw_distance_fn");
-        config.cw_element_load_fn = parse_attribute_string(attr, "cw_element_load_fn");
-        config.cw_capacity_fn = parse_attribute_string(attr, "cw_capacity_fn");
-        config.cw_assign_route_fn = parse_attribute_string(attr, "cw_assign_route_fn");
-        config.k_opt_get_route = parse_attribute_string(attr, "k_opt_get_route");
-        config.k_opt_set_route = parse_attribute_string(attr, "k_opt_set_route");
-        config.k_opt_depot_fn = parse_attribute_string(attr, "k_opt_depot_fn");
-        config.k_opt_distance_fn = parse_attribute_string(attr, "k_opt_distance_fn");
-        config.k_opt_feasible_fn = parse_attribute_string(attr, "k_opt_feasible_fn");
     }
 
     config
@@ -192,7 +155,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    let list_operations = generate_list_operations(&shadow_config, fields, name);
+    let list_operations = generate_list_operations(&shadow_config, fields, name)?;
     let stock_phase_support =
         generate_stock_phase_support(&shadow_config, fields, &constraints_path, name);
     let standard_stock_phase_support =
@@ -246,91 +209,167 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     Ok(expanded)
 }
 
+struct ListOwnerConfig<'a> {
+    field_ident: &'a Ident,
+    entity_type: &'a syn::Type,
+    descriptor_index: usize,
+}
+
+fn find_list_owner_config<'a>(
+    config: &ShadowConfig,
+    fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<Option<ListOwnerConfig<'a>>, Error> {
+    let Some(list_owner) = config.list_owner.as_deref() else {
+        return Ok(None);
+    };
+
+    fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .enumerate()
+        .find_map(|(descriptor_index, field)| {
+            let field_ident = field.ident.as_ref()?;
+            if field_ident != list_owner {
+                return None;
+            }
+            let entity_type = extract_collection_inner_type(&field.ty)?;
+            Some(ListOwnerConfig {
+                field_ident,
+                entity_type,
+                descriptor_index,
+            })
+        })
+        .map(Some)
+        .ok_or_else(|| {
+            Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "#[shadow_variable_updates(list_owner = \"{list_owner}\")] must name a #[planning_entity_collection] field"
+                ),
+            )
+        })
+}
+
+fn vec_usize_fields(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Vec<&syn::Field> {
+    fields
+        .iter()
+        .filter(|field| {
+            extract_collection_inner_type(&field.ty)
+                .and_then(|inner| {
+                    let syn::Type::Path(type_path) = inner else {
+                        return None;
+                    };
+                    type_path.path.segments.last()
+                })
+                .is_some_and(|segment| segment.ident == "usize")
+        })
+        .collect()
+}
+
+fn shadow_updates_requested(config: &ShadowConfig) -> bool {
+    config.inverse_field.is_some()
+        || config.previous_field.is_some()
+        || config.next_field.is_some()
+        || config.cascading_listener.is_some()
+        || config.post_update_listener.is_some()
+        || !config.entity_aggregates.is_empty()
+        || !config.entity_computes.is_empty()
+}
+
 fn generate_list_operations(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     _solution_name: &Ident,
-) -> TokenStream {
-    let (list_owner, list_field, element_type, element_collection) = match (
-        &config.list_owner,
-        &config.list_field,
-        &config.element_type,
-        &config.element_collection,
-    ) {
-        (Some(lo), Some(lf), Some(et), Some(ec)) => (lo, lf, et, ec),
-        _ => return TokenStream::new(),
+) -> Result<TokenStream, Error> {
+    let Some(list_owner) = find_list_owner_config(config, fields)? else {
+        return Ok(TokenStream::new());
     };
 
-    let list_owner_ident = Ident::new(list_owner, proc_macro2::Span::call_site());
-    let list_field_ident = Ident::new(list_field, proc_macro2::Span::call_site());
-    let element_type_ident = Ident::new(element_type, proc_macro2::Span::call_site());
-
-    let entity_fields: Vec<_> = fields
-        .iter()
-        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
-        .collect();
-
-    let descriptor_index = entity_fields
-        .iter()
-        .position(|f| f.ident.as_ref().is_some_and(|ident| ident == list_owner))
-        .expect("list_owner must be a planning_entity_collection field");
-
     let descriptor_index_lit = syn::LitInt::new(
-        &descriptor_index.to_string(),
+        &list_owner.descriptor_index.to_string(),
         proc_macro2::Span::call_site(),
     );
+    let list_owner_ident = list_owner.field_ident;
+    let list_owner_type = list_owner.entity_type;
+    let list_trait =
+        quote! { <#list_owner_type as ::solverforge::__internal::StockListEntity<Self>> };
+    let element_collection_len_branches: Vec<_> = vec_usize_fields(fields)
+        .iter()
+        .map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_name = field_ident.to_string();
+            quote! {
+                if #list_trait::STOCK_LIST_ELEMENT_COLLECTION == #field_name {
+                    return s.#field_ident.len();
+                }
+            }
+        })
+        .collect();
+    let element_collection_index_branches: Vec<_> = vec_usize_fields(fields)
+        .iter()
+        .map(|field| {
+            let field_ident = field.ident.as_ref().unwrap();
+            let field_name = field_ident.to_string();
+            quote! {
+                if #list_trait::STOCK_LIST_ELEMENT_COLLECTION == #field_name {
+                    return s.#field_ident[idx];
+                }
+            }
+        })
+        .collect();
 
-    let element_collection_ident = Ident::new(element_collection, proc_macro2::Span::call_site());
-
-    quote! {
+    Ok(quote! {
         #[inline]
         pub fn list_len(&self, entity_idx: usize) -> usize {
             self.#list_owner_ident
                 .get(entity_idx)
-                .map_or(0, |e| e.#list_field_ident.len())
+                .map_or(0, |entity| #list_trait::list_field(entity).len())
         }
 
         #[inline]
         pub fn list_len_static(s: &Self, entity_idx: usize) -> usize {
             s.#list_owner_ident
                 .get(entity_idx)
-                .map_or(0, |e| e.#list_field_ident.len())
+                .map_or(0, |entity| #list_trait::list_field(entity).len())
         }
 
         #[inline]
-        pub fn list_remove(s: &mut Self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
+        pub fn list_remove(s: &mut Self, entity_idx: usize, pos: usize) -> Option<usize> {
             s.#list_owner_ident
                 .get_mut(entity_idx)
-                .map(|e| e.#list_field_ident.remove(pos))
+                .map(|entity| #list_trait::list_field_mut(entity).remove(pos))
         }
 
         #[inline]
-        pub fn list_insert(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
-            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
-                e.#list_field_ident.insert(pos, val);
+        pub fn list_insert(s: &mut Self, entity_idx: usize, pos: usize, val: usize) {
+            if let Some(entity) = s.#list_owner_ident.get_mut(entity_idx) {
+                #list_trait::list_field_mut(entity).insert(pos, val);
             }
         }
 
         #[inline]
-        pub fn list_get(s: &Self, entity_idx: usize, pos: usize) -> Option<#element_type_ident> {
+        pub fn list_get(s: &Self, entity_idx: usize, pos: usize) -> Option<usize> {
             s.#list_owner_ident
                 .get(entity_idx)
-                .and_then(|e| e.#list_field_ident.get(pos).copied())
+                .and_then(|entity| #list_trait::list_field(entity).get(pos).copied())
         }
 
         #[inline]
-        pub fn list_set(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
-            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
-                if pos < e.#list_field_ident.len() {
-                    e.#list_field_ident[pos] = val;
+        pub fn list_set(s: &mut Self, entity_idx: usize, pos: usize, val: usize) {
+            if let Some(entity) = s.#list_owner_ident.get_mut(entity_idx) {
+                let list = #list_trait::list_field_mut(entity);
+                if pos < list.len() {
+                    list[pos] = val;
                 }
             }
         }
 
         #[inline]
         pub fn list_reverse(s: &mut Self, entity_idx: usize, start: usize, end: usize) {
-            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
-                e.#list_field_ident[start..end].reverse();
+            if let Some(entity) = s.#list_owner_ident.get_mut(entity_idx) {
+                #list_trait::list_field_mut(entity)[start..end].reverse();
             }
         }
 
@@ -340,10 +379,10 @@ fn generate_list_operations(
             entity_idx: usize,
             start: usize,
             end: usize,
-        ) -> Vec<#element_type_ident> {
+        ) -> Vec<usize> {
             s.#list_owner_ident
                 .get_mut(entity_idx)
-                .map(|e| e.#list_field_ident.drain(start..end).collect())
+                .map(|entity| #list_trait::list_field_mut(entity).drain(start..end).collect())
                 .unwrap_or_default()
         }
 
@@ -352,33 +391,38 @@ fn generate_list_operations(
             s: &mut Self,
             entity_idx: usize,
             pos: usize,
-            items: Vec<#element_type_ident>,
+            items: Vec<usize>,
         ) {
-            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
+            if let Some(entity) = s.#list_owner_ident.get_mut(entity_idx) {
+                let list = #list_trait::list_field_mut(entity);
                 for (i, item) in items.into_iter().enumerate() {
-                    e.#list_field_ident.insert(pos + i, item);
+                    list.insert(pos + i, item);
                 }
             }
         }
 
         #[inline]
-        pub fn ruin_remove(s: &mut Self, entity_idx: usize, pos: usize) -> #element_type_ident {
-            s.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+        pub fn ruin_remove(s: &mut Self, entity_idx: usize, pos: usize) -> usize {
+            #list_trait::list_field_mut(&mut s.#list_owner_ident[entity_idx]).remove(pos)
         }
 
         #[inline]
-        pub fn ruin_insert(s: &mut Self, entity_idx: usize, pos: usize, val: #element_type_ident) {
-            s.#list_owner_ident[entity_idx].#list_field_ident.insert(pos, val);
+        pub fn ruin_insert(s: &mut Self, entity_idx: usize, pos: usize, val: usize) {
+            #list_trait::list_field_mut(&mut s.#list_owner_ident[entity_idx]).insert(pos, val);
         }
 
         #[inline]
-        pub fn list_remove_for_construction(s: &mut Self, entity_idx: usize, pos: usize) -> #element_type_ident {
-            s.#list_owner_ident[entity_idx].#list_field_ident.remove(pos)
+        pub fn list_remove_for_construction(s: &mut Self, entity_idx: usize, pos: usize) -> usize {
+            #list_trait::list_field_mut(&mut s.#list_owner_ident[entity_idx]).remove(pos)
         }
 
         #[inline]
-        pub fn index_to_element_static(s: &Self, idx: usize) -> #element_type_ident {
-            s.#element_collection_ident[idx]
+        pub fn index_to_element_static(s: &Self, idx: usize) -> usize {
+            #(#element_collection_index_branches)*
+            panic!(
+                "list element collection `{}` must resolve to a Vec<usize> field on the planning solution",
+                #list_trait::STOCK_LIST_ELEMENT_COLLECTION,
+            );
         }
 
         #[inline]
@@ -388,14 +432,18 @@ fn generate_list_operations(
 
         #[inline]
         pub fn element_count(s: &Self) -> usize {
-            s.#element_collection_ident.len()
+            #(#element_collection_len_branches)*
+            panic!(
+                "list element collection `{}` must resolve to a Vec<usize> field on the planning solution",
+                #list_trait::STOCK_LIST_ELEMENT_COLLECTION,
+            );
         }
 
         #[inline]
-        pub fn assigned_elements(s: &Self) -> Vec<#element_type_ident> {
+        pub fn assigned_elements(s: &Self) -> Vec<usize> {
             s.#list_owner_ident
                 .iter()
-                .flat_map(|e| e.#list_field_ident.iter().copied())
+                .flat_map(|entity| #list_trait::list_field(entity).iter().copied())
                 .collect()
         }
 
@@ -405,12 +453,12 @@ fn generate_list_operations(
         }
 
         #[inline]
-        pub fn assign_element(s: &mut Self, entity_idx: usize, elem: #element_type_ident) {
-            if let Some(e) = s.#list_owner_ident.get_mut(entity_idx) {
-                e.#list_field_ident.push(elem);
+        pub fn assign_element(s: &mut Self, entity_idx: usize, elem: usize) {
+            if let Some(entity) = s.#list_owner_ident.get_mut(entity_idx) {
+                #list_trait::list_field_mut(entity).push(elem);
             }
         }
-    }
+    })
 }
 
 fn generate_stock_solve_internal(
@@ -485,69 +533,19 @@ fn generate_stock_phase_support(
         return TokenStream::new();
     }
 
-    let list_owner = shadow_config.list_owner.as_ref().unwrap();
-    let list_field = shadow_config.list_field.as_ref().unwrap();
-    let element_type = shadow_config.element_type.as_ref().unwrap();
-    let list_element_type = Ident::new(element_type, proc_macro2::Span::call_site());
+    let list_owner = find_list_owner_config(shadow_config, fields)
+        .expect("list owner validation should have succeeded")
+        .expect("list_owner presence should imply an owner config");
+    let list_owner_type = list_owner.entity_type;
+    let list_trait = quote! {
+        <#list_owner_type as ::solverforge::__internal::StockListEntity<#solution_name>>
+    };
     let phase_name = syn::Ident::new(
         &format!("__SolverforgeStockPhaseFor{}", solution_name),
         proc_macro2::Span::call_site(),
     );
-
-    let cross_dm_ty: syn::Type = if let Some(dm) = &shadow_config.distance_meter {
-        syn::parse_str(dm).expect("distance_meter must be a valid type path")
-    } else {
-        syn::parse_str("::solverforge::DefaultDistanceMeter")
-            .expect("DefaultDistanceMeter path must parse")
-    };
-    let intra_dm_ty: syn::Type = if let Some(idm) = &shadow_config.intra_distance_meter {
-        syn::parse_str(idm).expect("intra_distance_meter must be a valid type path")
-    } else {
-        syn::parse_str("::solverforge::DefaultDistanceMeter")
-            .expect("DefaultDistanceMeter path must parse")
-    };
-    let cross_dm_expr: syn::Expr = if let Some(dm) = &shadow_config.distance_meter {
-        let dm_path: syn::Path = syn::parse_str(dm).expect("distance_meter must be a valid path");
-        syn::parse_quote! { #dm_path::default() }
-    } else {
-        syn::parse_quote! { ::solverforge::DefaultDistanceMeter }
-    };
-    let intra_dm_expr: syn::Expr = if let Some(idm) = &shadow_config.intra_distance_meter {
-        let idm_path: syn::Path =
-            syn::parse_str(idm).expect("intra_distance_meter must be a valid path");
-        syn::parse_quote! { #idm_path::default() }
-    } else {
-        syn::parse_quote! { ::solverforge::DefaultDistanceMeter }
-    };
-
-    let variable_name_str = list_field.as_str();
-    let merge_feasible: syn::Expr =
-        option_fn_expr(&shadow_config.merge_feasible_fn, "merge_feasible_fn");
-    let cw_depot: syn::Expr = option_fn_expr(&shadow_config.cw_depot_fn, "cw_depot_fn");
-    let cw_dist: syn::Expr = option_fn_expr(&shadow_config.cw_distance_fn, "cw_distance_fn");
-    let cw_load: syn::Expr =
-        option_fn_expr(&shadow_config.cw_element_load_fn, "cw_element_load_fn");
-    let cw_cap: syn::Expr = option_fn_expr(&shadow_config.cw_capacity_fn, "cw_capacity_fn");
-    let cw_assign: syn::Expr =
-        option_fn_expr(&shadow_config.cw_assign_route_fn, "cw_assign_route_fn");
-    let k_opt_get: syn::Expr = option_fn_expr(&shadow_config.k_opt_get_route, "k_opt_get_route");
-    let k_opt_set: syn::Expr = option_fn_expr(&shadow_config.k_opt_set_route, "k_opt_set_route");
-    let k_opt_depot: syn::Expr = option_fn_expr(&shadow_config.k_opt_depot_fn, "k_opt_depot_fn");
-    let k_opt_dist: syn::Expr =
-        option_fn_expr(&shadow_config.k_opt_distance_fn, "k_opt_distance_fn");
-    let k_opt_feasible: syn::Expr =
-        option_fn_expr(&shadow_config.k_opt_feasible_fn, "k_opt_feasible_fn");
-
-    let entity_fields: Vec<_> = fields
-        .iter()
-        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
-        .collect();
-    let descriptor_index = entity_fields
-        .iter()
-        .position(|f| f.ident.as_ref().is_some_and(|ident| ident == list_owner))
-        .expect("list_owner must be a planning_entity_collection field");
     let descriptor_index_lit = syn::LitInt::new(
-        &descriptor_index.to_string(),
+        &list_owner.descriptor_index.to_string(),
         proc_macro2::Span::call_site(),
     );
 
@@ -555,21 +553,21 @@ fn generate_stock_phase_support(
         #[derive(Debug)]
         enum #phase_name {
             Seed(::solverforge::__internal::SeedBestSolutionPhase),
-            Construction(::solverforge::__internal::ListConstruction<#solution_name, #list_element_type>),
+            Construction(::solverforge::__internal::ListConstruction<#solution_name, usize>),
             LocalSearch(
                 ::solverforge::__internal::MixedStockLocalSearch<
                     #solution_name,
-                    #list_element_type,
-                    #cross_dm_ty,
-                    #intra_dm_ty,
+                    usize,
+                    #list_trait::CrossDistanceMeter,
+                    #list_trait::IntraDistanceMeter,
                 >,
             ),
             Vnd(
                 ::solverforge::__internal::MixedStockVnd<
                     #solution_name,
-                    #list_element_type,
-                    #cross_dm_ty,
-                    #intra_dm_ty,
+                    usize,
+                    #list_trait::CrossDistanceMeter,
+                    #list_trait::IntraDistanceMeter,
                 >,
             ),
         }
@@ -619,6 +617,7 @@ fn generate_stock_phase_support(
                 config: &::solverforge::__internal::SolverConfig,
             ) -> ::solverforge::__internal::PhaseSequence<#phase_name> {
                 let descriptor = Self::descriptor();
+                let metadata = #list_trait::stock_list_metadata();
                 let list_ctx = ::solverforge::__internal::ListContext::new(
                     Self::list_len_static,
                     Self::list_remove,
@@ -631,9 +630,9 @@ fn generate_stock_phase_support(
                     Self::ruin_remove,
                     Self::ruin_insert,
                     Self::n_entities,
-                    #cross_dm_expr,
-                    #intra_dm_expr,
-                    #variable_name_str,
+                    metadata.cross_distance_meter.clone(),
+                    metadata.intra_distance_meter.clone(),
+                    #list_trait::STOCK_LIST_VARIABLE_NAME,
                     #descriptor_index_lit,
                 );
 
@@ -651,17 +650,17 @@ fn generate_stock_phase_support(
                         Self::list_remove_for_construction,
                         Self::index_to_element_static,
                         #descriptor_index_lit,
-                        #cw_depot,
-                        #cw_dist,
-                        #cw_load,
-                        #cw_cap,
-                        #cw_assign,
-                        #merge_feasible,
-                        #k_opt_get,
-                        #k_opt_set,
-                        #k_opt_depot,
-                        #k_opt_dist,
-                        #k_opt_feasible,
+                        metadata.cw_depot_fn,
+                        metadata.cw_distance_fn,
+                        metadata.cw_element_load_fn,
+                        metadata.cw_capacity_fn,
+                        metadata.cw_assign_route_fn,
+                        metadata.merge_feasible_fn,
+                        metadata.k_opt_get_route,
+                        metadata.k_opt_set_route,
+                        metadata.k_opt_depot_fn,
+                        metadata.k_opt_distance_fn,
+                        metadata.k_opt_feasible_fn,
                     )));
                     phases.push(#phase_name::LocalSearch(::solverforge::__internal::build_mixed_local_search(
                         None,
@@ -676,7 +675,7 @@ fn generate_stock_phase_support(
                     match phase {
                         ::solverforge::__internal::PhaseConfig::ConstructionHeuristic(ch) => {
                             if let Some(variable_name) = ch.target.variable_name.as_deref() {
-                                if variable_name != #variable_name_str {
+                                if variable_name != #list_trait::STOCK_LIST_VARIABLE_NAME {
                                     panic!(
                                         "construction heuristic targeting standard variables is not implemented in the unified stock path yet"
                                     );
@@ -700,17 +699,17 @@ fn generate_stock_phase_support(
                                 Self::list_remove_for_construction,
                                 Self::index_to_element_static,
                                 #descriptor_index_lit,
-                                #cw_depot,
-                                #cw_dist,
-                                #cw_load,
-                                #cw_cap,
-                                #cw_assign,
-                                #merge_feasible,
-                                #k_opt_get,
-                                #k_opt_set,
-                                #k_opt_depot,
-                                #k_opt_dist,
-                                #k_opt_feasible,
+                                metadata.cw_depot_fn,
+                                metadata.cw_distance_fn,
+                                metadata.cw_element_load_fn,
+                                metadata.cw_capacity_fn,
+                                metadata.cw_assign_route_fn,
+                                metadata.merge_feasible_fn,
+                                metadata.k_opt_get_route,
+                                metadata.k_opt_set_route,
+                                metadata.k_opt_depot_fn,
+                                metadata.k_opt_distance_fn,
+                                metadata.k_opt_feasible_fn,
                             )));
                         }
                         ::solverforge::__internal::PhaseConfig::LocalSearch(ls) => {
@@ -874,17 +873,6 @@ fn generate_standard_stock_phase_support(
     }
 }
 
-fn option_fn_expr(path: &Option<String>, label: &str) -> syn::Expr {
-    if let Some(path) = path {
-        let parsed: syn::Path = syn::parse_str(path).unwrap_or_else(|_| {
-            panic!("{label} must be a valid path");
-        });
-        syn::parse_quote! { ::core::option::Option::Some(#parsed) }
-    } else {
-        syn::parse_quote! { ::core::option::Option::None }
-    }
-}
-
 fn generate_solvable_solution(
     solution_name: &Ident,
     constraints_path: &Option<String>,
@@ -959,6 +947,15 @@ fn generate_solvable_solution(
 }
 
 fn generate_shadow_support(config: &ShadowConfig, solution_name: &Ident) -> TokenStream {
+    if !shadow_updates_requested(config) {
+        return quote! {
+            impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
+                #[inline]
+                fn update_entity_shadows(&mut self, _entity_idx: usize) {}
+            }
+        };
+    }
+
     let (list_owner, list_field, element_collection) = match (
         &config.list_owner,
         &config.list_field,

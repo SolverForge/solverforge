@@ -157,7 +157,7 @@ pub mod __internal {
     // Solver infrastructure
     pub use solverforge_solver::builder::ListContext;
     pub use solverforge_solver::heuristic::selector::{
-        DefaultDistanceMeter, FromSolutionEntitySelector,
+        DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, FromSolutionEntitySelector,
     };
     pub use solverforge_solver::manager::{
         KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
@@ -169,8 +169,8 @@ pub mod __internal {
         build_mixed_local_search, build_mixed_vnd, descriptor_has_bindings, log_stock_solve_start,
         run_stock_solver, DescriptorConstruction, DescriptorLocalSearch, DescriptorVnd,
         ListConstruction, MixedStockLocalSearch, MixedStockVnd, Phase, PhaseSequence,
-        SeedBestSolutionPhase, SolverEvent, SolverTelemetry, StockListVariableMetadata,
-        StockVndPhase,
+        SeedBestSolutionPhase, SolverEvent, SolverTelemetry, StockListEntity,
+        StockListVariableMetadata, StockVndPhase,
     };
 
     // Config

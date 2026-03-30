@@ -57,6 +57,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl PlanningId for T` (if `#[planning_id]` present) — `type Id` set to field type, `planning_id()` returns field value
 - `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow) and preserves `#[planning_id]` / `#[planning_pin]` metadata
 - Hidden list stock registry (when the entity has a `#[planning_list_variable]` field): `__SOLVERFORGE_LIST_VARIABLE_COUNT`, `__SOLVERFORGE_LIST_VARIABLE_NAME`, `__SOLVERFORGE_LIST_ELEMENT_COLLECTION`, `__solverforge_list_field()`, `__solverforge_list_field_mut()`, `__solverforge_list_stock_metadata()`
+- Hidden typed stock bridge (when the entity has a `#[planning_list_variable]` field): `impl __internal::StockListEntity<Solution> for Entity`
 - `pub trait {Entity}UnassignedFilter<...>` (when the entity has exactly one `Option<_>` planning variable) — `.unassigned()` on `UniConstraintStream<_, Entity, ...>`
 
 ### `PlanningSolutionImpl`
@@ -72,6 +73,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 
 **`#[shadow_variable_updates]` parameters:**
+- `list_owner = "field"` — selects the `#[planning_entity_collection]` field whose entity owns the list shadow updates
 - `inverse_field = "field"` — field on element for inverse mapping
 - `previous_field = "field"` — field on element for previous pointer
 - `next_field = "field"` — field on element for next pointer
@@ -92,7 +94,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable metadata is preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
-- List operations (when list shadow support is configured): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
+- List operations (when `list_owner` is configured): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
@@ -128,7 +130,10 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 |----------|-----------|------|
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
-| `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Option<String>, &Ident) -> TokenStream` | Generates list variable methods + solve_internal |
+| `find_list_owner_config` | `fn(&ShadowConfig, &Fields) -> Result<Option<ListOwnerConfig>, Error>` | Resolves `list_owner` to the entity collection field and descriptor index |
+| `vec_usize_fields` | `fn(&Fields) -> Vec<&Field>` | Collects `Vec<usize>` solution fields for list element dispatch |
+| `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
+| `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates list variable methods from the entity-side stock registry |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Ident) -> TokenStream` | Generates ShadowVariableSupport impl |
 | `generate_constraint_stream_extensions` | `fn(&Fields, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory |
@@ -149,11 +154,8 @@ struct ShadowConfig {
     next_field: Option<String>,
     cascading_listener: Option<String>,
     post_update_listener: Option<String>,
-    element_type: Option<String>,
     entity_aggregates: Vec<String>,   // "target:sum:source" format
     entity_computes: Vec<String>,     // "target:method" format
-    distance_meter: Option<String>,   // optional cross-entity distance meter path
-    intra_distance_meter: Option<String>, // optional intra-entity distance meter path
 }
 ```
 
@@ -173,7 +175,7 @@ Trait impls like `Solvable`, `Analyzable`, and `ScoreAnalysis` reference `::solv
 ### Shadow Variable Update Order
 
 When `#[shadow_variable_updates]` is configured, `update_entity_shadows(entity_idx)` executes in this order:
-1. Collect `element_indices` from `entity.list_field.clone()`
+1. Collect `element_indices` from the configured list owner's list variable
 2. Inverse field update (set element's inverse to entity_idx)
 3. Previous element update (chain previous pointers)
 4. Next element update (chain next pointers)

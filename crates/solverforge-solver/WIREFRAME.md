@@ -23,7 +23,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── list_solver.rs                       — List construction/local-search builders, list phase enums, hidden macro metadata
+├── list_solver.rs                       — List construction/local-search builders, list phase enums, hidden macro metadata + `StockListEntity`
 ├── mixed_stock.rs                       — Mixed stock move envelope, selector builder, local-search/VND builders
 ├── run.rs                               — AnyTermination, build_termination, run_solver(), run_stock_solver()
 ├── problem_spec.rs                      — ProblemSpec trait
@@ -715,7 +715,7 @@ Trait for user-authored low-level problem specs passed to `run_solver()`.
 
 ### `list_solver.rs`
 
-Public stock helpers: `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `StockListVariableMetadata<S, DM, IDM>`, `build_list_construction()`, `build_list_local_search()`
+Public stock helpers: `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `StockListVariableMetadata<S, DM, IDM>`, `StockListEntity<S>`, `build_list_construction()`, `build_list_local_search()`
 
 ### `mixed_stock.rs`
 

@@ -342,6 +342,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .collect();
 
     let list_stock_metadata = generate_list_stock_metadata(name, &list_variables)?;
+    let list_stock_trait_impl = generate_list_stock_trait_impl(name, &list_variables)?;
 
     // Shadow variable descriptors
     let inverse_relation_descriptors: Vec<_> = inverse_relation_vars
@@ -467,6 +468,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             }
         }
 
+        #list_stock_trait_impl
+
         #unassigned_filter_extension
     };
 
@@ -500,25 +503,25 @@ fn generate_list_stock_metadata(
 
     let cross_dm_ty = parse_type_or_default(
         parse_attribute_string(attr, "distance_meter"),
-        "::solverforge::DefaultDistanceMeter",
+        "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "distance_meter",
         field,
     )?;
     let intra_dm_ty = parse_type_or_default(
         parse_attribute_string(attr, "intra_distance_meter"),
-        "::solverforge::DefaultDistanceMeter",
+        "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "intra_distance_meter",
         field,
     )?;
     let cross_dm_expr = parse_default_expr(
         parse_attribute_string(attr, "distance_meter"),
-        "::solverforge::DefaultDistanceMeter",
+        "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "distance_meter",
         field,
     )?;
     let intra_dm_expr = parse_default_expr(
         parse_attribute_string(attr, "intra_distance_meter"),
-        "::solverforge::DefaultDistanceMeter",
+        "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "intra_distance_meter",
         field,
     )?;
@@ -617,6 +620,64 @@ fn generate_list_stock_metadata(
                 #k_opt_dist,
                 #k_opt_feasible,
             )
+        }
+
+    })
+}
+
+fn generate_list_stock_trait_impl(
+    entity_name: &Ident,
+    list_variables: &[&syn::Field],
+) -> Result<TokenStream, Error> {
+    let Some(field) = list_variables.first().copied() else {
+        return Ok(TokenStream::new());
+    };
+
+    let attr = get_attribute(&field.attrs, "planning_list_variable").unwrap();
+    let cross_dm_ty = parse_type_or_default(
+        parse_attribute_string(attr, "distance_meter"),
+        "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
+        "distance_meter",
+        field,
+    )?;
+    let intra_dm_ty = parse_type_or_default(
+        parse_attribute_string(attr, "intra_distance_meter"),
+        "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
+        "intra_distance_meter",
+        field,
+    )?;
+
+    Ok(quote! {
+        impl<Solution> ::solverforge::__internal::StockListEntity<Solution> for #entity_name
+        where
+            Solution: ::solverforge::__internal::PlanningSolution,
+        {
+            type CrossDistanceMeter = #cross_dm_ty;
+            type IntraDistanceMeter = #intra_dm_ty;
+
+            const STOCK_LIST_VARIABLE_COUNT: usize = Self::__SOLVERFORGE_LIST_VARIABLE_COUNT;
+            const STOCK_LIST_VARIABLE_NAME: &'static str = Self::__SOLVERFORGE_LIST_VARIABLE_NAME;
+            const STOCK_LIST_ELEMENT_COLLECTION: &'static str =
+                Self::__SOLVERFORGE_LIST_ELEMENT_COLLECTION;
+
+            #[inline]
+            fn list_field(entity: &Self) -> &[usize] {
+                Self::__solverforge_list_field(entity)
+            }
+
+            #[inline]
+            fn list_field_mut(entity: &mut Self) -> &mut ::std::vec::Vec<usize> {
+                Self::__solverforge_list_field_mut(entity)
+            }
+
+            #[inline]
+            fn stock_list_metadata() -> ::solverforge::__internal::StockListVariableMetadata<
+                Solution,
+                Self::CrossDistanceMeter,
+                Self::IntraDistanceMeter,
+            > {
+                Self::__solverforge_list_stock_metadata::<Solution>()
+            }
         }
     })
 }

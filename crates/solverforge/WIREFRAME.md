@@ -144,10 +144,10 @@ Used exclusively by macro-generated code. Not public API.
 - `ShadowVariableSupport`, `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
-- `FromSolutionEntitySelector`, `DefaultDistanceMeter`
+- `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
-- `StockListVariableMetadata`
+- `StockListEntity`, `StockListVariableMetadata`
 
 **Config (from `solverforge-config`):**
 - `SolverConfig`

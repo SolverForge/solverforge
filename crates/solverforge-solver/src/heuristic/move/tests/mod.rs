@@ -2,7 +2,7 @@
 
 use super::*;
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};

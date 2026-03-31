@@ -485,4 +485,4 @@ All types use `PhantomData<(fn() -> S, fn() -> A, ...)>` to avoid inheriting bou
 
 ## Cross-Crate Dependencies
 
-- **From `solverforge-core`:** `Score`, `PlanningSolution`, `ConstraintRef`, `ImpactType`, `SolutionDescriptor`, `EntityDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`, `TypedEntityExtractor`
+- **From `solverforge-core`:** `Score`, `PlanningSolution`, `ConstraintRef`, `ImpactType`, `SolutionDescriptor`, `EntityDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`, `EntityCollectionExtractor`

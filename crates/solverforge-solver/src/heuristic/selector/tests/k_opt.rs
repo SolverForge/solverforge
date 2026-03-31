@@ -1,7 +1,7 @@
 // Tests for k-opt move selector.
 
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -60,7 +60,7 @@ fn sublist_insert(s: &mut TspSolution, entity_idx: usize, pos: usize, items: Vec
 
 fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
     let solution = TspSolution { tours, score: None };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Tour",
         "tours",
         get_tours,

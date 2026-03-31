@@ -11,7 +11,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::typed_move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::MoveSelector;
 
 /// Sorts moves from an inner selector using a comparator function.
 ///

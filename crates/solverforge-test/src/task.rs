@@ -18,7 +18,7 @@ assert_eq!(solution.tasks.len(), 3);
 */
 
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use std::any::TypeId;
@@ -94,7 +94,7 @@ pub fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
 }
 
 pub fn create_task_descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Task",
         "tasks",
         get_tasks,

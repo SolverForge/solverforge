@@ -18,7 +18,7 @@ use solverforge_scoring::Director;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The value type
-pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
+pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
     // Returns an iterator over typed values for the given entity.
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
@@ -41,12 +41,12 @@ pub trait TypedValueSelector<S: PlanningSolution, V>: Send + Debug {
 }
 
 /// A typed value selector with a static list of values.
-pub struct StaticTypedValueSelector<S, V> {
+pub struct StaticValueSelector<S, V> {
     values: Vec<V>,
     _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, V: Clone> Clone for StaticTypedValueSelector<S, V> {
+impl<S, V: Clone> Clone for StaticValueSelector<S, V> {
     fn clone(&self) -> Self {
         Self {
             values: self.values.clone(),
@@ -55,15 +55,15 @@ impl<S, V: Clone> Clone for StaticTypedValueSelector<S, V> {
     }
 }
 
-impl<S, V: Debug> Debug for StaticTypedValueSelector<S, V> {
+impl<S, V: Debug> Debug for StaticValueSelector<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StaticTypedValueSelector")
+        f.debug_struct("StaticValueSelector")
             .field("values", &self.values)
             .finish()
     }
 }
 
-impl<S, V: Clone> StaticTypedValueSelector<S, V> {
+impl<S, V: Clone> StaticValueSelector<S, V> {
     pub fn new(values: Vec<V>) -> Self {
         Self {
             values,
@@ -76,7 +76,7 @@ impl<S, V: Clone> StaticTypedValueSelector<S, V> {
     }
 }
 
-impl<S, V> TypedValueSelector<S, V> for StaticTypedValueSelector<S, V>
+impl<S, V> ValueSelector<S, V> for StaticValueSelector<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
@@ -101,18 +101,18 @@ where
 }
 
 /// A typed value selector that extracts values from the solution using a function pointer.
-pub struct FromSolutionTypedValueSelector<S, V> {
+pub struct FromSolutionValueSelector<S, V> {
     extractor: fn(&S) -> Vec<V>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-impl<S, V> Debug for FromSolutionTypedValueSelector<S, V> {
+impl<S, V> Debug for FromSolutionValueSelector<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FromSolutionTypedValueSelector").finish()
+        f.debug_struct("FromSolutionValueSelector").finish()
     }
 }
 
-impl<S, V> FromSolutionTypedValueSelector<S, V> {
+impl<S, V> FromSolutionValueSelector<S, V> {
     pub fn new(extractor: fn(&S) -> Vec<V>) -> Self {
         Self {
             extractor,
@@ -121,7 +121,7 @@ impl<S, V> FromSolutionTypedValueSelector<S, V> {
     }
 }
 
-impl<S, V> TypedValueSelector<S, V> for FromSolutionTypedValueSelector<S, V>
+impl<S, V> ValueSelector<S, V> for FromSolutionValueSelector<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
@@ -169,7 +169,7 @@ impl<S> RangeValueSelector<S> {
     }
 }
 
-impl<S> TypedValueSelector<S, usize> for RangeValueSelector<S>
+impl<S> ValueSelector<S, usize> for RangeValueSelector<S>
 where
     S: PlanningSolution,
 {
@@ -196,7 +196,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+    use solverforge_core::domain::{
+        EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor,
+    };
     use solverforge_core::score::SoftScore;
     use solverforge_scoring::ScoreDirector;
     use std::any::TypeId;
@@ -225,7 +227,7 @@ mod tests {
 
     fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         let solution = TaskSolution { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
+        let extractor = Box::new(EntityCollectionExtractor::new(
             "Task",
             "tasks",
             |s: &TaskSolution| &s.tasks,
@@ -239,12 +241,12 @@ mod tests {
     }
 
     #[test]
-    fn test_static_typed_value_selector() {
+    fn test_static_value_selector_selector() {
         let director = create_director(vec![Task {
             id: 0,
             priority: None,
         }]);
-        let selector = StaticTypedValueSelector::<TaskSolution, i32>::new(vec![1, 2, 3, 4, 5]);
+        let selector = StaticValueSelector::<TaskSolution, i32>::new(vec![1, 2, 3, 4, 5]);
 
         let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
         assert_eq!(values, vec![1, 2, 3, 4, 5]);
@@ -252,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_solution_typed_value_selector() {
+    fn test_from_solution_value_selector_selector() {
         let director = create_director(vec![
             Task {
                 id: 0,
@@ -274,7 +276,7 @@ mod tests {
             s.tasks.iter().filter_map(|t| t.priority).collect()
         }
 
-        let selector = FromSolutionTypedValueSelector::new(extract_priorities);
+        let selector = FromSolutionValueSelector::new(extract_priorities);
 
         let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
         assert_eq!(values, vec![10, 20]);

@@ -13,7 +13,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ChangeMove, EitherMove, ListMoveImpl, Move, SwapMove};
 
 use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector};
-use super::typed_value::{StaticTypedValueSelector, TypedValueSelector};
+use super::value_selector::{StaticValueSelector, ValueSelector};
 
 /// A typed move selector that yields moves of type `M` directly.
 ///
@@ -93,7 +93,7 @@ impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
 }
 
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
-    ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
+    ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
 {
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
@@ -104,7 +104,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     ) -> Self {
         Self {
             entity_selector: FromSolutionEntitySelector::new(descriptor_index),
-            value_selector: StaticTypedValueSelector::new(values),
+            value_selector: StaticValueSelector::new(values),
             getter,
             setter,
             descriptor_index,
@@ -119,7 +119,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    VS: ValueSelector<S, V>,
 {
     fn iter_moves<'a, D: Director<S>>(
         &'a self,
@@ -324,7 +324,7 @@ impl<S, V: Debug, ES: Debug, VS: Debug> Debug for EitherChangeMoveSelector<S, V,
 }
 
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
-    EitherChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticTypedValueSelector<S, V>>
+    EitherChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
 {
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
@@ -350,7 +350,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    VS: ValueSelector<S, V>,
 {
     fn iter_moves<'a, D: Director<S>>(
         &'a self,
@@ -591,5 +591,5 @@ sublist_swap.rs, list_reverse.rs) alongside the selectors they wrap.
 */
 
 #[cfg(test)]
-#[path = "typed_move_selector_tests.rs"]
+#[path = "move_selector_tests.rs"]
 mod tests;

@@ -22,7 +22,7 @@ pub use selector::{
     AllEntitiesSelector, ChangeMoveSelector, CrossEntityDistanceMeter,
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector,
     EitherChangeMoveSelector, EitherSwapMoveSelector, EntityReference, EntitySelector,
-    FromSolutionEntitySelector, FromSolutionTypedValueSelector, KOptConfig, KOptMoveSelector,
+    FromSolutionEntitySelector, FromSolutionValueSelector, KOptConfig, KOptMoveSelector,
     ListChangeMoveSelector, ListMoveKOptSelector, ListMoveListChangeSelector,
     ListMoveListReverseSelector, ListMoveListRuinSelector, ListMoveListSwapSelector,
     ListMoveNearbyListChangeSelector, ListMoveNearbyListSwapSelector,
@@ -31,6 +31,6 @@ pub use selector::{
     MimicRecordingEntitySelector, MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter,
     NearbyEntitySelector, NearbyKOptMoveSelector, NearbyListChangeMoveSelector,
     NearbyListSwapMoveSelector, NearbySelectionConfig, Pillar, PillarSelector, RuinMoveSelector,
-    SelectionOrder, StaticTypedValueSelector, SubListChangeMoveSelector, SubListSwapMoveSelector,
-    SubPillarConfig, SwapMoveSelector, TypedValueSelector,
+    SelectionOrder, StaticValueSelector, SubListChangeMoveSelector, SubListSwapMoveSelector,
+    SubPillarConfig, SwapMoveSelector, ValueSelector,
 };

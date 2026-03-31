@@ -1,7 +1,7 @@
 // Tests for mimic selectors.
 
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -53,7 +53,7 @@ fn create_test_director(n: usize) -> ScoreDirector<NQueensSolution, ()> {
         score: None,
     };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Queen",
         "queens",
         get_queens,

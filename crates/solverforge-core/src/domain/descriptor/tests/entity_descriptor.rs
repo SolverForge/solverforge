@@ -3,7 +3,7 @@ use std::any::TypeId;
 
 #[test]
 fn test_with_extractor() {
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "TestEntity",
         "entities",
         get_entities,

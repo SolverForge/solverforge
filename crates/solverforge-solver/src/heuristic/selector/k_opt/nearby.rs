@@ -12,7 +12,7 @@ use crate::heuristic::r#move::k_opt_reconnection::{
 use crate::heuristic::r#move::{CutPoint, KOptMove};
 
 use super::super::entity::EntitySelector;
-use super::super::typed_move_selector::MoveSelector;
+use super::super::move_selector::MoveSelector;
 use super::config::KOptConfig;
 use super::distance_meter::ListPositionDistanceMeter;
 

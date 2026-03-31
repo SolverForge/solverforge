@@ -17,7 +17,8 @@ let descriptor = create_test_descriptor();
 */
 
 use solverforge_core::domain::{
-    EntityDescriptor, EntityExtractor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, EntityExtractor, PlanningSolution,
+    SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use std::any::TypeId;
@@ -115,7 +116,7 @@ pub fn set_entity_value(s: &mut TestSolution, idx: usize, v: Option<i32>) {
 }
 
 pub fn create_test_entity_extractor() -> Box<dyn EntityExtractor> {
-    Box::new(TypedEntityExtractor::new(
+    Box::new(EntityCollectionExtractor::new(
         "TestEntity",
         "entities",
         get_test_entities,

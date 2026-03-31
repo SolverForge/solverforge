@@ -3,12 +3,12 @@
 use super::*;
 use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::{
-    ChangeMoveSelector, FromSolutionEntitySelector, StaticTypedValueSelector,
+    ChangeMoveSelector, FromSolutionEntitySelector, StaticValueSelector,
 };
 use crate::heuristic::MoveSelector;
 use crate::phase::construction::{EntityPlacer, QueuedEntityPlacer};
 use crate::scope::SolverScope;
-use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, EntityCollectionExtractor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::{Director, ScoreDirector};
 use std::any::TypeId;
@@ -74,7 +74,7 @@ fn create_test_director(
 ) -> ScoreDirector<TestSolution, ()> {
     let solution = TestSolution { tasks, score: None };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Task",
         "tasks",
         get_tasks,
@@ -118,14 +118,14 @@ type TestPlacer = QueuedEntityPlacer<
     TestSolution,
     i64,
     FromSolutionEntitySelector,
-    StaticTypedValueSelector<TestSolution, i64>,
+    StaticValueSelector<TestSolution, i64>,
 >;
 
 fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     || {
         QueuedEntityPlacer::new(
             FromSolutionEntitySelector::new(0),
-            StaticTypedValueSelector::new(vec![1i64, 2, 3, 4, 5]),
+            StaticValueSelector::new(vec![1i64, 2, 3, 4, 5]),
             get_task_priority,
             set_task_priority,
             0,
@@ -138,7 +138,7 @@ type TestMoveSelector = ChangeMoveSelector<
     TestSolution,
     i64,
     FromSolutionEntitySelector,
-    StaticTypedValueSelector<TestSolution, i64>,
+    StaticValueSelector<TestSolution, i64>,
 >;
 
 fn create_move_selector_factory() -> impl Fn() -> TestMoveSelector + Send + Sync {

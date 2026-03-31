@@ -178,7 +178,7 @@ struct BasicVariableConfig {
 All generated code references types via `::solverforge::__internal::*` paths, meaning the generated code depends on the `solverforge` facade crate re-exporting core types under `__internal`. Key referenced types:
 - `PlanningEntity`, `PlanningSolution`, `PlanningId`, `ProblemFact`
 - `EntityDescriptor`, `SolutionDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`
-- `TypedEntityExtractor`
+- `EntityCollectionExtractor`
 - `ShadowVariableKind`, `ShadowVariableSupport`, `SolvableSolution`
 - `ScoreDirector`, `Director`
 

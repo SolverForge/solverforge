@@ -1,9 +1,9 @@
 // Tests for entity placers.
 
 use super::*;
-use crate::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
+use crate::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector};
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -66,7 +66,7 @@ fn create_test_director(initialized: &[bool]) -> ScoreDirector<NQueensSolution, 
         score: None,
     };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Queen",
         "queens",
         get_queens,
@@ -86,7 +86,7 @@ fn test_queued_placer_all_uninitialized() {
     let director = create_test_director(&[false, false, false]);
 
     let entity_selector = FromSolutionEntitySelector::new(0);
-    let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
+    let value_selector = StaticValueSelector::new(vec![0i32, 1, 2]);
 
     let placer = QueuedEntityPlacer::new(
         entity_selector,
@@ -114,7 +114,7 @@ fn test_queued_placer_some_initialized() {
     let director = create_test_director(&[true, false, true]);
 
     let entity_selector = FromSolutionEntitySelector::new(0);
-    let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
+    let value_selector = StaticValueSelector::new(vec![0i32, 1, 2]);
 
     let placer = QueuedEntityPlacer::new(
         entity_selector,
@@ -137,7 +137,7 @@ fn test_queued_placer_all_initialized() {
     let director = create_test_director(&[true, true, true]);
 
     let entity_selector = FromSolutionEntitySelector::new(0);
-    let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
+    let value_selector = StaticValueSelector::new(vec![0i32, 1, 2]);
 
     let placer = QueuedEntityPlacer::new(
         entity_selector,
@@ -160,7 +160,7 @@ fn test_sorted_entity_placer_descending() {
     let director = create_test_director(&[false, false, false]);
 
     let entity_selector = FromSolutionEntitySelector::new(0);
-    let value_selector = StaticTypedValueSelector::new(vec![0i32, 1, 2]);
+    let value_selector = StaticValueSelector::new(vec![0i32, 1, 2]);
 
     let inner = QueuedEntityPlacer::new(
         entity_selector,

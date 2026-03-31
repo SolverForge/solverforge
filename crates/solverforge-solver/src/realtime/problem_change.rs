@@ -172,7 +172,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+    use solverforge_core::domain::{
+        EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor,
+    };
     use solverforge_core::score::SoftScore;
     use solverforge_scoring::ScoreDirector;
     use std::any::TypeId;
@@ -207,7 +209,7 @@ mod tests {
 
     fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSchedule, ()> {
         let solution = TaskSchedule { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
+        let extractor = Box::new(EntityCollectionExtractor::new(
             "Task",
             "tasks",
             get_tasks,

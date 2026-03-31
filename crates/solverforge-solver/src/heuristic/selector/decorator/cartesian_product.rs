@@ -140,7 +140,9 @@ mod tests {
     use super::*;
     use crate::heuristic::r#move::ChangeMove;
     use crate::heuristic::selector::ChangeMoveSelector;
-    use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+    use solverforge_core::domain::{
+        EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor,
+    };
     use solverforge_core::score::SoftScore;
     use solverforge_scoring::ScoreDirector;
     use std::any::TypeId;
@@ -192,7 +194,7 @@ mod tests {
 
     fn create_director(tasks: Vec<Task>) -> ScoreDirector<Sol, ()> {
         let solution = Sol { tasks, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
+        let extractor = Box::new(EntityCollectionExtractor::new(
             "Task",
             "tasks",
             get_tasks,

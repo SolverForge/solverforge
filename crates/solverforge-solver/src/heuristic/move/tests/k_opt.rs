@@ -65,7 +65,7 @@ mod k_opt_tests {
 
     fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
         let solution = TspSolution { tours, score: None };
-        let extractor = Box::new(TypedEntityExtractor::new(
+        let extractor = Box::new(EntityCollectionExtractor::new(
             "Tour",
             "tours",
             get_tours,

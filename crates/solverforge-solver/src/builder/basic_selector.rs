@@ -8,7 +8,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::EitherMove;
 use crate::heuristic::selector::decorator::VecUnionSelector;
-use crate::heuristic::selector::typed_move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::MoveSelector;
 use crate::heuristic::selector::{
     EitherChangeMoveSelector, EitherSwapMoveSelector, FromSolutionEntitySelector,
 };
@@ -27,7 +27,7 @@ pub enum BasicLeafSelector<S: PlanningSolution> {
             S,
             usize,
             FromSolutionEntitySelector,
-            crate::heuristic::selector::typed_value::StaticTypedValueSelector<S, usize>,
+            crate::heuristic::selector::value_selector::StaticValueSelector<S, usize>,
         >,
     ),
     // A swap move selector yielding `EitherMove::Swap`.

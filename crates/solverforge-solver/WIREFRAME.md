@@ -83,9 +83,9 @@ src/
 │   └── selector/
 │       ├── mod.rs                       — Re-exports
 │       ├── entity.rs                    — EntitySelector trait, FromSolutionEntitySelector, AllEntitiesSelector
-│       ├── typed_value.rs              — TypedValueSelector trait, StaticTypedValueSelector, FromSolutionTypedValueSelector
-│       ├── typed_move_selector.rs      — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, EitherChange/SwapMoveSelector, ListMove* wrappers
-│       ├── typed_move_selector_tests.rs — Tests
+│       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
+│       ├── move_selector.rs      — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, EitherChange/SwapMoveSelector, ListMove* wrappers
+│       ├── move_selector_tests.rs — Tests
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
 │       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>, ListMoveListSwapSelector
 │       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>, ListMoveListReverseSelector
@@ -129,7 +129,7 @@ src/
 │           ├── mimic.rs
 │           ├── nearby.rs
 │           ├── pillar.rs
-│           └── typed_move_selector.rs
+│           └── move_selector.rs
 │
 ├── phase/
 │   ├── mod.rs                           — Phase<S, D> trait, tuple impls
@@ -273,7 +273,7 @@ Requires: `Send + Debug`.
 | `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
-### `MoveSelector<S: PlanningSolution, M: Move<S>>` — `typed_move_selector.rs`
+### `MoveSelector<S: PlanningSolution, M: Move<S>>` — `move_selector.rs`
 
 | Method | Signature |
 |--------|-----------|
@@ -281,7 +281,7 @@ Requires: `Send + Debug`.
 | `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
-### `TypedValueSelector<S: PlanningSolution, V>` — `typed_value.rs`
+### `ValueSelector<S: PlanningSolution, V>` — `value_selector.rs`
 
 | Method | Signature |
 |--------|-----------|
@@ -461,8 +461,8 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 | Selector | Note |
 |----------|------|
-| `StaticTypedValueSelector<S, V>` | Fixed value list |
-| `FromSolutionTypedValueSelector<S, V>` | Extracts values from solution via `fn(&S) -> Vec<V>` |
+| `StaticValueSelector<S, V>` | Fixed value list |
+| `FromSolutionValueSelector<S, V>` | Extracts values from solution via `fn(&S) -> Vec<V>` |
 | `RangeValueSelector<S>` | Generates 0..count_fn(solution) |
 
 ### Move Selectors

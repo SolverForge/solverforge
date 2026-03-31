@@ -194,7 +194,7 @@ where
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         use crate::heuristic::r#move::Move;
         use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-        use crate::heuristic::selector::typed_move_selector::MoveSelector;
+        use crate::heuristic::selector::move_selector::MoveSelector;
 
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
 

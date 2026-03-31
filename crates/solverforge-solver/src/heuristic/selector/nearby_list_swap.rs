@@ -81,8 +81,8 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ListMoveImpl, ListSwapMove};
 
 use super::entity::EntitySelector;
+use super::move_selector::MoveSelector;
 use super::nearby_list_change::CrossEntityDistanceMeter;
-use super::typed_move_selector::MoveSelector;
 
 /// A distance-pruned list swap move selector.
 ///

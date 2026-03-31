@@ -5,7 +5,7 @@ use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use crate::heuristic::selector::pillar::{
     DefaultPillarSelector, Pillar, PillarSelector, SubPillarConfig,
 };
-use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, TypedEntityExtractor};
+use solverforge_core::domain::{EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
@@ -48,7 +48,7 @@ fn create_test_director(employees: Vec<Employee>) -> ScoreDirector<ScheduleSolut
         score: None,
     };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Employee",
         "employees",
         get_employees,

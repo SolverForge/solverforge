@@ -28,7 +28,7 @@ use crate::heuristic::selector::decorator::UnionMoveSelector;
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::{
     EitherChangeMoveSelector, EitherSwapMoveSelector, FromSolutionEntitySelector,
-    StaticTypedValueSelector,
+    StaticValueSelector,
 };
 use crate::phase::construction::{BestFitForager, ConstructionHeuristicPhase, QueuedEntityPlacer};
 use crate::phase::localsearch::{LocalSearchPhase, SimulatedAnnealingAcceptor};
@@ -56,7 +56,7 @@ type DefaultLocalSearch<S> = LocalSearchPhase<
             S,
             usize,
             FromSolutionEntitySelector,
-            StaticTypedValueSelector<S, usize>,
+            StaticValueSelector<S, usize>,
         >,
         EitherSwapMoveSelector<S, usize, FromSolutionEntitySelector, FromSolutionEntitySelector>,
     >,
@@ -120,7 +120,7 @@ where
         let n_values = (self.value_count)(director.working_solution());
         let values: Vec<usize> = (0..n_values).collect();
         let entity_selector = FromSolutionEntitySelector::new(0);
-        let value_selector = StaticTypedValueSelector::new(values.clone());
+        let value_selector = StaticValueSelector::new(values.clone());
         let placer = QueuedEntityPlacer::new(
             entity_selector,
             value_selector,

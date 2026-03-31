@@ -12,6 +12,7 @@ pub mod list_reverse;
 pub mod list_ruin;
 pub mod list_swap;
 pub mod mimic;
+pub mod move_selector;
 pub mod nearby;
 pub mod nearby_list_change;
 pub mod nearby_list_swap;
@@ -20,8 +21,7 @@ pub mod ruin;
 mod selection_order;
 pub mod sublist_change;
 pub mod sublist_swap;
-pub mod typed_move_selector;
-pub mod typed_value;
+pub mod value_selector;
 
 #[cfg(test)]
 mod tests;
@@ -38,6 +38,11 @@ pub use list_reverse::{ListMoveListReverseSelector, ListReverseMoveSelector};
 pub use list_ruin::ListRuinMoveSelector;
 pub use list_swap::{ListMoveListSwapSelector, ListSwapMoveSelector};
 pub use mimic::{MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector};
+pub use move_selector::{
+    ChangeMoveSelector, EitherChangeMoveSelector, EitherSwapMoveSelector, ListMoveKOptSelector,
+    ListMoveListChangeSelector, ListMoveListRuinSelector, ListMoveNearbyKOptSelector, MoveSelector,
+    SwapMoveSelector,
+};
 pub use nearby::{NearbyDistanceMeter, NearbyEntitySelector, NearbySelectionConfig};
 pub use nearby_list_change::{
     CrossEntityDistanceMeter, DefaultCrossEntityDistanceMeter, ListMoveNearbyListChangeSelector,
@@ -49,11 +54,4 @@ pub use ruin::RuinMoveSelector;
 pub use selection_order::SelectionOrder;
 pub use sublist_change::{ListMoveSubListChangeSelector, SubListChangeMoveSelector};
 pub use sublist_swap::{ListMoveSubListSwapSelector, SubListSwapMoveSelector};
-pub use typed_move_selector::{
-    ChangeMoveSelector, EitherChangeMoveSelector, EitherSwapMoveSelector, ListMoveKOptSelector,
-    ListMoveListChangeSelector, ListMoveListRuinSelector, ListMoveNearbyKOptSelector, MoveSelector,
-    SwapMoveSelector,
-};
-pub use typed_value::{
-    FromSolutionTypedValueSelector, StaticTypedValueSelector, TypedValueSelector,
-};
+pub use value_selector::{FromSolutionValueSelector, StaticValueSelector, ValueSelector};

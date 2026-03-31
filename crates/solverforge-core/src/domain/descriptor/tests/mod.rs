@@ -5,7 +5,7 @@ mod solution_descriptor;
 mod variable_descriptor;
 
 use crate::domain::descriptor::*;
-use crate::domain::TypedEntityExtractor;
+use crate::domain::EntityCollectionExtractor;
 use std::any::Any;
 
 // Shared test helpers used across descriptor test modules.
@@ -30,7 +30,7 @@ pub(super) fn get_entities_mut(s: &mut TestSolution) -> &mut Vec<TestEntity> {
 }
 
 pub(super) fn create_test_entity_descriptor() -> EntityDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "TestEntity",
         "entities",
         get_entities,

@@ -41,7 +41,7 @@ fn list_reverse(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize
 
 fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
     let solution = TspSolution { tours, score: None };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Tour",
         "tours",
         get_tours,

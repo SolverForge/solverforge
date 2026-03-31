@@ -17,7 +17,7 @@ assert_eq!(score, SoftScore::of(0)); // No conflicts
 */
 
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use std::any::TypeId;
@@ -178,7 +178,7 @@ pub fn calculate_conflicts(solution: &NQueensSolution) -> SoftScore {
 }
 
 pub fn create_nqueens_descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Queen",
         "queens",
         get_queens,

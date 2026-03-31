@@ -9,11 +9,11 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListMoveImpl;
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::k_opt::KOptConfig;
-use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::heuristic::selector::typed_move_selector::{
+use crate::heuristic::selector::move_selector::{
     ListMoveKOptSelector, ListMoveListChangeSelector, ListMoveListRuinSelector,
     ListMoveNearbyKOptSelector, MoveSelector,
 };
+use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 use super::context::IntraDistanceAdapter;
 use crate::heuristic::selector::{

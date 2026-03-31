@@ -45,7 +45,7 @@ fn create_director(assignments: &[Option<i32>]) -> ScoreDirector<Schedule, ()> {
         .map(|&a| Task { assigned_to: a })
         .collect();
     let solution = Schedule { tasks, score: None };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Task",
         "tasks",
         get_tasks,

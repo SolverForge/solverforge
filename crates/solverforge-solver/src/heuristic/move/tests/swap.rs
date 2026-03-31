@@ -45,7 +45,7 @@ fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
 fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     let solution = TaskSolution { tasks, score: None };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Task",
         "tasks",
         get_tasks,

@@ -54,7 +54,7 @@ fn create_director(stops: Vec<i32>) -> ScoreDirector<VrpSolution, ()> {
         routes,
         score: None,
     };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Route",
         "routes",
         get_routes,

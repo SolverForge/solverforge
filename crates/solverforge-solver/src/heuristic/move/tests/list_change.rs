@@ -47,7 +47,7 @@ fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<RoutingSolution, ()>
         vehicles,
         score: None,
     };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Vehicle",
         "vehicles",
         get_vehicles,

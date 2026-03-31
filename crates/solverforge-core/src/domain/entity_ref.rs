@@ -74,7 +74,7 @@ impl Clone for Box<dyn EntityExtractor> {
 /// # Type Parameters
 /// * `S` - The solution type
 /// * `E` - The entity type
-pub struct TypedEntityExtractor<S, E> {
+pub struct EntityCollectionExtractor<S, E> {
     // Name of the entity type.
     type_name: &'static str,
     // Name of the collection field in the solution.
@@ -85,7 +85,7 @@ pub struct TypedEntityExtractor<S, E> {
     get_collection_mut: fn(&mut S) -> &mut Vec<E>,
 }
 
-impl<S, E> TypedEntityExtractor<S, E>
+impl<S, E> EntityCollectionExtractor<S, E>
 where
     S: 'static,
     E: 'static,
@@ -105,7 +105,7 @@ where
     }
 }
 
-impl<S, E> EntityExtractor for TypedEntityExtractor<S, E>
+impl<S, E> EntityExtractor for EntityCollectionExtractor<S, E>
 where
     S: Send + Sync + 'static,
     E: Clone + Send + Sync + 'static,
@@ -162,9 +162,9 @@ where
     }
 }
 
-impl<S, E> Debug for TypedEntityExtractor<S, E> {
+impl<S, E> Debug for EntityCollectionExtractor<S, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TypedEntityExtractor")
+        f.debug_struct("EntityCollectionExtractor")
             .field("type_name", &self.type_name)
             .field("collection_field", &self.collection_field)
             .finish()

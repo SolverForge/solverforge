@@ -9,6 +9,6 @@ mod k_opt;
 mod list_change;
 mod list_ruin;
 mod mimic;
+mod move_selector;
 mod nearby;
 mod pillar;
-mod typed_move_selector;

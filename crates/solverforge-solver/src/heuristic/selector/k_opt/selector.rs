@@ -13,7 +13,7 @@ use crate::heuristic::r#move::k_opt_reconnection::{
 use crate::heuristic::r#move::KOptMove;
 
 use super::super::entity::EntitySelector;
-use super::super::typed_move_selector::MoveSelector;
+use super::super::move_selector::MoveSelector;
 use super::config::KOptConfig;
 use super::iterators::count_cut_combinations;
 use super::iterators::CutCombinationIterator;

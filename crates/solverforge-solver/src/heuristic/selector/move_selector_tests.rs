@@ -1,16 +1,12 @@
 // Tests for typed move selectors.
 
+use super::*;
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
+use solverforge_scoring::{RecordingDirector, ScoreDirector};
 use std::any::TypeId;
-
-use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::typed_move_selector::{
-    ChangeMoveSelector, MoveSelector, SwapMoveSelector,
-};
 
 #[derive(Clone, Debug)]
 struct Task {
@@ -57,7 +53,7 @@ fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
 fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     let solution = TaskSolution { tasks, score: None };
 
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Task",
         "tasks",
         get_tasks,

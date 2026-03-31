@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::domain::{EntityExtractor, TypedEntityExtractor};
+use crate::domain::{EntityCollectionExtractor, EntityExtractor};
 
 #[derive(Clone, Debug)]
 struct TestEntity {
@@ -24,7 +24,7 @@ fn get_entities_mut(s: &mut TestSolution) -> &mut Vec<TestEntity> {
 #[test]
 fn test_typed_entity_extractor_count() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     let solution = TestSolution {
         entities: vec![
@@ -47,7 +47,7 @@ fn test_typed_entity_extractor_count() {
 #[test]
 fn test_typed_entity_extractor_get() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     let solution = TestSolution {
         entities: vec![
@@ -76,7 +76,7 @@ fn test_typed_entity_extractor_get() {
 #[test]
 fn test_typed_entity_extractor_get_mut() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     let mut solution = TestSolution {
         entities: vec![TestEntity {
@@ -96,7 +96,7 @@ fn test_typed_entity_extractor_get_mut() {
 #[test]
 fn test_typed_entity_extractor_entity_refs() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     let solution = TestSolution {
         entities: vec![
@@ -122,7 +122,7 @@ fn test_typed_entity_extractor_entity_refs() {
 #[test]
 fn test_extractor_wrong_solution_type() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     let wrong_solution = "not a solution";
     let count = extractor.count(&wrong_solution as &dyn Any);
@@ -131,7 +131,7 @@ fn test_extractor_wrong_solution_type() {
 
 #[test]
 fn test_extractor_clone() {
-    let extractor: Box<dyn EntityExtractor> = Box::new(TypedEntityExtractor::new(
+    let extractor: Box<dyn EntityExtractor> = Box::new(EntityCollectionExtractor::new(
         "TestEntity",
         "entities",
         get_entities,
@@ -153,7 +153,7 @@ fn test_extractor_clone() {
 #[test]
 fn test_clone_entity_boxed() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     let solution = TestSolution {
         entities: vec![
@@ -192,7 +192,7 @@ fn test_clone_entity_boxed() {
 #[test]
 fn test_entity_type_id() {
     let extractor =
-        TypedEntityExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
+        EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
     assert_eq!(
         extractor.entity_type_id(),

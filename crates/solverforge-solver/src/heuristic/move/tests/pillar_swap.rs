@@ -39,7 +39,7 @@ fn create_director(employees: Vec<Employee>) -> ScoreDirector<Solution, ()> {
         employees,
         score: None,
     };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Employee",
         "employees",
         |s: &Solution| &s.employees,

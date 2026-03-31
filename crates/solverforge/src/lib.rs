@@ -143,8 +143,8 @@ pub mod __internal {
 
     // Domain types
     pub use solverforge_core::domain::{
-        EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution, ProblemFact,
-        ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, TypedEntityExtractor,
+        EntityCollectionExtractor, EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution,
+        ProblemFact, ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor,
         VariableDescriptor,
     };
 

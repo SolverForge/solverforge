@@ -99,7 +99,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ListChangeMove, ListMoveImpl};
 
 use super::entity::EntitySelector;
-use super::typed_move_selector::MoveSelector;
+use super::move_selector::MoveSelector;
 
 /// Measures distance between two list positions, potentially across different entities.
 ///

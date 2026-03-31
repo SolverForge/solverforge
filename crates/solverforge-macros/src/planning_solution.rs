@@ -185,7 +185,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge::__internal::EntityCollectionExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,
@@ -207,7 +207,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     stringify!(#element_type),
                     ::std::any::TypeId::of::<#element_type>(),
                     #field_name_str,
-                ).with_extractor(Box::new(::solverforge::__internal::TypedEntityExtractor::new(
+                ).with_extractor(Box::new(::solverforge::__internal::EntityCollectionExtractor::new(
                     stringify!(#element_type),
                     #field_name_str,
                     |s: &#name| &s.#field_name,

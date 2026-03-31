@@ -54,7 +54,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListChangeMove;
 
 use super::entity::EntitySelector;
-use super::typed_move_selector::MoveSelector;
+use super::move_selector::MoveSelector;
 
 /// A move selector that generates list change moves.
 ///

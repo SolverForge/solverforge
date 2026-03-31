@@ -39,7 +39,7 @@ src/
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
-│   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, TypedEntityExtractor
+│   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, EntityCollectionExtractor
 │   ├── variable.rs                        — VariableType, ShadowVariableKind, ValueRangeType, ChainedVariableInfo
 │   ├── value_range.rs                     — ValueRangeProvider trait, FieldValueRangeProvider, ComputedValueRangeProvider, StaticValueRange, IntegerRange
 │   ├── descriptor/
@@ -65,7 +65,7 @@ src/
 │   │   └── tests.rs                       — Supply tests (inverse, anchor, list_state)
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
-│       ├── entity_ref_tests.rs            — TypedEntityExtractor tests
+│       ├── entity_ref_tests.rs            — EntityCollectionExtractor tests
 │       ├── value_range_tests.rs           — ValueRangeProvider tests
 │       └── variable_tests.rs             — VariableType, ShadowVariableKind, ChainedVariableInfo tests
 ```
@@ -318,10 +318,10 @@ pub struct EntityRef {
 
 Derives: `Debug, Clone`
 
-#### `TypedEntityExtractor<S, E>`
+#### `EntityCollectionExtractor<S, E>`
 
 ```rust
-pub struct TypedEntityExtractor<S, E> {
+pub struct EntityCollectionExtractor<S, E> {
     type_name: &'static str,                       // private
     collection_field: &'static str,                 // private
     get_collection: fn(&S) -> &Vec<E>,              // private
@@ -606,7 +606,7 @@ All three supply types (InverseSupply, AnchorSupply, ListStateSupply) follow str
 
 ### EntityExtractor as Intentional dyn Boundary
 
-`EntityExtractor` is a `dyn` trait object — this is an **intentional type-erasure boundary**. Descriptors need to work with entities of unknown concrete type at runtime. The `TypedEntityExtractor<S, E>` provides the concrete implementation that downcasts via `Any`. `Box<dyn EntityExtractor>` appears in `EntityDescriptor` and `ProblemFactDescriptor`.
+`EntityExtractor` is a `dyn` trait object — this is an **intentional type-erasure boundary**. Descriptors need to work with entities of unknown concrete type at runtime. The `EntityCollectionExtractor<S, E>` provides the concrete implementation that downcasts via `Any`. `Box<dyn EntityExtractor>` appears in `EntityDescriptor` and `ProblemFactDescriptor`.
 
 ### PhantomData Pattern
 

@@ -11,7 +11,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ChangeMove, Move};
-use crate::heuristic::selector::{EntityReference, EntitySelector, TypedValueSelector};
+use crate::heuristic::selector::{EntityReference, EntitySelector, ValueSelector};
 
 /// A placement represents an entity that needs a value assigned,
 /// along with the candidate moves to assign values.
@@ -100,7 +100,7 @@ pub struct QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    VS: ValueSelector<S, V>,
 {
     // The entity selector.
     entity_selector: ES,
@@ -121,7 +121,7 @@ impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    VS: ValueSelector<S, V>,
 {
     pub fn new(
         entity_selector: ES,
@@ -147,7 +147,7 @@ impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
     ES: EntitySelector<S> + Debug,
-    VS: TypedValueSelector<S, V> + Debug,
+    VS: ValueSelector<S, V> + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueuedEntityPlacer")
@@ -163,7 +163,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
-    VS: TypedValueSelector<S, V>,
+    VS: ValueSelector<S, V>,
 {
     fn get_placements<D: Director<S>>(
         &self,
@@ -226,7 +226,7 @@ where
 /// ```
 /// use solverforge_solver::phase::construction::{SortedEntityPlacer, QueuedEntityPlacer, EntityPlacer};
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticTypedValueSelector};
+/// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
 /// use solverforge_scoring::ScoreDirector;

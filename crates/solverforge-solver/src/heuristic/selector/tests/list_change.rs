@@ -5,7 +5,7 @@ use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use crate::heuristic::selector::list_change::ListChangeMoveSelector;
 use crate::heuristic::selector::MoveSelector;
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, TypedEntityExtractor,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -56,7 +56,7 @@ fn create_director(vehicles: Vec<Vehicle>) -> ScoreDirector<Solution, ()> {
         vehicles,
         score: None,
     };
-    let extractor = Box::new(TypedEntityExtractor::new(
+    let extractor = Box::new(EntityCollectionExtractor::new(
         "Vehicle",
         "vehicles",
         get_vehicles,

@@ -728,6 +728,8 @@ Unified runtime helpers:
 - `ListConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
 - `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and optional list context/hooks
 
+The stock standard-variable and list-heavy scaffolds both target this runtime layer. Documentation and examples should describe one unified runtime path rather than separate legacy standard/list local-search builders.
+
 ### `AnyTermination` / `build_termination()` — `run.rs`
 
 `AnyTermination` is an enum over all built-in termination types for config-driven dispatch. `build_termination()` constructs an `AnyTermination` from a `SolverConfig`.
@@ -740,6 +742,7 @@ Unified solve entrypoint used by macro-generated solving. Accepts generated desc
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
 - **Function pointer storage.** Moves and selectors store `fn` pointers (e.g., `fn(&S, usize) -> Option<V>`) instead of trait objects for solution access.
+- **Neutral selector naming.** Public selector modules and types use `move_selector.rs`, `value_selector.rs`, `MoveSelector`, and `ValueSelector`. The trait method `iter_typed(...)` remains for now even though the public type names are prefix-free.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.
 - **Tuple-based composition.** Phases, terminations, and VND neighborhoods compose via nested tuples with macro-generated impls, avoiding `Vec<Box<dyn Phase>>`.

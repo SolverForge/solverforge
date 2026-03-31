@@ -608,6 +608,8 @@ All three supply types (InverseSupply, AnchorSupply, ListStateSupply) follow str
 
 `EntityExtractor` is a `dyn` trait object — this is an **intentional type-erasure boundary**. Descriptors need to work with entities of unknown concrete type at runtime. The `EntityCollectionExtractor<S, E>` provides the concrete implementation that downcasts via `Any`. `Box<dyn EntityExtractor>` appears in `EntityDescriptor` and `ProblemFactDescriptor`.
 
+`EntityCollectionExtractor` is the current public name for this adapter. Earlier `Typed*` terminology was removed in the `0.7.0` naming sweep; the repository-level rationale is documented in `docs/typed-contract-audit.md`.
+
 ### PhantomData Pattern
 
 `FieldValueRangeProvider` and `ComputedValueRangeProvider` use `PhantomData<(fn() -> S, fn() -> V)>` (function pointer form) to avoid inheriting `Clone`/`Send`/`Sync` bounds from phantom type parameters.

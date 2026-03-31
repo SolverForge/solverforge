@@ -26,6 +26,15 @@ Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `sol
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
+## Documentation Layer
+
+Treat the repository documentation as a coordinated surface, not as isolated files.
+
+- `README.md` is the user-facing entry point. Update it when public workflows, naming, or extension guidance change.
+- `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
+- `docs/*.md` files capture focused extension and architecture guidance. When a refactor changes naming or explains an intentional boundary, update the relevant doc or add a dedicated audit note.
+- `AGENTS.md` records repository-specific rules for future coding agents. Update it when the engineering workflow or documentation policy changes.
+
 ## Wireframes Are Canonical
 
 Each crate has a `WIREFRAME.md` file that documents its public API surface, module map, and usage patterns. Treat the relevant wireframe as the canonical reference before changing a crate.
@@ -47,6 +56,8 @@ When public surface changes, update the matching wireframe in the same change:
 3. Remove deleted public items completely.
 4. Keep file maps in sync with added or moved files.
 5. Document public surface and usage only, not implementation detail.
+
+When a public API change also affects how users discover or reason about the feature, update the corresponding top-level docs in the same change. Renames and architectural cleanups should leave behind a clear trail in `README.md`, relevant `docs/*.md` files, and the affected wireframes.
 
 ## Architecture Constraints
 

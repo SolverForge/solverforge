@@ -40,6 +40,14 @@ The current templates cover standard-variable and list-heavy planning models, an
 - [Extend the solver](docs/extend-solver.md) when you need custom constraints, phases, selectors, termination, or solver configuration beyond the default scaffold.
 - [Extend the domain](docs/extend-domain.md) when you need more entities, facts, variables, scoring, or mixed standard/list modeling inside the generated app.
 
+## Documentation Map
+
+- `README.md` is the user-facing entry point for the workspace and generated-project integration model.
+- `docs/extend-solver.md` and `docs/extend-domain.md` cover scaffold extension workflows.
+- `docs/typed-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
+- `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
+- `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.
+
 ## Zero-Erasure Architecture
 
 SolverForge preserves concrete types through the entire solver pipeline:
@@ -50,6 +58,8 @@ SolverForge preserves concrete types through the entire solver pipeline:
 - **Predictable performance** - no GC pauses, no vtable lookups
 
 This enables aggressive compiler optimizations and cache-friendly data layouts.
+
+Current public naming follows neutral Rust contracts rather than `Typed*` prefixes. The object-safe descriptor boundary is still intentional, but the concrete adapter and selector surface are now documented as `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector`. The historical rename and rationale are captured in [docs/typed-contract-audit.md](docs/typed-contract-audit.md).
 
 ## Features
 

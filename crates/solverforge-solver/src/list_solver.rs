@@ -398,56 +398,6 @@ where
     }
 }
 
-// Builds the local search phase from config or defaults.
-pub fn build_list_local_search<S, V, DM, IDM>(
-    config: &SolverConfig,
-    ctx: &ListContext<S, V, DM, IDM>,
-) -> ListLocalSearch<S, V, DM, IDM>
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    V: Clone + Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone,
-    IDM: CrossEntityDistanceMeter<S> + Clone,
-{
-    let ls_config = config.phases.iter().find_map(|p| {
-        if let PhaseConfig::LocalSearch(ls) = p {
-            Some(ls)
-        } else {
-            None
-        }
-    });
-
-    let Some(ls) = ls_config else {
-        // Default: LA(400) + AcceptedCount(4) + Union(NearbyChange(20), NearbySwap(20), Reverse)
-        let acceptor = LateAcceptanceAcceptor::<S>::new(400);
-        let forager = AcceptedCountForager::new(4);
-        let move_selector = ListMoveSelectorBuilder::build(None, ctx);
-        return ListLocalSearch::Default(LocalSearchPhase::new(
-            move_selector,
-            acceptor,
-            forager,
-            None,
-        ));
-    };
-
-    let acceptor = ls
-        .acceptor
-        .as_ref()
-        .map(|ac| AcceptorBuilder::build::<S>(ac))
-        .unwrap_or_else(|| AnyAcceptor::LateAcceptance(LateAcceptanceAcceptor::<S>::new(400)));
-
-    let forager = ForagerBuilder::build::<S>(ls.forager.as_ref());
-    let move_selector = ListMoveSelectorBuilder::build(ls.move_selector.as_ref(), ctx);
-
-    ListLocalSearch::Config(LocalSearchPhase::new(
-        move_selector,
-        acceptor,
-        forager,
-        None,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

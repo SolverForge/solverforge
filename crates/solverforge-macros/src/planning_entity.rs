@@ -341,8 +341,8 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
-    let list_stock_metadata = generate_list_stock_metadata(name, &list_variables)?;
-    let list_stock_trait_impl = generate_list_stock_trait_impl(name, &list_variables)?;
+    let list_metadata = generate_list_metadata(name, &list_variables)?;
+    let list_trait_impl = generate_list_trait_impl(name, &list_variables)?;
 
     // Shadow variable descriptors
     let inverse_relation_descriptors: Vec<_> = inverse_relation_vars
@@ -448,7 +448,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
         impl #impl_generics #name #ty_generics #where_clause {
             #(#variable_helpers)*
-            #list_stock_metadata
+            #list_metadata
 
             pub fn entity_descriptor(solution_field: &'static str) -> ::solverforge::__internal::EntityDescriptor {
                 let mut desc = ::solverforge::__internal::EntityDescriptor::new(
@@ -468,7 +468,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             }
         }
 
-        #list_stock_trait_impl
+        #list_trait_impl
 
         #unassigned_filter_extension
     };
@@ -476,7 +476,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     Ok(expanded)
 }
 
-fn generate_list_stock_metadata(
+fn generate_list_metadata(
     entity_name: &Ident,
     list_variables: &[&syn::Field],
 ) -> Result<TokenStream, Error> {
@@ -597,13 +597,13 @@ fn generate_list_stock_metadata(
         }
 
         #[inline]
-        pub fn __solverforge_list_stock_metadata<Solution>() -> ::solverforge::__internal::StockListVariableMetadata<
+        pub fn __solverforge_list_metadata<Solution>() -> ::solverforge::__internal::ListVariableMetadata<
             Solution,
             #cross_dm_ty,
             #intra_dm_ty,
         > {
             let _ = stringify!(#entity_name);
-            ::solverforge::__internal::StockListVariableMetadata::new(
+            ::solverforge::__internal::ListVariableMetadata::new(
                 Self::__SOLVERFORGE_LIST_VARIABLE_NAME,
                 Self::__SOLVERFORGE_LIST_ELEMENT_COLLECTION,
                 #cross_dm_expr,
@@ -625,7 +625,7 @@ fn generate_list_stock_metadata(
     })
 }
 
-fn generate_list_stock_trait_impl(
+fn generate_list_trait_impl(
     entity_name: &Ident,
     list_variables: &[&syn::Field],
 ) -> Result<TokenStream, Error> {
@@ -648,7 +648,7 @@ fn generate_list_stock_trait_impl(
     )?;
 
     Ok(quote! {
-        impl<Solution> ::solverforge::__internal::StockListEntity<Solution> for #entity_name
+        impl<Solution> ::solverforge::__internal::ListVariableEntity<Solution> for #entity_name
         where
             Solution: ::solverforge::__internal::PlanningSolution,
         {
@@ -671,12 +671,12 @@ fn generate_list_stock_trait_impl(
             }
 
             #[inline]
-            fn stock_list_metadata() -> ::solverforge::__internal::StockListVariableMetadata<
+            fn list_metadata() -> ::solverforge::__internal::ListVariableMetadata<
                 Solution,
                 Self::CrossDistanceMeter,
                 Self::IntraDistanceMeter,
             > {
-                Self::__solverforge_list_stock_metadata::<Solution>()
+                Self::__solverforge_list_metadata::<Solution>()
             }
         }
     })
@@ -829,7 +829,7 @@ mod tests {
         assert!(expanded.contains(
             "pub const __SOLVERFORGE_LIST_ELEMENT_COLLECTION : & 'static str = \"all_tasks\""
         ));
-        assert!(expanded.contains("pub fn __solverforge_list_stock_metadata < Solution >"));
+        assert!(expanded.contains("pub fn __solverforge_list_metadata < Solution >"));
         assert!(expanded.contains("pub trait TaskUnassignedFilter"));
         assert!(expanded.contains("fn unassigned (self)"));
     }

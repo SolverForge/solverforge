@@ -56,8 +56,8 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl PlanningEntity for T` — `is_pinned()`, `as_any()`, `as_any_mut()`
 - `impl PlanningId for T` (if `#[planning_id]` present) — `type Id` set to field type, `planning_id()` returns field value
 - `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow) and preserves `#[planning_id]` / `#[planning_pin]` metadata
-- Hidden list stock registry (when the entity has a `#[planning_list_variable]` field): `__SOLVERFORGE_LIST_VARIABLE_COUNT`, `__SOLVERFORGE_LIST_VARIABLE_NAME`, `__SOLVERFORGE_LIST_ELEMENT_COLLECTION`, `__solverforge_list_field()`, `__solverforge_list_field_mut()`, `__solverforge_list_stock_metadata()`
-- Hidden typed stock bridge (when the entity has a `#[planning_list_variable]` field): `impl __internal::StockListEntity<Solution> for Entity`
+- Hidden list metadata registry (when the entity has a `#[planning_list_variable]` field): `__SOLVERFORGE_LIST_VARIABLE_COUNT`, `__SOLVERFORGE_LIST_VARIABLE_NAME`, `__SOLVERFORGE_LIST_ELEMENT_COLLECTION`, `__solverforge_list_field()`, `__solverforge_list_field_mut()`, `__solverforge_list_metadata()`
+- Hidden typed list bridge (when the entity has a `#[planning_list_variable]` field): `impl __internal::ListVariableEntity<Solution> for Entity`
 - `pub trait {Entity}UnassignedFilter<...>` (when the entity has exactly one `Option<_>` planning variable) — `.unassigned()` on `UniConstraintStream<_, Entity, ...>`
 
 ### `PlanningSolutionImpl`
@@ -100,7 +100,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal()` (when constraints path specified) — calls `run_stock_solver()` for macro-generated stock solving; generated stock helpers now delegate phase-sequence assembly to `solverforge-solver::stock` for both standard-only and list/mixed paths
+- `fn solve_internal()` (when constraints path specified) — calls `run_solver()` for macro-generated solving; generated runtime helpers delegate phase-sequence assembly to `solverforge-solver::runtime`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
 
 ### `ProblemFactImpl`

@@ -23,11 +23,10 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── list_solver.rs                       — List construction/local-search builders, list phase enums, hidden macro metadata + `StockListEntity`
-├── mixed_stock.rs                       — Mixed stock move envelope, selector builder, local-search/VND builders
-├── stock.rs                             — Shared stock phase enum and phase-sequence builders for standard and mixed stock solving
-├── run.rs                               — AnyTermination, build_termination, run_solver(), run_stock_solver()
-├── problem_spec.rs                      — ProblemSpec trait
+├── list_solver.rs                       — List construction/local-search builders, list phase enums, hidden macro metadata + `ListVariableEntity`
+├── unified_search.rs                    — Unified move envelope, selector builder, local-search/VND builders
+├── runtime.rs                           — Unified runtime phase enum and phase-sequence builder
+├── run.rs                               — AnyTermination, build_termination, run_solver()
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
@@ -167,7 +166,7 @@ src/
 │   │   ├── mod.rs                       — PartitionedSearchPhase, PartitionedSearchConfig, ChildPhases trait
 │   │   └── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
 │   ├── sequence.rs                      — PhaseSequence<P>
-│   ├── stock_vnd.rs                     — StockVndPhase<S, M, MS>
+│   ├── dynamic_vnd.rs                   — DynamicVndPhase<S, M, MS>
 │   └── vnd/
 │       ├── mod.rs                       — Re-exports
 │       └── phase.rs                     — VndPhase, impl_vnd_phase! macro (up to 8 neighborhoods)
@@ -710,28 +709,23 @@ Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBo
 
 Aggregate and per-phase metrics: step count, moves evaluated/accepted, score calculations, elapsed time, acceptance rate, moves per second.
 
-### `ProblemSpec` — `problem_spec.rs`
-
-Trait for user-authored low-level problem specs passed to `run_solver()`.
-
 ### `list_solver.rs`
 
-Public stock helpers: `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `StockListVariableMetadata<S, DM, IDM>`, `StockListEntity<S>`, `build_list_construction(config: Option<&ConstructionHeuristicConfig>, ...)`, `build_list_local_search()`
+Public helpers: `ListConstruction<S, V>`, `ListLocalSearch<S, V, DM, IDM>`, `ListVariableMetadata<S, DM, IDM>`, `ListVariableEntity<S>`, `build_list_construction(config: Option<&ConstructionHeuristicConfig>, ...)`, `build_list_local_search()`
 
-### `mixed_stock.rs`
+### `unified_search.rs`
 
-Public stock helpers: `MixedStockMove<S, V>`, `MixedNeighborhood<S, V, DM, IDM>`, `MixedStockLocalSearch<S, V, DM, IDM>`, `MixedStockVnd<S, V, DM, IDM>`, `build_mixed_move_selector()`, `build_mixed_local_search()`, `build_mixed_vnd()`
+Public helpers: `UnifiedMove<S, V>`, `UnifiedNeighborhood<S, V, DM, IDM>`, `UnifiedLocalSearch<S, V, DM, IDM>`, `UnifiedVnd<S, V, DM, IDM>`, `build_unified_move_selector()`, `build_unified_local_search()`, `build_unified_vnd()`
 
-### `stock.rs`
+### `runtime.rs`
 
-Shared stock runtime helpers:
+Unified runtime helpers:
 
-- `StockPhase<C, LS, VND>` — generic stock phase enum with `Seed`, `Construction`, `LocalSearch`, `Vnd`
-- `StandardStockPhase<S>` — alias over descriptor-standard construction/local-search/VND phases
-- `UnifiedMixedStockPhase<S, V, DM, IDM>` — alias over list construction plus mixed local-search/VND phases
-- `MixedStockConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
-- `build_standard_stock_phases()` — builds the full descriptor-standard stock phase sequence from `SolverConfig`
-- `build_mixed_stock_phases()` — builds the full list/mixed stock phase sequence from `SolverConfig`, `ListContext`, and `MixedStockConstructionArgs`
+- `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Seed`, `Construction`, `LocalSearch`, `Vnd`
+- `UnifiedConstruction<S, V>` — unified construction phase over descriptor and list metadata
+- `UnifiedRuntimePhase<S, V, DM, IDM>` — alias over unified construction plus unified local-search/VND phases
+- `ListConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
+- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and optional list context/hooks
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 
@@ -739,7 +733,7 @@ Shared stock runtime helpers:
 
 ### `run_solver()` — `run.rs`
 
-Unified low-level solve entrypoint for custom `ProblemSpec` implementations. Accepts `terminate: Option<&AtomicBool>` and `sender: mpsc::UnboundedSender<(S, S::Score)>` for external control and solution streaming.
+Unified solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus `terminate: Option<&AtomicBool>` and `sender: mpsc::UnboundedSender<SolverEvent<S>>` for external control and solution streaming.
 
 ## Architectural Notes
 

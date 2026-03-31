@@ -85,8 +85,8 @@ Solver
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_solver, run_stock_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable,
-    SolverEvent, SolverManager, SolverStatus, SolverTelemetry,
+    analyze, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverEvent,
+    SolverManager, SolverStatus, SolverTelemetry,
 };
 
 /* ============================================================================
@@ -164,15 +164,13 @@ pub mod __internal {
     };
     pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
     pub use solverforge_solver::{
-        build_descriptor_construction, build_descriptor_local_search,
-        build_descriptor_move_selector, build_descriptor_vnd, build_list_construction,
-        build_mixed_local_search, build_mixed_stock_phases, build_mixed_vnd,
-        build_standard_stock_phases, descriptor_has_bindings, log_stock_solve_start,
-        run_stock_solver, DescriptorConstruction, DescriptorLocalSearch, DescriptorVnd,
-        ListConstruction, MixedStockConstructionArgs, MixedStockLocalSearch, MixedStockVnd, Phase,
-        PhaseSequence, SeedBestSolutionPhase, SolverEvent, SolverTelemetry, StandardStockPhase,
-        StockListEntity, StockListVariableMetadata, StockPhase, StockVndPhase,
-        UnifiedMixedStockPhase,
+        build_descriptor_construction, build_descriptor_move_selector, build_list_construction,
+        build_phases, build_unified_local_search, build_unified_move_selector, build_unified_vnd,
+        descriptor_has_bindings, log_solve_start, run_solver, DescriptorConstruction,
+        DynamicVndPhase, ListConstruction, ListConstructionArgs, ListVariableEntity,
+        ListVariableMetadata, Phase, PhaseSequence, RuntimePhase, SeedBestSolutionPhase,
+        SolverEvent, SolverTelemetry, UnifiedConstruction, UnifiedLocalSearch, UnifiedMove,
+        UnifiedNeighborhood, UnifiedRuntimePhase, UnifiedVnd,
     };
 
     // Config

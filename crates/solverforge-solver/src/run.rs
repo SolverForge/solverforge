@@ -1,8 +1,4 @@
-/* Unified solver entry point.
-
-This module provides the single `run_solver` function used by both standard
-variable and list variable problems via the `ProblemSpec` trait.
-*/
+/* Unified solver entry point. */
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -18,7 +14,6 @@ use tracing::info;
 
 use crate::manager::SolverEvent;
 use crate::phase::{Phase, PhaseSequence};
-use crate::problem_spec::ProblemSpec;
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::solver::Solver;
 use crate::termination::{
@@ -168,7 +163,7 @@ where
     (termination, time_limit)
 }
 
-pub fn log_stock_solve_start(
+pub fn log_solve_start(
     entity_count: usize,
     element_count: Option<usize>,
     has_standard: Option<bool>,
@@ -183,111 +178,8 @@ pub fn log_stock_solve_start(
     );
 }
 
-/* Solves a problem using the given `ProblemSpec` for problem-specific logic.
-
-This is the unified entry point for both standard variable and list variable
-problems. The shared logic (config loading, director creation, trivial-case
-handling, termination building, callback setup, final send) lives here.
-Problem-specific construction and local search are delegated to `spec`.
-*/
 #[allow(clippy::too_many_arguments)]
-pub fn run_solver<S, C, Spec>(
-    solution: S,
-    constraints_fn: fn() -> C,
-    descriptor: fn() -> SolutionDescriptor,
-    entity_count_by_descriptor: fn(&S, usize) -> usize,
-    terminate: Option<&AtomicBool>,
-    sender: mpsc::UnboundedSender<SolverEvent<S>>,
-    spec: Spec,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    C: ConstraintSet<S, S::Score>,
-    Spec: ProblemSpec<S, C>,
-{
-    let config = SolverConfig::load("solver.toml").unwrap_or_default();
-
-    spec.log_scale(&solution);
-    let trivial = spec.is_trivial(&solution);
-
-    let constraints = constraints_fn();
-    let director = ScoreDirector::with_descriptor(
-        solution,
-        constraints,
-        descriptor(),
-        entity_count_by_descriptor,
-    );
-
-    if trivial {
-        let mut solver_scope = SolverScope::new(director);
-        solver_scope.start_solving();
-        let score = solver_scope.calculate_score();
-        info!(event = "solve_end", score = %score);
-        let telemetry = solver_scope.stats().snapshot();
-        let solution = solver_scope.take_best_or_working_solution();
-        let _ = sender.send(SolverEvent::Finished {
-            solution: solution.clone(),
-            score,
-            telemetry,
-        });
-        return solution;
-    }
-
-    let (termination, time_limit) =
-        build_termination::<S, C>(&config, spec.default_time_limit_secs());
-
-    let callback_sender = sender.clone();
-    let callback = move |progress: SolverProgressRef<'_, S>| match progress.kind {
-        SolverProgressKind::Progress => {
-            let _ = callback_sender.send(SolverEvent::Progress {
-                score: progress.score.cloned(),
-                telemetry: progress.telemetry,
-            });
-        }
-        SolverProgressKind::BestSolution => {
-            if let (Some(solution), Some(score)) = (progress.solution, progress.score) {
-                let _ = callback_sender.send(SolverEvent::BestSolution {
-                    solution: (*solution).clone(),
-                    score: *score,
-                    telemetry: progress.telemetry,
-                });
-            }
-        }
-    };
-
-    let result = spec.build_and_solve(
-        director,
-        &config,
-        time_limit,
-        termination,
-        terminate,
-        callback,
-    );
-
-    let final_score = result.solution.score().unwrap_or_default();
-    let final_telemetry = result.stats.snapshot();
-    let _ = sender.send(SolverEvent::Finished {
-        solution: result.solution.clone(),
-        score: final_score,
-        telemetry: final_telemetry,
-    });
-
-    info!(
-        event = "solve_end",
-        score = %final_score,
-        steps = result.stats.step_count,
-        moves_evaluated = result.stats.moves_evaluated,
-        moves_accepted = result.stats.moves_accepted,
-        score_calculations = result.stats.score_calculations,
-        moves_speed = final_telemetry.moves_per_second,
-        acceptance_rate = format!("{:.1}%", result.stats.acceptance_rate() * 100.0),
-    );
-    result.solution
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn run_stock_solver<S, C, P>(
+pub fn run_solver<S, C, P>(
     solution: S,
     constraints_fn: fn() -> C,
     descriptor: fn() -> SolutionDescriptor,

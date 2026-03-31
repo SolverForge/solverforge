@@ -9,12 +9,12 @@ use crate::heuristic::selector::MoveSelector;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 
-pub struct StockVndPhase<S, M, MS> {
+pub struct DynamicVndPhase<S, M, MS> {
     neighborhoods: Vec<MS>,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
-impl<S, M, MS> StockVndPhase<S, M, MS> {
+impl<S, M, MS> DynamicVndPhase<S, M, MS> {
     pub fn new(neighborhoods: Vec<MS>) -> Self {
         Self {
             neighborhoods,
@@ -23,15 +23,15 @@ impl<S, M, MS> StockVndPhase<S, M, MS> {
     }
 }
 
-impl<S, M, MS: Debug> Debug for StockVndPhase<S, M, MS> {
+impl<S, M, MS: Debug> Debug for DynamicVndPhase<S, M, MS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StockVndPhase")
+        f.debug_struct("DynamicVndPhase")
             .field("neighborhoods", &self.neighborhoods)
             .finish()
     }
 }
 
-impl<S, D, ProgressCb, M, MS> Phase<S, D, ProgressCb> for StockVndPhase<S, M, MS>
+impl<S, D, ProgressCb, M, MS> Phase<S, D, ProgressCb> for DynamicVndPhase<S, M, MS>
 where
     S: PlanningSolution,
     D: Director<S>,
@@ -69,7 +69,7 @@ where
     }
 
     fn phase_type_name(&self) -> &'static str {
-        "StockVariableNeighborhoodDescent"
+        "VariableNeighborhoodDescent"
     }
 }
 

@@ -73,7 +73,6 @@ src/
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
-- `ProblemSpec` (trait)
 - `AnyTermination`
 - `build_termination`
 - `SolverManager`
@@ -147,7 +146,7 @@ Used exclusively by macro-generated code. Not public API.
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
-- `StockListEntity`, `StockListVariableMetadata`
+- `ListVariableEntity`, `ListVariableMetadata`
 
 **Config (from `solverforge-config`):**
 - `SolverConfig`

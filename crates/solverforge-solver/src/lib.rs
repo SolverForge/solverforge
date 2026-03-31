@@ -23,25 +23,23 @@ pub mod descriptor_standard;
 pub mod heuristic;
 pub mod list_solver;
 pub mod manager;
-pub mod mixed_stock;
 pub mod phase;
-pub mod problem_spec;
 pub mod realtime;
 pub mod run;
+pub mod runtime;
 pub mod scope;
 pub mod solver;
 pub mod stats;
-pub mod stock;
 pub mod termination;
+pub mod unified_search;
 
 pub use builder::{
     AcceptorBuilder, AnyAcceptor, AnyForager, ForagerBuilder, ListContext, ListLeafSelector,
     ListMoveSelectorBuilder, StandardContext, StandardLeafSelector, StandardMoveSelectorBuilder,
 };
 pub use descriptor_standard::{
-    build_descriptor_construction, build_descriptor_local_search, build_descriptor_move_selector,
-    build_descriptor_vnd, descriptor_has_bindings, DescriptorConstruction, DescriptorEitherMove,
-    DescriptorLeafSelector, DescriptorLocalSearch, DescriptorVnd, SeedBestSolutionPhase,
+    build_descriptor_construction, build_descriptor_move_selector, descriptor_has_bindings,
+    DescriptorConstruction, DescriptorEitherMove, DescriptorLeafSelector, SeedBestSolutionPhase,
 };
 pub use heuristic::{
     // K-opt reconnection patterns
@@ -99,16 +97,13 @@ pub use manager::{
     LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverFactory,
     SolverFactoryBuilder, SolverManager, SolverStatus,
 };
-pub use mixed_stock::{
-    build_mixed_local_search, build_mixed_move_selector, build_mixed_vnd, MixedNeighborhood,
-    MixedStockLocalSearch, MixedStockMove, MixedStockVnd,
-};
 pub use phase::{
     construction::{
         BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
         ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
         ForagerType, Placement, QueuedEntityPlacer,
     },
+    dynamic_vnd::DynamicVndPhase,
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,
         ExhaustiveSearchPhase, ExplorationType, FixedOffsetBounder, MoveSequence, ScoreBounder,
@@ -127,7 +122,6 @@ pub use phase::{
         SolutionPartitioner, ThreadCount,
     },
     sequence::PhaseSequence,
-    stock_vnd::StockVndPhase,
     vnd::VndPhase,
     Phase,
 };
@@ -140,14 +134,16 @@ pub use termination::{
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
+pub use unified_search::{
+    build_unified_local_search, build_unified_move_selector, build_unified_vnd, UnifiedLocalSearch,
+    UnifiedMove, UnifiedNeighborhood, UnifiedVnd,
+};
 
 pub use list_solver::{
     build_list_construction, build_list_local_search, ListConstruction, ListLocalSearch,
-    StockListEntity, StockListVariableMetadata,
+    ListVariableEntity, ListVariableMetadata,
 };
-pub use problem_spec::ProblemSpec;
-pub use run::{log_stock_solve_start, run_solver, run_stock_solver};
-pub use stock::{
-    build_mixed_stock_phases, build_standard_stock_phases, MixedStockConstructionArgs,
-    StandardStockPhase, StockPhase, UnifiedMixedStockPhase,
+pub use run::{log_solve_start, run_solver};
+pub use runtime::{
+    build_phases, ListConstructionArgs, RuntimePhase, UnifiedConstruction, UnifiedRuntimePhase,
 };

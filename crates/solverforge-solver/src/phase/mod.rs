@@ -9,15 +9,15 @@ Phases are the main building blocks of solving:
 */
 
 pub mod construction;
+pub mod dynamic_vnd;
 pub mod exhaustive;
 pub mod localsearch;
 pub mod partitioned;
 pub mod sequence;
-pub mod stock_vnd;
 mod traits;
 mod tuple_impl;
 pub mod vnd;
 
+pub use dynamic_vnd::DynamicVndPhase;
 pub use sequence::PhaseSequence;
-pub use stock_vnd::StockVndPhase;
 pub use traits::Phase;

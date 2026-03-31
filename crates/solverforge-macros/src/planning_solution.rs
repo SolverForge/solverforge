@@ -152,10 +152,10 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .collect();
 
     let list_operations = generate_list_operations(&shadow_config, fields, name)?;
-    let stock_phase_support =
-        generate_stock_phase_support(&shadow_config, fields, &constraints_path, name);
-    let stock_solve_internal =
-        generate_stock_solve_internal(&shadow_config, fields, &constraints_path, name);
+    let runtime_phase_support =
+        generate_runtime_phase_support(&shadow_config, fields, &constraints_path, name);
+    let runtime_solve_internal =
+        generate_runtime_solve_internal(&shadow_config, fields, &constraints_path, name);
     let solvable_solution_impl = generate_solvable_solution(name, &constraints_path);
 
     let stream_extensions = generate_constraint_stream_extensions(fields, name);
@@ -187,10 +187,10 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             }
 
             #list_operations
-            #stock_solve_internal
+            #runtime_solve_internal
         }
 
-        #stock_phase_support
+        #runtime_phase_support
         #shadow_support_impl
 
         #solvable_solution_impl
@@ -281,7 +281,7 @@ fn find_list_element_collection_config<'a>(
     Ok(matches.pop())
 }
 
-fn find_stock_list_config<'a>(
+fn find_list_runtime_config<'a>(
     fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
 ) -> Result<Option<(ListOwnerConfig<'a>, ListElementCollectionConfig<'a>)>, Error> {
     let Some(element_collection) = find_list_element_collection_config(fields)? else {
@@ -333,7 +333,7 @@ fn generate_list_operations(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     _solution_name: &Ident,
 ) -> Result<TokenStream, Error> {
-    let Some((list_owner, element_collection)) = find_stock_list_config(fields)? else {
+    let Some((list_owner, element_collection)) = find_list_runtime_config(fields)? else {
         return Ok(TokenStream::new());
     };
 
@@ -345,7 +345,7 @@ fn generate_list_operations(
     let element_collection_ident = element_collection.field_ident;
     let list_owner_type = list_owner.entity_type;
     let list_trait =
-        quote! { <#list_owner_type as ::solverforge::__internal::StockListEntity<Self>> };
+        quote! { <#list_owner_type as ::solverforge::__internal::ListVariableEntity<Self>> };
 
     Ok(quote! {
         #[inline]
@@ -480,7 +480,7 @@ fn generate_list_operations(
     })
 }
 
-fn generate_stock_solve_internal(
+fn generate_runtime_solve_internal(
     _shadow_config: &ShadowConfig,
     _fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
@@ -500,23 +500,23 @@ fn generate_stock_solve_internal(
         ) -> Self {
             ::solverforge::__internal::init_console();
 
-            ::solverforge::__internal::run_stock_solver(
+            ::solverforge::__internal::run_solver(
                 self,
                 #constraints_fn,
                 Self::descriptor,
                 Self::entity_count,
                 terminate,
                 sender,
-                Self::__solverforge_stock_default_time_limit_secs(),
-                Self::__solverforge_stock_is_trivial,
-                Self::__solverforge_stock_log_scale,
-                Self::__solverforge_build_stock_phases,
+                Self::__solverforge_default_time_limit_secs(),
+                Self::__solverforge_is_trivial,
+                Self::__solverforge_log_scale,
+                Self::__solverforge_build_phases,
             )
         }
     }
 }
 
-fn generate_stock_phase_support(
+fn generate_runtime_phase_support(
     _shadow_config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
@@ -526,12 +526,12 @@ fn generate_stock_phase_support(
         return TokenStream::new();
     }
 
-    if let Some((list_owner, _element_collection)) =
-        find_stock_list_config(fields).expect("stock list config validation should have succeeded")
+    if let Some((list_owner, _element_collection)) = find_list_runtime_config(fields)
+        .expect("list runtime config validation should have succeeded")
     {
         let list_owner_type = list_owner.entity_type;
         let list_trait = quote! {
-            <#list_owner_type as ::solverforge::__internal::StockListEntity<#solution_name>>
+            <#list_owner_type as ::solverforge::__internal::ListVariableEntity<#solution_name>>
         };
         let descriptor_index_lit = syn::LitInt::new(
             &list_owner.descriptor_index.to_string(),
@@ -540,11 +540,11 @@ fn generate_stock_phase_support(
 
         return quote! {
             impl #solution_name {
-                const fn __solverforge_stock_default_time_limit_secs() -> u64 {
+                const fn __solverforge_default_time_limit_secs() -> u64 {
                     60
                 }
 
-                fn __solverforge_stock_is_trivial(solution: &Self) -> bool {
+                fn __solverforge_is_trivial(solution: &Self) -> bool {
                     let descriptor = Self::descriptor();
                     let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
                     let has_list = Self::n_entities(solution) > 0 && Self::element_count(solution) > 0;
@@ -553,10 +553,10 @@ fn generate_stock_phase_support(
                         || (has_list && Self::element_count(solution) == 0)
                 }
 
-                fn __solverforge_stock_log_scale(solution: &Self) {
+                fn __solverforge_log_scale(solution: &Self) {
                     let descriptor = Self::descriptor();
                     let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
-                    ::solverforge::__internal::log_stock_solve_start(
+                    ::solverforge::__internal::log_solve_start(
                         Self::n_entities(solution),
                         ::core::option::Option::Some(Self::element_count(solution)),
                         ::core::option::Option::Some(has_standard),
@@ -564,10 +564,10 @@ fn generate_stock_phase_support(
                     );
                 }
 
-                fn __solverforge_build_stock_phases(
+                fn __solverforge_build_phases(
                     config: &::solverforge::__internal::SolverConfig,
                 ) -> ::solverforge::__internal::PhaseSequence<
-                    ::solverforge::__internal::UnifiedMixedStockPhase<
+                    ::solverforge::__internal::UnifiedRuntimePhase<
                         #solution_name,
                         usize,
                         #list_trait::CrossDistanceMeter,
@@ -575,7 +575,7 @@ fn generate_stock_phase_support(
                     >
                 > {
                     let descriptor = Self::descriptor();
-                    let metadata = #list_trait::stock_list_metadata();
+                    let metadata = #list_trait::list_metadata();
                     let list_ctx = ::solverforge::__internal::ListContext::new(
                         Self::list_len_static,
                         Self::list_remove,
@@ -593,7 +593,7 @@ fn generate_stock_phase_support(
                         #list_trait::STOCK_LIST_VARIABLE_NAME,
                         #descriptor_index_lit,
                     );
-                    let construction = ::solverforge::__internal::MixedStockConstructionArgs {
+                    let construction = ::solverforge::__internal::ListConstructionArgs {
                         element_count: Self::element_count,
                         assigned_elements: Self::assigned_elements,
                         entity_count: Self::n_entities,
@@ -614,12 +614,12 @@ fn generate_stock_phase_support(
                         k_opt_distance_fn: metadata.k_opt_distance_fn,
                         k_opt_feasible_fn: metadata.k_opt_feasible_fn,
                     };
-                    ::solverforge::__internal::build_mixed_stock_phases(
+                    ::solverforge::__internal::build_phases(
                         config,
                         &descriptor,
-                        &list_ctx,
-                        construction,
-                        #list_trait::STOCK_LIST_VARIABLE_NAME,
+                        ::core::option::Option::Some(&list_ctx),
+                        ::core::option::Option::Some(construction),
+                        ::core::option::Option::Some(#list_trait::STOCK_LIST_VARIABLE_NAME),
                     )
                 }
             }
@@ -628,11 +628,11 @@ fn generate_stock_phase_support(
 
     quote! {
         impl #solution_name {
-            const fn __solverforge_stock_default_time_limit_secs() -> u64 {
+            const fn __solverforge_default_time_limit_secs() -> u64 {
                 30
             }
 
-            fn __solverforge_stock_is_trivial(solution: &Self) -> bool {
+            fn __solverforge_is_trivial(solution: &Self) -> bool {
                 let descriptor = Self::descriptor();
                 !::solverforge::__internal::descriptor_has_bindings(&descriptor)
                     || descriptor
@@ -641,9 +641,9 @@ fn generate_stock_phase_support(
                         == 0
             }
 
-            fn __solverforge_stock_log_scale(solution: &Self) {
+            fn __solverforge_log_scale(solution: &Self) {
                 let descriptor = Self::descriptor();
-                ::solverforge::__internal::log_stock_solve_start(
+                ::solverforge::__internal::log_solve_start(
                     descriptor
                         .total_entity_count(solution as &dyn ::std::any::Any)
                         .unwrap_or(0),
@@ -655,13 +655,24 @@ fn generate_stock_phase_support(
                 );
             }
 
-            fn __solverforge_build_stock_phases(
+            fn __solverforge_build_phases(
                 config: &::solverforge::__internal::SolverConfig,
             ) -> ::solverforge::__internal::PhaseSequence<
-                ::solverforge::__internal::StandardStockPhase<#solution_name>
+                ::solverforge::__internal::UnifiedRuntimePhase<
+                    #solution_name,
+                    usize,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                >
             > {
                 let descriptor = Self::descriptor();
-                ::solverforge::__internal::build_standard_stock_phases(config, &descriptor)
+                ::solverforge::__internal::build_phases(
+                    config,
+                    &descriptor,
+                    ::core::option::Option::None,
+                    ::core::option::Option::None,
+                    ::core::option::Option::None,
+                )
             }
         }
     }
@@ -777,7 +788,7 @@ fn generate_shadow_support(
     let element_collection_ident = element_collection.field_ident;
     let list_owner_type = list_owner.entity_type;
     let list_trait =
-        quote! { <#list_owner_type as ::solverforge::__internal::StockListEntity<Self>> };
+        quote! { <#list_owner_type as ::solverforge::__internal::ListVariableEntity<Self>> };
 
     let inverse_update = config.inverse_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());

@@ -14,8 +14,8 @@ use crate::descriptor_standard::{
 };
 use crate::heuristic::r#move::{ListMoveImpl, Move, MoveArena};
 use crate::heuristic::selector::decorator::VecUnionSelector;
-use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::dynamic_vnd::DynamicVndPhase;
 use crate::phase::localsearch::{
     AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,

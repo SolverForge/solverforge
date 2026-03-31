@@ -1,7 +1,7 @@
-/* Typed value selectors for high-performance value iteration.
+/* Value selectors for high-performance value iteration.
 
 Unlike the type-erased `ValueSelector` that yields `Arc<dyn Any>`,
-typed value selectors yield `V` directly with no heap allocation.
+these selectors yield `V` directly with no heap allocation.
 */
 
 use std::fmt::Debug;
@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-/// A typed value selector that yields values of type `V` directly.
+/// A value selector that yields values of type `V` directly.
 ///
 /// Unlike `ValueSelector` which returns `Arc<dyn Any>`, this trait
 /// returns `V` inline, eliminating heap allocation per value.
@@ -19,7 +19,7 @@ use solverforge_scoring::Director;
 /// * `S` - The planning solution type
 /// * `V` - The value type
 pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
-    // Returns an iterator over typed values for the given entity.
+    // Returns an iterator over values for the given entity.
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
         score_director: &'a D,
@@ -40,7 +40,7 @@ pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
     }
 }
 
-/// A typed value selector with a static list of values.
+/// A value selector with a static list of values.
 pub struct StaticValueSelector<S, V> {
     values: Vec<V>,
     _phantom: PhantomData<fn() -> S>,
@@ -100,7 +100,7 @@ where
     }
 }
 
-/// A typed value selector that extracts values from the solution using a function pointer.
+/// A value selector that extracts values from the solution using a function pointer.
 pub struct FromSolutionValueSelector<S, V> {
     extractor: fn(&S) -> Vec<V>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -190,7 +190,7 @@ where
     }
 }
 
-/// A typed value selector that generates a range of usize values 0..count.
+/// A value selector that generates a range of usize values 0..count.
 ///
 /// Uses a function pointer to get the count from the solution.
 pub struct RangeValueSelector<S> {

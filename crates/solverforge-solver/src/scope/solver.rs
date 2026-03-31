@@ -23,7 +23,8 @@ pub struct SolverProgressRef<'a, S: PlanningSolution> {
     pub kind: SolverProgressKind,
     pub status: SolverStatus,
     pub solution: Option<&'a S>,
-    pub score: Option<&'a S::Score>,
+    pub current_score: Option<&'a S::Score>,
+    pub best_score: Option<&'a S::Score>,
     pub telemetry: crate::stats::SolverTelemetry,
 }
 
@@ -62,6 +63,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     score_director: D,
     // The best solution found so far.
     best_solution: Option<S>,
+    // The score of the current working solution.
+    current_score: Option<S::Score>,
     // The score of the best solution.
     best_score: Option<S::Score>,
     // Random number generator for stochastic algorithms.
@@ -91,6 +94,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
         Self {
             score_director,
             best_solution: None,
+            current_score: None,
             best_score: None,
             rng: StdRng::from_rng(&mut rand::rng()),
             start_time: None,
@@ -117,6 +121,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         Self {
             score_director,
             best_solution: None,
+            current_score: None,
             best_score: None,
             rng: StdRng::from_rng(&mut rand::rng()),
             start_time: None,
@@ -155,6 +160,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         SolverScope {
             score_director: self.score_director,
             best_solution: self.best_solution,
+            current_score: self.current_score,
             best_score: self.best_score,
             rng: self.rng,
             start_time: self.start_time,
@@ -201,7 +207,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     /// Also records the score calculation in solver statistics.
     pub fn calculate_score(&mut self) -> S::Score {
         self.stats.record_score_calculation();
-        self.score_director.calculate_score()
+        let score = self.score_director.calculate_score();
+        self.current_score = Some(score);
+        score
     }
 
     pub fn best_solution(&self) -> Option<&S> {
@@ -212,12 +220,21 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.best_score.as_ref()
     }
 
+    pub fn current_score(&self) -> Option<&S::Score> {
+        self.current_score.as_ref()
+    }
+
+    pub fn set_current_score(&mut self, score: S::Score) {
+        self.current_score = Some(score);
+    }
+
     pub fn report_progress(&self) {
         self.progress_callback.invoke(SolverProgressRef {
             kind: SolverProgressKind::Progress,
             status: SolverStatus::Solving,
-            solution: self.best_solution.as_ref(),
-            score: self.best_score.as_ref(),
+            solution: None,
+            current_score: self.current_score.as_ref(),
+            best_score: self.best_score.as_ref(),
             telemetry: self.stats.snapshot(),
         });
     }
@@ -227,7 +244,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             kind: SolverProgressKind::BestSolution,
             status: SolverStatus::Solving,
             solution: self.best_solution.as_ref(),
-            score: self.best_score.as_ref(),
+            current_score: self.current_score.as_ref(),
+            best_score: self.best_score.as_ref(),
             telemetry: self.stats.snapshot(),
         });
     }
@@ -235,6 +253,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     /// Updates the best solution if the current solution is better.
     pub fn update_best_solution(&mut self) {
         let current_score = self.score_director.calculate_score();
+        self.current_score = Some(current_score);
         let is_better = match &self.best_score {
             None => true,
             Some(best) => current_score > *best,
@@ -250,6 +269,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     /// Forces an update of the best solution regardless of score comparison.
     pub fn set_best_solution(&mut self, solution: S, score: S::Score) {
+        self.current_score = Some(score);
         self.best_solution = Some(solution);
         self.best_score = Some(score);
     }
@@ -283,11 +303,15 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     ///
     /// Returns the best solution (or working solution if none) along with
     /// the accumulated solver statistics.
-    pub fn take_solution_and_stats(self) -> (S, SolverStats) {
+    pub fn take_solution_and_stats(self) -> (S, S::Score, SolverStats) {
         let solution = self
             .best_solution
             .unwrap_or_else(|| self.score_director.clone_working_solution());
-        (solution, self.stats)
+        let score = self
+            .best_score
+            .or(self.current_score)
+            .expect("solver finished without a canonical score");
+        (solution, score, self.stats)
     }
 
     pub fn is_terminate_early(&self) -> bool {

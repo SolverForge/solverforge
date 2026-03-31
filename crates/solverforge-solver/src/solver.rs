@@ -25,6 +25,8 @@ solving process.
 pub struct SolveResult<S: PlanningSolution> {
     // The best solution found during solving.
     pub solution: S,
+    // The canonical best score for the solve.
+    pub best_score: S::Score,
     // Solver statistics including steps, moves evaluated, and acceptance rates.
     pub stats: SolverStats,
 }
@@ -36,6 +38,10 @@ impl<S: PlanningSolution> SolveResult<S> {
 
     pub fn into_solution(self) -> S {
         self.solution
+    }
+
+    pub fn best_score(&self) -> &S::Score {
+        &self.best_score
     }
 
     pub fn stats(&self) -> &SolverStats {
@@ -268,6 +274,9 @@ macro_rules! impl_solver {
                     solver_scope.set_time_limit(limit);
                 }
                 solver_scope.start_solving();
+                let initial_score = solver_scope.calculate_score();
+                let initial_solution = solver_scope.score_director().clone_working_solution();
+                solver_scope.set_best_solution(initial_solution, initial_score);
 
                 // Install in-phase termination limits so phases can check them
                 // inside their step loops (T1: StepCountTermination, MoveCountTermination, etc.)
@@ -292,8 +301,12 @@ macro_rules! impl_solver {
                 )+
 
                 // Extract solution and stats before consuming scope
-                let (solution, stats) = solver_scope.take_solution_and_stats();
-                SolveResult { solution, stats }
+                let (solution, best_score, stats) = solver_scope.take_solution_and_stats();
+                SolveResult {
+                    solution,
+                    best_score,
+                    stats,
+                }
             }
         }
     };

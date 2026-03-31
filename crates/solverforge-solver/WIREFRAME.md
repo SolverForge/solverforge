@@ -193,7 +193,7 @@ src/
 │
 ├── scope/
 │   ├── mod.rs                           — Re-exports
-│   ├── solver.rs                        — SolverScope<'t, S, D, BestCb = ()>, BestSolutionCallback trait
+│   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
 │   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
 │   └── tests.rs                         — Tests
@@ -232,27 +232,27 @@ Requires: `Send + Sync + Debug`.
 
 Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
 
-### `Phase<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>` — `phase/mod.rs`
+### `Phase<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S> = ()>` — `phase/mod.rs`
 
 Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `solve` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>)` |
+| `solve` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)` |
 | `phase_type_name` | `fn(&self) -> &'static str` |
 
-All concrete phase types implement `Phase<S, D, BestCb>` for all `BestCb: BestSolutionCallback<S>`. Tuple implementations via `tuple_impl.rs`.
+All concrete phase types implement `Phase<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`. Tuple implementations via `tuple_impl.rs`.
 
-### `Termination<S: PlanningSolution, D: Director<S>, BestCb: BestSolutionCallback<S> = ()>` — `termination/mod.rs`
+### `Termination<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S> = ()>` — `termination/mod.rs`
 
 Requires: `Send + Debug`.
 
 | Method | Signature | Default |
 |--------|-----------|---------|
-| `is_terminated` | `fn(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool` | — |
-| `install_inphase_limits` | `fn(&self, solver_scope: &mut SolverScope<S, D, BestCb>)` | no-op |
+| `is_terminated` | `fn(&self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool` | — |
+| `install_inphase_limits` | `fn(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>)` | no-op |
 
-All concrete termination types implement `Termination<S, D, BestCb>` for all `BestCb: BestSolutionCallback<S>`.
+All concrete termination types implement `Termination<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`.
 
 ### `Acceptor<S: PlanningSolution>` — `acceptor/mod.rs`
 
@@ -604,15 +604,15 @@ Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 
 ## Scope Hierarchy
 
-### `BestSolutionCallback<S>` — `scope/solver.rs`
+### `ProgressCallback<S>` — `scope/solver.rs`
 
-Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op) and any `F: Fn(&S) + Send + Sync`.
+Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op) and any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`.
 
-### `SolverScope<'t, S, D, BestCb = ()>`
+### `SolverScope<'t, S, D, ProgressCb = ()>`
 
-Top-level scope for entire solve. Holds score director, best solution, RNG, stats, termination state.
+Top-level scope for entire solve. Holds score director, current score, best solution, best score, RNG, stats, termination state.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate)`, `with_best_solution_callback(F) -> SolverScope<.., F>`, `start_solving()`, `working_solution()`, `calculate_score()`, `update_best_solution()`, `is_terminate_early()`, `set_time_limit()`.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate)`, `with_progress_callback(F) -> SolverScope<.., F>`, `start_solving()`, `working_solution()`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `is_terminate_early()`, `set_time_limit()`.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
@@ -694,15 +694,15 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 
 ## Solver & Convenience Functions
 
-### `Solver<'t, P, T, S, D, BestCb = ()>`
+### `Solver<'t, P, T, S, D, ProgressCb = ()>`
 
 Main solver struct. Drives phases and checks termination. `impl_solver!` macro generates `solve(self, score_director: D) -> SolveResult<S>` for phase tuples up to 8.
 
-Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_best_solution_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `BestCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
+Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_progress_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `ProgressCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
 
 ### `SolveResult<S>`
 
-`{ solution: S, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
+`{ solution: S, best_score: S::Score, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `best_score()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
 
 ### `SolverStats` / `PhaseStats`
 
@@ -722,7 +722,7 @@ Public helpers: `UnifiedMove<S, V>`, `UnifiedNeighborhood<S, V, DM, IDM>`, `Unif
 
 Unified runtime helpers:
 
-- `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Seed`, `Construction`, `LocalSearch`, `Vnd`
+- `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
 - `UnifiedConstruction<S, V>` — unified construction phase over descriptor and list metadata
 - `UnifiedRuntimePhase<S, V, DM, IDM>` — alias over unified construction plus unified local-search/VND phases
 - `ListConstructionArgs<S, V>` — function-pointer bundle for list construction hooks

@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::heuristic::r#move::MoveArena;
 use crate::heuristic::r#move::{ChangeMove, EitherMove, ListMoveImpl, Move, SwapMove};
 
 use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector};
@@ -31,6 +32,10 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     ) -> impl Iterator<Item = M> + 'a;
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
+
+    fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
+        arena.extend(self.iter_moves(score_director));
+    }
 
     // Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {

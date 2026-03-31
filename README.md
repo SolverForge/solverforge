@@ -188,13 +188,19 @@ fn main() {
     // Receive progress and best-solution updates as they arrive.
     while let Ok(event) = receiver.try_recv() {
         match event {
+            solverforge::SolverEvent::Progress {
+                current_score,
+                best_score,
+                ..
+            } => {
+                println!("Current: {:?} | Best: {:?}", current_score, best_score);
+            }
             solverforge::SolverEvent::BestSolution { solution: _, score, .. } => {
                 println!("New best: {}", score);
             }
             solverforge::SolverEvent::Finished { solution: _, score, .. } => {
                 println!("Finished: {}", score);
             }
-            solverforge::SolverEvent::Progress { .. } => {}
         }
     }
 }

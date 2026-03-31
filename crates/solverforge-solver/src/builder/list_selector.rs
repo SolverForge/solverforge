@@ -6,7 +6,7 @@ use solverforge_config::MoveSelectorConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::ListMoveImpl;
+use crate::heuristic::r#move::{ListMoveImpl, MoveArena};
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::k_opt::KOptConfig;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -121,6 +121,25 @@ where
             Self::ListChange(s) => s.size(score_director),
             Self::ListSwap(s) => s.size(score_director),
             Self::SubListSwap(s) => s.size(score_director),
+        }
+    }
+
+    fn append_moves<D: Director<S>>(
+        &self,
+        score_director: &D,
+        arena: &mut MoveArena<ListMoveImpl<S, V>>,
+    ) {
+        match self {
+            Self::NearbyListChange(s) => arena.extend(s.iter_moves(score_director)),
+            Self::NearbyListSwap(s) => arena.extend(s.iter_moves(score_director)),
+            Self::ListReverse(s) => arena.extend(s.iter_moves(score_director)),
+            Self::SubListChange(s) => arena.extend(s.iter_moves(score_director)),
+            Self::KOpt(s) => arena.extend(s.iter_moves(score_director)),
+            Self::NearbyKOpt(s) => arena.extend(s.iter_moves(score_director)),
+            Self::ListRuin(s) => arena.extend(s.iter_moves(score_director)),
+            Self::ListChange(s) => arena.extend(s.iter_moves(score_director)),
+            Self::ListSwap(s) => arena.extend(s.iter_moves(score_director)),
+            Self::SubListSwap(s) => arena.extend(s.iter_moves(score_director)),
         }
     }
 }

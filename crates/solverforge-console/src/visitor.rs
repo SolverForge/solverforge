@@ -5,11 +5,14 @@ use tracing::field::{Field, Visit};
 #[derive(Default)]
 pub(crate) struct EventVisitor {
     pub(crate) event: Option<String>,
+    pub(crate) solve_shape: Option<String>,
     pub(crate) phase: Option<String>,
     pub(crate) phase_index: Option<u64>,
     pub(crate) steps: Option<u64>,
     pub(crate) speed: Option<u64>,
     pub(crate) score: Option<String>,
+    pub(crate) current_score: Option<String>,
+    pub(crate) best_score: Option<String>,
     pub(crate) step: Option<u64>,
     pub(crate) entity: Option<u64>,
     pub(crate) accepted: Option<bool>,
@@ -32,8 +35,11 @@ impl Visit for EventVisitor {
         let s = format!("{:?}", value);
         match field.name() {
             "event" => self.event = Some(s.trim_matches('"').to_string()),
+            "solve_shape" => self.solve_shape = Some(s.trim_matches('"').to_string()),
             "phase" => self.phase = Some(s.trim_matches('"').to_string()),
             "score" => self.score = Some(s.trim_matches('"').to_string()),
+            "current_score" => self.current_score = Some(s.trim_matches('"').to_string()),
+            "best_score" => self.best_score = Some(s.trim_matches('"').to_string()),
             _ => {}
         }
     }
@@ -76,8 +82,11 @@ impl Visit for EventVisitor {
     fn record_str(&mut self, field: &Field, value: &str) {
         match field.name() {
             "event" => self.event = Some(value.to_string()),
+            "solve_shape" => self.solve_shape = Some(value.to_string()),
             "phase" => self.phase = Some(value.to_string()),
             "score" => self.score = Some(value.to_string()),
+            "current_score" => self.current_score = Some(value.to_string()),
+            "best_score" => self.best_score = Some(value.to_string()),
             "acceptance_rate" => self.acceptance_rate = Some(value.to_string()),
             _ => {}
         }

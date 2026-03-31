@@ -30,16 +30,22 @@ fn format_solve_start(v: &EventVisitor) -> String {
     mark_solve_start();
     let entities = v.entity_count.unwrap_or(0);
     let values = v.value_count.unwrap_or(0);
+    let value_label = if v.solve_shape.as_deref() == Some("list") {
+        "elements"
+    } else {
+        "values"
+    };
     let constraints = v.constraint_count.unwrap_or(0);
     let time_limit = v.time_limit_secs.unwrap_or(0);
     let scale = calculate_problem_scale(entities as usize, values as usize);
 
     let mut output = format!(
-        "{} {} Solving │ {} entities │ {} values │ scale {}",
+        "{} {} Solving │ {} entities │ {} {} │ scale {}",
         format_elapsed(),
         "▶".bright_green().bold(),
         entities.to_formatted_string(&Locale::en).bright_yellow(),
         values.to_formatted_string(&Locale::en).bright_yellow(),
+        value_label,
         scale.bright_magenta()
     );
 
@@ -279,10 +285,11 @@ fn format_progress(v: &EventVisitor) -> String {
     let moves_evaluated = v.moves_evaluated.unwrap_or(0);
     let moves_accepted = v.moves_accepted.unwrap_or(0);
     let score_calculations = v.score_calculations.unwrap_or(0);
-    let score = v.score.as_deref().unwrap_or("N/A");
+    let current_score = v.current_score.as_deref().unwrap_or("N/A");
+    let best_score = v.best_score.as_deref();
     let acceptance_rate = v.acceptance_rate.as_deref().unwrap_or("0.0%");
 
-    format!(
+    let mut output = format!(
         "{} {} {:>10} steps │ {:>12}/s │ {} moves │ {} accepted │ {} calcs │ {} │ {}",
         format_elapsed(),
         "⚡".bright_cyan(),
@@ -295,8 +302,14 @@ fn format_progress(v: &EventVisitor) -> String {
         moves_accepted.to_formatted_string(&Locale::en).white(),
         score_calculations.to_formatted_string(&Locale::en).white(),
         acceptance_rate.bright_yellow(),
-        format_score(score)
-    )
+        format_score(current_score)
+    );
+
+    if let Some(best) = best_score.filter(|best| *best != current_score) {
+        output.push_str(&format!(" │ best {}", format_score(best)));
+    }
+
+    output
 }
 
 fn format_step(v: &EventVisitor, level: Level) -> String {
@@ -456,7 +469,7 @@ mod tests {
             event: Some("progress".to_string()),
             steps: Some(12_345),
             speed: Some(678),
-            score: Some("0hard/9soft".to_string()),
+            current_score: Some("0hard/9soft".to_string()),
             ..EventVisitor::default()
         };
         let progress_output = format_event(&progress, Level::INFO);
@@ -493,7 +506,8 @@ mod tests {
                 target: "solverforge_solver::test",
                 event = "solve_start",
                 entity_count = 120u64,
-                element_count = 25u64,
+                solve_shape = "list",
+                value_count = 25u64,
                 constraint_count = 7u64,
                 time_limit_secs = 30u64,
             );
@@ -505,6 +519,7 @@ mod tests {
             .cloned()
             .expect("expected solve_start output");
         assert!(start_output.contains("Solving"));
+        assert!(start_output.contains("elements"));
         assert!(start_output.contains("120"));
         assert!(start_output.contains("25"));
         assert!(start_output.contains("constraints"));

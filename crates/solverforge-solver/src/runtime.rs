@@ -10,7 +10,6 @@ use solverforge_core::score::{ParseableScore, Score};
 use crate::builder::ListContext;
 use crate::descriptor_standard::{
     build_descriptor_construction, standard_target_matches, standard_work_remaining,
-    SeedBestSolutionPhase,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::list_solver::build_list_construction;
@@ -203,7 +202,6 @@ where
 }
 
 pub enum RuntimePhase<C, LS, VND> {
-    Seed(SeedBestSolutionPhase),
     Construction(C),
     LocalSearch(LS),
     Vnd(VND),
@@ -217,7 +215,6 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Seed(phase) => write!(f, "RuntimePhase::Seed({phase:?})"),
             Self::Construction(phase) => write!(f, "RuntimePhase::Construction({phase:?})"),
             Self::LocalSearch(phase) => write!(f, "RuntimePhase::LocalSearch({phase:?})"),
             Self::Vnd(phase) => write!(f, "RuntimePhase::Vnd({phase:?})"),
@@ -236,7 +233,6 @@ where
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
         match self {
-            Self::Seed(phase) => phase.solve(solver_scope),
             Self::Construction(phase) => phase.solve(solver_scope),
             Self::LocalSearch(phase) => phase.solve(solver_scope),
             Self::Vnd(phase) => phase.solve(solver_scope),
@@ -301,9 +297,6 @@ where
     let mut phases = Vec::new();
 
     if config.phases.is_empty() {
-        if list_ctx.is_some() {
-            phases.push(RuntimePhase::Seed(SeedBestSolutionPhase));
-        }
         phases.push(default_construction_phase(
             descriptor,
             list_construction.as_ref(),
@@ -315,14 +308,9 @@ where
         return PhaseSequence::new(phases);
     }
 
-    let mut saw_seed = false;
     for phase in &config.phases {
         match phase {
             PhaseConfig::ConstructionHeuristic(ch) => {
-                if !saw_seed && list_ctx.is_some() {
-                    phases.push(RuntimePhase::Seed(SeedBestSolutionPhase));
-                    saw_seed = true;
-                }
                 phases.push(build_construction_phase(
                     ch,
                     descriptor,
@@ -331,10 +319,6 @@ where
                 ));
             }
             PhaseConfig::LocalSearch(ls) => {
-                if !saw_seed {
-                    phases.push(RuntimePhase::Seed(SeedBestSolutionPhase));
-                    saw_seed = true;
-                }
                 phases.push(RuntimePhase::LocalSearch(build_unified_local_search(
                     Some(ls),
                     descriptor,
@@ -342,10 +326,6 @@ where
                 )));
             }
             PhaseConfig::Vnd(vnd) => {
-                if !saw_seed {
-                    phases.push(RuntimePhase::Seed(SeedBestSolutionPhase));
-                    saw_seed = true;
-                }
                 phases.push(RuntimePhase::Vnd(build_unified_vnd(
                     vnd, descriptor, list_ctx,
                 )));

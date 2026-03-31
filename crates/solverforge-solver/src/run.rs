@@ -59,12 +59,13 @@ impl<S: PlanningSolution> ProgressCallback<S> for ChannelProgressCallback<S> {
         match progress.kind {
             SolverProgressKind::Progress => {
                 let _ = self.sender.send(SolverEvent::Progress {
-                    score: progress.score.cloned(),
+                    current_score: progress.current_score.cloned(),
+                    best_score: progress.best_score.cloned(),
                     telemetry: progress.telemetry,
                 });
             }
             SolverProgressKind::BestSolution => {
-                if let (Some(solution), Some(score)) = (progress.solution, progress.score) {
+                if let (Some(solution), Some(score)) = (progress.solution, progress.best_score) {
                     let _ = self.sender.send(SolverEvent::BestSolution {
                         solution: (*solution).clone(),
                         score: *score,
@@ -172,9 +173,14 @@ pub fn log_solve_start(
     info!(
         event = "solve_start",
         entity_count = entity_count,
-        element_count = ?element_count,
-        has_standard = ?has_standard,
-        variable_count = ?variable_count,
+        value_count = element_count.or(variable_count).unwrap_or(0),
+        solve_shape = if element_count.is_some() {
+            "list"
+        } else if has_standard.unwrap_or(false) {
+            "standard"
+        } else {
+            "solution"
+        },
     );
 }
 
@@ -215,9 +221,10 @@ where
         let mut solver_scope = SolverScope::new(director);
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
+        let solution = solver_scope.score_director().clone_working_solution();
+        solver_scope.set_best_solution(solution.clone(), score);
         info!(event = "solve_end", score = %score);
         let telemetry = solver_scope.stats().snapshot();
-        let solution = solver_scope.take_best_or_working_solution();
         let _ = sender.send(SolverEvent::Finished {
             solution: solution.clone(),
             score,
@@ -242,10 +249,14 @@ where
         solver.solve(director)
     };
 
-    let final_score = result.solution.score().unwrap_or_default();
-    let final_telemetry = result.stats.snapshot();
+    let crate::solver::SolveResult {
+        solution,
+        best_score: final_score,
+        stats,
+    } = result;
+    let final_telemetry = stats.snapshot();
     let _ = sender.send(SolverEvent::Finished {
-        solution: result.solution.clone(),
+        solution: solution.clone(),
         score: final_score,
         telemetry: final_telemetry,
     });
@@ -253,12 +264,12 @@ where
     info!(
         event = "solve_end",
         score = %final_score,
-        steps = result.stats.step_count,
-        moves_evaluated = result.stats.moves_evaluated,
-        moves_accepted = result.stats.moves_accepted,
-        score_calculations = result.stats.score_calculations,
+        steps = stats.step_count,
+        moves_evaluated = stats.moves_evaluated,
+        moves_accepted = stats.moves_accepted,
+        score_calculations = stats.score_calculations,
         moves_speed = final_telemetry.moves_per_second,
-        acceptance_rate = format!("{:.1}%", result.stats.acceptance_rate() * 100.0),
+        acceptance_rate = format!("{:.1}%", stats.acceptance_rate() * 100.0),
     );
-    result.solution
+    solution
 }

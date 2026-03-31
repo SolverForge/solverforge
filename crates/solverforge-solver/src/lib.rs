@@ -39,7 +39,7 @@ pub use builder::{
 };
 pub use descriptor_standard::{
     build_descriptor_construction, build_descriptor_move_selector, descriptor_has_bindings,
-    DescriptorConstruction, DescriptorEitherMove, DescriptorLeafSelector, SeedBestSolutionPhase,
+    DescriptorConstruction, DescriptorEitherMove, DescriptorLeafSelector,
 };
 pub use heuristic::{
     // K-opt reconnection patterns

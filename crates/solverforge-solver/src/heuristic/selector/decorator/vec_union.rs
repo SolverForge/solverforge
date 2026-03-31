@@ -13,6 +13,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
+use crate::heuristic::r#move::MoveArena;
 use crate::heuristic::selector::typed_move_selector::MoveSelector;
 
 /// Combines moves from an arbitrary number of leaf selectors into a single stream.
@@ -66,5 +67,11 @@ where
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.selectors.iter().map(|s| s.size(score_director)).sum()
+    }
+
+    fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
+        for selector in &self.selectors {
+            selector.append_moves(score_director, arena);
+        }
     }
 }

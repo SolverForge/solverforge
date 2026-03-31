@@ -44,7 +44,11 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         self.step_score.as_ref()
     }
 
-    pub fn set_step_score(&mut self, score: S::Score) {
+    pub fn set_step_score(&mut self, score: S::Score)
+    where
+        S::Score: Copy,
+    {
+        self.phase_scope.solver_scope_mut().set_current_score(score);
         self.step_score = Some(score);
     }
 

@@ -31,7 +31,8 @@ const SLOT_DONE: u8 = 2;
 #[derive(Debug)]
 pub enum SolverEvent<S: PlanningSolution> {
     Progress {
-        score: Option<S::Score>,
+        current_score: Option<S::Score>,
+        best_score: Option<S::Score>,
         telemetry: SolverTelemetry,
     },
     BestSolution {

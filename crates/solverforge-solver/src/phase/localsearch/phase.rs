@@ -199,7 +199,8 @@ where
                                         "{:.1}%",
                                         step_scope.phase_scope().solver_scope().stats().acceptance_rate() * 100.0
                                     ),
-                                    score = %last_step_score,
+                                    current_score = %last_step_score,
+                                    best_score = %best_score,
                                 );
                                 step_scope.phase_scope().solver_scope().report_progress();
                                 last_progress_time = now;
@@ -260,8 +261,8 @@ where
                 }
             } else {
                 // Batch path: materialize full move space, shuffle, evaluate.
-                self.arena
-                    .extend(self.move_selector.iter_moves(step_scope.score_director()));
+                self.move_selector
+                    .append_moves(step_scope.score_director(), &mut self.arena);
 
                 // Shuffle arena in-place — O(n) Fisher-Yates, no allocation
                 self.arena.shuffle(&mut rng);
@@ -288,7 +289,8 @@ where
                                     "{:.1}%",
                                     step_scope.phase_scope().solver_scope().stats().acceptance_rate() * 100.0
                                 ),
-                                score = %last_step_score,
+                                current_score = %last_step_score,
+                                best_score = %best_score,
                             );
                             step_scope.phase_scope().solver_scope().report_progress();
                             last_progress_time = now;

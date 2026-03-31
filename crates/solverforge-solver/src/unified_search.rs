@@ -12,7 +12,7 @@ use crate::descriptor_standard::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorEitherMove,
     DescriptorLeafSelector,
 };
-use crate::heuristic::r#move::{ListMoveImpl, Move};
+use crate::heuristic::r#move::{ListMoveImpl, Move, MoveArena};
 use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::typed_move_selector::MoveSelector;
@@ -134,6 +134,25 @@ where
         match self {
             Self::Standard(selector) => selector.size(score_director),
             Self::List(selector) => selector.size(score_director),
+        }
+    }
+
+    fn append_moves<D: solverforge_scoring::Director<S>>(
+        &self,
+        score_director: &D,
+        arena: &mut MoveArena<UnifiedMove<S, V>>,
+    ) {
+        match self {
+            Self::Standard(selector) => {
+                for mov in selector.iter_moves(score_director) {
+                    arena.push(UnifiedMove::Standard(mov));
+                }
+            }
+            Self::List(selector) => {
+                for mov in selector.iter_moves(score_director) {
+                    arena.push(UnifiedMove::List(mov));
+                }
+            }
         }
     }
 }

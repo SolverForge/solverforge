@@ -568,26 +568,6 @@ where
     }
 }
 
-#[derive(Debug, Default)]
-pub struct SeedBestSolutionPhase;
-
-impl<S, D, ProgressCb> crate::phase::Phase<S, D, ProgressCb> for SeedBestSolutionPhase
-where
-    S: solverforge_core::domain::PlanningSolution,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-{
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
-        let score = solver_scope.calculate_score();
-        let solution = solver_scope.score_director().clone_working_solution();
-        solver_scope.set_best_solution(solution, score);
-    }
-
-    fn phase_type_name(&self) -> &'static str {
-        "SeedBestSolution"
-    }
-}
-
 #[derive(Clone)]
 pub struct DescriptorEntityPlacer<S> {
     bindings: Vec<VariableBinding>,

@@ -26,6 +26,7 @@ struct VariableBinding {
     variable_name: &'static str,
     getter: UsizeGetter,
     setter: UsizeSetter,
+    value_range_provider: Option<&'static str>,
     provider: Option<UsizeEntityValueProvider>,
     range_type: ValueRangeType,
 }
@@ -42,7 +43,12 @@ impl Debug for VariableBinding {
 }
 
 impl VariableBinding {
-    fn values_for_entity(&self, entity: &dyn Any) -> Vec<usize> {
+    fn values_for_entity(
+        &self,
+        solution_descriptor: &SolutionDescriptor,
+        solution: &dyn Any,
+        entity: &dyn Any,
+    ) -> Vec<usize> {
         match (&self.provider, &self.range_type) {
             (Some(provider), _) => provider(entity),
             (_, ValueRangeType::CountableRange { from, to }) => {
@@ -52,7 +58,26 @@ impl VariableBinding {
                     .filter_map(|value| usize::try_from(value).ok())
                     .collect()
             }
-            _ => Vec::new(),
+            _ => self
+                .value_range_provider
+                .and_then(|provider_name| {
+                    solution_descriptor
+                        .problem_fact_descriptors
+                        .iter()
+                        .find(|descriptor| descriptor.solution_field == provider_name)
+                        .and_then(|descriptor| descriptor.extractor.as_ref())
+                        .and_then(|extractor| extractor.count(solution))
+                        .or_else(|| {
+                            solution_descriptor
+                                .entity_descriptors
+                                .iter()
+                                .find(|descriptor| descriptor.solution_field == provider_name)
+                                .and_then(|descriptor| descriptor.extractor.as_ref())
+                                .and_then(|extractor| extractor.count(solution))
+                        })
+                })
+                .map(|count| (0..count).collect())
+                .unwrap_or_default(),
         }
     }
 }
@@ -391,7 +416,11 @@ where
                     entity_index,
                 )
                 .expect("entity lookup failed for change selector");
-            for value in self.binding.values_for_entity(entity) {
+            for value in self.binding.values_for_entity(
+                &self.solution_descriptor,
+                score_director.working_solution() as &dyn Any,
+                entity,
+            ) {
                 moves.push(DescriptorEitherMove::Change(DescriptorChangeMove::new(
                     self.binding.clone(),
                     entity_index,
@@ -417,7 +446,14 @@ where
                     entity_index,
                 )
                 .expect("entity lookup failed for change selector");
-            total += self.binding.values_for_entity(entity).len();
+            total += self
+                .binding
+                .values_for_entity(
+                    &self.solution_descriptor,
+                    score_director.working_solution() as &dyn Any,
+                    entity,
+                )
+                .len();
         }
         total
     }
@@ -623,7 +659,11 @@ where
                 }
 
                 let moves = binding
-                    .values_for_entity(entity)
+                    .values_for_entity(
+                        &self.solution_descriptor,
+                        score_director.working_solution() as &dyn Any,
+                        entity,
+                    )
                     .into_iter()
                     .map(|value| {
                         DescriptorEitherMove::Change(DescriptorChangeMove::new(
@@ -666,6 +706,7 @@ fn collect_bindings(descriptor: &SolutionDescriptor) -> Vec<VariableBinding> {
                 variable_name: variable.name,
                 getter,
                 setter,
+                value_range_provider: variable.value_range_provider,
                 provider: variable.entity_value_provider,
                 range_type: variable.value_range_type.clone(),
             });
@@ -713,7 +754,11 @@ where
             let entity = descriptor
                 .get_entity(solution as &dyn Any, binding.descriptor_index, entity_index)
                 .expect("entity lookup failed while checking standard work");
-            if (binding.getter)(entity).is_none() && !binding.values_for_entity(entity).is_empty() {
+            if (binding.getter)(entity).is_none()
+                && !binding
+                    .values_for_entity(descriptor, solution as &dyn Any, entity)
+                    .is_empty()
+            {
                 return true;
             }
         }
@@ -890,5 +935,118 @@ where
                 construction_type
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solverforge_core::domain::{
+        EntityCollectionExtractor, EntityDescriptor, PlanningSolution, ProblemFactDescriptor,
+        VariableDescriptor,
+    };
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::ScoreDirector;
+    use std::any::{Any, TypeId};
+
+    #[derive(Clone, Debug)]
+    struct Worker;
+
+    #[derive(Clone, Debug)]
+    struct Task {
+        worker_idx: Option<usize>,
+    }
+
+    #[derive(Clone, Debug)]
+    struct Plan {
+        workers: Vec<Worker>,
+        tasks: Vec<Task>,
+        score: Option<SoftScore>,
+    }
+
+    impl PlanningSolution for Plan {
+        type Score = SoftScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    fn get_worker_idx(entity: &dyn Any) -> Option<usize> {
+        entity
+            .downcast_ref::<Task>()
+            .expect("task expected")
+            .worker_idx
+    }
+
+    fn set_worker_idx(entity: &mut dyn Any, value: Option<usize>) {
+        entity
+            .downcast_mut::<Task>()
+            .expect("task expected")
+            .worker_idx = value;
+    }
+
+    fn descriptor() -> SolutionDescriptor {
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>())
+            .with_entity(
+                EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
+                    .with_extractor(Box::new(EntityCollectionExtractor::new(
+                        "Task",
+                        "tasks",
+                        |s: &Plan| &s.tasks,
+                        |s: &mut Plan| &mut s.tasks,
+                    )))
+                    .with_variable(
+                        VariableDescriptor::genuine("worker_idx")
+                            .with_allows_unassigned(true)
+                            .with_value_range("workers")
+                            .with_usize_accessors(get_worker_idx, set_worker_idx),
+                    ),
+            )
+            .with_problem_fact(
+                ProblemFactDescriptor::new("Worker", TypeId::of::<Worker>(), "workers")
+                    .with_extractor(Box::new(EntityCollectionExtractor::new(
+                        "Worker",
+                        "workers",
+                        |s: &Plan| &s.workers,
+                        |s: &mut Plan| &mut s.workers,
+                    ))),
+            )
+    }
+
+    #[test]
+    fn solution_level_value_range_generates_standard_work() {
+        let descriptor = descriptor();
+        let plan = Plan {
+            workers: vec![Worker, Worker, Worker],
+            tasks: vec![Task { worker_idx: None }],
+            score: None,
+        };
+
+        assert!(standard_work_remaining(
+            &descriptor,
+            Some("Task"),
+            Some("worker_idx"),
+            &plan
+        ));
+    }
+
+    #[test]
+    fn solution_level_value_range_builds_change_moves() {
+        let descriptor = descriptor();
+        let plan = Plan {
+            workers: vec![Worker, Worker, Worker],
+            tasks: vec![Task { worker_idx: None }],
+            score: None,
+        };
+        let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+        let selector = build_descriptor_move_selector::<Plan>(None, &descriptor);
+
+        // One change neighborhood contributes 3 moves; the swap neighborhood contributes 0.
+        assert_eq!(selector.size(&director), 3);
     }
 }

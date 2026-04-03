@@ -958,7 +958,11 @@ fn generate_runtime_phase_support(
         .enumerate()
         .filter_map(|(idx, field)| {
             let field_type = extract_collection_inner_type(&field.ty)?;
-            Some((idx, field_type))
+            let syn::Type::Path(type_path) = field_type else {
+                return None;
+            };
+            let type_name = type_path.path.segments.last()?.ident.to_string();
+            lookup_list_entity_metadata(&type_name).map(|_| (idx, field_type))
         })
         .collect();
 

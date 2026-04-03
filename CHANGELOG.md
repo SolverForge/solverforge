@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.7.1](///compare/v0.7.0...v0.7.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* support solution-level value range fallback 702277e
+
 ## 0.7.0 (2026-04-03)
 
 

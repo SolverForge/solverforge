@@ -2,6 +2,277 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## 0.7.0 (2026-04-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* import SolverForge from private repo
+
+### Features
+
+* add .github 22db95a
+* add ListClarkeWrightPhase and remove nqueens example b8d6066
+* add ListKOptPhase, solverforge-cvrp lib, and fix doctest signatures fd9714f
+* add nearby list change/swap selectors and list move infrastructure 7cbf56d
+* add NearbyKOpt config support and remove Debug bound from distance meter API 3f4afc8
+* add vehicle-routing example 43dc6f2
+* **api:** add Solvable and Analyzable traits for public solver API 91e9e8f
+* **api:** re-export run_solver from umbrella crate 483e5c0
+* **cli:** implement solverforge-cli crate with full scaffolding and codegen b33b659
+* **cli:** salvage generic scaffold refresh for review 80e8c57
+* config-driven solver construction 3badd17
+* **config:** add SolverConfig::load() without fallback 655e84d
+* **config:** add SolverConfig::time_limit() convenience method b3153c2
+* **console:** add auto-init for tracing subscriber 1adf876
+* **console:** add console output implementation 028c732
+* **console:** add SolverForge banner on init 52e73f1
+* **console:** add solverforge_dynamic=info tracing directive c0bbdc6
+* **console:** add verbose step logging at TRACE level 51c2e1e
+* **console:** create solverforge-console crate 310bea9
+* **core:** add ListVariableSolution trait for list-based planning 6399a4d
+* default to Real Roads mode in vehicle-routing UI 34c023f
+* **deploy:** fix CI c5d1576
+* **dynamic/jit:** enhance JIT compiler with compile_n and unified JitFn 382a8ba
+* **dynamic:** add benchmark comparing O(1) HashMap vs O(n) linear filter lookup af03bd0
+* **dynamic:** add benchmark test and document lazy iterator performance 0241969
+* **dynamic:** add best solution callback to update shared snapshot ed38356
+* **dynamic:** add build_bi_self_constraint factory for self-join constraints cdecf71
+* **dynamic:** add build_cross_bi_constraint factory for cross-bi-entity constraints 7d0f88e
+* **dynamic:** add build_flattened_bi_constraint factory for flattened bi-entity constraints c5cbc3b
+* **dynamic:** add build_penta_self_constraint factory for penta-entity self-join constraints a27c54e
+* **dynamic:** add build_quad_self_constraint factory for quad-entity self-join constraints 3503e1d
+* **dynamic:** add build_tri_self_constraint factory for tri-entity self-join constraints 7ec360a
+* **dynamic:** add build_uni_constraint factory for unary constraints fa15404
+* **dynamic:** add cross-join type aliases for incremental constraints a998dbb
+* **dynamic:** add DynamicEitherMove enum wrapping Change + Swap b6d282d
+* **dynamic:** add DynamicMoveIterator for lazy move generation af7b7ad
+* **dynamic:** add DynamicSwapMove for value swaps between entities e981316
+* **dynamic:** add eval_entity_expr for single-entity expression evaluation 34835ab
+* **dynamic:** add flattened constraint type aliases 76d0b57
+* **dynamic:** add id_to_location mapping to DynamicSolution 615bd2c
+* **dynamic:** add make_bi_filter for bi-entity filter closure creation 371cbad
+* **dynamic:** add make_bi_weight for bi-entity weight computation 1447f2b
+* **dynamic:** add make_cross_extractor_a and make_cross_extractor_b for cross-join constraints 6316d05
+* **dynamic:** add make_cross_filter and make_cross_weight for cross-join constraints 148c346
+* **dynamic:** add make_cross_key_a and make_cross_key_b for cross-join key extraction 9d2a784
+* **dynamic:** add make_extractor function for entity slice extraction a5ab04c
+* **dynamic:** add make_flatten, make_c_key_fn, and make_a_lookup for flattened bi-constraints ffa76a8
+* **dynamic:** add make_flattened_filter and make_flattened_weight for flattened bi-constraints f21b5af
+* **dynamic:** add make_key_extractor for join key extraction a1a8e68
+* **dynamic:** add make_penta_filter and make_penta_weight for penta-entity operations 7c007a1
+* **dynamic:** add make_quad_filter and make_quad_weight for quad-entity operations 4ae0297
+* **dynamic:** add make_tri_filter and make_tri_weight for tri-entity operations e058e6e
+* **dynamic:** add runtime warnings for unsupported key expression constructs b7ec13a
+* **dynamic:** add tests for cross-class constraints with same-named fields 4011689
+* **dynamic:** add type aliases for boxed constraint closures 7eb3fec
+* **dynamic:** change DynBiWeight to accept solution reference and indices e9e7511
+* **dynamic:** change DynCrossWeight to accept solution reference and indices c30f3d1
+* **dynamic:** change DynTriWeight to accept solution reference and indices 4909d1a
+* **dynamic:** document key expression limitations in cross-constraint closures bef58a4
+* **dynamic:** document shuffled iteration design in MoveSelector 2c17c61
+* **dynamic:** implement O(1) entity location lookup via id_to_location HashMap b6ed5b8
+* **dynamic:** refactor generate_moves to return lazy iterator 8dae6a1
+* **dynamic:** rewrite DynamicMoveSelector to generate change + swap moves 46940a0
+* **dynamic:** verify solverforge-scoring dependency in Cargo.toml e3e8e6a
+* generated domain accessors for constraint streams 634e43e
+* **history:** add backward compatibility aliases to nqueens module c2c1120
+* **history:** add generic entity test fixtures to solverforge-test a0c6811
+* **history:** add minimal TestSolution fixtures to solverforge-test dbb4cd4
+* **history:** add missing ScoreDirector import to task tests 070306d
+* **history:** add N-Queens test fixtures to solverforge-test 4ae2275
+* **history:** add solverforge-test crate skeleton 508f9bb
+* **history:** add solverforge-test lib.rs with module structure 23cf479
+* **history:** add solverforge-test to workspace members and dependencies faa3b45
+* **history:** add Task scheduling test fixtures to solverforge-test 2aa846e
+* implement three-tier road network caching dce11b3
+* import SolverForge from private repo b36e7e5
+* **jit:** add Cranelift JIT compiler for Expr trees 870e010
+* **jit:** zero-fallback JIT, eliminate key extractor temp buffer, add Python .pyi stub 68022f3
+* **lib:** export stats module and types c0f88c8
+* **macros:** add BasicVariableConfig struct and parser 429dffe
+* **macros:** add shadow variable attribute parsing bd8e17d
+* **macros:** generate entity_count and list operation methods ad9378f
+* **macros:** generate helper methods for basic variables 51fbae6
+* **macros:** generate solve() method for basic variable problems 0624317
+* **macros:** implement SolvableSolution trait in planning_solution macro 5dd8af5
+* **macros:** parse constraints attribute and embed path in solve() ba8b49b
+* **manager:** add with_phase_factory() to SolverManagerBuilder c41724a
+* **py:** init console at module import for early banner display d64911f
+* **py:** release GIL during native solve loop a061b5f
+* **routing:** initialize road routing when creating job 48d0607
+* ruin-and-recreate ListRuinMove + construction termination fix b36b5be
+* **scope:** add PhaseStats to PhaseScope 1699874
+* **scope:** add SolverStats to SolverScope aaba2bb
+* **score:** add score macros module 1d0f2cb
+* **scoring:** add descriptor_index parameter to incremental constraint methods c3fb6ea
+* **scoring:** add descriptor_index to TypedScoreDirector public API aaa7bb5
+* **scoring:** add into_working_solution to TypedScoreDirector 3d407a2
+* **scoring:** add shadow-aware after_variable_changed and do_change methods d737893
+* **scoring:** add ShadowVariableSupport and ShadowAwareScoreDirector c71384e
+* **scoring:** add ShadowVariableSupport::update_all_shadows() with default impl ca70716
+* **scoring:** add shared test_utils module 01b4619
+* **scoring:** add solution-aware filter traits 25e81fb
+* **scoring:** add SolvableSolution trait for fluent API 4e2084a
+* **scoring:** add typed entity_counter to TypedScoreDirector 3db368e
+* **scoring:** add TypedScoreDirector::take_solution() for solution extraction cc6a10b
+* **scoring:** make UniConstraintStream use solution-aware filters b36fa9c
+* **scoring:** pass solution and indices to IncrementalBiConstraint weight function d50f091
+* **scoring:** pass solution and indices to IncrementalTriConstraint weight function 8b4ccaa
+* **scoring:** refactor cross-constraint weight to use solution reference e49db81
+* **scoring:** solution-aware filter traits (BREAKING) 74a0cb3
+* **solver:** add BasicConstructionPhaseBuilder for basic variables c9a0ee5
+* **solver:** add BasicLocalSearchPhaseBuilder for basic variables 1a6e4b1
+* **solver:** add best_solution_callback field to Solver struct a255208
+* **solver:** add best_solution_callback field to SolverScope 314df2d
+* **solver:** add create_solver() and solve_with_director() 617453f
+* **solver:** add EitherChangeMoveSelector and EitherSwapMoveSelector adaptors cc9e2ae
+* **solver:** add EitherMove enum for monomorphized union of ChangeMove + SwapMove 951ca78
+* **solver:** add k-opt reconnection patterns 010c212
+* **solver:** add KOptMove for k-opt tour optimization 6376585
+* **solver:** add KOptMoveSelector for k-opt move generation fbc571d
+* **solver:** add KOptPhaseBuilder fluent API for k-opt local search ec7f538
+* **solver:** add KOptPhaseBuilder for tour optimization a2737ab
+* **solver:** add ListChangeMoveSelector for element relocation 3d036e1
+* **solver:** add ListConstructionPhaseBuilder with change notification b5a4ce8
+* **solver:** add NearbyKOptMoveSelector for efficient k-opt 93855a0
+* **solver:** add run_solver for basic variable problems e720bbe
+* **solver:** add shared test_utils module 8229784
+* **solver:** add SolverEvent and solve_with_events for real-time feedback 47911f3
+* **solver:** add SolverManager::builder() static method eb10747
+* **solver:** add termination flag to run_solver_with_events bdbb222
+* **solver:** add with_best_solution_callback() builder method 175b879
+* **solver:** add with_best_solution_callback() builder method to SolverScope 9448e24
+* **solver:** add with_phase_factory, with_config, Result-returning build a24c412
+* **solver:** add zero-erasure fluent phase functions (construction, 2-opt) 5640315
+* **solver:** export BasicConstructionPhaseBuilder and BasicLocalSearchPhaseBuilder 29e6d74
+* **solver:** export ListConstructionPhaseBuilder 51bb734
+* **solverforge-py:** track source class index in ForEach and Join constraint ops 27db23e
+* **solverforge:** add verbose-logging feature for debug output 75f3fff
+* **solverforge:** export k-opt types from umbrella crate a7a559f
+* **solver:** invoke best_solution_callback when solution improves 4721ebe
+* **solver:** propagate best_solution_callback in impl_solver! solve() 11dd83d
+* **solver:** return SolveResult with telemetry from Solver::solve() e737e15
+* **solver:** rewrite SimulatedAnnealingAcceptor with true Boltzmann distribution 17e2150
+* **solver:** stream best solutions through channel in run_solver_with_channel 29a4316
+* **solver:** wire UnionMoveSelector + SimulatedAnnealing in basic.rs 22c742a
+* **stats:** add zero-erasure SolverStats and PhaseStats 87b3950
+* **telemetry:** wire stats recording in phases and scope 2d686eb
+* **termination:** export all termination types from fluent API 043458f
+* **termination:** export MoveCountTermination and ScoreCalculationCountTermination a50fe18
+* **termination:** restore MoveCountTermination using stats API 17a284e
+* **termination:** restore ScoreCalculationCountTermination using stats API 203817c
+
+
+### Bug Fixes
+
+* add diagnostic logging and read_timeout to Overpass client 40e76a4
+* add path to all internal dependencies and move macro tests 83826e7
+* add solverforge-console to publish pipeline and skip already-published crates 6197d0d
+* **benchmark:** wire SolveResult through Solvable trait for zero-erasure stats 6c10672
+* **ci:** add local CI support 57dfd6e
+* **cli:** fail fast in generated constraint scaffolds 2a04ec7
+* **cli:** gate unfinished console command c7bac29
+* **cli:** hide unsupported generic list scaffold 8129ef5
+* **cli:** keep console subcommand as hidden compatibility alias 2f0ea5b
+* **cli:** make generated constraints compile safely faf2064
+* **cli:** make salvaged scaffolds use published solverforge-ui 843d690
+* **clippy:** resolve collapsible_if, unnecessary_map_or, and boxed_local warnings 9e0ee18
+* **cli:** preserve list specialization guidance b78a4a4
+* **cli:** replace data-loader panic stub 43036e9
+* **cli:** restore scaffold smoke coverage 89b4772
+* **cli:** satisfy strict clippy for test modules cfcc411
+* **console:** capture moves_speed, calc_speed, acceptance_rate in EventVisitor 2fd2bc5
+* **console:** cover production event payloads 0ad5ae7
+* **console:** flush stdout after banner print 5e8a31f
+* **console:** remove inappropriate doc comments in lib.rs 7daeb4d
+* **console:** use single default directive in EnvFilter e8917f2
+* **cvrp:** reject missing shared problem data 64437af
+* **docs:** correct inappropriate /// doc comments on private items 209a680
+* **doctest:** correct import paths for KOptPhaseBuilder and ListConstructionPhaseBuilder 0e37017
+* **dynamic:** derive is_hard from weight component, not impact type 934b3b1
+* **dynamic:** remove ignored tests and fix doctests 66aab07
+* **dynamic:** use descriptor.value_ranges in value_count calculation 619716b
+* eliminate all clippy and dead_code warnings 4febbdf
+* **export:** add derive macros at root level and fix __internal imports 1e2c706
+* **history): fix(scoring:** GroupedUniConstraint new-group old_score and filter propagation 02fa038
+* **history:** fix serde feature flag and add consistent serde derives 88bf736
+* initialize tracing subscriber in vehicle-routing 10650fc
+* **k-opt:** use popped position in NearbyCutIterator::backtrack 88913fa
+* **list-change:** filter out no-op intra-list moves ddfc943
+* **localsearch:** add explicit type annotations in forager tests c7e429f
+* **macros:** move console feature gate to library 9890039
+* **macros:** remove duplicate pass fixture imports 9fa8c05
+* **macros:** update internal type references for __internal module 32a5d9f
+* **macros:** use ScoreDirector API correctly for solve() bfc1ae6
+* mute type_complexity clippy warning on with_time_limit_or 3d3e4dd
+* **nqueens:** update to new TypedScoreDirector 2-argument API 4148248
+* platform call conv in JIT compiler and timing robustness in DiminishedReturnsTermination e661b61
+* **publish:** add version specs for workspace crate publishing a6c1267
+* **release:** address integration review regressions 02f10c0
+* **release:** document staged publish dry-runs 2adca83
+* **release:** port logging, score parsing, and sf-config wiring b6a639b
+* remove circular dependency in solverforge-macros tests bf55201
+* remove debug eprintln from EntitySelector 9ec1b9b
+* remove filter_with_solution() - use shadow variables on entities instead 20aae71
+* remove unused CallConv import in jit/compiler.rs f2380c0
+* remove unused imports in solverforge-dynamic test files 86fc1b2
+* replace .clone() with copy for Copy types (clippy) 086da7e
+* replace needless range loops with iterator find in Score trait 0f70c10
+* resolve clippy warnings — allow type_complexity for PhantomData fn() pattern, fix useless_conversion fc7113d
+* **scoring:** add Penta weight adapter to match Quad pattern 265c55d
+* **scoring:** allow too_many_arguments on GroupedUniConstraint::new b767edf
+* **scoring:** correct imports in collector test module 88bb63d
+* **scoring:** correct imports in constraint_set test module 6374a5c
+* **scoring:** correct imports in filter test module 3468570
+* **scoring:** fix incremental scoring corruption with multiple entity classes 8ef0d6e
+* **scoring:** panic on i64 overflow in as_date() cfba66c
+* **scoring:** panic on i64 overflow in DateOf evaluation f3b49e7
+* **scoring:** panic on overflow in IntegerRange 8fe4287
+* **scoring:** panic on overflow in ValueRangeDef::len() 60cb681
+* **scoring:** remove inappropriate doc comments in constraint/tests/test_incremental.rs 70d983e
+* **scoring:** remove inappropriate doc comments in moves/iterator.rs 3f3defa
+* **scoring:** remove unused variables in complemented constraint retract 880ea84
+* **scoring:** set score on solution in into_working_solution 47ae6be
+* **scoring:** standardize QuadConstraint weight type to solution+indices 6408137
+* **scoring:** update get_matches macros for new compute_score signature 6e3b597
+* **scoring:** update Quad and Penta tests for new weight signatures 34577de
+* **scoring:** update tests for solution-aware filter signatures dd74f83
+* **scoring:** wire descriptor_index through TypedScoreDirector to constraints 646a037
+* **solver:** delete SolverBuilder::solve that violated API contract abf3b31
+* **solverforge-py:** accept Solver reference in constraint builder for_each and join methods df4ba2d
+* **solver:** gate test-only k_opt re-exports with #[cfg(test)] 85d0d7a
+* **solver:** initialize best_solution_callback in Solver::new() 8c2375a
+* **solver:** initialize best_solution_callback in SolverScope::new() aa6dced
+* **solver:** initialize best_solution_callback in SolverScope::with_seed() 5535d3d
+* **solver:** initialize best_solution_callback in SolverScope::with_terminate() 4bde149
+* **solver:** propagate best_solution_callback in solve_with_director() 29913b0
+* **solver:** propagate best_solution_callback in with_terminate() 8c59738
+* **solver:** propagate best_solution_callback in with_termination() 1aba2db
+* **solver:** remove inappropriate doc comments in solve/tests/mod.rs f6fb224
+* **solver:** remove inappropriate doc comments in solve/tests/test_solve.rs d825c48
+* **solver:** restore EntitySelector in KOptPhaseBuilder 97c5194
+* **solver:** suppress clippy type_complexity warning for callback fields 8f1b0fe
+* **solver:** update cached_score after rejected move undo 0506dd0
+* **solver:** use incremental protocol for score updates e9daa1e
+* switch reqwest to rustls-tls for async DNS resolution 59d2c00
+* **termination:** wire time limit through to SolverScope 064f8a7
+* **test:** enable doctests by removing ignore annotation c8c159b
+* **test:** handle Result return type from SolverManagerBuilder::build() 64256f0
+* **test:** increase timing margins in diminished_returns test f8310f4
+* use copy instead of clone on EitherMove::Swap (clippy clone_on_copy) baaf8e3
+* use oldest reference point in DiminishedReturnsTermination 8b2522e
+* use tokio::fs for async filesystem operations 032325c
+* **vehicle-routing:** add fallback for missing route geometry b3cfbac
+* **vehicle-routing:** disable solve button immediately on click 44b9aca
+* **vehicle-routing:** disable solve button immediately on click 43b98d6
+* **vehicle-routing:** fix encode_routes doctest to set up route_geometries 77b6112
+* **vehicle-routing:** parse geometry API response correctly c3c5dfb
+* **vehicle-routing:** skip construction when visits already assigned 0e08959
+* **vnd:** implement Debug manually to avoid S: Debug bound 7a04b1e
+* widen timing margins in diminished returns tests for macOS CI 90f4360
+* wire entity_count into TypedScoreDirector — construction and local search were producing 0 steps 0971a5a
+
 ## [0.6.0](///compare/v0.5.18...v0.6.0) (2026-03-27)
 
 

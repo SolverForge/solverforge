@@ -76,7 +76,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
   - Standard: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SubListChangeMove, SubListSwapMove, KOptMove, ListRuinMove
   - Nearby selection for list moves
-- **SolverManager API**: Retained job lifecycle with exact pause/resume checkpoints, snapshot retrieval, snapshot-bound analysis, and telemetry
+- **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Configuration**: TOML support with builder API
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
@@ -87,7 +87,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.7", features = ["console"] }
+solverforge = { version = "0.8", features = ["console"] }
 ```
 
 ### Feature Flags
@@ -101,7 +101,7 @@ solverforge = { version = "0.7", features = ["console"] }
 
 ## Release Operations
 
-The workspace release checklist, publish order, and crate stability matrix live in [RELEASE.md](RELEASE.md).
+The workspace release checklist, publish order, and crate stability matrix live in [RELEASE.md](RELEASE.md). Version bumps are explicit release decisions, and `CHANGELOG.md` remains managed by the `commit-and-tag-version` workflow rather than hand-maintained in feature branches.
 
 ## Quick Start
 
@@ -264,7 +264,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.7.0 - Zero-Erasure Constraint Solver
+                   v0.8.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -389,7 +389,7 @@ let config = SolverConfig::load("solver.toml").unwrap_or_default();
 
 ## SolverManager API
 
-The `SolverManager` owns the retained runtime lifecycle for each job. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
+The `SolverManager` owns the retained runtime lifecycle for each job. The 0.8 contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the public API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
 
 ```rust
 use solverforge::{SolverLifecycleState, SolverManager, SolverStatus, Solvable};
@@ -410,7 +410,7 @@ let analysis = MANAGER.analyze_snapshot(job_id, Some(snapshot.snapshot_revision)
 MANAGER.delete(job_id).unwrap();
 ```
 
-Lifecycle events carry `job_id`, monotonic `event_sequence`, `snapshot_revision`, telemetry, and authoritative lifecycle state. Snapshot analysis is always bound to a retained `snapshot_revision`, whether the job is still solving, paused, or already terminal. `delete` is reserved for cleanup of terminal jobs only: it removes the retained job from the public API immediately, and the underlying slot becomes reusable once the worker has fully exited.
+Lifecycle events carry `job_id`, monotonic `event_sequence`, `snapshot_revision`, telemetry, and authoritative lifecycle state. Progress metadata reflects the current runtime state, including `PauseRequested` while a pause is settling. Snapshot analysis is always bound to a retained `snapshot_revision`, whether the job is still solving, pause-requested, paused, or already terminal, and analysis availability must never be treated as proof that a job has completed. `delete` is reserved for cleanup of terminal jobs only: it removes the retained job from the public API immediately, and the underlying slot becomes reusable once the worker has fully exited.
 
 ## Score Analysis
 
@@ -454,7 +454,15 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.7.0
+**Current Version**: 0.8.0
+
+### What's New in 0.8.0
+
+- **Retained runtime lifecycle contract**: `SolverManager` now models a retained job lifecycle around exact in-process checkpoints. `pause()` and `resume()` operate on runtime-owned checkpoints instead of restart-from-best semantics.
+- **Neutral lifecycle terminology**: public docs and APIs now speak in terms of jobs, snapshots, and checkpoints rather than schedule-specific runtime terms.
+- **Lifecycle-complete event stream**: retained jobs now emit `Progress`, `BestSolution`, `PauseRequested`, `Paused`, `Resumed`, `Completed`, `Cancelled`, and `Failed` with authoritative lifecycle metadata and monotonic `event_sequence` / `snapshot_revision`.
+- **Snapshot-bound analysis across retained states**: `analyze_snapshot()` is revision-specific and remains available for retained snapshots while a job is active or terminal. Analysis is informational, not a terminal-state signal.
+- **Breaking runtime entrypoint**: manual retained-runtime implementations now use `Solvable::solve(self, runtime: SolverRuntime<Self>)`, and `SolverManager::solve()` returns `(job_id, receiver)` so consumers can coordinate lifecycle state and snapshot analysis explicitly.
 
 ### What's New in 0.7.0
 

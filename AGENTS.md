@@ -14,13 +14,15 @@ solverforge (facade + re-exports)
     |-- solverforge-solver   - Phases, moves, selectors, termination, SolverManager
     |-- solverforge-scoring  - ConstraintStream API, SERIO incremental scoring
     |-- solverforge-config   - TOML/YAML configuration
+    |-- solverforge-console  - Tracing-driven console output and progress formatting
+    |-- solverforge-cvrp     - CVRP domain helpers and distance utilities
     |
     `-> solverforge-core     - Score types, domain traits, descriptors
          |
          `-> solverforge-macros - #[planning_solution], #[planning_entity], #[problem_fact]
 ```
 
-Publishing order: `core -> macros -> scoring -> config -> solver -> facade`
+Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> console -> facade`
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
@@ -58,6 +60,13 @@ When public surface changes, update the matching wireframe in the same change:
 5. Document public surface and usage only, not implementation detail.
 
 When a public API change also affects how users discover or reason about the feature, update the corresponding top-level docs in the same change. Renames and architectural cleanups should leave behind a clear trail in `README.md`, relevant `docs/*.md` files, and the affected wireframes.
+
+Version bumps are documentation changes too. When the published version changes, update the manifest version plus the coordinated public docs surface in the same change:
+
+- `Cargo.toml` workspace version and publish-time inter-crate dependency versions
+- `README.md`
+- `AGENTS.md`
+- affected `crates/*/WIREFRAME.md` files
 
 ## Architecture Constraints
 
@@ -116,6 +125,8 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 - Delete dead code rather than hiding it behind `_unused` names or "removed" comments.
 - When a design changes, migrate call sites to the new design instead of preserving the old path.
 - Do not mention external solver frameworks in code comments, examples, or commits. SolverForge is an independent implementation.
+- Version bumps require explicit user confirmation.
+- `CHANGELOG.md` stays under `commit-and-tag-version`; do not hand-edit routine release notes unless the user explicitly asks for it.
 
 ## Build And Validation
 

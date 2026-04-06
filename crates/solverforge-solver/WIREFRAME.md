@@ -396,7 +396,7 @@ Requires: `PlanningSolution + Send + 'static`.
 
 ### `SolverRuntime<S>` — `manager/solver_manager.rs`
 
-Retained-job runtime context passed into `Solvable::solve()`.
+Retained-job runtime context passed into `Solvable::solve()`. This is the public lifecycle emitter surface for manual downstream `Solvable` implementations.
 
 | Method | Signature |
 |--------|-----------|
@@ -669,7 +669,7 @@ Fluent builder: `with_phase()`, `with_phase_factory()`, `with_config()`, `with_t
 
 ### `SolverManager<S: Solvable>`
 
-Static lifetime retained-job manager: `solve()` returns `(job_id, receiver)`. Methods: `get_status()`, `pause()`, `resume()`, `cancel()`, `delete()`, `get_snapshot()`, `analyze_snapshot()`. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint. `delete()` hides a terminal job immediately, but the slot itself is not reusable until the solve worker has definitely exited. `MAX_JOBS = 16`.
+Static lifetime retained-job manager: `solve()` returns `(job_id, receiver)`. Methods: `get_status()`, `pause()`, `resume()`, `cancel()`, `delete()`, `get_snapshot()`, `analyze_snapshot()`. The retained lifecycle contract is expressed in neutral `job`, `snapshot`, and `checkpoint` terminology. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint. `delete()` hides a terminal job immediately, but the slot itself is not reusable until the solve worker has definitely exited. `MAX_JOBS = 16`.
 
 ### `SolverLifecycleState` / `SolverTerminalReason`
 
@@ -677,15 +677,15 @@ Lifecycle states: `Solving`, `PauseRequested`, `Paused`, `Completed`, `Cancelled
 
 ### `SolverStatus<Sc>`
 
-Retained job summary from `get_status()`. Fields: `job_id`, `lifecycle_state`, `terminal_reason`, `checkpoint_available`, `event_sequence`, `latest_snapshot_revision`, `current_score`, `best_score`, `telemetry`. `checkpoint_available` means the runtime currently holds an exact resumable checkpoint for `resume()`.
+Retained job summary from `get_status()`. Fields: `job_id`, `lifecycle_state`, `terminal_reason`, `checkpoint_available`, `event_sequence`, `latest_snapshot_revision`, `current_score`, `best_score`, `telemetry`. `checkpoint_available` means the runtime currently holds an exact resumable checkpoint for `resume()`. Analysis availability is separate from terminality: a job can expose retained snapshots while still solving or pausing.
 
 ### `SolverEvent<S>`
 
-Lifecycle event stream for retained jobs. Variants: `Progress`, `BestSolution`, `PauseRequested`, `Paused`, `Resumed`, `Completed`, `Cancelled`, `Failed`. Each event carries metadata with job id, monotonic event sequence, lifecycle state, terminal reason, telemetry, scores, and optional snapshot revision.
+Lifecycle event stream for retained jobs. Variants: `Progress`, `BestSolution`, `PauseRequested`, `Paused`, `Resumed`, `Completed`, `Cancelled`, `Failed`. Each event carries metadata with job id, monotonic event sequence, lifecycle state, terminal reason, telemetry, scores, and optional snapshot revision. Event metadata is authoritative: for example, progress can report `PauseRequested` while a pause is still settling toward a `Paused` checkpoint.
 
 ### `SolverSnapshot<S>` / `SolverSnapshotAnalysis<Sc>`
 
-Snapshots are renderable and analyzable job states with monotonic `snapshot_revision`. Snapshot analysis is always bound to the chosen revision, never the live mutable job, and remains available for any retained snapshot while the job is solving, paused, or terminal.
+Snapshots are renderable and analyzable job states with monotonic `snapshot_revision`. Snapshot analysis is always bound to the chosen revision, never the live mutable job, and remains available for any retained snapshot while the job is solving, pause-requested, paused, completed, cancelled, terminated-by-config, or failed with a retained snapshot. Snapshot analysis is informational only and must not be interpreted as proof that the job is terminal.
 
 ### `SolverManagerError`
 
@@ -729,11 +729,11 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 
 Main solver struct. Drives phases and checks termination. `impl_solver!` macro generates `solve(self, score_director: D) -> SolveResult<S>` for phase tuples up to 8.
 
-Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_progress_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `ProgressCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
+Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_config(SolverConfig)`, `with_progress_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `ProgressCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
 
 ### `SolveResult<S>`
 
-`{ solution: S, current_score: S::Score, best_score: S::Score, terminal_reason: SolverTerminalReason, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `current_score()`, `best_score()`, `terminal_reason()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
+`{ solution: S, current_score: Option<S::Score>, best_score: S::Score, terminal_reason: SolverTerminalReason, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `current_score()`, `best_score()`, `terminal_reason()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
 
 ### `SolverStats` / `PhaseStats`
 

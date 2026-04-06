@@ -84,6 +84,7 @@ src/
 - `SolverManagerError`
 - `SolverSnapshot`
 - `SolverSnapshotAnalysis`
+- `SolverTelemetry`
 - `SolverTerminalReason`
 - `ScoreAnalysis`
 - `ConstraintAnalysis`
@@ -178,5 +179,6 @@ Used exclusively by macro-generated code. Not public API.
 - **Pure re-export crate.** Contains zero implementation logic — only `pub use` statements and the `__internal` module.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
 - **Neutral naming surface.** The facade now exposes the prefix-free selector and extractor terminology used across the workspace, including `EntityCollectionExtractor` in `__internal` and the renamed solver selector modules documented in the solver wireframe.
+- **Retained lifecycle surface.** The facade re-exports the retained job / snapshot / checkpoint lifecycle contract from `solverforge-solver`, including exact pause/resume, lifecycle-complete events, and snapshot-bound analysis types.
 - **Prelude** provides the minimal set of types needed for defining domain models and constraints. Users import `use solverforge::prelude::*` and get attribute macros, score types, constraint traits, and the stream API.
 - **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.

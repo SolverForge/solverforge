@@ -372,6 +372,13 @@ fn zero_telemetry() -> crate::SolverTelemetry {
     crate::SolverTelemetry::default()
 }
 
+fn telemetry_with_steps(step_count: u64) -> crate::SolverTelemetry {
+    crate::SolverTelemetry {
+        step_count,
+        ..crate::SolverTelemetry::default()
+    }
+}
+
 impl Solvable for LifecycleSolution {
     fn solve(self, runtime: SolverRuntime<Self>) {
         let mut solver_scope =
@@ -578,6 +585,201 @@ impl Solvable for TrivialLifecycleSolution {
             |_| true,
             trivial_log_scale,
             empty_noop_phase_sequence,
+        );
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DeterministicResumeSolution {
+    gate: LifecycleStepGate,
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl DeterministicResumeSolution {
+    fn new() -> Self {
+        Self {
+            gate: LifecycleStepGate::new_closed(),
+            value: 0,
+            score: None,
+        }
+    }
+}
+
+impl PlanningSolution for DeterministicResumeSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Solvable for DeterministicResumeSolution {
+    fn solve(mut self, runtime: SolverRuntime<Self>) {
+        self.value = 10;
+        let initial_score = SoftScore::of(self.value);
+        self.set_score(Some(initial_score));
+        runtime.emit_best_solution(
+            self.clone(),
+            Some(initial_score),
+            initial_score,
+            telemetry_with_steps(0),
+        );
+        runtime.emit_progress(
+            Some(initial_score),
+            Some(initial_score),
+            telemetry_with_steps(1),
+        );
+
+        self.gate.wait_for_permit();
+
+        self.value = 12;
+        let boundary_score = SoftScore::of(self.value);
+        self.set_score(Some(boundary_score));
+        if !runtime.pause_with_snapshot(
+            self.clone(),
+            Some(boundary_score),
+            Some(boundary_score),
+            telemetry_with_steps(2),
+        ) {
+            if runtime.is_cancel_requested() {
+                runtime.emit_cancelled(
+                    Some(boundary_score),
+                    Some(boundary_score),
+                    telemetry_with_steps(2),
+                );
+                return;
+            }
+
+            runtime.emit_best_solution(
+                self.clone(),
+                Some(boundary_score),
+                boundary_score,
+                telemetry_with_steps(2),
+            );
+        }
+
+        runtime.emit_progress(
+            Some(boundary_score),
+            Some(boundary_score),
+            telemetry_with_steps(3),
+        );
+
+        self.value = 15;
+        let final_score = SoftScore::of(self.value);
+        self.set_score(Some(final_score));
+        runtime.emit_completed(
+            self,
+            Some(final_score),
+            final_score,
+            telemetry_with_steps(4),
+            SolverTerminalReason::Completed,
+        );
+    }
+}
+
+#[derive(Clone, Debug)]
+struct FailureAfterSnapshotSolution {
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl FailureAfterSnapshotSolution {
+    fn new(value: i64) -> Self {
+        Self { value, score: None }
+    }
+}
+
+impl PlanningSolution for FailureAfterSnapshotSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Analyzable for FailureAfterSnapshotSolution {
+    fn analyze(&self) -> ScoreAnalysis<Self::Score> {
+        let score = SoftScore::of(self.value);
+        ScoreAnalysis {
+            score,
+            constraints: vec![ConstraintAnalysis {
+                name: "value".to_string(),
+                weight: SoftScore::of(1),
+                score,
+                match_count: 1,
+            }],
+        }
+    }
+}
+
+impl Solvable for FailureAfterSnapshotSolution {
+    fn solve(mut self, runtime: SolverRuntime<Self>) {
+        let score = SoftScore::of(self.value);
+        self.set_score(Some(score));
+        runtime.emit_best_solution(self, Some(score), score, zero_telemetry());
+        panic!("expected retained lifecycle failure");
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ConfigTerminatedSolution {
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl ConfigTerminatedSolution {
+    fn new(value: i64) -> Self {
+        Self { value, score: None }
+    }
+}
+
+impl PlanningSolution for ConfigTerminatedSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Analyzable for ConfigTerminatedSolution {
+    fn analyze(&self) -> ScoreAnalysis<Self::Score> {
+        let score = SoftScore::of(self.value);
+        ScoreAnalysis {
+            score,
+            constraints: vec![ConstraintAnalysis {
+                name: "value".to_string(),
+                weight: SoftScore::of(1),
+                score,
+                match_count: 1,
+            }],
+        }
+    }
+}
+
+impl Solvable for ConfigTerminatedSolution {
+    fn solve(mut self, runtime: SolverRuntime<Self>) {
+        let score = SoftScore::of(self.value);
+        self.set_score(Some(score));
+        runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
+        runtime.emit_completed(
+            self,
+            Some(score),
+            score,
+            zero_telemetry(),
+            SolverTerminalReason::TerminatedByConfig,
         );
     }
 }
@@ -840,7 +1042,8 @@ fn retained_job_delete_keeps_slot_reserved_until_worker_exit() {
 
     release_return.allow_next_step();
 
-    for _ in 0..1_000 {
+    let deadline = std::time::Instant::now() + Duration::from_secs(1);
+    while std::time::Instant::now() < deadline {
         if MANAGER.slot_is_free_for_test(job_id) {
             return;
         }
@@ -893,4 +1096,533 @@ fn trivial_job_cancelled_while_paused_reports_cancelled() {
     }
 
     MANAGER.delete(job_id).expect("delete cancelled job");
+}
+
+#[test]
+fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
+    static MANAGER: SolverManager<DeterministicResumeSolution> = SolverManager::new();
+
+    let uninterrupted = DeterministicResumeSolution::new();
+    let uninterrupted_gate = uninterrupted.gate.clone();
+    let (uninterrupted_job_id, mut uninterrupted_receiver) = MANAGER
+        .solve(uninterrupted)
+        .expect("uninterrupted job should start");
+
+    match uninterrupted_receiver
+        .blocking_recv()
+        .expect("uninterrupted best solution event")
+    {
+        SolverEvent::BestSolution { metadata, solution } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+            assert_eq!(solution.value, 10);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match uninterrupted_receiver
+        .blocking_recv()
+        .expect("uninterrupted progress event")
+    {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+            assert_eq!(metadata.current_score, Some(SoftScore::of(10)));
+            assert_eq!(metadata.best_score, Some(SoftScore::of(10)));
+            assert_eq!(metadata.telemetry.step_count, 1);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    uninterrupted_gate.allow_next_step();
+
+    let uninterrupted_boundary_snapshot = match uninterrupted_receiver
+        .blocking_recv()
+        .expect("uninterrupted boundary snapshot event")
+    {
+        SolverEvent::BestSolution { metadata, solution } => {
+            assert_eq!(metadata.snapshot_revision, Some(2));
+            assert_eq!(metadata.current_score, Some(SoftScore::of(12)));
+            assert_eq!(metadata.best_score, Some(SoftScore::of(12)));
+            assert_eq!(metadata.telemetry.step_count, 2);
+            assert_eq!(solution.value, 12);
+            solution
+        }
+        other => panic!("unexpected event: {other:?}"),
+    };
+
+    let uninterrupted_post_boundary = match uninterrupted_receiver
+        .blocking_recv()
+        .expect("uninterrupted post-boundary progress")
+    {
+        SolverEvent::Progress { metadata } => (
+            metadata.snapshot_revision,
+            metadata.current_score,
+            metadata.best_score,
+            metadata.telemetry.step_count,
+        ),
+        other => panic!("unexpected event: {other:?}"),
+    };
+
+    let uninterrupted_completed = match uninterrupted_receiver
+        .blocking_recv()
+        .expect("uninterrupted completed event")
+    {
+        SolverEvent::Completed { metadata, solution } => (
+            metadata.snapshot_revision,
+            metadata.current_score,
+            metadata.best_score,
+            metadata.terminal_reason,
+            metadata.telemetry.step_count,
+            solution.value,
+        ),
+        other => panic!("unexpected event: {other:?}"),
+    };
+
+    let resumed = DeterministicResumeSolution::new();
+    let resumed_gate = resumed.gate.clone();
+    let (resumed_job_id, mut resumed_receiver) =
+        MANAGER.solve(resumed).expect("resumed job should start");
+
+    match resumed_receiver
+        .blocking_recv()
+        .expect("resumed best solution event")
+    {
+        SolverEvent::BestSolution { metadata, solution } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+            assert_eq!(solution.value, 10);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match resumed_receiver
+        .blocking_recv()
+        .expect("resumed progress event")
+    {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+            assert_eq!(metadata.current_score, Some(SoftScore::of(10)));
+            assert_eq!(metadata.best_score, Some(SoftScore::of(10)));
+            assert_eq!(metadata.telemetry.step_count, 1);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER
+        .pause(resumed_job_id)
+        .expect("pause should be accepted");
+
+    match resumed_receiver
+        .blocking_recv()
+        .expect("pause requested event")
+    {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    resumed_gate.allow_next_step();
+
+    match resumed_receiver
+        .blocking_recv()
+        .expect("paused boundary snapshot event")
+    {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.snapshot_revision, Some(2));
+            assert_eq!(metadata.current_score, Some(SoftScore::of(12)));
+            assert_eq!(metadata.best_score, Some(SoftScore::of(12)));
+            assert_eq!(metadata.telemetry.step_count, 2);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let resumed_boundary_snapshot = MANAGER
+        .get_snapshot(resumed_job_id, Some(2))
+        .expect("paused boundary snapshot");
+    assert_eq!(resumed_boundary_snapshot.snapshot_revision, 2);
+    assert_eq!(
+        resumed_boundary_snapshot.current_score,
+        Some(SoftScore::of(12))
+    );
+    assert_eq!(
+        resumed_boundary_snapshot.best_score,
+        Some(SoftScore::of(12))
+    );
+    assert_eq!(resumed_boundary_snapshot.telemetry.step_count, 2);
+    assert_eq!(resumed_boundary_snapshot.solution.value, 12);
+    assert_eq!(
+        resumed_boundary_snapshot.solution.score(),
+        Some(SoftScore::of(12))
+    );
+
+    assert_eq!(
+        uninterrupted_boundary_snapshot.value,
+        resumed_boundary_snapshot.solution.value
+    );
+    assert_eq!(
+        uninterrupted_boundary_snapshot.score(),
+        resumed_boundary_snapshot.solution.score()
+    );
+
+    MANAGER
+        .resume(resumed_job_id)
+        .expect("resume should be accepted");
+
+    match resumed_receiver.blocking_recv().expect("resumed event") {
+        SolverEvent::Resumed { metadata } => {
+            assert_eq!(metadata.snapshot_revision, Some(2));
+            assert_eq!(metadata.best_score, Some(SoftScore::of(12)));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let resumed_post_boundary = match resumed_receiver
+        .blocking_recv()
+        .expect("resumed post-boundary progress")
+    {
+        SolverEvent::Progress { metadata } => (
+            metadata.snapshot_revision,
+            metadata.current_score,
+            metadata.best_score,
+            metadata.telemetry.step_count,
+        ),
+        other => panic!("unexpected event: {other:?}"),
+    };
+
+    let resumed_completed = match resumed_receiver
+        .blocking_recv()
+        .expect("resumed completed event")
+    {
+        SolverEvent::Completed { metadata, solution } => (
+            metadata.snapshot_revision,
+            metadata.current_score,
+            metadata.best_score,
+            metadata.terminal_reason,
+            metadata.telemetry.step_count,
+            solution.value,
+        ),
+        other => panic!("unexpected event: {other:?}"),
+    };
+
+    assert_eq!(resumed_post_boundary, uninterrupted_post_boundary);
+    assert_eq!(resumed_completed, uninterrupted_completed);
+
+    let uninterrupted_final_snapshot = MANAGER
+        .get_snapshot(uninterrupted_job_id, None)
+        .expect("uninterrupted final snapshot");
+    let resumed_final_snapshot = MANAGER
+        .get_snapshot(resumed_job_id, None)
+        .expect("resumed final snapshot");
+
+    assert_eq!(
+        uninterrupted_final_snapshot.snapshot_revision,
+        resumed_final_snapshot.snapshot_revision
+    );
+    assert_eq!(
+        uninterrupted_final_snapshot.current_score,
+        resumed_final_snapshot.current_score
+    );
+    assert_eq!(
+        uninterrupted_final_snapshot.best_score,
+        resumed_final_snapshot.best_score
+    );
+    assert_eq!(
+        uninterrupted_final_snapshot.solution.value,
+        resumed_final_snapshot.solution.value
+    );
+
+    MANAGER
+        .delete(uninterrupted_job_id)
+        .expect("delete uninterrupted job");
+    MANAGER.delete(resumed_job_id).expect("delete resumed job");
+}
+
+#[test]
+fn retained_job_analysis_is_snapshot_bound_across_live_states_and_completion() {
+    static MANAGER: SolverManager<LifecycleSolution> = SolverManager::new();
+
+    let solution = LifecycleSolution::new(13);
+    let gate = solution.gate.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+
+    match receiver.blocking_recv().expect("best solution event") {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let solving_analysis = MANAGER
+        .analyze_snapshot(job_id, None)
+        .expect("analysis while solving");
+    assert_eq!(
+        solving_analysis.lifecycle_state,
+        SolverLifecycleState::Solving
+    );
+    assert_eq!(solving_analysis.snapshot_revision, 1);
+    assert_eq!(solving_analysis.analysis.score, SoftScore::of(13));
+
+    match receiver.blocking_recv().expect("progress event") {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.pause(job_id).expect("pause should be accepted");
+
+    match receiver.blocking_recv().expect("pause requested event") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let pause_requested_status = MANAGER
+        .get_status(job_id)
+        .expect("status while pause is requested");
+    assert_eq!(
+        pause_requested_status.lifecycle_state,
+        SolverLifecycleState::PauseRequested
+    );
+
+    let pause_requested_analysis = MANAGER
+        .analyze_snapshot(job_id, None)
+        .expect("analysis while pause is requested");
+    assert_eq!(
+        pause_requested_analysis.lifecycle_state,
+        SolverLifecycleState::Solving
+    );
+    assert_eq!(pause_requested_analysis.snapshot_revision, 1);
+    assert_eq!(pause_requested_analysis.analysis.score, SoftScore::of(13));
+    assert!(!pause_requested_analysis.lifecycle_state.is_terminal());
+
+    gate.allow_next_step();
+
+    match receiver.blocking_recv().expect("paused event") {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.snapshot_revision, Some(2));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let paused_analysis = MANAGER
+        .analyze_snapshot(job_id, None)
+        .expect("analysis while paused");
+    assert_eq!(
+        paused_analysis.lifecycle_state,
+        SolverLifecycleState::Paused
+    );
+    assert_eq!(paused_analysis.snapshot_revision, 2);
+    assert_eq!(paused_analysis.analysis.score, SoftScore::of(13));
+
+    MANAGER.resume(job_id).expect("resume should be accepted");
+
+    match receiver.blocking_recv().expect("resumed event") {
+        SolverEvent::Resumed { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver
+        .blocking_recv()
+        .expect("post-resume progress event")
+    {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver.blocking_recv().expect("completed event") {
+        SolverEvent::Completed { metadata, .. } => {
+            assert_eq!(metadata.snapshot_revision, Some(3));
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let completed_analysis = MANAGER
+        .analyze_snapshot(job_id, None)
+        .expect("analysis after completion");
+    assert_eq!(
+        completed_analysis.lifecycle_state,
+        SolverLifecycleState::Completed
+    );
+    assert_eq!(
+        completed_analysis.terminal_reason,
+        Some(SolverTerminalReason::Completed)
+    );
+    assert_eq!(completed_analysis.snapshot_revision, 3);
+    assert_eq!(completed_analysis.analysis.score, SoftScore::of(13));
+
+    MANAGER.delete(job_id).expect("delete completed job");
+}
+
+#[test]
+fn retained_job_analysis_remains_available_after_cancel_failure_and_config_termination() {
+    static CANCEL_MANAGER: SolverManager<LifecycleSolution> = SolverManager::new();
+    static FAILURE_MANAGER: SolverManager<FailureAfterSnapshotSolution> = SolverManager::new();
+    static TERMINATED_MANAGER: SolverManager<ConfigTerminatedSolution> = SolverManager::new();
+
+    let cancelled = LifecycleSolution::new(5);
+    let cancel_gate = cancelled.gate.clone();
+    let (cancelled_job_id, mut cancelled_receiver) = CANCEL_MANAGER
+        .solve(cancelled)
+        .expect("cancelled job should start");
+
+    match cancelled_receiver
+        .blocking_recv()
+        .expect("cancelled job best solution event")
+    {
+        SolverEvent::BestSolution { .. } => {}
+        other => panic!("unexpected event: {other:?}"),
+    }
+    match cancelled_receiver
+        .blocking_recv()
+        .expect("cancelled job progress event")
+    {
+        SolverEvent::Progress { .. } => {}
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    CANCEL_MANAGER
+        .pause(cancelled_job_id)
+        .expect("pause should be accepted");
+    match cancelled_receiver
+        .blocking_recv()
+        .expect("cancelled job pause requested event")
+    {
+        SolverEvent::PauseRequested { .. } => {}
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    cancel_gate.allow_next_step();
+
+    match cancelled_receiver
+        .blocking_recv()
+        .expect("cancelled job paused event")
+    {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.snapshot_revision, Some(2));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    CANCEL_MANAGER
+        .cancel(cancelled_job_id)
+        .expect("cancel should be accepted");
+    match cancelled_receiver
+        .blocking_recv()
+        .expect("cancelled job cancelled event")
+    {
+        SolverEvent::Cancelled { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let cancelled_analysis = CANCEL_MANAGER
+        .analyze_snapshot(cancelled_job_id, None)
+        .expect("analysis after cancellation");
+    assert_eq!(
+        cancelled_analysis.lifecycle_state,
+        SolverLifecycleState::Paused
+    );
+    assert_eq!(cancelled_analysis.snapshot_revision, 2);
+    assert_eq!(cancelled_analysis.analysis.score, SoftScore::of(5));
+
+    let (failed_job_id, mut failed_receiver) = FAILURE_MANAGER
+        .solve(FailureAfterSnapshotSolution::new(17))
+        .expect("failed job should start");
+
+    match failed_receiver
+        .blocking_recv()
+        .expect("failed job best solution event")
+    {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match failed_receiver
+        .blocking_recv()
+        .expect("failed job failed event")
+    {
+        SolverEvent::Failed { metadata, error } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Failed);
+            assert!(error.contains("expected retained lifecycle failure"));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let failed_analysis = FAILURE_MANAGER
+        .analyze_snapshot(failed_job_id, None)
+        .expect("analysis after failure");
+    assert_eq!(
+        failed_analysis.lifecycle_state,
+        SolverLifecycleState::Solving
+    );
+    assert_eq!(failed_analysis.snapshot_revision, 1);
+    assert_eq!(failed_analysis.analysis.score, SoftScore::of(17));
+
+    let (terminated_job_id, mut terminated_receiver) = TERMINATED_MANAGER
+        .solve(ConfigTerminatedSolution::new(23))
+        .expect("configured-termination job should start");
+
+    match terminated_receiver
+        .blocking_recv()
+        .expect("configured-termination best solution event")
+    {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match terminated_receiver
+        .blocking_recv()
+        .expect("configured-termination completed event")
+    {
+        SolverEvent::Completed { metadata, .. } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+            assert_eq!(metadata.snapshot_revision, Some(2));
+            assert_eq!(
+                metadata.terminal_reason,
+                Some(SolverTerminalReason::TerminatedByConfig)
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let terminated_analysis = TERMINATED_MANAGER
+        .analyze_snapshot(terminated_job_id, None)
+        .expect("analysis after configured termination");
+    assert_eq!(
+        terminated_analysis.lifecycle_state,
+        SolverLifecycleState::Completed
+    );
+    assert_eq!(
+        terminated_analysis.terminal_reason,
+        Some(SolverTerminalReason::TerminatedByConfig)
+    );
+    assert_eq!(terminated_analysis.snapshot_revision, 2);
+    assert_eq!(terminated_analysis.analysis.score, SoftScore::of(23));
+
+    CANCEL_MANAGER
+        .delete(cancelled_job_id)
+        .expect("delete cancelled job");
+    FAILURE_MANAGER
+        .delete(failed_job_id)
+        .expect("delete failed job");
+    TERMINATED_MANAGER
+        .delete(terminated_job_id)
+        .expect("delete configured-termination job");
 }

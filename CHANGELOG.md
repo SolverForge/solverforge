@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.0](///compare/v0.7.1...v0.8.0) (2026-04-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **solver:** Solvable::solve now takes SolverRuntime<Self> instead of the previous terminate and sender plumbing. SolverManager::solve now returns Result<(job_id, receiver), SolverManagerError>, and the retained lifecycle API introduces the public event, status, snapshot, and error surface required by the new contract.
+
+### Features
+
+* **solver:** implement retained lifecycle pause and resume 1d775a5
+
 ## [0.7.1](///compare/v0.7.0...v0.7.1) (2026-04-03)
 
 

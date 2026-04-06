@@ -206,7 +206,10 @@ where
         let mut entity_idx = 0;
 
         for elem_idx in 0..n_elements {
-            if phase_scope.solver_scope().should_terminate_construction() {
+            if phase_scope
+                .solver_scope_mut()
+                .should_terminate_construction()
+            {
                 break;
             }
 

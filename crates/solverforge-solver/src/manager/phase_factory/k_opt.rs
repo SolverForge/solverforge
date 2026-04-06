@@ -216,7 +216,7 @@ where
         let step_limit = self.step_limit.unwrap_or(u64::MAX);
         let mut steps = 0u64;
 
-        while steps < step_limit && !phase_scope.solver_scope().should_terminate() {
+        while steps < step_limit && !phase_scope.solver_scope_mut().should_terminate() {
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Collect moves first to avoid borrow conflicts

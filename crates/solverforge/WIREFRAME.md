@@ -76,7 +76,15 @@ src/
 - `AnyTermination`
 - `build_termination`
 - `SolverManager`
+- `SolverRuntime`
+- `SolverEvent`
+- `SolverEventMetadata`
+- `SolverLifecycleState`
 - `SolverStatus`
+- `SolverManagerError`
+- `SolverSnapshot`
+- `SolverSnapshotAnalysis`
+- `SolverTerminalReason`
 - `ScoreAnalysis`
 - `ConstraintAnalysis`
 - `DefaultDistanceMeter`
@@ -146,6 +154,7 @@ Used exclusively by macro-generated code. Not public API.
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
+- `SolverRuntime`
 - `ListVariableEntity`, `ListVariableMetadata`
 
 **Config (from `solverforge-config`):**

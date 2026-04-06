@@ -91,7 +91,10 @@ where
         for mut placement in placements {
             // Construction must complete — only stop for external flag or time limit,
             // never for step/move count limits (those are for local search).
-            if phase_scope.solver_scope().should_terminate_construction() {
+            if phase_scope
+                .solver_scope_mut()
+                .should_terminate_construction()
+            {
                 break;
             }
 

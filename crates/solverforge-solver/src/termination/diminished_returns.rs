@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -66,18 +66,18 @@ impl<S: PlanningSolution> Debug for DiminishedReturnsTermination<S> {
 
 struct DiminishedState<Sc: Score> {
     // Score samples within the window: (timestamp, score).
-    samples: VecDeque<(Instant, Sc)>,
+    samples: VecDeque<(Duration, Sc)>,
     // Timestamp of first sample for initial grace period.
-    start_time: Option<Instant>,
+    start_elapsed: Option<Duration>,
     // Oldest score seen — retained as baseline even after window eviction.
-    baseline: Option<(Instant, Sc)>,
+    baseline: Option<(Duration, Sc)>,
 }
 
 impl<Sc: Score> Default for DiminishedState<Sc> {
     fn default() -> Self {
         Self {
             samples: VecDeque::new(),
-            start_time: None,
+            start_elapsed: None,
             baseline: None,
         }
     }
@@ -117,15 +117,15 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
         };
 
         let mut state = self.state.borrow_mut();
-        let now = Instant::now();
+        let now = solver_scope.elapsed().unwrap_or_default();
 
         // Initialize start time on first call
-        if state.start_time.is_none() {
-            state.start_time = Some(now);
+        if state.start_elapsed.is_none() {
+            state.start_elapsed = Some(now);
         }
 
         // Don't terminate during the initial grace period (first window)
-        if now.duration_since(state.start_time.unwrap()) < self.window {
+        if now.saturating_sub(state.start_elapsed.unwrap()) < self.window {
             // Record the sample; first sample becomes the baseline
             if state.baseline.is_none() {
                 state.baseline = Some((now, *current_score));
@@ -135,7 +135,7 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
         }
 
         // Remove samples outside the window
-        let cutoff = now - self.window;
+        let cutoff = now.saturating_sub(self.window);
         while let Some((time, _)) = state.samples.front() {
             if *time < cutoff {
                 state.samples.pop_front();
@@ -165,7 +165,7 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
             (None, None) => return false,
         };
         let (oldest_time, oldest_score) = reference;
-        let elapsed = now.duration_since(*oldest_time).as_secs_f64();
+        let elapsed = now.saturating_sub(*oldest_time).as_secs_f64();
 
         if elapsed < 0.001 {
             return false; // Avoid division by near-zero

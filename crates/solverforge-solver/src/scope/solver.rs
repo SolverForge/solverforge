@@ -9,7 +9,7 @@ use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::manager::SolverStatus;
+use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};
 use crate::stats::SolverStats;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,16 +21,13 @@ pub enum SolverProgressKind {
 #[derive(Debug, Clone, Copy)]
 pub struct SolverProgressRef<'a, S: PlanningSolution> {
     pub kind: SolverProgressKind,
-    pub status: SolverStatus,
+    pub status: SolverLifecycleState,
     pub solution: Option<&'a S>,
     pub current_score: Option<&'a S::Score>,
     pub best_score: Option<&'a S::Score>,
     pub telemetry: crate::stats::SolverTelemetry,
 }
 
-/// Sealed trait for invoking an optional progress callback.
-///
-/// Implemented for `()` (no-op) and for any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`.
 pub trait ProgressCallback<S: PlanningSolution>: Send + Sync {
     fn invoke(&self, progress: SolverProgressRef<'_, S>);
 }
@@ -49,43 +46,24 @@ where
     }
 }
 
-/// Top-level scope for the entire solving process.
-///
-/// Holds the working solution, score director, and tracks the best solution found.
-///
-/// # Type Parameters
-/// * `'t` - Lifetime of the termination flag reference
-/// * `S` - The planning solution type
-/// * `D` - The score director type
-/// * `ProgressCb` - The progress callback type (default `()` means no callback)
 pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()> {
-    // The score director managing the working solution.
     score_director: D,
-    // The best solution found so far.
     best_solution: Option<S>,
-    // The score of the current working solution.
     current_score: Option<S::Score>,
-    // The score of the best solution.
     best_score: Option<S::Score>,
-    // Random number generator for stochastic algorithms.
     rng: StdRng,
-    // When solving started.
     start_time: Option<Instant>,
-    // Total number of steps across all phases.
+    paused_at: Option<Instant>,
     total_step_count: u64,
-    // Flag for early termination requests.
     terminate: Option<&'t AtomicBool>,
-    // Solver statistics.
+    runtime: Option<SolverRuntime<S>>,
     stats: SolverStats,
-    // Time limit for solving (checked by phases).
     time_limit: Option<Duration>,
-    // Callback invoked when the solver should publish progress.
     progress_callback: ProgressCb,
-    // Optional maximum total step count for in-phase termination (T1).
+    terminal_reason: Option<SolverTerminalReason>,
+    last_best_elapsed: Option<Duration>,
     pub inphase_step_count_limit: Option<u64>,
-    // Optional maximum total move count for in-phase termination (T1).
     pub inphase_move_count_limit: Option<u64>,
-    // Optional maximum total score calculation count for in-phase termination (T1).
     pub inphase_score_calc_count_limit: Option<u64>,
 }
 
@@ -98,11 +76,15 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             best_score: None,
             rng: StdRng::from_rng(&mut rand::rng()),
             start_time: None,
+            paused_at: None,
             total_step_count: 0,
             terminate: None,
+            runtime: None,
             stats: SolverStats::default(),
             time_limit: None,
             progress_callback: (),
+            terminal_reason: None,
+            last_best_elapsed: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -116,7 +98,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn new_with_callback(
         score_director: D,
         callback: ProgressCb,
-        terminate: Option<&'t std::sync::atomic::AtomicBool>,
+        terminate: Option<&'t AtomicBool>,
+        runtime: Option<SolverRuntime<S>>,
     ) -> Self {
         Self {
             score_director,
@@ -125,23 +108,28 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             best_score: None,
             rng: StdRng::from_rng(&mut rand::rng()),
             start_time: None,
+            paused_at: None,
             total_step_count: 0,
             terminate,
+            runtime,
             stats: SolverStats::default(),
             time_limit: None,
             progress_callback: callback,
+            terminal_reason: None,
+            last_best_elapsed: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
         }
     }
-}
 
-impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
-    SolverScope<'t, S, D, ProgressCb>
-{
     pub fn with_terminate(mut self, terminate: Option<&'t AtomicBool>) -> Self {
         self.terminate = terminate;
+        self
+    }
+
+    pub fn with_runtime(mut self, runtime: Option<SolverRuntime<S>>) -> Self {
+        self.runtime = runtime;
         self
     }
 
@@ -150,9 +138,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self
     }
 
-    /// Sets the progress callback, transitioning to a typed callback scope.
-    ///
-    /// The callback is invoked for exact progress updates and best-solution updates.
     pub fn with_progress_callback<F: ProgressCallback<S>>(
         self,
         callback: F,
@@ -164,26 +149,42 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             best_score: self.best_score,
             rng: self.rng,
             start_time: self.start_time,
+            paused_at: self.paused_at,
             total_step_count: self.total_step_count,
             terminate: self.terminate,
+            runtime: self.runtime,
             stats: self.stats,
             time_limit: self.time_limit,
             progress_callback: callback,
+            terminal_reason: self.terminal_reason,
+            last_best_elapsed: self.last_best_elapsed,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
         }
     }
 
-    /// Marks the start of solving.
     pub fn start_solving(&mut self) {
         self.start_time = Some(Instant::now());
+        self.paused_at = None;
         self.total_step_count = 0;
+        self.terminal_reason = None;
+        self.last_best_elapsed = None;
         self.stats.start();
     }
 
-    pub fn elapsed(&self) -> Option<std::time::Duration> {
-        self.start_time.map(|t| t.elapsed())
+    pub fn elapsed(&self) -> Option<Duration> {
+        match (self.start_time, self.paused_at) {
+            (Some(start), Some(paused_at)) => Some(paused_at.duration_since(start)),
+            (Some(start), None) => Some(start.elapsed()),
+            _ => None,
+        }
+    }
+
+    pub fn time_since_last_improvement(&self) -> Option<Duration> {
+        let elapsed = self.elapsed()?;
+        let last_best_elapsed = self.last_best_elapsed?;
+        Some(elapsed.saturating_sub(last_best_elapsed))
     }
 
     pub fn score_director(&self) -> &D {
@@ -202,9 +203,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.score_director.working_solution_mut()
     }
 
-    /// Calculates and returns the current score.
-    ///
-    /// Also records the score calculation in solver statistics.
     pub fn calculate_score(&mut self) -> S::Score {
         self.stats.record_score_calculation();
         let score = self.score_director.calculate_score();
@@ -224,6 +222,11 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.current_score.as_ref()
     }
 
+    pub fn terminal_reason(&self) -> SolverTerminalReason {
+        self.terminal_reason
+            .unwrap_or(SolverTerminalReason::Completed)
+    }
+
     pub fn set_current_score(&mut self, score: S::Score) {
         self.current_score = Some(score);
     }
@@ -231,7 +234,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn report_progress(&self) {
         self.progress_callback.invoke(SolverProgressRef {
             kind: SolverProgressKind::Progress,
-            status: SolverStatus::Solving,
+            status: self.progress_state(),
             solution: None,
             current_score: self.current_score.as_ref(),
             best_score: self.best_score.as_ref(),
@@ -242,7 +245,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn report_best_solution(&self) {
         self.progress_callback.invoke(SolverProgressRef {
             kind: SolverProgressKind::BestSolution,
-            status: SolverStatus::Solving,
+            status: self.progress_state(),
             solution: self.best_solution.as_ref(),
             current_score: self.current_score.as_ref(),
             best_score: self.best_score.as_ref(),
@@ -250,7 +253,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         });
     }
 
-    /// Updates the best solution if the current solution is better.
     pub fn update_best_solution(&mut self) {
         let current_score = self.score_director.calculate_score();
         self.current_score = Some(current_score);
@@ -262,23 +264,25 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         if is_better {
             self.best_solution = Some(self.score_director.clone_working_solution());
             self.best_score = Some(current_score);
-
+            self.last_best_elapsed = self.elapsed();
             self.report_best_solution();
         }
     }
 
-    /// Forces an update of the best solution regardless of score comparison.
     pub fn set_best_solution(&mut self, solution: S, score: S::Score) {
+        if self.start_time.is_none() {
+            self.start_solving();
+        }
         self.current_score = Some(score);
         self.best_solution = Some(solution);
         self.best_score = Some(score);
+        self.last_best_elapsed = self.elapsed();
     }
 
     pub fn rng(&mut self) -> &mut StdRng {
         &mut self.rng
     }
 
-    /// Increments and returns the total step count.
     pub fn increment_step_count(&mut self) -> u64 {
         self.total_step_count += 1;
         self.stats.record_step();
@@ -289,7 +293,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.total_step_count
     }
 
-    /// Extracts the best solution, consuming this scope.
     pub fn take_best_solution(self) -> Option<S> {
         self.best_solution
     }
@@ -299,19 +302,30 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             .unwrap_or_else(|| self.score_director.clone_working_solution())
     }
 
-    /// Extracts both the solution and stats, consuming this scope.
-    ///
-    /// Returns the best solution (or working solution if none) along with
-    /// the accumulated solver statistics.
-    pub fn take_solution_and_stats(self) -> (S, S::Score, SolverStats) {
+    pub fn take_solution_and_stats(
+        self,
+    ) -> (
+        S,
+        Option<S::Score>,
+        S::Score,
+        SolverStats,
+        SolverTerminalReason,
+    ) {
+        let terminal_reason = self.terminal_reason();
         let solution = self
             .best_solution
             .unwrap_or_else(|| self.score_director.clone_working_solution());
-        let score = self
+        let best_score = self
             .best_score
             .or(self.current_score)
             .expect("solver finished without a canonical score");
-        (solution, score, self.stats)
+        (
+            solution,
+            self.current_score,
+            best_score,
+            self.stats,
+            terminal_reason,
+        )
     }
 
     pub fn is_terminate_early(&self) -> bool {
@@ -323,50 +337,79 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.time_limit = Some(limit);
     }
 
-    pub fn should_terminate_construction(&self) -> bool {
-        // Check external termination flag
+    pub fn pause_if_requested(&mut self) {
+        self.settle_pause_if_requested();
+    }
+
+    pub fn pause_timers(&mut self) {
+        if self.paused_at.is_none() {
+            self.paused_at = Some(Instant::now());
+            self.stats.pause();
+        }
+    }
+
+    pub fn resume_timers(&mut self) {
+        if let Some(paused_at) = self.paused_at.take() {
+            let paused_for = paused_at.elapsed();
+            if let Some(start) = self.start_time {
+                self.start_time = Some(start + paused_for);
+            }
+            self.stats.resume();
+        }
+    }
+
+    pub fn should_terminate_construction(&mut self) -> bool {
+        self.settle_pause_if_requested();
         if self.is_terminate_early() {
+            self.mark_cancelled();
             return true;
         }
-        // Check time limit only
-        if let (Some(start), Some(limit)) = (self.start_time, self.time_limit) {
-            if start.elapsed() >= limit {
+        if self.time_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
+        }
+        false
+    }
+
+    pub fn should_terminate(&mut self) -> bool {
+        self.settle_pause_if_requested();
+        if self.is_terminate_early() {
+            self.mark_cancelled();
+            return true;
+        }
+        if self.time_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
+        }
+        if let Some(limit) = self.inphase_step_count_limit {
+            if self.total_step_count >= limit {
+                self.mark_terminated_by_config();
+                return true;
+            }
+        }
+        if let Some(limit) = self.inphase_move_count_limit {
+            if self.stats.moves_evaluated >= limit {
+                self.mark_terminated_by_config();
+                return true;
+            }
+        }
+        if let Some(limit) = self.inphase_score_calc_count_limit {
+            if self.stats.score_calculations >= limit {
+                self.mark_terminated_by_config();
                 return true;
             }
         }
         false
     }
 
-    pub fn should_terminate(&self) -> bool {
-        // Check external termination flag
-        if self.is_terminate_early() {
-            return true;
-        }
-        // Check time limit
-        if let (Some(start), Some(limit)) = (self.start_time, self.time_limit) {
-            if start.elapsed() >= limit {
-                return true;
-            }
-        }
-        // Check in-phase step count limit (T1: StepCountTermination fires inside phase loop)
-        if let Some(limit) = self.inphase_step_count_limit {
-            if self.total_step_count >= limit {
-                return true;
-            }
-        }
-        // Check in-phase move count limit (T1: MoveCountTermination fires inside phase loop)
-        if let Some(limit) = self.inphase_move_count_limit {
-            if self.stats.moves_evaluated >= limit {
-                return true;
-            }
-        }
-        // Check in-phase score calculation count limit
-        if let Some(limit) = self.inphase_score_calc_count_limit {
-            if self.stats.score_calculations >= limit {
-                return true;
-            }
-        }
-        false
+    pub fn mark_cancelled(&mut self) {
+        self.terminal_reason
+            .get_or_insert(SolverTerminalReason::Cancelled);
+    }
+
+    pub fn mark_terminated_by_config(&mut self) {
+        self.terminal_reason
+            .get_or_insert(SolverTerminalReason::TerminatedByConfig);
     }
 
     pub fn stats(&self) -> &SolverStats {
@@ -375,5 +418,29 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     pub fn stats_mut(&mut self) -> &mut SolverStats {
         &mut self.stats
+    }
+
+    fn progress_state(&self) -> SolverLifecycleState {
+        self.runtime
+            .map(|runtime| {
+                if runtime.is_terminal() {
+                    SolverLifecycleState::Completed
+                } else {
+                    SolverLifecycleState::Solving
+                }
+            })
+            .unwrap_or(SolverLifecycleState::Solving)
+    }
+
+    fn settle_pause_if_requested(&mut self) {
+        if let Some(runtime) = self.runtime {
+            runtime.pause_if_requested(self);
+        }
+    }
+
+    fn time_limit_reached(&self) -> bool {
+        self.time_limit
+            .zip(self.elapsed())
+            .is_some_and(|(limit, elapsed)| elapsed >= limit)
     }
 }

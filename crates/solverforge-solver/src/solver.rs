@@ -9,6 +9,7 @@ use solverforge_config::SolverConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
@@ -25,8 +26,12 @@ solving process.
 pub struct SolveResult<S: PlanningSolution> {
     // The best solution found during solving.
     pub solution: S,
+    // The final working score when solving stopped.
+    pub current_score: Option<S::Score>,
     // The canonical best score for the solve.
     pub best_score: S::Score,
+    // Why solving stopped.
+    pub terminal_reason: SolverTerminalReason,
     // Solver statistics including steps, moves evaluated, and acceptance rates.
     pub stats: SolverStats,
 }
@@ -40,8 +45,16 @@ impl<S: PlanningSolution> SolveResult<S> {
         self.solution
     }
 
+    pub fn current_score(&self) -> Option<&S::Score> {
+        self.current_score.as_ref()
+    }
+
     pub fn best_score(&self) -> &S::Score {
         &self.best_score
+    }
+
+    pub fn terminal_reason(&self) -> SolverTerminalReason {
+        self.terminal_reason
     }
 
     pub fn stats(&self) -> &SolverStats {
@@ -73,10 +86,11 @@ impl<S: PlanningSolution> SolveResult<S> {
 /// * `S` - Solution type
 /// * `D` - Score director type
 /// * `ProgressCb` - Progress callback type (default `()`)
-pub struct Solver<'t, P, T, S, D, ProgressCb = ()> {
+pub struct Solver<'t, P, T, S: PlanningSolution, D, ProgressCb = ()> {
     phases: P,
     termination: T,
     terminate: Option<&'t AtomicBool>,
+    runtime: Option<SolverRuntime<S>>,
     config: Option<SolverConfig>,
     time_limit: Option<Duration>,
     // Callback invoked when the solver should publish progress.
@@ -84,7 +98,9 @@ pub struct Solver<'t, P, T, S, D, ProgressCb = ()> {
     _phantom: PhantomData<fn(S, D)>,
 }
 
-impl<P: Debug, T: Debug, S, D, ProgressCb> Debug for Solver<'_, P, T, S, D, ProgressCb> {
+impl<P: Debug, T: Debug, S: PlanningSolution, D, ProgressCb> Debug
+    for Solver<'_, P, T, S, D, ProgressCb>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solver")
             .field("phases", &self.phases)
@@ -102,6 +118,7 @@ where
             phases,
             termination: NoTermination,
             terminate: None,
+            runtime: None,
             config: None,
             time_limit: None,
             progress_callback: (),
@@ -114,6 +131,7 @@ where
             phases: self.phases,
             termination: Some(termination),
             terminate: self.terminate,
+            runtime: self.runtime,
             config: self.config,
             time_limit: self.time_limit,
             progress_callback: self.progress_callback,
@@ -134,6 +152,7 @@ where
             phases: self.phases,
             termination: self.termination,
             terminate: Some(terminate),
+            runtime: self.runtime,
             config: self.config,
             time_limit: self.time_limit,
             progress_callback: self.progress_callback,
@@ -159,6 +178,7 @@ where
             phases: self.phases,
             termination: self.termination,
             terminate: self.terminate,
+            runtime: self.runtime,
             config: self.config,
             time_limit: self.time_limit,
             progress_callback: callback,
@@ -168,6 +188,11 @@ where
 
     pub fn config(&self) -> Option<&SolverConfig> {
         self.config.as_ref()
+    }
+
+    pub(crate) fn with_runtime(mut self, runtime: SolverRuntime<S>) -> Self {
+        self.runtime = Some(runtime);
+        self
     }
 }
 
@@ -260,6 +285,7 @@ macro_rules! impl_solver {
                     mut phases,
                     termination,
                     terminate,
+                    runtime,
                     time_limit,
                     progress_callback,
                     ..
@@ -269,6 +295,7 @@ macro_rules! impl_solver {
                     score_director,
                     progress_callback,
                     terminate,
+                    runtime,
                 );
                 if let Some(limit) = time_limit {
                     solver_scope.set_time_limit(limit);
@@ -277,6 +304,8 @@ macro_rules! impl_solver {
                 let initial_score = solver_scope.calculate_score();
                 let initial_solution = solver_scope.score_director().clone_working_solution();
                 solver_scope.set_best_solution(initial_solution, initial_score);
+                solver_scope.report_best_solution();
+                solver_scope.pause_if_requested();
 
                 // Install in-phase termination limits so phases can check them
                 // inside their step loops (T1: StepCountTermination, MoveCountTermination, etc.)
@@ -284,13 +313,15 @@ macro_rules! impl_solver {
 
                 // Execute phases with termination checking
                 $(
-                    if !check_termination(&termination, &solver_scope) {
+                    solver_scope.pause_if_requested();
+                    if !check_termination(&termination, &mut solver_scope) {
                         tracing::debug!(
                             "Starting phase {} ({})",
                             $idx,
                             phases.$idx.phase_type_name()
                         );
                         phases.$idx.solve(&mut solver_scope);
+                        solver_scope.pause_if_requested();
                         tracing::debug!(
                             "Finished phase {} ({}) with score {:?}",
                             $idx,
@@ -301,10 +332,13 @@ macro_rules! impl_solver {
                 )+
 
                 // Extract solution and stats before consuming scope
-                let (solution, best_score, stats) = solver_scope.take_solution_and_stats();
+                let (solution, current_score, best_score, stats, terminal_reason) =
+                    solver_scope.take_solution_and_stats();
                 SolveResult {
                     solution,
+                    current_score,
                     best_score,
+                    terminal_reason,
                     stats,
                 }
             }
@@ -314,7 +348,7 @@ macro_rules! impl_solver {
 
 fn check_termination<S, D, ProgressCb, T>(
     termination: &T,
-    solver_scope: &SolverScope<'_, S, D, ProgressCb>,
+    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) -> bool
 where
     S: PlanningSolution,
@@ -323,9 +357,15 @@ where
     T: MaybeTermination<S, D, ProgressCb>,
 {
     if solver_scope.is_terminate_early() {
+        solver_scope.mark_cancelled();
         return true;
     }
-    termination.should_terminate(solver_scope)
+    if termination.should_terminate(solver_scope) {
+        solver_scope.mark_terminated_by_config();
+        true
+    } else {
+        false
+    }
 }
 
 macro_rules! impl_solver_with_director {
@@ -348,6 +388,7 @@ macro_rules! impl_solver_with_director {
                     phases: self.phases,
                     termination: self.termination,
                     terminate: self.terminate,
+                    runtime: self.runtime,
                     config: self.config,
                     time_limit: self.time_limit,
                     progress_callback: self.progress_callback,

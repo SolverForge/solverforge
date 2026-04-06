@@ -175,7 +175,7 @@ src/
 │   ├── config.rs                        — LocalSearchType, ConstructionType, PhaseConfig enums
 │   ├── builder.rs                       — SolverFactoryBuilder, SolverBuildError
 │   ├── solver_factory.rs               — SolverFactory, solver_factory_builder() free fn
-│   ├── solver_manager.rs               — SolverManager, Solvable trait, SolverStatus
+│   ├── solver_manager.rs               — SolverManager, Solvable trait, retained lifecycle/status/event types
 │   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
 │   ├── phase_factory/
 │   │   ├── mod.rs                       — Re-exports
@@ -193,7 +193,7 @@ src/
 │
 ├── scope/
 │   ├── mod.rs                           — Re-exports
-│   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait
+│   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait, lifecycle-aware SolveResult
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
 │   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
 │   └── tests.rs                         — Tests
@@ -392,7 +392,22 @@ Requires: `PlanningSolution + Send + 'static`.
 
 | Method | Signature |
 |--------|-----------|
-| `solve` | `fn(self, terminate: Option<&AtomicBool>, sender: mpsc::UnboundedSender<(Self, Self::Score)>)` |
+| `solve` | `fn(self, runtime: SolverRuntime<Self>)` |
+
+### `SolverRuntime<S>` — `manager/solver_manager.rs`
+
+Retained-job runtime context passed into `Solvable::solve()`.
+
+| Method | Signature |
+|--------|-----------|
+| `job_id` | `fn(&self) -> usize` |
+| `is_cancel_requested` | `fn(&self) -> bool` |
+| `emit_progress` | `fn(&self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry)` |
+| `emit_best_solution` | `fn(&self, solution: S, current_score: Option<S::Score>, best_score: S::Score, telemetry: SolverTelemetry)` |
+| `pause_with_snapshot` | `fn(&self, solution: S, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry) -> bool` |
+| `emit_completed` | `fn(&self, solution: S, current_score: Option<S::Score>, best_score: S::Score, telemetry: SolverTelemetry, terminal_reason: SolverTerminalReason)` |
+| `emit_cancelled` | `fn(&self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry)` |
+| `emit_failed` | `fn(&self, error: String)` |
 
 ### `Analyzable` — `manager/solution_manager.rs`
 
@@ -610,9 +625,9 @@ Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op)
 
 ### `SolverScope<'t, S, D, ProgressCb = ()>`
 
-Top-level scope for entire solve. Holds score director, current score, best solution, best score, RNG, stats, termination state.
+Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, and termination state.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate)`, `with_progress_callback(F) -> SolverScope<.., F>`, `start_solving()`, `working_solution()`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `is_terminate_early()`, `set_time_limit()`.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `working_solution()`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
@@ -654,11 +669,27 @@ Fluent builder: `with_phase()`, `with_phase_factory()`, `with_config()`, `with_t
 
 ### `SolverManager<S: Solvable>`
 
-Static lifetime manager: `solve()` returns `(job_id, receiver)`. Methods: `get_status()`, `terminate_early()`, `free_slot()`. `MAX_JOBS = 16`.
+Static lifetime retained-job manager: `solve()` returns `(job_id, receiver)`. Methods: `get_status()`, `pause()`, `resume()`, `cancel()`, `delete()`, `get_snapshot()`, `analyze_snapshot()`. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint. `delete()` hides a terminal job immediately, but the slot itself is not reusable until the solve worker has definitely exited. `MAX_JOBS = 16`.
 
-### `SolverStatus`
+### `SolverLifecycleState` / `SolverTerminalReason`
 
-Enum: `NotSolving`, `Solving`. Serde: `SCREAMING_SNAKE_CASE`.
+Lifecycle states: `Solving`, `PauseRequested`, `Paused`, `Completed`, `Cancelled`, `Failed`. Terminal reasons: `Completed`, `TerminatedByConfig`, `Cancelled`, `Failed`.
+
+### `SolverStatus<Sc>`
+
+Retained job summary from `get_status()`. Fields: `job_id`, `lifecycle_state`, `terminal_reason`, `checkpoint_available`, `event_sequence`, `latest_snapshot_revision`, `current_score`, `best_score`, `telemetry`. `checkpoint_available` means the runtime currently holds an exact resumable checkpoint for `resume()`.
+
+### `SolverEvent<S>`
+
+Lifecycle event stream for retained jobs. Variants: `Progress`, `BestSolution`, `PauseRequested`, `Paused`, `Resumed`, `Completed`, `Cancelled`, `Failed`. Each event carries metadata with job id, monotonic event sequence, lifecycle state, terminal reason, telemetry, scores, and optional snapshot revision.
+
+### `SolverSnapshot<S>` / `SolverSnapshotAnalysis<Sc>`
+
+Snapshots are renderable and analyzable job states with monotonic `snapshot_revision`. Snapshot analysis is always bound to the chosen revision, never the live mutable job, and remains available for any retained snapshot while the job is solving, paused, or terminal.
+
+### `SolverManagerError`
+
+Lifecycle error surface for invalid transitions and missing retained state: `NoFreeJobSlots`, `JobNotFound`, `InvalidStateTransition`, `NoSnapshotAvailable`, `SnapshotNotFound`.
 
 ### `analyze<S>(solution: &S) -> ScoreAnalysis<S::Score>`
 
@@ -702,7 +733,7 @@ Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBo
 
 ### `SolveResult<S>`
 
-`{ solution: S, best_score: S::Score, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `best_score()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
+`{ solution: S, current_score: S::Score, best_score: S::Score, terminal_reason: SolverTerminalReason, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `current_score()`, `best_score()`, `terminal_reason()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
 
 ### `SolverStats` / `PhaseStats`
 
@@ -736,7 +767,7 @@ The stock standard-variable and list-heavy scaffolds both target this runtime la
 
 ### `run_solver()` — `run.rs`
 
-Unified solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus `terminate: Option<&AtomicBool>` and `sender: mpsc::UnboundedSender<SolverEvent<S>>` for external control and solution streaming.
+Unified solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume.
 
 ## Architectural Notes
 

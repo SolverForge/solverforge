@@ -32,4 +32,8 @@ pub use phase_factory::{
 pub use phase_factory_trait::PhaseFactory;
 pub use solution_manager::{analyze, Analyzable, ConstraintAnalysis, ScoreAnalysis};
 pub use solver_factory::{solver_factory_builder, SolverFactory};
-pub use solver_manager::{Solvable, SolverEvent, SolverManager, SolverStatus};
+pub use solver_manager::{
+    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
+    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
+    SolverTerminalReason,
+};

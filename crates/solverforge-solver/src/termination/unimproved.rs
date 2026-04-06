@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -167,14 +167,14 @@ impl<S: PlanningSolution> Debug for UnimprovedTimeTermination<S> {
 
 struct UnimprovedTimeState<Sc: Score> {
     last_best_score: Option<Sc>,
-    last_improvement_time: Option<Instant>,
+    last_improvement_elapsed: Option<Duration>,
 }
 
 impl<Sc: Score> Default for UnimprovedTimeState<Sc> {
     fn default() -> Self {
         Self {
             last_best_score: None,
-            last_improvement_time: None,
+            last_improvement_elapsed: None,
         }
     }
 }
@@ -207,34 +207,34 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         let mut state = self.state.borrow_mut();
         let current_best = solver_scope.best_score();
-        let now = Instant::now();
+        let now = solver_scope.elapsed().unwrap_or_default();
 
         match (&state.last_best_score, current_best) {
             (None, Some(score)) => {
                 // First score recorded
                 state.last_best_score = Some(*score);
-                state.last_improvement_time = Some(now);
+                state.last_improvement_elapsed = Some(now);
                 false
             }
             (Some(last), Some(current)) => {
                 if *current > *last {
                     // Improvement found
                     state.last_best_score = Some(*current);
-                    state.last_improvement_time = Some(now);
+                    state.last_improvement_elapsed = Some(now);
                     false
                 } else {
                     // No improvement - check time
                     state
-                        .last_improvement_time
-                        .map(|t| now.duration_since(t) >= self.limit)
+                        .last_improvement_elapsed
+                        .map(|t| now.saturating_sub(t) >= self.limit)
                         .unwrap_or(false)
                 }
             }
             (Some(_), None) => {
                 // Score became unavailable
                 state
-                    .last_improvement_time
-                    .map(|t| now.duration_since(t) >= self.limit)
+                    .last_improvement_elapsed
+                    .map(|t| now.saturating_sub(t) >= self.limit)
                     .unwrap_or(false)
             }
             (None, None) => {

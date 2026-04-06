@@ -25,7 +25,7 @@ assert_eq!(stats.moves_evaluated, 2);
 assert_eq!(stats.moves_accepted, 1);
 ```
 */
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SolverTelemetry {
     pub elapsed_ms: u64,
     pub step_count: u64,
@@ -39,6 +39,7 @@ pub struct SolverTelemetry {
 #[derive(Debug, Default)]
 pub struct SolverStats {
     start_time: Option<Instant>,
+    pause_started_at: Option<Instant>,
     // Total steps taken across all phases.
     pub step_count: u64,
     // Total moves evaluated across all phases.
@@ -53,10 +54,27 @@ impl SolverStats {
     /// Marks the start of solving.
     pub fn start(&mut self) {
         self.start_time = Some(Instant::now());
+        self.pause_started_at = None;
     }
 
     pub fn elapsed(&self) -> Duration {
-        self.start_time.map(|t| t.elapsed()).unwrap_or_default()
+        match (self.start_time, self.pause_started_at) {
+            (Some(start), Some(paused_at)) => paused_at.duration_since(start),
+            (Some(start), None) => start.elapsed(),
+            _ => Duration::default(),
+        }
+    }
+
+    pub fn pause(&mut self) {
+        if self.start_time.is_some() && self.pause_started_at.is_none() {
+            self.pause_started_at = Some(Instant::now());
+        }
+    }
+
+    pub fn resume(&mut self) {
+        if let (Some(start), Some(paused_at)) = (self.start_time, self.pause_started_at.take()) {
+            self.start_time = Some(start + paused_at.elapsed());
+        }
     }
 
     /// Records a move evaluation and whether it was accepted.

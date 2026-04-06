@@ -98,9 +98,9 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - List operations (when a stock list owner is detected either from matching entity/fact collections or the legacy `#[planning_list_element_collection(...)]` field): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
-- `impl Solvable for T` (when constraints path specified) — `solve()` calls `solve_internal()`
+- `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal()` (when constraints path specified) — calls `run_solver()` for macro-generated solving; generated runtime helpers delegate phase-sequence assembly to `solverforge-solver::runtime`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving; generated runtime helpers delegate phase-sequence assembly to `solverforge-solver::runtime`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
 
 ### `ProblemFactImpl`

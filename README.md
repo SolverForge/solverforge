@@ -76,7 +76,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
   - Standard: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SubListChangeMove, SubListSwapMove, KOptMove, ListRuinMove
   - Nearby selection for list moves
-- **SolverManager API**: Channel-based async solving with score analysis and telemetry
+- **SolverManager API**: Retained job lifecycle with exact pause/resume checkpoints, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Configuration**: TOML support with builder API
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
@@ -181,7 +181,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
 ### 3. Solve
 
 ```rust
-use solverforge::{SolverManager, Solvable};
+use solverforge::{SolverEvent, SolverManager, Solvable};
 
 static MANAGER: SolverManager<Schedule> = SolverManager::new();
 
@@ -192,29 +192,66 @@ fn main() {
         score: None,
     };
 
-    // Channel-based solving — solver runs via rayon, returns immediately.
-    let (_job_id, mut receiver) = MANAGER.solve(schedule);
+    let (job_id, mut receiver) = MANAGER.solve(schedule).unwrap();
+    let mut pause_requested = false;
 
-    // Receive progress and best-solution updates as they arrive.
-    while let Ok(event) = receiver.try_recv() {
+    while let Some(event) = receiver.blocking_recv() {
         match event {
-            solverforge::SolverEvent::Progress {
-                current_score,
-                best_score,
-                ..
-            } => {
-                println!("Current: {:?} | Best: {:?}", current_score, best_score);
+            SolverEvent::Progress { metadata } => {
+                println!("job {} state {:?}", metadata.job_id, metadata.lifecycle_state);
+                if !pause_requested && metadata.telemetry.step_count >= 10_000 {
+                    MANAGER.pause(job_id).unwrap();
+                    pause_requested = true;
+                }
             }
-            solverforge::SolverEvent::BestSolution { solution: _, score, .. } => {
-                println!("New best: {}", score);
+            SolverEvent::BestSolution { metadata, .. } => {
+                if let Some(snapshot_revision) = metadata.snapshot_revision {
+                    let analysis = MANAGER
+                        .analyze_snapshot(job_id, Some(snapshot_revision))
+                        .unwrap();
+                    println!(
+                        "job {} snapshot {} score {}",
+                        metadata.job_id,
+                        snapshot_revision,
+                        analysis.analysis.score
+                    );
+                }
             }
-            solverforge::SolverEvent::Finished { solution: _, score, .. } => {
-                println!("Finished: {}", score);
+            SolverEvent::PauseRequested { metadata } => {
+                println!("pause requested for job {}", metadata.job_id);
+            }
+            SolverEvent::Paused { metadata } => {
+                let snapshot = MANAGER
+                    .get_snapshot(job_id, metadata.snapshot_revision)
+                    .unwrap();
+                println!(
+                    "job {} paused at snapshot {}",
+                    metadata.job_id,
+                    snapshot.snapshot_revision
+                );
+                MANAGER.resume(job_id).unwrap();
+            }
+            SolverEvent::Resumed { metadata } => {
+                println!("job {} resumed", metadata.job_id);
+            }
+            SolverEvent::Completed { metadata, .. } => {
+                println!("job {} completed", metadata.job_id);
+                break;
+            }
+            SolverEvent::Cancelled { metadata } => {
+                println!("job {} cancelled", metadata.job_id);
+                break;
+            }
+            SolverEvent::Failed { metadata, error } => {
+                println!("job {} failed: {}", metadata.job_id, error);
+                break;
             }
         }
     }
 }
 ```
+
+`pause()` settles at a runtime-owned safe boundary and `resume()` continues from that exact in-process checkpoint. Snapshot analysis is always revision-bound: you analyze a retained `snapshot_revision`, never the live mutable job directly.
 
 ## Console Output
 
@@ -352,33 +389,28 @@ let config = SolverConfig::load("solver.toml").unwrap_or_default();
 
 ## SolverManager API
 
-The `SolverManager` provides async solving with channel-based solution streaming. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
+The `SolverManager` owns the retained runtime lifecycle for each job. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
 
 ```rust
-use solverforge::{SolverManager, SolverStatus, Solvable};
+use solverforge::{SolverLifecycleState, SolverManager, SolverStatus, Solvable};
 
 static MANAGER: SolverManager<MySchedule> = SolverManager::new();
 
-// Start solving (returns immediately, solver runs via rayon)
-let (job_id, mut receiver) = MANAGER.solve(problem);
+let (job_id, mut events) = MANAGER.solve(problem).unwrap();
 
-// Check status
-match MANAGER.get_status(job_id) {
-    SolverStatus::Solving => println!("Still working..."),
-    SolverStatus::NotSolving => println!("Done!"),
-}
+let status: SolverStatus<_> = MANAGER.get_status(job_id).unwrap();
+assert_eq!(status.lifecycle_state, SolverLifecycleState::Solving);
 
-// Drain improving solutions from the channel
-while let Ok((solution, score)) = receiver.try_recv() {
-    println!("New best: {}", score);
-}
+MANAGER.pause(job_id).unwrap();
+MANAGER.resume(job_id).unwrap();
+MANAGER.cancel(job_id).unwrap();
 
-// Terminate early if needed
-MANAGER.terminate_early(job_id);
-
-// Free the slot when done
-MANAGER.free_slot(job_id);
+let snapshot = MANAGER.get_snapshot(job_id, None).unwrap();
+let analysis = MANAGER.analyze_snapshot(job_id, Some(snapshot.snapshot_revision)).unwrap();
+MANAGER.delete(job_id).unwrap();
 ```
+
+Lifecycle events carry `job_id`, monotonic `event_sequence`, `snapshot_revision`, telemetry, and authoritative lifecycle state. Snapshot analysis is always bound to a retained `snapshot_revision`, whether the job is still solving, paused, or already terminal. `delete` is reserved for cleanup of terminal jobs only: it removes the retained job from the public API immediately, and the underlying slot becomes reusable once the worker has fully exited.
 
 ## Score Analysis
 
@@ -428,7 +460,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 - Release notes are managed in `CHANGELOG.md` by commit-and-tag workflow.
 
-- **Modern CLI templates**: The standalone CLI scaffolds standard variable and list variable projects via `solverforge new --standard ...` and `solverforge new --list ...`. The shipped templates use the config-driven `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
+- **Modern CLI templates**: The standalone CLI scaffolds standard variable and list variable projects via `solverforge new --standard ...` and `solverforge new --list ...`. The shipped templates use the config-driven retained `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities

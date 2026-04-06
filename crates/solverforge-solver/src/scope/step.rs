@@ -55,6 +55,7 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
     /// Marks this step as complete and increments counters.
     pub fn complete(&mut self) {
         self.phase_scope.increment_step_count();
+        self.phase_scope.solver_scope_mut().pause_if_requested();
     }
 
     pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D, BestCb> {

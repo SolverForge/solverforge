@@ -2,17 +2,15 @@
 
 use std::fmt;
 use std::marker::PhantomData;
-use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
-use tokio::sync::mpsc;
 use tracing::info;
 
-use crate::manager::SolverEvent;
+use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::{Phase, PhaseSequence};
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::solver::Solver;
@@ -35,14 +33,14 @@ pub enum AnyTermination<S: PlanningSolution, D: Director<S>> {
 
 #[derive(Clone)]
 pub struct ChannelProgressCallback<S: PlanningSolution> {
-    sender: mpsc::UnboundedSender<SolverEvent<S>>,
+    runtime: SolverRuntime<S>,
     _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S: PlanningSolution> ChannelProgressCallback<S> {
-    fn new(sender: mpsc::UnboundedSender<SolverEvent<S>>) -> Self {
+    fn new(runtime: SolverRuntime<S>) -> Self {
         Self {
-            sender,
+            runtime,
             _phantom: PhantomData,
         }
     }
@@ -58,19 +56,20 @@ impl<S: PlanningSolution> ProgressCallback<S> for ChannelProgressCallback<S> {
     fn invoke(&self, progress: SolverProgressRef<'_, S>) {
         match progress.kind {
             SolverProgressKind::Progress => {
-                let _ = self.sender.send(SolverEvent::Progress {
-                    current_score: progress.current_score.cloned(),
-                    best_score: progress.best_score.cloned(),
-                    telemetry: progress.telemetry,
-                });
+                self.runtime.emit_progress(
+                    progress.current_score.copied(),
+                    progress.best_score.copied(),
+                    progress.telemetry,
+                );
             }
             SolverProgressKind::BestSolution => {
                 if let (Some(solution), Some(score)) = (progress.solution, progress.best_score) {
-                    let _ = self.sender.send(SolverEvent::BestSolution {
-                        solution: (*solution).clone(),
-                        score: *score,
-                        telemetry: progress.telemetry,
-                    });
+                    self.runtime.emit_best_solution(
+                        (*solution).clone(),
+                        progress.current_score.copied(),
+                        *score,
+                        progress.telemetry,
+                    );
                 }
             }
         }
@@ -190,8 +189,7 @@ pub fn run_solver<S, C, P>(
     constraints_fn: fn() -> C,
     descriptor: fn() -> SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
-    terminate: Option<&AtomicBool>,
-    sender: mpsc::UnboundedSender<SolverEvent<S>>,
+    runtime: SolverRuntime<S>,
     default_time_limit_secs: u64,
     is_trivial: fn(&S) -> bool,
     log_scale: fn(&S),
@@ -219,47 +217,65 @@ where
 
     if trivial {
         let mut solver_scope = SolverScope::new(director);
+        solver_scope = solver_scope.with_runtime(Some(runtime));
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
         let solution = solver_scope.score_director().clone_working_solution();
         solver_scope.set_best_solution(solution.clone(), score);
+        solver_scope.report_best_solution();
+        solver_scope.pause_if_requested();
         info!(event = "solve_end", score = %score);
         let telemetry = solver_scope.stats().snapshot();
-        let _ = sender.send(SolverEvent::Finished {
-            solution: solution.clone(),
-            score,
-            telemetry,
-        });
+        if runtime.is_cancel_requested() {
+            runtime.emit_cancelled(Some(score), Some(score), telemetry);
+        } else {
+            runtime.emit_completed(
+                solution.clone(),
+                Some(score),
+                score,
+                telemetry,
+                SolverTerminalReason::Completed,
+            );
+        }
         return solution;
     }
 
     let (termination, time_limit) = build_termination::<S, C>(&config, default_time_limit_secs);
 
-    let callback = ChannelProgressCallback::new(sender.clone());
+    let callback = ChannelProgressCallback::new(runtime);
 
     let phases = build_phases(&config);
     let solver = Solver::new((phases,))
         .with_termination(termination)
         .with_time_limit(time_limit)
+        .with_runtime(runtime)
         .with_progress_callback(callback);
 
-    let result = if let Some(flag) = terminate {
-        solver.with_terminate(flag).solve(director)
-    } else {
-        solver.solve(director)
-    };
+    let result = solver.with_terminate(runtime.cancel_flag()).solve(director);
 
     let crate::solver::SolveResult {
         solution,
+        current_score,
         best_score: final_score,
+        terminal_reason,
         stats,
     } = result;
     let final_telemetry = stats.snapshot();
-    let _ = sender.send(SolverEvent::Finished {
-        solution: solution.clone(),
-        score: final_score,
-        telemetry: final_telemetry,
-    });
+    match terminal_reason {
+        SolverTerminalReason::Completed | SolverTerminalReason::TerminatedByConfig => {
+            runtime.emit_completed(
+                solution.clone(),
+                current_score,
+                final_score,
+                final_telemetry,
+                terminal_reason,
+            );
+        }
+        SolverTerminalReason::Cancelled => {
+            runtime.emit_cancelled(current_score, Some(final_score), final_telemetry);
+        }
+        SolverTerminalReason::Failed => unreachable!("solver completion cannot report failure"),
+    }
 
     info!(
         event = "solve_end",

@@ -94,8 +94,9 @@ pub use manager::{
     analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
     ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverFactory,
-    SolverFactoryBuilder, SolverManager, SolverStatus,
+    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverEventMetadata,
+    SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager, SolverManagerError,
+    SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTerminalReason,
 };
 pub use phase::{
     construction::{

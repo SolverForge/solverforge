@@ -86,7 +86,8 @@ pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
     analyze, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverEvent,
-    SolverManager, SolverStatus, SolverTelemetry,
+    SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime,
+    SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTerminalReason,
 };
 
 /* ============================================================================
@@ -165,8 +166,8 @@ pub mod __internal {
     pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
     pub use solverforge_solver::{
         build_phases, descriptor_has_bindings, log_solve_start, run_solver, ListConstructionArgs,
-        ListVariableEntity, ListVariableMetadata, PhaseSequence, SolverEvent, SolverTelemetry,
-        UnifiedRuntimePhase,
+        ListVariableEntity, ListVariableMetadata, PhaseSequence, SolverEvent, SolverRuntime,
+        SolverTelemetry, UnifiedRuntimePhase,
     };
 
     // Config

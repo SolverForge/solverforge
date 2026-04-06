@@ -921,8 +921,7 @@ fn generate_runtime_solve_internal(
     quote! {
         fn solve_internal(
             self,
-            terminate: Option<&std::sync::atomic::AtomicBool>,
-            sender: ::solverforge::__internal::UnboundedSender<::solverforge::SolverEvent<Self>>,
+            runtime: ::solverforge::SolverRuntime<Self>,
         ) -> Self {
             ::solverforge::__internal::init_console();
 
@@ -931,8 +930,7 @@ fn generate_runtime_solve_internal(
                 #constraints_fn,
                 Self::descriptor,
                 Self::entity_count,
-                terminate,
-                sender,
+                runtime,
                 Self::__solverforge_default_time_limit_secs(),
                 Self::__solverforge_is_trivial,
                 Self::__solverforge_log_scale,
@@ -1239,10 +1237,9 @@ fn generate_solvable_solution(
             impl ::solverforge::Solvable for #solution_name {
                 fn solve(
                     self,
-                    terminate: Option<&std::sync::atomic::AtomicBool>,
-                    sender: ::solverforge::__internal::UnboundedSender<::solverforge::SolverEvent<Self>>,
+                    runtime: ::solverforge::SolverRuntime<Self>,
                 ) {
-                    let _ = #solution_name::solve_internal(self, terminate, sender);
+                    let _ = #solution_name::solve_internal(self, runtime);
                 }
             }
 

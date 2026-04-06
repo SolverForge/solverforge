@@ -1,11 +1,14 @@
 // Integration tests for SolverFactory with termination and solving.
 
 use super::*;
+use std::any::TypeId;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
+use solverforge_core::domain::SolutionDescriptor;
 use solverforge_core::score::SoftScore;
 use solverforge_core::PlanningSolution;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::{Director, ScoreDirector};
 
 use crate::scope::SolverScope;
 
@@ -80,10 +83,13 @@ Test with Termination Conditions
 #[derive(Debug, Clone)]
 struct NoOpPhase;
 
-impl<S: PlanningSolution, D: solverforge_scoring::Director<S>> crate::phase::Phase<S, D>
-    for NoOpPhase
+impl<
+        S: PlanningSolution,
+        D: solverforge_scoring::Director<S>,
+        ProgressCb: crate::scope::ProgressCallback<S>,
+    > crate::phase::Phase<S, D, ProgressCb> for NoOpPhase
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
+    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, ProgressCb>) {
         solver_scope.update_best_solution();
     }
 
@@ -228,4 +234,663 @@ fn test_construction_and_local_search_types_exist() {
     };
     let _la = LocalSearchType::LateAcceptance { size: 100 };
     let _bf = ConstructionType::BestFit;
+}
+
+/* ============================================================================
+4. Retained Job Lifecycle Tests
+============================================================================
+*/
+
+#[derive(Clone, Debug)]
+struct LifecycleStepGate {
+    permit: Arc<(Mutex<bool>, Condvar)>,
+}
+
+impl LifecycleStepGate {
+    fn new_closed() -> Self {
+        Self {
+            permit: Arc::new((Mutex::new(false), Condvar::new())),
+        }
+    }
+
+    fn allow_next_step(&self) {
+        let (lock, condvar) = &*self.permit;
+        let mut open = lock.lock().unwrap();
+        *open = true;
+        condvar.notify_all();
+    }
+
+    fn wait_for_permit(&self) {
+        let (lock, condvar) = &*self.permit;
+        let mut open = lock.lock().unwrap();
+        while !*open {
+            open = condvar.wait(open).unwrap();
+        }
+        *open = false;
+    }
+}
+
+#[derive(Clone, Debug)]
+struct LifecycleSolution {
+    gate: LifecycleStepGate,
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl LifecycleSolution {
+    fn new(value: i64) -> Self {
+        Self {
+            gate: LifecycleStepGate::new_closed(),
+            value,
+            score: None,
+        }
+    }
+}
+
+impl PlanningSolution for LifecycleSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Analyzable for LifecycleSolution {
+    fn analyze(&self) -> ScoreAnalysis<Self::Score> {
+        let score = SoftScore::of(self.value);
+        ScoreAnalysis {
+            score,
+            constraints: vec![ConstraintAnalysis {
+                name: "value".to_string(),
+                weight: SoftScore::of(1),
+                score,
+                match_count: 1,
+            }],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct LifecycleDirector {
+    working_solution: LifecycleSolution,
+    descriptor: SolutionDescriptor,
+}
+
+impl LifecycleDirector {
+    fn new(solution: LifecycleSolution) -> Self {
+        Self {
+            working_solution: solution,
+            descriptor: SolutionDescriptor::new(
+                "LifecycleSolution",
+                TypeId::of::<LifecycleSolution>(),
+            ),
+        }
+    }
+}
+
+impl solverforge_scoring::Director<LifecycleSolution> for LifecycleDirector {
+    fn working_solution(&self) -> &LifecycleSolution {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut LifecycleSolution {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        let score = SoftScore::of(self.working_solution.value);
+        self.working_solution.set_score(Some(score));
+        score
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> LifecycleSolution {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, _descriptor_index: usize) -> Option<usize> {
+        Some(0)
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(0)
+    }
+}
+
+fn zero_telemetry() -> crate::SolverTelemetry {
+    crate::SolverTelemetry::default()
+}
+
+impl Solvable for LifecycleSolution {
+    fn solve(self, runtime: SolverRuntime<Self>) {
+        let mut solver_scope =
+            SolverScope::new_with_callback(LifecycleDirector::new(self), (), None, Some(runtime));
+
+        solver_scope.start_solving();
+        let score = solver_scope.calculate_score();
+        let solution = solver_scope.score_director().clone_working_solution();
+        solver_scope.set_best_solution(solution.clone(), score);
+        runtime.emit_best_solution(
+            solution.clone(),
+            Some(score),
+            score,
+            solver_scope.stats().snapshot(),
+        );
+
+        for step_index in 0..2 {
+            solver_scope.increment_step_count();
+            solver_scope.stats_mut().record_move(true);
+            runtime.emit_progress(
+                solver_scope.current_score().copied(),
+                solver_scope.best_score().copied(),
+                solver_scope.stats().snapshot(),
+            );
+
+            if step_index == 0 {
+                solution.gate.wait_for_permit();
+                solver_scope.pause_if_requested();
+                if runtime.is_cancel_requested() {
+                    break;
+                }
+            }
+        }
+
+        let telemetry = solver_scope.stats().snapshot();
+        let current_score = solver_scope.current_score().copied();
+        let best_score = solver_scope.best_score().copied().unwrap_or(score);
+
+        if runtime.is_cancel_requested() {
+            runtime.emit_cancelled(current_score, Some(best_score), telemetry);
+        } else {
+            runtime.emit_completed(
+                solver_scope.score_director().clone_working_solution(),
+                current_score,
+                best_score,
+                telemetry,
+                SolverTerminalReason::Completed,
+            );
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PauseRequestedProgressSolution {
+    gate: LifecycleStepGate,
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl PauseRequestedProgressSolution {
+    fn new(value: i64) -> Self {
+        Self {
+            gate: LifecycleStepGate::new_closed(),
+            value,
+            score: None,
+        }
+    }
+}
+
+impl PlanningSolution for PauseRequestedProgressSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Solvable for PauseRequestedProgressSolution {
+    fn solve(mut self, runtime: SolverRuntime<Self>) {
+        let score = SoftScore::of(self.value);
+        self.set_score(Some(score));
+        runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
+
+        self.gate.wait_for_permit();
+        runtime.emit_progress(Some(score), Some(score), zero_telemetry());
+
+        if runtime.pause_with_snapshot(self.clone(), Some(score), Some(score), zero_telemetry()) {
+            runtime.emit_completed(
+                self,
+                Some(score),
+                score,
+                zero_telemetry(),
+                SolverTerminalReason::Completed,
+            );
+        } else {
+            runtime.emit_cancelled(Some(score), Some(score), zero_telemetry());
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DeleteReservationSolution {
+    release_return: LifecycleStepGate,
+    score: Option<SoftScore>,
+}
+
+impl DeleteReservationSolution {
+    fn new() -> Self {
+        Self {
+            release_return: LifecycleStepGate::new_closed(),
+            score: None,
+        }
+    }
+}
+
+impl PlanningSolution for DeleteReservationSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Solvable for DeleteReservationSolution {
+    fn solve(mut self, runtime: SolverRuntime<Self>) {
+        let score = SoftScore::of(1);
+        self.set_score(Some(score));
+        runtime.emit_completed(
+            self.clone(),
+            Some(score),
+            score,
+            zero_telemetry(),
+            SolverTerminalReason::Completed,
+        );
+        self.release_return.wait_for_permit();
+    }
+}
+
+#[derive(Clone, Debug)]
+struct TrivialLifecycleSolution {
+    gate: LifecycleStepGate,
+    score: Option<SoftScore>,
+}
+
+impl TrivialLifecycleSolution {
+    fn new() -> Self {
+        Self {
+            gate: LifecycleStepGate::new_closed(),
+            score: None,
+        }
+    }
+}
+
+impl PlanningSolution for TrivialLifecycleSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+fn trivial_solution_descriptor() -> SolutionDescriptor {
+    SolutionDescriptor::new(
+        "TrivialLifecycleSolution",
+        TypeId::of::<TrivialLifecycleSolution>(),
+    )
+}
+
+fn trivial_entity_count(_solution: &TrivialLifecycleSolution, _descriptor_index: usize) -> usize {
+    0
+}
+
+fn trivial_log_scale(solution: &TrivialLifecycleSolution) {
+    solution.gate.wait_for_permit();
+}
+
+fn empty_noop_phase_sequence(
+    _config: &solverforge_config::SolverConfig,
+) -> crate::phase::PhaseSequence<NoOpPhase> {
+    crate::phase::PhaseSequence::new(Vec::new())
+}
+
+impl Solvable for TrivialLifecycleSolution {
+    fn solve(self, runtime: SolverRuntime<Self>) {
+        let _ = crate::run::run_solver(
+            self,
+            || (),
+            trivial_solution_descriptor,
+            trivial_entity_count,
+            runtime,
+            30,
+            |_| true,
+            trivial_log_scale,
+            empty_noop_phase_sequence,
+        );
+    }
+}
+
+#[test]
+fn retained_job_pause_resume_completion_flow() {
+    static MANAGER: SolverManager<LifecycleSolution> = SolverManager::new();
+
+    let solution = LifecycleSolution::new(7);
+    let gate = solution.gate.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+
+    match receiver.blocking_recv().expect("best solution event") {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(metadata.event_sequence, 1);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver.blocking_recv().expect("progress event") {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(metadata.event_sequence, 2);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.pause(job_id).expect("pause should be accepted");
+
+    match receiver.blocking_recv().expect("pause requested event") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(metadata.event_sequence, 3);
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    gate.allow_next_step();
+
+    match receiver.blocking_recv().expect("paused event") {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.event_sequence, 4);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
+            assert_eq!(metadata.snapshot_revision, Some(2));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let status = MANAGER.get_status(job_id).expect("status while paused");
+    assert_eq!(status.lifecycle_state, SolverLifecycleState::Paused);
+    assert!(status.checkpoint_available);
+    assert_eq!(status.event_sequence, 4);
+    assert_eq!(status.latest_snapshot_revision, Some(2));
+
+    let paused_snapshot = MANAGER.get_snapshot(job_id, None).expect("paused snapshot");
+    assert_eq!(
+        paused_snapshot.lifecycle_state,
+        SolverLifecycleState::Paused
+    );
+    assert_eq!(paused_snapshot.snapshot_revision, 2);
+
+    let analysis = MANAGER
+        .analyze_snapshot(job_id, Some(paused_snapshot.snapshot_revision))
+        .expect("analysis for paused snapshot");
+    assert_eq!(
+        analysis.snapshot_revision,
+        paused_snapshot.snapshot_revision
+    );
+    assert_eq!(analysis.lifecycle_state, SolverLifecycleState::Paused);
+    assert_eq!(analysis.analysis.score, SoftScore::of(7));
+
+    MANAGER.resume(job_id).expect("resume should be accepted");
+
+    match receiver.blocking_recv().expect("resumed event") {
+        SolverEvent::Resumed { metadata } => {
+            assert_eq!(metadata.event_sequence, 5);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver.blocking_recv().expect("progress after resume") {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(metadata.event_sequence, 6);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver.blocking_recv().expect("completed event") {
+        SolverEvent::Completed { metadata, .. } => {
+            assert_eq!(metadata.event_sequence, 7);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+            assert_eq!(
+                metadata.terminal_reason,
+                Some(SolverTerminalReason::Completed)
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let status = MANAGER.get_status(job_id).expect("status after completion");
+    assert_eq!(status.lifecycle_state, SolverLifecycleState::Completed);
+    assert_eq!(
+        status.terminal_reason,
+        Some(SolverTerminalReason::Completed)
+    );
+    assert_eq!(status.event_sequence, 7);
+    assert!(!status.checkpoint_available);
+
+    MANAGER.delete(job_id).expect("delete terminal job");
+    assert!(matches!(
+        MANAGER.get_status(job_id),
+        Err(SolverManagerError::JobNotFound { .. })
+    ));
+}
+
+#[test]
+fn retained_job_invalid_transitions_cancel_and_delete() {
+    static MANAGER: SolverManager<LifecycleSolution> = SolverManager::new();
+
+    let solution = LifecycleSolution::new(3);
+    let gate = solution.gate.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+
+    assert!(matches!(
+        MANAGER.resume(job_id),
+        Err(SolverManagerError::InvalidStateTransition { action, .. }) if action == "resume"
+    ));
+
+    assert!(matches!(
+        MANAGER.delete(job_id),
+        Err(SolverManagerError::InvalidStateTransition { action, .. }) if action == "delete"
+    ));
+
+    match receiver.blocking_recv().expect("best solution event") {
+        SolverEvent::BestSolution { .. } => {}
+        other => panic!("unexpected event: {other:?}"),
+    }
+    match receiver.blocking_recv().expect("progress event") {
+        SolverEvent::Progress { .. } => {}
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.cancel(job_id).expect("cancel should be accepted");
+
+    gate.allow_next_step();
+
+    match receiver.blocking_recv().expect("cancelled event") {
+        SolverEvent::Cancelled { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
+            assert_eq!(
+                metadata.terminal_reason,
+                Some(SolverTerminalReason::Cancelled)
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let status = MANAGER.get_status(job_id).expect("status after cancel");
+    assert_eq!(status.lifecycle_state, SolverLifecycleState::Cancelled);
+    assert_eq!(
+        status.terminal_reason,
+        Some(SolverTerminalReason::Cancelled)
+    );
+
+    MANAGER.delete(job_id).expect("delete cancelled job");
+    assert!(matches!(
+        MANAGER.get_status(job_id),
+        Err(SolverManagerError::JobNotFound { .. })
+    ));
+}
+
+#[test]
+fn retained_job_progress_reflects_pause_requested_state() {
+    static MANAGER: SolverManager<PauseRequestedProgressSolution> = SolverManager::new();
+
+    let solution = PauseRequestedProgressSolution::new(11);
+    let gate = solution.gate.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+
+    match receiver.blocking_recv().expect("best solution event") {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.pause(job_id).expect("pause should be accepted");
+
+    match receiver.blocking_recv().expect("pause requested event") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    gate.allow_next_step();
+
+    match receiver.blocking_recv().expect("progress event") {
+        SolverEvent::Progress { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver.blocking_recv().expect("paused event") {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.cancel(job_id).expect("cancel should be accepted");
+
+    match receiver.blocking_recv().expect("cancelled event") {
+        SolverEvent::Cancelled { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.delete(job_id).expect("delete cancelled job");
+}
+
+#[test]
+fn retained_job_delete_keeps_slot_reserved_until_worker_exit() {
+    static MANAGER: SolverManager<DeleteReservationSolution> = SolverManager::new();
+
+    let solution = DeleteReservationSolution::new();
+    let release_return = solution.release_return.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+
+    match receiver.blocking_recv().expect("completed event") {
+        SolverEvent::Completed { metadata, .. } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.delete(job_id).expect("delete completed job");
+    assert!(matches!(
+        MANAGER.get_status(job_id),
+        Err(SolverManagerError::JobNotFound { .. })
+    ));
+    assert_eq!(MANAGER.active_job_count(), 0);
+    assert!(!MANAGER.slot_is_free_for_test(job_id));
+
+    release_return.allow_next_step();
+
+    for _ in 0..1_000 {
+        if MANAGER.slot_is_free_for_test(job_id) {
+            return;
+        }
+        std::thread::yield_now();
+    }
+
+    panic!("slot {job_id} was not released after the worker exited");
+}
+
+#[test]
+fn trivial_job_cancelled_while_paused_reports_cancelled() {
+    static MANAGER: SolverManager<TrivialLifecycleSolution> = SolverManager::new();
+
+    let solution = TrivialLifecycleSolution::new();
+    let gate = solution.gate.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+
+    MANAGER.pause(job_id).expect("pause should be accepted");
+
+    match receiver.blocking_recv().expect("pause requested event") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    gate.allow_next_step();
+
+    match receiver.blocking_recv().expect("paused event") {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.cancel(job_id).expect("cancel should be accepted");
+
+    match receiver.blocking_recv().expect("cancelled event") {
+        SolverEvent::Cancelled { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
+            assert_eq!(
+                metadata.terminal_reason,
+                Some(SolverTerminalReason::Cancelled)
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.delete(job_id).expect("delete cancelled job");
 }

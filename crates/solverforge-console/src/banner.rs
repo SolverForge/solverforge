@@ -26,21 +26,13 @@ pub(crate) fn print_banner() {
     let _ = writeln!(
         stdout,
         "{}",
-        banner.truecolor(
-            EMERALD.0,
-            EMERALD.1,
-            EMERALD.2
-        )
+        banner.truecolor(EMERALD.0, EMERALD.1, EMERALD.2)
     );
     let _ = writeln!(
         stdout,
         "{}",
         version_line
-            .truecolor(
-                EMERALD.0,
-                EMERALD.1,
-                EMERALD.2
-            )
+            .truecolor(EMERALD.0, EMERALD.1, EMERALD.2)
             .bold()
     );
     let _ = stdout.flush();

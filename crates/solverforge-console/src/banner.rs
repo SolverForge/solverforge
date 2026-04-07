@@ -5,6 +5,7 @@ use std::io::{self, Write};
 
 // Package version for banner display.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const EMERALD: (u8, u8, u8) = (16, 185, 129);
 
 pub(crate) fn print_banner() {
     let banner = r#"
@@ -22,7 +23,17 @@ pub(crate) fn print_banner() {
     );
 
     let mut stdout = io::stdout().lock();
-    let _ = writeln!(stdout, "{}", banner.bright_cyan());
-    let _ = writeln!(stdout, "{}", version_line.bright_white().bold());
+    let _ = writeln!(
+        stdout,
+        "{}",
+        banner.truecolor(EMERALD.0, EMERALD.1, EMERALD.2)
+    );
+    let _ = writeln!(
+        stdout,
+        "{}",
+        version_line
+            .truecolor(EMERALD.0, EMERALD.1, EMERALD.2)
+            .bold()
+    );
     let _ = stdout.flush();
 }

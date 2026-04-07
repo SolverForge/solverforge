@@ -264,7 +264,7 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.8.0 - Zero-Erasure Constraint Solver
+                   v0.8.1 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -454,7 +454,11 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.8.0
+**Current Version**: 0.8.1
+
+### What's New in 0.8.1
+
+- **Emerald build banner**: the root `Makefile` banner now uses the emerald truecolor accent so local build and validation commands match the current branded console presentation.
 
 ### What's New in 0.8.0
 

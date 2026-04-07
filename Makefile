@@ -1,8 +1,9 @@
-# SolverForge Makefile v0.4.0
+# SolverForge Makefile v0.8.1
 # Rust-only build system with colorized output
 
 # ============== Colors & Symbols ==============
 GREEN := \033[92m
+EMERALD := \033[38;2;16;185;129m
 CYAN := \033[96m
 YELLOW := \033[93m
 MAGENTA := \033[95m
@@ -30,13 +31,13 @@ RUST_VERSION := 1.80+
 
 # ============== Banner ==============
 banner:
-	@printf "$(CYAN)$(BOLD)  ____        _                _____\n"
+	@printf "$(EMERALD)$(BOLD)  ____        _                _____\n"
 	@printf " / ___|  ___ | |_   _____ _ __|  ___|__  _ __ __ _  ___\n"
 	@printf " \\___ \\\\ / _ \\\\| \\\\ \\\\ / / _ \\\\ '__| |_ / _ \\\\| '__/ _\` |/ _ \\\\\n"
 	@printf "  ___) | (_) | |\\\\ V /  __/ |  |  _| (_) | | | (_| |  __/\n"
 	@printf " |____/ \\\\___/|_| \\_/ \\___|_|  |_|  \\___/|_|  \\__, |\\___|\n"
 	@printf "                                             |___/$(RESET)\n"
-	@printf "  $(GRAY)v$(VERSION)$(RESET) $(CYAN)SolverForge Build System$(RESET)\n\n"
+	@printf "  $(GRAY)v$(VERSION)$(RESET) $(EMERALD)SolverForge Build System$(RESET)\n\n"
 
 # ============== Build Targets ==============
 

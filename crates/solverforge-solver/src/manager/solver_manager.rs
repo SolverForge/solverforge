@@ -280,8 +280,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         telemetry: SolverTelemetry,
     ) {
         let state = self.current_state();
-        let (sender, event) = {
-            let mut record = self.slot.record.lock().unwrap();
+        self.slot.with_publication(|sender, record| {
             let terminal_reason = record.terminal_reason;
             record.current_score = current_score;
             record.best_score = Some(best_score);
@@ -299,13 +298,10 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             });
 
             let metadata = record.next_metadata(self.job_id, state, Some(snapshot_revision));
-            let sender = self.slot.sender_clone();
-            (sender, SolverEvent::BestSolution { metadata, solution })
-        };
-
-        if let Some(sender) = sender {
-            let _ = sender.send(event);
-        }
+            if let Some(sender) = sender {
+                let _ = sender.send(SolverEvent::BestSolution { metadata, solution });
+            }
+        });
     }
 
     pub fn emit_completed(
@@ -316,9 +312,8 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         telemetry: SolverTelemetry,
         terminal_reason: SolverTerminalReason,
     ) {
-        self.slot.state.store(SLOT_COMPLETED, Ordering::SeqCst);
-        let (sender, event) = {
-            let mut record = self.slot.record.lock().unwrap();
+        self.slot.with_publication(|sender, record| {
+            self.slot.state.store(SLOT_COMPLETED, Ordering::SeqCst);
             record.terminal_reason = Some(terminal_reason);
             record.checkpoint_available = false;
             record.current_score = current_score;
@@ -341,13 +336,10 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 SolverLifecycleState::Completed,
                 Some(snapshot_revision),
             );
-            let sender = self.slot.sender_clone();
-            (sender, SolverEvent::Completed { metadata, solution })
-        };
-
-        if let Some(sender) = sender {
-            let _ = sender.send(event);
-        }
+            if let Some(sender) = sender {
+                let _ = sender.send(SolverEvent::Completed { metadata, solution });
+            }
+        });
     }
 
     pub fn emit_cancelled(
@@ -356,7 +348,6 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         best_score: Option<S::Score>,
         telemetry: SolverTelemetry,
     ) {
-        self.slot.state.store(SLOT_CANCELLED, Ordering::SeqCst);
         self.emit_non_snapshot_terminal_event(
             SolverLifecycleState::Cancelled,
             SolverTerminalReason::Cancelled,
@@ -377,30 +368,23 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             return;
         }
 
-        self.slot.state.store(SLOT_FAILED, Ordering::SeqCst);
-        let (sender, event) = {
-            let mut record = self.slot.record.lock().unwrap();
+        self.slot.with_publication(|sender, record| {
+            self.slot.state.store(SLOT_FAILED, Ordering::SeqCst);
             record.terminal_reason = Some(SolverTerminalReason::Failed);
             record.checkpoint_available = false;
             record.failure_message = Some(error.clone());
             let telemetry = record.telemetry;
             let metadata = record.next_metadata(self.job_id, SolverLifecycleState::Failed, None);
-            let sender = self.slot.sender_clone();
-            (
-                sender,
-                SolverEvent::Failed {
+            if let Some(sender) = sender {
+                let _ = sender.send(SolverEvent::Failed {
                     metadata: SolverEventMetadata {
                         telemetry,
                         ..metadata
                     },
                     error,
-                },
-            )
-        };
-
-        if let Some(sender) = sender {
-            let _ = sender.send(event);
-        }
+                });
+            }
+        });
     }
 
     pub(crate) fn pause_if_requested<D, ProgressCb>(
@@ -435,9 +419,8 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             return false;
         }
 
-        self.slot.state.store(SLOT_PAUSED, Ordering::SeqCst);
-        let (sender, event) = {
-            let mut record = self.slot.record.lock().unwrap();
+        self.slot.with_publication(|sender, record| {
+            self.slot.state.store(SLOT_PAUSED, Ordering::SeqCst);
             let terminal_reason = record.terminal_reason;
             record.checkpoint_available = true;
             record.current_score = current_score;
@@ -460,13 +443,10 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 SolverLifecycleState::Paused,
                 Some(snapshot_revision),
             );
-            let sender = self.slot.sender_clone();
-            (sender, SolverEvent::Paused { metadata })
-        };
-
-        if let Some(sender) = sender {
-            let _ = sender.send(event);
-        }
+            if let Some(sender) = sender {
+                let _ = sender.send(SolverEvent::Paused { metadata });
+            }
+        });
 
         let mut guard = self.slot.pause_gate.lock().unwrap();
         while self.slot.pause_requested.load(Ordering::Acquire) && !self.is_cancel_requested() {
@@ -507,8 +487,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         telemetry: SolverTelemetry,
         kind: EventKind,
     ) {
-        let (sender, event) = {
-            let mut record = self.slot.record.lock().unwrap();
+        self.slot.with_publication(|sender, record| {
             record.current_score = current_score;
             record.best_score = best_score;
             record.telemetry = telemetry;
@@ -516,18 +495,15 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 record.checkpoint_available = false;
             }
             let metadata = record.next_metadata(self.job_id, lifecycle_state, None);
-            let sender = self.slot.sender_clone();
             let event = match kind {
                 EventKind::Progress => SolverEvent::Progress { metadata },
                 EventKind::Resumed => SolverEvent::Resumed { metadata },
                 EventKind::Cancelled => unreachable!(),
             };
-            (sender, event)
-        };
-
-        if let Some(sender) = sender {
-            let _ = sender.send(event);
-        }
+            if let Some(sender) = sender {
+                let _ = sender.send(event);
+            }
+        });
     }
 
     fn emit_non_snapshot_terminal_event(
@@ -539,25 +515,30 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         telemetry: SolverTelemetry,
         kind: EventKind,
     ) {
-        let (sender, event) = {
-            let mut record = self.slot.record.lock().unwrap();
+        self.slot.with_publication(|sender, record| {
+            match lifecycle_state {
+                SolverLifecycleState::Cancelled => {
+                    self.slot.state.store(SLOT_CANCELLED, Ordering::SeqCst);
+                }
+                SolverLifecycleState::Failed => {
+                    self.slot.state.store(SLOT_FAILED, Ordering::SeqCst);
+                }
+                _ => {}
+            }
             record.terminal_reason = Some(terminal_reason);
             record.checkpoint_available = false;
             record.current_score = current_score;
             record.best_score = best_score;
             record.telemetry = telemetry;
             let metadata = record.next_metadata(self.job_id, lifecycle_state, None);
-            let sender = self.slot.sender_clone();
             let event = match kind {
                 EventKind::Cancelled => SolverEvent::Cancelled { metadata },
                 EventKind::Progress | EventKind::Resumed => unreachable!(),
             };
-            (sender, event)
-        };
-
-        if let Some(sender) = sender {
-            let _ = sender.send(event);
-        }
+            if let Some(sender) = sender {
+                let _ = sender.send(event);
+            }
+        });
     }
 }
 
@@ -680,6 +661,7 @@ struct JobSlot<S: PlanningSolution> {
     terminate: AtomicBool,
     pause_requested: AtomicBool,
     worker_running: AtomicBool,
+    publication: Mutex<()>,
     sender: Mutex<Option<mpsc::UnboundedSender<SolverEvent<S>>>>,
     record: Mutex<JobRecord<S>>,
     pause_gate: Mutex<()>,
@@ -694,6 +676,7 @@ impl<S: PlanningSolution> JobSlot<S> {
             terminate: AtomicBool::new(false),
             pause_requested: AtomicBool::new(false),
             worker_running: AtomicBool::new(false),
+            publication: Mutex::new(()),
             sender: Mutex::new(None),
             record: Mutex::new(JobRecord::new()),
             pause_gate: Mutex::new(()),
@@ -703,6 +686,16 @@ impl<S: PlanningSolution> JobSlot<S> {
 
     fn sender_clone(&self) -> Option<mpsc::UnboundedSender<SolverEvent<S>>> {
         self.sender.lock().unwrap().clone()
+    }
+
+    fn with_publication<R>(
+        &self,
+        f: impl FnOnce(Option<mpsc::UnboundedSender<SolverEvent<S>>>, &mut JobRecord<S>) -> R,
+    ) -> R {
+        let _publication = self.publication.lock().unwrap();
+        let sender = self.sender_clone();
+        let mut record = self.record.lock().unwrap();
+        f(sender, &mut record)
     }
 
     fn initialize(&self, sender: mpsc::UnboundedSender<SolverEvent<S>>) {
@@ -874,36 +867,36 @@ where
 
     pub fn pause(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
-        match slot.state.compare_exchange(
-            SLOT_SOLVING,
-            SLOT_PAUSE_REQUESTED,
-            Ordering::SeqCst,
-            Ordering::SeqCst,
-        ) {
-            Ok(_) => {
-                slot.pause_requested.store(true, Ordering::SeqCst);
-                let (sender, event) = {
-                    let mut record = slot.record.lock().unwrap();
+        let paused = slot.with_publication(|sender, record| {
+            match slot.state.compare_exchange(
+                SLOT_SOLVING,
+                SLOT_PAUSE_REQUESTED,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => {
+                    slot.pause_requested.store(true, Ordering::SeqCst);
                     let metadata =
                         record.next_metadata(job_id, SolverLifecycleState::PauseRequested, None);
-                    let sender = slot.sender_clone();
-                    (sender, SolverEvent::PauseRequested { metadata })
-                };
-                if let Some(sender) = sender {
-                    let _ = sender.send(event);
+                    if let Some(sender) = sender {
+                        let _ = sender.send(SolverEvent::PauseRequested { metadata });
+                    }
+                    true
                 }
-                Ok(())
+                Err(_) => false,
             }
-            Err(_) => {
-                let state = slot
-                    .public_state()
-                    .ok_or(SolverManagerError::JobNotFound { job_id })?;
-                Err(SolverManagerError::InvalidStateTransition {
-                    job_id,
-                    action: "pause",
-                    state,
-                })
-            }
+        });
+        if paused {
+            Ok(())
+        } else {
+            let state = slot
+                .public_state()
+                .ok_or(SolverManagerError::JobNotFound { job_id })?;
+            Err(SolverManagerError::InvalidStateTransition {
+                job_id,
+                action: "pause",
+                state,
+            })
         }
     }
 

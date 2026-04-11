@@ -406,7 +406,7 @@ fn solver_config_for_solution(solution: &Schedule, config: SolverConfig) -> Solv
 
 ## SolverManager API
 
-The `SolverManager` owns the retained runtime lifecycle for each job. The 0.8 contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the public API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
+The `SolverManager` owns the retained runtime lifecycle for each job. The 0.8 contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the public API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Built-in search phases now poll retained-runtime control during large neighborhood generation and evaluation, so config time limits, `pause()`, and `cancel()` unwind promptly without app-side watchdogs. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
 
 ```rust
 use solverforge::{SolverLifecycleState, SolverManager, SolverStatus, Solvable};

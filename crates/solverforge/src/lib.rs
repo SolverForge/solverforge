@@ -50,6 +50,7 @@ Score Types
 ============================================================================
 */
 
+pub use solverforge_config::{SolverConfig, SolverConfigOverride};
 pub use solverforge_core::score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SoftScore,
 };
@@ -85,9 +86,10 @@ Solver
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_solver, Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverEvent,
-    SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime,
-    SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTerminalReason,
+    analyze, run_solver, run_solver_with_config, Analyzable, ConstraintAnalysis, ScoreAnalysis,
+    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
+    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
+    SolverTelemetry, SolverTerminalReason,
 };
 
 /* ============================================================================
@@ -139,6 +141,11 @@ pub mod __internal {
         solverforge_console::init();
     }
 
+    #[inline]
+    pub fn load_solver_config() -> SolverConfig {
+        SolverConfig::load("solver.toml").unwrap_or_default()
+    }
+
     // Derive macros
     pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFactImpl};
 
@@ -165,9 +172,9 @@ pub mod __internal {
     };
     pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
     pub use solverforge_solver::{
-        build_phases, descriptor_has_bindings, log_solve_start, run_solver, ListConstructionArgs,
-        ListVariableEntity, ListVariableMetadata, PhaseSequence, SolverEvent, SolverRuntime,
-        SolverTelemetry, UnifiedRuntimePhase,
+        build_phases, descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config,
+        ListConstructionArgs, ListVariableEntity, ListVariableMetadata, PhaseSequence, SolverEvent,
+        SolverRuntime, SolverTelemetry, UnifiedRuntimePhase,
     };
 
     // Config

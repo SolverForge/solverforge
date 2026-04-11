@@ -28,9 +28,9 @@ src/
 
 Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, Hash, PlanningEntityImpl`. Optionally adds `serde::Serialize, serde::Deserialize` when `serde` flag is present.
 
-### `#[planning_solution]` / `#[planning_solution(serde, constraints = "path")]`
+### `#[planning_solution]` / `#[planning_solution(serde, constraints = "path", config = "path")]`
 
-Applies to structs. Adds derives: `Clone, Debug, PlanningSolutionImpl`. Optionally adds serde derives. The `constraints = "path"` flag embeds a `#[solverforge_constraints_path = "path"]` attribute for the derive to consume.
+Applies to structs. Adds derives: `Clone, Debug, PlanningSolutionImpl`. Optionally adds serde derives. The `constraints = "path"` flag embeds a `#[solverforge_constraints_path = "path"]` attribute for the derive to consume. The `config = "path"` flag embeds a `#[solverforge_config_path = "path"]` attribute for the derive to consume; the callback must have signature `fn(&Solution, SolverConfig) -> SolverConfig` and decorates the loaded `solver.toml` config instead of replacing it.
 
 ### `#[problem_fact]` / `#[problem_fact(serde)]`
 
@@ -72,6 +72,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 **Consumed attributes on struct:**
 - `#[shadow_variable_updates(...)]` — configures shadow variable update generation only; stock solving does not depend on it
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
+- `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the loaded `solver.toml` config (or defaults if the file is missing)
 
 **`#[shadow_variable_updates]` parameters:**
 - `list_owner = "field"` — selects the `#[planning_entity_collection]` field whose entity owns the list shadow updates
@@ -100,7 +101,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving; generated runtime helpers delegate phase-sequence assembly to `solverforge-solver::runtime`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers delegate phase-sequence assembly to `solverforge-solver::runtime`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`
 
 ### `ProblemFactImpl`
@@ -118,7 +119,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | Function | Signature | Note |
 |----------|-----------|------|
 | `has_serde_flag` | `fn(TokenStream) -> bool` | Checks attribute stream for `serde` flag |
-| `parse_solution_flags` | `fn(TokenStream) -> (bool, Option<String>)` | Parses `serde` and `constraints = "path"` |
+| `parse_solution_flags` | `fn(TokenStream) -> (bool, Option<String>, Option<String>)` | Parses `serde`, `constraints = "path"`, and `config = "path"` |
 | `has_attribute` | `fn(&[Attribute], &str) -> bool` | Checks if field has named attribute |
 | `get_attribute` | `fn(&[Attribute], &str) -> Option<&Attribute>` | Gets named attribute |
 | `parse_attribute_bool` | `fn(&Attribute, &str) -> Option<bool>` | Parses `key = true/false` from attribute |
@@ -130,6 +131,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | Function | Signature | Note |
 |----------|-----------|------|
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
+| `parse_config_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_config_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
 | `find_list_owner_config` | `fn(&ShadowConfig, &Fields) -> Result<Option<ListOwnerConfig>, Error>` | Resolves shadow `list_owner` to the entity collection field and descriptor index |
 | `find_list_element_collection_config` | `fn(&Fields) -> Result<Option<ListElementCollectionConfig>, Error>` | Resolves `#[planning_list_element_collection(owner = "...")]` to the concrete `Vec<usize>` field |

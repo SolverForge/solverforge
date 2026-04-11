@@ -143,7 +143,7 @@ pub use unified_search::{
 pub use list_solver::{
     build_list_construction, ListConstruction, ListVariableEntity, ListVariableMetadata,
 };
-pub use run::{log_solve_start, run_solver};
+pub use run::{log_solve_start, run_solver, run_solver_with_config};
 pub use runtime::{
     build_phases, ListConstructionArgs, RuntimePhase, UnifiedConstruction, UnifiedRuntimePhase,
 };

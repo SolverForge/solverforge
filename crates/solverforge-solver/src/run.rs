@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::marker::PhantomData;
+use std::path::Path;
 use std::time::Duration;
 
 use solverforge_config::SolverConfig;
@@ -183,6 +184,14 @@ pub fn log_solve_start(
     );
 }
 
+fn load_solver_config_from(path: impl AsRef<Path>) -> SolverConfig {
+    SolverConfig::load(path).unwrap_or_default()
+}
+
+fn load_solver_config() -> SolverConfig {
+    load_solver_config_from("solver.toml")
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run_solver<S, C, P>(
     solution: S,
@@ -202,8 +211,41 @@ where
     P: Send + std::fmt::Debug,
     PhaseSequence<P>: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>>,
 {
-    let config = SolverConfig::load("solver.toml").unwrap_or_default();
+    let config = load_solver_config();
+    run_solver_with_config(
+        solution,
+        constraints_fn,
+        descriptor,
+        entity_count_by_descriptor,
+        runtime,
+        config,
+        default_time_limit_secs,
+        is_trivial,
+        log_scale,
+        build_phases,
+    )
+}
 
+#[allow(clippy::too_many_arguments)]
+pub fn run_solver_with_config<S, C, P>(
+    solution: S,
+    constraints_fn: fn() -> C,
+    descriptor: fn() -> SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
+    runtime: SolverRuntime<S>,
+    config: SolverConfig,
+    default_time_limit_secs: u64,
+    is_trivial: fn(&S) -> bool,
+    log_scale: fn(&S),
+    build_phases: fn(&SolverConfig) -> PhaseSequence<P>,
+) -> S
+where
+    S: PlanningSolution,
+    S::Score: Score + ParseableScore,
+    C: ConstraintSet<S, S::Score>,
+    P: Send + std::fmt::Debug,
+    PhaseSequence<P>: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>>,
+{
     log_scale(&solution);
     let trivial = is_trivial(&solution);
 
@@ -288,4 +330,53 @@ where
         acceptance_rate = format!("{:.1}%", stats.acceptance_rate() * 100.0),
     );
     solution
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_solver_config_from;
+    use std::fs;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    fn temp_config_path() -> std::path::PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after epoch")
+            .as_nanos();
+        std::env::temp_dir()
+            .join(format!(
+                "solverforge-run-tests-{}-{suffix}",
+                std::process::id()
+            ))
+            .join("solver.toml")
+    }
+
+    #[test]
+    fn load_solver_config_from_preserves_file_settings() {
+        let path = temp_config_path();
+        let parent = path.parent().expect("temp file should have a parent");
+        fs::create_dir_all(parent).expect("temp directory should be created");
+        fs::write(
+            &path,
+            r#"
+random_seed = 41
+
+[termination]
+seconds_spent_limit = 5
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+"#,
+        )
+        .expect("solver.toml should be written");
+
+        let config = load_solver_config_from(&path);
+
+        assert_eq!(config.random_seed, Some(41));
+        assert_eq!(config.time_limit(), Some(Duration::from_secs(5)));
+        assert_eq!(config.phases.len(), 1);
+
+        fs::remove_dir_all(parent).expect("temp directory should be removed");
+    }
 }

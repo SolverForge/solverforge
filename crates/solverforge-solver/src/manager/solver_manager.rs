@@ -248,6 +248,10 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         self.slot.terminate.load(Ordering::Acquire)
     }
 
+    pub(crate) fn is_pause_requested(&self) -> bool {
+        self.slot.pause_requested.load(Ordering::Acquire)
+    }
+
     pub(crate) fn cancel_flag(&self) -> &'static AtomicBool {
         &self.slot.terminate
     }

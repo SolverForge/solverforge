@@ -6,6 +6,9 @@ use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
+use crate::phase::control::{
+    append_interruptibly, settle_search_interrupt, should_interrupt_evaluation, StepInterrupt,
+};
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 
@@ -48,22 +51,35 @@ where
         while k < self.neighborhoods.len() {
             let mut step_scope = StepScope::new(&mut phase_scope);
             arena.reset();
-            arena.extend(self.neighborhoods[k].iter_moves(step_scope.score_director()));
+            let generation_interrupted = {
+                let iter = self.neighborhoods[k].iter_moves(step_scope.score_director());
+                append_interruptibly(&step_scope, &mut arena, iter)
+            };
+            if generation_interrupted {
+                match settle_search_interrupt(&mut step_scope) {
+                    StepInterrupt::Restart => continue,
+                    StepInterrupt::TerminatePhase => break,
+                }
+            }
 
-            let best_index =
-                find_best_improving_move_index(&arena, &mut step_scope, &current_score);
-
-            if let Some((selected_index, selected_score)) = best_index {
-                let selected_move = arena.take(selected_index);
-                selected_move.do_move(step_scope.score_director_mut());
-                step_scope.set_step_score(selected_score);
-                current_score = selected_score;
-                step_scope.phase_scope_mut().update_best_solution();
-                step_scope.complete();
-                k = 0;
-            } else {
-                step_scope.complete();
-                k += 1;
+            match find_best_improving_move_index(&arena, &mut step_scope, &current_score) {
+                MoveSearchResult::Found(selected_index, selected_score) => {
+                    let selected_move = arena.take(selected_index);
+                    selected_move.do_move(step_scope.score_director_mut());
+                    step_scope.set_step_score(selected_score);
+                    current_score = selected_score;
+                    step_scope.phase_scope_mut().update_best_solution();
+                    step_scope.complete();
+                    k = 0;
+                }
+                MoveSearchResult::NotFound => {
+                    step_scope.complete();
+                    k += 1;
+                }
+                MoveSearchResult::Interrupted => match settle_search_interrupt(&mut step_scope) {
+                    StepInterrupt::Restart => continue,
+                    StepInterrupt::TerminatePhase => break,
+                },
             }
         }
     }
@@ -73,11 +89,17 @@ where
     }
 }
 
+enum MoveSearchResult<Sc> {
+    Found(usize, Sc),
+    NotFound,
+    Interrupted,
+}
+
 fn find_best_improving_move_index<S, D, ProgressCb, M>(
     arena: &MoveArena<M>,
     step_scope: &mut StepScope<'_, '_, '_, S, D, ProgressCb>,
     current_score: &S::Score,
-) -> Option<(usize, S::Score)>
+) -> MoveSearchResult<S::Score>
 where
     S: PlanningSolution,
     D: Director<S>,
@@ -87,6 +109,10 @@ where
     let mut best: Option<(usize, S::Score)> = None;
 
     for i in 0..arena.len() {
+        if should_interrupt_evaluation(step_scope, i) {
+            return MoveSearchResult::Interrupted;
+        }
+
         let m = arena.get(i).unwrap();
 
         if !m.is_doable(step_scope.score_director()) {
@@ -109,5 +135,8 @@ where
         }
     }
 
-    best
+    match best {
+        Some((index, score)) => MoveSearchResult::Found(index, score),
+        None => MoveSearchResult::NotFound,
+    }
 }

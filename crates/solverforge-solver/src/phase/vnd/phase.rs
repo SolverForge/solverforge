@@ -8,6 +8,9 @@ use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::r#move::{Move, MoveArena};
 use crate::heuristic::selector::MoveSelector;
+use crate::phase::control::{
+    append_interruptibly, settle_search_interrupt, should_interrupt_evaluation, StepInterrupt,
+};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -94,20 +97,34 @@ macro_rules! impl_vnd_phase {
                 loop {
                     let mut step_scope = StepScope::new(&mut phase_scope);
                     arena.reset();
-                    arena.extend((self.0).$idx.iter_moves(step_scope.score_director()));
+                    let generation_interrupted = {
+                        let iter = (self.0).$idx.iter_moves(step_scope.score_director());
+                        append_interruptibly(&step_scope, &mut arena, iter)
+                    };
+                    if generation_interrupted {
+                        match settle_search_interrupt(&mut step_scope) {
+                            StepInterrupt::Restart => continue,
+                            StepInterrupt::TerminatePhase => break,
+                        }
+                    }
 
-                    let best_index = find_best_improving_move_index(&arena, &mut step_scope, &current_score);
-
-                    if let Some((selected_index, selected_score)) = best_index {
-                        let selected_move = arena.take(selected_index);
-                        selected_move.do_move(step_scope.score_director_mut());
-                        step_scope.set_step_score(selected_score);
-                        current_score = selected_score;
-                        step_scope.phase_scope_mut().update_best_solution();
-                        step_scope.complete();
-                    } else {
-                        step_scope.complete();
-                        break;
+                    match find_best_improving_move_index(&arena, &mut step_scope, &current_score) {
+                        MoveSearchResult::Found(selected_index, selected_score) => {
+                            let selected_move = arena.take(selected_index);
+                            selected_move.do_move(step_scope.score_director_mut());
+                            step_scope.set_step_score(selected_score);
+                            current_score = selected_score;
+                            step_scope.phase_scope_mut().update_best_solution();
+                            step_scope.complete();
+                        }
+                        MoveSearchResult::NotFound => {
+                            step_scope.complete();
+                            break;
+                        }
+                        MoveSearchResult::Interrupted => match settle_search_interrupt(&mut step_scope) {
+                            StepInterrupt::Restart => continue,
+                            StepInterrupt::TerminatePhase => break,
+                        },
                     }
                 }
             }
@@ -141,23 +158,39 @@ macro_rules! impl_vnd_phase {
 
                     // Populate arena from neighborhood k
                     match k {
-                        $($idx => arena.extend((self.0).$idx.iter_moves(step_scope.score_director())),)+
+                        $($idx => {
+                            let generation_interrupted = {
+                                let iter = (self.0).$idx.iter_moves(step_scope.score_director());
+                                append_interruptibly(&step_scope, &mut arena, iter)
+                            };
+                            if generation_interrupted {
+                                match settle_search_interrupt(&mut step_scope) {
+                                    StepInterrupt::Restart => continue,
+                                    StepInterrupt::TerminatePhase => break,
+                                }
+                            }
+                        },)+
                         _ => {}
                     }
 
-                    let best_index = find_best_improving_move_index(&arena, &mut step_scope, &current_score);
-
-                    if let Some((selected_index, selected_score)) = best_index {
-                        let selected_move = arena.take(selected_index);
-                        selected_move.do_move(step_scope.score_director_mut());
-                        step_scope.set_step_score(selected_score);
-                        current_score = selected_score;
-                        step_scope.phase_scope_mut().update_best_solution();
-                        step_scope.complete();
-                        k = 0; // Restart from first neighborhood
-                    } else {
-                        step_scope.complete();
-                        k += 1; // Try next neighborhood
+                    match find_best_improving_move_index(&arena, &mut step_scope, &current_score) {
+                        MoveSearchResult::Found(selected_index, selected_score) => {
+                            let selected_move = arena.take(selected_index);
+                            selected_move.do_move(step_scope.score_director_mut());
+                            step_scope.set_step_score(selected_score);
+                            current_score = selected_score;
+                            step_scope.phase_scope_mut().update_best_solution();
+                            step_scope.complete();
+                            k = 0; // Restart from first neighborhood
+                        }
+                        MoveSearchResult::NotFound => {
+                            step_scope.complete();
+                            k += 1; // Try next neighborhood
+                        }
+                        MoveSearchResult::Interrupted => match settle_search_interrupt(&mut step_scope) {
+                            StepInterrupt::Restart => continue,
+                            StepInterrupt::TerminatePhase => break,
+                        },
                     }
                 }
             }
@@ -178,11 +211,17 @@ macro_rules! impl_vnd_phase {
 
 Returns `Some((index, score))` if an improving move is found, `None` otherwise.
 */
+enum MoveSearchResult<Sc> {
+    Found(usize, Sc),
+    NotFound,
+    Interrupted,
+}
+
 fn find_best_improving_move_index<S, D, BestCb, M>(
     arena: &MoveArena<M>,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
     current_score: &S::Score,
-) -> Option<(usize, S::Score)>
+) -> MoveSearchResult<S::Score>
 where
     S: PlanningSolution,
     D: Director<S>,
@@ -192,6 +231,10 @@ where
     let mut best: Option<(usize, S::Score)> = None;
 
     for i in 0..arena.len() {
+        if should_interrupt_evaluation(step_scope, i) {
+            return MoveSearchResult::Interrupted;
+        }
+
         let m = arena.get(i).unwrap();
 
         if !m.is_doable(step_scope.score_director()) {
@@ -216,7 +259,10 @@ where
         }
     }
 
-    best
+    match best {
+        Some((index, score)) => MoveSearchResult::Found(index, score),
+        None => MoveSearchResult::NotFound,
+    }
 }
 
 impl_vnd_phase!(0: MS0);

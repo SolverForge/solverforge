@@ -1,14 +1,21 @@
 // Construction heuristic phase implementation.
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
+use solverforge_core::score::Score;
+use solverforge_scoring::{Director, RecordingDirector};
 use tracing::info;
 
 use crate::heuristic::r#move::Move;
-use crate::phase::construction::{ConstructionForager, EntityPlacer};
+use crate::phase::construction::{
+    BestFitForager, ConstructionForager, EntityPlacer, FirstFeasibleForager, FirstFitForager,
+};
+use crate::phase::control::{
+    settle_construction_interrupt, should_interrupt_evaluation, StepInterrupt,
+};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -71,9 +78,9 @@ where
     S: PlanningSolution,
     D: Director<S>,
     BestCb: ProgressCallback<S>,
-    M: Move<S>,
+    M: Move<S> + 'static,
     P: EntityPlacer<S, M>,
-    Fo: ConstructionForager<S, M>,
+    Fo: ConstructionForager<S, M> + 'static,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -105,9 +112,14 @@ where
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Use forager to pick the best move index for this placement
-            let selected_idx = self
-                .forager
-                .pick_move_index(&placement, step_scope.score_director_mut());
+            let selected_idx = match select_move_index(&self.forager, &placement, &mut step_scope) {
+                ConstructionSelection::Selected(selected_idx) => selected_idx,
+                ConstructionSelection::Interrupted => match settle_construction_interrupt(&mut step_scope)
+                {
+                    StepInterrupt::Restart => continue,
+                    StepInterrupt::TerminatePhase => break,
+                },
+            };
 
             // Record all moves as evaluated, with one accepted if selection succeeded
             for i in 0..moves_in_placement {
@@ -169,6 +181,152 @@ where
     fn phase_type_name(&self) -> &'static str {
         "ConstructionHeuristic"
     }
+}
+
+enum ConstructionSelection {
+    Selected(Option<usize>),
+    Interrupted,
+}
+
+fn select_move_index<S, D, BestCb, M, Fo>(
+    forager: &Fo,
+    placement: &crate::phase::construction::Placement<S, M>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+) -> ConstructionSelection
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S> + 'static,
+    Fo: ConstructionForager<S, M> + 'static,
+{
+    let erased = forager as &dyn Any;
+
+    if erased.is::<FirstFitForager<S, M>>() {
+        return select_first_fit_index(placement, step_scope);
+    }
+    if erased.is::<BestFitForager<S, M>>() {
+        return select_best_fit_index(placement, step_scope);
+    }
+    if erased.is::<FirstFeasibleForager<S, M>>() {
+        return select_first_feasible_index(placement, step_scope);
+    }
+
+    ConstructionSelection::Selected(
+        forager.pick_move_index(placement, step_scope.score_director_mut()),
+    )
+}
+
+fn select_first_fit_index<S, D, BestCb, M>(
+    placement: &crate::phase::construction::Placement<S, M>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+) -> ConstructionSelection
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S> + 'static,
+{
+    for (idx, m) in placement.moves.iter().enumerate() {
+        if should_interrupt_evaluation(step_scope, idx) {
+            return ConstructionSelection::Interrupted;
+        }
+        if m.is_doable(step_scope.score_director()) {
+            return ConstructionSelection::Selected(Some(idx));
+        }
+    }
+    ConstructionSelection::Selected(None)
+}
+
+fn select_best_fit_index<S, D, BestCb, M>(
+    placement: &crate::phase::construction::Placement<S, M>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+) -> ConstructionSelection
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S> + 'static,
+{
+    let mut best_idx: Option<usize> = None;
+    let mut best_score: Option<S::Score> = None;
+
+    for (idx, m) in placement.moves.iter().enumerate() {
+        if should_interrupt_evaluation(step_scope, idx) {
+            return ConstructionSelection::Interrupted;
+        }
+        if !m.is_doable(step_scope.score_director()) {
+            continue;
+        }
+
+        let score = {
+            let mut recording = RecordingDirector::new(step_scope.score_director_mut());
+            m.do_move(&mut recording);
+            let score = recording.calculate_score();
+            recording.undo_changes();
+            score
+        };
+
+        let is_better = match &best_score {
+            None => true,
+            Some(best) => score > *best,
+        };
+        if is_better {
+            best_idx = Some(idx);
+            best_score = Some(score);
+        }
+    }
+
+    ConstructionSelection::Selected(best_idx)
+}
+
+fn select_first_feasible_index<S, D, BestCb, M>(
+    placement: &crate::phase::construction::Placement<S, M>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+) -> ConstructionSelection
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S> + 'static,
+{
+    let mut fallback_idx: Option<usize> = None;
+    let mut fallback_score: Option<S::Score> = None;
+
+    for (idx, m) in placement.moves.iter().enumerate() {
+        if should_interrupt_evaluation(step_scope, idx) {
+            return ConstructionSelection::Interrupted;
+        }
+        if !m.is_doable(step_scope.score_director()) {
+            continue;
+        }
+
+        let score = {
+            let mut recording = RecordingDirector::new(step_scope.score_director_mut());
+            m.do_move(&mut recording);
+            let score = recording.calculate_score();
+            recording.undo_changes();
+            score
+        };
+
+        if score.is_feasible() {
+            return ConstructionSelection::Selected(Some(idx));
+        }
+
+        let is_better = match &fallback_score {
+            None => true,
+            Some(best) => score > *best,
+        };
+        if is_better {
+            fallback_idx = Some(idx);
+            fallback_score = Some(score);
+        }
+    }
+
+    ConstructionSelection::Selected(fallback_idx)
 }
 
 #[cfg(test)]

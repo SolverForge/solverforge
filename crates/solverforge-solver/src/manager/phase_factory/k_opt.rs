@@ -10,8 +10,12 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 
+use crate::heuristic::r#move::MoveArena;
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
 use crate::phase::Phase;
+use crate::phase::control::{
+    append_interruptibly, settle_search_interrupt, should_interrupt_evaluation, StepInterrupt,
+};
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 use super::super::PhaseFactory;
@@ -215,20 +219,35 @@ where
 
         let step_limit = self.step_limit.unwrap_or(u64::MAX);
         let mut steps = 0u64;
+        let mut arena = MoveArena::new();
 
         while steps < step_limit && !phase_scope.solver_scope_mut().should_terminate() {
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            // Collect moves first to avoid borrow conflicts
-            let moves: Vec<_> = move_selector
-                .iter_moves(step_scope.score_director())
-                .collect();
+            arena.reset();
+            let generation_interrupted = {
+                let iter = move_selector.iter_moves(step_scope.score_director());
+                append_interruptibly(&step_scope, &mut arena, iter)
+            };
+            if generation_interrupted {
+                match settle_search_interrupt(&mut step_scope) {
+                    StepInterrupt::Restart => continue,
+                    StepInterrupt::TerminatePhase => break,
+                }
+            }
 
             let mut best_move_idx = None;
             let mut best_score = None;
+            let mut interrupted_step = false;
 
             // Evaluate all moves
-            for (idx, mv) in moves.iter().enumerate() {
+            for idx in 0..arena.len() {
+                if should_interrupt_evaluation(&step_scope, idx) {
+                    interrupted_step = true;
+                    break;
+                }
+
+                let mv = arena.get(idx).unwrap();
                 if !mv.is_doable(step_scope.score_director()) {
                     continue;
                 }
@@ -252,9 +271,17 @@ where
                 }
             }
 
+            if interrupted_step {
+                match settle_search_interrupt(&mut step_scope) {
+                    StepInterrupt::Restart => continue,
+                    StepInterrupt::TerminatePhase => break,
+                }
+            }
+
             // Apply best move if found
             if let (Some(idx), Some(score)) = (best_move_idx, best_score) {
-                moves[idx].do_move(step_scope.score_director_mut());
+                let selected_move = arena.take(idx);
+                selected_move.do_move(step_scope.score_director_mut());
                 step_scope.set_step_score(score);
                 last_step_score = score;
                 step_scope.phase_scope_mut().update_best_solution();

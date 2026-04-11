@@ -8,6 +8,7 @@ Phases are the main building blocks of solving:
 - VndPhase: Variable Neighborhood Descent
 */
 
+pub(crate) mod control;
 pub mod construction;
 pub mod dynamic_vnd;
 pub mod exhaustive;

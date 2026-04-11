@@ -67,6 +67,14 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     pub inphase_score_calc_count_limit: Option<u64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PendingControl {
+    Continue,
+    PauseRequested,
+    CancelRequested,
+    ConfigTerminationRequested,
+}
+
 impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
     pub fn new(score_director: D) -> Self {
         Self {
@@ -331,6 +339,25 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn is_terminate_early(&self) -> bool {
         self.terminate
             .is_some_and(|flag| flag.load(Ordering::SeqCst))
+            || self
+                .runtime
+                .is_some_and(|runtime| runtime.is_cancel_requested())
+    }
+
+    pub(crate) fn pending_control(&self) -> PendingControl {
+        if self.is_terminate_early() {
+            return PendingControl::CancelRequested;
+        }
+        if self
+            .runtime
+            .is_some_and(|runtime| runtime.is_pause_requested())
+        {
+            return PendingControl::PauseRequested;
+        }
+        if self.time_limit_reached() {
+            return PendingControl::ConfigTerminationRequested;
+        }
+        PendingControl::Continue
     }
 
     pub fn set_time_limit(&mut self, limit: Duration) {

@@ -140,7 +140,9 @@ where
         }
 
         match self {
-            Self::NearbyListChange(s) => ListLeafIter::NearbyListChange(s.iter_moves(score_director)),
+            Self::NearbyListChange(s) => {
+                ListLeafIter::NearbyListChange(s.iter_moves(score_director))
+            }
             Self::NearbyListSwap(s) => ListLeafIter::NearbyListSwap(s.iter_moves(score_director)),
             Self::ListReverse(s) => ListLeafIter::ListReverse(s.iter_moves(score_director)),
             Self::SubListChange(s) => ListLeafIter::SubListChange(s.iter_moves(score_director)),

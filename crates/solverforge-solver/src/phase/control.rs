@@ -28,14 +28,14 @@ where
         return true;
     }
 
-    let mut generated = 0usize;
-    for mov in iter {
-        if generated != 0 && generated % GENERATION_POLL_INTERVAL == 0 && has_pending_control(step_scope)
+    for (generated, mov) in iter.into_iter().enumerate() {
+        if generated != 0
+            && generated.is_multiple_of(GENERATION_POLL_INTERVAL)
+            && has_pending_control(step_scope)
         {
             return true;
         }
         arena.push(mov);
-        generated += 1;
     }
 
     has_pending_control(step_scope)
@@ -50,7 +50,9 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    evaluated != 0 && evaluated % EVALUATION_POLL_INTERVAL == 0 && has_pending_control(step_scope)
+    evaluated != 0
+        && evaluated.is_multiple_of(EVALUATION_POLL_INTERVAL)
+        && has_pending_control(step_scope)
 }
 
 pub(crate) fn settle_search_interrupt<'t, 'a, 'b, S, D, ProgressCb>(
@@ -61,7 +63,11 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    if step_scope.phase_scope_mut().solver_scope_mut().should_terminate() {
+    if step_scope
+        .phase_scope_mut()
+        .solver_scope_mut()
+        .should_terminate()
+    {
         StepInterrupt::TerminatePhase
     } else {
         StepInterrupt::Restart

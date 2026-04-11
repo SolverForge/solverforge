@@ -567,7 +567,9 @@ where
         }
 
         match self {
-            Self::Change(selector) => DescriptorLeafIter::Change(selector.iter_moves(score_director)),
+            Self::Change(selector) => {
+                DescriptorLeafIter::Change(selector.iter_moves(score_director))
+            }
             Self::Swap(selector) => DescriptorLeafIter::Swap(selector.iter_moves(score_director)),
         }
     }

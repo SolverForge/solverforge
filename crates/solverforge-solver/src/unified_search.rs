@@ -139,11 +139,13 @@ where
 
         match self {
             Self::Standard(selector) => UnifiedNeighborhoodIter::Standard(
-                selector.iter_moves(score_director).map(UnifiedMove::Standard),
+                selector
+                    .iter_moves(score_director)
+                    .map(UnifiedMove::Standard),
             ),
-            Self::List(selector) => {
-                UnifiedNeighborhoodIter::List(selector.iter_moves(score_director).map(UnifiedMove::List))
-            }
+            Self::List(selector) => UnifiedNeighborhoodIter::List(
+                selector.iter_moves(score_director).map(UnifiedMove::List),
+            ),
         }
     }
 

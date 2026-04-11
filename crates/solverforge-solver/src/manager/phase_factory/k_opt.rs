@@ -12,10 +12,10 @@ use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::r#move::MoveArena;
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
-use crate::phase::Phase;
 use crate::phase::control::{
     append_interruptibly, settle_search_interrupt, should_interrupt_evaluation, StepInterrupt,
 };
+use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 use super::super::PhaseFactory;

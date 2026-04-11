@@ -387,6 +387,23 @@ Or programmatically:
 let config = SolverConfig::load("solver.toml").unwrap_or_default();
 ```
 
+For macro-generated retained solves, `config = "..."` decorates the loaded
+`solver.toml` config instead of replacing it:
+
+```rust
+#[planning_solution(
+    constraints = "define_constraints",
+    config = "solver_config_for_solution"
+)]
+pub struct Schedule {
+    // ...
+}
+
+fn solver_config_for_solution(solution: &Schedule, config: SolverConfig) -> SolverConfig {
+    config.with_termination_seconds(solution.time_limit_secs)
+}
+```
+
 ## SolverManager API
 
 The `SolverManager` owns the retained runtime lifecycle for each job. The 0.8 contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the public API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Declare a `static` instance so it satisfies the `'static` lifetime requirement:

@@ -27,10 +27,9 @@ struct ShadowConfig {
     entity_computes: Vec<String>,
 }
 
-// Parse the constraints path from #[solverforge_constraints_path = "path"]
-fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
+fn parse_hidden_path_attr(attrs: &[syn::Attribute], attr_name: &str) -> Option<String> {
     for attr in attrs {
-        if attr.path().is_ident("solverforge_constraints_path") {
+        if attr.path().is_ident(attr_name) {
             if let Meta::NameValue(nv) = &attr.meta {
                 if let syn::Expr::Lit(expr_lit) = &nv.value {
                     if let Lit::Str(lit_str) = &expr_lit.lit {
@@ -41,6 +40,14 @@ fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
         }
     }
     None
+}
+
+fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
+    parse_hidden_path_attr(attrs, "solverforge_constraints_path")
+}
+
+fn parse_config_path(attrs: &[syn::Attribute]) -> Option<String> {
+    parse_hidden_path_attr(attrs, "solverforge_config_path")
 }
 
 fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
@@ -142,6 +149,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let shadow_config = parse_shadow_config(&input.attrs);
     let shadow_support_impl = generate_shadow_support(&shadow_config, fields, name)?;
     let constraints_path = parse_constraints_path(&input.attrs);
+    let config_path = parse_config_path(&input.attrs);
     let entity_count_arms: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -155,8 +163,13 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let list_operations = generate_list_operations(&shadow_config, fields, name)?;
     let runtime_phase_support =
         generate_runtime_phase_support(&shadow_config, fields, &constraints_path, name);
-    let runtime_solve_internal =
-        generate_runtime_solve_internal(&shadow_config, fields, &constraints_path, name);
+    let runtime_solve_internal = generate_runtime_solve_internal(
+        &shadow_config,
+        fields,
+        &constraints_path,
+        &config_path,
+        name,
+    );
     let solvable_solution_impl = generate_solvable_solution(name, &constraints_path);
 
     let stream_extensions = generate_constraint_stream_extensions(fields, name);
@@ -910,6 +923,7 @@ fn generate_runtime_solve_internal(
     _shadow_config: &ShadowConfig,
     _fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
+    config_path: &Option<String>,
     _solution_name: &Ident,
 ) -> TokenStream {
     let Some(path) = constraints_path.as_ref() else {
@@ -918,13 +932,27 @@ fn generate_runtime_solve_internal(
 
     let constraints_fn: syn::Path =
         syn::parse_str(path).expect("constraints path must be a valid Rust path");
-    quote! {
-        fn solve_internal(
-            self,
-            runtime: ::solverforge::SolverRuntime<Self>,
-        ) -> Self {
-            ::solverforge::__internal::init_console();
-
+    let solve_expr = if let Some(config_path) = config_path.as_ref() {
+        let config_fn: syn::Path =
+            syn::parse_str(config_path).expect("config path must be a valid Rust path");
+        quote! {
+            let base_config = ::solverforge::__internal::load_solver_config();
+            let config = #config_fn(&self, base_config);
+            ::solverforge::__internal::run_solver_with_config(
+                self,
+                #constraints_fn,
+                Self::descriptor,
+                Self::entity_count,
+                runtime,
+                config,
+                Self::__solverforge_default_time_limit_secs(),
+                Self::__solverforge_is_trivial,
+                Self::__solverforge_log_scale,
+                Self::__solverforge_build_phases,
+            )
+        }
+    } else {
+        quote! {
             ::solverforge::__internal::run_solver(
                 self,
                 #constraints_fn,
@@ -936,6 +964,16 @@ fn generate_runtime_solve_internal(
                 Self::__solverforge_log_scale,
                 Self::__solverforge_build_phases,
             )
+        }
+    };
+    quote! {
+        fn solve_internal(
+            self,
+            runtime: ::solverforge::SolverRuntime<Self>,
+        ) -> Self {
+            ::solverforge::__internal::init_console();
+
+            #solve_expr
         }
     }
 }
@@ -1581,5 +1619,29 @@ mod tests {
             "pub fn descriptor () -> :: solverforge :: __internal :: SolutionDescriptor"
         ));
         assert!(expanded.contains("create_constraints"));
+    }
+
+    #[test]
+    fn golden_solution_expansion_loads_solver_config_before_config_callback() {
+        let input = parse_quote! {
+            #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+            #[solverforge_config_path = "crate::config::for_solution"]
+            struct Plan {
+                #[planning_entity_collection]
+                tasks: Vec<Task>,
+                #[planning_score]
+                score: Option<HardSoftScore>,
+            }
+        };
+
+        let expanded = expand_derive(input)
+            .expect("solution expansion should succeed")
+            .to_string();
+
+        assert!(expanded
+            .contains("let base_config = :: solverforge :: __internal :: load_solver_config ()"));
+        assert!(expanded
+            .contains("let config = crate :: config :: for_solution (& self , base_config)"));
+        assert!(expanded.contains("run_solver_with_config"));
     }
 }

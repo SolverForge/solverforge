@@ -489,6 +489,63 @@ impl Solvable for PauseRequestedProgressSolution {
 }
 
 #[derive(Clone, Debug)]
+struct PauseOrderingSolution {
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl PauseOrderingSolution {
+    fn new(value: i64) -> Self {
+        Self { value, score: None }
+    }
+}
+
+impl PlanningSolution for PauseOrderingSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Solvable for PauseOrderingSolution {
+    fn solve(mut self, runtime: SolverRuntime<Self>) {
+        let score = SoftScore::of(self.value);
+        self.set_score(Some(score));
+        runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
+
+        while !runtime.is_pause_requested() {
+            std::hint::spin_loop();
+        }
+
+        for step_count in 1..=8 {
+            runtime.emit_progress(Some(score), Some(score), telemetry_with_steps(step_count));
+        }
+
+        if runtime.pause_with_snapshot(
+            self.clone(),
+            Some(score),
+            Some(score),
+            telemetry_with_steps(9),
+        ) {
+            runtime.emit_completed(
+                self,
+                Some(score),
+                score,
+                telemetry_with_steps(10),
+                SolverTerminalReason::Completed,
+            );
+        } else {
+            runtime.emit_cancelled(Some(score), Some(score), telemetry_with_steps(9));
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 struct DeleteReservationSolution {
     release_return: LifecycleStepGate,
     score: Option<SoftScore>,
@@ -1107,8 +1164,12 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for PromptControlSelector {
 
 impl Solvable for PromptControlSolution {
     fn solve(self, runtime: SolverRuntime<Self>) {
-        let mut solver_scope =
-            SolverScope::new_with_callback(PromptControlDirector::new(self), (), None, Some(runtime));
+        let mut solver_scope = SolverScope::new_with_callback(
+            PromptControlDirector::new(self),
+            (),
+            None,
+            Some(runtime),
+        );
 
         solver_scope.start_solving();
         if let Some(time_limit) = solver_scope.working_solution().time_limit {
@@ -1117,7 +1178,12 @@ impl Solvable for PromptControlSolution {
         let score = solver_scope.calculate_score();
         let solution = solver_scope.score_director().clone_working_solution();
         solver_scope.set_best_solution(solution.clone(), score);
-        runtime.emit_best_solution(solution, Some(score), score, solver_scope.stats().snapshot());
+        runtime.emit_best_solution(
+            solution,
+            Some(score),
+            score,
+            solver_scope.stats().snapshot(),
+        );
 
         let selector = solver_scope.working_solution().selector.clone();
         let mut phase = LocalSearchPhase::new(
@@ -1492,6 +1558,73 @@ fn retained_job_progress_reflects_pause_requested_state() {
         }
         other => panic!("unexpected event: {other:?}"),
     }
+
+    MANAGER.cancel(job_id).expect("cancel should be accepted");
+
+    match receiver.blocking_recv().expect("cancelled event") {
+        SolverEvent::Cancelled { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.delete(job_id).expect("delete cancelled job");
+}
+
+#[test]
+fn retained_job_pause_requested_event_precedes_worker_pause_events() {
+    static MANAGER: SolverManager<PauseOrderingSolution> = SolverManager::new();
+
+    let (job_id, mut receiver) = MANAGER
+        .solve(PauseOrderingSolution::new(17))
+        .expect("job should start");
+
+    match receiver.blocking_recv().expect("best solution event") {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.pause(job_id).expect("pause should be accepted");
+
+    match receiver.blocking_recv().expect("pause requested event") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(metadata.event_sequence, 2);
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    let mut saw_pause_requested_progress = false;
+    loop {
+        match receiver
+            .blocking_recv()
+            .expect("pause lifecycle event after request")
+        {
+            SolverEvent::Progress { metadata } => {
+                saw_pause_requested_progress = true;
+                assert_eq!(
+                    metadata.lifecycle_state,
+                    SolverLifecycleState::PauseRequested
+                );
+                assert!(metadata.event_sequence > 2);
+            }
+            SolverEvent::Paused { metadata } => {
+                assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
+                break;
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    assert!(
+        saw_pause_requested_progress,
+        "worker should emit pause-requested progress before settling the snapshot"
+    );
 
     MANAGER.cancel(job_id).expect("cancel should be accepted");
 

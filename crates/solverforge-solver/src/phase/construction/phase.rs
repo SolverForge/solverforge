@@ -359,7 +359,9 @@ mod tests {
         Solvable, SolverEvent, SolverLifecycleState, SolverManager, SolverRuntime,
         SolverTerminalReason,
     };
-    use crate::phase::construction::{BestFitForager, FirstFitForager, Placement, QueuedEntityPlacer};
+    use crate::phase::construction::{
+        BestFitForager, FirstFitForager, Placement, QueuedEntityPlacer,
+    };
     use crate::test_utils::{
         create_simple_nqueens_director, get_queen_row, set_queen_row, NQueensSolution,
     };

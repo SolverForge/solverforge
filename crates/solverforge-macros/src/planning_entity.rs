@@ -521,6 +521,10 @@ fn generate_list_metadata(
         "intra_distance_meter",
         field,
     )?;
+    let solution_trait_bound = parse_solution_trait_bound(attr, field)?;
+    let solution_where_clause = solution_trait_bound
+        .as_ref()
+        .map(|bound| quote! { where Solution: #bound });
     let merge_feasible = option_fn_expr(
         parse_attribute_string(attr, "merge_feasible_fn"),
         "merge_feasible_fn",
@@ -599,7 +603,9 @@ fn generate_list_metadata(
             Solution,
             #cross_dm_ty,
             #intra_dm_ty,
-        > {
+        >
+        #solution_where_clause
+        {
             let _ = stringify!(#entity_name);
             let _ = #element_collection;
             ::solverforge::__internal::ListVariableMetadata::new(
@@ -689,17 +695,22 @@ fn generate_list_trait_impl(
         "intra_distance_meter",
         field,
     )?;
+    let solution_trait_bound = parse_solution_trait_bound(attr, field)?;
     let element_source = parse_attribute_string(attr, "element_collection").ok_or_else(|| {
         Error::new_spanned(
             field,
             "#[planning_list_variable] requires `element_collection = \"solution_collection\"` for stock solving",
         )
     })?;
+    let solution_bound = solution_trait_bound
+        .as_ref()
+        .map(|bound| quote! { + #bound })
+        .unwrap_or_default();
 
     Ok(quote! {
         impl<Solution> ::solverforge::__internal::ListVariableEntity<Solution> for #entity_name
         where
-            Solution: ::solverforge::__internal::PlanningSolution,
+            Solution: ::solverforge::__internal::PlanningSolution #solution_bound,
         {
             type CrossDistanceMeter = #cross_dm_ty;
             type IntraDistanceMeter = #intra_dm_ty;
@@ -801,6 +812,18 @@ fn parse_default_expr(
         syn::parse_str(default)
             .map_err(|_| Error::new_spanned(span, format!("{label} must be a valid path")))
     }
+}
+
+fn parse_solution_trait_bound(
+    attr: &syn::Attribute,
+    span: &impl quote::ToTokens,
+) -> Result<Option<syn::TypeParamBound>, Error> {
+    parse_attribute_string(attr, "solution_trait")
+        .map(|path| {
+            syn::parse_str(&path)
+                .map_err(|_| Error::new_spanned(span, "solution_trait must be a valid trait path"))
+        })
+        .transpose()
 }
 
 fn option_fn_expr(

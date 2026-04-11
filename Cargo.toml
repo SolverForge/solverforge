@@ -13,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge-rs"
@@ -32,23 +32,23 @@ solverforge-cvrp = { path = "crates/solverforge-cvrp" }
 solverforge-test = { path = "crates/solverforge-test" }
 
 # External dependencies
-thiserror = "2.0"  # Updated from 1.0
-serde = { version = "1.0", features = ["derive"] }
-toml = "1"
-serde_yaml = "0.9"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tokio = { version = "1.48", features = ["full"] }  # Updated from 1.0
-crossbeam = "0.8"
-num-traits = "0.2"
-rust_decimal = "1.33"
-rand = "0.10"
-rand_chacha = "0.10"
-rayon = "1.11"  # New - for parallel move evaluation
-smallvec = "1.15"  # Updated from 1.11
-owo-colors = "4"
+thiserror = "2.0.18"
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.1.2"
+serde_yaml = "0.9.34"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tokio = { version = "1.51.1", features = ["full"] }
+crossbeam = "0.8.4"
+num-traits = "0.2.19"
+rust_decimal = "1.41.0"
+rand = "0.10.0"
+rand_chacha = "0.10.0"
+rayon = "1.11.0"
+smallvec = "1.15.1"
+owo-colors = "4.3.0"
 
 # Proc-macro dependencies
-syn = { version = "2.0", features = ["full", "extra-traits"] }
-quote = "1.0"
-proc-macro2 = "1.0"
+syn = { version = "2.0.117", features = ["full", "extra-traits"] }
+quote = "1.0.45"
+proc-macro2 = "1.0.106"

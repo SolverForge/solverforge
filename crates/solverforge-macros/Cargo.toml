@@ -15,4 +15,4 @@ proc-macro2.workspace = true
 
 [dev-dependencies]
 solverforge = { path = "../solverforge" }
-trybuild = "1.0.114"
+trybuild = "1.0.116"

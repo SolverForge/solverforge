@@ -6,10 +6,10 @@ license.workspace = true
 description = "Colorful console output for SolverForge solver metrics"
 
 [dependencies]
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 owo-colors = { workspace = true }
-num-format = "0.4"
+num-format = "0.4.4"
 
 [features]
 verbose-logging = []

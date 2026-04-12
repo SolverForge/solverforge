@@ -234,7 +234,11 @@ src/
 │   ├── phase_factory/
 │   │   ├── mod.rs                       — Re-exports
 │   │   ├── construction.rs             — ConstructionPhaseFactory
-│   │   ├── list_construction.rs        — ListConstructionPhaseBuilder, ListConstructionPhase, ListCheapestInsertionPhase, ListRegretInsertionPhase
+│   │   ├── list_construction.rs        — Re-exports
+│   │   ├── list_construction/round_robin.rs — ListConstructionPhaseBuilder, ListConstructionPhase
+│   │   ├── list_construction/state.rs  — Shared scored insertion state
+│   │   ├── list_construction/cheapest.rs — ListCheapestInsertionPhase
+│   │   ├── list_construction/regret.rs — ListRegretInsertionPhase
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright_tests.rs — Tests
 │   │   ├── list_k_opt.rs               — ListKOptPhase

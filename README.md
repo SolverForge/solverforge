@@ -44,6 +44,7 @@ The current templates cover standard-variable and list-heavy planning models, an
 
 - `README.md` is the user-facing entry point for the workspace and generated-project integration model.
 - `docs/extend-solver.md` and `docs/extend-domain.md` cover scaffold extension workflows.
+- `docs/ruby-integration-plan.md` documents the Ruby-first modeling integration architecture and performance invariants.
 - `docs/typed-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.

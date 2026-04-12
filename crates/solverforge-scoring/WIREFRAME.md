@@ -81,7 +81,9 @@ src/
 │   ├── tri_stream.rs                               — TriConstraintStream, TriConstraintBuilder (via macro)
 │   ├── quad_stream.rs                              — QuadConstraintStream, QuadConstraintBuilder (via macro)
 │   ├── penta_stream.rs                             — PentaConstraintStream, PentaConstraintBuilder (via macro)
-│   ├── grouped_stream.rs                           — GroupedConstraintStream, GroupedConstraintBuilder
+│   ├── grouped_stream.rs                           — Re-exports
+│   ├── grouped_stream/base.rs                      — GroupedConstraintStream
+│   ├── grouped_stream/weighting.rs                 — GroupedConstraintBuilder
 │   ├── balance_stream.rs                           — BalanceConstraintStream, BalanceConstraintBuilder
 │   ├── complemented_stream.rs                      — ComplementedConstraintStream, ComplementedConstraintBuilder
 │   ├── cross_bi_stream.rs                          — CrossBiConstraintStream, CrossBiConstraintBuilder

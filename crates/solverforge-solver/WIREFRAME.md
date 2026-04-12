@@ -198,12 +198,16 @@ src/
 │   │   └── priority_node.rs             — PriorityNode<S>
 │   ├── partitioned/
 │   │   ├── mod.rs                       — PartitionedSearchPhase, PartitionedSearchConfig, ChildPhases trait
-│   │   └── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
+│   │   ├── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
+│   │   ├── partitioner_tests.rs        — Tests
+│   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
+│   │   └── phase_tests.rs              — Tests
 │   ├── sequence.rs                      — PhaseSequence<P>
 │   ├── dynamic_vnd.rs                   — DynamicVndPhase<S, M, MS>
 │   └── vnd/
 │       ├── mod.rs                       — Re-exports
-│       └── phase.rs                     — VndPhase, impl_vnd_phase! macro (up to 8 neighborhoods)
+│       ├── phase.rs                     — VndPhase, impl_vnd_phase! macro (up to 8 neighborhoods)
+│       └── phase_tests.rs               — Tests
 │
 ├── manager/
 │   ├── mod.rs                           — PhaseFactory trait, re-exports
@@ -243,6 +247,7 @@ src/
 │   ├── move_count.rs                    — MoveCountTermination<S>
 │   ├── score_calculation_count.rs      — ScoreCalculationCountTermination<S>
 │   ├── diminished_returns.rs           — DiminishedReturnsTermination<S>
+│   ├── diminished_returns_tests.rs     — Tests
 │   └── tests.rs                         — Tests
 │
 └── realtime/

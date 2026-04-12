@@ -1,6 +1,6 @@
 # Python Path 2 vs Historical `solverforge-py` (Postmortem)
 
-This note compares the current Python Path 2 direction (IR -> Rust codegen -> compile) with the removed `crates/solverforge-py` experiment.
+This note compares the proposed Python Path 2 direction (IR -> Rust codegen -> compile) with the removed `crates/solverforge-py` experiment.
 
 ## Historical Reference Point
 
@@ -68,12 +68,21 @@ Path 2 intentionally avoids the above failure modes:
 - No Python callback execution in hot scoring/move loops.
 - Generated code must target the same public SolverForge contracts used by Rust users.
 
+## Repository Boundary
+
+This workspace should remain Rust-first and docs-first for Path 2.
+
+- Keep the design and guardrails in this repository.
+- Build any Python implementation in a standalone repository that depends on the published/public `solverforge` surface.
+- Do not reintroduce a `python/` implementation subtree or a second solver runtime inside this workspace.
+
 ## Current Status
 
-The repository now contains a Python IR + codegen prototype under `python/solverforge_ir` and docs in `docs/python-model-ir.md`.
+This repository now documents the intended direction in `docs/python-model-ir.md` and records the architectural guardrails here.
 
 Remaining work includes:
 
+- creating the standalone Python integration repository,
 - pyproject/maturin packaging for produced crates,
 - list-variable parity,
 - lifecycle bridge that forwards retained runtime events as web/SSE-friendly payloads.

@@ -1,6 +1,6 @@
 # Python Model IR (Path 2: Codegen + Compile)
 
-This document defines the Python-first model surface that lowers into typed SolverForge Rust code, then compiles as a Rust crate.
+This document defines the proposed Python-first model surface that should lower into typed SolverForge Rust code, then compile as a Rust crate in a standalone integration repository.
 
 ## Goals
 
@@ -8,14 +8,20 @@ This document defines the Python-first model surface that lowers into typed Solv
 - Let Python users model the same planning constructs and lifecycle workflows.
 - Keep the Python/Rust bridge thin: compile once, run in Rust, stream lifecycle events.
 
-## Modules
-
 ## Historical Context
 
 Path 2 guardrails were derived from the removed `solverforge-py` experiment; see `docs/python-path2-postmortem.md`.
 
-- IR schema and validation: `python/solverforge_ir/model.py`
-- Rust code generation and project writer: `python/solverforge_ir/codegen.py`
+This workspace intentionally keeps Path 2 at the documentation level. Any Python implementation should live outside the SolverForge Rust workspace and consume the public `solverforge` API as a client.
+
+## Planned Modules
+
+A standalone Python integration should roughly split into:
+
+- IR schema and validation
+- Expression lowering
+- Rust code generation and project writing
+- Build/runtime bridge around compiled generated crates
 
 ## Design
 
@@ -36,7 +42,7 @@ Expressions are represented as an AST (not executable Python callbacks):
 
 ## Lambda Lowering
 
-`lambda_to_expr(fn, aliases)` lowers a restricted subset of Python lambda/function syntax into the expression AST:
+A convenience helper such as `lambda_to_expr(fn, aliases)` can lower a restricted subset of Python lambda/function syntax into the expression AST:
 
 - Attribute references from known stream aliases
 - `==`, `!=`, `<`, `<=`, `>`, `>=`
@@ -47,7 +53,7 @@ Unsupported constructs fail fast with `LambdaLoweringError`.
 
 ## Validation
 
-`validate_model(model)` performs structural validation:
+`validate_model(model)` should perform structural validation:
 
 - Unique entity/fact names
 - Solution collection references target known entities/facts
@@ -56,19 +62,19 @@ Unsupported constructs fail fast with `LambdaLoweringError`.
 
 ## Code Generation (Path 2)
 
-`generate_rust_module(model)` emits Rust source with:
+A generator such as `generate_rust_module(model)` should emit Rust source with:
 
 - Domain structs annotated by `#[problem_fact]`, `#[planning_entity]`, `#[planning_solution]`
 - Typed `define_constraints()` function using `ConstraintFactory` and fluent stream builders
 - Join lowering for `self_equal`, `cross_keyed`, and `cross_predicate`
 - Filter/impact/name lowering per constraint
 
-`write_rust_project(model, out_dir, crate_name)` writes a compilable crate:
+A project writer such as `write_rust_project(model, out_dir, crate_name)` should write a compilable crate:
 
 - `Cargo.toml`
 - `src/lib.rs`
 
-Returned metadata (`GeneratedRustProject`) points to generated paths.
+Returned metadata should point to generated paths and build artifacts.
 
 ## Intended Lowering Contract
 
@@ -84,6 +90,6 @@ This keeps solving and scoring in Rust while preserving Python modeling ergonomi
 
 ## Current Limitations
 
-- Codegen currently targets common standard-variable patterns.
-- Advanced list-variable selectors/phases are not yet emitted.
-- Project writing creates a Rust crate artifact; packaging via PyO3/maturin is a follow-up step.
+- The first production scope should target common standard-variable patterns only.
+- Advanced list-variable selectors/phases should be designed as a separate lowering track, not implied by the initial IR.
+- Packaging, native build/import flow, and lifecycle bridging should live in the standalone Python integration repo rather than this Rust workspace.

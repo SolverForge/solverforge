@@ -45,8 +45,8 @@ The current templates cover standard-variable and list-heavy planning models, an
 - `README.md` is the user-facing entry point for the workspace and generated-project integration model.
 - `docs/extend-solver.md` and `docs/extend-domain.md` cover scaffold extension workflows.
 - `docs/lifecycle-pause-resume-contract.md` defines the retained lifecycle contract, including exact pause/resume semantics, snapshot identity, and terminal-state cleanup rules.
-- `docs/python-model-ir.md` outlines the Python-first declarative model IR prototype that lowers into typed Rust solver code.
-- `docs/python-path2-postmortem.md` compares Path 2 against the removed `solverforge-py` experiment and records hard guardrails.
+- `docs/python-model-ir.md` outlines the proposed Python-first declarative model IR and the intended lowering contract into typed Rust solver code.
+- `docs/python-path2-postmortem.md` compares Path 2 against the removed `solverforge-py` experiment, records hard guardrails, and explains why any implementation should live outside this workspace.
 - `docs/typed-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.

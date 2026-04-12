@@ -241,10 +241,20 @@ src/
 │   │   ├── local_search.rs             — LocalSearchPhaseFactory
 │   │   └── k_opt.rs                     — KOptPhaseBuilder, KOptPhase
 │   ├── builder_tests.rs                — Tests
-│   ├── mod_tests.rs                     — Tests
-│   ├── mod_tests_integration.rs        — Integration tests
-│   ├── phase_factory_tests.rs          — Tests
-│   └── phase_factory_tests_localsearch.rs — Tests
+│   ├── mod_tests.rs                    — Tests
+│   ├── mod_tests_integration.rs        — Integration test module declarations
+│   ├── mod_tests_integration/basic.rs  — Builder/factory integration tests
+│   ├── mod_tests_integration/common.rs — Shared no-op phase fixture
+│   ├── mod_tests_integration/gates.rs  — Shared retained-job gates and blockers
+│   ├── mod_tests_integration/lifecycle_solutions.rs — Retained lifecycle fixtures
+│   ├── mod_tests_integration/lifecycle_tests.rs — Retained lifecycle tests
+│   ├── mod_tests_integration/prompt_support.rs — Prompt-settlement fixtures
+│   ├── mod_tests_integration/prompt_tests.rs — Prompt-settlement tests
+│   ├── mod_tests_integration/resume_support.rs — Resume and snapshot fixtures
+│   ├── mod_tests_integration/resume_tests.rs — Resume determinism tests
+│   ├── mod_tests_integration/analysis_tests.rs — Snapshot analysis retention tests
+│   ├── mod_tests_integration/runtime_helpers.rs — Shared telemetry helpers
+│   └── phase_factory_tests.rs          — Tests
 │
 ├── scope/
 │   ├── mod.rs                           — Re-exports

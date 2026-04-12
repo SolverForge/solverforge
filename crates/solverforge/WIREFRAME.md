@@ -29,7 +29,11 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 
 ```
 src/
-└── lib.rs  — All re-exports, prelude module, __internal module
+├── __internal.rs  — Hidden macro support re-exports and helpers
+├── cvrp.rs        — CVRP facade re-exports
+├── lib.rs         — Top-level crate re-exports and module declarations
+├── prelude.rs     — Prelude exports
+└── stream.rs      — Fluent constraint stream facade
 ```
 
 ## Public Re-exports

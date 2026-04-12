@@ -38,7 +38,7 @@ pub fn planning_entity(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn planning_solution(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let (has_serde, constraints_path, config_path) = parse_solution_flags(attr);
+    let (has_serde, constraints_path, config_path, solver_toml_path) = parse_solution_flags(attr);
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
     let vis = &input.vis;
@@ -55,11 +55,14 @@ pub fn planning_solution(attr: TokenStream, item: TokenStream) -> TokenStream {
     let constraints_attr =
         constraints_path.map(|p| quote! { #[solverforge_constraints_path = #p] });
     let config_attr = config_path.map(|p| quote! { #[solverforge_config_path = #p] });
+    let solver_toml_attr =
+        solver_toml_path.map(|p| quote! { #[solverforge_solver_toml_path = #p] });
 
     let expanded = quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::PlanningSolutionImpl)]
         #constraints_attr
         #config_attr
+        #solver_toml_attr
         #(#attrs)*
         #vis struct #name #generics #fields
     };
@@ -120,7 +123,8 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         value_range_provider,
         shadow_variable_updates,
         solverforge_constraints_path,
-        solverforge_config_path
+        solverforge_config_path,
+        solverforge_solver_toml_path
     )
 )]
 pub fn derive_planning_solution(input: TokenStream) -> TokenStream {

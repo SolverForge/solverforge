@@ -60,8 +60,9 @@ pub use forager::{ForagerConfig, PickEarlyType};
 pub use move_selector::{
     CartesianProductConfig, ChangeMoveConfig, KOptMoveSelectorConfig, ListChangeMoveConfig,
     ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig,
-    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SubListChangeMoveConfig,
-    SubListSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
+    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SelectedCountLimitMoveSelectorConfig,
+    SubListChangeMoveConfig, SubListSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig,
+    VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, CustomPhaseConfig,

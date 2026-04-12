@@ -11,6 +11,11 @@ static LAST_BASE_PHASE_COUNT: AtomicUsize = AtomicUsize::new(0);
 static LAST_FINAL_RANDOM_SEED: AtomicU64 = AtomicU64::new(0);
 static LAST_FINAL_PHASE_COUNT: AtomicUsize = AtomicUsize::new(0);
 static LAST_FINAL_TERMINATION_SECONDS: AtomicU64 = AtomicU64::new(0);
+static LAST_EXPLICIT_BASE_RANDOM_SEED: AtomicU64 = AtomicU64::new(0);
+static LAST_EXPLICIT_BASE_PHASE_COUNT: AtomicUsize = AtomicUsize::new(0);
+static LAST_EXPLICIT_FINAL_RANDOM_SEED: AtomicU64 = AtomicU64::new(0);
+static LAST_EXPLICIT_FINAL_PHASE_COUNT: AtomicUsize = AtomicUsize::new(0);
+static LAST_EXPLICIT_FINAL_TERMINATION_SECONDS: AtomicU64 = AtomicU64::new(0);
 
 #[planning_entity]
 struct DummyEntity {
@@ -32,9 +37,34 @@ struct ConfigurableSolution {
     time_limit_secs: u64,
 }
 
+#[planning_solution(
+    constraints = "define_explicit_constraints",
+    config = "solver_config_for_explicit_solution",
+    solver_toml = "fixtures/configurable_solvable_solver.toml"
+)]
+struct ExplicitConfigurableSolution {
+    #[planning_entity_collection]
+    entities: Vec<DummyEntity>,
+
+    #[planning_score]
+    score: Option<HardSoftScore>,
+
+    time_limit_secs: u64,
+}
+
 fn define_constraints() -> impl ConstraintSet<ConfigurableSolution, HardSoftScore> {
     (
         ConstraintFactory::<ConfigurableSolution, HardSoftScore>::new()
+            .entities()
+            .penalize_with(|_| HardSoftScore::of(0, 0))
+            .named("noop"),
+    )
+}
+
+fn define_explicit_constraints() -> impl ConstraintSet<ExplicitConfigurableSolution, HardSoftScore>
+{
+    (
+        ConstraintFactory::<ExplicitConfigurableSolution, HardSoftScore>::new()
             .entities()
             .penalize_with(|_| HardSoftScore::of(0, 0))
             .named("noop"),
@@ -64,6 +94,28 @@ fn solver_config_for_solution(
     config
 }
 
+fn solver_config_for_explicit_solution(
+    solution: &ExplicitConfigurableSolution,
+    config: SolverConfig,
+) -> SolverConfig {
+    LAST_EXPLICIT_BASE_RANDOM_SEED.store(config.random_seed.unwrap_or_default(), Ordering::SeqCst);
+    LAST_EXPLICIT_BASE_PHASE_COUNT.store(config.phases.len(), Ordering::SeqCst);
+
+    let config = config.with_termination_seconds(solution.time_limit_secs);
+
+    LAST_EXPLICIT_FINAL_RANDOM_SEED.store(config.random_seed.unwrap_or_default(), Ordering::SeqCst);
+    LAST_EXPLICIT_FINAL_PHASE_COUNT.store(config.phases.len(), Ordering::SeqCst);
+    LAST_EXPLICIT_FINAL_TERMINATION_SECONDS.store(
+        config
+            .time_limit()
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0),
+        Ordering::SeqCst,
+    );
+
+    config
+}
+
 fn cwd_test_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -75,7 +127,7 @@ struct TempSolverConfigDir {
 }
 
 impl TempSolverConfigDir {
-    fn new(contents: &str) -> Self {
+    fn new(contents: Option<&str>) -> Self {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
 
         let original_dir = std::env::current_dir().expect("current directory should be readable");
@@ -87,7 +139,10 @@ impl TempSolverConfigDir {
 
         let _ = fs::remove_dir_all(&temp_dir);
         fs::create_dir_all(&temp_dir).expect("temp solver directory should be created");
-        fs::write(temp_dir.join("solver.toml"), contents).expect("solver.toml should be written");
+        if let Some(contents) = contents {
+            fs::write(temp_dir.join("solver.toml"), contents)
+                .expect("solver.toml should be written");
+        }
         std::env::set_current_dir(&temp_dir).expect("current directory should switch to temp");
 
         Self {
@@ -110,7 +165,7 @@ fn planning_solution_config_provider_decorates_solver_toml_for_retained_runtime_
     static MANAGER: SolverManager<ConfigurableSolution> = SolverManager::new();
 
     let _cwd_lock = cwd_test_lock().lock().expect("cwd lock should be acquired");
-    let _temp_solver_dir = TempSolverConfigDir::new(
+    let _temp_solver_dir = TempSolverConfigDir::new(Some(
         r#"
 random_seed = 19
 
@@ -118,7 +173,7 @@ random_seed = 19
 type = "construction_heuristic"
 construction_heuristic_type = "first_fit"
 "#,
-    );
+    ));
 
     let (job_id, mut receiver) = MANAGER
         .solve(ConfigurableSolution {
@@ -153,6 +208,52 @@ construction_heuristic_type = "first_fit"
     assert_eq!(LAST_FINAL_RANDOM_SEED.load(Ordering::SeqCst), 19);
     assert_eq!(LAST_FINAL_PHASE_COUNT.load(Ordering::SeqCst), 1);
     assert_eq!(LAST_FINAL_TERMINATION_SECONDS.load(Ordering::SeqCst), 7);
+
+    MANAGER.delete(job_id).expect("delete completed job");
+}
+
+#[test]
+fn planning_solution_solver_toml_path_is_independent_of_cwd() {
+    static MANAGER: SolverManager<ExplicitConfigurableSolution> = SolverManager::new();
+
+    let _cwd_lock = cwd_test_lock().lock().expect("cwd lock should be acquired");
+    let _temp_solver_dir = TempSolverConfigDir::new(None);
+
+    let (job_id, mut receiver) = MANAGER
+        .solve(ExplicitConfigurableSolution {
+            entities: Vec::new(),
+            score: None,
+            time_limit_secs: 11,
+        })
+        .expect("job should start");
+
+    let mut completed = false;
+
+    while let Some(event) = receiver.blocking_recv() {
+        match event {
+            SolverEvent::BestSolution { .. } => {}
+            SolverEvent::Completed { metadata, solution } => {
+                assert_eq!(
+                    metadata.terminal_reason,
+                    Some(SolverTerminalReason::Completed)
+                );
+                assert_eq!(solution.score, Some(HardSoftScore::of(0, 0)));
+                completed = true;
+                break;
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    assert!(completed, "expected a completed event");
+    assert_eq!(LAST_EXPLICIT_BASE_RANDOM_SEED.load(Ordering::SeqCst), 23);
+    assert_eq!(LAST_EXPLICIT_BASE_PHASE_COUNT.load(Ordering::SeqCst), 1);
+    assert_eq!(LAST_EXPLICIT_FINAL_RANDOM_SEED.load(Ordering::SeqCst), 23);
+    assert_eq!(LAST_EXPLICIT_FINAL_PHASE_COUNT.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        LAST_EXPLICIT_FINAL_TERMINATION_SECONDS.load(Ordering::SeqCst),
+        11
+    );
 
     MANAGER.delete(job_id).expect("delete completed job");
 }

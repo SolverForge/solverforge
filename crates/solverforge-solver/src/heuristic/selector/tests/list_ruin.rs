@@ -152,6 +152,56 @@ fn empty_list_yields_no_moves_for_that_entity() {
 }
 
 #[test]
+fn seeded_selector_advances_between_steps() {
+    let director = create_director(vec![vec![1, 2, 3, 4, 5], vec![6, 7, 8, 9, 10]]);
+
+    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        1,
+        3,
+        entity_count,
+        list_len,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_moves_per_step(6)
+    .with_seed(42);
+
+    let first: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| (m.entity_index(), m.element_indices().to_vec()))
+        .collect();
+    let second: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| (m.entity_index(), m.element_indices().to_vec()))
+        .collect();
+
+    let selector_again = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        1,
+        3,
+        entity_count,
+        list_len,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_moves_per_step(6)
+    .with_seed(42);
+    let reproduced_first: Vec<_> = selector_again
+        .iter_moves(&director)
+        .map(|m| (m.entity_index(), m.element_indices().to_vec()))
+        .collect();
+
+    assert_eq!(first, reproduced_first);
+    assert_ne!(
+        first, second,
+        "seeded list ruin selectors must advance their deterministic stream between iter_moves() calls"
+    );
+}
+
+#[test]
 fn size_returns_moves_per_step() {
     let director = create_director(vec![vec![1, 2, 3]]);
 

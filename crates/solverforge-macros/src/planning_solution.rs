@@ -50,6 +50,10 @@ fn parse_config_path(attrs: &[syn::Attribute]) -> Option<String> {
     parse_hidden_path_attr(attrs, "solverforge_config_path")
 }
 
+fn parse_solver_toml_path(attrs: &[syn::Attribute]) -> Option<String> {
+    parse_hidden_path_attr(attrs, "solverforge_solver_toml_path")
+}
+
 fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
     let mut config = ShadowConfig::default();
 
@@ -150,6 +154,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let shadow_support_impl = generate_shadow_support(&shadow_config, fields, name)?;
     let constraints_path = parse_constraints_path(&input.attrs);
     let config_path = parse_config_path(&input.attrs);
+    let solver_toml_path = parse_solver_toml_path(&input.attrs);
     let entity_count_arms: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -168,6 +173,7 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         fields,
         &constraints_path,
         &config_path,
+        &solver_toml_path,
         name,
     );
     let solvable_solution_impl = generate_solvable_solution(name, &constraints_path);
@@ -924,6 +930,7 @@ fn generate_runtime_solve_internal(
     _fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
     config_path: &Option<String>,
+    solver_toml_path: &Option<String>,
     _solution_name: &Ident,
 ) -> TokenStream {
     let Some(path) = constraints_path.as_ref() else {
@@ -932,12 +939,35 @@ fn generate_runtime_solve_internal(
 
     let constraints_fn: syn::Path =
         syn::parse_str(path).expect("constraints path must be a valid Rust path");
-    let solve_expr = if let Some(config_path) = config_path.as_ref() {
-        let config_fn: syn::Path =
-            syn::parse_str(config_path).expect("config path must be a valid Rust path");
+    let base_config_expr = if let Some(solver_toml_path) = solver_toml_path.as_ref() {
+        quote! {{
+            static CONFIG: ::std::sync::OnceLock<::solverforge::SolverConfig> =
+                ::std::sync::OnceLock::new();
+            CONFIG
+                .get_or_init(|| {
+                    ::solverforge::SolverConfig::from_toml_str(include_str!(#solver_toml_path))
+                        .expect("embedded solver.toml must be valid")
+                })
+                .clone()
+        }}
+    } else {
+        quote! { ::solverforge::__internal::load_solver_config() }
+    };
+    let solve_expr = if config_path.is_some() || solver_toml_path.is_some() {
+        let config_expr = if let Some(config_path) = config_path.as_ref() {
+            let config_fn: syn::Path =
+                syn::parse_str(config_path).expect("config path must be a valid Rust path");
+            quote! {
+                let base_config = #base_config_expr;
+                let config = #config_fn(&self, base_config);
+            }
+        } else {
+            quote! {
+                let config = #base_config_expr;
+            }
+        };
         quote! {
-            let base_config = ::solverforge::__internal::load_solver_config();
-            let config = #config_fn(&self, base_config);
+            #config_expr
             ::solverforge::__internal::run_solver_with_config(
                 self,
                 #constraints_fn,
@@ -1643,5 +1673,28 @@ mod tests {
         assert!(expanded
             .contains("let config = crate :: config :: for_solution (& self , base_config)"));
         assert!(expanded.contains("run_solver_with_config"));
+    }
+
+    #[test]
+    fn golden_solution_expansion_embeds_explicit_solver_toml_source() {
+        let input = parse_quote! {
+            #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+            #[solverforge_solver_toml_path = "fixtures/solver.toml"]
+            struct Plan {
+                #[planning_entity_collection]
+                tasks: Vec<Task>,
+                #[planning_score]
+                score: Option<HardSoftScore>,
+            }
+        };
+
+        let expanded = expand_derive(input)
+            .expect("solution expansion should succeed")
+            .to_string();
+
+        assert!(expanded.contains("include_str ! (\"fixtures/solver.toml\")"));
+        assert!(expanded.contains("OnceLock < :: solverforge :: SolverConfig >"));
+        assert!(expanded.contains("run_solver_with_config"));
+        assert!(!expanded.contains("load_solver_config ()"));
     }
 }

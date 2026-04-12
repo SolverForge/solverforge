@@ -97,7 +97,7 @@ impl<S, DM, IDM> ListVariableMetadata<S, DM, IDM> {
 pub enum ListConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    V: Copy + PartialEq + Eq + std::hash::Hash + Into<usize> + Send + Sync + 'static,
 {
     RoundRobin(ListRoundRobinPhase<S, V>),
     CheapestInsertion(ListCheapestInsertionPhase<S, V>),
@@ -109,7 +109,7 @@ where
 impl<S, V> fmt::Debug for ListConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
+    V: Copy + PartialEq + Eq + std::hash::Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -131,7 +131,7 @@ where
 impl<S, V, D, ProgressCb> crate::phase::Phase<S, D, ProgressCb> for ListConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
+    V: Copy + PartialEq + Eq + std::hash::Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
     D: solverforge_scoring::Director<S>,
     ProgressCb: crate::scope::ProgressCallback<S>,
 {
@@ -270,7 +270,7 @@ pub fn build_list_construction<S, V>(
 ) -> ListConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + std::hash::Hash + Send + Sync + fmt::Debug + 'static,
+    V: Copy + PartialEq + Eq + std::hash::Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
 {
     let Some((ch_type, k)) = config.map(|cfg| (cfg.construction_heuristic_type, cfg.k)) else {
         return ListConstruction::CheapestInsertion(ListCheapestInsertionPhase::new(
@@ -323,6 +323,7 @@ where
                         element_count,
                         get_assigned,
                         entity_count,
+                        list_len,
                         assign,
                         index_to_element,
                         depot,

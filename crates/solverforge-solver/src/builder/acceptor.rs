@@ -123,6 +123,17 @@ impl AcceptorBuilder {
     where
         S::Score: Score + ParseableScore,
     {
+        Self::build_with_seed(config, None)
+    }
+
+    /// Builds a concrete [`AnyAcceptor`] from configuration with an optional deterministic seed.
+    pub fn build_with_seed<S: PlanningSolution>(
+        config: &AcceptorConfig,
+        random_seed: Option<u64>,
+    ) -> AnyAcceptor<S>
+    where
+        S::Score: Score + ParseableScore,
+    {
         match config {
             AcceptorConfig::HillClimbing => AnyAcceptor::HillClimbing(HillClimbingAcceptor::new()),
 
@@ -135,22 +146,24 @@ impl AcceptorBuilder {
             }
 
             AcceptorConfig::SimulatedAnnealing(sa_config) => {
-                let starting_temp = sa_config
-                    .starting_temperature
-                    .as_ref()
-                    .map(|s| {
-                        s.parse::<f64>()
-                            .ok()
-                            .or_else(|| S::Score::parse(s).ok().map(|score| score.to_scalar().abs()))
-                            .unwrap_or_else(|| {
-                                panic!("Invalid starting_temperature '{}': expected scalar or score string", s)
-                            })
-                    })
-                    .unwrap_or(0.0);
-                AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::new(
-                    starting_temp,
-                    0.999985,
-                ))
+                let starting_temp = sa_config.starting_temperature.as_ref().map(|s| {
+                    s.parse::<f64>()
+                        .ok()
+                        .or_else(|| S::Score::parse(s).ok().map(|score| score.to_scalar().abs()))
+                        .unwrap_or_else(|| {
+                            panic!("Invalid starting_temperature '{}': expected scalar or score string", s)
+                        })
+                });
+                AnyAcceptor::SimulatedAnnealing(match (starting_temp, random_seed) {
+                    (Some(temp), Some(seed)) => {
+                        SimulatedAnnealingAcceptor::with_seed(temp, 0.999985, seed)
+                    }
+                    (Some(temp), None) => SimulatedAnnealingAcceptor::new(temp, 0.999985),
+                    (None, Some(seed)) => {
+                        SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999985, seed)
+                    }
+                    (None, None) => SimulatedAnnealingAcceptor::auto_calibrate(0.999985),
+                })
             }
 
             AcceptorConfig::LateAcceptance(la_config) => {

@@ -286,6 +286,7 @@ macro_rules! impl_solver {
                     termination,
                     terminate,
                     runtime,
+                    config,
                     time_limit,
                     progress_callback,
                     ..
@@ -297,6 +298,9 @@ macro_rules! impl_solver {
                     terminate,
                     runtime,
                 );
+                if let Some(seed) = config.as_ref().and_then(|cfg| cfg.random_seed) {
+                    solver_scope = solver_scope.with_seed(seed);
+                }
                 if let Some(limit) = time_limit {
                     solver_scope.set_time_limit(limit);
                 }

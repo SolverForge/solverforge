@@ -4,8 +4,6 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::Instant;
 
-use rand::rngs::SmallRng;
-use rand::SeedableRng as _;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
@@ -125,8 +123,6 @@ where
         let mut local_moves_evaluated: u64 = 0;
         let mut last_progress_time = Instant::now();
         let mut last_progress_moves: u64 = 0;
-        let mut rng = SmallRng::from_rng(&mut rand::rng());
-
         loop {
             // Check early termination
             if phase_scope.solver_scope_mut().should_terminate() {
@@ -282,7 +278,8 @@ where
 
                 if !interrupted_step {
                     // Shuffle arena in-place — O(n) Fisher-Yates, no allocation
-                    self.arena.shuffle(&mut rng);
+                    let rng = step_scope.phase_scope_mut().solver_scope_mut().rng();
+                    self.arena.shuffle(rng);
                 }
 
                 if !interrupted_step {

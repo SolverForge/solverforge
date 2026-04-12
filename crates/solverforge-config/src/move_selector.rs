@@ -44,6 +44,9 @@ pub enum MoveSelectorConfig {
     // List ruin move selector (LNS) — removes elements for reinsertion.
     ListRuinMoveSelector(ListRuinMoveSelectorConfig),
 
+    // Decorator that limits the number of moves yielded by a child selector.
+    SelectedCountLimitMoveSelector(SelectedCountLimitMoveSelectorConfig),
+
     // Union of multiple selectors.
     UnionMoveSelector(UnionMoveSelectorConfig),
 
@@ -222,6 +225,16 @@ impl Default for ListRuinMoveSelectorConfig {
             target: VariableTargetConfig::default(),
         }
     }
+}
+
+// Configuration for `SelectedCountLimitMoveSelector`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SelectedCountLimitMoveSelectorConfig {
+    // Maximum number of moves yielded from the child selector.
+    pub selected_count_limit: usize,
+    // Child selector to wrap.
+    pub selector: Box<MoveSelectorConfig>,
 }
 
 // Union move selector configuration.

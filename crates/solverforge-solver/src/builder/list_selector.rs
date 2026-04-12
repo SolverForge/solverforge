@@ -39,7 +39,7 @@ where
     // Nearby list change (distance-pruned relocation).
     NearbyListChange(ListMoveNearbyListChangeSelector<S, V, DM, FromSolutionEntitySelector>),
     // Nearby list swap (distance-pruned swap).
-    NearbyListSwap(ListMoveNearbyListSwapSelector<S, V, IDM, FromSolutionEntitySelector>),
+    NearbyListSwap(ListMoveNearbyListSwapSelector<S, V, DM, FromSolutionEntitySelector>),
     // List reverse (2-opt).
     ListReverse(ListMoveListReverseSelector<S, V, FromSolutionEntitySelector>),
     // Sublist change (Or-opt).
@@ -200,6 +200,7 @@ impl ListMoveSelectorBuilder {
     pub fn build<S, V, DM, IDM>(
         config: Option<&MoveSelectorConfig>,
         ctx: &ListContext<S, V, DM, IDM>,
+        random_seed: Option<u64>,
     ) -> VecUnionSelector<S, ListMoveImpl<S, V>, ListLeafSelector<S, V, DM, IDM>>
     where
         S: PlanningSolution,
@@ -214,7 +215,7 @@ impl ListMoveSelectorBuilder {
                 Self::push_nearby_swap(&mut leaves, ctx, 20);
                 Self::push_list_reverse(&mut leaves, ctx);
             }
-            Some(cfg) => Self::collect_leaves(cfg, ctx, &mut leaves),
+            Some(cfg) => Self::collect_leaves(cfg, ctx, random_seed, &mut leaves),
         }
         assert!(
             !leaves.is_empty(),
@@ -226,6 +227,7 @@ impl ListMoveSelectorBuilder {
     fn collect_leaves<S, V, DM, IDM>(
         config: &MoveSelectorConfig,
         ctx: &ListContext<S, V, DM, IDM>,
+        random_seed: Option<u64>,
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
     ) where
         S: PlanningSolution,
@@ -253,7 +255,19 @@ impl ListMoveSelectorBuilder {
                 Self::push_kopt(out, ctx, c.k, c.min_segment_len, c.max_nearby);
             }
             MoveSelectorConfig::ListRuinMoveSelector(c) => {
-                Self::push_list_ruin(out, ctx, c.min_ruin_count, c.max_ruin_count);
+                Self::push_list_ruin(
+                    out,
+                    ctx,
+                    c.min_ruin_count,
+                    c.max_ruin_count,
+                    c.moves_per_step,
+                    random_seed,
+                );
+            }
+            MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
+                panic!(
+                    "selected_count_limit_move_selector must be handled by the unified stock runtime"
+                );
             }
             MoveSelectorConfig::ListChangeMoveSelector(_) => {
                 Self::push_list_change(out, ctx);
@@ -263,7 +277,7 @@ impl ListMoveSelectorBuilder {
             }
             MoveSelectorConfig::UnionMoveSelector(u) => {
                 for child in &u.selectors {
-                    Self::collect_leaves(child, ctx, out);
+                    Self::collect_leaves(child, ctx, random_seed, out);
                 }
             }
             MoveSelectorConfig::ChangeMoveSelector(_) | MoveSelectorConfig::SwapMoveSelector(_) => {
@@ -316,7 +330,7 @@ impl ListMoveSelectorBuilder {
 
         let inner = NearbyListSwapMoveSelector::new(
             FromSolutionEntitySelector::new(ctx.descriptor_index),
-            ctx.intra_distance_meter.clone(),
+            ctx.cross_distance_meter.clone(),
             max_nearby,
             ctx.list_len,
             ctx.list_get,
@@ -458,6 +472,8 @@ impl ListMoveSelectorBuilder {
         ctx: &ListContext<S, V, DM, IDM>,
         min_ruin_count: usize,
         max_ruin_count: usize,
+        moves_per_step: Option<usize>,
+        random_seed: Option<u64>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -475,7 +491,13 @@ impl ListMoveSelectorBuilder {
             ctx.ruin_insert,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1));
+        let inner = if let Some(seed) = random_seed {
+            inner.with_seed(seed)
+        } else {
+            inner
+        };
         out.push(ListLeafSelector::ListRuin(ListMoveListRuinSelector::new(
             inner,
         )));
@@ -527,5 +549,205 @@ impl ListMoveSelectorBuilder {
         out.push(ListLeafSelector::ListSwap(ListMoveListSwapSelector::new(
             inner,
         )));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::any::TypeId;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use solverforge_config::{NearbyListSwapMoveConfig, VariableTargetConfig};
+    use solverforge_core::domain::{
+        EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
+    };
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::ScoreDirector;
+
+    #[derive(Clone, Debug)]
+    struct Vehicle {
+        visits: Vec<usize>,
+    }
+
+    #[derive(Clone, Debug)]
+    struct Plan {
+        vehicles: Vec<Vehicle>,
+        score: Option<SoftScore>,
+    }
+
+    impl PlanningSolution for Plan {
+        type Score = SoftScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct CountingMeter {
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl CountingMeter {
+        fn new() -> (Self, Arc<AtomicUsize>) {
+            let calls = Arc::new(AtomicUsize::new(0));
+            (
+                Self {
+                    calls: calls.clone(),
+                },
+                calls,
+            )
+        }
+    }
+
+    impl CrossEntityDistanceMeter<Plan> for CountingMeter {
+        fn distance(
+            &self,
+            _solution: &Plan,
+            _src_entity: usize,
+            _src_pos: usize,
+            _dst_entity: usize,
+            _dst_pos: usize,
+        ) -> f64 {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            1.0
+        }
+    }
+
+    fn descriptor() -> SolutionDescriptor {
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()).with_entity(
+            EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Vehicle",
+                    "vehicles",
+                    |s: &Plan| &s.vehicles,
+                    |s: &mut Plan| &mut s.vehicles,
+                )),
+            ),
+        )
+    }
+
+    fn list_len(s: &Plan, entity_idx: usize) -> usize {
+        s.vehicles
+            .get(entity_idx)
+            .map_or(0, |vehicle| vehicle.visits.len())
+    }
+
+    fn list_remove(s: &mut Plan, entity_idx: usize, pos: usize) -> Option<usize> {
+        let visits = &mut s.vehicles.get_mut(entity_idx)?.visits;
+        if pos < visits.len() {
+            Some(visits.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    fn list_insert(s: &mut Plan, entity_idx: usize, pos: usize, value: usize) {
+        if let Some(vehicle) = s.vehicles.get_mut(entity_idx) {
+            vehicle.visits.insert(pos, value);
+        }
+    }
+
+    fn list_get(s: &Plan, entity_idx: usize, pos: usize) -> Option<usize> {
+        s.vehicles
+            .get(entity_idx)
+            .and_then(|vehicle| vehicle.visits.get(pos))
+            .copied()
+    }
+
+    fn list_set(s: &mut Plan, entity_idx: usize, pos: usize, value: usize) {
+        if let Some(vehicle) = s.vehicles.get_mut(entity_idx) {
+            vehicle.visits[pos] = value;
+        }
+    }
+
+    fn list_reverse(s: &mut Plan, entity_idx: usize, start: usize, end: usize) {
+        if let Some(vehicle) = s.vehicles.get_mut(entity_idx) {
+            vehicle.visits[start..end].reverse();
+        }
+    }
+
+    fn sublist_remove(s: &mut Plan, entity_idx: usize, start: usize, end: usize) -> Vec<usize> {
+        if let Some(vehicle) = s.vehicles.get_mut(entity_idx) {
+            vehicle.visits.drain(start..end).collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn sublist_insert(s: &mut Plan, entity_idx: usize, pos: usize, values: Vec<usize>) {
+        if let Some(vehicle) = s.vehicles.get_mut(entity_idx) {
+            vehicle.visits.splice(pos..pos, values);
+        }
+    }
+
+    fn ruin_remove(s: &mut Plan, entity_idx: usize, pos: usize) -> usize {
+        s.vehicles[entity_idx].visits.remove(pos)
+    }
+
+    fn ruin_insert(s: &mut Plan, entity_idx: usize, pos: usize, value: usize) {
+        s.vehicles[entity_idx].visits.insert(pos, value);
+    }
+
+    fn entity_count(s: &Plan) -> usize {
+        s.vehicles.len()
+    }
+
+    #[test]
+    fn nearby_list_swap_uses_cross_entity_meter() {
+        let (cross_meter, cross_calls) = CountingMeter::new();
+        let (intra_meter, intra_calls) = CountingMeter::new();
+        let ctx = ListContext::new(
+            list_len,
+            list_remove,
+            list_insert,
+            list_get,
+            list_set,
+            list_reverse,
+            sublist_remove,
+            sublist_insert,
+            ruin_remove,
+            ruin_insert,
+            entity_count,
+            cross_meter,
+            intra_meter,
+            "visits",
+            0,
+        );
+        let config = MoveSelectorConfig::NearbyListSwapMoveSelector(NearbyListSwapMoveConfig {
+            max_nearby: 4,
+            target: VariableTargetConfig::default(),
+        });
+        let selector = ListMoveSelectorBuilder::build(Some(&config), &ctx, None);
+        let solution = Plan {
+            vehicles: vec![Vehicle { visits: vec![10] }, Vehicle { visits: vec![20] }],
+            score: None,
+        };
+        let director = ScoreDirector::simple(solution, descriptor(), |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.vehicles.len()
+            } else {
+                0
+            }
+        });
+
+        let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+        assert_eq!(moves.len(), 1, "expected a single inter-entity swap");
+        assert!(
+            cross_calls.load(Ordering::SeqCst) > 0,
+            "nearby_list_swap must evaluate distances through the cross-entity meter"
+        );
+        assert_eq!(
+            intra_calls.load(Ordering::SeqCst),
+            0,
+            "nearby_list_swap must not consult the intra-route meter"
+        );
     }
 }

@@ -711,6 +711,8 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
 | `KOptPhaseBuilder<S, V, DM, ESF>` | `KOptPhase` |
 
+`ListClarkeWrightPhase<S, E>` preserves preassigned routes by pairing its route-construction hooks with an explicit per-entity route-length callback when filling remaining work.
+
 ## Real-Time Planning
 
 **`SolverHandle<S>`** — Client-facing handle. `add_problem_change()`, `terminate_early()`, `is_solving()`.

@@ -66,10 +66,11 @@ assert!(!moves.is_empty());
 ```
 */
 
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use rand::rngs::StdRng;
+use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
@@ -99,8 +100,8 @@ pub struct RuinMoveSelector<S, V> {
     min_ruin_count: usize,
     // Maximum entities to include in each ruin move.
     max_ruin_count: usize,
-    // Random seed for reproducible subset selection.
-    seed: Option<u64>,
+    // RNG state for reproducible subset selection.
+    rng: RefCell<SmallRng>,
     // Function to get entity count from solution.
     entity_count: fn(&S) -> usize,
     // Function to get current value.
@@ -115,6 +116,10 @@ pub struct RuinMoveSelector<S, V> {
     moves_per_step: usize,
     _phantom: PhantomData<fn() -> V>,
 }
+
+// SAFETY: RefCell<SmallRng> is only accessed while pre-generating a move batch
+// inside `iter_moves`, and selectors are consumed from a single thread at a time.
+unsafe impl<S, V> Send for RuinMoveSelector<S, V> {}
 
 impl<S, V: Debug> Debug for RuinMoveSelector<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -160,7 +165,7 @@ impl<S, V> RuinMoveSelector<S, V> {
         Self {
             min_ruin_count,
             max_ruin_count,
-            seed: None,
+            rng: RefCell::new(SmallRng::from_rng(&mut rand::rng())),
             entity_count,
             getter,
             setter,
@@ -180,15 +185,8 @@ impl<S, V> RuinMoveSelector<S, V> {
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
-        self.seed = Some(seed);
+        self.rng = RefCell::new(SmallRng::seed_from_u64(seed));
         self
-    }
-
-    fn create_rng(&self) -> StdRng {
-        match self.seed {
-            Some(seed) => StdRng::seed_from_u64(seed),
-            None => StdRng::from_rng(&mut rand::rng()),
-        }
     }
 }
 
@@ -212,7 +210,7 @@ where
         let moves_count = self.moves_per_step;
 
         // Pre-generate subsets using RNG
-        let mut rng = self.create_rng();
+        let mut rng = self.rng.borrow_mut();
         let subsets: Vec<SmallVec<[usize; 8]>> = (0..moves_count)
             .map(|_| {
                 if total_entities == 0 {

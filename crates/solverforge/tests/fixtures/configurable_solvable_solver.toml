@@ -1,0 +1,5 @@
+random_seed = 23
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"

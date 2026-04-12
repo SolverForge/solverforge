@@ -116,3 +116,49 @@ fn test_unified_target_and_vnd_parsing() {
     assert_eq!(list_change.target.entity_class.as_deref(), Some("Vehicle"));
     assert_eq!(list_change.target.variable_name.as_deref(), Some("visits"));
 }
+
+#[test]
+fn test_selected_count_limit_move_selector_parsing() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "union_move_selector"
+
+        [[phases.move_selector.selectors]]
+        type = "selected_count_limit_move_selector"
+        selected_count_limit = 500
+
+        [phases.move_selector.selectors.selector]
+        type = "sub_list_change_move_selector"
+        min_sublist_size = 1
+        max_sublist_size = 3
+        entity_class = "Route"
+        variable_name = "visits"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    assert_eq!(config.phases.len(), 1);
+
+    let PhaseConfig::LocalSearch(local_search) = &config.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::UnionMoveSelector(union)) = &local_search.move_selector else {
+        panic!("local search should have a union move selector");
+    };
+    assert_eq!(union.selectors.len(), 1);
+
+    let MoveSelectorConfig::SelectedCountLimitMoveSelector(limit) = &union.selectors[0] else {
+        panic!("union child should be a selected count limit selector");
+    };
+    assert_eq!(limit.selected_count_limit, 500);
+
+    let MoveSelectorConfig::SubListChangeMoveSelector(sublist) = limit.selector.as_ref() else {
+        panic!("selected count limit child should be sub_list_change");
+    };
+    assert_eq!(sublist.min_sublist_size, 1);
+    assert_eq!(sublist.max_sublist_size, 3);
+    assert_eq!(sublist.target.entity_class.as_deref(), Some("Route"));
+    assert_eq!(sublist.target.variable_name.as_deref(), Some("visits"));
+}

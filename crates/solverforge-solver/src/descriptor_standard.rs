@@ -858,6 +858,11 @@ where
                     collect(child, descriptor, bindings, leaves);
                 }
             }
+            MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
+                panic!(
+                    "selected_count_limit_move_selector must be handled by the unified stock runtime"
+                );
+            }
             MoveSelectorConfig::ListChangeMoveSelector(_)
             | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
             | MoveSelectorConfig::ListSwapMoveSelector(_)

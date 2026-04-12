@@ -81,6 +81,16 @@ impl SimulatedAnnealingAcceptor {
             level_count: 0,
         }
     }
+
+    pub(crate) fn auto_calibrate_with_seed(decay_rate: f64, seed: u64) -> Self {
+        Self {
+            starting_temperature: 0.0, // Will be set in phase_started
+            current_temperature: 0.0,
+            decay_rate,
+            rng: SmallRng::seed_from_u64(seed),
+            level_count: 0,
+        }
+    }
 }
 
 impl Default for SimulatedAnnealingAcceptor {
@@ -284,6 +294,19 @@ mod tests {
         // Temperature should be ~2% of 576 * 1_000_000 = 11_520_000
         assert!(acceptor.current_temperature > 10_000_000.0);
         assert!(acceptor.current_temperature < 20_000_000.0);
+    }
+
+    #[test]
+    fn seeded_auto_calibrate_matches_unseeded_temperature() {
+        let initial = HardSoftScore::of(-576, 0);
+        let mut seeded = SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999, 42);
+        let mut unseeded = SimulatedAnnealingAcceptor::auto_calibrate(0.999);
+
+        Acceptor::<HardSoftSol>::phase_started(&mut seeded, &initial);
+        Acceptor::<HardSoftSol>::phase_started(&mut unseeded, &initial);
+
+        assert_eq!(seeded.starting_temperature, unseeded.starting_temperature);
+        assert_eq!(seeded.current_temperature, unseeded.current_temperature);
     }
 
     #[test]

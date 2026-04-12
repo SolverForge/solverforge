@@ -260,6 +260,9 @@ where
     if trivial {
         let mut solver_scope = SolverScope::new(director);
         solver_scope = solver_scope.with_runtime(Some(runtime));
+        if let Some(seed) = config.random_seed {
+            solver_scope = solver_scope.with_seed(seed);
+        }
         solver_scope.start_solving();
         let score = solver_scope.calculate_score();
         let solution = solver_scope.score_director().clone_working_solution();
@@ -288,6 +291,7 @@ where
 
     let phases = build_phases(&config);
     let solver = Solver::new((phases,))
+        .with_config(config.clone())
         .with_termination(termination)
         .with_time_limit(time_limit)
         .with_runtime(runtime)

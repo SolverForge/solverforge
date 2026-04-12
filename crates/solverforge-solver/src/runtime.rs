@@ -22,7 +22,7 @@ use crate::unified_search::{
 pub struct UnifiedConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
+    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + 'static,
 {
     config: Option<ConstructionHeuristicConfig>,
     descriptor: SolutionDescriptor,
@@ -33,7 +33,7 @@ where
 impl<S, V> UnifiedConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
+    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + 'static,
 {
     fn new(
         config: Option<ConstructionHeuristicConfig>,
@@ -53,7 +53,7 @@ where
 impl<S, V> Debug for UnifiedConstruction<S, V>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("UnifiedConstruction")
@@ -67,7 +67,7 @@ where
 impl<S, V, D, ProgressCb> Phase<S, D, ProgressCb> for UnifiedConstruction<S, V>
 where
     S: PlanningSolution + 'static,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
     D: solverforge_scoring::Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
@@ -164,7 +164,7 @@ where
 impl<S, V> UnifiedConstruction<S, V>
 where
     S: PlanningSolution + 'static,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
 {
     fn solve_list<D, ProgressCb>(&self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)
     where
@@ -290,7 +290,7 @@ pub fn build_phases<S, V, DM, IDM>(
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
-    V: Clone + Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
@@ -303,7 +303,10 @@ where
             list_variable_name,
         ));
         phases.push(RuntimePhase::LocalSearch(build_unified_local_search(
-            None, descriptor, list_ctx,
+            None,
+            descriptor,
+            list_ctx,
+            config.random_seed,
         )));
         return PhaseSequence::new(phases);
     }
@@ -323,11 +326,15 @@ where
                     Some(ls),
                     descriptor,
                     list_ctx,
+                    config.random_seed,
                 )));
             }
             PhaseConfig::Vnd(vnd) => {
                 phases.push(RuntimePhase::Vnd(build_unified_vnd(
-                    vnd, descriptor, list_ctx,
+                    vnd,
+                    descriptor,
+                    list_ctx,
+                    config.random_seed,
                 )));
             }
             _ => {
@@ -347,7 +354,7 @@ fn default_construction_phase<S, V, DM, IDM>(
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
-    V: Clone + Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
@@ -368,7 +375,7 @@ fn build_construction_phase<S, V, DM, IDM>(
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
-    V: Clone + Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {

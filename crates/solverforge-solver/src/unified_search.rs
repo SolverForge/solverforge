@@ -13,13 +13,21 @@ use crate::descriptor_standard::{
     DescriptorLeafSelector,
 };
 use crate::heuristic::r#move::{ListMoveImpl, Move, MoveArena};
-use crate::heuristic::selector::decorator::VecUnionSelector;
+use crate::heuristic::selector::decorator::{SelectedCountLimitMoveSelector, VecUnionSelector};
 use crate::heuristic::selector::move_selector::MoveSelector;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::dynamic_vnd::DynamicVndPhase;
 use crate::phase::localsearch::{
     AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
 };
+
+type StandardSelector<S> = VecUnionSelector<S, DescriptorEitherMove<S>, DescriptorLeafSelector<S>>;
+type LimitedStandardSelector<S> =
+    SelectedCountLimitMoveSelector<S, DescriptorEitherMove<S>, StandardSelector<S>>;
+type ListSelector<S, V, DM, IDM> =
+    VecUnionSelector<S, ListMoveImpl<S, V>, ListLeafSelector<S, V, DM, IDM>>;
+type LimitedListSelector<S, V, DM, IDM> =
+    SelectedCountLimitMoveSelector<S, ListMoveImpl<S, V>, ListSelector<S, V, DM, IDM>>;
 
 pub enum UnifiedMove<S, V> {
     Standard(DescriptorEitherMove<S>),
@@ -87,8 +95,10 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone,
     IDM: CrossEntityDistanceMeter<S> + Clone,
 {
-    Standard(VecUnionSelector<S, DescriptorEitherMove<S>, DescriptorLeafSelector<S>>),
-    List(VecUnionSelector<S, ListMoveImpl<S, V>, ListLeafSelector<S, V, DM, IDM>>),
+    Standard(StandardSelector<S>),
+    LimitedStandard(LimitedStandardSelector<S>),
+    List(ListSelector<S, V, DM, IDM>),
+    LimitedList(LimitedListSelector<S, V, DM, IDM>),
 }
 
 impl<S, V, DM, IDM> Debug for UnifiedNeighborhood<S, V, DM, IDM>
@@ -101,7 +111,9 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Standard(s) => write!(f, "UnifiedNeighborhood::Standard({s:?})"),
+            Self::LimitedStandard(s) => write!(f, "UnifiedNeighborhood::LimitedStandard({s:?})"),
             Self::List(s) => write!(f, "UnifiedNeighborhood::List({s:?})"),
+            Self::LimitedList(s) => write!(f, "UnifiedNeighborhood::LimitedList({s:?})"),
         }
     }
 }
@@ -117,22 +129,28 @@ where
         &'a self,
         score_director: &'a D,
     ) -> impl Iterator<Item = UnifiedMove<S, V>> + 'a {
-        enum UnifiedNeighborhoodIter<A, B> {
+        enum UnifiedNeighborhoodIter<A, B, C, DIter> {
             Standard(A),
-            List(B),
+            LimitedStandard(B),
+            List(C),
+            LimitedList(DIter),
         }
 
-        impl<T, A, B> Iterator for UnifiedNeighborhoodIter<A, B>
+        impl<T, A, B, C, DIter> Iterator for UnifiedNeighborhoodIter<A, B, C, DIter>
         where
             A: Iterator<Item = T>,
             B: Iterator<Item = T>,
+            C: Iterator<Item = T>,
+            DIter: Iterator<Item = T>,
         {
             type Item = T;
 
             fn next(&mut self) -> Option<Self::Item> {
                 match self {
                     Self::Standard(iter) => iter.next(),
+                    Self::LimitedStandard(iter) => iter.next(),
                     Self::List(iter) => iter.next(),
+                    Self::LimitedList(iter) => iter.next(),
                 }
             }
         }
@@ -143,7 +161,15 @@ where
                     .iter_moves(score_director)
                     .map(UnifiedMove::Standard),
             ),
+            Self::LimitedStandard(selector) => UnifiedNeighborhoodIter::LimitedStandard(
+                selector
+                    .iter_moves(score_director)
+                    .map(UnifiedMove::Standard),
+            ),
             Self::List(selector) => UnifiedNeighborhoodIter::List(
+                selector.iter_moves(score_director).map(UnifiedMove::List),
+            ),
+            Self::LimitedList(selector) => UnifiedNeighborhoodIter::LimitedList(
                 selector.iter_moves(score_director).map(UnifiedMove::List),
             ),
         }
@@ -152,7 +178,9 @@ where
     fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
         match self {
             Self::Standard(selector) => selector.size(score_director),
+            Self::LimitedStandard(selector) => selector.size(score_director),
             Self::List(selector) => selector.size(score_director),
+            Self::LimitedList(selector) => selector.size(score_director),
         }
     }
 
@@ -167,12 +195,69 @@ where
                     arena.push(UnifiedMove::Standard(mov));
                 }
             }
+            Self::LimitedStandard(selector) => {
+                for mov in selector.iter_moves(score_director) {
+                    arena.push(UnifiedMove::Standard(mov));
+                }
+            }
             Self::List(selector) => {
                 for mov in selector.iter_moves(score_director) {
                     arena.push(UnifiedMove::List(mov));
                 }
             }
+            Self::LimitedList(selector) => {
+                for mov in selector.iter_moves(score_director) {
+                    arena.push(UnifiedMove::List(mov));
+                }
+            }
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SelectorFamily {
+    Standard,
+    List,
+    Mixed,
+    Unsupported,
+}
+
+fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
+    match config {
+        MoveSelectorConfig::ChangeMoveSelector(_) | MoveSelectorConfig::SwapMoveSelector(_) => {
+            SelectorFamily::Standard
+        }
+        MoveSelectorConfig::ListChangeMoveSelector(_)
+        | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
+        | MoveSelectorConfig::ListSwapMoveSelector(_)
+        | MoveSelectorConfig::NearbyListSwapMoveSelector(_)
+        | MoveSelectorConfig::SubListChangeMoveSelector(_)
+        | MoveSelectorConfig::SubListSwapMoveSelector(_)
+        | MoveSelectorConfig::ListReverseMoveSelector(_)
+        | MoveSelectorConfig::KOptMoveSelector(_)
+        | MoveSelectorConfig::ListRuinMoveSelector(_) => SelectorFamily::List,
+        MoveSelectorConfig::SelectedCountLimitMoveSelector(limit) => {
+            selector_family(limit.selector.as_ref())
+        }
+        MoveSelectorConfig::UnionMoveSelector(union) => {
+            let mut family = None;
+            for child in &union.selectors {
+                let child_family = selector_family(child);
+                if child_family == SelectorFamily::Unsupported {
+                    return SelectorFamily::Unsupported;
+                }
+                family = Some(match family {
+                    None => child_family,
+                    Some(current) if current == child_family => current,
+                    Some(_) => SelectorFamily::Mixed,
+                });
+                if family == Some(SelectorFamily::Mixed) {
+                    return SelectorFamily::Mixed;
+                }
+            }
+            family.unwrap_or(SelectorFamily::Mixed)
+        }
+        MoveSelectorConfig::CartesianProductMoveSelector(_) => SelectorFamily::Unsupported,
     }
 }
 
@@ -191,6 +276,7 @@ pub fn build_unified_move_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
     list_ctx: Option<&ListContext<S, V, DM, IDM>>,
+    random_seed: Option<u64>,
 ) -> VecUnionSelector<S, UnifiedMove<S, V>, UnifiedNeighborhood<S, V, DM, IDM>>
 where
     S: PlanningSolution + 'static,
@@ -199,7 +285,13 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
 {
     let mut neighborhoods = Vec::new();
-    collect_neighborhoods(config, descriptor, list_ctx, &mut neighborhoods);
+    collect_neighborhoods(
+        config,
+        descriptor,
+        list_ctx,
+        random_seed,
+        &mut neighborhoods,
+    );
     assert!(
         !neighborhoods.is_empty(),
         "stock move selector configuration produced no neighborhoods"
@@ -211,6 +303,7 @@ fn collect_neighborhoods<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
     list_ctx: Option<&ListContext<S, V, DM, IDM>>,
+    random_seed: Option<u64>,
     out: &mut Vec<UnifiedNeighborhood<S, V, DM, IDM>>,
 ) where
     S: PlanningSolution + 'static,
@@ -227,13 +320,50 @@ fn collect_neighborhoods<S, V, DM, IDM>(
             }
             if let Some(list_ctx) = list_ctx {
                 out.push(UnifiedNeighborhood::List(ListMoveSelectorBuilder::build(
-                    None, list_ctx,
+                    None,
+                    list_ctx,
+                    random_seed,
                 )));
             }
         }
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
             for child in &union.selectors {
-                collect_neighborhoods(Some(child), descriptor, list_ctx, out);
+                collect_neighborhoods(Some(child), descriptor, list_ctx, random_seed, out);
+            }
+        }
+        Some(MoveSelectorConfig::SelectedCountLimitMoveSelector(limit)) => {
+            match selector_family(limit.selector.as_ref()) {
+                SelectorFamily::Standard => out.push(UnifiedNeighborhood::LimitedStandard(
+                    SelectedCountLimitMoveSelector::new(
+                        build_descriptor_move_selector(Some(limit.selector.as_ref()), descriptor),
+                        limit.selected_count_limit,
+                    ),
+                )),
+                SelectorFamily::List => {
+                    let Some(list_ctx) = list_ctx else {
+                        panic!(
+                            "selected_count_limit_move_selector wrapped a list selector in a standard-variable stock context"
+                        );
+                    };
+                    out.push(UnifiedNeighborhood::LimitedList(
+                        SelectedCountLimitMoveSelector::new(
+                            ListMoveSelectorBuilder::build(
+                                Some(limit.selector.as_ref()),
+                                list_ctx,
+                                random_seed,
+                            ),
+                            limit.selected_count_limit,
+                        ),
+                    ));
+                }
+                SelectorFamily::Mixed => {
+                    panic!(
+                        "selected_count_limit_move_selector cannot wrap a mixed standard/list selector union"
+                    );
+                }
+                SelectorFamily::Unsupported => {
+                    panic!("cartesian_product move selectors are not supported in stock solving");
+                }
             }
         }
         Some(MoveSelectorConfig::ChangeMoveSelector(_))
@@ -255,7 +385,9 @@ fn collect_neighborhoods<S, V, DM, IDM>(
                 panic!("list move selector configured against a standard-variable stock context");
             };
             out.push(UnifiedNeighborhood::List(ListMoveSelectorBuilder::build(
-                config, list_ctx,
+                config,
+                list_ctx,
+                random_seed,
             )));
         }
         Some(MoveSelectorConfig::CartesianProductMoveSelector(_)) => {
@@ -268,6 +400,7 @@ pub fn build_unified_local_search<S, V, DM, IDM>(
     config: Option<&LocalSearchConfig>,
     descriptor: &SolutionDescriptor,
     list_ctx: Option<&ListContext<S, V, DM, IDM>>,
+    random_seed: Option<u64>,
 ) -> UnifiedLocalSearch<S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
@@ -278,14 +411,19 @@ where
 {
     let acceptor = config
         .and_then(|ls| ls.acceptor.as_ref())
-        .map(AcceptorBuilder::build::<S>)
+        .map(|cfg| AcceptorBuilder::build_with_seed::<S>(cfg, random_seed))
         .unwrap_or_else(|| {
             if list_ctx.is_some() {
                 AnyAcceptor::LateAcceptance(
                     crate::phase::localsearch::LateAcceptanceAcceptor::<S>::new(400),
                 )
             } else {
-                AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::default())
+                match random_seed {
+                    Some(seed) => AnyAcceptor::SimulatedAnnealing(
+                        SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999985, seed),
+                    ),
+                    None => AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::default()),
+                }
             }
         });
     let forager = config
@@ -299,6 +437,7 @@ where
         config.and_then(|ls| ls.move_selector.as_ref()),
         descriptor,
         list_ctx,
+        random_seed,
     );
 
     LocalSearchPhase::new(move_selector, acceptor, forager, None)
@@ -308,6 +447,7 @@ pub fn build_unified_vnd<S, V, DM, IDM>(
     config: &VndConfig,
     descriptor: &SolutionDescriptor,
     list_ctx: Option<&ListContext<S, V, DM, IDM>>,
+    random_seed: Option<u64>,
 ) -> UnifiedVnd<S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
@@ -318,7 +458,7 @@ where
 {
     let neighborhoods = if config.neighborhoods.is_empty() {
         let mut neighborhoods = Vec::new();
-        collect_neighborhoods(None, descriptor, list_ctx, &mut neighborhoods);
+        collect_neighborhoods(None, descriptor, list_ctx, random_seed, &mut neighborhoods);
         neighborhoods
     } else {
         config
@@ -326,7 +466,13 @@ where
             .iter()
             .flat_map(|selector| {
                 let mut neighborhoods = Vec::new();
-                collect_neighborhoods(Some(selector), descriptor, list_ctx, &mut neighborhoods);
+                collect_neighborhoods(
+                    Some(selector),
+                    descriptor,
+                    list_ctx,
+                    random_seed,
+                    &mut neighborhoods,
+                );
                 neighborhoods
             })
             .collect()

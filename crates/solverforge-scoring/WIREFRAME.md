@@ -86,7 +86,9 @@ src/
 │   ├── grouped_stream/weighting.rs                 — GroupedConstraintBuilder
 │   ├── balance_stream.rs                           — BalanceConstraintStream, BalanceConstraintBuilder
 │   ├── complemented_stream.rs                      — ComplementedConstraintStream, ComplementedConstraintBuilder
-│   ├── cross_bi_stream.rs                          — CrossBiConstraintStream, CrossBiConstraintBuilder
+│   ├── cross_bi_stream.rs                          — Re-exports
+│   ├── cross_bi_stream/base.rs                     — CrossBiConstraintStream
+│   ├── cross_bi_stream/weighting.rs                — CrossBiConstraintBuilder
 │   ├── flattened_bi_stream.rs                      — FlattenedBiConstraintStream, FlattenedBiConstraintBuilder
 │   ├── if_exists_stream.rs                         — IfExistsStream, IfExistsBuilder
 │   ├── collection_extract.rs                       — CollectionExtract trait, VecExtract wrapper, vec() constructor

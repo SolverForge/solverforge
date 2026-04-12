@@ -58,7 +58,9 @@ src/
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
-│   ├── typed.rs                                    — ScoreDirector<S,C> (zero-erasure incremental)
+│   ├── score_director.rs                           — Re-exports typed ScoreDirector pieces
+│   │   ├── score_director/typed.rs                 — ScoreDirector<S,C> (zero-erasure incremental)
+│   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
 │   ├── recording.rs                                — RecordingDirector<'a,S,D> (automatic undo tracking)
 │   ├── shadow_aware.rs                             — ShadowVariableSupport trait, SolvableSolution trait
 │   └── tests/

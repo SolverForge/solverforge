@@ -12,7 +12,11 @@ Domain helpers for Capacitated Vehicle Routing Problems (CVRP).
 
 ```
 src/
-└── lib.rs   — All public types and free functions
+├── helpers.rs       — Public CVRP free functions and private pointer helpers
+├── lib.rs           — Module exports and public re-exports
+├── meters.rs        — Distance meter implementations
+├── problem_data.rs  — `ProblemData`
+└── solution.rs      — `VrpSolution`
 ```
 
 ## Types

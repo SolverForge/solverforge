@@ -88,7 +88,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.8.4", features = ["console"] }
+solverforge = { version = "0.8.5", features = ["console"] }
 ```
 
 ### Feature Flags

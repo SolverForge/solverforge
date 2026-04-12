@@ -11,8 +11,8 @@ mod problem_data;
 mod solution;
 
 pub use helpers::{
-    capacity, depot_for_cw, depot_for_entity, distance, element_load, get_route,
-    is_kopt_feasible, is_time_feasible, replace_route,
+    capacity, depot_for_cw, depot_for_entity, distance, element_load, get_route, is_kopt_feasible,
+    is_time_feasible, replace_route,
 };
 pub use meters::{MatrixDistanceMeter, MatrixIntraDistanceMeter};
 pub use problem_data::ProblemData;

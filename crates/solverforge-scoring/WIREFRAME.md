@@ -74,7 +74,9 @@ src/
 ├── stream/
 │   ├── mod.rs                                      — Module declarations and re-exports for all stream types
 │   ├── factory.rs                                  — ConstraintFactory<S,Sc>
-│   ├── uni_stream.rs                               — UniConstraintStream, UniConstraintBuilder
+│   ├── uni_stream.rs                               — Re-exports
+│   ├── uni_stream/base.rs                          — UniConstraintStream
+│   ├── uni_stream/weighting.rs                     — UniConstraintBuilder and weighting helpers
 │   ├── bi_stream.rs                                — BiConstraintStream, BiConstraintBuilder (via macro)
 │   ├── tri_stream.rs                               — TriConstraintStream, TriConstraintBuilder (via macro)
 │   ├── quad_stream.rs                              — QuadConstraintStream, QuadConstraintBuilder (via macro)

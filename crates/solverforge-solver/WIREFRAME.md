@@ -167,6 +167,7 @@ src/
 │   │   ├── mod.rs                       — LocalSearchConfig, AcceptorType, re-exports
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
 │   │   ├── forager.rs                   — LocalSearchForager trait, AcceptedCountForager, FirstAcceptedForager, BestScoreForager, FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager
+│   │   ├── phase_tests.rs              — Tests
 │   │   └── acceptor/
 │   │       ├── mod.rs                   — Acceptor<S> trait, re-exports
 │   │       ├── hill_climbing.rs        — HillClimbingAcceptor

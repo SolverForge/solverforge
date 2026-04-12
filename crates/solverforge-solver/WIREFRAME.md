@@ -160,6 +160,7 @@ src/
 │   │   ├── phase.rs                     — ConstructionHeuristicPhase<S, M, P, Fo>
 │   │   ├── forager.rs                   — ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit foragers
 │   │   ├── placer.rs                    — EntityPlacer trait, Placement, QueuedEntityPlacer, SortedEntityPlacer
+│   │   ├── phase_tests.rs              — Tests
 │   │   ├── forager_tests.rs            — Tests
 │   │   └── placer_tests.rs             — Tests
 │   ├── localsearch/

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.3](///compare/v0.8.2...v0.8.3) (2026-04-12)
+
+
+### Bug Fixes
+
+* **runtime:** support embedded solver configs and deterministic stock search a12d4db
+
 ## [0.8.2](///compare/v0.8.1...v0.8.2) (2026-04-11)
 
 

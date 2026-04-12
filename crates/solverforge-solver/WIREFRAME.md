@@ -158,13 +158,19 @@ src/
 │   │       ├── hill_climbing.rs        — HillClimbingAcceptor
 │   │       ├── late_acceptance.rs      — LateAcceptanceAcceptor<S>
 │   │       ├── simulated_annealing.rs  — SimulatedAnnealingAcceptor
+│   │       ├── simulated_annealing_tests.rs — Tests
 │   │       ├── tabu_search.rs          — TabuSearchAcceptor<S>
 │   │       ├── entity_tabu.rs          — EntityTabuAcceptor
 │   │       ├── value_tabu.rs           — ValueTabuAcceptor
+│   │       ├── value_tabu_tests.rs     — Tests
 │   │       ├── move_tabu.rs            — MoveTabuAcceptor
+│   │       ├── move_tabu_tests.rs      — Tests
 │   │       ├── great_deluge.rs         — GreatDelugeAcceptor<S>
+│   │       ├── great_deluge_tests.rs   — Tests
 │   │       ├── step_counting.rs        — StepCountingHillClimbingAcceptor<S>
+│   │       ├── step_counting_tests.rs  — Tests
 │   │       ├── diversified_late_acceptance.rs — DiversifiedLateAcceptanceAcceptor<S>
+│   │       ├── diversified_late_acceptance_tests.rs — Tests
 │   │       └── tests.rs                — Tests
 │   ├── exhaustive/
 │   │   ├── mod.rs                       — ExhaustiveSearchPhase, ExhaustiveSearchConfig, ExplorationType

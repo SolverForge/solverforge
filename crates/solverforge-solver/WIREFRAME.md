@@ -229,7 +229,11 @@ src/
 │   ├── config.rs                        — LocalSearchType, ConstructionType, PhaseConfig enums
 │   ├── builder.rs                       — SolverFactoryBuilder, SolverBuildError
 │   ├── solver_factory.rs               — SolverFactory, solver_factory_builder() free fn
-│   ├── solver_manager.rs               — SolverManager, Solvable trait, retained lifecycle/status/event types
+│   ├── solver_manager.rs               — Re-exports retained lifecycle manager surface
+│   ├── solver_manager/types.rs         — SolverLifecycleState, SolverTerminalReason, SolverStatus, SolverEvent, SolverSnapshot, SolverManagerError
+│   ├── solver_manager/runtime.rs       — SolverRuntime retained lifecycle publisher
+│   ├── solver_manager/slot.rs          — Internal retained-job slots and snapshot records
+│   ├── solver_manager/manager.rs       — MAX_JOBS, Solvable trait, SolverManager
 │   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
 │   ├── phase_factory/
 │   │   ├── mod.rs                       — Re-exports

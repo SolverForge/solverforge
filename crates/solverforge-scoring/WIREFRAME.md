@@ -63,6 +63,8 @@ src/
 │   ├── shadow_aware.rs                             — ShadowVariableSupport trait, SolvableSolution trait
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
+│       ├── bench.rs                                — Benchmark test module declarations
+│       ├── benchmarks.rs                           — Performance comparison tests
 │       ├── typed.rs                                — ScoreDirector tests
 │       ├── recording.rs                            — RecordingDirector tests
 │       ├── shadow.rs                               — Shadow-aware director tests

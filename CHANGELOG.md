@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.4](///compare/v0.8.3...v0.8.4) (2026-04-12)
+
 ## [0.8.3](///compare/v0.8.2...v0.8.3) (2026-04-12)
 
 

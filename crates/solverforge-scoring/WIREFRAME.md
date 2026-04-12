@@ -99,7 +99,12 @@ src/
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
-│   │   └── nary_stream.rs                          — impl_bi/tri/quad/penta_arity_stream! macros
+│   │   ├── nary_stream.rs                          — Module declarations for arity stream macros
+│   │   └── nary_stream/
+│   │       ├── bi.rs                               — impl_bi_arity_stream! macro
+│   │       ├── tri.rs                              — impl_tri_arity_stream! macro
+│   │       ├── quad.rs                             — impl_quad_arity_stream! macro
+│   │       └── penta.rs                            — impl_penta_arity_stream! macro
 │   ├── filter/
 │   │   ├── mod.rs                                  — Re-exports filter types
 │   │   ├── traits.rs                               — UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter traits

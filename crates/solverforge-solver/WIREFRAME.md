@@ -112,12 +112,19 @@ src/
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>
+│       │   ├── cartesian_product_tests.rs — Tests
 │       │   ├── count_limit.rs          — SelectedCountLimitMoveSelector<S, M, Inner>
+│       │   ├── count_limit_tests.rs    — Tests
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
+│       │   ├── filtering_tests.rs      — Tests
 │       │   ├── probability.rs          — ProbabilityMoveSelector<S, M, Inner>
+│       │   ├── probability_tests.rs    — Tests
 │       │   ├── shuffling.rs            — ShufflingMoveSelector<S, M, Inner>
+│       │   ├── shuffling_tests.rs      — Tests
 │       │   ├── sorting.rs              — SortingMoveSelector<S, M, Inner>
+│       │   ├── sorting_tests.rs        — Tests
 │       │   ├── union.rs                — UnionMoveSelector<S, M, A, B>
+│       │   ├── union_tests.rs          — Tests
 │       │   ├── vec_union.rs            — VecUnionSelector<S, M, Leaf> (Vec-backed union for config-driven composition)
 │       │   └── test_utils.rs           — Test helpers
 │       ├── k_opt/

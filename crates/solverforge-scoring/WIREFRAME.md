@@ -89,7 +89,10 @@ src/
 │   ├── cross_bi_stream.rs                          — Re-exports
 │   ├── cross_bi_stream/base.rs                     — CrossBiConstraintStream
 │   ├── cross_bi_stream/weighting.rs                — CrossBiConstraintBuilder
-│   ├── flattened_bi_stream.rs                      — FlattenedBiConstraintStream, FlattenedBiConstraintBuilder
+│   ├── flattened_bi_stream.rs                      — Re-exports
+│   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
+│   ├── flattened_bi_stream/builder.rs              — FlattenedBiConstraintBuilder
+│   ├── flattened_bi_stream/weighting.rs            — Weighting helpers for flattened streams
 │   ├── if_exists_stream.rs                         — IfExistsStream, IfExistsBuilder
 │   ├── collection_extract.rs                       — CollectionExtract trait, VecExtract wrapper, vec() constructor
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)

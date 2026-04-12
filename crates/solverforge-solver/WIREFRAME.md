@@ -24,6 +24,7 @@ src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── list_solver.rs                       — List construction builders, list phase enums, hidden macro metadata + `ListVariableEntity`
+├── list_solver_tests.rs                 — Tests
 ├── unified_search.rs                    — Unified move envelope, selector builder, local-search/VND builders
 ├── runtime.rs                           — Re-exports runtime construction and phase builders
 ├── runtime/
@@ -66,6 +67,7 @@ src/
 │   │   ├── ruin.rs                      — RuinMove<S, V>
 │   │   ├── k_opt.rs                     — KOptMove<S, V>, CutPoint
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
+│   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>
 │   │   ├── either.rs                    — EitherMove<S, V> enum
 │   │   ├── list_either.rs              — ListMoveImpl<S, V> enum

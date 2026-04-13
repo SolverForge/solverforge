@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.6](///compare/v0.8.5...v0.8.6) (2026-04-13)
+
+
+### Bug Fixes
+
+* **solver:** correct list ruin undo reinsertion tracking 5535dad
+
 ## [0.8.5](///compare/v0.8.4...v0.8.5) (2026-04-13)
 
 

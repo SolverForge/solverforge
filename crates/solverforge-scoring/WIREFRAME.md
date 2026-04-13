@@ -361,7 +361,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 - `for_each_tracked()` → `UniConstraintStream` with descriptor-aware change source metadata
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `join(target)` (unified dispatch via `JoinTarget`), `group_by()`, `balance()`, `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `join(target)` (unified dispatch via `JoinTarget`), `group_by()`, `balance()`, `flattened(flatten)` → `FlattenedCollectionTarget` (tracked streams only), `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
@@ -413,11 +413,17 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
+**`ChangeSource`** — Enum describing incremental invalidation origin for tracked streams: `Static` or `Descriptor(idx)`.
+
 **`TrackedCollectionExtract<S>` / `TrackedExtract<E>` / `tracked(...)`** — Descriptor-aware collection extraction used by structured existence filtering. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact collections carry `ChangeSource::Static`.
+
+**`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 
 **`ExistenceTarget<S, A, E, F, Sc>`** — Trait for unified `.if_exists(...)` / `.if_not_exists(...)` dispatch on `UniConstraintStream`.
 - Direct target: `(other_stream, equal_bi(left_key, right_key))`
 - Flattened target: `(parent_stream, flatten, equal_bi(left_key, flattened_key))`
+
+**`FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc>`** — Intermediate existence target produced by `UniConstraintStream::flattened(flatten)` for nested collection membership checks.
 
 ### Join Support Types
 

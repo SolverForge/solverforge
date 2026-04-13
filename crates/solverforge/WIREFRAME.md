@@ -132,13 +132,19 @@ pub use crate::{
 Re-exports the fluent constraint stream API:
 
 ```rust
-pub use solverforge_scoring::stream::{joiner, ConstraintFactory};
-pub use solverforge_scoring::stream::collection_extract::{CollectionExtract, VecExtract, vec};
+pub use solverforge_scoring::stream::collection_extract::vec;
+pub use solverforge_scoring::stream::collection_extract::{
+    tracked, ChangeSource, CollectionExtract, FlattenExtract, TrackedCollectionExtract,
+    TrackedExtract, VecExtract,
+};
+pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```
 
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")` — no `as_constraint`, no `for_each_unique_pair`, no `join_self`/`join_keyed`. Use `.join(target)` for all join patterns (self-join, keyed, predicate).
 
 Extractor ergonomics: all `for_each` and join extractor params accept `CollectionExtract<S, Item = A>`. Use `|s| s.field.as_slice()` for slices, or `vec(|s| &s.field)` when the field is a `Vec<A>` and you prefer `&field` syntax.
+
+Tracked existence ergonomics: `ConstraintFactory::for_each_tracked()` and generated `{Name}ConstraintStreams` accessors produce tracked uni streams, exposing `ChangeSource` metadata for incremental `.if_exists(...)` / `.if_not_exists(...)`. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 
@@ -167,6 +173,7 @@ Used exclusively by macro-generated code. Not public API.
 - `SolverConfig`
 
 **Stream types for macro-generated extension traits (from `solverforge-scoring`):**
+- `ChangeSource`, `CollectionExtract`, `TrackedExtract`
 - `UniConstraintStream`, `UniConstraintBuilder`
 - `TrueFilter`, `UniFilter`, `FnUniFilter`, `AndUniFilter`
 

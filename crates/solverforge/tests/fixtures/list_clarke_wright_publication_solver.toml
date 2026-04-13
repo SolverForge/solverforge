@@ -1,0 +1,11 @@
+environment_mode = "reproducible"
+random_seed = 42
+
+[termination]
+seconds_spent_limit = 30
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "list_clarke_wright"
+entity_class = "Route"
+variable_name = "visits"

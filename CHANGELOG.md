@@ -12,6 +12,13 @@ All notable changes to this project will be documented in this file. See [commit
 ## [0.8.5](///compare/v0.8.4...v0.8.5) (2026-04-13)
 
 
+### Bug Fixes
+
+* **macros:** restore list runtime config logging compilation 7d18eb3
+
+## [0.8.5](///compare/v0.8.4...v0.8.5) (2026-04-13)
+
+
 ### Features
 
 * **scoring:** add tracked existence streams for direct and flattened targets 308dae7

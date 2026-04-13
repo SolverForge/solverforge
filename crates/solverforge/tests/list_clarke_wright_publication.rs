@@ -102,10 +102,10 @@ fn solver_config_for_plan(plan: &PublicationPlan, config: SolverConfig) -> Solve
 fn build_plan(customer_count: usize, time_limit_secs: u64) -> PublicationPlan {
     let dimension = customer_count + 1;
     let mut distance_matrix = vec![vec![0_i64; dimension]; dimension];
-    for i in 0..dimension {
-        for j in 0..dimension {
+    for (i, row) in distance_matrix.iter_mut().enumerate() {
+        for (j, cell) in row.iter_mut().enumerate() {
             let gap = i.abs_diff(j) as i64;
-            distance_matrix[i][j] = if i == j { 0 } else { gap + 1 };
+            *cell = if i == j { 0 } else { gap + 1 };
         }
     }
     let travel_times = distance_matrix.clone();

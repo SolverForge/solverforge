@@ -106,7 +106,6 @@ fn define_explicit_constraints() -> impl ConstraintSet<ExplicitConfigurableSolut
 
 fn define_explicit_list_constraints(
 ) -> impl ConstraintSet<ExplicitListConfigurableSolution, HardSoftScore> {
-    ()
 }
 
 fn solver_config_for_solution(

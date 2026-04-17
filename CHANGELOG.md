@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.7](///compare/v0.8.6...v0.8.7) (2026-04-17)
+
+
+### Bug Fixes
+
+* **scoring:** correct stateless keyed cross-bi analysis and bump workspace to 0.8.7 da9d48d
+
 ## [0.8.6](///compare/v0.8.5...v0.8.6) (2026-04-13)
 
 

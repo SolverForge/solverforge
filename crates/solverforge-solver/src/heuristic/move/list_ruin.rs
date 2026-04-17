@@ -310,7 +310,7 @@ where
             Actually: after k insertions at positions orig_indices[0..k] (all <= orig_indices[k]
             since sorted), orig_indices[k]'s effective position has shifted by k.
             */
-            for (&idx, val) in orig_indices.iter().zip(vals.into_iter()) {
+            for (&idx, val) in orig_indices.iter().zip(vals) {
                 list_insert(s, orig_entity, idx, val);
             }
         }));

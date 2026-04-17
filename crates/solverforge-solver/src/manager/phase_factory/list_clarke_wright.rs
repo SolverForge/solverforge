@@ -280,7 +280,7 @@ where
                 }
             }
         }
-        savings.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+        savings.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.0));
 
         // Greedy merge
         for (merge_idx, (_, i, j)) in savings.iter().enumerate() {
@@ -337,7 +337,7 @@ where
                 }
                 let candidate_route: Vec<usize> = test_ri
                     .into_iter()
-                    .chain(test_rj.into_iter())
+                    .chain(test_rj)
                     .map(|idx| index_to_element(solution, idx).into())
                     .collect();
                 if !feasible(solution, &candidate_route) {
@@ -387,10 +387,7 @@ where
 
             {
                 let sd = step_scope.score_director_mut();
-                for (entity_idx, index_route) in available_entity_slots
-                    .into_iter()
-                    .zip(non_empty.into_iter())
-                {
+                for (entity_idx, index_route) in available_entity_slots.into_iter().zip(non_empty) {
                     sd.before_variable_changed(descriptor_index, entity_idx);
                     let element_route: Vec<E> = index_route
                         .iter()

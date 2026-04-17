@@ -49,7 +49,7 @@ impl ListMoveSelectorBuilder {
         }
         assert!(
             !leaves.is_empty(),
-            "stock move selector configuration produced no list neighborhoods"
+            "move selector configuration produced no list neighborhoods"
         );
         VecUnionSelector::new(leaves)
     }
@@ -96,7 +96,7 @@ impl ListMoveSelectorBuilder {
             }
             MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
                 panic!(
-                    "selected_count_limit_move_selector must be handled by the unified stock runtime"
+                    "selected_count_limit_move_selector must be handled by the canonical runtime"
                 );
             }
             MoveSelectorConfig::ListChangeMoveSelector(_) => {
@@ -111,10 +111,10 @@ impl ListMoveSelectorBuilder {
                 }
             }
             MoveSelectorConfig::ChangeMoveSelector(_) | MoveSelectorConfig::SwapMoveSelector(_) => {
-                panic!("standard move selector configured against a list-variable stock context");
+                panic!("standard move selector configured against a list-variable context");
             }
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
-                panic!("cartesian_product move selectors are not supported in stock solving");
+                panic!("cartesian_product move selectors are not supported in the canonical solver path");
             }
         }
     }

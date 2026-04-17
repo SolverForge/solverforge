@@ -4,7 +4,7 @@ Date: 2026-03-31
 
 ## Goal
 
-Audit the former `Typed*` / `typed_*` public surface, explain the architectural boundary that remains intentional, and record the unified naming adopted in this refactor.
+Audit the former `Typed*` / `typed_*` public surface, explain the architectural boundary that remains intentional, and record the canonical naming adopted in this refactor.
 
 ## Scope audited
 
@@ -38,9 +38,9 @@ Audit the former `Typed*` / `typed_*` public surface, explain the architectural 
 
 - Prefix-free naming fits the current architecture better. In generic Rust APIs, the type information is already explicit in the signatures.
 - The extractor adapter remains necessary. `EntityDescriptor` still depends on an object-safe erased boundary, so the refactor renames that adapter rather than removing it.
-- The move-selector layer was already conceptually unified; the cleanup there is about removing naming drift in modules and re-exports.
+- The move-selector layer was already conceptually single-path; the cleanup there is about removing naming drift in modules and re-exports.
 
-## Adopted unified naming
+## Adopted canonical naming
 
 - `TypedEntityExtractor<S, E>` -> `EntityCollectionExtractor<S, E>`
 - `TypedValueSelector<S, V>` -> `ValueSelector<S, V>`

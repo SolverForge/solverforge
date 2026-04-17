@@ -49,7 +49,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable
   `value_range = "name"` is accepted as an alias for `value_range_provider`
 - `#[planning_list_variable(...)]` — list planning variable
-  stock solving currently requires `Vec<usize>` and `element_collection = "solution_field"`
+  currently requires `Vec<usize>` and `element_collection = "solution_field"`
 - `#[planning_pin]` — boolean field controlling entity pinning
 - `#[inverse_relation_shadow_variable(source_variable_name = "field")]` — inverse relation shadow
 - `#[previous_element_shadow_variable(source_variable_name = "field")]` — previous element shadow
@@ -74,7 +74,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[value_range_provider]` — value range source
 
 **Consumed attributes on struct:**
-- `#[shadow_variable_updates(...)]` — configures shadow variable update generation only; stock solving does not depend on it
+- `#[shadow_variable_updates(...)]` — configures shadow variable update generation only; the canonical solver path does not depend on it
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 - `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the loaded `solver.toml` config (or defaults if the file is missing)
 
@@ -88,7 +88,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `entity_aggregate = "target:sum:source"` — aggregate element field onto entity (sum only)
 - `entity_compute = "target:method"` — compute entity field via method
 
-**`#[planning_list_variable]` stock parameters:**
+**`#[planning_list_variable]` parameters:**
 - `element_collection = "field"` — solution field with all list elements
 - `distance_meter = "path"` — optional cross-entity distance meter type
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type
@@ -100,7 +100,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable metadata is preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
-- List operations (when a stock list owner is detected either from matching entity/fact collections or the legacy `#[planning_list_element_collection(...)]` field): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
+- List operations (when a list owner is detected either from matching entity/fact collections or the legacy `#[planning_list_element_collection(...)]` field): `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
 - `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
@@ -141,7 +141,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | `find_list_element_collection_config` | `fn(&Fields) -> Result<Option<ListElementCollectionConfig>, Error>` | Resolves `#[planning_list_element_collection(owner = "...")]` to the concrete `Vec<usize>` field |
 | `find_list_runtime_config` | `fn(&Fields) -> Result<Option<(ListOwnerConfig, ListElementCollectionConfig)>, Error>` | Resolves list ownership and the direct list element collection field without consulting `shadow_variable_updates` |
 | `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
-| `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates list variable methods from the entity-side stock registry |
+| `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates list variable methods from the entity-side list registry |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates ShadowVariableSupport impl |
 | `generate_constraint_stream_extensions` | `fn(&Fields, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory |

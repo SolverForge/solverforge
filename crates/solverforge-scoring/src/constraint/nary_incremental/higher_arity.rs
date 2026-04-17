@@ -1,4 +1,4 @@
-/* Unified N-ary incremental constraint macros for tri/quad/penta arities.
+/* Higher-arity incremental constraint macros for tri/quad/penta arities.
 
 The arity-specific macro definitions now live in dedicated files so this
 module root stays limited to module wiring and re-exports.

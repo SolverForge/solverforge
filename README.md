@@ -33,7 +33,7 @@ Open http://localhost:7860 to see your solver in action.
 
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
-The current templates cover standard-variable and list-heavy planning models, and the generated code targets the same unified runtime. Use `solverforge generate` to add entities, facts, and constraints interactively.
+The current templates cover standard-variable and list-heavy planning models, and the generated code targets the same runtime. Use `solverforge generate` to add entities, facts, and constraints interactively.
 
 ## Extend the Scaffold
 
@@ -499,7 +499,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities
 - **Convenience scoring**: `penalize_hard()`, `penalize_soft()`, `reward_hard()`, `reward_soft()` on all stream types
-- **Unified `.join(target)`**: single join method dispatching on argument type — `equal(|a| key)` for self-join, `(extractor_b, equal_bi(ka, kb))` for keyed cross-join, `(other_stream, |a, b| pred)` for predicate join
+- **Single `.join(target)`**: one join method dispatching on argument type — `equal(|a| key)` for self-join, `(extractor_b, equal_bi(ka, kb))` for keyed cross-join, `(other_stream, |a, b| pred)` for predicate join
 - **`.named("name")`**: sole finalization method on all builders (replaces `as_constraint`)
 - **Score trait**: `one_hard()`, `one_soft()`, `one_medium()` default methods
 - **Joiners**: `equal`, `equal_bi`, `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `overlapping`, `filtering`, with `.and()` composition
@@ -517,7 +517,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 ### What's New in 0.5.7
 
 - API cleanup: ~1500-1900 LOC removed across scoring and solver crates
-- Consolidated tri/quad/penta n-ary constraints and arity stream macros into unified macro files
+- Consolidated tri/quad/penta n-ary constraints and arity stream macros into shared macro files
 - Deleted `ShadowAwareScoreDirector`, `ScoreDirectorFactory` (dead wrappers)
 - Trimmed `ScoreDirector` trait: removed `variable_name` param, `before/after_entity_changed`, `trigger_variable_listeners`, `get_entity`; deleted dead pinning infrastructure
 - Eliminated `Box<dyn Acceptor<S>>` via `AnyAcceptor<S>` enum in `AcceptorBuilder`

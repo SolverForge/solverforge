@@ -833,7 +833,7 @@ Scalar and list-heavy models both target this same runtime layer. Documentation 
 
 ### `run_solver()` — `run.rs`
 
-Unified solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume.
+Canonical solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume.
 
 ## Architectural Notes
 

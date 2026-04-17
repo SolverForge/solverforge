@@ -1,4 +1,4 @@
-/* JoinTarget trait for unified `.join()` dispatch on UniConstraintStream.
+/* JoinTarget trait for single `.join()` dispatch on UniConstraintStream.
 
 Three impls cover all join patterns:
 1. `EqualJoiner<KA, KA, K>` — self-join, returns `BiConstraintStream`
@@ -18,7 +18,7 @@ use super::joiner::EqualJoiner;
 use super::key_extract::EntityKeyAdapter;
 use super::UniConstraintStream;
 
-/* Trait for unified `.join()` dispatch.
+/* Trait for single `.join()` dispatch.
 
 `E` is the extractor type of the left stream.
 `F` is the filter type of the left stream.

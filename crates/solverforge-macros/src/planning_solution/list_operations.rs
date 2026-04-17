@@ -67,7 +67,7 @@ pub(super) fn generate_list_operations(
                         #(#source_element_arms)*
                         ::core::option::Option::Some(source) => {
                             panic!(
-                                "stock list source field `{}` was not found on the planning solution",
+                                "list source field `{}` was not found on the planning solution",
                                 source
                             );
                         }
@@ -295,7 +295,7 @@ pub(super) fn generate_list_operations(
                         #(#source_len_arms)*
                         ::core::option::Option::Some(source) => {
                             panic!(
-                                "stock list source field `{}` was not found on the planning solution",
+                                "list source field `{}` was not found on the planning solution",
                                 source
                             );
                         }
@@ -416,7 +416,7 @@ pub(super) fn generate_list_operations(
         #[inline]
         pub fn ruin_remove(s: &mut Self, entity_idx: usize, pos: usize) -> usize {
             #(#ruin_remove_branches)*
-            panic!("ruin_remove called on a planning solution without a stock list variable");
+            panic!("ruin_remove called on a planning solution without a list variable");
         }
 
         #[inline]
@@ -427,7 +427,7 @@ pub(super) fn generate_list_operations(
         #[inline]
         pub fn list_remove_for_construction(s: &mut Self, entity_idx: usize, pos: usize) -> usize {
             #(#remove_for_construction_branches)*
-            panic!("list_remove_for_construction called on a planning solution without a stock list variable");
+            panic!("list_remove_for_construction called on a planning solution without a list variable");
         }
 
         #[inline]
@@ -435,7 +435,7 @@ pub(super) fn generate_list_operations(
             let element_count = Self::element_count(s);
             if idx >= element_count {
                 panic!(
-                    "stock list element index {} is out of bounds for {} elements",
+                    "list element index {} is out of bounds for {} elements",
                     idx,
                     element_count
                 );

@@ -9,12 +9,12 @@ Zero-erasure: all closures are concrete generic types, no trait objects, no Arc.
 #[macro_use]
 mod bi;
 #[macro_use]
-mod nary_unified;
+mod higher_arity;
 
 pub use bi::impl_incremental_bi_constraint;
-pub use nary_unified::impl_incremental_penta_constraint;
-pub use nary_unified::impl_incremental_quad_constraint;
-pub use nary_unified::impl_incremental_tri_constraint;
+pub use higher_arity::impl_incremental_penta_constraint;
+pub use higher_arity::impl_incremental_quad_constraint;
+pub use higher_arity::impl_incremental_tri_constraint;
 
 /* Generates an incremental N-ary constraint struct and implementations.
 

@@ -62,8 +62,8 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
-                    return match #list_trait::STOCK_LIST_ELEMENT_SOURCE {
+                if #list_trait::HAS_LIST_VARIABLE {
+                    return match #list_trait::LIST_ELEMENT_SOURCE {
                         #(#source_element_arms)*
                         ::core::option::Option::Some(source) => {
                             panic!(
@@ -84,7 +84,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return self
                         .#field_ident
                         .get(entity_idx)
@@ -100,7 +100,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return s
                         .#field_ident
                         .get(entity_idx)
@@ -116,7 +116,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return s
                         .#field_ident
                         .get_mut(entity_idx)
@@ -132,7 +132,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     if let Some(entity) = s.#field_ident.get_mut(entity_idx) {
                         #list_trait::list_field_mut(entity).insert(pos, val);
                     }
@@ -148,7 +148,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return s
                         .#field_ident
                         .get(entity_idx)
@@ -164,7 +164,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     if let Some(entity) = s.#field_ident.get_mut(entity_idx) {
                         let list = #list_trait::list_field_mut(entity);
                         if pos < list.len() {
@@ -183,7 +183,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     if let Some(entity) = s.#field_ident.get_mut(entity_idx) {
                         #list_trait::list_field_mut(entity)[start..end].reverse();
                     }
@@ -199,7 +199,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return s
                         .#field_ident
                         .get_mut(entity_idx)
@@ -216,7 +216,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     if let Some(entity) = s.#field_ident.get_mut(entity_idx) {
                         let list = #list_trait::list_field_mut(entity);
                         for (i, item) in items.into_iter().enumerate() {
@@ -235,7 +235,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return #list_trait::list_field_mut(&mut s.#field_ident[entity_idx]).remove(pos);
                 }
             }
@@ -248,7 +248,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     #list_trait::list_field_mut(&mut s.#field_ident[entity_idx]).insert(pos, val);
                     return;
                 }
@@ -262,7 +262,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return #list_trait::list_field_mut(&mut s.#field_ident[entity_idx]).remove(pos);
                 }
             }
@@ -277,7 +277,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return #descriptor_index_lit;
                 }
             }
@@ -290,8 +290,8 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
-                    return match #list_trait::STOCK_LIST_ELEMENT_SOURCE {
+                if #list_trait::HAS_LIST_VARIABLE {
+                    return match #list_trait::LIST_ELEMENT_SOURCE {
                         #(#source_len_arms)*
                         ::core::option::Option::Some(source) => {
                             panic!(
@@ -312,7 +312,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return s
                         .#field_ident
                         .iter()
@@ -329,7 +329,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     return s.#field_ident.len();
                 }
             }
@@ -342,7 +342,7 @@ pub(super) fn generate_list_operations(
             let list_trait =
                 quote! { <#entity_type as ::solverforge::__internal::ListVariableEntity<Self>> };
             quote! {
-                if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                if #list_trait::HAS_LIST_VARIABLE {
                     if let Some(entity) = s.#field_ident.get_mut(entity_idx) {
                         #list_trait::list_field_mut(entity).push(elem);
                     }

@@ -1,5 +1,4 @@
-use super::construction::{list_target_matches, normalize_list_construction_config};
-use super::ListConstructionArgs;
+use super::{list_target_matches, normalize_list_construction_config, ConstructionArgs};
 use crate::descriptor_standard::standard_target_matches;
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, VariableTargetConfig,
@@ -54,8 +53,8 @@ fn descriptor() -> SolutionDescriptor {
         )
 }
 
-fn list_args() -> ListConstructionArgs<TestSolution, usize> {
-    ListConstructionArgs {
+fn list_args() -> ConstructionArgs<TestSolution, usize> {
+    ConstructionArgs {
         element_count: |_| 0,
         assigned_elements: |_| Vec::new(),
         entity_count: |_| 0,
@@ -64,6 +63,8 @@ fn list_args() -> ListConstructionArgs<TestSolution, usize> {
         list_remove: |_, _, _| 0,
         index_to_element: |_, _| 0,
         descriptor_index: 0,
+        entity_type_name: "Route",
+        variable_name: "visits",
         depot_fn: None,
         distance_fn: None,
         element_load_fn: None,
@@ -96,34 +97,22 @@ fn config(
 
 #[test]
 fn list_target_requires_matching_variable_name() {
-    let descriptor = descriptor();
     let cfg = config(
         ConstructionHeuristicType::ListCheapestInsertion,
         Some("Shift"),
         Some("employee_id"),
     );
-    assert!(!list_target_matches(
-        &cfg,
-        &descriptor,
-        Some(&list_args()),
-        Some("visits")
-    ));
+    assert!(!list_target_matches(&cfg, Some(&list_args())));
 }
 
 #[test]
 fn list_target_matches_entity_class_only_for_owner() {
-    let descriptor = descriptor();
     let cfg = config(
         ConstructionHeuristicType::ListCheapestInsertion,
         Some("Route"),
         None,
     );
-    assert!(list_target_matches(
-        &cfg,
-        &descriptor,
-        Some(&list_args()),
-        Some("visits")
-    ));
+    assert!(list_target_matches(&cfg, Some(&list_args())));
 }
 
 #[test]

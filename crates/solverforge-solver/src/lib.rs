@@ -21,7 +21,6 @@ pub mod test_utils;
 pub mod builder;
 pub mod descriptor_standard;
 pub mod heuristic;
-pub mod list_solver;
 pub mod manager;
 pub mod phase;
 pub mod realtime;
@@ -31,12 +30,12 @@ pub mod scope;
 pub mod solver;
 pub mod stats;
 pub mod termination;
-pub mod unified_search;
 
 pub use builder::{
-    build_standard_move_selector, AcceptorBuilder, AnyAcceptor, AnyForager, ForagerBuilder,
-    ListContext, ListLeafSelector, ListMoveSelectorBuilder, StandardContext, StandardLeafSelector,
-    StandardSelector, StandardValueSource, StandardVariableContext,
+    build_local_search, build_move_selector, build_vnd, AcceptorBuilder, AnyAcceptor, AnyForager,
+    ForagerBuilder, IntraDistanceAdapter, ListVariableContext, LocalSearch, ModelContext,
+    Neighborhood, NeighborhoodLeaf, NeighborhoodMove, ScalarVariableContext, Selector, ValueSource,
+    VariableContext, Vnd,
 };
 pub use descriptor_standard::{
     build_descriptor_construction, build_descriptor_move_selector, descriptor_has_bindings,
@@ -128,6 +127,11 @@ pub use phase::{
     vnd::VndPhase,
     Phase,
 };
+pub use run::{log_solve_start, run_solver, run_solver_with_config};
+pub use runtime::{
+    build_phases, Construction, ConstructionArgs, ListVariableEntity, ListVariableMetadata,
+    RuntimePhase,
+};
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};
 pub use stats::{PhaseStats, SolverStats, SolverTelemetry};
@@ -136,16 +140,4 @@ pub use termination::{
     DiminishedReturnsTermination, MoveCountTermination, OrTermination,
     ScoreCalculationCountTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
-};
-pub use unified_search::{
-    build_unified_local_search, build_unified_move_selector, build_unified_vnd, UnifiedLocalSearch,
-    UnifiedMove, UnifiedNeighborhood, UnifiedVnd,
-};
-
-pub use list_solver::{
-    build_list_construction, ListConstruction, ListVariableEntity, ListVariableMetadata,
-};
-pub use run::{log_solve_start, run_solver, run_solver_with_config};
-pub use runtime::{
-    build_phases, ListConstructionArgs, RuntimePhase, UnifiedConstruction, UnifiedRuntimePhase,
 };

@@ -17,7 +17,7 @@ use crate::heuristic::selector::{
     ListMoveSubListChangeSelector, ListMoveSubListSwapSelector,
 };
 
-use super::super::context::{IntraDistanceAdapter, ListContext};
+use super::super::context::{IntraDistanceAdapter, ListVariableContext};
 use super::leaf::ListLeafSelector;
 
 /// Builder that constructs a `VecUnionSelector` of `ListLeafSelector` from config.
@@ -29,7 +29,7 @@ impl ListMoveSelectorBuilder {
     /// Default (no config): `Union(NearbyListChange(20), NearbyListSwap(20), ListReverse)`
     pub fn build<S, V, DM, IDM>(
         config: Option<&MoveSelectorConfig>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         random_seed: Option<u64>,
     ) -> VecUnionSelector<S, ListMoveImpl<S, V>, ListLeafSelector<S, V, DM, IDM>>
     where
@@ -56,7 +56,7 @@ impl ListMoveSelectorBuilder {
 
     fn collect_leaves<S, V, DM, IDM>(
         config: &MoveSelectorConfig,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         random_seed: Option<u64>,
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
     ) where
@@ -121,7 +121,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_nearby_change<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         max_nearby: usize,
     ) where
         S: PlanningSolution,
@@ -148,7 +148,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_nearby_swap<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         max_nearby: usize,
     ) where
         S: PlanningSolution,
@@ -175,7 +175,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_reverse<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -198,7 +198,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_sublist_change<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         min_sublist_size: usize,
         max_sublist_size: usize,
     ) where
@@ -226,7 +226,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_sublist_swap<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         min_sublist_size: usize,
         max_sublist_size: usize,
     ) where
@@ -254,7 +254,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_kopt<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         k: usize,
         min_segment_len: usize,
         max_nearby: usize,
@@ -299,7 +299,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_ruin<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
         min_ruin_count: usize,
         max_ruin_count: usize,
         moves_per_step: Option<usize>,
@@ -335,7 +335,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_change<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -359,7 +359,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_swap<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListContext<S, V, DM, IDM>,
+        ctx: &ListVariableContext<S, V, DM, IDM>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,

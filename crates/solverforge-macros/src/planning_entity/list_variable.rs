@@ -169,9 +169,9 @@ pub(super) fn generate_list_trait_impl(
                 type CrossDistanceMeter = ::solverforge::__internal::DefaultCrossEntityDistanceMeter;
                 type IntraDistanceMeter = ::solverforge::__internal::DefaultCrossEntityDistanceMeter;
 
-                const HAS_STOCK_LIST_VARIABLE: bool = false;
-                const STOCK_LIST_VARIABLE_NAME: &'static str = "";
-                const STOCK_LIST_ELEMENT_SOURCE: ::core::option::Option<&'static str> =
+                const HAS_LIST_VARIABLE: bool = false;
+                const LIST_VARIABLE_NAME: &'static str = "";
+                const LIST_ELEMENT_SOURCE: ::core::option::Option<&'static str> =
                     ::core::option::Option::None;
 
                 #[inline]
@@ -243,9 +243,9 @@ pub(super) fn generate_list_trait_impl(
             type CrossDistanceMeter = #cross_dm_ty;
             type IntraDistanceMeter = #intra_dm_ty;
 
-            const HAS_STOCK_LIST_VARIABLE: bool = true;
-            const STOCK_LIST_VARIABLE_NAME: &'static str = Self::__SOLVERFORGE_LIST_VARIABLE_NAME;
-            const STOCK_LIST_ELEMENT_SOURCE: ::core::option::Option<&'static str> =
+            const HAS_LIST_VARIABLE: bool = true;
+            const LIST_VARIABLE_NAME: &'static str = Self::__SOLVERFORGE_LIST_VARIABLE_NAME;
+            const LIST_ELEMENT_SOURCE: ::core::option::Option<&'static str> =
                 ::core::option::Option::Some(#element_source);
 
             #[inline]

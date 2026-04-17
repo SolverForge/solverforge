@@ -29,6 +29,14 @@ impl<S, M, Leaf> VecUnionSelector<S, M, Leaf> {
             _phantom: PhantomData,
         }
     }
+
+    pub fn selectors(&self) -> &[Leaf] {
+        &self.selectors
+    }
+
+    pub fn into_selectors(self) -> Vec<Leaf> {
+        self.selectors
+    }
 }
 
 impl<S, M, Leaf: Debug> Debug for VecUnionSelector<S, M, Leaf> {

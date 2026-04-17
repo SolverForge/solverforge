@@ -11,7 +11,6 @@ use super::type_helpers::extract_collection_inner_type;
 
 pub(super) struct StandardRuntimeSupport {
     pub setup: TokenStream,
-    pub arg: TokenStream,
 }
 
 pub(super) fn generate_standard_runtime_support(
@@ -39,8 +38,9 @@ pub(super) fn generate_standard_runtime_support(
 
     if entity_fields.is_empty() {
         return StandardRuntimeSupport {
-            setup: TokenStream::new(),
-            arg: quote! { ::core::option::Option::None },
+            setup: quote! {
+                let mut __solverforge_variables = ::std::vec::Vec::new();
+            },
         };
     }
 
@@ -130,7 +130,7 @@ pub(super) fn generate_standard_runtime_support(
                         variable.field_name
                     );
                     quote! {
-                        ::solverforge::__internal::StandardValueSource::EntitySlice {
+                        ::solverforge::__internal::ValueSource::EntitySlice {
                             values_for_entity: #slice_ident,
                         }
                     }
@@ -142,7 +142,7 @@ pub(super) fn generate_standard_runtime_support(
                         "countable_range end must be non-negative for stock standard solving",
                     );
                     quote! {
-                        ::solverforge::__internal::StandardValueSource::CountableRange {
+                        ::solverforge::__internal::ValueSource::CountableRange {
                             from: #from_usize,
                             to: #to_usize,
                         }
@@ -151,12 +151,12 @@ pub(super) fn generate_standard_runtime_support(
                     let count_fn_ident =
                         format_ident!("__solverforge_standard_count_{}", provider_field_name);
                     quote! {
-                        ::solverforge::__internal::StandardValueSource::SolutionCount {
+                        ::solverforge::__internal::ValueSource::SolutionCount {
                             count_fn: #count_fn_ident,
                         }
                     }
                 } else {
-                    quote! { ::solverforge::__internal::StandardValueSource::Empty }
+                    quote! { ::solverforge::__internal::ValueSource::Empty }
                 };
 
                 quote! {
@@ -180,16 +180,20 @@ pub(super) fn generate_standard_runtime_support(
 
                     #maybe_slice_helper
 
-                    variables.push(::solverforge::__internal::StandardVariableContext::new(
-                        #descriptor_index,
-                        stringify!(#entity_type),
-                        #entity_count_fn_ident,
-                        #variable_name,
-                        #getter_ident,
-                        #setter_ident,
-                        #value_source,
-                        #allows_unassigned,
-                    ));
+                    __solverforge_variables.push(
+                        ::solverforge::__internal::VariableContext::Scalar(
+                            ::solverforge::__internal::ScalarVariableContext::new(
+                                #descriptor_index,
+                                stringify!(#entity_type),
+                                #entity_count_fn_ident,
+                                #variable_name,
+                                #getter_ident,
+                                #setter_ident,
+                                #value_source,
+                                #allows_unassigned,
+                            )
+                        )
+                    );
                 }
             })
         })
@@ -197,14 +201,10 @@ pub(super) fn generate_standard_runtime_support(
 
     StandardRuntimeSupport {
         setup: quote! {
-            let standard_ctx = {
-                #(#provider_count_helpers)*
-                #(#entity_count_helpers)*
-                let mut variables = ::std::vec::Vec::new();
-                #(#variable_helpers)*
-                ::solverforge::__internal::StandardContext::new(variables)
-            };
+            let mut __solverforge_variables = ::std::vec::Vec::new();
+            #(#provider_count_helpers)*
+            #(#entity_count_helpers)*
+            #(#variable_helpers)*
         },
-        arg: quote! { ::core::option::Option::Some(&standard_ctx) },
     }
 }

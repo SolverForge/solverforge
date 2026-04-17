@@ -112,11 +112,10 @@ pub(super) fn generate_runtime_phase_support(
         .collect();
     let standard_support = generate_standard_runtime_support(fields, solution_name);
     let standard_setup = standard_support.setup.clone();
-    let standard_arg = standard_support.arg.clone();
 
     if !list_owners.is_empty() {
-        let cross_enum_ident = format_ident!("__{}StockCrossDistanceMeter", solution_name);
-        let intra_enum_ident = format_ident!("__{}StockIntraDistanceMeter", solution_name);
+        let cross_enum_ident = format_ident!("__{}CrossDistanceMeter", solution_name);
+        let intra_enum_ident = format_ident!("__{}IntraDistanceMeter", solution_name);
 
         let cross_variants: Vec<_> = list_owners
             .iter()
@@ -168,26 +167,32 @@ pub(super) fn generate_runtime_phase_support(
                     <#field_type as ::solverforge::__internal::ListVariableEntity<#solution_name>>
                 };
                 quote! {
-                    if #list_trait::HAS_STOCK_LIST_VARIABLE {
+                    if #list_trait::HAS_LIST_VARIABLE {
                         let metadata = #list_trait::list_metadata();
-                        let list_ctx = ::solverforge::__internal::ListContext::new(
-                            Self::list_len_static,
-                            Self::list_remove,
-                            Self::list_insert,
-                            Self::list_get,
-                            Self::list_set,
-                            Self::list_reverse,
-                            Self::sublist_remove,
-                            Self::sublist_insert,
-                            Self::ruin_remove,
-                            Self::ruin_insert,
-                            Self::n_entities,
-                            #cross_enum_ident::#variant(metadata.cross_distance_meter.clone()),
-                            #intra_enum_ident::#variant(metadata.intra_distance_meter.clone()),
-                            #list_trait::STOCK_LIST_VARIABLE_NAME,
-                            #descriptor_index_lit,
+                        __solverforge_variables.push(
+                            ::solverforge::__internal::VariableContext::List(
+                                ::solverforge::__internal::ListVariableContext::new(
+                                    stringify!(#field_type),
+                                    Self::list_len_static,
+                                    Self::list_remove,
+                                    Self::list_insert,
+                                    Self::list_get,
+                                    Self::list_set,
+                                    Self::list_reverse,
+                                    Self::sublist_remove,
+                                    Self::sublist_insert,
+                                    Self::ruin_remove,
+                                    Self::ruin_insert,
+                                    Self::n_entities,
+                                    #cross_enum_ident::#variant(metadata.cross_distance_meter.clone()),
+                                    #intra_enum_ident::#variant(metadata.intra_distance_meter.clone()),
+                                    #list_trait::LIST_VARIABLE_NAME,
+                                    #descriptor_index_lit,
+                                )
+                            )
                         );
-                        let construction = ::solverforge::__internal::ListConstructionArgs {
+                        let model = ::solverforge::__internal::ModelContext::new(__solverforge_variables);
+                        let construction = ::solverforge::__internal::ConstructionArgs {
                             element_count: Self::element_count,
                             assigned_elements: Self::assigned_elements,
                             entity_count: Self::n_entities,
@@ -196,6 +201,8 @@ pub(super) fn generate_runtime_phase_support(
                             list_remove: Self::list_remove_for_construction,
                             index_to_element: Self::index_to_element_static,
                             descriptor_index: #descriptor_index_lit,
+                            entity_type_name: stringify!(#field_type),
+                            variable_name: #list_trait::LIST_VARIABLE_NAME,
                             depot_fn: metadata.cw_depot_fn,
                             distance_fn: metadata.cw_distance_fn,
                             element_load_fn: metadata.cw_element_load_fn,
@@ -211,10 +218,8 @@ pub(super) fn generate_runtime_phase_support(
                         return ::solverforge::__internal::build_phases(
                             config,
                             &descriptor,
-                            #standard_arg,
-                            ::core::option::Option::Some(&list_ctx),
+                            &model,
                             ::core::option::Option::Some(construction),
-                            ::core::option::Option::Some(#list_trait::STOCK_LIST_VARIABLE_NAME),
                         );
                     }
                 }
@@ -290,22 +295,35 @@ pub(super) fn generate_runtime_phase_support(
                 fn __solverforge_build_phases(
                     config: &::solverforge::__internal::SolverConfig,
                 ) -> ::solverforge::__internal::PhaseSequence<
-                    ::solverforge::__internal::UnifiedRuntimePhase<
-                        #solution_name,
-                        usize,
-                        #cross_enum_ident,
-                        #intra_enum_ident,
+                    ::solverforge::__internal::RuntimePhase<
+                        ::solverforge::__internal::Construction<#solution_name, usize>,
+                        ::solverforge::__internal::LocalSearch<
+                            #solution_name,
+                            usize,
+                            #cross_enum_ident,
+                            #intra_enum_ident
+                        >,
+                        ::solverforge::__internal::Vnd<
+                            #solution_name,
+                            usize,
+                            #cross_enum_ident,
+                            #intra_enum_ident
+                        >
                     >
                 > {
                     let descriptor = Self::descriptor();
                     #standard_setup
                     #(#list_runtime_branches)*
+                    let model = ::solverforge::__internal::ModelContext::<
+                        #solution_name,
+                        usize,
+                        #cross_enum_ident,
+                        #intra_enum_ident
+                    >::new(__solverforge_variables);
                     ::solverforge::__internal::build_phases(
                         config,
                         &descriptor,
-                        #standard_arg,
-                        ::core::option::Option::None,
-                        ::core::option::Option::None,
+                        &model,
                         ::core::option::Option::None,
                     )
                 }
@@ -345,21 +363,34 @@ pub(super) fn generate_runtime_phase_support(
             fn __solverforge_build_phases(
                 config: &::solverforge::__internal::SolverConfig,
             ) -> ::solverforge::__internal::PhaseSequence<
-                ::solverforge::__internal::UnifiedRuntimePhase<
-                    #solution_name,
-                    usize,
-                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                ::solverforge::__internal::RuntimePhase<
+                    ::solverforge::__internal::Construction<#solution_name, usize>,
+                    ::solverforge::__internal::LocalSearch<
+                        #solution_name,
+                        usize,
+                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                    >,
+                    ::solverforge::__internal::Vnd<
+                        #solution_name,
+                        usize,
+                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                    >
                 >
             > {
                 let descriptor = Self::descriptor();
                 #standard_setup
+                let model = ::solverforge::__internal::ModelContext::<
+                    #solution_name,
+                    usize,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                >::new(__solverforge_variables);
                 ::solverforge::__internal::build_phases(
                     config,
                     &descriptor,
-                    #standard_arg,
-                    ::core::option::Option::None,
-                    ::core::option::Option::None,
+                    &model,
                     ::core::option::Option::None,
                 )
             }

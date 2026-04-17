@@ -28,7 +28,8 @@ pub use tokio::sync::mpsc::UnboundedSender;
 
 // Solver infrastructure
 pub use solverforge_solver::builder::{
-    ListContext, StandardContext, StandardValueSource, StandardVariableContext,
+    ListVariableContext, LocalSearch, ModelContext, ScalarVariableContext, ValueSource,
+    VariableContext, Vnd,
 };
 pub use solverforge_solver::heuristic::selector::{
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, FromSolutionEntitySelector,
@@ -39,8 +40,8 @@ pub use solverforge_solver::manager::{
 pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
 pub use solverforge_solver::{
     build_phases, descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config,
-    ListConstructionArgs, ListVariableEntity, ListVariableMetadata, PhaseSequence, SolverEvent,
-    SolverRuntime, SolverTelemetry, UnifiedRuntimePhase,
+    Construction, ConstructionArgs, ListVariableEntity, ListVariableMetadata, PhaseSequence,
+    RuntimePhase, SolverEvent, SolverRuntime, SolverTelemetry,
 };
 
 // Config

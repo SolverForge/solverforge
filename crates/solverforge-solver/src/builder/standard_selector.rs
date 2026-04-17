@@ -12,7 +12,7 @@ use crate::heuristic::selector::{
     RangeValueSelector, SwapMoveSelector, ValueSelector,
 };
 
-use super::{StandardContext, StandardValueSource, StandardVariableContext};
+use super::context::{ScalarVariableContext, ValueSource};
 
 pub type StandardSelector<S> = VecUnionSelector<S, EitherMove<S, usize>, StandardLeafSelector<S>>;
 
@@ -24,14 +24,14 @@ pub enum StandardValueSelector<S> {
 }
 
 impl<S> StandardValueSelector<S> {
-    fn from_source(source: StandardValueSource<S>) -> Self {
+    fn from_source(source: ValueSource<S>) -> Self {
         match source {
-            StandardValueSource::Empty => Self::Empty,
-            StandardValueSource::CountableRange { from, to } => Self::CountableRange { from, to },
-            StandardValueSource::SolutionCount { count_fn } => {
+            ValueSource::Empty => Self::Empty,
+            ValueSource::CountableRange { from, to } => Self::CountableRange { from, to },
+            ValueSource::SolutionCount { count_fn } => {
                 Self::SolutionCount(RangeValueSelector::new(count_fn))
             }
-            StandardValueSource::EntitySlice { values_for_entity } => {
+            ValueSource::EntitySlice { values_for_entity } => {
                 Self::EntitySlice(PerEntitySliceValueSelector::new(values_for_entity))
             }
         }
@@ -202,13 +202,13 @@ where
 
 pub fn build_standard_move_selector<S>(
     config: Option<&MoveSelectorConfig>,
-    standard_ctx: &StandardContext<S>,
+    scalar_variables: &[ScalarVariableContext<S>],
 ) -> StandardSelector<S>
 where
     S: PlanningSolution + 'static,
 {
     let mut leaves = Vec::new();
-    collect_standard_leaf_selectors(config, standard_ctx, &mut leaves);
+    collect_standard_leaf_selectors(config, scalar_variables, &mut leaves);
     assert!(
         !leaves.is_empty(),
         "stock move selector configuration produced no standard neighborhoods"
@@ -218,13 +218,13 @@ where
 
 fn collect_standard_leaf_selectors<S>(
     config: Option<&MoveSelectorConfig>,
-    standard_ctx: &StandardContext<S>,
+    scalar_variables: &[ScalarVariableContext<S>],
     leaves: &mut Vec<StandardLeafSelector<S>>,
 ) where
     S: PlanningSolution + 'static,
 {
     fn push_change<S: PlanningSolution + 'static>(
-        ctx: &StandardVariableContext<S>,
+        ctx: &ScalarVariableContext<S>,
         leaves: &mut Vec<StandardLeafSelector<S>>,
     ) {
         leaves.push(StandardLeafSelector::Change(ChangeMoveSelector::new(
@@ -238,7 +238,7 @@ fn collect_standard_leaf_selectors<S>(
     }
 
     fn push_swap<S: PlanningSolution + 'static>(
-        ctx: &StandardVariableContext<S>,
+        ctx: &ScalarVariableContext<S>,
         leaves: &mut Vec<StandardLeafSelector<S>>,
     ) {
         leaves.push(StandardLeafSelector::Swap(SwapMoveSelector::new(
@@ -253,13 +253,12 @@ fn collect_standard_leaf_selectors<S>(
 
     fn collect<S: PlanningSolution + 'static>(
         cfg: &MoveSelectorConfig,
-        standard_ctx: &StandardContext<S>,
+        scalar_variables: &[ScalarVariableContext<S>],
         leaves: &mut Vec<StandardLeafSelector<S>>,
     ) {
         match cfg {
             MoveSelectorConfig::ChangeMoveSelector(change) => {
-                let matched: Vec<_> = standard_ctx
-                    .variables()
+                let matched: Vec<_> = scalar_variables
                     .iter()
                     .cloned()
                     .filter(|ctx| {
@@ -280,8 +279,7 @@ fn collect_standard_leaf_selectors<S>(
                 }
             }
             MoveSelectorConfig::SwapMoveSelector(swap) => {
-                let matched: Vec<_> = standard_ctx
-                    .variables()
+                let matched: Vec<_> = scalar_variables
                     .iter()
                     .cloned()
                     .filter(|ctx| {
@@ -303,7 +301,7 @@ fn collect_standard_leaf_selectors<S>(
             }
             MoveSelectorConfig::UnionMoveSelector(union) => {
                 for child in &union.selectors {
-                    collect(child, standard_ctx, leaves);
+                    collect(child, scalar_variables, leaves);
                 }
             }
             MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
@@ -329,9 +327,9 @@ fn collect_standard_leaf_selectors<S>(
     }
 
     match config {
-        Some(cfg) => collect(cfg, standard_ctx, leaves),
+        Some(cfg) => collect(cfg, scalar_variables, leaves),
         None => {
-            for ctx in standard_ctx.variables() {
+            for ctx in scalar_variables {
                 push_change(ctx, leaves);
                 push_swap(ctx, leaves);
             }

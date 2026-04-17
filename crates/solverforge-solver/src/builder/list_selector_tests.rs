@@ -10,7 +10,7 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use crate::builder::ListContext;
+use crate::builder::ListVariableContext;
 use crate::heuristic::selector::move_selector::MoveSelector;
 use crate::CrossEntityDistanceMeter;
 
@@ -151,7 +151,8 @@ fn entity_count(s: &Plan) -> usize {
 fn nearby_list_swap_uses_cross_entity_meter() {
     let (cross_meter, cross_calls) = CountingMeter::new();
     let (intra_meter, intra_calls) = CountingMeter::new();
-    let ctx = ListContext::new(
+    let ctx = ListVariableContext::new(
+        "Vehicle",
         list_len,
         list_remove,
         list_insert,

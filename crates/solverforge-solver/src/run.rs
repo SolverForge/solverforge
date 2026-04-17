@@ -1,4 +1,4 @@
-/* Unified solver entry point. */
+/* Solver entry point. */
 
 use std::fmt;
 use std::marker::PhantomData;

@@ -65,7 +65,7 @@ fn test_builder() {
 }
 
 #[test]
-fn test_unified_target_and_vnd_parsing() {
+fn test_target_and_vnd_parsing() {
     let toml = r#"
         [[phases]]
         type = "construction_heuristic"

@@ -92,20 +92,20 @@ fn builds_solution_count_standard_selectors_without_descriptor_bindings() {
         score: None,
     });
 
-    let standard_ctx = StandardContext::new(vec![StandardVariableContext::new(
+    let scalar_variables = vec![ScalarVariableContext::new(
         0,
         "Shift",
         shift_count,
         "worker",
         get_worker,
         set_worker,
-        StandardValueSource::SolutionCount {
+        ValueSource::SolutionCount {
             count_fn: worker_count,
         },
         true,
-    )]);
+    )];
 
-    let selector = build_standard_move_selector::<Schedule>(None, &standard_ctx);
+    let selector = build_standard_move_selector::<Schedule>(None, &scalar_variables);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 7);
@@ -129,18 +129,18 @@ fn filters_change_moves_against_entity_slice_candidates() {
         score: None,
     });
 
-    let standard_ctx = StandardContext::new(vec![StandardVariableContext::new(
+    let scalar_variables = vec![ScalarVariableContext::new(
         0,
         "Shift",
         shift_count,
         "worker",
         get_worker,
         set_worker,
-        StandardValueSource::EntitySlice {
+        ValueSource::EntitySlice {
             values_for_entity: allowed_workers,
         },
         true,
-    )]);
+    )];
 
     let config = MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
         target: VariableTargetConfig {
@@ -149,7 +149,7 @@ fn filters_change_moves_against_entity_slice_candidates() {
         },
     });
 
-    let selector = build_standard_move_selector(Some(&config), &standard_ctx);
+    let selector = build_standard_move_selector(Some(&config), &scalar_variables);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 3);

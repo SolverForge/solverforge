@@ -24,9 +24,8 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── list_solver.rs                       — List construction builders, list phase enums, hidden macro metadata + `ListVariableEntity`
+├── runtime.rs                           — Runtime assembly, construction/local-search/VND builders, list metadata hooks
 ├── list_solver_tests.rs                 — Tests
-├── unified_search.rs                    — Unified move envelope, selector builder, local-search/VND builders
 ├── descriptor_standard.rs               — Re-exports descriptor bindings, move types, selectors, and construction helpers
 ├── descriptor_standard/
 │   ├── bindings.rs                      — Standard-variable binding discovery, matching, and work checks
@@ -34,10 +33,6 @@ src/
 │   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, build_descriptor_move_selector()
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>, build_descriptor_construction()
 │   └── tests.rs                         — Tests
-├── runtime.rs                           — Re-exports runtime construction and phase builders
-├── runtime/
-│   ├── construction.rs                  — UnifiedConstruction<S, V>, ListConstructionArgs<S, V>, list-target dispatch helpers
-│   └── phases.rs                        — RuntimePhase<C, LS, VND>, UnifiedRuntimePhase<S, V, DM, IDM>, build_phases()
 ├── runtime_tests.rs                     — Tests
 ├── run.rs                               — AnyTermination, build_termination, run_solver()
 ├── run_tests.rs                         — Tests
@@ -46,7 +41,8 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor_tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — ListContext<S, V, DM, IDM>, IntraDistanceAdapter<T>
+│   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>
+│   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector()
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
 │   └── list_selector/
 │       ├── builder_impl.rs              — ListMoveSelectorBuilder
@@ -818,27 +814,18 @@ Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBo
 
 Aggregate and per-phase metrics: step count, moves evaluated/accepted, score calculations, elapsed time, acceptance rate, moves per second.
 
-### `list_solver.rs`
-
-Public helpers: `ListConstruction<S, V>`, `ListVariableMetadata<S, DM, IDM>`, `ListVariableEntity<S>`, `build_list_construction(config: Option<&ConstructionHeuristicConfig>, ...)`
-
-`ListVariableEntity<S>` exposes the stock-list metadata used by the macros: `HAS_STOCK_LIST_VARIABLE`, `STOCK_LIST_VARIABLE_NAME`, and `STOCK_LIST_ELEMENT_SOURCE` in addition to the list accessors and metadata factory.
-
-### `unified_search.rs`
-
-Public helpers: `UnifiedMove<S, V>`, `UnifiedNeighborhood<S, V, DM, IDM>`, `UnifiedLocalSearch<S, V, DM, IDM>`, `UnifiedVnd<S, V, DM, IDM>`, `build_unified_move_selector()`, `build_unified_local_search()`, `build_unified_vnd()`
-
 ### `runtime.rs`
 
-Unified runtime helpers:
+Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `UnifiedConstruction<S, V>` — unified construction phase over descriptor and list metadata
-- `UnifiedRuntimePhase<S, V, DM, IDM>` — alias over unified construction plus unified local-search/VND phases
-- `ListConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
-- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and optional list context/hooks
+- `Construction<S, V>` — construction phase over scalar and list metadata
+- `ConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
+- `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
+- `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
+- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, one `ModelContext`, and optional construction hooks
 
-The stock standard-variable and list-heavy scaffolds both target this runtime layer. Documentation and examples should describe one unified runtime path rather than separate legacy standard/list local-search builders.
+Scalar and list-heavy models both target this same runtime layer. Documentation and examples should describe one canonical runtime path rather than separate legacy standard/list builders.
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 

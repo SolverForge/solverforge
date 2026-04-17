@@ -146,7 +146,7 @@ fn build_plan(customer_count: usize, time_limit_secs: u64) -> PublicationPlan {
 }
 
 #[test]
-fn stock_clarke_wright_publishes_constructed_solution_under_solver_manager() {
+fn clarke_wright_publishes_constructed_solution_under_solver_manager() {
     static MANAGER: SolverManager<PublicationPlan> = SolverManager::new();
 
     let plan = build_plan(20, 1);

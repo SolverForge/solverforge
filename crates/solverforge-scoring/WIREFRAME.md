@@ -44,8 +44,8 @@ src/
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
-│   │   ├── nary_unified.rs                         — Re-exports tri/quad/penta incremental constraint macros
-│   │   └── nary_unified/
+│   │   ├── higher_arity.rs                         — Re-exports tri/quad/penta incremental constraint macros
+│   │   └── higher_arity/
 │   │       ├── tri.rs                              — impl_incremental_tri_constraint! macro → IncrementalTriConstraint
 │   │       ├── quad.rs                             — impl_incremental_quad_constraint! macro → IncrementalQuadConstraint
 │   │       └── penta.rs                            — impl_incremental_penta_constraint! macro → IncrementalPentaConstraint
@@ -361,7 +361,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 - `for_each_tracked()` → `UniConstraintStream` with descriptor-aware change source metadata
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `join(target)` (unified dispatch via `JoinTarget`), `group_by()`, `balance()`, `flattened(flatten)` → `FlattenedCollectionTarget` (tracked streams only), `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `flattened(flatten)` → `FlattenedCollectionTarget` (tracked streams only), `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
@@ -419,7 +419,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 **`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 
-**`ExistenceTarget<S, A, E, F, Sc>`** — Trait for unified `.if_exists(...)` / `.if_not_exists(...)` dispatch on `UniConstraintStream`.
+**`ExistenceTarget<S, A, E, F, Sc>`** — Trait for `.if_exists(...)` / `.if_not_exists(...)` dispatch on `UniConstraintStream`.
 - Direct target: `(other_stream, equal_bi(left_key, right_key))`
 - Flattened target: `(parent_stream, flatten, equal_bi(left_key, flattened_key))`
 
@@ -427,7 +427,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 ### Join Support Types
 
-**`JoinTarget<S, A, E, F, Sc>`** — Trait for unified `.join()` dispatch on `UniConstraintStream`.
+**`JoinTarget<S, A, E, F, Sc>`** — Trait for `.join()` dispatch on `UniConstraintStream`.
 - Three impls: `EqualJoiner<KA, KA, K>` (self-join), `(EB, EqualJoiner<KA, KB, K>)` (keyed cross-join), `(UniConstraintStream<...>, P)` (predicate cross-join)
 
 **`KeyExtract<S, A, K>`** — Trait for key extraction. Blanket impl for `Fn(&S, &A, usize) -> K + Send + Sync`. Used as the bound on `KE` type params in nary stream/constraint macros.

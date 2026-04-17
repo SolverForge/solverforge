@@ -11,7 +11,7 @@ application that depends on `solverforge`.
 - Use `#[planning_solution(config = "...")]` when a retained solve needs a
   per-solution override; the callback should decorate the loaded `solver.toml`
   config rather than replace it.
-- Introduce custom phases, selectors, or acceptors when the stock search flow
+- Introduce custom phases, selectors, or acceptors when the built-in search flow
   is not a fit for the problem shape.
 
 ## What to keep in mind

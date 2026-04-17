@@ -136,10 +136,10 @@ pub(super) fn generate_standard_runtime_support(
                     }
                 } else if let Some((from, to)) = variable.countable_range {
                     let from_usize = usize::try_from(from).expect(
-                        "countable_range start must be non-negative for stock standard solving",
+                        "countable_range start must be non-negative for canonical standard solving",
                     );
                     let to_usize = usize::try_from(to).expect(
-                        "countable_range end must be non-negative for stock standard solving",
+                        "countable_range end must be non-negative for canonical standard solving",
                     );
                     quote! {
                         ::solverforge::__internal::ValueSource::CountableRange {

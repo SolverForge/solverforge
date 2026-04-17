@@ -19,7 +19,7 @@ pub(super) fn generate_list_metadata(
     let element_collection = parse_attribute_string(attr, "element_collection").ok_or_else(|| {
         Error::new_spanned(
             field,
-            "#[planning_list_variable] requires `element_collection = \"solution_field\"` for stock solving",
+            "#[planning_list_variable] requires `element_collection = \"solution_field\"` for the canonical solver path",
         )
     })?;
 
@@ -227,7 +227,7 @@ pub(super) fn generate_list_trait_impl(
     let element_source = parse_attribute_string(attr, "element_collection").ok_or_else(|| {
         Error::new_spanned(
             field,
-            "#[planning_list_variable] requires `element_collection = \"solution_collection\"` for stock solving",
+            "#[planning_list_variable] requires `element_collection = \"solution_collection\"` for the canonical solver path",
         )
     })?;
     let solution_bound = solution_trait_bound
@@ -292,7 +292,7 @@ fn ensure_vec_usize(ty: &Type, field: &syn::Field) -> Result<(), Error> {
     if segment.ident != "usize" {
         return Err(Error::new_spanned(
             field,
-            "#[planning_list_variable] stock solving currently requires Vec<usize>",
+            "#[planning_list_variable] currently requires Vec<usize> on the canonical solver path",
         ));
     }
     Ok(())

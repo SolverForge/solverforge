@@ -292,7 +292,7 @@ where
             }
             MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
                 panic!(
-                    "selected_count_limit_move_selector must be handled by the unified stock runtime"
+                    "selected_count_limit_move_selector must be handled by the canonical runtime"
                 );
             }
             MoveSelectorConfig::ListChangeMoveSelector(_)
@@ -304,10 +304,10 @@ where
             | MoveSelectorConfig::ListReverseMoveSelector(_)
             | MoveSelectorConfig::KOptMoveSelector(_)
             | MoveSelectorConfig::ListRuinMoveSelector(_) => {
-                panic!("list move selector configured against a standard-variable stock context");
+                panic!("list move selector configured against a standard-variable context");
             }
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
-                panic!("cartesian_product move selectors are not supported in stock solving");
+                panic!("cartesian_product move selectors are not supported in the canonical solver path");
             }
         }
     }
@@ -328,7 +328,7 @@ where
 
     assert!(
         !leaves.is_empty(),
-        "stock move selector configuration produced no standard neighborhoods"
+        "move selector configuration produced no standard neighborhoods"
     );
 
     leaves

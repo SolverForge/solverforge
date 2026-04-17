@@ -25,7 +25,7 @@ pub struct VariableDescriptor {
     pub source_variable: Option<&'static str>,
     // For shadow variables: the source entity type name.
     pub source_entity: Option<&'static str>,
-    // Dynamic accessors for stock standard-variable solving.
+    // Dynamic accessors for canonical standard-variable solving.
     pub usize_getter: Option<UsizeGetter>,
     pub usize_setter: Option<UsizeSetter>,
     pub entity_value_provider: Option<UsizeEntityValueProvider>,

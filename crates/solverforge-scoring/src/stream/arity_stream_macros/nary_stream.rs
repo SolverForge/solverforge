@@ -1,4 +1,4 @@
-/* Unified N-ary constraint stream macros for bi/tri/quad/penta arities.
+/* Shared N-ary constraint stream macros for bi/tri/quad/penta arities.
 
 All four stream arities share identical structure, but each arity now lives
 in its own file so the module root stays limited to wiring.

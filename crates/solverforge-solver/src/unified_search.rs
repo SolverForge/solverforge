@@ -120,9 +120,9 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
-    fn iter_moves<'a, D: solverforge_scoring::Director<S>>(
+    fn open_cursor<'a, D: solverforge_scoring::Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = UnifiedMove<S, V>> + 'a {
         enum UnifiedNeighborhoodIter<A, B, C, DIter> {
             Standard(A),
@@ -153,19 +153,19 @@ where
         match self {
             Self::Standard(selector) => UnifiedNeighborhoodIter::Standard(
                 selector
-                    .iter_moves(score_director)
+                    .open_cursor(score_director)
                     .map(UnifiedMove::Standard),
             ),
             Self::LimitedStandard(selector) => UnifiedNeighborhoodIter::LimitedStandard(
                 selector
-                    .iter_moves(score_director)
+                    .open_cursor(score_director)
                     .map(UnifiedMove::Standard),
             ),
             Self::List(selector) => UnifiedNeighborhoodIter::List(
-                selector.iter_moves(score_director).map(UnifiedMove::List),
+                selector.open_cursor(score_director).map(UnifiedMove::List),
             ),
             Self::LimitedList(selector) => UnifiedNeighborhoodIter::LimitedList(
-                selector.iter_moves(score_director).map(UnifiedMove::List),
+                selector.open_cursor(score_director).map(UnifiedMove::List),
             ),
         }
     }
@@ -186,22 +186,22 @@ where
     ) {
         match self {
             Self::Standard(selector) => {
-                for mov in selector.iter_moves(score_director) {
+                for mov in selector.open_cursor(score_director) {
                     arena.push(UnifiedMove::Standard(mov));
                 }
             }
             Self::LimitedStandard(selector) => {
-                for mov in selector.iter_moves(score_director) {
+                for mov in selector.open_cursor(score_director) {
                     arena.push(UnifiedMove::Standard(mov));
                 }
             }
             Self::List(selector) => {
-                for mov in selector.iter_moves(score_director) {
+                for mov in selector.open_cursor(score_director) {
                     arena.push(UnifiedMove::List(mov));
                 }
             }
             Self::LimitedList(selector) => {
-                for mov in selector.iter_moves(score_director) {
+                for mov in selector.open_cursor(score_director) {
                     arena.push(UnifiedMove::List(mov));
                 }
             }

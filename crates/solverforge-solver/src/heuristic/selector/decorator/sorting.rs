@@ -85,12 +85,12 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = M> + 'a {
         let comparator = self.comparator;
-        let mut moves: Vec<M> = self.inner.iter_moves(score_director).collect();
+        let mut moves: Vec<M> = self.inner.open_cursor(score_director).collect();
         moves.sort_by(comparator);
         moves.into_iter()
     }

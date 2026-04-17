@@ -6,10 +6,11 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 
-use crate::heuristic::r#move::{Move, MoveArena};
+use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::control::{
-    append_interruptibly, settle_search_interrupt, should_interrupt_evaluation, StepInterrupt,
+    settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
+    StepInterrupt,
 };
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
@@ -90,27 +91,15 @@ macro_rules! impl_vnd_phase {
             $MS: MoveSelector<S, M>,
         {
             fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
-                let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
                 let mut current_score = phase_scope.calculate_score();
 
                 loop {
                     let mut step_scope = StepScope::new(&mut phase_scope);
-                    arena.reset();
-                    let generation_interrupted = {
-                        let iter = (self.0).$idx.iter_moves(step_scope.score_director());
-                        append_interruptibly(&step_scope, &mut arena, iter)
-                    };
-                    if generation_interrupted {
-                        match settle_search_interrupt(&mut step_scope) {
-                            StepInterrupt::Restart => continue,
-                            StepInterrupt::TerminatePhase => break,
-                        }
-                    }
+                    let cursor = (self.0).$idx.open_cursor(step_scope.score_director());
 
-                    match find_best_improving_move_index(&arena, &mut step_scope, &current_score) {
-                        MoveSearchResult::Found(selected_index, selected_score) => {
-                            let selected_move = arena.take(selected_index);
+                    match find_best_improving_move(cursor, &mut step_scope, &current_score) {
+                        MoveSearchResult::Found(selected_move, selected_score) => {
                             selected_move.do_move(step_scope.score_director_mut());
                             step_scope.set_step_score(selected_score);
                             current_score = selected_score;
@@ -147,35 +136,22 @@ macro_rules! impl_vnd_phase {
         {
             fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 const COUNT: usize = impl_vnd_phase!(@count $($idx),+);
-                let mut arena = MoveArena::<M>::new();
                 let mut phase_scope = PhaseScope::new(solver_scope, 0);
                 let mut current_score = phase_scope.calculate_score();
                 let mut k = 0usize;
 
                 while k < COUNT {
                     let mut step_scope = StepScope::new(&mut phase_scope);
-                    arena.reset();
-
-                    // Populate arena from neighborhood k
-                    match k {
+                    let search_result = match k {
                         $($idx => {
-                            let generation_interrupted = {
-                                let iter = (self.0).$idx.iter_moves(step_scope.score_director());
-                                append_interruptibly(&step_scope, &mut arena, iter)
-                            };
-                            if generation_interrupted {
-                                match settle_search_interrupt(&mut step_scope) {
-                                    StepInterrupt::Restart => continue,
-                                    StepInterrupt::TerminatePhase => break,
-                                }
-                            }
+                            let cursor = (self.0).$idx.open_cursor(step_scope.score_director());
+                            find_best_improving_move(cursor, &mut step_scope, &current_score)
                         },)+
-                        _ => {}
-                    }
+                        _ => MoveSearchResult::NotFound,
+                    };
 
-                    match find_best_improving_move_index(&arena, &mut step_scope, &current_score) {
-                        MoveSearchResult::Found(selected_index, selected_score) => {
-                            let selected_move = arena.take(selected_index);
+                    match search_result {
+                        MoveSearchResult::Found(selected_move, selected_score) => {
                             selected_move.do_move(step_scope.score_director_mut());
                             step_scope.set_step_score(selected_score);
                             current_score = selected_score;
@@ -211,48 +187,51 @@ macro_rules! impl_vnd_phase {
 
 Returns `Some((index, score))` if an improving move is found, `None` otherwise.
 */
-enum MoveSearchResult<Sc> {
-    Found(usize, Sc),
+enum MoveSearchResult<M, Sc> {
+    Found(M, Sc),
     NotFound,
     Interrupted,
 }
 
-fn find_best_improving_move_index<S, D, BestCb, M>(
-    arena: &MoveArena<M>,
+fn find_best_improving_move<S, D, BestCb, M, I>(
+    moves: I,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
     current_score: &S::Score,
-) -> MoveSearchResult<S::Score>
+) -> MoveSearchResult<M, S::Score>
 where
     S: PlanningSolution,
     D: Director<S>,
     BestCb: ProgressCallback<S>,
     M: Move<S>,
+    I: IntoIterator<Item = M>,
 {
-    let mut best: Option<(usize, S::Score)> = None;
+    let mut best: Option<(M, S::Score)> = None;
 
-    for i in 0..arena.len() {
-        if should_interrupt_evaluation(step_scope, i) {
+    for (generated, mov) in moves.into_iter().enumerate() {
+        if should_interrupt_generation(step_scope, generated) {
             return MoveSearchResult::Interrupted;
         }
 
-        let m = arena.get(i).unwrap();
+        if should_interrupt_evaluation(step_scope, generated) {
+            return MoveSearchResult::Interrupted;
+        }
 
-        if !m.is_doable(step_scope.score_director()) {
+        if !mov.is_doable(step_scope.score_director()) {
             continue;
         }
 
         let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-        m.do_move(&mut recording);
+        mov.do_move(&mut recording);
         let move_score = recording.calculate_score();
         recording.undo_changes();
 
         if move_score > *current_score {
             match &best {
                 Some((_, best_score)) if move_score > *best_score => {
-                    best = Some((i, move_score));
+                    best = Some((mov, move_score));
                 }
                 None => {
-                    best = Some((i, move_score));
+                    best = Some((mov, move_score));
                 }
                 _ => {}
             }
@@ -260,7 +239,7 @@ where
     }
 
     match best {
-        Some((index, score)) => MoveSearchResult::Found(index, score),
+        Some((mov, score)) => MoveSearchResult::Found(mov, score),
         None => MoveSearchResult::NotFound,
     }
 }

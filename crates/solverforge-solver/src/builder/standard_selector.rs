@@ -57,7 +57,7 @@ where
 {
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
         descriptor_index: usize,
         entity_index: usize,
     ) -> impl Iterator<Item = usize> + 'a {
@@ -143,16 +143,16 @@ impl<S> MoveSelector<S, EitherMove<S, usize>> for StandardLeafSelector<S>
 where
     S: PlanningSolution,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EitherMove<S, usize>> + 'a {
         match self {
             Self::Change(selector) => StandardLeafIter::Change(
-                selector.iter_moves(score_director).map(EitherMove::Change),
+                selector.open_cursor(score_director).map(EitherMove::Change),
             ),
             Self::Swap(selector) => {
-                StandardLeafIter::Swap(selector.iter_moves(score_director).map(EitherMove::Swap))
+                StandardLeafIter::Swap(selector.open_cursor(score_director).map(EitherMove::Swap))
             }
         }
     }
@@ -171,10 +171,10 @@ where
     ) {
         match self {
             Self::Change(selector) => {
-                arena.extend(selector.iter_moves(score_director).map(EitherMove::Change))
+                arena.extend(selector.open_cursor(score_director).map(EitherMove::Change))
             }
             Self::Swap(selector) => {
-                arena.extend(selector.iter_moves(score_director).map(EitherMove::Swap))
+                arena.extend(selector.open_cursor(score_director).map(EitherMove::Swap))
             }
         }
     }

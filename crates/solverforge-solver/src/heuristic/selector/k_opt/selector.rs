@@ -91,9 +91,9 @@ where
     ES: EntitySelector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
@@ -103,32 +103,33 @@ where
         let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
-
-        self.entity_selector
+        let entity_lens: Vec<_> = self
+            .entity_selector
             .iter(score_director)
-            .flat_map(move |entity_ref| {
+            .map(|entity_ref| {
                 let entity_idx = entity_ref.entity_index;
-                let solution = score_director.working_solution();
-                let len = list_len(solution, entity_idx);
+                let len = list_len(score_director.working_solution(), entity_idx);
+                (entity_idx, len)
+            })
+            .collect();
 
-                // Generate all valid cut combinations
-                let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
+        entity_lens.into_iter().flat_map(move |(entity_idx, len)| {
+            let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
 
-                cuts_iter.flat_map(move |cuts| {
-                    // For each cut combination, generate moves for each pattern
-                    patterns.iter().map(move |pattern| {
-                        KOptMove::new(
-                            &cuts,
-                            pattern,
-                            list_len,
-                            sublist_remove,
-                            sublist_insert,
-                            variable_name,
-                            descriptor_index,
-                        )
-                    })
+            cuts_iter.flat_map(move |cuts| {
+                patterns.iter().map(move |pattern| {
+                    KOptMove::new(
+                        &cuts,
+                        pattern,
+                        list_len,
+                        sublist_remove,
+                        sublist_insert,
+                        variable_name,
+                        descriptor_index,
+                    )
                 })
             })
+        })
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

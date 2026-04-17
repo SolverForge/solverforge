@@ -102,15 +102,15 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = M> + 'a {
         let weight_fn = self.weight_fn;
 
         let moves_with_weights: Vec<(M, f64)> = self
             .inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(|m| {
                 let w = weight_fn(&m);
                 (m, w)

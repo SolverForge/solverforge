@@ -34,16 +34,24 @@ pub use list_adapters::{
 /// * `S` - The planning solution type
 /// * `M` - The move type
 pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
+    // Opens an owned move cursor that must not borrow the score director.
+    fn open_cursor<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+    ) -> impl Iterator<Item = M> + 'a;
+
     // Returns an iterator over typed moves.
     fn iter_moves<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
-    ) -> impl Iterator<Item = M> + 'a;
+        score_director: &D,
+    ) -> impl Iterator<Item = M> + 'a {
+        self.open_cursor(score_director)
+    }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
-        arena.extend(self.iter_moves(score_director));
+        arena.extend(self.open_cursor(score_director));
     }
 
     // Returns true if this selector may return the same move multiple times.
@@ -135,36 +143,43 @@ where
     ES: EntitySelector<S>,
     VS: ValueSelector<S, V>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ChangeMove<S, V>> + 'a {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
         let setter = self.setter;
         let value_selector = &self.value_selector;
-
-        // Lazy iteration: O(1) per .next() call, no upfront allocation
-        self.entity_selector
+        let entity_values: Vec<_> = self
+            .entity_selector
             .iter(score_director)
-            .flat_map(move |entity_ref| {
-                value_selector
+            .map(|entity_ref| {
+                let values = value_selector
                     .iter_typed(
                         score_director,
                         entity_ref.descriptor_index,
                         entity_ref.entity_index,
                     )
-                    .map(move |value| {
-                        ChangeMove::new(
-                            entity_ref.entity_index,
-                            Some(value),
-                            getter,
-                            setter,
-                            variable_name,
-                            descriptor_index,
-                        )
-                    })
+                    .collect::<Vec<_>>();
+                (entity_ref, values)
+            })
+            .collect();
+
+        entity_values
+            .into_iter()
+            .flat_map(move |(entity_ref, values)| {
+                values.into_iter().map(move |value| {
+                    ChangeMove::new(
+                        entity_ref.entity_index,
+                        Some(value),
+                        getter,
+                        setter,
+                        variable_name,
+                        descriptor_index,
+                    )
+                })
             })
     }
 
@@ -264,9 +279,9 @@ where
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = SwapMove<S, V>> + 'a {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;

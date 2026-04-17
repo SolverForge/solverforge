@@ -22,7 +22,7 @@ pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
     // Returns an iterator over values for the given entity.
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
         descriptor_index: usize,
         entity_index: usize,
     ) -> impl Iterator<Item = V> + 'a;
@@ -83,7 +83,7 @@ where
 {
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        _score_director: &'a D,
+        _score_director: &D,
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> impl Iterator<Item = V> + 'a {
@@ -148,7 +148,7 @@ where
 {
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
         _descriptor_index: usize,
         entity_index: usize,
     ) -> impl Iterator<Item = V> + 'a {
@@ -192,13 +192,13 @@ where
 {
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
         _descriptor_index: usize,
         entity_index: usize,
     ) -> impl Iterator<Item = V> + 'a {
         (self.extractor)(score_director.working_solution(), entity_index)
-            .iter()
-            .copied()
+            .to_vec()
+            .into_iter()
     }
 
     fn size<D: Director<S>>(
@@ -218,7 +218,7 @@ where
 {
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> impl Iterator<Item = V> + 'a {
@@ -265,7 +265,7 @@ where
 {
     fn iter_typed<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
         _descriptor_index: usize,
         _entity_index: usize,
     ) -> impl Iterator<Item = usize> + 'a {

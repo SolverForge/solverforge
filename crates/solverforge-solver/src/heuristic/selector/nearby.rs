@@ -185,7 +185,7 @@ where
 {
     fn iter<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
         // Get the origin entity from the recorder
         let origin = self.origin_recorder.get_recorded_entity();

@@ -237,9 +237,9 @@ where
     D: CrossEntityDistanceMeter<S>,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: Director<S>>(
+    fn open_cursor<'a, SD: Director<S>>(
         &'a self,
-        score_director: &'a SD,
+        score_director: &SD,
     ) -> impl Iterator<Item = ListChangeMove<S, V>> + 'a {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
@@ -368,12 +368,12 @@ where
     D: CrossEntityDistanceMeter<S>,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: Director<S>>(
+    fn open_cursor<'a, SD: Director<S>>(
         &'a self,
-        score_director: &'a SD,
+        score_director: &SD,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(ListMoveImpl::ListChange)
     }
 

@@ -50,12 +50,12 @@ where
     ES: EntitySelector<S>,
     VS: ValueSelector<S, V>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(EitherMove::Change)
     }
 
@@ -98,11 +98,11 @@ where
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
-        self.inner.iter_moves(score_director).map(EitherMove::Swap)
+        self.inner.open_cursor(score_director).map(EitherMove::Swap)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

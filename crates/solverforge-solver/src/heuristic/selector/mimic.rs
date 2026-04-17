@@ -218,7 +218,7 @@ where
 {
     fn iter<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
         // Reset for new iteration
         self.recorder.reset();
@@ -289,7 +289,7 @@ impl Debug for MimicReplayingEntitySelector {
 impl<S: PlanningSolution> EntitySelector<S> for MimicReplayingEntitySelector {
     fn iter<'a, D: Director<S>>(
         &'a self,
-        _score_director: &'a D,
+        _score_director: &D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
         ReplayingIterator {
             recorder: &self.recorder,

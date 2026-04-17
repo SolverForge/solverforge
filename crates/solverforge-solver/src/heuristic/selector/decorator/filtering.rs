@@ -83,12 +83,12 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = M> + 'a {
         let predicate = self.predicate;
-        self.inner.iter_moves(score_director).filter(predicate)
+        self.inner.open_cursor(score_director).filter(predicate)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

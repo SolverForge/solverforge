@@ -100,11 +100,11 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = M> + 'a {
-        let mut moves: Vec<M> = self.inner.iter_moves(score_director).collect();
+        let mut moves: Vec<M> = self.inner.open_cursor(score_director).collect();
         moves.shuffle(&mut *self.rng.borrow_mut());
         moves.into_iter()
     }

@@ -41,6 +41,22 @@ where
     has_pending_control(step_scope)
 }
 
+pub(crate) fn should_interrupt_generation<'t, 'a, 'b, S, D, ProgressCb>(
+    step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
+    generated: usize,
+) -> bool
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    if generated == 0 {
+        return has_pending_control(step_scope);
+    }
+
+    generated.is_multiple_of(GENERATION_POLL_INTERVAL) && has_pending_control(step_scope)
+}
+
 pub(crate) fn should_interrupt_evaluation<'t, 'a, 'b, S, D, ProgressCb>(
     step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
     evaluated: usize,

@@ -41,9 +41,9 @@ impl<S> MoveSelector<S, DescriptorEitherMove<S>> for DescriptorChangeMoveSelecto
 where
     S: PlanningSolution + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = DescriptorEitherMove<S>> + 'a {
         let count = score_director
             .entity_count(self.binding.descriptor_index)
@@ -51,26 +51,29 @@ where
         let descriptor = self.solution_descriptor.clone();
         let binding = self.binding.clone();
         let solution = score_director.working_solution() as &dyn Any;
-        (0..count).flat_map(move |entity_index| {
-            let entity = descriptor
-                .get_entity(solution, binding.descriptor_index, entity_index)
-                .expect("entity lookup failed for change selector");
-            binding
-                .values_for_entity(&descriptor, solution, entity)
-                .into_iter()
-                .map({
-                    let binding = binding.clone();
-                    let descriptor = descriptor.clone();
-                    move |value| {
-                        DescriptorEitherMove::Change(DescriptorChangeMove::new(
-                            binding.clone(),
-                            entity_index,
-                            Some(value),
-                            descriptor.clone(),
-                        ))
-                    }
-                })
-        })
+        let moves: Vec<_> = (0..count)
+            .flat_map(move |entity_index| {
+                let entity = descriptor
+                    .get_entity(solution, binding.descriptor_index, entity_index)
+                    .expect("entity lookup failed for change selector");
+                binding
+                    .values_for_entity(&descriptor, solution, entity)
+                    .into_iter()
+                    .map({
+                        let binding = binding.clone();
+                        let descriptor = descriptor.clone();
+                        move |value| {
+                            DescriptorEitherMove::Change(DescriptorChangeMove::new(
+                                binding.clone(),
+                                entity_index,
+                                Some(value),
+                                descriptor.clone(),
+                            ))
+                        }
+                    })
+            })
+            .collect();
+        moves.into_iter()
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -129,29 +132,32 @@ impl<S> MoveSelector<S, DescriptorEitherMove<S>> for DescriptorSwapMoveSelector<
 where
     S: PlanningSolution + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = DescriptorEitherMove<S>> + 'a {
         let count = score_director
             .entity_count(self.binding.descriptor_index)
             .unwrap_or(0);
         let binding = self.binding.clone();
         let descriptor = self.solution_descriptor.clone();
-        (0..count).flat_map(move |left_entity_index| {
-            ((left_entity_index + 1)..count).map({
-                let binding = binding.clone();
-                let descriptor = descriptor.clone();
-                move |right_entity_index| {
-                    DescriptorEitherMove::Swap(DescriptorSwapMove::new(
-                        binding.clone(),
-                        left_entity_index,
-                        right_entity_index,
-                        descriptor.clone(),
-                    ))
-                }
+        let moves: Vec<_> = (0..count)
+            .flat_map(move |left_entity_index| {
+                ((left_entity_index + 1)..count).map({
+                    let binding = binding.clone();
+                    let descriptor = descriptor.clone();
+                    move |right_entity_index| {
+                        DescriptorEitherMove::Swap(DescriptorSwapMove::new(
+                            binding.clone(),
+                            left_entity_index,
+                            right_entity_index,
+                            descriptor.clone(),
+                        ))
+                    }
+                })
             })
-        })
+            .collect();
+        moves.into_iter()
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -184,9 +190,9 @@ impl<S> MoveSelector<S, DescriptorEitherMove<S>> for DescriptorLeafSelector<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = DescriptorEitherMove<S>> + 'a {
         enum DescriptorLeafIter<A, B> {
             Change(A),
@@ -210,9 +216,9 @@ where
 
         match self {
             Self::Change(selector) => {
-                DescriptorLeafIter::Change(selector.iter_moves(score_director))
+                DescriptorLeafIter::Change(selector.open_cursor(score_director))
             }
-            Self::Swap(selector) => DescriptorLeafIter::Swap(selector.iter_moves(score_director)),
+            Self::Swap(selector) => DescriptorLeafIter::Swap(selector.open_cursor(score_director)),
         }
     }
 

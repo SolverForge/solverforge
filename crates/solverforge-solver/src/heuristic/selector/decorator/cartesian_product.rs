@@ -65,7 +65,7 @@ where
         D: Director<S>,
         MS: MoveSelector<S, M1>,
     {
-        self.arena_1.extend(selector.iter_moves(score_director));
+        self.arena_1.extend(selector.open_cursor(score_director));
     }
 
     /// Populates arena 2 from a move selector.
@@ -74,7 +74,7 @@ where
         D: Director<S>,
         MS: MoveSelector<S, M2>,
     {
-        self.arena_2.extend(selector.iter_moves(score_director));
+        self.arena_2.extend(selector.open_cursor(score_director));
     }
 
     pub fn len(&self) -> usize {

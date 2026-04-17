@@ -73,9 +73,9 @@ where
     DM: CrossEntityDistanceMeter<S>,
     IDM: CrossEntityDistanceMeter<S> + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         enum ListLeafIter<A, B, C, DIter, E, F, G, H, I, J> {
             NearbyListChange(A),
@@ -124,17 +124,17 @@ where
 
         match self {
             Self::NearbyListChange(s) => {
-                ListLeafIter::NearbyListChange(s.iter_moves(score_director))
+                ListLeafIter::NearbyListChange(s.open_cursor(score_director))
             }
-            Self::NearbyListSwap(s) => ListLeafIter::NearbyListSwap(s.iter_moves(score_director)),
-            Self::ListReverse(s) => ListLeafIter::ListReverse(s.iter_moves(score_director)),
-            Self::SubListChange(s) => ListLeafIter::SubListChange(s.iter_moves(score_director)),
-            Self::KOpt(s) => ListLeafIter::KOpt(s.iter_moves(score_director)),
-            Self::NearbyKOpt(s) => ListLeafIter::NearbyKOpt(s.iter_moves(score_director)),
-            Self::ListRuin(s) => ListLeafIter::ListRuin(s.iter_moves(score_director)),
-            Self::ListChange(s) => ListLeafIter::ListChange(s.iter_moves(score_director)),
-            Self::ListSwap(s) => ListLeafIter::ListSwap(s.iter_moves(score_director)),
-            Self::SubListSwap(s) => ListLeafIter::SubListSwap(s.iter_moves(score_director)),
+            Self::NearbyListSwap(s) => ListLeafIter::NearbyListSwap(s.open_cursor(score_director)),
+            Self::ListReverse(s) => ListLeafIter::ListReverse(s.open_cursor(score_director)),
+            Self::SubListChange(s) => ListLeafIter::SubListChange(s.open_cursor(score_director)),
+            Self::KOpt(s) => ListLeafIter::KOpt(s.open_cursor(score_director)),
+            Self::NearbyKOpt(s) => ListLeafIter::NearbyKOpt(s.open_cursor(score_director)),
+            Self::ListRuin(s) => ListLeafIter::ListRuin(s.open_cursor(score_director)),
+            Self::ListChange(s) => ListLeafIter::ListChange(s.open_cursor(score_director)),
+            Self::ListSwap(s) => ListLeafIter::ListSwap(s.open_cursor(score_director)),
+            Self::SubListSwap(s) => ListLeafIter::SubListSwap(s.open_cursor(score_director)),
         }
     }
 
@@ -159,16 +159,16 @@ where
         arena: &mut MoveArena<ListMoveImpl<S, V>>,
     ) {
         match self {
-            Self::NearbyListChange(s) => arena.extend(s.iter_moves(score_director)),
-            Self::NearbyListSwap(s) => arena.extend(s.iter_moves(score_director)),
-            Self::ListReverse(s) => arena.extend(s.iter_moves(score_director)),
-            Self::SubListChange(s) => arena.extend(s.iter_moves(score_director)),
-            Self::KOpt(s) => arena.extend(s.iter_moves(score_director)),
-            Self::NearbyKOpt(s) => arena.extend(s.iter_moves(score_director)),
-            Self::ListRuin(s) => arena.extend(s.iter_moves(score_director)),
-            Self::ListChange(s) => arena.extend(s.iter_moves(score_director)),
-            Self::ListSwap(s) => arena.extend(s.iter_moves(score_director)),
-            Self::SubListSwap(s) => arena.extend(s.iter_moves(score_director)),
+            Self::NearbyListChange(s) => arena.extend(s.open_cursor(score_director)),
+            Self::NearbyListSwap(s) => arena.extend(s.open_cursor(score_director)),
+            Self::ListReverse(s) => arena.extend(s.open_cursor(score_director)),
+            Self::SubListChange(s) => arena.extend(s.open_cursor(score_director)),
+            Self::KOpt(s) => arena.extend(s.open_cursor(score_director)),
+            Self::NearbyKOpt(s) => arena.extend(s.open_cursor(score_director)),
+            Self::ListRuin(s) => arena.extend(s.open_cursor(score_director)),
+            Self::ListChange(s) => arena.extend(s.open_cursor(score_director)),
+            Self::ListSwap(s) => arena.extend(s.open_cursor(score_director)),
+            Self::SubListSwap(s) => arena.extend(s.open_cursor(score_director)),
         }
     }
 }

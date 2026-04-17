@@ -35,12 +35,12 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(ListMoveImpl::ListChange)
     }
 
@@ -73,12 +73,12 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(ListMoveImpl::KOpt)
     }
 
@@ -114,12 +114,12 @@ where
     D: ListPositionDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, Dir: Director<S>>(
+    fn open_cursor<'a, Dir: Director<S>>(
         &'a self,
-        score_director: &'a Dir,
+        score_director: &Dir,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(ListMoveImpl::KOpt)
     }
 
@@ -151,12 +151,12 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(ListMoveImpl::ListRuin)
     }
 

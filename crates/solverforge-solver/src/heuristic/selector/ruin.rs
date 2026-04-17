@@ -195,9 +195,9 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = RuinMove<S, V>> + 'a {
         let total_entities = (self.entity_count)(score_director.working_solution());
         let getter = self.getter;

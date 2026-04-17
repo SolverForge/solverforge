@@ -62,10 +62,7 @@ pub trait PillarSelector<S: PlanningSolution>: Send + Debug {
     Each pillar contains entity references for entities that share
     the same variable value.
     */
-    fn iter<'a, D: Director<S>>(
-        &'a self,
-        score_director: &'a D,
-    ) -> impl Iterator<Item = Pillar> + 'a;
+    fn iter<'a, D: Director<S>>(&'a self, score_director: &D) -> impl Iterator<Item = Pillar> + 'a;
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
@@ -244,10 +241,7 @@ where
     ES: EntitySelector<S>,
     E: Fn(&dyn Director<S>, usize, usize) -> Option<V> + Send + Sync,
 {
-    fn iter<'a, D: Director<S>>(
-        &'a self,
-        score_director: &'a D,
-    ) -> impl Iterator<Item = Pillar> + 'a {
+    fn iter<'a, D: Director<S>>(&'a self, score_director: &D) -> impl Iterator<Item = Pillar> + 'a {
         let pillars = self.build_pillars(score_director);
         pillars.into_iter()
     }

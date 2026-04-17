@@ -38,7 +38,7 @@ pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
     */
     fn iter<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EntityReference> + 'a;
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
@@ -65,7 +65,7 @@ impl FromSolutionEntitySelector {
 impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
     fn iter<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
         let count = score_director
             .entity_count(self.descriptor_index)
@@ -94,7 +94,7 @@ impl AllEntitiesSelector {
 impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
     fn iter<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = EntityReference> + 'a {
         let desc = score_director.solution_descriptor();
         let descriptor_count = desc.entity_descriptors.len();

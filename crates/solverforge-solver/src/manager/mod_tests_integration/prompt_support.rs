@@ -174,9 +174,9 @@ enum PromptControlSelector {
 }
 
 impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingGenerationSelector {
-    fn iter_moves<'a, D: Director<PromptControlSolution>>(
+    fn open_cursor<'a, D: Director<PromptControlSolution>>(
         &'a self,
-        _score_director: &'a D,
+        _score_director: &D,
     ) -> impl Iterator<Item = NoOpMove> + 'a {
         (0..self.total_moves).map(move |index| {
             if index == self.block_at {
@@ -192,9 +192,9 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingGenerationSelecto
 }
 
 impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingEvaluationSelector {
-    fn iter_moves<'a, D: Director<PromptControlSolution>>(
+    fn open_cursor<'a, D: Director<PromptControlSolution>>(
         &'a self,
-        _score_director: &'a D,
+        _score_director: &D,
     ) -> impl Iterator<Item = NoOpMove> + 'a {
         (0..self.total_moves).map(move |_| NoOpMove::new(Some(self.gate.clone())))
     }
@@ -205,9 +205,9 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingEvaluationSelecto
 }
 
 impl MoveSelector<PromptControlSolution, NoOpMove> for PromptControlSelector {
-    fn iter_moves<'a, D: Director<PromptControlSolution>>(
+    fn open_cursor<'a, D: Director<PromptControlSolution>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = NoOpMove> + 'a {
         enum PromptControlIter<A, B> {
             Generation(A),
@@ -231,10 +231,10 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for PromptControlSelector {
 
         match self {
             Self::Generation(selector) => {
-                PromptControlIter::Generation(selector.iter_moves(score_director))
+                PromptControlIter::Generation(selector.open_cursor(score_director))
             }
             Self::Evaluation(selector) => {
-                PromptControlIter::Evaluation(selector.iter_moves(score_director))
+                PromptControlIter::Evaluation(selector.open_cursor(score_director))
             }
         }
     }

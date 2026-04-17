@@ -45,13 +45,16 @@ where
     M: Move<S>,
     Leaf: MoveSelector<S, M>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = M> + 'a {
-        self.selectors
+        let cursors: Vec<_> = self
+            .selectors
             .iter()
-            .flat_map(move |selector| selector.iter_moves(score_director))
+            .map(|selector| selector.open_cursor(score_director))
+            .collect();
+        cursors.into_iter().flatten()
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

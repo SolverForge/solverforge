@@ -131,9 +131,9 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ListSwapMove<S, V>> + 'a {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
@@ -262,12 +262,12 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, D: Director<S>>(
+    fn open_cursor<'a, D: Director<S>>(
         &'a self,
-        score_director: &'a D,
+        score_director: &D,
     ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
         self.inner
-            .iter_moves(score_director)
+            .open_cursor(score_director)
             .map(ListMoveImpl::ListSwap)
     }
 

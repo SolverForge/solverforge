@@ -133,9 +133,9 @@ where
     DM: ListPositionDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
-    fn iter_moves<'a, SD: Director<S>>(
+    fn open_cursor<'a, SD: Director<S>>(
         &'a self,
-        score_director: &'a SD,
+        score_director: &SD,
     ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
@@ -145,20 +145,17 @@ where
         let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
-
-        self.entity_selector
+        let solution = score_director.working_solution();
+        let moves: Vec<_> = self
+            .entity_selector
             .iter(score_director)
             .flat_map(move |entity_ref| {
                 let entity_idx = entity_ref.entity_index;
-                let solution = score_director.working_solution();
                 let len = list_len_fn(solution, entity_idx);
-
-                // Generate nearby cut combinations
                 let cuts_iter = NearbyCutIterator::new(self, solution, entity_idx, k, len, min_seg);
 
                 cuts_iter.flat_map(move |cuts| {
                     patterns.iter().map(move |&pattern| {
-                        // Validate cuts are sorted for intra-route
                         let mut sorted_cuts = cuts.clone();
                         sorted_cuts.sort_by_key(|c| c.position());
 
@@ -174,6 +171,8 @@ where
                     })
                 })
             })
+            .collect();
+        moves.into_iter()
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {

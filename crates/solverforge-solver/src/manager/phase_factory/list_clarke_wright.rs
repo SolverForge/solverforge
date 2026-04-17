@@ -387,10 +387,7 @@ where
 
             {
                 let sd = step_scope.score_director_mut();
-                for (entity_idx, index_route) in available_entity_slots
-                    .into_iter()
-                    .zip(non_empty)
-                {
+                for (entity_idx, index_route) in available_entity_slots.into_iter().zip(non_empty) {
                     sd.before_variable_changed(descriptor_index, entity_idx);
                     let element_route: Vec<E> = index_route
                         .iter()

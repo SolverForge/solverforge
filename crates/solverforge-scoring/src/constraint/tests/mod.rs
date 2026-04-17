@@ -1,6 +1,7 @@
 mod balance;
 mod bi_incr;
 mod complemented;
+mod cross_bi_incr;
 mod exists;
 mod flattened_bi;
 mod grouped;

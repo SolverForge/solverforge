@@ -98,18 +98,27 @@ where
         }
     }
 
-    fn build_b_index(&mut self, entities_b: &[B]) {
-        self.b_by_key.clear();
+    fn b_index_for(&self, entities_b: &[B]) -> HashMap<K, Vec<usize>> {
+        let mut b_by_key: HashMap<K, Vec<usize>> = HashMap::new();
         for (b_idx, b) in entities_b.iter().enumerate() {
             let key = (self.key_b)(b);
-            self.b_by_key.entry(key).or_default().push(b_idx);
+            b_by_key.entry(key).or_default().push(b_idx);
         }
+        b_by_key
+    }
+
+    fn build_b_index(&mut self, entities_b: &[B]) {
+        self.b_by_key = self.b_index_for(entities_b);
     }
 
     #[inline]
-    fn matching_b_indices(&self, a: &A) -> &[usize] {
+    fn matching_b_indices_in<'a>(
+        &self,
+        b_by_key: &'a HashMap<K, Vec<usize>>,
+        a: &A,
+    ) -> &'a [usize] {
         let key = (self.key_a)(a);
-        self.b_by_key.get(&key).map(|v| v.as_slice()).unwrap_or(&[])
+        b_by_key.get(&key).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
     fn insert_a(&mut self, solution: &S, entities_a: &[A], entities_b: &[B], a_idx: usize) -> Sc {
@@ -187,10 +196,11 @@ where
     fn evaluate(&self, solution: &S) -> Sc {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
+        let b_by_key = self.b_index_for(entities_b);
         let mut total = Sc::zero();
 
         for (a_idx, a) in entities_a.iter().enumerate() {
-            for &b_idx in self.matching_b_indices(a) {
+            for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
                 if (self.filter)(solution, a, b) {
                     total = total + self.compute_score(solution, a_idx, b_idx);
@@ -204,10 +214,11 @@ where
     fn match_count(&self, solution: &S) -> usize {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
+        let b_by_key = self.b_index_for(entities_b);
         let mut count = 0;
 
         for a in entities_a {
-            for &b_idx in self.matching_b_indices(a) {
+            for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
                 if (self.filter)(solution, a, b) {
                     count += 1;
@@ -267,12 +278,13 @@ where
     fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
+        let b_by_key = self.b_index_for(entities_b);
         let cref = self.constraint_ref.clone();
 
         let mut matches = Vec::new();
 
         for (a_idx, a) in entities_a.iter().enumerate() {
-            for &b_idx in self.matching_b_indices(a) {
+            for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
                 if (self.filter)(solution, a, b) {
                     let entity_a = EntityRef::new(a);

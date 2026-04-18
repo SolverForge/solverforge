@@ -1,6 +1,9 @@
 use std::fmt::{self, Debug};
 
-use solverforge_config::{LocalSearchConfig, MoveSelectorConfig, VndConfig};
+use solverforge_config::{
+    ChangeMoveConfig, ListReverseMoveConfig, LocalSearchConfig, MoveSelectorConfig,
+    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, VariableTargetConfig, VndConfig,
+};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 
@@ -378,10 +381,7 @@ where
 {
     let mut leaves = Vec::new();
     match config {
-        None => {
-            push_scalar_selector(None, model, &mut leaves);
-            push_list_selector(None, model, random_seed, &mut leaves);
-        }
+        None => unreachable!("default neighborhoods must be resolved before leaf selection"),
         Some(MoveSelectorConfig::ChangeMoveSelector(_))
         | Some(MoveSelectorConfig::SwapMoveSelector(_)) => {
             push_scalar_selector(config, model, &mut leaves);
@@ -434,6 +434,75 @@ where
     VecUnionSelector::new(leaves)
 }
 
+fn default_scalar_change_selector() -> MoveSelectorConfig {
+    MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+        target: VariableTargetConfig::default(),
+    })
+}
+
+fn default_nearby_list_change_selector() -> MoveSelectorConfig {
+    MoveSelectorConfig::NearbyListChangeMoveSelector(NearbyListChangeMoveConfig {
+        max_nearby: 20,
+        target: VariableTargetConfig::default(),
+    })
+}
+
+fn default_nearby_list_swap_selector() -> MoveSelectorConfig {
+    MoveSelectorConfig::NearbyListSwapMoveSelector(NearbyListSwapMoveConfig {
+        max_nearby: 20,
+        target: VariableTargetConfig::default(),
+    })
+}
+
+fn default_list_reverse_selector() -> MoveSelectorConfig {
+    MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
+        target: VariableTargetConfig::default(),
+    })
+}
+
+fn collect_default_neighborhoods<S, V, DM, IDM>(
+    model: &ModelContext<S, V, DM, IDM>,
+    random_seed: Option<u64>,
+    out: &mut Vec<Neighborhood<S, V, DM, IDM>>,
+) where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+{
+    if model.has_list_variables() {
+        let list_change = default_nearby_list_change_selector();
+        out.push(Neighborhood::Flat(build_leaf_selector(
+            Some(&list_change),
+            model,
+            random_seed,
+        )));
+
+        let list_swap = default_nearby_list_swap_selector();
+        out.push(Neighborhood::Flat(build_leaf_selector(
+            Some(&list_swap),
+            model,
+            random_seed,
+        )));
+
+        let list_reverse = default_list_reverse_selector();
+        out.push(Neighborhood::Flat(build_leaf_selector(
+            Some(&list_reverse),
+            model,
+            random_seed,
+        )));
+    }
+
+    if model.scalar_variables().next().is_some() {
+        let scalar_change = default_scalar_change_selector();
+        out.push(Neighborhood::Flat(build_leaf_selector(
+            Some(&scalar_change),
+            model,
+            random_seed,
+        )));
+    }
+}
+
 fn collect_neighborhoods<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     model: &ModelContext<S, V, DM, IDM>,
@@ -446,11 +515,7 @@ fn collect_neighborhoods<S, V, DM, IDM>(
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
     match config {
-        None => out.push(Neighborhood::Flat(build_leaf_selector(
-            None,
-            model,
-            random_seed,
-        ))),
+        None => collect_default_neighborhoods(model, random_seed, out),
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
             for child in &union.selectors {
                 collect_neighborhoods(Some(child), model, random_seed, out);
@@ -571,3 +636,7 @@ where
 
     DynamicVndPhase::new(neighborhoods)
 }
+
+#[cfg(test)]
+#[path = "selector_tests.rs"]
+mod tests;

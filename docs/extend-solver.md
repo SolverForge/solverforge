@@ -20,8 +20,24 @@ application that depends on `solverforge`.
   use per-solution config callbacks only to layer runtime-specific adjustments on
   top of `solver.toml`.
 - Preserve structured solver events and telemetry so the UI and service layer
-  remain accurate.
+  remain accurate. Generated moves, evaluated moves, accepted moves, and
+  generation/evaluation `Duration`s now flow through retained telemetry exactly;
+  only human-facing rates are derived at the edge.
 - Prefer small, app-specific extensions over forking the scaffold templates.
+
+## Canonical selector defaults
+
+If `move_selector` is omitted, the runtime keeps one streaming-first default
+story:
+
+- scalar-only models default to `ChangeMoveSelector`
+- list-only models default to `NearbyListChangeMoveSelector(20)`,
+  `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
+- mixed models use the list defaults first, then scalar change
+
+`selected_count_limit_move_selector` remains supported for compatibility, but it
+is no longer the main way to avoid broad generation. The canonical defaults are
+already explicit streaming neighborhoods.
 
 ## Practical path
 

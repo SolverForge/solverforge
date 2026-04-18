@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.8.6`
+**Workspace Release:** `0.8.8`
 
 ## Dependencies
 
@@ -812,7 +812,11 @@ Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBo
 
 ### `SolverStats` / `PhaseStats`
 
-Aggregate and per-phase metrics: step count, moves evaluated/accepted, score calculations, elapsed time, acceptance rate, moves per second.
+Aggregate and per-phase metrics: step count, moves generated, moves evaluated,
+moves accepted, score calculations, elapsed time, generation time, evaluation
+time, acceptance rate, and exact `Throughput { count, elapsed }` views for
+generated/evaluated work. Human-facing `moves/s` is derived only at log/console
+formatting edges.
 
 ### `runtime.rs`
 

@@ -13,12 +13,16 @@ Tracks aggregate metrics across all phases of a solve run.
 
 ```
 use solverforge_solver::stats::SolverStats;
+use std::time::Duration;
 
 let mut stats = SolverStats::default();
 stats.start();
 stats.record_step();
-stats.record_move(true);
-stats.record_move(false);
+stats.record_generated_move(Duration::from_millis(1));
+stats.record_evaluated_move(Duration::from_millis(2));
+stats.record_move_accepted();
+stats.record_generated_move(Duration::from_millis(1));
+stats.record_evaluated_move(Duration::from_millis(2));
 
 assert_eq!(stats.step_count, 1);
 assert_eq!(stats.moves_evaluated, 2);
@@ -27,13 +31,63 @@ assert_eq!(stats.moves_accepted, 1);
 */
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SolverTelemetry {
-    pub elapsed_ms: u64,
+    pub elapsed: Duration,
     pub step_count: u64,
+    pub moves_generated: u64,
     pub moves_evaluated: u64,
     pub moves_accepted: u64,
     pub score_calculations: u64,
-    pub moves_per_second: u64,
-    pub acceptance_rate: f64,
+    pub generation_time: Duration,
+    pub evaluation_time: Duration,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Throughput {
+    pub count: u64,
+    pub elapsed: Duration,
+}
+
+pub(crate) fn whole_units_per_second(count: u64, elapsed: Duration) -> u128 {
+    let nanos = elapsed.as_nanos();
+    if nanos == 0 {
+        0
+    } else {
+        u128::from(count)
+            .saturating_mul(1_000_000_000)
+            .checked_div(nanos)
+            .unwrap_or(0)
+    }
+}
+
+pub(crate) fn format_duration(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    let nanos = duration.subsec_nanos();
+
+    if secs >= 60 {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        return format!("{mins}m {rem_secs}s");
+    }
+
+    if secs > 0 {
+        let millis = nanos / 1_000_000;
+        if millis == 0 {
+            return format!("{secs}s");
+        }
+        return format!("{secs}s {millis}ms");
+    }
+
+    let millis = nanos / 1_000_000;
+    if millis > 0 {
+        return format!("{millis}ms");
+    }
+
+    let micros = nanos / 1_000;
+    if micros > 0 {
+        return format!("{micros}us");
+    }
+
+    format!("{nanos}ns")
 }
 
 #[derive(Debug, Default)]
@@ -42,12 +96,16 @@ pub struct SolverStats {
     pause_started_at: Option<Instant>,
     // Total steps taken across all phases.
     pub step_count: u64,
+    // Total moves generated across all phases.
+    pub moves_generated: u64,
     // Total moves evaluated across all phases.
     pub moves_evaluated: u64,
     // Total moves accepted across all phases.
     pub moves_accepted: u64,
     // Total score calculations performed.
     pub score_calculations: u64,
+    generation_time: Duration,
+    evaluation_time: Duration,
 }
 
 impl SolverStats {
@@ -77,12 +135,31 @@ impl SolverStats {
         }
     }
 
-    /// Records a move evaluation and whether it was accepted.
-    pub fn record_move(&mut self, accepted: bool) {
+    /// Records one or more generated candidate moves and the time spent generating them.
+    pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
+        self.moves_generated += count;
+        self.generation_time += duration;
+    }
+
+    /// Records generation time that did not itself yield a counted move.
+    pub fn record_generation_time(&mut self, duration: Duration) {
+        self.generation_time += duration;
+    }
+
+    /// Records a single generated candidate move and the time spent generating it.
+    pub fn record_generated_move(&mut self, duration: Duration) {
+        self.record_generated_batch(1, duration);
+    }
+
+    /// Records a move evaluation and the time spent evaluating it.
+    pub fn record_evaluated_move(&mut self, duration: Duration) {
         self.moves_evaluated += 1;
-        if accepted {
-            self.moves_accepted += 1;
-        }
+        self.evaluation_time += duration;
+    }
+
+    /// Records an accepted move.
+    pub fn record_move_accepted(&mut self) {
+        self.moves_accepted += 1;
     }
 
     /// Records a step completion.
@@ -95,12 +172,17 @@ impl SolverStats {
         self.score_calculations += 1;
     }
 
-    pub fn moves_per_second(&self) -> f64 {
-        let secs = self.elapsed().as_secs_f64();
-        if secs > 0.0 {
-            self.moves_evaluated as f64 / secs
-        } else {
-            0.0
+    pub fn generated_throughput(&self) -> Throughput {
+        Throughput {
+            count: self.moves_generated,
+            elapsed: self.generation_time,
+        }
+    }
+
+    pub fn evaluated_throughput(&self) -> Throughput {
+        Throughput {
+            count: self.moves_evaluated,
+            elapsed: self.evaluation_time,
         }
     }
 
@@ -112,15 +194,24 @@ impl SolverStats {
         }
     }
 
+    pub fn generation_time(&self) -> Duration {
+        self.generation_time
+    }
+
+    pub fn evaluation_time(&self) -> Duration {
+        self.evaluation_time
+    }
+
     pub fn snapshot(&self) -> SolverTelemetry {
         SolverTelemetry {
-            elapsed_ms: self.elapsed().as_millis() as u64,
+            elapsed: self.elapsed(),
             step_count: self.step_count,
+            moves_generated: self.moves_generated,
             moves_evaluated: self.moves_evaluated,
             moves_accepted: self.moves_accepted,
             score_calculations: self.score_calculations,
-            moves_per_second: self.moves_per_second() as u64,
-            acceptance_rate: self.acceptance_rate(),
+            generation_time: self.generation_time,
+            evaluation_time: self.evaluation_time,
         }
     }
 }
@@ -133,10 +224,13 @@ Tracks metrics for a single solver phase.
 
 ```
 use solverforge_solver::stats::PhaseStats;
+use std::time::Duration;
 
 let mut stats = PhaseStats::new(0, "LocalSearch");
 stats.record_step();
-stats.record_move(true);
+stats.record_generated_move(Duration::from_millis(1));
+stats.record_evaluated_move(Duration::from_millis(2));
+stats.record_move_accepted();
 
 assert_eq!(stats.phase_index, 0);
 assert_eq!(stats.phase_type, "LocalSearch");
@@ -153,10 +247,16 @@ pub struct PhaseStats {
     start_time: Instant,
     // Number of steps taken in this phase.
     pub step_count: u64,
+    // Number of moves generated in this phase.
+    pub moves_generated: u64,
     // Number of moves evaluated in this phase.
     pub moves_evaluated: u64,
     // Number of moves accepted in this phase.
     pub moves_accepted: u64,
+    // Number of score calculations in this phase.
+    pub score_calculations: u64,
+    generation_time: Duration,
+    evaluation_time: Duration,
 }
 
 impl PhaseStats {
@@ -167,8 +267,12 @@ impl PhaseStats {
             phase_type,
             start_time: Instant::now(),
             step_count: 0,
+            moves_generated: 0,
             moves_evaluated: 0,
             moves_accepted: 0,
+            score_calculations: 0,
+            generation_time: Duration::default(),
+            evaluation_time: Duration::default(),
         }
     }
 
@@ -176,29 +280,54 @@ impl PhaseStats {
         self.start_time.elapsed()
     }
 
-    pub fn elapsed_ms(&self) -> u64 {
-        self.start_time.elapsed().as_millis() as u64
-    }
-
     /// Records a step completion.
     pub fn record_step(&mut self) {
         self.step_count += 1;
     }
 
-    /// Records a move evaluation and whether it was accepted.
-    pub fn record_move(&mut self, accepted: bool) {
+    /// Records one or more generated candidate moves and the time spent generating them.
+    pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
+        self.moves_generated += count;
+        self.generation_time += duration;
+    }
+
+    /// Records generation time that did not itself yield a counted move.
+    pub fn record_generation_time(&mut self, duration: Duration) {
+        self.generation_time += duration;
+    }
+
+    /// Records a single generated candidate move and the time spent generating it.
+    pub fn record_generated_move(&mut self, duration: Duration) {
+        self.record_generated_batch(1, duration);
+    }
+
+    /// Records a move evaluation and the time spent evaluating it.
+    pub fn record_evaluated_move(&mut self, duration: Duration) {
         self.moves_evaluated += 1;
-        if accepted {
-            self.moves_accepted += 1;
+        self.evaluation_time += duration;
+    }
+
+    /// Records an accepted move.
+    pub fn record_move_accepted(&mut self) {
+        self.moves_accepted += 1;
+    }
+
+    /// Records a score calculation.
+    pub fn record_score_calculation(&mut self) {
+        self.score_calculations += 1;
+    }
+
+    pub fn generated_throughput(&self) -> Throughput {
+        Throughput {
+            count: self.moves_generated,
+            elapsed: self.generation_time,
         }
     }
 
-    pub fn moves_per_second(&self) -> u64 {
-        let secs = self.elapsed().as_secs_f64();
-        if secs > 0.0 {
-            (self.moves_evaluated as f64 / secs) as u64
-        } else {
-            0
+    pub fn evaluated_throughput(&self) -> Throughput {
+        Throughput {
+            count: self.moves_evaluated,
+            elapsed: self.evaluation_time,
         }
     }
 
@@ -208,5 +337,115 @@ impl PhaseStats {
         } else {
             self.moves_accepted as f64 / self.moves_evaluated as f64
         }
+    }
+
+    pub fn generation_time(&self) -> Duration {
+        self.generation_time
+    }
+
+    pub fn evaluation_time(&self) -> Duration {
+        self.evaluation_time
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn solver_snapshot_preserves_exact_counts_and_durations() {
+        let mut stats = SolverStats::default();
+        stats.start();
+        stats.record_step();
+        stats.record_generated_batch(3, Duration::from_millis(4));
+        stats.record_evaluated_move(Duration::from_millis(5));
+        stats.record_move_accepted();
+        stats.record_score_calculation();
+
+        let snapshot = stats.snapshot();
+
+        assert_eq!(snapshot.step_count, 1);
+        assert_eq!(snapshot.moves_generated, 3);
+        assert_eq!(snapshot.moves_evaluated, 1);
+        assert_eq!(snapshot.moves_accepted, 1);
+        assert_eq!(snapshot.score_calculations, 1);
+        assert_eq!(snapshot.generation_time, Duration::from_millis(4));
+        assert_eq!(snapshot.evaluation_time, Duration::from_millis(5));
+    }
+
+    #[test]
+    fn phase_stats_track_generation_and_evaluation_separately() {
+        let mut stats = PhaseStats::new(2, "LocalSearch");
+        stats.record_step();
+        stats.record_generated_batch(7, Duration::from_millis(8));
+        stats.record_evaluated_move(Duration::from_millis(9));
+        stats.record_move_accepted();
+        stats.record_score_calculation();
+
+        assert_eq!(stats.phase_index, 2);
+        assert_eq!(stats.phase_type, "LocalSearch");
+        assert_eq!(stats.step_count, 1);
+        assert_eq!(stats.moves_generated, 7);
+        assert_eq!(stats.moves_evaluated, 1);
+        assert_eq!(stats.moves_accepted, 1);
+        assert_eq!(stats.score_calculations, 1);
+        assert_eq!(stats.generation_time(), Duration::from_millis(8));
+        assert_eq!(stats.evaluation_time(), Duration::from_millis(9));
+    }
+
+    #[test]
+    fn throughput_helpers_use_stage_specific_durations() {
+        let mut solver_stats = SolverStats::default();
+        solver_stats.start();
+        solver_stats.record_generated_batch(5, Duration::from_millis(7));
+        solver_stats.record_evaluated_move(Duration::from_millis(11));
+
+        let mut phase_stats = PhaseStats::new(1, "LocalSearch");
+        phase_stats.record_generated_batch(3, Duration::from_millis(13));
+        phase_stats.record_evaluated_move(Duration::from_millis(17));
+
+        assert_eq!(
+            solver_stats.generated_throughput(),
+            Throughput {
+                count: 5,
+                elapsed: Duration::from_millis(7),
+            }
+        );
+        assert_eq!(
+            solver_stats.evaluated_throughput(),
+            Throughput {
+                count: 1,
+                elapsed: Duration::from_millis(11),
+            }
+        );
+        assert_eq!(
+            phase_stats.generated_throughput(),
+            Throughput {
+                count: 3,
+                elapsed: Duration::from_millis(13),
+            }
+        );
+        assert_eq!(
+            phase_stats.evaluated_throughput(),
+            Throughput {
+                count: 1,
+                elapsed: Duration::from_millis(17),
+            }
+        );
+    }
+
+    #[test]
+    fn whole_units_per_second_uses_integer_rate_math() {
+        assert_eq!(whole_units_per_second(3, Duration::from_millis(2_000)), 1);
+        assert_eq!(whole_units_per_second(9, Duration::from_secs(2)), 4);
+        assert_eq!(whole_units_per_second(5, Duration::ZERO), 0);
+    }
+
+    #[test]
+    fn format_duration_uses_exact_integer_units() {
+        assert_eq!(format_duration(Duration::from_millis(750)), "750ms");
+        assert_eq!(format_duration(Duration::from_millis(2_500)), "2s 500ms");
+        assert_eq!(format_duration(Duration::from_secs(125)), "2m 5s");
+        assert_eq!(format_duration(Duration::from_micros(42)), "42us");
     }
 }

@@ -1,5 +1,6 @@
 // Phase-level scope.
 
+use std::time::Duration;
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
@@ -82,6 +83,7 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     /// Increments the phase step count.
     pub fn increment_step_count(&mut self) -> u64 {
         self.step_count += 1;
+        self.stats.record_step();
         self.solver_scope.increment_step_count();
         self.step_count
     }
@@ -104,6 +106,7 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     /// Calculates the current score.
     pub fn calculate_score(&mut self) -> S::Score {
+        self.stats.record_score_calculation();
         self.solver_scope.calculate_score()
     }
 
@@ -118,5 +121,40 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     pub fn stats_mut(&mut self) -> &mut PhaseStats {
         &mut self.stats
+    }
+
+    pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
+        self.stats.record_generated_batch(count, duration);
+        self.solver_scope
+            .stats_mut()
+            .record_generated_batch(count, duration);
+    }
+
+    pub fn record_generated_move(&mut self, duration: Duration) {
+        self.record_generated_batch(1, duration);
+    }
+
+    pub fn record_generation_time(&mut self, duration: Duration) {
+        self.stats.record_generation_time(duration);
+        self.solver_scope
+            .stats_mut()
+            .record_generation_time(duration);
+    }
+
+    pub fn record_evaluated_move(&mut self, duration: Duration) {
+        self.stats.record_evaluated_move(duration);
+        self.solver_scope
+            .stats_mut()
+            .record_evaluated_move(duration);
+    }
+
+    pub fn record_move_accepted(&mut self) {
+        self.stats.record_move_accepted();
+        self.solver_scope.stats_mut().record_move_accepted();
+    }
+
+    pub fn record_score_calculation(&mut self) {
+        self.stats.record_score_calculation();
+        self.solver_scope.stats_mut().record_score_calculation();
     }
 }

@@ -15,6 +15,7 @@ use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::{Phase, PhaseSequence};
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::solver::Solver;
+use crate::stats::{format_duration, whole_units_per_second};
 use crate::termination::{
     BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
@@ -307,6 +308,7 @@ where
         stats,
     } = result;
     let final_telemetry = stats.snapshot();
+    let final_move_speed = whole_units_per_second(stats.moves_evaluated, stats.elapsed());
     match terminal_reason {
         SolverTerminalReason::Completed | SolverTerminalReason::TerminatedByConfig => {
             runtime.emit_completed(
@@ -327,10 +329,13 @@ where
         event = "solve_end",
         score = %final_score,
         steps = stats.step_count,
+        moves_generated = stats.moves_generated,
         moves_evaluated = stats.moves_evaluated,
         moves_accepted = stats.moves_accepted,
         score_calculations = stats.score_calculations,
-        moves_speed = final_telemetry.moves_per_second,
+        generation_time = %format_duration(stats.generation_time()),
+        evaluation_time = %format_duration(stats.evaluation_time()),
+        moves_speed = final_move_speed,
         acceptance_rate = format!("{:.1}%", stats.acceptance_rate() * 100.0),
     );
     solution

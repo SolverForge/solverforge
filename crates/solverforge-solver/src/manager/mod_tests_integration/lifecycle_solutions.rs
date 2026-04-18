@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::time::Duration;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
@@ -128,7 +129,13 @@ impl Solvable for LifecycleSolution {
 
         for step_index in 0..2 {
             solver_scope.increment_step_count();
-            solver_scope.stats_mut().record_move(true);
+            solver_scope
+                .stats_mut()
+                .record_generated_move(Duration::ZERO);
+            solver_scope
+                .stats_mut()
+                .record_evaluated_move(Duration::ZERO);
+            solver_scope.stats_mut().record_move_accepted();
             runtime.emit_progress(
                 solver_scope.current_score().copied(),
                 solver_scope.best_score().copied(),

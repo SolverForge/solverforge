@@ -9,25 +9,28 @@ pub(crate) struct EventVisitor {
     pub(crate) phase: Option<String>,
     pub(crate) phase_index: Option<u64>,
     pub(crate) steps: Option<u64>,
-    pub(crate) speed: Option<u64>,
+    pub(crate) speed: Option<u128>,
     pub(crate) score: Option<String>,
     pub(crate) current_score: Option<String>,
     pub(crate) best_score: Option<String>,
     pub(crate) step: Option<u64>,
     pub(crate) entity: Option<u64>,
     pub(crate) accepted: Option<bool>,
-    pub(crate) duration_ms: Option<u64>,
+    pub(crate) duration: Option<String>,
     pub(crate) entity_count: Option<u64>,
     pub(crate) value_count: Option<u64>,
     pub(crate) constraint_count: Option<u64>,
     pub(crate) time_limit_secs: Option<u64>,
     pub(crate) feasible: Option<bool>,
-    pub(crate) moves_speed: Option<u64>,
-    pub(crate) calc_speed: Option<u64>,
+    pub(crate) moves_speed: Option<u128>,
+    pub(crate) calc_speed: Option<u128>,
     pub(crate) acceptance_rate: Option<String>,
+    pub(crate) moves_generated: Option<u64>,
     pub(crate) moves_evaluated: Option<u64>,
     pub(crate) moves_accepted: Option<u64>,
     pub(crate) score_calculations: Option<u64>,
+    pub(crate) generation_time: Option<String>,
+    pub(crate) evaluation_time: Option<String>,
 }
 
 impl Visit for EventVisitor {
@@ -40,6 +43,10 @@ impl Visit for EventVisitor {
             "score" => self.score = Some(s.trim_matches('"').to_string()),
             "current_score" => self.current_score = Some(s.trim_matches('"').to_string()),
             "best_score" => self.best_score = Some(s.trim_matches('"').to_string()),
+            "duration" => self.duration = Some(s.trim_matches('"').to_string()),
+            "acceptance_rate" => self.acceptance_rate = Some(s.trim_matches('"').to_string()),
+            "generation_time" => self.generation_time = Some(s.trim_matches('"').to_string()),
+            "evaluation_time" => self.evaluation_time = Some(s.trim_matches('"').to_string()),
             _ => {}
         }
     }
@@ -48,18 +55,18 @@ impl Visit for EventVisitor {
         match field.name() {
             "phase_index" => self.phase_index = Some(value),
             "steps" => self.steps = Some(value),
-            "speed" => self.speed = Some(value),
+            "speed" => self.speed = Some(u128::from(value)),
             "step" => self.step = Some(value),
             // TRACE step events emit `move_index`; keep `entity` as a legacy alias.
             "entity" | "move_index" => self.entity = Some(value),
-            "duration_ms" => self.duration_ms = Some(value),
             "entity_count" => self.entity_count = Some(value),
             // List solves emit `element_count`; keep `value_count` for legacy/basic solves.
             "value_count" | "element_count" => self.value_count = Some(value),
             "constraint_count" => self.constraint_count = Some(value),
             "time_limit_secs" => self.time_limit_secs = Some(value),
-            "moves_speed" => self.moves_speed = Some(value),
-            "calc_speed" => self.calc_speed = Some(value),
+            "moves_speed" => self.moves_speed = Some(u128::from(value)),
+            "calc_speed" => self.calc_speed = Some(u128::from(value)),
+            "moves_generated" => self.moves_generated = Some(value),
             "moves_evaluated" => self.moves_evaluated = Some(value),
             "moves_accepted" => self.moves_accepted = Some(value),
             "score_calculations" => self.score_calculations = Some(value),
@@ -68,7 +75,24 @@ impl Visit for EventVisitor {
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.record_u64(field, value as u64);
+        if let Ok(value) = u64::try_from(value) {
+            self.record_u64(field, value);
+        }
+    }
+
+    fn record_u128(&mut self, field: &Field, value: u128) {
+        match field.name() {
+            "speed" => self.speed = Some(value),
+            "moves_speed" => self.moves_speed = Some(value),
+            "calc_speed" => self.calc_speed = Some(value),
+            _ => {}
+        }
+    }
+
+    fn record_i128(&mut self, field: &Field, value: i128) {
+        if let Ok(value) = u128::try_from(value) {
+            self.record_u128(field, value);
+        }
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
@@ -88,6 +112,9 @@ impl Visit for EventVisitor {
             "current_score" => self.current_score = Some(value.to_string()),
             "best_score" => self.best_score = Some(value.to_string()),
             "acceptance_rate" => self.acceptance_rate = Some(value.to_string()),
+            "duration" => self.duration = Some(value.to_string()),
+            "generation_time" => self.generation_time = Some(value.to_string()),
+            "evaluation_time" => self.evaluation_time = Some(value.to_string()),
             _ => {}
         }
     }

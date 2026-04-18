@@ -1,6 +1,8 @@
 // Formatting functions for solver console output.
 
-use crate::time::{elapsed_secs, mark_solve_start};
+use std::time::Duration;
+
+use crate::time::{elapsed, mark_solve_start};
 use crate::visitor::EventVisitor;
 use num_format::{Locale, ToFormattedString};
 use owo_colors::OwoColorize;
@@ -21,9 +23,40 @@ pub(crate) fn format_event(v: &EventVisitor, level: Level) -> String {
 }
 
 fn format_elapsed() -> String {
-    format!("{:>7.3}s", elapsed_secs())
+    format!("{:>9}", format_elapsed_duration(elapsed()))
         .bright_black()
         .to_string()
+}
+
+fn format_elapsed_duration(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    let nanos = duration.subsec_nanos();
+
+    if secs >= 60 {
+        let mins = secs / 60;
+        let rem_secs = secs % 60;
+        return format!("{mins}m {rem_secs}s");
+    }
+
+    if secs > 0 {
+        let millis = nanos / 1_000_000;
+        if millis == 0 {
+            return format!("{secs}s");
+        }
+        return format!("{secs}s {millis}ms");
+    }
+
+    let millis = nanos / 1_000_000;
+    if millis > 0 {
+        return format!("{millis}ms");
+    }
+
+    let micros = nanos / 1_000;
+    if micros > 0 {
+        return format!("{micros}us");
+    }
+
+    format!("{nanos}ns")
 }
 
 fn format_solve_start(v: &EventVisitor) -> String {
@@ -70,10 +103,13 @@ fn format_solve_end(v: &EventVisitor) -> String {
     let score = v.score.as_deref().unwrap_or("N/A");
     let steps = v.steps.unwrap_or(0);
     let moves_speed = v.moves_speed.or(v.speed).unwrap_or(0);
+    let moves_generated = v.moves_generated.unwrap_or(0);
     let moves_evaluated = v.moves_evaluated.unwrap_or(0);
     let moves_accepted = v.moves_accepted.unwrap_or(0);
     let score_calculations = v.score_calculations.unwrap_or(0);
     let acceptance_rate = v.acceptance_rate.as_deref().unwrap_or("0.0%");
+    let generation_time = v.generation_time.as_deref();
+    let evaluation_time = v.evaluation_time.as_deref();
     let is_feasible = v
         .feasible
         .unwrap_or_else(|| !score.contains('-') || score.starts_with("0hard"));
@@ -143,11 +179,39 @@ fn format_solve_end(v: &EventVisitor) -> String {
     output.push_str(&format!(
         "{}  {:<18}{:>36}  {}",
         "║".bright_cyan(),
+        "Moves Generated:",
+        moves_generated.to_formatted_string(&Locale::en),
+        "║".bright_cyan()
+    ));
+    output.push('\n');
+    output.push_str(&format!(
+        "{}  {:<18}{:>36}  {}",
+        "║".bright_cyan(),
         "Steps:",
         steps.to_formatted_string(&Locale::en),
         "║".bright_cyan()
     ));
     output.push('\n');
+    if let Some(generation_time) = generation_time {
+        output.push_str(&format!(
+            "{}  {:<18}{:>36}  {}",
+            "║".bright_cyan(),
+            "Generation Time:",
+            generation_time,
+            "║".bright_cyan()
+        ));
+        output.push('\n');
+    }
+    if let Some(evaluation_time) = evaluation_time {
+        output.push_str(&format!(
+            "{}  {:<18}{:>36}  {}",
+            "║".bright_cyan(),
+            "Evaluation Time:",
+            evaluation_time,
+            "║".bright_cyan()
+        ));
+        output.push('\n');
+    }
     output.push_str(&format!(
         "{}  {:<18}{:>36}  {}",
         "║".bright_cyan(),
@@ -214,18 +278,21 @@ fn format_phase_end(v: &EventVisitor) -> String {
     let phase = v.phase.as_deref().unwrap_or("Unknown");
     let steps = v.steps.unwrap_or(0);
     let moves_speed = v.moves_speed.unwrap_or(v.speed.unwrap_or(0));
+    let moves_generated = v.moves_generated.unwrap_or(0);
     let moves_evaluated = v.moves_evaluated.unwrap_or(0);
     let moves_accepted = v.moves_accepted.unwrap_or(0);
     let score_calculations = v.score_calculations.unwrap_or(0);
     let score = v.score.as_deref().unwrap_or("N/A");
-    let duration = v.duration_ms.unwrap_or(0);
+    let duration = v.duration.as_deref().unwrap_or("0ns");
+    let generation_time = v.generation_time.as_deref();
+    let evaluation_time = v.evaluation_time.as_deref();
 
     let mut output = format!(
         "{} {} {} ended │ {} │ {} steps │ {} moves/s",
         format_elapsed(),
         "◀".bright_blue(),
         phase.white().bold(),
-        format_duration_ms(duration).yellow(),
+        duration.yellow(),
         steps.to_formatted_string(&Locale::en).white(),
         moves_speed
             .to_formatted_string(&Locale::en)
@@ -256,6 +323,15 @@ fn format_phase_end(v: &EventVisitor) -> String {
         ));
     }
 
+    if moves_generated > 0 {
+        output.push_str(&format!(
+            " │ {} generated",
+            moves_generated
+                .to_formatted_string(&Locale::en)
+                .bright_white()
+        ));
+    }
+
     if moves_accepted > 0 {
         output.push_str(&format!(
             " │ {} accepted moves",
@@ -274,6 +350,14 @@ fn format_phase_end(v: &EventVisitor) -> String {
         ));
     }
 
+    if let Some(generation_time) = generation_time {
+        output.push_str(&format!(" │ gen {}", generation_time.bright_black()));
+    }
+
+    if let Some(evaluation_time) = evaluation_time {
+        output.push_str(&format!(" │ eval {}", evaluation_time.bright_black()));
+    }
+
     output.push_str(&format!(" │ {}", format_score(score)));
 
     output
@@ -282,6 +366,7 @@ fn format_phase_end(v: &EventVisitor) -> String {
 fn format_progress(v: &EventVisitor) -> String {
     let steps = v.steps.unwrap_or(0);
     let speed = v.speed.unwrap_or(0);
+    let moves_generated = v.moves_generated.unwrap_or(0);
     let moves_evaluated = v.moves_evaluated.unwrap_or(0);
     let moves_accepted = v.moves_accepted.unwrap_or(0);
     let score_calculations = v.score_calculations.unwrap_or(0);
@@ -304,6 +389,13 @@ fn format_progress(v: &EventVisitor) -> String {
         acceptance_rate.bright_yellow(),
         format_score(current_score)
     );
+
+    if moves_generated > 0 {
+        output.push_str(&format!(
+            " │ {} generated",
+            moves_generated.to_formatted_string(&Locale::en).white()
+        ));
+    }
 
     if let Some(best) = best_score.filter(|best| *best != current_score) {
         output.push_str(&format!(" │ best {}", format_score(best)));
@@ -336,18 +428,6 @@ fn format_step(v: &EventVisitor, level: Level) -> String {
         entity.to_formatted_string(&Locale::en).bright_black(),
         format_score(score).bright_black()
     )
-}
-
-fn format_duration_ms(ms: u64) -> String {
-    if ms < 1000 {
-        format!("{}ms", ms)
-    } else if ms < 60_000 {
-        format!("{:.2}s", ms as f64 / 1000.0)
-    } else {
-        let mins = ms / 60_000;
-        let secs = (ms % 60_000) / 1000;
-        format!("{}m {}s", mins, secs)
-    }
 }
 
 fn format_score(score: &str) -> String {

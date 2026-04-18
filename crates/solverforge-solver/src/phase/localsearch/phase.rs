@@ -18,6 +18,7 @@ use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::stats::{format_duration, whole_units_per_second};
 
 /// Local search phase that improves an existing solution.
 ///
@@ -121,6 +122,7 @@ where
         self.acceptor.phase_started(&last_step_score);
 
         let start_time = Instant::now();
+        let mut local_moves_generated: u64 = 0;
         let mut local_moves_evaluated: u64 = 0;
         let mut last_progress_time = Instant::now();
         let mut last_progress_moves: u64 = 0;
@@ -156,7 +158,11 @@ where
             let mut interrupted_step = false;
             let mut generated_moves = 0usize;
             let mut evaluated_moves = 0usize;
+            let generation_started = Instant::now();
             let mut cursor = self.move_selector.open_cursor(step_scope.score_director());
+            step_scope
+                .phase_scope_mut()
+                .record_generation_time(generation_started.elapsed());
 
             while !self.forager.is_quit_early() {
                 if should_interrupt_generation(&step_scope, generated_moves) {
@@ -164,10 +170,16 @@ where
                     break;
                 }
 
+                let generation_started = Instant::now();
                 let Some(mov) = cursor.next() else {
                     break;
                 };
+                let generation_elapsed = generation_started.elapsed();
                 generated_moves += 1;
+                local_moves_generated += 1;
+                step_scope
+                    .phase_scope_mut()
+                    .record_generated_move(generation_elapsed);
 
                 if should_interrupt_evaluation(&step_scope, evaluated_moves) {
                     interrupted_step = true;
@@ -179,12 +191,14 @@ where
                 if local_moves_evaluated & 0x1FFF == 0 {
                     let now = Instant::now();
                     if now.duration_since(last_progress_time).as_secs() >= 1 {
-                        let moves_delta = local_moves_evaluated - last_progress_moves;
-                        let elapsed_secs = now.duration_since(last_progress_time).as_secs_f64();
-                        let current_speed = (moves_delta as f64 / elapsed_secs) as u64;
+                        let current_speed = whole_units_per_second(
+                            local_moves_evaluated - last_progress_moves,
+                            now.duration_since(last_progress_time),
+                        );
                         debug!(
                             event = "progress",
                             steps = step_scope.step_index(),
+                            moves_generated = local_moves_generated,
                             moves_evaluated = local_moves_evaluated,
                             moves_accepted = step_scope.phase_scope().solver_scope().stats().moves_accepted,
                             score_calculations = step_scope.phase_scope().solver_scope().stats().score_calculations,
@@ -202,12 +216,11 @@ where
                     }
                 }
 
+                let evaluation_started = Instant::now();
                 if !mov.is_doable(step_scope.score_director()) {
                     step_scope
                         .phase_scope_mut()
-                        .solver_scope_mut()
-                        .stats_mut()
-                        .record_move(false);
+                        .record_evaluated_move(evaluation_started.elapsed());
                     continue;
                 }
 
@@ -219,19 +232,16 @@ where
                     score
                 };
 
-                step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .stats_mut()
-                    .record_score_calculation();
+                step_scope.phase_scope_mut().record_score_calculation();
 
                 let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
 
                 step_scope
                     .phase_scope_mut()
-                    .solver_scope_mut()
-                    .stats_mut()
-                    .record_move(accepted);
+                    .record_evaluated_move(evaluation_started.elapsed());
+                if accepted {
+                    step_scope.phase_scope_mut().record_move_accepted();
+                }
 
                 trace!(
                     event = "step",
@@ -287,20 +297,10 @@ where
 
         let duration = start_time.elapsed();
         let steps = phase_scope.step_count();
-        let secs = duration.as_secs_f64();
-        let speed = if secs > 0.0 {
-            (local_moves_evaluated as f64 / secs) as u64
-        } else {
-            0
-        };
-
-        let stats = phase_scope.solver_scope().stats();
+        let stats = phase_scope.stats();
+        let speed = whole_units_per_second(stats.moves_evaluated, duration);
         let acceptance_rate = stats.acceptance_rate() * 100.0;
-        let calc_speed = if secs > 0.0 {
-            (stats.score_calculations as f64 / secs) as u64
-        } else {
-            0
-        };
+        let calc_speed = whole_units_per_second(stats.score_calculations, duration);
 
         let best_score_str = phase_scope
             .solver_scope()
@@ -312,11 +312,14 @@ where
             event = "phase_end",
             phase = "Local Search",
             phase_index = phase_index,
-            duration_ms = duration.as_millis() as u64,
+            duration = %format_duration(duration),
             steps = steps,
+            moves_generated = stats.moves_generated,
             moves_evaluated = stats.moves_evaluated,
             moves_accepted = stats.moves_accepted,
             score_calculations = stats.score_calculations,
+            generation_time = %format_duration(stats.generation_time()),
+            evaluation_time = %format_duration(stats.evaluation_time()),
             moves_speed = speed,
             calc_speed = calc_speed,
             acceptance_rate = format!("{:.1}%", acceptance_rate),

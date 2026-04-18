@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::{Context, SubscriberExt};
 use tracing_subscriber::{Layer, Registry};
@@ -33,16 +34,19 @@ fn capture_events(f: impl FnOnce()) -> Vec<String> {
 }
 
 #[test]
-fn format_duration_covers_milliseconds_seconds_and_minutes() {
-    assert_eq!(format_duration_ms(750), "750ms");
-    assert_eq!(format_duration_ms(2_500), "2.50s");
-    assert_eq!(format_duration_ms(125_000), "2m 5s");
-}
-
-#[test]
 fn calculate_problem_scale_handles_zero_and_nonzero_inputs() {
     assert_eq!(calculate_problem_scale(0, 10), "0");
     assert_eq!(calculate_problem_scale(10, 100), "1.000 x 10^20");
+}
+
+#[test]
+fn format_elapsed_duration_uses_exact_integer_units() {
+    assert_eq!(format_elapsed_duration(Duration::from_millis(750)), "750ms");
+    assert_eq!(
+        format_elapsed_duration(Duration::from_millis(2_500)),
+        "2s 500ms"
+    );
+    assert_eq!(format_elapsed_duration(Duration::from_secs(125)), "2m 5s");
 }
 
 #[test]
@@ -128,4 +132,22 @@ fn format_event_renders_solve_start_and_end_summaries() {
     assert!(end_output.contains("Solving complete"));
     assert!(end_output.contains("FEASIBLE"));
     assert!(end_output.contains("Final Score:"));
+}
+
+#[test]
+fn format_event_renders_phase_end_with_exact_duration_string() {
+    let event = EventVisitor {
+        event: Some("phase_end".to_string()),
+        phase: Some("Local Search".to_string()),
+        duration: Some("2s 500ms".to_string()),
+        steps: Some(37),
+        moves_speed: Some(2_189),
+        score: Some("0hard/12soft".to_string()),
+        ..EventVisitor::default()
+    };
+
+    let output = format_event(&event, Level::INFO);
+    assert!(output.contains("2s 500ms"));
+    assert!(output.contains("2,189"));
+    assert!(output.contains("Local Search"));
 }

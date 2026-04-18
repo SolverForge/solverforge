@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use solverforge_core::score::SoftScore;
+use solverforge_core::PlanningSolution;
 
 use super::super::{
     SolverEvent, SolverLifecycleState, SolverManager, SolverManagerError, SolverTerminalReason,
@@ -51,20 +52,29 @@ fn retained_job_pause_resume_completion_flow() {
 
     gate.allow_next_step();
 
-    match receiver.blocking_recv().expect("paused event") {
+    let paused_telemetry = match receiver.blocking_recv().expect("paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.event_sequence, 4);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
             assert_eq!(metadata.snapshot_revision, Some(2));
+            assert_eq!(metadata.telemetry.step_count, 1);
+            assert_eq!(metadata.telemetry.moves_generated, 1);
+            assert_eq!(metadata.telemetry.moves_evaluated, 1);
+            assert_eq!(metadata.telemetry.moves_accepted, 1);
+            assert_eq!(metadata.telemetry.score_calculations, 1);
+            assert_eq!(metadata.telemetry.generation_time, Duration::ZERO);
+            assert_eq!(metadata.telemetry.evaluation_time, Duration::ZERO);
+            metadata.telemetry
         }
         other => panic!("unexpected event: {other:?}"),
-    }
+    };
 
     let status = MANAGER.get_status(job_id).expect("status while paused");
     assert_eq!(status.lifecycle_state, SolverLifecycleState::Paused);
     assert!(status.checkpoint_available);
     assert_eq!(status.event_sequence, 4);
     assert_eq!(status.latest_snapshot_revision, Some(2));
+    assert_eq!(status.telemetry, paused_telemetry);
 
     let paused_snapshot = MANAGER.get_snapshot(job_id, None).expect("paused snapshot");
     assert_eq!(
@@ -72,6 +82,7 @@ fn retained_job_pause_resume_completion_flow() {
         SolverLifecycleState::Paused
     );
     assert_eq!(paused_snapshot.snapshot_revision, 2);
+    assert_eq!(paused_snapshot.telemetry, paused_telemetry);
 
     let analysis = MANAGER
         .analyze_snapshot(job_id, Some(paused_snapshot.snapshot_revision))
@@ -97,11 +108,15 @@ fn retained_job_pause_resume_completion_flow() {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.event_sequence, 6);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+            assert_eq!(metadata.telemetry.step_count, 2);
+            assert_eq!(metadata.telemetry.moves_generated, 2);
+            assert_eq!(metadata.telemetry.moves_evaluated, 2);
+            assert_eq!(metadata.telemetry.moves_accepted, 2);
         }
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match receiver.blocking_recv().expect("completed event") {
+    let completed_telemetry = match receiver.blocking_recv().expect("completed event") {
         SolverEvent::Completed { metadata, .. } => {
             assert_eq!(metadata.event_sequence, 7);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
@@ -109,9 +124,15 @@ fn retained_job_pause_resume_completion_flow() {
                 metadata.terminal_reason,
                 Some(SolverTerminalReason::Completed)
             );
+            assert_eq!(metadata.telemetry.step_count, 2);
+            assert_eq!(metadata.telemetry.moves_generated, 2);
+            assert_eq!(metadata.telemetry.moves_evaluated, 2);
+            assert_eq!(metadata.telemetry.moves_accepted, 2);
+            assert_eq!(metadata.telemetry.score_calculations, 1);
+            metadata.telemetry
         }
         other => panic!("unexpected event: {other:?}"),
-    }
+    };
 
     let status = MANAGER.get_status(job_id).expect("status after completion");
     assert_eq!(status.lifecycle_state, SolverLifecycleState::Completed);
@@ -121,6 +142,13 @@ fn retained_job_pause_resume_completion_flow() {
     );
     assert_eq!(status.event_sequence, 7);
     assert!(!status.checkpoint_available);
+    assert_eq!(status.telemetry, completed_telemetry);
+
+    let completed_snapshot = MANAGER
+        .get_snapshot(job_id, None)
+        .expect("completed snapshot");
+    assert_eq!(completed_snapshot.telemetry, completed_telemetry);
+    assert_eq!(completed_snapshot.solution.score(), Some(SoftScore::of(7)));
 
     MANAGER.delete(job_id).expect("delete terminal job");
     assert!(matches!(

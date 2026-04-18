@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Condvar, Mutex};
+use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
 use tokio::sync::mpsc;
@@ -43,13 +44,14 @@ impl<S: PlanningSolution> JobRecord<S> {
             current_score: None,
             best_score: None,
             telemetry: SolverTelemetry {
-                elapsed_ms: 0,
+                elapsed: Duration::ZERO,
                 step_count: 0,
+                moves_generated: 0,
                 moves_evaluated: 0,
                 moves_accepted: 0,
                 score_calculations: 0,
-                moves_per_second: 0,
-                acceptance_rate: 0.0,
+                generation_time: Duration::ZERO,
+                evaluation_time: Duration::ZERO,
             },
             checkpoint_available: false,
             snapshots: Vec::new(),
@@ -63,15 +65,7 @@ impl<S: PlanningSolution> JobRecord<S> {
         self.latest_snapshot_revision = None;
         self.current_score = None;
         self.best_score = None;
-        self.telemetry = SolverTelemetry {
-            elapsed_ms: 0,
-            step_count: 0,
-            moves_evaluated: 0,
-            moves_accepted: 0,
-            score_calculations: 0,
-            moves_per_second: 0,
-            acceptance_rate: 0.0,
-        };
+        self.telemetry = SolverTelemetry::default();
         self.checkpoint_available = false;
         self.snapshots.clear();
         self.failure_message = None;

@@ -3,6 +3,7 @@
 use std::any::Any;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -19,6 +20,7 @@ use crate::phase::control::{
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::stats::{format_duration, whole_units_per_second};
 
 /// Construction heuristic phase that builds an initial solution.
 ///
@@ -93,10 +95,15 @@ where
         );
 
         // Get all placements (entities that need values assigned)
-        let mut placements = self
-            .placer
-            .get_placements(phase_scope.score_director())
-            .into_iter();
+        let placement_generation_started = Instant::now();
+        let placements = self.placer.get_placements(phase_scope.score_director());
+        let placement_generation_elapsed = placement_generation_started.elapsed();
+        let generated_moves = placements
+            .iter()
+            .map(|placement| u64::try_from(placement.moves.len()).unwrap_or(u64::MAX))
+            .sum();
+        phase_scope.record_generated_batch(generated_moves, placement_generation_elapsed);
+        let mut placements = placements.into_iter();
         let mut pending_placement = None;
 
         loop {
@@ -114,10 +121,6 @@ where
                 None => break,
             };
 
-            // Record move evaluations at call-site (Option C: maintains trait purity)
-            // BestFitForager evaluates ALL moves in the placement
-            let moves_in_placement = placement.moves.len() as u64;
-
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Use forager to pick the best move index for this placement
@@ -134,17 +137,8 @@ where
                 }
             };
 
-            // Record all moves as evaluated, with one accepted if selection succeeded
-            for i in 0..moves_in_placement {
-                let accepted = selected_idx == Some(i as usize);
-                step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .stats_mut()
-                    .record_move(accepted);
-            }
-
             if let Some(idx) = selected_idx {
+                step_scope.phase_scope_mut().record_move_accepted();
                 // Take ownership of the move
                 let m = placement.take_move(idx);
 
@@ -170,22 +164,21 @@ where
 
         let duration = phase_scope.elapsed();
         let steps = phase_scope.step_count();
-        let speed = if duration.as_secs_f64() > 0.0 {
-            (steps as f64 / duration.as_secs_f64()) as u64
-        } else {
-            0
-        };
-        let stats = phase_scope.solver_scope().stats();
+        let speed = whole_units_per_second(steps, duration);
+        let stats = phase_scope.stats();
 
         info!(
             event = "phase_end",
             phase = "Construction Heuristic",
             phase_index = phase_index,
-            duration_ms = duration.as_millis() as u64,
+            duration = %format_duration(duration),
             steps = steps,
+            moves_generated = stats.moves_generated,
             moves_evaluated = stats.moves_evaluated,
             moves_accepted = stats.moves_accepted,
             score_calculations = stats.score_calculations,
+            generation_time = %format_duration(stats.generation_time()),
+            evaluation_time = %format_duration(stats.evaluation_time()),
             speed = speed,
             score = best_score,
         );
@@ -242,12 +235,19 @@ where
     M: Move<S> + 'static,
 {
     for (idx, m) in placement.moves.iter().enumerate() {
+        let evaluation_started = Instant::now();
         if should_interrupt_evaluation(step_scope, idx) {
             return ConstructionSelection::Interrupted;
         }
         if m.is_doable(step_scope.score_director()) {
+            step_scope
+                .phase_scope_mut()
+                .record_evaluated_move(evaluation_started.elapsed());
             return ConstructionSelection::Selected(Some(idx));
         }
+        step_scope
+            .phase_scope_mut()
+            .record_evaluated_move(evaluation_started.elapsed());
     }
     ConstructionSelection::Selected(None)
 }
@@ -267,10 +267,14 @@ where
     let mut best_score: Option<S::Score> = None;
 
     for (idx, m) in placement.moves.iter().enumerate() {
+        let evaluation_started = Instant::now();
         if should_interrupt_evaluation(step_scope, idx) {
             return ConstructionSelection::Interrupted;
         }
         if !m.is_doable(step_scope.score_director()) {
+            step_scope
+                .phase_scope_mut()
+                .record_evaluated_move(evaluation_started.elapsed());
             continue;
         }
 
@@ -281,6 +285,10 @@ where
             recording.undo_changes();
             score
         };
+        step_scope.phase_scope_mut().record_score_calculation();
+        step_scope
+            .phase_scope_mut()
+            .record_evaluated_move(evaluation_started.elapsed());
 
         let is_better = match &best_score {
             None => true,
@@ -310,10 +318,14 @@ where
     let mut fallback_score: Option<S::Score> = None;
 
     for (idx, m) in placement.moves.iter().enumerate() {
+        let evaluation_started = Instant::now();
         if should_interrupt_evaluation(step_scope, idx) {
             return ConstructionSelection::Interrupted;
         }
         if !m.is_doable(step_scope.score_director()) {
+            step_scope
+                .phase_scope_mut()
+                .record_evaluated_move(evaluation_started.elapsed());
             continue;
         }
 
@@ -324,6 +336,10 @@ where
             recording.undo_changes();
             score
         };
+        step_scope.phase_scope_mut().record_score_calculation();
+        step_scope
+            .phase_scope_mut()
+            .record_evaluated_move(evaluation_started.elapsed());
 
         if score.is_feasible() {
             return ConstructionSelection::Selected(Some(idx));

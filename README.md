@@ -88,8 +88,21 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.8.6", features = ["console"] }
+solverforge = { version = "0.8.8", features = ["console"] }
 ```
+
+When `move_selector` is omitted from local search or VND, the canonical runtime
+uses explicit streaming defaults instead of broad exhaustive neighborhoods:
+
+- scalar-only models default to `ChangeMoveSelector`
+- list-only models default to `NearbyListChangeMoveSelector(20)`,
+  `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
+- mixed models concatenate the list defaults first, then scalar change
+
+Runtime telemetry now preserves exact counts and `Duration`s through the whole
+pipeline. Retained status/events expose generated, evaluated, and accepted move
+counts together with generation and evaluation durations; human-facing
+`moves/s` remains a display-only derived value.
 
 ### Feature Flags
 
@@ -472,7 +485,12 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.8.6
+**Current Version**: 0.8.8
+
+### What's New in 0.8.8
+
+- **Streaming-first default neighborhoods**: omitting `move_selector` now resolves to explicit streaming defaults instead of broad exhaustive search. Scalar models default to change moves only; list models default to nearby change, nearby swap, and list reverse; mixed models concatenate the list defaults before scalar change.
+- **Exact retained telemetry**: retained status/events now preserve generated/evaluated/accepted move counts and generation/evaluation `Duration`s through the solver pipeline. Human-facing `moves/s` remains an edge-derived display metric only.
 
 ### What's New in 0.8.6
 

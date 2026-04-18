@@ -3,7 +3,7 @@
 Serde-based configuration system for loading solver settings from TOML or YAML files.
 
 **Location:** `crates/solverforge-config/`
-**Workspace Release:** `0.8.6`
+**Workspace Release:** `0.8.8`
 
 ## Dependencies
 
@@ -121,6 +121,14 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `forager` | `Option<ForagerConfig>` |
 | `move_selector` | `Option<MoveSelectorConfig>` |
 | `termination` | `Option<TerminationConfig>` |
+
+When `move_selector` is omitted, the canonical runtime resolves explicit
+streaming defaults rather than broad exhaustive search:
+
+- scalar-only models: `ChangeMoveSelector`
+- list-only models: `NearbyListChangeMoveSelector(20)`,
+  `NearbyListSwapMoveSelector(20)`, `ListReverseMoveSelector`
+- mixed models: the list defaults first, then scalar change
 
 ### `VndConfig`
 

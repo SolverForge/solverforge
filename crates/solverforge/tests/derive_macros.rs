@@ -201,6 +201,37 @@ fn test_field_only_list_solution_preserves_list_descriptor_metadata() {
 }
 
 #[test]
+fn test_single_owner_list_helpers_remain_available_when_unambiguous() {
+    let mut plan = RoutePlan {
+        visits: vec![Visit { id: 10 }],
+        routes: vec![Route {
+            id: 1,
+            visits: vec![0],
+        }],
+        score: None,
+    };
+
+    assert_eq!(plan.list_len(0), 1);
+    assert_eq!(RoutePlan::list_len_static(&plan, 0), 1);
+    assert_eq!(RoutePlan::element_count(&plan), 1);
+    assert_eq!(RoutePlan::n_entities(&plan), 1);
+    assert_eq!(RoutePlan::assigned_elements(&plan), vec![0]);
+    assert_eq!(RoutePlan::index_to_element_static(&plan, 0), 0);
+    assert_eq!(RoutePlan::list_variable_descriptor_index(), 0);
+
+    assert_eq!(RoutePlan::routes_list_len_static(&plan, 0), 1);
+    assert_eq!(RoutePlan::routes_element_count(&plan), 1);
+    assert_eq!(RoutePlan::routes_n_entities(&plan), 1);
+    assert_eq!(RoutePlan::routes_assigned_elements(&plan), vec![0]);
+    assert_eq!(RoutePlan::routes_index_to_element_static(&plan, 0), 0);
+    assert_eq!(RoutePlan::routes_list_variable_descriptor_index(), 0);
+
+    RoutePlan::assign_element(&mut plan, 0, 0);
+    RoutePlan::routes_assign_element(&mut plan, 0, 0);
+    assert_eq!(RoutePlan::list_len_static(&plan, 0), 3);
+}
+
+#[test]
 fn test_multi_owner_shadow_updates_are_descriptor_scoped() {
     let mut plan = MultiOwnerShadowPlan {
         routes: vec![ShadowRoute {
@@ -228,4 +259,60 @@ fn test_multi_owner_shadow_updates_are_descriptor_scoped() {
     plan.routed_visits[0].route = None;
     <MultiOwnerShadowPlan as ShadowVariableSupport>::update_all_shadows(&mut plan);
     assert_eq!(plan.routed_visits[0].route, Some(0));
+}
+
+#[test]
+fn test_multi_owner_list_helpers_are_owner_scoped() {
+    let mut plan = MultiOwnerShadowPlan {
+        routes: vec![ShadowRoute {
+            id: 1,
+            visits: vec![0],
+        }],
+        shifts: vec![ShadowShift {
+            id: 2,
+            visits: vec![0],
+        }],
+        routed_visits: vec![RoutedVisit {
+            id: 10,
+            route: None,
+        }],
+        shift_visits: vec![ShiftVisit { id: 20 }],
+        score: None,
+    };
+
+    assert_eq!(MultiOwnerShadowPlan::routes_list_len_static(&plan, 0), 1);
+    assert_eq!(MultiOwnerShadowPlan::shifts_list_len_static(&plan, 0), 1);
+    assert_eq!(MultiOwnerShadowPlan::routes_element_count(&plan), 1);
+    assert_eq!(MultiOwnerShadowPlan::shifts_element_count(&plan), 1);
+    assert_eq!(MultiOwnerShadowPlan::routes_n_entities(&plan), 1);
+    assert_eq!(MultiOwnerShadowPlan::shifts_n_entities(&plan), 1);
+    assert_eq!(
+        MultiOwnerShadowPlan::routes_assigned_elements(&plan),
+        vec![0]
+    );
+    assert_eq!(
+        MultiOwnerShadowPlan::shifts_assigned_elements(&plan),
+        vec![0]
+    );
+    assert_eq!(
+        MultiOwnerShadowPlan::routes_index_to_element_static(&plan, 0),
+        0
+    );
+    assert_eq!(
+        MultiOwnerShadowPlan::shifts_index_to_element_static(&plan, 0),
+        0
+    );
+    assert_eq!(
+        MultiOwnerShadowPlan::routes_list_variable_descriptor_index(),
+        0
+    );
+    assert_eq!(
+        MultiOwnerShadowPlan::shifts_list_variable_descriptor_index(),
+        1
+    );
+
+    MultiOwnerShadowPlan::routes_assign_element(&mut plan, 0, 0);
+    MultiOwnerShadowPlan::shifts_assign_element(&mut plan, 0, 0);
+    assert_eq!(MultiOwnerShadowPlan::routes_list_len_static(&plan, 0), 2);
+    assert_eq!(MultiOwnerShadowPlan::shifts_list_len_static(&plan, 0), 2);
 }

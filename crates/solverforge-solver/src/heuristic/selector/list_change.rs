@@ -54,6 +54,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListChangeMove;
 
 use super::entity::EntitySelector;
+use super::list_support::collect_selected_entities;
 use super::move_selector::MoveSelector;
 
 /// A move selector that generates list change moves.
@@ -138,25 +139,18 @@ where
         &'a self,
         score_director: &D,
     ) -> impl Iterator<Item = ListChangeMove<S, V>> + 'a {
-        let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
-        // Collect entities to allow multiple passes
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
+        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let move_capacity = selected.list_change_move_capacity();
+        let entities = selected.entities;
+        let route_lens = selected.route_lens;
 
-        // Pre-compute route lengths
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-
-        // Generate all valid moves
-        let mut moves = Vec::new();
+        let mut moves = Vec::with_capacity(move_capacity);
 
         for (src_idx, &src_entity) in entities.iter().enumerate() {
             let src_len = route_lens[src_idx];
@@ -217,30 +211,7 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
-
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-        let total_elements: usize = route_lens.iter().sum();
-
-        /* Approximate: each element can move to any position in any entity
-        Intra: ~m positions per entity
-        Inter: ~(n-1) * m positions
-        */
-        let n = entities.len();
-        if n == 0 || total_elements == 0 {
-            return 0;
-        }
-
-        let avg_len = total_elements / n;
-        // Intra moves: n * m * m
-        // Inter moves: n * (n-1) * m * m
-        n * avg_len * (avg_len + (n - 1) * avg_len)
+        collect_selected_entities(&self.entity_selector, score_director, self.list_len)
+            .list_change_move_capacity()
     }
 }

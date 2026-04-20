@@ -10,6 +10,7 @@ pub mod k_opt;
 pub mod list_change;
 pub mod list_reverse;
 pub mod list_ruin;
+mod list_support;
 pub mod list_swap;
 pub mod mimic;
 pub mod move_selector;

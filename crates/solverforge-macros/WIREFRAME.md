@@ -22,7 +22,7 @@ src/
 ├── planning_entity.rs      — PlanningEntityImpl derive module root
 ├── planning_entity/*.rs    — Entity derive expansion, list-variable helpers, and tests
 ├── planning_solution.rs    — PlanningSolutionImpl derive module root
-├── planning_solution/*.rs  — Solution derive expansion, list/runtime/shadow helpers, and tests
+├── planning_solution/*.rs  — Solution derive expansion, unified runtime/shadow helpers, list operations, and tests
 └── problem_fact.rs         — ProblemFactImpl derive: ProblemFact, PlanningId, problem_fact_descriptor()
 ```
 
@@ -105,7 +105,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers delegate phase-sequence assembly to `solverforge-solver::runtime`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus any optional list context before delegating phase-sequence assembly to `solverforge-solver::runtime`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`. Each accessor returns a `UniConstraintStream` backed by `TrackedExtract<fn(&Solution) -> &[Item]>`, using `ChangeSource::Descriptor(idx)` for planning entities and `ChangeSource::Static` for problem facts so generated streams stay compatible with incremental `.if_exists(...)` / `.if_not_exists(...)` and `.unassigned()`.
 
 ### `ProblemFactImpl`
@@ -137,11 +137,12 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
 | `parse_config_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_config_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
+| `generate_runtime_phase_support` | `fn(&Fields, &Option<String>, &Ident) -> TokenStream` | Generates the single macro-side runtime model assembly and phase builder glue |
 | `find_list_owner_config` | `fn(&ShadowConfig, &Fields) -> Result<Option<ListOwnerConfig>, Error>` | Resolves shadow `list_owner` to the entity collection field and descriptor index |
 | `find_list_element_collection_config` | `fn(&Fields) -> Result<Option<ListElementCollectionConfig>, Error>` | Resolves `#[planning_list_element_collection(owner = "...")]` to the concrete `Vec<usize>` field |
-| `find_list_runtime_config` | `fn(&Fields) -> Result<Option<(ListOwnerConfig, ListElementCollectionConfig)>, Error>` | Resolves list ownership and the direct list element collection field without consulting `shadow_variable_updates` |
+| `find_list_shadow_config` | `fn(&Fields) -> Result<Option<ListShadowConfig>, Error>` | Resolves list ownership and the matching direct element collection field for shadow validation |
 | `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
-| `generate_list_operations` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates list variable methods from the entity-side list registry |
+| `generate_list_operations` | `fn(&Fields) -> TokenStream` | Generates list variable methods from the entity-side list metadata and `ListVariableEntity` bridge |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates ShadowVariableSupport impl |
 | `generate_constraint_stream_extensions` | `fn(&Fields, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory |

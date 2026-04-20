@@ -24,9 +24,9 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly, construction/local-search/VND builders, list metadata hooks
+├── runtime.rs                           — Runtime assembly, explicit descriptor-standard construction dispatch, and list metadata hooks
 ├── list_solver_tests.rs                 — Tests
-├── descriptor_standard.rs               — Re-exports descriptor bindings, move types, selectors, and construction helpers
+├── descriptor_standard.rs               — Re-exports the explicit descriptor-standard bindings, selectors, move types, and construction helpers
 ├── descriptor_standard/
 │   ├── bindings.rs                      — Standard-variable binding discovery, matching, and work checks
 │   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorEitherMove<S>
@@ -42,7 +42,7 @@ src/
 │   ├── acceptor_tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
 │   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>
-│   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector()
+│   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published ModelContext variable contexts
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
 │   └── list_selector/
 │       ├── builder_impl.rs              — ListMoveSelectorBuilder
@@ -839,6 +839,8 @@ Canonical solve entrypoint used by macro-generated solving. Accepts generated de
 ## Architectural Notes
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
+- **Typed runtime selectors.** `builder/selector.rs` consumes the typed `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
+- **Explicit descriptor-standard boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_standard/*` and are used only by callers that intentionally choose that engine.
 - **Function pointer storage.** Moves and selectors store `fn` pointers (e.g., `fn(&S, usize) -> Option<V>`) instead of trait objects for solution access.
 - **Neutral selector naming.** Public selector modules and types use `move_selector.rs`, `value_selector.rs`, `MoveSelector`, and `ValueSelector`. The trait method `iter_typed(...)` remains for now even though the public type names are prefix-free.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.

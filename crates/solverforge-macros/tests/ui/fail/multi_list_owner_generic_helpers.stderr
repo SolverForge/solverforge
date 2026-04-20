@@ -1,0 +1,13 @@
+error[E0599]: no function or associated item named `list_len_static` found for struct `Plan` in the current scope
+  --> tests/ui/fail/multi_list_owner_generic_helpers.rs:60:19
+   |
+33 | #[planning_solution]
+   | -------------------- function or associated item `list_len_static` not found for this struct
+...
+60 |     let _ = Plan::list_len_static(&plan, 0);
+   |                   ^^^^^^^^^^^^^^^ function or associated item not found in `Plan`
+   |
+help: there is an associated function `routes_list_len_static` with a similar name
+   |
+60 |     let _ = Plan::routes_list_len_static(&plan, 0);
+   |                   +++++++

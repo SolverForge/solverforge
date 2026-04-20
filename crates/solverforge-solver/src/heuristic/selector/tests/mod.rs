@@ -11,4 +11,5 @@ mod list_ruin;
 mod mimic;
 mod move_selector;
 mod nearby;
+mod nearby_list;
 mod pillar;

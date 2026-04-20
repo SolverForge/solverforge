@@ -88,7 +88,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.8.8", features = ["console"] }
+solverforge = { version = "0.8.9", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -485,7 +485,12 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.8.8
+**Current Version**: 0.8.9
+
+### What's New in 0.8.9
+
+- **Limited neighborhoods**: `limited_neighborhood` now carries move caps at the neighborhood level instead of exposing a selector decorator wrapper.
+- **Lazy change-value iteration**: `ChangeMoveSelector` now keeps per-entity value iteration lazy so cursor limits and early-stop search paths avoid unnecessary candidate generation.
 
 ### What's New in 0.8.8
 

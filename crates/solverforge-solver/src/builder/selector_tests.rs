@@ -7,6 +7,7 @@ use solverforge_config::{
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
+    VariableDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -78,18 +79,36 @@ fn get_vehicles_mut(solution: &mut MixedPlan) -> &mut Vec<Vehicle> {
     &mut solution.vehicles
 }
 
-fn descriptor() -> SolutionDescriptor {
-    SolutionDescriptor::new("MixedPlan", TypeId::of::<MixedPlan>())
-        .with_entity(
-            EntityDescriptor::new("Shift", TypeId::of::<Shift>(), "shifts").with_extractor(
-                Box::new(EntityCollectionExtractor::new(
-                    "Shift",
-                    "shifts",
-                    get_shifts,
-                    get_shifts_mut,
-                )),
-            ),
+fn get_worker_dyn(entity: &dyn std::any::Any) -> Option<usize> {
+    entity
+        .downcast_ref::<Shift>()
+        .and_then(|shift| shift.worker)
+}
+
+fn set_worker_dyn(entity: &mut dyn std::any::Any, value: Option<usize>) {
+    if let Some(shift) = entity.downcast_mut::<Shift>() {
+        shift.worker = value;
+    }
+}
+
+fn descriptor(include_scalar_binding: bool) -> SolutionDescriptor {
+    let shift_descriptor =
+        EntityDescriptor::new("Shift", TypeId::of::<Shift>(), "shifts").with_extractor(Box::new(
+            EntityCollectionExtractor::new("Shift", "shifts", get_shifts, get_shifts_mut),
+        ));
+    let shift_descriptor = if include_scalar_binding {
+        shift_descriptor.with_variable(
+            VariableDescriptor::genuine("worker")
+                .with_allows_unassigned(true)
+                .with_value_range("shifts")
+                .with_usize_accessors(get_worker_dyn, set_worker_dyn),
         )
+    } else {
+        shift_descriptor
+    };
+
+    SolutionDescriptor::new("MixedPlan", TypeId::of::<MixedPlan>())
+        .with_entity(shift_descriptor)
         .with_entity(
             EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles").with_extractor(
                 Box::new(EntityCollectionExtractor::new(
@@ -102,14 +121,19 @@ fn descriptor() -> SolutionDescriptor {
         )
 }
 
-fn create_director(solution: MixedPlan) -> ScoreDirector<MixedPlan, ()> {
-    ScoreDirector::simple(solution, descriptor(), |solution, descriptor_index| {
-        match descriptor_index {
+fn create_director(
+    solution: MixedPlan,
+    descriptor: SolutionDescriptor,
+) -> ScoreDirector<MixedPlan, ()> {
+    ScoreDirector::simple(
+        solution,
+        descriptor,
+        |solution, descriptor_index| match descriptor_index {
             0 => solution.shifts.len(),
             1 => solution.vehicles.len(),
             _ => 0,
-        }
-    })
+        },
+    )
 }
 
 fn shift_count(solution: &MixedPlan) -> usize {
@@ -238,13 +262,21 @@ fn mixed_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
     ])
 }
 
+fn empty_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
+    ModelContext::new(vec![])
+}
+
 #[test]
 fn default_scalar_selector_uses_change_only() {
-    let director = create_director(MixedPlan {
-        shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
-        vehicles: vec![],
-        score: None,
-    });
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor.clone(),
+    );
     let selector = build_move_selector(None, &scalar_only_model(), None);
     let neighborhoods = selector.selectors();
 
@@ -315,11 +347,15 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_change() {
 
 #[test]
 fn explicit_limited_neighborhood_remains_supported() {
-    let director = create_director(MixedPlan {
-        shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
-        vehicles: vec![],
-        score: None,
-    });
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor.clone(),
+    );
     let config = MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
         selected_count_limit: 2,
         selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
@@ -373,12 +409,19 @@ fn explicit_scalar_union_selector_remains_supported() {
 }
 
 #[test]
-fn default_scalar_local_search_uses_scalar_streaming_defaults() {
-    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+#[should_panic(expected = "move selector configuration produced no neighborhoods")]
+fn empty_model_does_not_synthesize_scalar_neighborhoods() {
+    let _ = build_move_selector::<MixedPlan, usize, NoopMeter, NoopMeter>(
         None,
-        &scalar_only_model(),
-        Some(7),
+        &empty_model(),
+        None,
     );
+}
+
+#[test]
+fn default_scalar_local_search_uses_scalar_streaming_defaults() {
+    let phase =
+        build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &scalar_only_model(), Some(7));
     let debug = format!("{phase:?}");
 
     assert!(debug.contains("SimulatedAnnealing"));
@@ -387,11 +430,8 @@ fn default_scalar_local_search_uses_scalar_streaming_defaults() {
 
 #[test]
 fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
-    let list_phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
-        None,
-        &list_only_model(),
-        None,
-    );
+    let list_phase =
+        build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &list_only_model(), None);
     let list_debug = format!("{list_phase:?}");
     assert!(list_debug.contains("LateAcceptance"));
     assert!(list_debug.contains("accepted_count_limit: 4"));

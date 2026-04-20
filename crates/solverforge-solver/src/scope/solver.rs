@@ -218,6 +218,23 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         score
     }
 
+    pub fn initialize_working_solution_as_best(&mut self) -> S::Score {
+        if self.start_time.is_none() {
+            self.start_solving();
+        }
+        let score = self.calculate_score();
+        let solution = self.score_director.clone_working_solution();
+        self.set_best_solution(solution, score);
+        score
+    }
+
+    pub fn replace_working_solution_and_reinitialize(&mut self, solution: S) -> S::Score {
+        *self.score_director.working_solution_mut() = solution;
+        self.score_director.reset();
+        self.current_score = None;
+        self.calculate_score()
+    }
+
     pub fn best_solution(&self) -> Option<&S> {
         self.best_solution.as_ref()
     }

@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
@@ -144,37 +145,13 @@ where
             tracing::info!(event = "phase_start", phase = "PartitionedSearch",);
         }
 
-        // Solve partitions - parallel when multiple, sequential when single
-        let solved_partitions: Vec<S> = if thread_count == 1 || partition_count == 1 {
-            partitions
-                .into_iter()
-                .map(|p| self.solve_partition(p))
-                .collect()
-        } else {
-            partitions
-                .into_par_iter()
-                .map(|partition| {
-                    let director = (self.score_director_factory)(partition);
-                    let mut solver_scope = SolverScope::new(director);
-                    let mut phases = (self.phase_factory)();
-                    phases.solve_all(&mut solver_scope);
-                    solver_scope.take_best_or_working_solution()
-                })
-                .collect()
-        };
+        let solved_partitions = self.solve_partitions(partitions, thread_count);
 
         // Merge the solved partitions
         let merged = self.partitioner.merge(&solution, solved_partitions);
 
         // Update the working solution with the merged result
-        let director = solver_scope.score_director_mut();
-
-        // Replace working solution with merged result
-        let working = director.working_solution_mut();
-        *working = merged;
-
-        // Calculate the score of the merged solution
-        solver_scope.calculate_score();
+        solver_scope.replace_working_solution_and_reinitialize(merged);
 
         // Update best solution
         solver_scope.update_best_solution();
@@ -212,6 +189,7 @@ where
 
         // Create solver scope
         let mut solver_scope = SolverScope::new(director);
+        solver_scope.initialize_working_solution_as_best();
 
         // Create and run child phases
         let mut phases = (self.phase_factory)();
@@ -219,6 +197,26 @@ where
 
         // Return the best solution (or working solution if no best)
         solver_scope.take_best_or_working_solution()
+    }
+
+    fn solve_partitions(&self, partitions: Vec<S>, thread_count: usize) -> Vec<S> {
+        if thread_count <= 1 || partitions.len() <= 1 {
+            return partitions
+                .into_iter()
+                .map(|partition| self.solve_partition(partition))
+                .collect();
+        }
+
+        ThreadPoolBuilder::new()
+            .num_threads(thread_count)
+            .build()
+            .expect("failed to build partitioned search rayon pool")
+            .install(|| {
+                partitions
+                    .into_par_iter()
+                    .map(|partition| self.solve_partition(partition))
+                    .collect()
+            })
     }
 }
 

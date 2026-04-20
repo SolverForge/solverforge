@@ -304,10 +304,7 @@ macro_rules! impl_solver {
                 if let Some(limit) = time_limit {
                     solver_scope.set_time_limit(limit);
                 }
-                solver_scope.start_solving();
-                let initial_score = solver_scope.calculate_score();
-                let initial_solution = solver_scope.score_director().clone_working_solution();
-                solver_scope.set_best_solution(initial_solution, initial_score);
+                solver_scope.initialize_working_solution_as_best();
                 solver_scope.report_best_solution();
                 solver_scope.pause_if_requested();
 

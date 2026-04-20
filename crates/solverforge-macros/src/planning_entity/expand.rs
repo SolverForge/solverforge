@@ -52,7 +52,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .filter(|f| has_attribute(&f.attrs, "planning_variable"))
         .collect();
     let standard_helpers = generate_standard_helpers(name, fields, &planning_variables)?;
-
     let list_variables: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_list_variable"))
@@ -190,10 +189,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name_str = field_name.to_string();
             let supports_usize_hooks = field_is_option_usize(&field.ty);
             let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
-            let typed_provider_name = syn::Ident::new(
-                &format!("__solverforge_values_for_{}_typed", field_name_str),
-                proc_macro2::Span::call_site(),
-            );
             let value_range_provider = parse_attribute_string(attr, "value_range_provider")
                 .or_else(|| parse_attribute_string(attr, "value_range"));
             let provider_helper = value_range_provider
@@ -206,18 +201,20 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                             .unwrap_or(false)
                     })
                 })
-                .map(|_provider_id| {
+                .map(|provider_id| {
                     let provider_getter_name = syn::Ident::new(
                         &format!("__solverforge_values_for_{}", field_name_str),
                         proc_macro2::Span::call_site(),
                     );
+                    let provider_field =
+                        syn::Ident::new(&provider_id, proc_macro2::Span::call_site());
                     quote! {
                         #[inline]
                         fn #provider_getter_name(entity: &dyn ::std::any::Any) -> ::std::vec::Vec<usize> {
                             let entity = entity
                                 .downcast_ref::<Self>()
                                 .expect("entity type mismatch for value provider");
-                            Self::#typed_provider_name(entity).to_vec()
+                            entity.#provider_field.to_vec()
                         }
                     }
                 });
@@ -231,14 +228,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     &format!("__solverforge_set_{}", field_name_str),
                     proc_macro2::Span::call_site(),
                 );
-                let typed_getter_name = syn::Ident::new(
-                    &format!("__solverforge_get_{}_typed", field_name_str),
-                    proc_macro2::Span::call_site(),
-                );
-                let typed_setter_name = syn::Ident::new(
-                    &format!("__solverforge_set_{}_typed", field_name_str),
-                    proc_macro2::Span::call_site(),
-                );
 
                 quote! {
                     #[inline]
@@ -246,7 +235,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                         let entity = entity
                             .downcast_ref::<Self>()
                             .expect("entity type mismatch for planning variable getter");
-                        Self::#typed_getter_name(entity)
+                        entity.#field_name
                     }
 
                     #[inline]
@@ -257,7 +246,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                         let entity = entity
                             .downcast_mut::<Self>()
                             .expect("entity type mismatch for planning variable setter");
-                        Self::#typed_setter_name(entity, value);
+                        entity.#field_name = value;
                     }
 
                     #provider_helper

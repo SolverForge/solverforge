@@ -391,6 +391,33 @@ fn test_construction_best_fit() {
 }
 
 #[test]
+fn test_construction_phase_reports_one_best_solution_on_improvement() {
+    let director = create_simple_nqueens_director(4);
+    let best_events = Arc::new(AtomicUsize::new(0));
+    let best_events_for_callback = Arc::clone(&best_events);
+    let mut solver_scope = SolverScope::new_with_callback(
+        director,
+        move |progress: crate::scope::SolverProgressRef<'_, NQueensSolution>| {
+            if progress.kind == crate::scope::SolverProgressKind::BestSolution {
+                best_events_for_callback.fetch_add(1, Ordering::SeqCst);
+            }
+        },
+        None,
+        None,
+    );
+    solver_scope.start_solving();
+
+    let values: Vec<i64> = (0..4).collect();
+    let placer = create_placer(values);
+    let forager = FirstFitForager::new();
+    let mut phase = ConstructionHeuristicPhase::new(placer, forager);
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(best_events.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn test_construction_empty_solution() {
     let director = create_simple_nqueens_director(0);
     let mut solver_scope = SolverScope::new(director);

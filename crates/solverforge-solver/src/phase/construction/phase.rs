@@ -153,9 +153,13 @@ where
             step_scope.complete();
         }
 
+        let previous_best_score = phase_scope.solver_scope().best_score().copied();
+
         // Update best solution at end of phase
         phase_scope.update_best_solution();
-        phase_scope.promote_current_solution_on_score_tie();
+        if phase_scope.solver_scope().current_score() == previous_best_score.as_ref() {
+            phase_scope.promote_current_solution_on_score_tie();
+        }
 
         let best_score = phase_scope
             .solver_scope()

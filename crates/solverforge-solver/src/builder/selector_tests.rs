@@ -411,17 +411,17 @@ fn explicit_scalar_union_selector_remains_supported() {
 #[test]
 #[should_panic(expected = "move selector configuration produced no neighborhoods")]
 fn empty_model_does_not_synthesize_scalar_neighborhoods() {
-    let _ = build_move_selector::<MixedPlan, usize, NoopMeter, NoopMeter>(
-        None,
-        &empty_model(),
-        None,
-    );
+    let _ =
+        build_move_selector::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &empty_model(), None);
 }
 
 #[test]
 fn default_scalar_local_search_uses_scalar_streaming_defaults() {
-    let phase =
-        build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &scalar_only_model(), Some(7));
+    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        None,
+        &scalar_only_model(),
+        Some(7),
+    );
     let debug = format!("{phase:?}");
 
     assert!(debug.contains("SimulatedAnnealing"));
@@ -430,8 +430,11 @@ fn default_scalar_local_search_uses_scalar_streaming_defaults() {
 
 #[test]
 fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
-    let list_phase =
-        build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &list_only_model(), None);
+    let list_phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        None,
+        &list_only_model(),
+        None,
+    );
     let list_debug = format!("{list_phase:?}");
     assert!(list_debug.contains("LateAcceptance"));
     assert!(list_debug.contains("accepted_count_limit: 4"));

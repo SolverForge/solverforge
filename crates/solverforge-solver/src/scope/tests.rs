@@ -3,10 +3,10 @@
 use std::any::TypeId;
 
 use super::*;
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use crate::test_utils::create_simple_nqueens_director;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
+use solverforge_scoring::ScoreDirector;
 
 #[test]
 fn test_solver_scope_creation() {

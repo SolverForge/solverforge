@@ -303,6 +303,15 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
+### `LimitedNeighborhoodConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `selected_count_limit` | `usize` | |
+| `selector` | `Box<MoveSelectorConfig>` | |
+
 ### `UnionMoveSelectorConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
@@ -463,6 +472,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `ListReverseMoveSelector` | `ListReverseMoveConfig` |
 | `KOptMoveSelector` | `KOptMoveSelectorConfig` |
 | `ListRuinMoveSelector` | `ListRuinMoveSelectorConfig` |
+| `LimitedNeighborhood` | `LimitedNeighborhoodConfig` |
 | `UnionMoveSelector` | `UnionMoveSelectorConfig` |
 | `CartesianProductMoveSelector` | `CartesianProductConfig` |
 

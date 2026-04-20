@@ -1,9 +1,9 @@
 use std::any::TypeId;
 
 use solverforge_config::{
-    AcceptorConfig, ChangeMoveConfig, ForagerConfig, LateAcceptanceConfig, LocalSearchConfig,
-    MoveSelectorConfig, PickEarlyType, SelectedCountLimitMoveSelectorConfig, SwapMoveConfig,
-    UnionMoveSelectorConfig, VariableTargetConfig,
+    AcceptorConfig, ChangeMoveConfig, ForagerConfig, LateAcceptanceConfig,
+    LimitedNeighborhoodConfig, LocalSearchConfig, MoveSelectorConfig, PickEarlyType,
+    SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -258,7 +258,7 @@ fn default_scalar_selector_uses_change_only() {
             ));
             assert_eq!(selector.size(&director), 4);
         }
-        Neighborhood::Limited(_) => panic!("default scalar selector must not wrap a limit"),
+        Neighborhood::Limited { .. } => panic!("default scalar selector must not wrap a limit"),
     }
 }
 
@@ -314,30 +314,32 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_change() {
 }
 
 #[test]
-fn explicit_selected_count_limit_selector_remains_supported() {
+fn explicit_limited_neighborhood_remains_supported() {
     let director = create_director(MixedPlan {
         shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
         vehicles: vec![],
         score: None,
     });
-    let config =
-        MoveSelectorConfig::SelectedCountLimitMoveSelector(SelectedCountLimitMoveSelectorConfig {
-            selected_count_limit: 2,
-            selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
-                target: VariableTargetConfig::default(),
-            })),
-        });
+    let config = MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
+        selected_count_limit: 2,
+        selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+            target: VariableTargetConfig::default(),
+        })),
+    });
 
     let selector = build_move_selector(Some(&config), &scalar_only_model(), None);
     let neighborhoods = selector.selectors();
 
     assert_eq!(neighborhoods.len(), 1);
     match &neighborhoods[0] {
-        Neighborhood::Limited(limit) => {
-            assert_eq!(limit.limit(), 2);
+        Neighborhood::Limited {
+            selected_count_limit,
+            ..
+        } => {
+            assert_eq!(*selected_count_limit, 2);
             assert_eq!(selector.size(&director), 2);
         }
-        Neighborhood::Flat(_) => panic!("selected_count_limit must remain a neighborhood wrapper"),
+        Neighborhood::Flat(_) => panic!("limited_neighborhood must remain a neighborhood wrapper"),
     }
 }
 

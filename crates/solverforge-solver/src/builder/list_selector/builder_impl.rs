@@ -94,10 +94,8 @@ impl ListMoveSelectorBuilder {
                     random_seed,
                 );
             }
-            MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
-                panic!(
-                    "selected_count_limit_move_selector must be handled by the canonical runtime"
-                );
+            MoveSelectorConfig::LimitedNeighborhood(_) => {
+                panic!("limited_neighborhood must be handled by the canonical runtime");
             }
             MoveSelectorConfig::ListChangeMoveSelector(_) => {
                 Self::push_list_change(out, ctx);

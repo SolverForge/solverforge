@@ -156,13 +156,11 @@ where
             .entity_selector
             .iter(score_director)
             .map(|entity_ref| {
-                let values = value_selector
-                    .iter_typed(
-                        score_director,
-                        entity_ref.descriptor_index,
-                        entity_ref.entity_index,
-                    )
-                    .collect::<Vec<_>>();
+                let values = value_selector.iter_typed(
+                    score_director,
+                    entity_ref.descriptor_index,
+                    entity_ref.entity_index,
+                );
                 (entity_ref, values)
             })
             .collect();
@@ -170,7 +168,7 @@ where
         entity_values
             .into_iter()
             .flat_map(move |(entity_ref, values)| {
-                values.into_iter().map(move |value| {
+                values.map(move |value| {
                     ChangeMove::new(
                         entity_ref.entity_index,
                         Some(value),

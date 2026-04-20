@@ -58,9 +58,9 @@ pub use director::DirectorConfig;
 pub use error::ConfigError;
 pub use forager::{ForagerConfig, PickEarlyType};
 pub use move_selector::{
-    CartesianProductConfig, ChangeMoveConfig, KOptMoveSelectorConfig, ListChangeMoveConfig,
-    ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig,
-    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SelectedCountLimitMoveSelectorConfig,
+    CartesianProductConfig, ChangeMoveConfig, KOptMoveSelectorConfig, LimitedNeighborhoodConfig,
+    ListChangeMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
+    MoveSelectorConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
     SubListChangeMoveConfig, SubListSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig,
     VariableTargetConfig,
 };

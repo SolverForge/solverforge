@@ -5,6 +5,8 @@ module root stays limited to module wiring and re-exports.
 */
 
 #[macro_use]
+mod shared;
+#[macro_use]
 mod penta;
 #[macro_use]
 mod quad;

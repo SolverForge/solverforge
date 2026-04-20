@@ -1,12 +1,12 @@
+use std::collections::BTreeSet;
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
 
-use crate::attr_parse::has_attribute;
-use crate::list_registry::lookup_list_entity_metadata;
-
-use super::standard_runtime::generate_standard_runtime_support;
 use super::type_helpers::extract_collection_inner_type;
+use crate::attr_parse::has_attribute;
+use crate::standard_registry::lookup_standard_entity_metadata;
 
 pub(super) fn generate_runtime_solve_internal(
     constraints_path: &Option<String>,
@@ -88,6 +88,193 @@ pub(super) fn generate_runtime_solve_internal(
     }
 }
 
+fn generate_scalar_runtime_setup(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+    solution_name: &Ident,
+) -> TokenStream {
+    let entity_fields: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
+        .enumerate()
+        .filter_map(|(idx, field)| {
+            let field_name = field.ident.as_ref()?;
+            let field_type = extract_collection_inner_type(&field.ty)?;
+            let syn::Type::Path(type_path) = field_type else {
+                return None;
+            };
+            let type_name = type_path.path.segments.last()?.ident.to_string();
+            let metadata = lookup_standard_entity_metadata(&type_name)?;
+            if metadata.variables.is_empty() {
+                return None;
+            }
+            Some((idx, field_name, field_type, type_name, metadata))
+        })
+        .collect();
+
+    let mut provider_fields = BTreeSet::new();
+    for (_, _, _, _, metadata) in &entity_fields {
+        for variable in &metadata.variables {
+            if variable.provider_is_entity_field {
+                continue;
+            }
+            if let Some(provider) = &variable.value_range_provider {
+                provider_fields.insert(provider.clone());
+            }
+        }
+    }
+
+    let provider_count_helpers: Vec<_> = provider_fields
+        .into_iter()
+        .map(|provider_field_name| {
+            let provider_ident = format_ident!("{provider_field_name}");
+            let count_fn_ident =
+                format_ident!("__solverforge_standard_count_{}", provider_field_name);
+            quote! {
+                fn #count_fn_ident(solution: &#solution_name) -> usize {
+                    solution.#provider_ident.len()
+                }
+            }
+        })
+        .collect();
+
+    let entity_count_helpers: Vec<_> = entity_fields
+        .iter()
+        .map(|(_, field_name, _, _, _)| {
+            let count_fn_ident = format_ident!("__solverforge_standard_count_{}", field_name);
+            quote! {
+                fn #count_fn_ident(solution: &#solution_name) -> usize {
+                    solution.#field_name.len()
+                }
+            }
+        })
+        .collect();
+
+    let scalar_context_pushes: Vec<_> = entity_fields
+        .iter()
+        .flat_map(|(descriptor_index, field_name, field_type, type_name, metadata)| {
+            metadata.variables.iter().map(move |variable| {
+                let variable_name = &variable.field_name;
+                let allows_unassigned = variable.allows_unassigned;
+                let getter_ident = format_ident!(
+                    "__solverforge_standard_get_{}_{}",
+                    field_name,
+                    variable.field_name
+                );
+                let setter_ident = format_ident!(
+                    "__solverforge_standard_set_{}_{}",
+                    field_name,
+                    variable.field_name
+                );
+                let entity_count_fn_ident =
+                    format_ident!("__solverforge_standard_count_{}", field_name);
+                let typed_getter_ident =
+                    format_ident!("__solverforge_get_{}_typed", variable.field_name);
+                let typed_setter_ident =
+                    format_ident!("__solverforge_set_{}_typed", variable.field_name);
+                let maybe_slice_helper = if variable.provider_is_entity_field {
+                    let slice_ident = format_ident!(
+                        "__solverforge_standard_values_{}_{}",
+                        field_name,
+                        variable.field_name
+                    );
+                    let typed_slice_ident =
+                        format_ident!("__solverforge_values_for_{}_typed", variable.field_name);
+                    quote! {
+                        fn #slice_ident(
+                            solution: &#solution_name,
+                            entity_index: usize,
+                        ) -> &[usize] {
+                            <#field_type>::#typed_slice_ident(&solution.#field_name[entity_index])
+                        }
+                    }
+                } else {
+                    TokenStream::new()
+                };
+
+                let value_source = if variable.provider_is_entity_field {
+                    let slice_ident = format_ident!(
+                        "__solverforge_standard_values_{}_{}",
+                        field_name,
+                        variable.field_name
+                    );
+                    quote! {
+                        ::solverforge::__internal::ValueSource::EntitySlice {
+                            values_for_entity: #slice_ident,
+                        }
+                    }
+                } else if let Some((from, to)) = variable.countable_range {
+                    let from_usize = usize::try_from(from).expect(
+                        "countable_range start must be non-negative for canonical standard solving",
+                    );
+                    let to_usize = usize::try_from(to).expect(
+                        "countable_range end must be non-negative for canonical standard solving",
+                    );
+                    quote! {
+                        ::solverforge::__internal::ValueSource::CountableRange {
+                            from: #from_usize,
+                            to: #to_usize,
+                        }
+                    }
+                } else if let Some(provider_field_name) = &variable.value_range_provider {
+                    let count_fn_ident =
+                        format_ident!("__solverforge_standard_count_{}", provider_field_name);
+                    quote! {
+                        ::solverforge::__internal::ValueSource::SolutionCount {
+                            count_fn: #count_fn_ident,
+                        }
+                    }
+                } else {
+                    quote! { ::solverforge::__internal::ValueSource::Empty }
+                };
+
+                quote! {
+                    fn #getter_ident(
+                        solution: &#solution_name,
+                        entity_index: usize,
+                    ) -> ::core::option::Option<usize> {
+                        <#field_type>::#typed_getter_ident(&solution.#field_name[entity_index])
+                    }
+
+                    fn #setter_ident(
+                        solution: &mut #solution_name,
+                        entity_index: usize,
+                        value: ::core::option::Option<usize>,
+                    ) {
+                        <#field_type>::#typed_setter_ident(
+                            &mut solution.#field_name[entity_index],
+                            value,
+                        );
+                    }
+
+                    #maybe_slice_helper
+
+                    __solverforge_variables.push(
+                        ::solverforge::__internal::VariableContext::Scalar(
+                            ::solverforge::__internal::ScalarVariableContext::new(
+                                #descriptor_index,
+                                #type_name,
+                                #entity_count_fn_ident,
+                                #variable_name,
+                                #getter_ident,
+                                #setter_ident,
+                                #value_source,
+                                #allows_unassigned,
+                            )
+                        )
+                    );
+                }
+            })
+        })
+        .collect();
+
+    quote! {
+        let mut __solverforge_variables = ::std::vec::Vec::new();
+        #(#provider_count_helpers)*
+        #(#entity_count_helpers)*
+        #(#scalar_context_pushes)*
+    }
+}
+
 pub(super) fn generate_runtime_phase_support(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
@@ -103,19 +290,22 @@ pub(super) fn generate_runtime_phase_support(
         .enumerate()
         .filter_map(|(idx, field)| {
             let field_type = extract_collection_inner_type(&field.ty)?;
-            let syn::Type::Path(type_path) = field_type else {
-                return None;
-            };
-            let type_name = type_path.path.segments.last()?.ident.to_string();
-            lookup_list_entity_metadata(&type_name).map(|_| (idx, field_type))
+            Some((idx, field_type))
         })
         .collect();
-    let standard_support = generate_standard_runtime_support(fields, solution_name);
-    let standard_setup = standard_support.setup.clone();
+    let standard_setup = generate_scalar_runtime_setup(fields, solution_name);
 
     if !list_owners.is_empty() {
         let cross_enum_ident = format_ident!("__{}CrossDistanceMeter", solution_name);
         let intra_enum_ident = format_ident!("__{}IntraDistanceMeter", solution_name);
+        let has_list_variable_terms: Vec<_> = list_owners
+            .iter()
+            .map(|(_, field_type)| {
+                let list_trait =
+                    quote! { <#field_type as ::solverforge::__internal::ListVariableEntity<#solution_name>> };
+                quote! { #list_trait::HAS_LIST_VARIABLE }
+            })
+            .collect();
 
         let cross_variants: Vec<_> = list_owners
             .iter()
@@ -157,7 +347,7 @@ pub(super) fn generate_runtime_phase_support(
                 }
             })
             .collect();
-        let list_runtime_branches: Vec<_> = list_owners
+        let list_runtime_setup: Vec<_> = list_owners
             .iter()
             .map(|(idx, field_type)| {
                 let variant = format_ident!("Entity{idx}");
@@ -191,35 +381,30 @@ pub(super) fn generate_runtime_phase_support(
                                 )
                             )
                         );
-                        let model = ::solverforge::__internal::ModelContext::new(__solverforge_variables);
-                        let construction = ::solverforge::__internal::ConstructionArgs {
-                            element_count: Self::element_count,
-                            assigned_elements: Self::assigned_elements,
-                            entity_count: Self::n_entities,
-                            list_len: Self::list_len_static,
-                            list_insert: Self::list_insert,
-                            list_remove: Self::list_remove_for_construction,
-                            index_to_element: Self::index_to_element_static,
-                            descriptor_index: #descriptor_index_lit,
-                            entity_type_name: stringify!(#field_type),
-                            variable_name: #list_trait::LIST_VARIABLE_NAME,
-                            depot_fn: metadata.cw_depot_fn,
-                            distance_fn: metadata.cw_distance_fn,
-                            element_load_fn: metadata.cw_element_load_fn,
-                            capacity_fn: metadata.cw_capacity_fn,
-                            assign_route_fn: metadata.cw_assign_route_fn,
-                            merge_feasible_fn: metadata.merge_feasible_fn,
-                            k_opt_get_route: metadata.k_opt_get_route,
-                            k_opt_set_route: metadata.k_opt_set_route,
-                            k_opt_depot_fn: metadata.k_opt_depot_fn,
-                            k_opt_distance_fn: metadata.k_opt_distance_fn,
-                            k_opt_feasible_fn: metadata.k_opt_feasible_fn,
-                        };
-                        return ::solverforge::__internal::build_phases(
-                            config,
-                            &descriptor,
-                            &model,
-                            ::core::option::Option::Some(construction),
+                        __solverforge_construction = ::core::option::Option::Some(
+                            ::solverforge::__internal::ConstructionArgs {
+                                element_count: Self::element_count,
+                                assigned_elements: Self::assigned_elements,
+                                entity_count: Self::n_entities,
+                                list_len: Self::list_len_static,
+                                list_insert: Self::list_insert,
+                                list_remove: Self::list_remove_for_construction,
+                                index_to_element: Self::index_to_element_static,
+                                descriptor_index: #descriptor_index_lit,
+                                entity_type_name: stringify!(#field_type),
+                                variable_name: #list_trait::LIST_VARIABLE_NAME,
+                                depot_fn: metadata.cw_depot_fn,
+                                distance_fn: metadata.cw_distance_fn,
+                                element_load_fn: metadata.cw_element_load_fn,
+                                capacity_fn: metadata.cw_capacity_fn,
+                                assign_route_fn: metadata.cw_assign_route_fn,
+                                merge_feasible_fn: metadata.merge_feasible_fn,
+                                k_opt_get_route: metadata.k_opt_get_route,
+                                k_opt_set_route: metadata.k_opt_set_route,
+                                k_opt_depot_fn: metadata.k_opt_depot_fn,
+                                k_opt_distance_fn: metadata.k_opt_distance_fn,
+                                k_opt_feasible_fn: metadata.k_opt_feasible_fn,
+                            }
                         );
                     }
                 }
@@ -268,28 +453,59 @@ pub(super) fn generate_runtime_phase_support(
             }
 
             impl #solution_name {
-                const fn __solverforge_default_time_limit_secs() -> u64 {
-                    60
+                fn __solverforge_default_time_limit_secs() -> u64 {
+                    if Self::__solverforge_has_list_variable() {
+                        60
+                    } else {
+                        30
+                    }
+                }
+
+                #[inline]
+                fn __solverforge_has_list_variable() -> bool {
+                    false #(|| #has_list_variable_terms)*
                 }
 
                 fn __solverforge_is_trivial(solution: &Self) -> bool {
                     let descriptor = Self::descriptor();
                     let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
+                    let total_entity_count = descriptor
+                        .total_entity_count(solution as &dyn ::std::any::Any)
+                        .unwrap_or(0);
+                    if total_entity_count == 0 {
+                        return true;
+                    }
+
+                    if !Self::__solverforge_has_list_variable() {
+                        return !has_standard;
+                    }
+
                     let has_list = Self::n_entities(solution) > 0 && Self::element_count(solution) > 0;
-                    (!has_standard && !has_list)
-                        || (Self::n_entities(solution) == 0)
-                        || (has_list && Self::element_count(solution) == 0)
+                    !has_standard && !has_list
                 }
 
                 fn __solverforge_log_scale(solution: &Self) {
                     let descriptor = Self::descriptor();
                     let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
-                    ::solverforge::__internal::log_solve_start(
-                        Self::n_entities(solution),
-                        ::core::option::Option::Some(Self::element_count(solution)),
-                        ::core::option::Option::Some(has_standard),
-                        ::core::option::Option::None,
-                    );
+                    if Self::__solverforge_has_list_variable() {
+                        ::solverforge::__internal::log_solve_start(
+                            Self::n_entities(solution),
+                            ::core::option::Option::Some(Self::element_count(solution)),
+                            ::core::option::Option::Some(has_standard),
+                            ::core::option::Option::None,
+                        );
+                    } else {
+                        ::solverforge::__internal::log_solve_start(
+                            descriptor
+                                .total_entity_count(solution as &dyn ::std::any::Any)
+                                .unwrap_or(0),
+                            ::core::option::Option::None,
+                            ::core::option::Option::None,
+                            ::core::option::Option::Some(
+                                descriptor.genuine_variable_descriptors().len(),
+                            ),
+                        );
+                    }
                 }
 
                 fn __solverforge_build_phases(
@@ -313,7 +529,8 @@ pub(super) fn generate_runtime_phase_support(
                 > {
                     let descriptor = Self::descriptor();
                     #standard_setup
-                    #(#list_runtime_branches)*
+                    let mut __solverforge_construction = ::core::option::Option::None;
+                    #(#list_runtime_setup)*
                     let model = ::solverforge::__internal::ModelContext::<
                         #solution_name,
                         usize,
@@ -324,7 +541,7 @@ pub(super) fn generate_runtime_phase_support(
                         config,
                         &descriptor,
                         &model,
-                        ::core::option::Option::None,
+                        __solverforge_construction,
                     )
                 }
             }

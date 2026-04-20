@@ -8,8 +8,12 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::phase::Phase;
+use crate::scope::SolverScope;
 
-use super::{build_descriptor_move_selector, standard_work_remaining};
+use super::{
+    build_descriptor_construction, build_descriptor_move_selector, standard_work_remaining,
+};
 
 #[derive(Clone, Debug)]
 struct Worker;
@@ -110,4 +114,26 @@ fn solution_level_value_range_builds_change_moves() {
     let selector = build_descriptor_move_selector::<Plan>(None, &descriptor);
 
     assert_eq!(selector.size(&director), 3);
+}
+
+#[test]
+fn solution_level_value_range_construction_assigns_entities() {
+    let descriptor = descriptor();
+    let plan = Plan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![Task { worker_idx: None }, Task { worker_idx: None }],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = build_descriptor_construction::<Plan>(None, &descriptor);
+    phase.solve(&mut solver_scope);
+
+    assert!(solver_scope
+        .working_solution()
+        .tasks
+        .iter()
+        .all(|task| task.worker_idx.is_some()));
 }

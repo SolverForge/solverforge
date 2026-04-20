@@ -92,6 +92,20 @@ pub struct RoutePlan {
     pub score: Option<HardSoftScore>,
 }
 
+type VehicleRoute = Route;
+
+#[planning_solution]
+pub struct AliasedRoutePlan {
+    #[problem_fact_collection]
+    pub visits: Vec<Visit>,
+
+    #[planning_entity_collection]
+    pub routes: Vec<VehicleRoute>,
+
+    #[planning_score]
+    pub score: Option<HardSoftScore>,
+}
+
 #[planning_solution]
 #[shadow_variable_updates(list_owner = "routes", inverse_field = "route")]
 pub struct MultiOwnerShadowPlan {
@@ -109,6 +123,44 @@ pub struct MultiOwnerShadowPlan {
 
     #[planning_score]
     pub score: Option<HardSoftScore>,
+}
+
+mod duplicate_names {
+    use solverforge::prelude::*;
+
+    use super::Visit;
+
+    #[planning_entity]
+    pub struct Route {
+        #[planning_id]
+        pub id: usize,
+
+        #[planning_list_variable(element_collection = "visits")]
+        pub visits: Vec<usize>,
+    }
+
+    #[planning_entity]
+    pub struct PlainRoute {
+        #[planning_id]
+        pub id: usize,
+    }
+
+    pub type RenamedPlainRoute = PlainRoute;
+
+    #[planning_solution]
+    pub struct Plan {
+        #[problem_fact_collection]
+        pub visits: Vec<Visit>,
+
+        #[planning_entity_collection]
+        pub listed_routes: Vec<Route>,
+
+        #[planning_entity_collection]
+        pub plain_routes: Vec<RenamedPlainRoute>,
+
+        #[planning_score]
+        pub score: Option<HardSoftScore>,
+    }
 }
 
 #[test]
@@ -313,4 +365,91 @@ fn test_multi_owner_list_helpers_are_owner_scoped() {
     MultiOwnerShadowPlan::shifts_assign_element(&mut plan, 0, 0);
     assert_eq!(MultiOwnerShadowPlan::routes_list_len_static(&plan, 0), 2);
     assert_eq!(MultiOwnerShadowPlan::shifts_list_len_static(&plan, 0), 2);
+}
+
+#[test]
+fn test_list_helpers_work_for_aliased_single_owner_types() {
+    let mut plan = AliasedRoutePlan {
+        visits: vec![Visit { id: 10 }],
+        routes: vec![Route {
+            id: 1,
+            visits: vec![0],
+        }],
+        score: None,
+    };
+
+    assert_eq!(AliasedRoutePlan::list_len_static(&plan, 0), 1);
+    assert_eq!(AliasedRoutePlan::routes_list_len_static(&plan, 0), 1);
+    assert_eq!(AliasedRoutePlan::routes_element_count(&plan), 1);
+
+    AliasedRoutePlan::assign_element(&mut plan, 0, 0);
+    AliasedRoutePlan::routes_assign_element(&mut plan, 0, 0);
+    assert_eq!(AliasedRoutePlan::list_len_static(&plan, 0), 3);
+}
+
+#[test]
+fn test_duplicate_short_names_do_not_confuse_list_helper_binding() {
+    let plan = duplicate_names::Plan {
+        visits: vec![Visit { id: 10 }],
+        listed_routes: vec![duplicate_names::Route {
+            id: 1,
+            visits: vec![0],
+        }],
+        plain_routes: vec![duplicate_names::RenamedPlainRoute { id: 2 }],
+        score: None,
+    };
+
+    assert_eq!(duplicate_names::Plan::list_len_static(&plan, 0), 1);
+    assert_eq!(
+        duplicate_names::Plan::listed_routes_list_len_static(&plan, 0),
+        1
+    );
+
+    let panic = std::panic::catch_unwind(|| {
+        let _ = duplicate_names::Plan::plain_routes_list_len_static(&plan, 0);
+    })
+    .expect_err("non-list entity collections should reject list helper calls");
+
+    let message = if let Some(message) = panic.downcast_ref::<String>() {
+        message.as_str()
+    } else if let Some(message) = panic.downcast_ref::<&str>() {
+        message
+    } else {
+        ""
+    };
+    assert!(message.contains("plain_routes"));
+}
+
+#[test]
+fn test_multi_owner_generic_list_helpers_reject_ambiguous_calls() {
+    let plan = MultiOwnerShadowPlan {
+        routes: vec![ShadowRoute {
+            id: 1,
+            visits: vec![0],
+        }],
+        shifts: vec![ShadowShift {
+            id: 2,
+            visits: vec![0],
+        }],
+        routed_visits: vec![RoutedVisit {
+            id: 10,
+            route: None,
+        }],
+        shift_visits: vec![ShiftVisit { id: 20 }],
+        score: None,
+    };
+
+    let panic = std::panic::catch_unwind(|| {
+        let _ = MultiOwnerShadowPlan::list_len_static(&plan, 0);
+    })
+    .expect_err("multi-owner plans should reject generic list helper calls");
+
+    let message = if let Some(message) = panic.downcast_ref::<String>() {
+        message.as_str()
+    } else if let Some(message) = panic.downcast_ref::<&str>() {
+        message
+    } else {
+        ""
+    };
+    assert!(message.contains("single-owner list helper"));
 }

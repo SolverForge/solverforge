@@ -25,14 +25,13 @@ fn golden_entity_expansion_includes_descriptor_and_planning_id() {
     assert!(expanded.contains("with_id_field (stringify ! (id))"));
     assert!(expanded.contains("pub fn entity_descriptor"));
     assert!(expanded.contains("pub const __SOLVERFORGE_LIST_VARIABLE_COUNT : usize = 1"));
-    assert!(expanded.contains(
-        "pub const __SOLVERFORGE_LIST_ELEMENT_COLLECTION : & 'static str = \"all_tasks\""
-    ));
+    assert!(expanded
+        .contains("const __SOLVERFORGE_LIST_ELEMENT_COLLECTION : & 'static str = \"all_tasks\""));
     assert!(expanded.contains("pub (crate) fn __solverforge_get_worker_idx_typed"));
     assert!(expanded.contains("pub (crate) fn __solverforge_set_worker_idx_typed"));
     assert!(expanded.contains("const HAS_LIST_VARIABLE : bool = true"));
     assert!(expanded.contains("LIST_ELEMENT_SOURCE"));
-    assert!(expanded.contains("pub fn __solverforge_list_metadata < Solution >"));
+    assert!(expanded.contains("fn __solverforge_list_metadata < Solution >"));
     assert!(expanded.contains("pub trait TaskUnassignedFilter"));
     assert!(expanded.contains("fn unassigned (self)"));
 }

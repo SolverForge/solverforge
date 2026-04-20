@@ -10,7 +10,9 @@ pub(super) fn generate_list_metadata(
     list_variables: &[&syn::Field],
 ) -> Result<TokenStream, Error> {
     let Some(field) = list_variables.first().copied() else {
-        return Ok(TokenStream::new());
+        return Ok(quote! {
+            pub const __SOLVERFORGE_LIST_VARIABLE_COUNT: usize = 0;
+        });
     };
 
     let field_name = field.ident.as_ref().unwrap();
@@ -113,21 +115,21 @@ pub(super) fn generate_list_metadata(
 
     Ok(quote! {
         pub const __SOLVERFORGE_LIST_VARIABLE_COUNT: usize = 1;
-        pub const __SOLVERFORGE_LIST_VARIABLE_NAME: &'static str = #field_name_str;
-        pub const __SOLVERFORGE_LIST_ELEMENT_COLLECTION: &'static str = #element_collection;
+        const __SOLVERFORGE_LIST_VARIABLE_NAME: &'static str = #field_name_str;
+        const __SOLVERFORGE_LIST_ELEMENT_COLLECTION: &'static str = #element_collection;
 
         #[inline]
-        pub fn __solverforge_list_field(entity: &Self) -> &[usize] {
+        fn __solverforge_list_field(entity: &Self) -> &[usize] {
             &entity.#field_name
         }
 
         #[inline]
-        pub fn __solverforge_list_field_mut(entity: &mut Self) -> &mut ::std::vec::Vec<usize> {
+        fn __solverforge_list_field_mut(entity: &mut Self) -> &mut ::std::vec::Vec<usize> {
             &mut entity.#field_name
         }
 
         #[inline]
-        pub fn __solverforge_list_metadata<Solution>() -> ::solverforge::__internal::ListVariableMetadata<
+        fn __solverforge_list_metadata<Solution>() -> ::solverforge::__internal::ListVariableMetadata<
             Solution,
             #cross_dm_ty,
             #intra_dm_ty,

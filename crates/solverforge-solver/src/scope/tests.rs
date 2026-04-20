@@ -1,7 +1,11 @@
 // Tests for scope types.
 
+use std::any::TypeId;
+
 use super::*;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use crate::test_utils::create_simple_nqueens_director;
+use solverforge_scoring::ScoreDirector;
 use solverforge_core::score::SoftScore;
 
 #[test]
@@ -72,4 +76,56 @@ fn test_step_scope() {
 
         assert_eq!(phase_scope.step_count(), 1);
     }
+}
+
+#[derive(Clone, Debug)]
+struct TieSolution {
+    marker: usize,
+    score: Option<SoftScore>,
+}
+
+impl PlanningSolution for TieSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+#[test]
+fn test_solver_scope_promotes_current_solution_on_score_tie() {
+    let descriptor = SolutionDescriptor::new("TieSolution", TypeId::of::<TieSolution>());
+    let director = ScoreDirector::simple(
+        TieSolution {
+            marker: 0,
+            score: None,
+        },
+        descriptor,
+        |_solution, _descriptor_index| 0,
+    );
+    let mut scope = SolverScope::new(director);
+
+    scope.start_solving();
+    scope.update_best_solution();
+    assert_eq!(
+        scope
+            .best_solution()
+            .expect("best solution should exist after update")
+            .marker,
+        0
+    );
+
+    scope.working_solution_mut().marker = 7;
+    scope.promote_current_solution_on_score_tie();
+    assert_eq!(
+        scope
+            .best_solution()
+            .expect("tie promotion should publish the current solution")
+            .marker,
+        7
+    );
 }

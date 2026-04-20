@@ -115,6 +115,11 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         self.solver_scope.update_best_solution()
     }
 
+    /// Publishes the current working solution when it ties the current best score.
+    pub(crate) fn promote_current_solution_on_score_tie(&mut self) {
+        self.solver_scope.promote_current_solution_on_score_tie()
+    }
+
     pub fn stats(&self) -> &PhaseStats {
         &self.stats
     }

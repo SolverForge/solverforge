@@ -155,6 +155,7 @@ where
 
         // Update best solution at end of phase
         phase_scope.update_best_solution();
+        phase_scope.promote_current_solution_on_score_tie();
 
         let best_score = phase_scope
             .solver_scope()

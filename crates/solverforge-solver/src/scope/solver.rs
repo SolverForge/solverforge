@@ -277,6 +277,20 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
     }
 
+    pub(crate) fn promote_current_solution_on_score_tie(&mut self) {
+        let Some(current_score) = self.current_score else {
+            return;
+        };
+        let Some(best_score) = self.best_score else {
+            return;
+        };
+
+        if current_score == best_score {
+            self.best_solution = Some(self.score_director.clone_working_solution());
+            self.report_best_solution();
+        }
+    }
+
     pub fn set_best_solution(&mut self, solution: S, score: S::Score) {
         if self.start_time.is_none() {
             self.start_solving();

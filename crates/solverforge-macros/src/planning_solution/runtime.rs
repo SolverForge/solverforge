@@ -151,8 +151,9 @@ fn generate_scalar_runtime_setup(
 
     let scalar_context_pushes: Vec<_> = entity_fields
         .iter()
-        .flat_map(|(descriptor_index, field_name, field_type, type_name, metadata)| {
-            metadata.variables.iter().map(move |variable| {
+        .flat_map(
+            |(descriptor_index, field_name, field_type, type_name, metadata)| {
+                metadata.variables.iter().map(move |variable| {
                 let variable_name = &variable.field_name;
                 let allows_unassigned = variable.allows_unassigned;
                 let getter_ident = format_ident!(
@@ -264,7 +265,8 @@ fn generate_scalar_runtime_setup(
                     );
                 }
             })
-        })
+            },
+        )
         .collect();
 
     quote! {

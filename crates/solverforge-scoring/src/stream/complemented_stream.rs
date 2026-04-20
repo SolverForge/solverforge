@@ -112,6 +112,29 @@ where
     D: Fn(&B) -> C::Result + Send + Sync,
     Sc: Score + 'static,
 {
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight_fn: W,
+        is_hard: bool,
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+    where
+        W: Fn(&C::Result) -> Sc + Send + Sync,
+    {
+        ComplementedConstraintBuilder {
+            extractor_a: self.extractor_a,
+            extractor_b: self.extractor_b,
+            key_a: self.key_a,
+            key_b: self.key_b,
+            collector: self.collector,
+            default_fn: self.default_fn,
+            impact_type,
+            weight_fn,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
     // Creates a new complemented constraint stream.
     pub(crate) fn new(
         extractor_a: EA,
@@ -140,18 +163,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        ComplementedConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            collector: self.collector,
-            default_fn: self.default_fn,
-            impact_type: ImpactType::Penalty,
-            weight_fn,
-            is_hard: false,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
     }
 
     // Penalizes each complemented group, explicitly marked as hard constraint.
@@ -162,18 +174,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        ComplementedConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            collector: self.collector,
-            default_fn: self.default_fn,
-            impact_type: ImpactType::Penalty,
-            weight_fn,
-            is_hard: true,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
     }
 
     // Rewards each complemented group with a weight based on the result.
@@ -184,18 +185,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        ComplementedConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            collector: self.collector,
-            default_fn: self.default_fn,
-            impact_type: ImpactType::Reward,
-            weight_fn,
-            is_hard: false,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
     }
 
     // Rewards each complemented group, explicitly marked as hard constraint.
@@ -206,18 +196,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        ComplementedConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            collector: self.collector,
-            default_fn: self.default_fn,
-            impact_type: ImpactType::Reward,
-            weight_fn,
-            is_hard: true,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
     }
 
     // Penalizes each complemented group with one hard score unit.

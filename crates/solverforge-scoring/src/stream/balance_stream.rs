@@ -12,6 +12,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::collection_extract::CollectionExtract;
 use super::filter::UniFilter;
+use super::weighting_support::fixed_weight_is_hard;
 use crate::constraint::balance::BalanceConstraint;
 
 /* Zero-erasure stream for building balance constraints.
@@ -81,6 +82,22 @@ where
     KF: Fn(&A) -> Option<K> + Send + Sync,
     Sc: Score + 'static,
 {
+    fn into_builder(
+        self,
+        impact_type: ImpactType,
+        base_score: Sc,
+    ) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc> {
+        BalanceConstraintBuilder {
+            extractor: self.extractor,
+            filter: self.filter,
+            key_fn: self.key_fn,
+            impact_type,
+            base_score,
+            is_hard: fixed_weight_is_hard(base_score),
+            _phantom: PhantomData,
+        }
+    }
+
     // Creates a new balance constraint stream.
     pub(crate) fn new(extractor: E, filter: F, key_fn: KF) -> Self {
         Self {
@@ -96,20 +113,7 @@ where
     The final score is `base_score.multiply(std_dev)`, negated for penalty.
     */
     pub fn penalize(self, base_score: Sc) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc> {
-        let is_hard = base_score
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        BalanceConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            key_fn: self.key_fn,
-            impact_type: ImpactType::Penalty,
-            base_score,
-            is_hard,
-            _phantom: PhantomData,
-        }
+        self.into_builder(ImpactType::Penalty, base_score)
     }
 
     // Penalizes imbalanced distribution with one hard score unit per unit std_dev.
@@ -149,20 +153,7 @@ where
     The final score is `base_score.multiply(std_dev)`.
     */
     pub fn reward(self, base_score: Sc) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc> {
-        let is_hard = base_score
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        BalanceConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            key_fn: self.key_fn,
-            impact_type: ImpactType::Reward,
-            base_score,
-            is_hard,
-            _phantom: PhantomData,
-        }
+        self.into_builder(ImpactType::Reward, base_score)
     }
 }
 

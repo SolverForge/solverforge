@@ -7,6 +7,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::constraint::exists::{IncrementalExistsConstraint, SelfFlatten};
 use crate::stream::collection_extract::{FlattenExtract, TrackedCollectionExtract};
 use crate::stream::filter::UniFilter;
+use crate::stream::weighting_support::fixed_weight_is_hard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExistenceMode {
@@ -53,6 +54,31 @@ where
     Flatten: FlattenExtract<P, Item = B>,
     Sc: Score + 'static,
 {
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight: W,
+        is_hard: bool,
+    ) -> ExistsConstraintBuilder<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>
+    where
+        W: Fn(&A) -> Sc + Send + Sync,
+    {
+        ExistsConstraintBuilder {
+            mode: self.mode,
+            extractor_a: self.extractor_a,
+            extractor_parent: self.extractor_parent,
+            key_a: self.key_a,
+            key_b: self.key_b,
+            filter_a: self.filter_a,
+            filter_parent: self.filter_parent,
+            flatten: self.flatten,
+            impact_type,
+            weight,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
     pub fn new(
         mode: ExistenceMode,
         extractor_a: EA,
@@ -98,25 +124,11 @@ where
     where
         Sc: Copy,
     {
-        let is_hard = weight
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        ExistsConstraintBuilder {
-            mode: self.mode,
-            extractor_a: self.extractor_a,
-            extractor_parent: self.extractor_parent,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter_a: self.filter_a,
-            filter_parent: self.filter_parent,
-            flatten: self.flatten,
-            impact_type: ImpactType::Penalty,
-            weight: move |_: &A| weight,
-            is_hard,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |_: &A| weight,
+            fixed_weight_is_hard(weight),
+        )
     }
 
     pub fn penalize_with<W>(
@@ -126,20 +138,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        ExistsConstraintBuilder {
-            mode: self.mode,
-            extractor_a: self.extractor_a,
-            extractor_parent: self.extractor_parent,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter_a: self.filter_a,
-            filter_parent: self.filter_parent,
-            flatten: self.flatten,
-            impact_type: ImpactType::Penalty,
-            weight: weight_fn,
-            is_hard: false,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
     }
 
     pub fn penalize_hard_with<W>(
@@ -149,20 +148,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        ExistsConstraintBuilder {
-            mode: self.mode,
-            extractor_a: self.extractor_a,
-            extractor_parent: self.extractor_parent,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter_a: self.filter_a,
-            filter_parent: self.filter_parent,
-            flatten: self.flatten,
-            impact_type: ImpactType::Penalty,
-            weight: weight_fn,
-            is_hard: true,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
     }
 
     pub fn penalize_hard(
@@ -235,25 +221,11 @@ where
     where
         Sc: Copy,
     {
-        let is_hard = weight
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        ExistsConstraintBuilder {
-            mode: self.mode,
-            extractor_a: self.extractor_a,
-            extractor_parent: self.extractor_parent,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter_a: self.filter_a,
-            filter_parent: self.filter_parent,
-            flatten: self.flatten,
-            impact_type: ImpactType::Reward,
-            weight: move |_: &A| weight,
-            is_hard,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |_: &A| weight,
+            fixed_weight_is_hard(weight),
+        )
     }
 
     pub fn reward_with<W>(
@@ -263,20 +235,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        ExistsConstraintBuilder {
-            mode: self.mode,
-            extractor_a: self.extractor_a,
-            extractor_parent: self.extractor_parent,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter_a: self.filter_a,
-            filter_parent: self.filter_parent,
-            flatten: self.flatten,
-            impact_type: ImpactType::Reward,
-            weight: weight_fn,
-            is_hard: false,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
     }
 
     pub fn reward_hard_with<W>(
@@ -286,20 +245,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        ExistsConstraintBuilder {
-            mode: self.mode,
-            extractor_a: self.extractor_a,
-            extractor_parent: self.extractor_parent,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter_a: self.filter_a,
-            filter_parent: self.filter_parent,
-            flatten: self.flatten,
-            impact_type: ImpactType::Reward,
-            weight: weight_fn,
-            is_hard: true,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
     }
 
     pub fn reward_hard(

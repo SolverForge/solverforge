@@ -39,6 +39,28 @@ where
     C::Result: Clone + Send + Sync,
     Sc: Score + 'static,
 {
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: solverforge_core::ImpactType,
+        weight_fn: W,
+        is_hard: bool,
+    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
+    where
+        W: Fn(&C::Result) -> Sc + Send + Sync,
+    {
+        super::weighting::GroupedConstraintBuilder {
+            extractor: self.extractor,
+            filter: self.filter,
+            key_fn: self.key_fn,
+            collector: self.collector,
+            impact_type,
+            weight_fn,
+            is_hard,
+            expected_descriptor: None,
+            _phantom: PhantomData,
+        }
+    }
+
     // Creates a new zero-erasure grouped constraint stream.
     pub(crate) fn new(extractor: E, filter: Fi, key_fn: KF, collector: C) -> Self {
         Self {
@@ -58,17 +80,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        super::weighting::GroupedConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            key_fn: self.key_fn,
-            collector: self.collector,
-            impact_type: solverforge_core::ImpactType::Penalty,
-            weight_fn,
-            is_hard: false,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, false)
     }
 
     // Penalizes each group with a weight, explicitly marked as hard constraint.
@@ -79,17 +91,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        super::weighting::GroupedConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            key_fn: self.key_fn,
-            collector: self.collector,
-            impact_type: solverforge_core::ImpactType::Penalty,
-            weight_fn,
-            is_hard: true,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, true)
     }
 
     // Rewards each group with a weight based on the collector result.
@@ -100,17 +102,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        super::weighting::GroupedConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            key_fn: self.key_fn,
-            collector: self.collector,
-            impact_type: solverforge_core::ImpactType::Reward,
-            weight_fn,
-            is_hard: false,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(solverforge_core::ImpactType::Reward, weight_fn, false)
     }
 
     // Rewards each group with a weight, explicitly marked as hard constraint.
@@ -121,17 +113,7 @@ where
     where
         W: Fn(&C::Result) -> Sc + Send + Sync,
     {
-        super::weighting::GroupedConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            key_fn: self.key_fn,
-            collector: self.collector,
-            impact_type: solverforge_core::ImpactType::Reward,
-            weight_fn,
-            is_hard: true,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(solverforge_core::ImpactType::Reward, weight_fn, true)
     }
 
     // Penalizes each group with one hard score unit.

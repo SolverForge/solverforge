@@ -8,6 +8,7 @@ use crate::constraint::cross_bi_incremental::IncrementalCrossBiConstraint;
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::BiFilter;
+use super::super::weighting_support::fixed_weight_is_hard;
 use super::base::CrossBiConstraintStream;
 
 impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
@@ -23,6 +24,28 @@ where
     F: BiFilter<S, A, B>,
     Sc: Score + 'static,
 {
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight: W,
+        is_hard: bool,
+    ) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+    where
+        W: Fn(&A, &B) -> Sc + Send + Sync,
+    {
+        CrossBiConstraintBuilder {
+            extractor_a: self.extractor_a,
+            extractor_b: self.extractor_b,
+            key_a: self.key_a,
+            key_b: self.key_b,
+            filter: self.filter,
+            impact_type,
+            weight,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
     // Penalizes each matching pair with a fixed weight.
     pub fn penalize(
         self,
@@ -43,22 +66,11 @@ where
     where
         Sc: Copy,
     {
-        let is_hard = weight
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        CrossBiConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter: self.filter,
-            impact_type: ImpactType::Penalty,
-            weight: move |_: &A, _: &B| weight,
-            is_hard,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |_: &A, _: &B| weight,
+            fixed_weight_is_hard(weight),
+        )
     }
 
     // Penalizes each matching pair with a dynamic weight.
@@ -69,17 +81,7 @@ where
     where
         W: Fn(&A, &B) -> Sc + Send + Sync,
     {
-        CrossBiConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter: self.filter,
-            impact_type: ImpactType::Penalty,
-            weight: weight_fn,
-            is_hard: false,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
     }
 
     // Penalizes each matching pair with a dynamic weight, explicitly marked as hard.
@@ -90,17 +92,7 @@ where
     where
         W: Fn(&A, &B) -> Sc + Send + Sync,
     {
-        CrossBiConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter: self.filter,
-            impact_type: ImpactType::Penalty,
-            weight: weight_fn,
-            is_hard: true,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
     }
 
     // Rewards each matching pair with a fixed weight.
@@ -123,22 +115,11 @@ where
     where
         Sc: Copy,
     {
-        let is_hard = weight
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        CrossBiConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter: self.filter,
-            impact_type: ImpactType::Reward,
-            weight: move |_: &A, _: &B| weight,
-            is_hard,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |_: &A, _: &B| weight,
+            fixed_weight_is_hard(weight),
+        )
     }
 
     // Rewards each matching pair with a dynamic weight.
@@ -149,17 +130,7 @@ where
     where
         W: Fn(&A, &B) -> Sc + Send + Sync,
     {
-        CrossBiConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter: self.filter,
-            impact_type: ImpactType::Reward,
-            weight: weight_fn,
-            is_hard: false,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
     }
 
     // Rewards each matching pair with a dynamic weight, explicitly marked as hard.
@@ -170,17 +141,7 @@ where
     where
         W: Fn(&A, &B) -> Sc + Send + Sync,
     {
-        CrossBiConstraintBuilder {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            filter: self.filter,
-            impact_type: ImpactType::Reward,
-            weight: weight_fn,
-            is_hard: true,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
     }
 
     // Penalizes each matching pair with one hard score unit.

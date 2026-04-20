@@ -70,7 +70,9 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ListMoveImpl, SubListSwapMove};
 
 use super::entity::EntitySelector;
+use super::list_support::collect_selected_entities;
 use super::move_selector::MoveSelector;
+use super::sublist_support::{count_intra_sublist_swap_moves_for_len, count_sublist_segments};
 
 /// A move selector that generates sublist swap moves.
 ///
@@ -163,7 +165,6 @@ where
         &'a self,
         score_director: &D,
     ) -> impl Iterator<Item = SubListSwapMove<S, V>> + 'a {
-        let solution = score_director.working_solution();
         let list_len = self.list_len;
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
@@ -172,21 +173,14 @@ where
         let min_seg = self.min_sublist_size;
         let max_seg = self.max_sublist_size;
 
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-
+        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let entities = selected.entities;
+        let route_lens = selected.route_lens;
         let mut moves = Vec::new();
 
         for (i, &entity_a) in entities.iter().enumerate() {
             let len_a = route_lens[i];
 
-            // Intra-entity: pairs of non-overlapping segments in entity_a
-            // Enumerate all valid first segments, then all non-overlapping second segments
             for first_start in 0..len_a {
                 for first_size in min_seg..=max_seg {
                     let first_end = first_start + first_size;
@@ -194,7 +188,6 @@ where
                         break;
                     }
 
-                    // Second segment must not overlap: second_start >= first_end
                     for second_start in first_end..len_a {
                         for second_size in min_seg..=max_seg {
                             let second_end = second_start + second_size;
@@ -219,7 +212,6 @@ where
                 }
             }
 
-            // Inter-entity: all segment pairs between entity_a and entity_b (b > a)
             for (j, &entity_b) in entities.iter().enumerate() {
                 if j <= i {
                     continue;
@@ -266,26 +258,31 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
-
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
+        let selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        let segment_counts: Vec<usize> = selected
+            .route_lens
+            .iter()
+            .map(|&route_len| {
+                count_sublist_segments(route_len, self.min_sublist_size, self.max_sublist_size)
+            })
             .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-        let n = entities.len();
-        if n == 0 {
-            return 0;
-        }
-
-        let k_range = self.max_sublist_size - self.min_sublist_size + 1;
-        let total_elements: usize = route_lens.iter().sum();
-        let avg_len = total_elements / n;
-        // Rough estimate: n * avg_len * k * (avg_len * k + (n-1) * avg_len * k) / 2
-        n * avg_len * k_range * avg_len.max(1) * k_range * (n + 1) / 2
+        let intra: usize = selected
+            .route_lens
+            .iter()
+            .map(|&route_len| {
+                count_intra_sublist_swap_moves_for_len(
+                    route_len,
+                    self.min_sublist_size,
+                    self.max_sublist_size,
+                )
+            })
+            .sum();
+        let inter: usize = (0..selected.route_lens.len())
+            .flat_map(|left| (left + 1..selected.route_lens.len()).map(move |right| (left, right)))
+            .map(|(left, right)| segment_counts[left] * segment_counts[right])
+            .sum();
+        intra + inter
     }
 }
 

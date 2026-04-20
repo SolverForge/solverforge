@@ -232,7 +232,7 @@ fn out_of_bounds_not_doable() {
 }
 
 #[test]
-fn dest_within_source_not_doable() {
+fn dest_at_source_start_not_doable() {
     let vehicles = vec![Vehicle {
         visits: vec![1, 2, 3, 4, 5],
     }];
@@ -243,7 +243,7 @@ fn dest_within_source_not_doable() {
         1,
         4,
         0,
-        2,
+        1,
         list_len,
         sublist_remove,
         sublist_insert,

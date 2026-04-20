@@ -73,7 +73,9 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ListMoveImpl, SubListChangeMove};
 
 use super::entity::EntitySelector;
+use super::list_support::collect_selected_entities;
 use super::move_selector::MoveSelector;
+use super::sublist_support::count_sublist_change_moves_for_len;
 
 /// A move selector that generates sublist change (Or-opt) moves.
 ///
@@ -167,7 +169,6 @@ where
         &'a self,
         score_director: &D,
     ) -> impl Iterator<Item = SubListChangeMove<S, V>> + 'a {
-        let solution = score_director.working_solution();
         let list_len = self.list_len;
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
@@ -176,37 +177,23 @@ where
         let min_seg = self.min_sublist_size;
         let max_seg = self.max_sublist_size;
 
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-
+        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let entities = selected.entities;
+        let route_lens = selected.route_lens;
         let mut moves = Vec::new();
 
         for (src_idx, &src_entity) in entities.iter().enumerate() {
             let src_len = route_lens[src_idx];
 
-            // Enumerate all valid source segments [start, end)
             for seg_start in 0..src_len {
                 for seg_size in min_seg..=max_seg {
                     let seg_end = seg_start + seg_size;
                     if seg_end > src_len {
-                        break; // No larger segments fit at this start
+                        break;
                     }
 
-                    /* Intra-entity destinations: insert at positions in the post-removal list
-                    Post-removal list has src_len - seg_size elements.
-                    Valid insertion points: 0..=(src_len - seg_size)
-                    */
                     let post_removal_len = src_len - seg_size;
                     for dst_pos in 0..=post_removal_len {
-                        /* Skip no-ops: inserting at the same logical position
-                        After removal, seg_start..seg_end are gone.
-                        dst_pos == seg_start means insert right where we removed (no-op).
-                        */
                         if dst_pos == seg_start {
                             continue;
                         }
@@ -224,13 +211,11 @@ where
                         ));
                     }
 
-                    // Inter-entity destinations
                     for (dst_idx, &dst_entity) in entities.iter().enumerate() {
                         if dst_idx == src_idx {
                             continue;
                         }
                         let dst_len = route_lens[dst_idx];
-                        // Can insert at positions 0..=dst_len
                         for dst_pos in 0..=dst_len {
                             moves.push(SubListChangeMove::new(
                                 src_entity,
@@ -254,26 +239,25 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
+        let selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        let total_elements = selected.route_lens.iter().sum::<usize>();
+        let entity_count = selected.entities.len();
 
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-        let n = entities.len();
-        if n == 0 {
-            return 0;
-        }
-
-        let k_range = self.max_sublist_size - self.min_sublist_size + 1;
-        let total_elements: usize = route_lens.iter().sum();
-        let avg_len = total_elements / n;
-        // Rough estimate: n * avg_len * k_range * (avg_len + (n-1) * avg_len)
-        n * avg_len * k_range * avg_len.max(1) * n
+        selected
+            .route_lens
+            .iter()
+            .map(|&route_len| {
+                let inter_destinations =
+                    total_elements.saturating_sub(route_len) + entity_count.saturating_sub(1);
+                count_sublist_change_moves_for_len(
+                    route_len,
+                    inter_destinations,
+                    self.min_sublist_size,
+                    self.max_sublist_size,
+                )
+            })
+            .sum()
     }
 }
 

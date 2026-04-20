@@ -218,10 +218,10 @@ where
             return false;
         }
 
-        // For intra-list, check if move would actually change anything
+        // For intra-list, dest_position is relative to the post-removal list.
         if self.is_intra_list() {
-            // If dest is within the source range, it's a no-op
-            if self.dest_position >= self.source_start && self.dest_position <= self.source_end {
+            // Re-inserting at the original start position is the only no-op.
+            if self.dest_position == self.source_start {
                 return false;
             }
         }

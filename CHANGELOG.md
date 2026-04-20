@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.8.10](///compare/v0.8.9...v0.8.10) (2026-04-20)
+
+
+### Bug Fixes
+
+* **macros:** harden generated list helper bindings d49900e
+* **macros:** restore explicit list helper surface ec789e0
+* **shadows:** canonicalize descriptor-aware shadow lifecycle 79cc69c
+* **solver:** avoid duplicate construction best events 6c6b466
+* **solver:** canonicalize partitioned search lifecycle c6bf033
+* **solver:** publish tied construction solutions 527d287
+
 ## [0.8.9](///compare/v0.8.8...v0.8.9) (2026-04-20)
 
 ## [0.8.8](///compare/v0.8.7...v0.8.8) (2026-04-18)

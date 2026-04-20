@@ -125,8 +125,6 @@ src/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>
 │       │   ├── cartesian_product_tests.rs — Tests
-│       │   ├── count_limit.rs          — SelectedCountLimitMoveSelector<S, M, Inner>
-│       │   ├── count_limit_tests.rs    — Tests
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering_tests.rs      — Tests
 │       │   ├── probability.rs          — ProbabilityMoveSelector<S, M, Inner>
@@ -587,7 +585,6 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `ShufflingMoveSelector<S, M, Inner>` | RNG | Randomizes order |
 | `SortingMoveSelector<S, M, Inner>` | Comparator `fn(&M, &M) -> Ordering` | Sorts moves |
 | `ProbabilityMoveSelector<S, M, Inner>` | Weight `fn(&M) -> f64` | Probabilistic filtering |
-| `SelectedCountLimitMoveSelector<S, M, Inner>` | Limit `usize` | Caps yield count |
 
 ### Supporting Types
 

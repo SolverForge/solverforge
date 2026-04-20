@@ -304,10 +304,8 @@ fn collect_standard_leaf_selectors<S>(
                     collect(child, scalar_variables, leaves);
                 }
             }
-            MoveSelectorConfig::SelectedCountLimitMoveSelector(_) => {
-                panic!(
-                    "selected_count_limit_move_selector must be handled by the canonical runtime"
-                );
+            MoveSelectorConfig::LimitedNeighborhood(_) => {
+                panic!("limited_neighborhood must be handled by the canonical runtime");
             }
             MoveSelectorConfig::ListChangeMoveSelector(_)
             | MoveSelectorConfig::NearbyListChangeMoveSelector(_)

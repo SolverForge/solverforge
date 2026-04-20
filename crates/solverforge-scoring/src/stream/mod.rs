@@ -82,6 +82,7 @@ mod penta_stream;
 mod quad_stream;
 mod tri_stream;
 mod uni_stream;
+mod weighting_support;
 
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};

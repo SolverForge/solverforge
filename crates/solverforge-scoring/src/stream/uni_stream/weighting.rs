@@ -7,6 +7,7 @@ use crate::constraint::incremental::IncrementalUniConstraint;
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::UniFilter;
+use super::super::weighting_support::fixed_weight_is_hard;
 use super::base::UniConstraintStream;
 
 impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
@@ -17,6 +18,26 @@ where
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight: W,
+        is_hard: bool,
+    ) -> UniConstraintBuilder<S, A, E, F, W, Sc>
+    where
+        W: Fn(&A) -> Sc + Send + Sync,
+    {
+        UniConstraintBuilder {
+            extractor: self.extractor,
+            filter: self.filter,
+            impact_type,
+            weight,
+            is_hard,
+            expected_descriptor: None,
+            _phantom: PhantomData,
+        }
+    }
+
     // Penalizes each matching entity with a fixed weight.
     pub fn penalize(
         self,
@@ -25,20 +46,11 @@ where
     where
         Sc: Copy,
     {
-        let is_hard = weight
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        UniConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            impact_type: ImpactType::Penalty,
-            weight: move |_: &A| weight,
-            is_hard,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |_: &A| weight,
+            fixed_weight_is_hard(weight),
+        )
     }
 
     /* Penalizes each matching entity with a dynamic weight. */
@@ -46,15 +58,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        UniConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            impact_type: ImpactType::Penalty,
-            weight: weight_fn,
-            is_hard: false,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
     }
 
     // Penalizes each matching entity with a dynamic weight, explicitly marked as a hard constraint.
@@ -62,15 +66,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        UniConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            impact_type: ImpactType::Penalty,
-            weight: weight_fn,
-            is_hard: true,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
     }
 
     // Rewards each matching entity with a fixed weight.
@@ -81,20 +77,11 @@ where
     where
         Sc: Copy,
     {
-        let is_hard = weight
-            .to_level_numbers()
-            .first()
-            .map(|&h| h != 0)
-            .unwrap_or(false);
-        UniConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            impact_type: ImpactType::Reward,
-            weight: move |_: &A| weight,
-            is_hard,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |_: &A| weight,
+            fixed_weight_is_hard(weight),
+        )
     }
 
     /* Rewards each matching entity with a dynamic weight. */
@@ -102,15 +89,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        UniConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            impact_type: ImpactType::Reward,
-            weight: weight_fn,
-            is_hard: false,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
     }
 
     // Rewards each matching entity with a dynamic weight, explicitly marked as a hard constraint.
@@ -118,15 +97,7 @@ where
     where
         W: Fn(&A) -> Sc + Send + Sync,
     {
-        UniConstraintBuilder {
-            extractor: self.extractor,
-            filter: self.filter,
-            impact_type: ImpactType::Reward,
-            weight: weight_fn,
-            is_hard: true,
-            expected_descriptor: None,
-            _phantom: PhantomData,
-        }
+        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
     }
 
     // Penalizes each matching entity with one hard score unit.

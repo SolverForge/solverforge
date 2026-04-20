@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Error, Ident};
 
-use crate::attr_parse::{get_attribute, has_attribute, parse_attribute_string};
+use crate::attr_parse::has_attribute;
 use crate::list_registry::lookup_list_entity_metadata;
 
 use super::config::ShadowConfig;
@@ -14,21 +14,9 @@ struct ListOwnerConfig<'a> {
     element_collection_name: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ListElementCollectionKind {
-    MatchingCollection,
-    LegacyListCollection,
-}
-
-struct ListElementCollectionConfig<'a> {
-    field_ident: &'a Ident,
-    owner_field: String,
-    kind: ListElementCollectionKind,
-}
-
 struct ListShadowConfig<'a> {
     list_owner: ListOwnerConfig<'a>,
-    element_collection: ListElementCollectionConfig<'a>,
+    element_collection_ident: &'a Ident,
 }
 
 fn type_name_from_collection(ty: &syn::Type) -> Option<String> {
@@ -38,45 +26,6 @@ fn type_name_from_collection(ty: &syn::Type) -> Option<String> {
     };
     let segment = type_path.path.segments.last()?;
     Some(segment.ident.to_string())
-}
-
-fn find_registered_list_owner_config<'a>(
-    fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Result<Option<ListOwnerConfig<'a>>, Error> {
-    let mut matches = Vec::new();
-
-    for field in fields
-        .iter()
-        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
-    {
-        let Some(field_ident) = field.ident.as_ref() else {
-            continue;
-        };
-        let Some(type_name) = type_name_from_collection(&field.ty) else {
-            continue;
-        };
-        let Some(metadata) = lookup_list_entity_metadata(&type_name) else {
-            continue;
-        };
-        let Some(entity_type) = extract_collection_inner_type(&field.ty) else {
-            continue;
-        };
-
-        matches.push(ListOwnerConfig {
-            field_ident,
-            entity_type,
-            element_collection_name: metadata.element_collection_name,
-        });
-    }
-
-    if matches.len() > 1 {
-        return Err(Error::new(
-            proc_macro2::Span::call_site(),
-            "#[planning_solution] currently supports at most one planning entity collection with #[planning_list_variable(...)]",
-        ));
-    }
-
-    Ok(matches.pop())
 }
 
 fn find_list_owner_config<'a>(
@@ -117,117 +66,46 @@ fn find_list_owner_config<'a>(
         })
 }
 
-fn find_list_element_collection_config<'a>(
+fn find_matching_element_collection<'a>(
+    list_owner: &ListOwnerConfig<'a>,
     fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Result<Option<ListElementCollectionConfig<'a>>, Error> {
-    let mut matches = fields
+) -> Result<&'a Ident, Error> {
+    fields
         .iter()
-        .filter_map(|field| {
-            let attr = get_attribute(&field.attrs, "planning_list_element_collection")?;
-            let owner = parse_attribute_string(attr, "owner")?;
+        .find_map(|field| {
             let field_ident = field.ident.as_ref()?;
-            let inner = extract_collection_inner_type(&field.ty)?;
-            let syn::Type::Path(type_path) = inner else {
-                return None;
-            };
-            let segment = type_path.path.segments.last()?;
-            if segment.ident != "usize" {
-                return None;
-            }
-            Some(ListElementCollectionConfig {
-                field_ident,
-                owner_field: owner,
-                kind: ListElementCollectionKind::LegacyListCollection,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    if matches.len() > 1 {
-        return Err(Error::new(
-            proc_macro2::Span::call_site(),
-            "#[planning_solution] currently supports at most one #[planning_list_element_collection(...)] field",
-        ));
-    }
-
-    Ok(matches.pop())
-}
-
-fn find_list_shadow_config<'a>(
-    fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-) -> Result<Option<ListShadowConfig<'a>>, Error> {
-    if let Some(list_owner) = find_registered_list_owner_config(fields)? {
-        if let Some(element_collection) = fields.iter().find_map(|field| {
-            let field_ident = field.ident.as_ref()?;
-            if *field_ident != list_owner.element_collection_name {
+            if field_ident.to_string() != list_owner.element_collection_name {
                 return None;
             }
             if has_attribute(&field.attrs, "planning_entity_collection")
                 || has_attribute(&field.attrs, "problem_fact_collection")
             {
-                Some(ListElementCollectionConfig {
-                    field_ident,
-                    owner_field: list_owner.field_ident.to_string(),
-                    kind: ListElementCollectionKind::MatchingCollection,
-                })
+                Some(field_ident)
             } else {
                 None
             }
-        }) {
-            return Ok(Some(ListShadowConfig {
-                list_owner,
-                element_collection,
-            }));
-        }
-    }
-
-    let Some(element_collection) = find_list_element_collection_config(fields)? else {
-        if let Some(list_owner) = find_registered_list_owner_config(fields)? {
-            return Err(Error::new(
+        })
+        .ok_or_else(|| {
+            Error::new(
                 proc_macro2::Span::call_site(),
                 format!(
                     "planning solution with list owner `{}` requires a `#[planning_entity_collection]` or `#[problem_fact_collection]` field named `{}`",
                     list_owner.field_ident,
                     list_owner.element_collection_name,
                 ),
-            ));
-        }
-        return Ok(None);
-    };
-
-    let owner = fields
-        .iter()
-        .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
-        .find_map(|field| {
-            let field_ident = field.ident.as_ref()?;
-            if *field_ident != element_collection.owner_field {
-                return None;
-            }
-            let entity_type = extract_collection_inner_type(&field.ty)?;
-            let element_collection_name = type_name_from_collection(&field.ty)
-                .and_then(|type_name| lookup_list_entity_metadata(&type_name))
-                .map(|metadata| metadata.element_collection_name)
-                .unwrap_or_default();
-            Some(ListOwnerConfig {
-                field_ident,
-                entity_type,
-                element_collection_name,
-            })
-        })
-        .ok_or_else(|| {
-            Error::new(
-                proc_macro2::Span::call_site(),
-                format!(
-                    "planning solution with list owner `{}` requires a `#[planning_list_element_collection(owner = \"{}\")]` field of type Vec<usize>",
-                    element_collection.owner_field,
-                    element_collection.owner_field,
-                ),
             )
-        })?;
+        })
+}
 
-    Ok(Some(ListShadowConfig {
-        list_owner: owner,
-        element_collection,
-    }))
+fn find_list_shadow_config<'a>(
+    list_owner: ListOwnerConfig<'a>,
+    fields: &'a syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<ListShadowConfig<'a>, Error> {
+    let element_collection_ident = find_matching_element_collection(&list_owner, fields)?;
+    Ok(ListShadowConfig {
+        list_owner,
+        element_collection_ident,
+    })
 }
 
 fn shadow_updates_requested(config: &ShadowConfig) -> bool {
@@ -261,39 +139,11 @@ pub(super) fn generate_shadow_support(
         ));
     };
 
-    let Some(runtime_config) = find_list_shadow_config(fields)? else {
-        return Err(Error::new(
-            proc_macro2::Span::call_site(),
-            format!(
-                "planning solution with list owner `{}` requires a `#[planning_entity_collection]` or `#[problem_fact_collection]` field named `{}`",
-                list_owner.field_ident,
-                list_owner.field_ident,
-            ),
-        ));
-    };
-    if runtime_config.list_owner.field_ident != list_owner.field_ident {
-        return Err(Error::new(
-            proc_macro2::Span::call_site(),
-            format!(
-                "#[shadow_variable_updates(list_owner = \"{}\")] does not match the inferred list owner `{}`",
-                list_owner.field_ident,
-                runtime_config.list_owner.field_ident,
-            ),
-        ));
-    }
-    if runtime_config.element_collection.kind == ListElementCollectionKind::LegacyListCollection {
-        return Err(Error::new(
-            proc_macro2::Span::call_site(),
-            format!(
-                "planning solution with list owner `{}` requires a matching `#[planning_entity_collection]` or `#[problem_fact_collection]` field for shadow updates",
-                list_owner.field_ident,
-            ),
-        ));
-    }
+    let runtime_config = find_list_shadow_config(list_owner, fields)?;
 
-    let list_owner_ident = list_owner.field_ident;
-    let element_collection_ident = runtime_config.element_collection.field_ident;
-    let list_owner_type = list_owner.entity_type;
+    let list_owner_ident = runtime_config.list_owner.field_ident;
+    let element_collection_ident = runtime_config.element_collection_ident;
+    let list_owner_type = runtime_config.list_owner.entity_type;
     let list_trait =
         quote! { <#list_owner_type as ::solverforge::__internal::ListVariableEntity<Self>> };
 

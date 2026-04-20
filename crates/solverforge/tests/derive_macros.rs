@@ -128,19 +128,22 @@ fn test_solution_descriptor_preserves_entity_variable_metadata() {
 }
 
 #[test]
-fn test_field_only_list_solution_derives_runtime_helpers() {
-    let plan = RoutePlan {
-        visits: vec![Visit { id: 10 }, Visit { id: 11 }, Visit { id: 12 }],
-        routes: vec![Route {
-            id: 1,
-            visits: vec![2, 0],
-        }],
-        score: None,
-    };
+fn test_field_only_list_solution_preserves_list_descriptor_metadata() {
+    let descriptor = RoutePlan::descriptor();
+    let route_descriptor = descriptor
+        .find_entity_descriptor("Route")
+        .expect("Route descriptor should be present");
 
-    assert_eq!(RoutePlan::element_count(&plan), 3);
-    assert_eq!(RoutePlan::n_entities(&plan), 1);
-    assert_eq!(RoutePlan::list_len_static(&plan, 0), 2);
-    assert_eq!(RoutePlan::index_to_element_static(&plan, 1), 1);
-    assert_eq!(RoutePlan::assigned_elements(&plan), vec![2, 0]);
+    assert_eq!(route_descriptor.solution_field, "routes");
+    assert_eq!(route_descriptor.id_field, Some("id"));
+
+    let visits_var = route_descriptor
+        .find_variable("visits")
+        .expect("visits variable descriptor should be present");
+
+    assert_eq!(visits_var.name, "visits");
+    assert_eq!(
+        visits_var.variable_type,
+        solverforge_core::domain::VariableType::List
+    );
 }

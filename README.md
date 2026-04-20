@@ -33,7 +33,7 @@ Open http://localhost:7860 to see your solver in action.
 
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
-The current templates cover standard-variable and list-heavy planning models, and the generated code targets the same runtime. Use `solverforge generate` to add entities, facts, and constraints interactively.
+The current templates cover standard-variable and list-heavy planning models, and the generated code targets the same runtime. One solution can mix scalar planning variables with multiple independent planning lists, and each list owner is published through its own generated runtime hooks. Use `solverforge generate` to add entities, facts, and constraints interactively.
 
 ## Extend the Scaffold
 
@@ -68,7 +68,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 - **ConstraintStream API**: Declarative constraint definition with fluent builders
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Construction Heuristics for standard, list, and mixed planning models
+  - Construction Heuristics for standard, list, and mixed planning models, including multiple list owners in one solution
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)

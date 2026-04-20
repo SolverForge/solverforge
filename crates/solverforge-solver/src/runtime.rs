@@ -641,8 +641,7 @@ where
         &self,
         solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
         list_construction: &[ConstructionArgs<S, V>],
-    )
-    where
+    ) where
         D: solverforge_scoring::Director<S>,
         ProgressCb: ProgressCallback<S>,
     {

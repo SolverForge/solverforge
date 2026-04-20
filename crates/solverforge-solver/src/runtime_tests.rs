@@ -289,14 +289,14 @@ fn shift_args() -> ConstructionArgs<MultiOwnerSolution, usize> {
     }
 }
 
-fn multi_owner_scope(solution: MultiOwnerSolution) -> SolverScope<'static, MultiOwnerSolution, ScoreDirector<MultiOwnerSolution, ()>> {
+fn multi_owner_scope(
+    solution: MultiOwnerSolution,
+) -> SolverScope<'static, MultiOwnerSolution, ScoreDirector<MultiOwnerSolution, ()>> {
     let director = ScoreDirector::simple(solution, multi_owner_descriptor(), |_, _| 0);
     SolverScope::new(director)
 }
 
-fn solve_multi_owner_construction(
-    config: ConstructionHeuristicConfig,
-) -> MultiOwnerSolution {
+fn solve_multi_owner_construction(config: ConstructionHeuristicConfig) -> MultiOwnerSolution {
     let mut phase = Construction::new(
         Some(config),
         multi_owner_descriptor(),

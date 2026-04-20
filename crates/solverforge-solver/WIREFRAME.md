@@ -820,13 +820,13 @@ formatting edges.
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V>` — construction phase over scalar and list metadata
-- `ConstructionArgs<S, V>` — function-pointer bundle for list construction hooks
+- `Construction<S, V>` — construction phase over scalar metadata plus ordered list-owner construction hooks
+- `ConstructionArgs<S, V>` — per-list-owner function-pointer bundle for list construction hooks
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
-- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, one `ModelContext`, and optional construction hooks
+- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, one `ModelContext`, and ordered list construction hooks for zero or more list owners
 
-Scalar and list-heavy models both target this same runtime layer. Documentation and examples should describe one canonical runtime path rather than separate legacy standard/list builders.
+Scalar and list-heavy models both target this same runtime layer. Documentation and examples should describe one canonical runtime path rather than separate legacy standard/list builders, and multi-owner list construction should be modeled as repeated `ConstructionArgs` records rather than a special-case runtime split.
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 

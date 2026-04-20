@@ -74,7 +74,7 @@ fn find_matching_element_collection<'a>(
         .iter()
         .find_map(|field| {
             let field_ident = field.ident.as_ref()?;
-            if field_ident.to_string() != list_owner.element_collection_name {
+            if field_ident != list_owner.element_collection_name.as_str() {
                 return None;
             }
             if has_attribute(&field.attrs, "planning_entity_collection")

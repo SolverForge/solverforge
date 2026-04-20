@@ -326,7 +326,3 @@ where
         }
     }
 }
-
-#[cfg(test)]
-#[path = "move_selector_tests.rs"]
-mod tests;

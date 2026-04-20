@@ -396,7 +396,3 @@ where
         self.variable_name
     }
 }
-
-#[cfg(test)]
-#[path = "sublist_swap_tests.rs"]
-mod tests;

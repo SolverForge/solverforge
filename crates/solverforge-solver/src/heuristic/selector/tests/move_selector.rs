@@ -6,6 +6,10 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
 use std::any::TypeId;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
@@ -72,6 +76,87 @@ fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
     ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
 }
 
+#[derive(Clone, Debug)]
+struct CountedTask {
+    value: Option<CountedValue>,
+}
+
+#[derive(Clone, Debug)]
+struct CountedSolution {
+    tasks: Vec<CountedTask>,
+    score: Option<SoftScore>,
+}
+
+impl PlanningSolution for CountedSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+#[derive(Debug)]
+struct CountedValue {
+    id: usize,
+    cloned: Arc<AtomicUsize>,
+}
+
+impl Clone for CountedValue {
+    fn clone(&self) -> Self {
+        self.cloned.fetch_add(1, Ordering::SeqCst);
+        Self {
+            id: self.id,
+            cloned: Arc::clone(&self.cloned),
+        }
+    }
+}
+
+impl PartialEq for CountedValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+fn get_counted_tasks(s: &CountedSolution) -> &Vec<CountedTask> {
+    &s.tasks
+}
+
+fn get_counted_tasks_mut(s: &mut CountedSolution) -> &mut Vec<CountedTask> {
+    &mut s.tasks
+}
+
+fn get_counted_value(s: &CountedSolution, idx: usize) -> Option<CountedValue> {
+    s.tasks.get(idx).and_then(|task| task.value.clone())
+}
+
+fn set_counted_value(s: &mut CountedSolution, idx: usize, v: Option<CountedValue>) {
+    if let Some(task) = s.tasks.get_mut(idx) {
+        task.value = v;
+    }
+}
+
+fn create_counted_director(tasks: Vec<CountedTask>) -> ScoreDirector<CountedSolution, ()> {
+    let solution = CountedSolution { tasks, score: None };
+
+    let extractor = Box::new(EntityCollectionExtractor::new(
+        "CountedTask",
+        "tasks",
+        get_counted_tasks,
+        get_counted_tasks_mut,
+    ));
+    let entity_desc = EntityDescriptor::new("CountedTask", TypeId::of::<CountedTask>(), "tasks")
+        .with_extractor(extractor);
+
+    let descriptor = SolutionDescriptor::new("CountedSolution", TypeId::of::<CountedSolution>())
+        .with_entity(entity_desc);
+
+    ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
+}
+
 #[test]
 fn test_change_move_selector() {
     let director = create_director(vec![
@@ -108,6 +193,40 @@ fn test_change_move_selector() {
     let first = &moves[0];
     assert_eq!(first.entity_index(), 0);
     assert_eq!(first.to_value(), Some(&10));
+}
+
+#[test]
+fn change_selector_clones_values_as_cursor_advances() {
+    let director = create_counted_director(vec![CountedTask { value: None }]);
+    let cloned = Arc::new(AtomicUsize::new(0));
+    let values = (0..10)
+        .map(|id| CountedValue {
+            id,
+            cloned: Arc::clone(&cloned),
+        })
+        .collect();
+    let selector =
+        ChangeMoveSelector::simple(get_counted_value, set_counted_value, 0, "counted", values);
+
+    let mut cursor = selector.open_cursor(&director);
+
+    assert_eq!(cloned.load(Ordering::SeqCst), 0);
+
+    let first = cursor.next().expect("first move should be available");
+    assert_eq!(first.entity_index(), 0);
+    assert_eq!(first.to_value().map(|value| value.id), Some(0));
+    assert_eq!(cloned.load(Ordering::SeqCst), 1);
+
+    let next_two: Vec<_> = cursor.by_ref().take(2).collect();
+    assert_eq!(next_two.len(), 2);
+    assert_eq!(
+        next_two
+            .iter()
+            .map(|mov| mov.to_value().map(|value| value.id))
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2)]
+    );
+    assert_eq!(cloned.load(Ordering::SeqCst), 3);
 }
 
 #[test]

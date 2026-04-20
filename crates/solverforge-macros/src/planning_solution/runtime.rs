@@ -383,7 +383,7 @@ pub(super) fn generate_runtime_phase_support(
                                 )
                             )
                         );
-                        __solverforge_construction = ::core::option::Option::Some(
+                        __solverforge_construction.push(
                             ::solverforge::__internal::ConstructionArgs {
                                 element_count: Self::element_count,
                                 assigned_elements: Self::assigned_elements,
@@ -531,7 +531,7 @@ pub(super) fn generate_runtime_phase_support(
                 > {
                     let descriptor = Self::descriptor();
                     #standard_setup
-                    let mut __solverforge_construction = ::core::option::Option::None;
+                    let mut __solverforge_construction = ::std::vec::Vec::new();
                     #(#list_runtime_setup)*
                     let model = ::solverforge::__internal::ModelContext::<
                         #solution_name,
@@ -610,7 +610,7 @@ pub(super) fn generate_runtime_phase_support(
                     config,
                     &descriptor,
                     &model,
-                    ::core::option::Option::None,
+                    ::std::vec::Vec::new(),
                 )
             }
         }

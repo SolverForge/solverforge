@@ -26,7 +26,7 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> cons
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.8.10`.
+Current workspace release version: `0.8.11`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
@@ -96,6 +96,16 @@ Clone is acceptable only for:
 1. Solution snapshots sent through channels.
 2. Partitioned search creating partition copies.
 
+### Neighborhood Hot Paths
+
+List, nearby-list, and sublist selector cursor paths are production hot loops.
+
+- Preserve canonical enumeration order. Seeded order drift is a regression.
+- Generated moves from finite selectors must remain `is_doable`.
+- Benchmark touched neighborhood families in release mode before and after refactors.
+- Shared helpers are acceptable for selected-entity snapshots, candidate ordering, and exact `size()` accounting, but keep `open_cursor()` loops explicit when abstraction hurts throughput or clarity.
+- Do not accept a median throughput regression greater than 5% without explicit user approval.
+
 ### Threading
 
 Use `rayon` for CPU-bound work and `tokio` for async coordination.
@@ -120,6 +130,7 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 - Move implementation code into dedicated files.
 - Prefer doctests for public APIs when practical, and make them compile meaningfully.
 - Keep examples and scaffold-facing guidance on the public fluent API surface. If an example requires internal wiring, improve the public API instead.
+- Canonical multi-file move and selector behavior tests belong under subsystem `tests/` trees. Do not reintroduce parallel `*_tests.rs` siblings once coverage has been consolidated.
 
 ## Change Policy
 

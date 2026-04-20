@@ -8,7 +8,7 @@ use std::time::Duration;
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
+use solverforge_scoring::{ConstraintSet, Director, ScoreDirector, ShadowVariableSupport};
 use tracing::info;
 
 use crate::manager::{SolverRuntime, SolverTerminalReason};
@@ -122,7 +122,7 @@ pub fn build_termination<S, C>(
     default_secs: u64,
 ) -> (AnyTermination<S, ScoreDirector<S, C>>, Duration)
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
 {
@@ -206,7 +206,7 @@ pub fn run_solver<S, C, P>(
     build_phases: fn(&SolverConfig) -> PhaseSequence<P>,
 ) -> S
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
     P: Send + std::fmt::Debug,
@@ -241,7 +241,7 @@ pub fn run_solver_with_config<S, C, P>(
     build_phases: fn(&SolverConfig) -> PhaseSequence<P>,
 ) -> S
 where
-    S: PlanningSolution,
+    S: PlanningSolution + ShadowVariableSupport,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
     P: Send + std::fmt::Debug,
@@ -251,7 +251,7 @@ where
     let trivial = is_trivial(&solution);
 
     let constraints = constraints_fn();
-    let director = ScoreDirector::with_descriptor(
+    let director = ScoreDirector::with_descriptor_and_shadow_support(
         solution,
         constraints,
         descriptor(),

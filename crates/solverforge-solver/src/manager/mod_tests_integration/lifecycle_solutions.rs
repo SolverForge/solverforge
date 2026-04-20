@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::Director;
+use solverforge_scoring::{Director, ShadowVariableSupport};
 
 use super::super::{
     Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverRuntime, SolverTerminalReason,
@@ -345,6 +345,10 @@ impl PlanningSolution for TrivialLifecycleSolution {
     fn set_score(&mut self, score: Option<Self::Score>) {
         self.score = score;
     }
+}
+
+impl ShadowVariableSupport for TrivialLifecycleSolution {
+    fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {}
 }
 
 fn trivial_solution_descriptor() -> SolutionDescriptor {

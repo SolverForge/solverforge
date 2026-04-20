@@ -14,9 +14,10 @@ must be updated before constraint evaluation.
 
 # Entity-Level Updates
 
-This trait provides entity-level granularity: when a variable on entity N
-changes, only entity N's shadow variables are updated. This enables O(1)
-incremental updates instead of full solution recalculation.
+This trait provides descriptor-aware, entity-level granularity: when a variable
+on entity N in descriptor D changes, only that descriptor/entity pair's shadow
+variables are updated. This enables O(1) incremental updates instead of full
+solution recalculation.
 
 # Example
 
@@ -53,7 +54,7 @@ fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 }
 
 impl ShadowVariableSupport for VrpSolution {
-fn update_entity_shadows(&mut self, entity_index: usize) {
+fn update_entity_shadows(&mut self, _descriptor_index: usize, entity_index: usize) {
 // Update cached total demand for this vehicle
 let total: i32 = self.vehicles[entity_index]
 .visits
@@ -65,20 +66,20 @@ self.vehicles[entity_index].cached_total_demand = total;
 
 fn update_all_shadows(&mut self) {
 for i in 0..self.vehicles.len() {
-self.update_entity_shadows(i);
+self.update_entity_shadows(0, i);
 }
 }
 }
 ```
 */
 pub trait ShadowVariableSupport: PlanningSolution {
-    /* Updates shadow variables for the entity at `entity_index`.
+    /* Updates shadow variables for the entity at `entity_index` on `descriptor_index`.
 
     Called after a planning variable change on this entity, before
     constraint evaluation. Should update all shadow variables and
     cached aggregates that depend on this entity's planning variables.
     */
-    fn update_entity_shadows(&mut self, entity_index: usize);
+    fn update_entity_shadows(&mut self, descriptor_index: usize, entity_index: usize);
 
     /* Updates shadow variables for all entities.
 
@@ -123,7 +124,7 @@ fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 }
 
 impl ShadowVariableSupport for MyPlan {
-fn update_entity_shadows(&mut self, _idx: usize) {}
+fn update_entity_shadows(&mut self, _descriptor_index: usize, _idx: usize) {}
 }
 
 impl SolvableSolution for MyPlan {

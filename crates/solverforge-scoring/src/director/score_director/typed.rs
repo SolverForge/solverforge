@@ -78,6 +78,8 @@ where
     throughout the solver pipeline.
     */
     pub(super) entity_counter: fn(&S, usize) -> usize,
+    shadow_update_entity: fn(&mut S, usize, usize),
+    shadow_update_all: fn(&mut S),
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -97,6 +99,20 @@ where
     pub fn new(solution: S, constraints: C) -> Self {
         use std::any::TypeId;
         Self::with_descriptor(
+            solution,
+            constraints,
+            SolutionDescriptor::new("", TypeId::of::<()>()),
+            |_, _| 0,
+        )
+    }
+
+    /* Creates a new typed score director that runs shadow updates on the canonical lifecycle. */
+    pub fn new_with_shadow_support(solution: S, constraints: C) -> Self
+    where
+        S: crate::director::ShadowVariableSupport,
+    {
+        use std::any::TypeId;
+        Self::with_descriptor_and_shadow_support(
             solution,
             constraints,
             SolutionDescriptor::new("", TypeId::of::<()>()),
@@ -129,6 +145,32 @@ where
             initialized: false,
             solution_descriptor,
             entity_counter,
+            shadow_update_entity: |_, _, _| {},
+            shadow_update_all: |_| {},
+            _phantom: PhantomData,
+        }
+    }
+
+    /* Creates a typed score director with descriptor metadata and canonical shadow updates. */
+    pub fn with_descriptor_and_shadow_support(
+        solution: S,
+        constraints: C,
+        solution_descriptor: SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
+    ) -> Self
+    where
+        S: crate::director::ShadowVariableSupport,
+    {
+        Self {
+            working_solution: solution,
+            constraints,
+            cached_score: S::Score::zero(),
+            initialized: false,
+            solution_descriptor,
+            entity_counter,
+            shadow_update_entity:
+                <S as crate::director::ShadowVariableSupport>::update_entity_shadows,
+            shadow_update_all: <S as crate::director::ShadowVariableSupport>::update_all_shadows,
             _phantom: PhantomData,
         }
     }
@@ -140,6 +182,7 @@ where
 
     pub(crate) fn calculate_score_impl(&mut self) -> S::Score {
         if !self.initialized {
+            (self.shadow_update_all)(&mut self.working_solution);
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
@@ -169,6 +212,7 @@ where
         if !self.initialized {
             return;
         }
+        (self.shadow_update_entity)(&mut self.working_solution, descriptor_index, entity_index);
         let delta =
             self.constraints
                 .on_insert_all(&self.working_solution, entity_index, descriptor_index);
@@ -209,8 +253,8 @@ where
 
     /* Calculates and returns the current score.
 
-    On first call, initializes all constraints (O(n) for uni, O(n²) for bi).
-    Subsequent calls return the cached score (O(1)).
+    On first call, updates all configured shadows and initializes all constraints
+    (O(n) for uni, O(n²) for bi). Subsequent calls return the cached score (O(1)).
 
     Also sets the score on the working solution to keep it in sync.
     */
@@ -235,8 +279,9 @@ where
 
     /* Called after changing an entity's variable.
 
-    This inserts the entity (with new state) into all constraints,
-    computing the delta and updating the cached score.
+    This updates any configured shadows for the descriptor/entity pair, then
+    inserts the entity (with new state) into all constraints, computing the
+    delta and updating the cached score.
 
     # Arguments
 
@@ -246,31 +291,6 @@ where
     #[inline]
     pub fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.after_variable_changed_impl(descriptor_index, entity_index);
-    }
-
-    /* Called after changing an entity's variable, with shadow update.
-
-    Updates shadow variables for the entity FIRST, then inserts into
-    constraints. This ensures constraints see the updated shadow state.
-    */
-    #[inline]
-    pub fn after_variable_changed_with_shadows(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) where
-        S: crate::director::ShadowVariableSupport,
-    {
-        if !self.initialized {
-            return;
-        }
-
-        self.working_solution.update_entity_shadows(entity_index);
-
-        let delta =
-            self.constraints
-                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
-        self.cached_score = self.cached_score + delta;
     }
 
     /* Convenience method for a complete variable change cycle. */
@@ -287,24 +307,6 @@ where
         self.before_variable_changed(descriptor_index, entity_index);
         change_fn(&mut self.working_solution);
         self.after_variable_changed(descriptor_index, entity_index);
-        self.cached_score
-    }
-
-    /* Variable change cycle with automatic shadow updates. */
-    #[inline]
-    pub fn do_change_with_shadows<F>(
-        &mut self,
-        descriptor_index: usize,
-        entity_index: usize,
-        change_fn: F,
-    ) -> S::Score
-    where
-        S: crate::director::ShadowVariableSupport,
-        F: FnOnce(&mut S),
-    {
-        self.before_variable_changed(descriptor_index, entity_index);
-        change_fn(&mut self.working_solution);
-        self.after_variable_changed_with_shadows(descriptor_index, entity_index);
         self.cached_score
     }
 
@@ -410,6 +412,18 @@ where
         entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
         Self::with_descriptor(solution, (), descriptor, entity_counter)
+    }
+
+    /* Creates a non-incremental director whose canonical lifecycle updates shadows. */
+    pub fn simple_with_shadow_support(
+        solution: S,
+        descriptor: SolutionDescriptor,
+        entity_counter: fn(&S, usize) -> usize,
+    ) -> Self
+    where
+        S: crate::director::ShadowVariableSupport,
+    {
+        Self::with_descriptor_and_shadow_support(solution, (), descriptor, entity_counter)
     }
 
     /* Creates a non-incremental director with empty descriptor and zero entity counter. */

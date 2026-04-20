@@ -9,6 +9,7 @@ use super::config::ShadowConfig;
 use super::type_helpers::extract_collection_inner_type;
 
 struct ListOwnerConfig<'a> {
+    descriptor_index: usize,
     field_ident: &'a Ident,
     entity_type: &'a syn::Type,
     element_collection_name: String,
@@ -39,7 +40,8 @@ fn find_list_owner_config<'a>(
     fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
-        .find_map(|field| {
+        .enumerate()
+        .find_map(|(descriptor_index, field)| {
             let field_ident = field.ident.as_ref()?;
             if field_ident != list_owner {
                 return None;
@@ -50,6 +52,7 @@ fn find_list_owner_config<'a>(
                 .map(|metadata| metadata.element_collection_name)
                 .unwrap_or_default();
             Some(ListOwnerConfig {
+                descriptor_index,
                 field_ident,
                 entity_type,
                 element_collection_name,
@@ -127,7 +130,7 @@ pub(super) fn generate_shadow_support(
         return Ok(quote! {
             impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
                 #[inline]
-                fn update_entity_shadows(&mut self, _entity_idx: usize) {}
+                fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_idx: usize) {}
             }
         });
     }
@@ -141,6 +144,7 @@ pub(super) fn generate_shadow_support(
 
     let runtime_config = find_list_shadow_config(list_owner, fields)?;
 
+    let list_owner_descriptor_index = runtime_config.list_owner.descriptor_index;
     let list_owner_ident = runtime_config.list_owner.field_ident;
     let element_collection_ident = runtime_config.element_collection_ident;
     let list_owner_type = runtime_config.list_owner.entity_type;
@@ -238,7 +242,11 @@ pub(super) fn generate_shadow_support(
     Ok(quote! {
         impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
             #[inline]
-            fn update_entity_shadows(&mut self, entity_idx: usize) {
+            fn update_entity_shadows(&mut self, descriptor_index: usize, entity_idx: usize) {
+                if descriptor_index != #list_owner_descriptor_index {
+                    return;
+                }
+
                 let element_indices: Vec<usize> =
                     #list_trait::list_field(&self.#list_owner_ident[entity_idx]).to_vec();
 
@@ -249,6 +257,13 @@ pub(super) fn generate_shadow_support(
                 #(#aggregate_updates)*
                 #(#compute_updates)*
                 #post_update
+            }
+
+            #[inline]
+            fn update_all_shadows(&mut self) {
+                for entity_idx in 0..self.#list_owner_ident.len() {
+                    self.update_entity_shadows(#list_owner_descriptor_index, entity_idx);
+                }
             }
         }
     })

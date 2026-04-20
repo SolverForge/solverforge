@@ -225,7 +225,7 @@ Implemented for tuples `()` through `(C0, C1, ..., C15)` where each `Ci: Increme
 
 | Method | Signature | Note |
 |--------|-----------|------|
-| `update_entity_shadows` | `fn update_entity_shadows(&mut self, entity_index: usize)` | Update shadows for one entity |
+| `update_entity_shadows` | `fn update_entity_shadows(&mut self, descriptor_index: usize, entity_index: usize)` | Update shadows for one entity on one descriptor |
 | `update_all_shadows` | `fn update_all_shadows(&mut self)` | Default: no-op |
 
 ### `SolvableSolution` — `: ShadowVariableSupport`
@@ -288,8 +288,9 @@ All `Send + Sync`:
 
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
-- Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `after_variable_changed_with_shadows()` (where `S: ShadowVariableSupport`), `do_change()`, `do_change_with_shadows()`, `get_score()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
+- Key methods: `new()`, `new_with_shadow_support()` (where `S: ShadowVariableSupport`), `with_descriptor()`, `with_descriptor_and_shadow_support()` (where `S: ShadowVariableSupport`), `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_with_shadow_support()` (where `S: ShadowVariableSupport`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
+- `simple_with_shadow_support(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` whose canonical lifecycle updates shadows before initialization/reinsertion
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - Implements `Director<S>`
 

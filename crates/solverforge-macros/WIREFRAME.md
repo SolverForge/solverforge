@@ -74,7 +74,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[value_range_provider]` — value range source
 
 **Consumed attributes on struct:**
-- `#[shadow_variable_updates(...)]` — configures shadow variable update generation only; the canonical solver path does not depend on it
+- `#[shadow_variable_updates(...)]` — configures descriptor-aware shadow updates for the canonical solver path
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 - `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the loaded `solver.toml` config (or defaults if the file is missing)
 
@@ -101,10 +101,10 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable metadata is preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - Owner-specific list operations (generated per `#[planning_entity_collection]` and bound only when that entity type reports `HAS_LIST_VARIABLE`): `__solverforge_list_len_<owner>()`, `__solverforge_list_remove_<owner>()`, `__solverforge_list_insert_<owner>()`, `__solverforge_list_get_<owner>()`, `__solverforge_list_set_<owner>()`, `__solverforge_list_reverse_<owner>()`, `__solverforge_sublist_remove_<owner>()`, `__solverforge_sublist_insert_<owner>()`, `__solverforge_ruin_remove_<owner>()`, `__solverforge_ruin_insert_<owner>()`, `__solverforge_list_remove_for_construction_<owner>()`, `__solverforge_index_to_element_<owner>()`, `__solverforge_element_count_<owner>()`, `__solverforge_assigned_elements_<owner>()`, `__solverforge_n_entities_<owner>()`, plus aggregate helpers `__solverforge_total_list_entities()` and `__solverforge_total_list_elements()`
-- `impl ShadowVariableSupport for T` — `update_entity_shadows()` (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
+- `impl ShadowVariableSupport for T` — `update_entity_shadows(descriptor_index, entity_index)` plus `update_all_shadows()` for the configured owner (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
-- `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` and returns `ScoreAnalysis`
+- `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
 - `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, then pass ordered list construction arguments into `solverforge-solver::runtime`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`. Each accessor returns a `UniConstraintStream` backed by `TrackedExtract<fn(&Solution) -> &[Item]>`, using `ChangeSource::Descriptor(idx)` for planning entities and `ChangeSource::Static` for problem facts so generated streams stay compatible with incremental `.if_exists(...)` / `.if_not_exists(...)` and `.unassigned()`.
 
@@ -184,7 +184,7 @@ Trait impls like `Solvable`, `Analyzable`, and `ScoreAnalysis` reference `::solv
 
 ### Shadow Variable Update Order
 
-When `#[shadow_variable_updates]` is configured, `update_entity_shadows(entity_idx)` executes in this order:
+When `#[shadow_variable_updates]` is configured, `update_entity_shadows(descriptor_index, entity_idx)` first ignores non-owner descriptors, then executes in this order for the configured owner:
 1. Collect `element_indices` from the configured list owner's list variable
 2. Inverse field update (set element's inverse to entity_idx)
 3. Previous element update (chain previous pointers)

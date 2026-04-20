@@ -11,7 +11,7 @@ use solverforge_test::shadow::ShadowSolution;
 
 // Implement ShadowVariableSupport for ShadowSolution (trait is in this crate)
 impl ShadowVariableSupport for ShadowSolution {
-    fn update_entity_shadows(&mut self, _entity_index: usize) {
+    fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {
         self.cached_sum = self.values.iter().sum();
     }
 
@@ -67,7 +67,7 @@ fn create_director(
 > {
     let solution = ShadowSolution::new(values);
     let constraint = make_sum_constraint();
-    ScoreDirector::new(solution, (constraint,))
+    ScoreDirector::new_with_shadow_support(solution, (constraint,))
 }
 
 #[test]
@@ -78,12 +78,12 @@ fn test_shadow_update_called_on_variable_change() {
     director.calculate_score();
 
     // Shadow should have been updated during initialization
-    assert_eq!(director.working_solution().cached_sum, 0);
+    assert_eq!(director.working_solution().cached_sum, 60);
 
-    // Change value and verify shadow update via after_variable_changed_with_shadows
+    // Change value and verify shadow update via the canonical after_variable_changed path
     director.before_variable_changed(0, 0);
     director.working_solution_mut().values[0] = 50;
-    director.after_variable_changed_with_shadows(0, 0);
+    director.after_variable_changed(0, 0);
 
     assert_eq!(director.working_solution().cached_sum, 100); // 50 + 20 + 30
 }

@@ -1,6 +1,8 @@
 // Integration tests for derive macros.
 
-use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
+use solverforge::__internal::{
+    PlanningId, PlanningSolution as PlanningSolutionTrait, ShadowVariableSupport,
+};
 use solverforge::prelude::*;
 
 // A problem fact representing an employee.
@@ -15,6 +17,19 @@ pub struct Employee {
 pub struct Visit {
     #[planning_id]
     pub id: i64,
+}
+
+#[problem_fact]
+pub struct RoutedVisit {
+    #[planning_id]
+    pub id: usize,
+    pub route: Option<usize>,
+}
+
+#[problem_fact]
+pub struct ShiftVisit {
+    #[planning_id]
+    pub id: usize,
 }
 
 // A planning entity representing a shift.
@@ -33,6 +48,24 @@ pub struct Route {
     pub id: i64,
 
     #[planning_list_variable(element_collection = "visits")]
+    pub visits: Vec<usize>,
+}
+
+#[planning_entity]
+pub struct ShadowRoute {
+    #[planning_id]
+    pub id: usize,
+
+    #[planning_list_variable(element_collection = "routed_visits")]
+    pub visits: Vec<usize>,
+}
+
+#[planning_entity]
+pub struct ShadowShift {
+    #[planning_id]
+    pub id: usize,
+
+    #[planning_list_variable(element_collection = "shift_visits")]
     pub visits: Vec<usize>,
 }
 
@@ -56,6 +89,25 @@ pub struct RoutePlan {
 
     #[planning_entity_collection]
     pub routes: Vec<Route>,
+
+    #[planning_score]
+    pub score: Option<HardSoftScore>,
+}
+
+#[planning_solution]
+#[shadow_variable_updates(list_owner = "routes", inverse_field = "route")]
+pub struct MultiOwnerShadowPlan {
+    #[planning_entity_collection]
+    pub routes: Vec<ShadowRoute>,
+
+    #[planning_entity_collection]
+    pub shifts: Vec<ShadowShift>,
+
+    #[problem_fact_collection]
+    pub routed_visits: Vec<RoutedVisit>,
+
+    #[problem_fact_collection]
+    pub shift_visits: Vec<ShiftVisit>,
 
     #[planning_score]
     pub score: Option<HardSoftScore>,
@@ -146,4 +198,34 @@ fn test_field_only_list_solution_preserves_list_descriptor_metadata() {
         visits_var.variable_type,
         solverforge_core::domain::VariableType::List
     );
+}
+
+#[test]
+fn test_multi_owner_shadow_updates_are_descriptor_scoped() {
+    let mut plan = MultiOwnerShadowPlan {
+        routes: vec![ShadowRoute {
+            id: 1,
+            visits: vec![0],
+        }],
+        shifts: vec![ShadowShift {
+            id: 2,
+            visits: vec![0],
+        }],
+        routed_visits: vec![RoutedVisit {
+            id: 10,
+            route: None,
+        }],
+        shift_visits: vec![ShiftVisit { id: 20 }],
+        score: None,
+    };
+
+    <MultiOwnerShadowPlan as ShadowVariableSupport>::update_entity_shadows(&mut plan, 1, 0);
+    assert_eq!(plan.routed_visits[0].route, None);
+
+    <MultiOwnerShadowPlan as ShadowVariableSupport>::update_entity_shadows(&mut plan, 0, 0);
+    assert_eq!(plan.routed_visits[0].route, Some(0));
+
+    plan.routed_visits[0].route = None;
+    <MultiOwnerShadowPlan as ShadowVariableSupport>::update_all_shadows(&mut plan);
+    assert_eq!(plan.routed_visits[0].route, Some(0));
 }

@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.8.10`
+**Workspace Release:** `0.8.11`
 
 ## Dependencies
 
@@ -75,10 +75,6 @@ src/
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>
 │   │   ├── either.rs                    — EitherMove<S, V> enum
 │   │   ├── list_either.rs              — ListMoveImpl<S, V> enum
-│   │   ├── list_change_tests.rs        — Tests
-│   │   ├── k_opt_tests.rs              — Tests
-│   │   ├── sublist_change_tests.rs     — Tests
-│   │   ├── sublist_swap_tests.rs       — Tests
 │   │   └── tests/                       — Additional test modules
 │   │       ├── mod.rs
 │   │       ├── arena.rs
@@ -102,24 +98,24 @@ src/
 │       ├── move_selector.rs             — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, re-exports
 │       ├── move_selector/either.rs      — EitherChangeMoveSelector, EitherSwapMoveSelector
 │       ├── move_selector/list_adapters.rs — ListMoveListChangeSelector, ListMoveKOptSelector, ListMoveNearbyKOptSelector, ListMoveListRuinSelector
-│       ├── move_selector_tests.rs       — Tests
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
+│       ├── list_support.rs             — Private selected-entity snapshots and exact list-neighborhood counting
 │       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>, ListMoveListSwapSelector
 │       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>, ListMoveListReverseSelector
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
 │       ├── sublist_change.rs           — SubListChangeMoveSelector<S, V, ES>, ListMoveSubListChangeSelector
+│       ├── sublist_support.rs          — Private sublist segment enumeration and exact counting helpers
 │       ├── sublist_swap.rs             — SubListSwapMoveSelector<S, V, ES>, ListMoveSubListSwapSelector
 │       ├── pillar.rs                    — PillarSelector trait, DefaultPillarSelector, Pillar, SubPillarConfig
-│       ├── pillar_tests.rs             — Tests
 │       ├── ruin.rs                      — RuinMoveSelector<S, V>
 │       ├── mimic.rs                     — MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector
-│       ├── mimic_tests.rs               — Tests
 │       ├── selection_order.rs          — SelectionOrder enum
 │       ├── selection_order_tests.rs    — Tests
 │       ├── entity_tests.rs              — Tests
 │       ├── value_selector_tests.rs     — Tests
 │       ├── nearby.rs                    — NearbyDistanceMeter trait, DynDistanceMeter, NearbyEntitySelector, NearbySelectionConfig
 │       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait, NearbyListChangeMoveSelector, ListMoveNearbyListChangeSelector
+│       ├── nearby_list_support.rs      — Private selected-entity snapshots and nearby candidate ordering
 │       ├── nearby_list_swap.rs         — NearbyListSwapMoveSelector, ListMoveNearbyListSwapSelector
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
@@ -150,11 +146,13 @@ src/
 │       └── tests/
 │           ├── mod.rs
 │           ├── k_opt.rs
-│           ├── list_change.rs
+│           ├── list_neighborhood.rs
 │           ├── list_ruin.rs
 │           ├── mimic.rs
 │           ├── nearby.rs
+│           ├── nearby_list.rs
 │           ├── pillar.rs
+│           ├── sublist_neighborhood.rs
 │           └── move_selector.rs
 │
 ├── phase/
@@ -560,16 +558,16 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Standard variable swap |
 | `EitherChangeMoveSelector<S, V, ES, VS>` | `EitherMove<S, V>` | Wraps ChangeMoveSelector |
 | `EitherSwapMoveSelector<S, V, LES, RES>` | `EitherMove<S, V>` | Wraps SwapMoveSelector |
-| `ListChangeMoveSelector<S, V, ES>` | `ListChangeMove<S, V>` | List element relocation |
-| `ListSwapMoveSelector<S, V, ES>` | `ListSwapMove<S, V>` | List element swap |
+| `ListChangeMoveSelector<S, V, ES>` | `ListChangeMove<S, V>` | List element relocation; canonical order, exact `size()` |
+| `ListSwapMoveSelector<S, V, ES>` | `ListSwapMove<S, V>` | List element swap; canonical pair order, exact `size()` |
 | `ListReverseMoveSelector<S, V, ES>` | `ListReverseMove<S, V>` | Segment reversal (2-opt) |
 | `ListRuinMoveSelector<S, V>` | `ListRuinMove<S, V>` | LNS element removal |
-| `SubListChangeMoveSelector<S, V, ES>` | `SubListChangeMove<S, V>` | Segment relocation (Or-opt) |
-| `SubListSwapMoveSelector<S, V, ES>` | `SubListSwapMove<S, V>` | Segment swap |
+| `SubListChangeMoveSelector<S, V, ES>` | `SubListChangeMove<S, V>` | Segment relocation (Or-opt); canonical order, exact `size()` |
+| `SubListSwapMoveSelector<S, V, ES>` | `SubListSwapMove<S, V>` | Segment swap; canonical pair order, exact `size()` |
 | `KOptMoveSelector<S, V, ES>` | `KOptMove<S, V>` | K-opt tour optimization |
 | `NearbyKOptMoveSelector<S, V, D, ES>` | `KOptMove<S, V>` | Distance-pruned k-opt |
-| `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation |
-| `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap |
+| `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation with stable tie ordering |
+| `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap with canonical pair ordering |
 | `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Standard variable LNS |
 
 **ListMove* wrappers** adapt specific move selectors to produce `ListMoveImpl<S, V>`:
@@ -849,4 +847,6 @@ Canonical solve entrypoint used by macro-generated solving. Accepts generated de
 - **Intentional `dyn` boundaries.** `DynDistanceMeter` in `nearby.rs` and `DefaultPillarSelector` value extractor closures are intentional type-erasure points to avoid monomorphization bloat.
 - **`ProblemChange::apply` uses `&mut dyn Director<S>`** — intentional type erasure at the real-time planning boundary.
 - **Arena-based move ownership.** Moves are pushed into `MoveArena`, evaluated by index, and taken (moved out) when selected. Never cloned.
+- **Neighborhood support modules stay private.** `list_support.rs`, `nearby_list_support.rs`, and `sublist_support.rs` exist only to share selected-entity snapshots, nearby candidate ordering, and exact finite-selector counting. Public cursor hot loops for list and sublist neighborhoods remain explicit.
+- **Canonical neighborhood tests live under subsystem trees.** Multi-file selector behavior for list, nearby-list, and sublist families is documented under `heuristic/selector/tests/`, while move legality stays under `heuristic/move/tests/`.
 - **Rayon for parallelism.** Partitioned search uses rayon for CPU-bound parallel solving. `tokio::sync::mpsc` for solution streaming.

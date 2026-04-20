@@ -24,8 +24,11 @@ SolverForge optimizes planning and scheduling problems using metaheuristic algor
 
 ```bash
 cargo install solverforge-cli
-solverforge new my-scheduler --standard
+solverforge new my-scheduler
 cd my-scheduler
+solverforge generate fact resource --field category:String --field load:i32
+solverforge generate entity task --field label:String --field priority:i32
+solverforge generate variable resource_idx --entity Task --kind standard --range resources --allows-unassigned
 solverforge server
 ```
 
@@ -33,7 +36,7 @@ Open http://localhost:7860 to see your solver in action.
 
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
-The current templates cover standard-variable and list-heavy planning models, and the generated code targets the same runtime. One solution can mix scalar planning variables with multiple independent planning lists, and each list owner is published through its own generated runtime hooks. Use `solverforge generate` to add entities, facts, and constraints interactively.
+The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
 
 ## Extend the Scaffold
 
@@ -56,6 +59,7 @@ SolverForge preserves concrete types through the entire solver pipeline:
 - **No trait objects** (`Box<dyn Trait>`, `Arc<dyn Trait>`)
 - **No runtime dispatch** - all generics resolved at compile time
 - **No hidden allocations** - moves, scores, and constraints are stack-allocated
+- **Deterministic neighborhood order** - canonical list, nearby-list, and sublist selector enumeration keeps seeded local search reproducible
 - **Predictable performance** - no GC pauses, no vtable lookups
 
 This enables aggressive compiler optimizations and cache-friendly data layouts.
@@ -88,7 +92,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.8.10", features = ["console"] }
+solverforge = { version = "0.8.11", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -103,6 +107,11 @@ Runtime telemetry now preserves exact counts and `Duration`s through the whole
 pipeline. Retained status/events expose generated, evaluated, and accepted move
 counts together with generation and evaluation durations; human-facing
 `moves/s` remains a display-only derived value.
+
+Neighborhood selector cleanup is benchmark-gated in the runtime crates. Shared
+support code backs exact sizing and reusable bookkeeping, while the
+move-enumeration hot loops for list and sublist neighborhoods stay explicit and
+monomorphized.
 
 ### Feature Flags
 
@@ -485,9 +494,9 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.8.10
+**Current Version**: 0.8.11
 
-### What's New in 0.8.10
+### What's New in 0.8.11
 
 - **Limited neighborhoods**: `limited_neighborhood` now carries move caps at the neighborhood level instead of exposing a selector decorator wrapper.
 - **Lazy change-value iteration**: `ChangeMoveSelector` now keeps per-entity value iteration lazy so cursor limits and early-stop search paths avoid unnecessary candidate generation.
@@ -517,7 +526,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 - Release notes are managed in `CHANGELOG.md` by commit-and-tag workflow.
 
-- **Modern CLI templates**: The standalone CLI scaffolds standard variable and list variable projects via `solverforge new --standard ...` and `solverforge new --list ...`. The shipped templates use the config-driven retained `SolverManager` + `Solvable` + `solver.toml` API. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
+- **Modern CLI templates**: The standalone CLI introduced first-class application scaffolds around the retained `SolverManager` + `Solvable` + `solver.toml` API. The current CLI has since consolidated those starters behind the neutral `solverforge new ...` shell plus `solverforge generate ...` domain shaping. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities

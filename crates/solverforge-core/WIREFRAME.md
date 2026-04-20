@@ -3,7 +3,7 @@
 Core types and traits for the SolverForge constraint solver framework.
 
 **Location:** `crates/solverforge-core/`
-**Workspace Release:** `0.8.8`
+**Workspace Release:** `0.8.9`
 
 ## Dependencies
 

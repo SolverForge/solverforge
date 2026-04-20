@@ -63,6 +63,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ListMoveImpl, ListSwapMove};
 
 use super::entity::EntitySelector;
+use super::list_support::collect_selected_entities;
 use super::move_selector::MoveSelector;
 
 /// A move selector that generates list swap moves.
@@ -135,22 +136,18 @@ where
         &'a self,
         score_director: &D,
     ) -> impl Iterator<Item = ListSwapMove<S, V>> + 'a {
-        let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_get = self.list_get;
         let list_set = self.list_set;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
 
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
+        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let move_capacity = selected.list_swap_move_capacity();
+        let entities = selected.entities;
+        let route_lens = selected.route_lens;
 
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-
-        let mut moves = Vec::new();
+        let mut moves = Vec::with_capacity(move_capacity);
 
         for (i, &entity_a) in entities.iter().enumerate() {
             let len_a = route_lens[i];
@@ -207,32 +204,8 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
-
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
-        let n = entities.len();
-        if n == 0 {
-            return 0;
-        }
-
-        // Intra: sum of m*(m-1)/2 per entity
-        // Inter: sum over pairs of m_a * m_b
-        let intra: usize = route_lens
-            .iter()
-            .map(|&m| m * m.saturating_sub(1) / 2)
-            .sum();
-        let inter: usize = (0..n)
-            .flat_map(|i| (i + 1..n).map(move |j| (i, j)))
-            .map(|(i, j)| route_lens[i] * route_lens[j])
-            .sum();
-        intra + inter
+        collect_selected_entities(&self.entity_selector, score_director, self.list_len)
+            .list_swap_move_capacity()
     }
 }
 

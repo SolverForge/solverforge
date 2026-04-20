@@ -99,10 +99,9 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ListChangeMove, ListMoveImpl};
 
 use super::entity::EntitySelector;
+use super::list_support::collect_selected_entities;
 use super::move_selector::MoveSelector;
-use super::nearby_list_support::{
-    collect_selected_entities, sort_and_limit_nearby_candidates, NearbyCandidate,
-};
+use super::nearby_list_support::{sort_and_limit_nearby_candidates, NearbyCandidate};
 
 /// Measures distance between two list positions, potentially across different entities.
 ///

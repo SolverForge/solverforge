@@ -169,6 +169,7 @@ fn list_change_keeps_canonical_intra_then_inter_order() {
         ],
         "list_change must enumerate intra-list moves first, then cross-entity insertions"
     );
+    assert_eq!(selector.size(&director), moves.len());
 }
 
 #[test]
@@ -241,6 +242,7 @@ fn list_swap_emits_unique_pairs_in_canonical_order() {
         ],
         "list_swap must preserve canonical pair order without reverse duplicates"
     );
+    assert_eq!(selector.size(&director), moves.len());
 }
 
 #[test]

@@ -35,9 +35,10 @@ story:
   `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
 - mixed models use the list defaults first, then scalar change
 
-`selected_count_limit_move_selector` remains supported for compatibility, but it
-is no longer the main way to avoid broad generation. The canonical defaults are
-already explicit streaming neighborhoods.
+`limited_neighborhood` applies a fixed move cap to one configured neighborhood
+when that cap is part of the search policy. The canonical defaults are already
+explicit streaming neighborhoods, so use the cap deliberately instead of
+wrapping broad generation by default.
 
 ## Practical path
 

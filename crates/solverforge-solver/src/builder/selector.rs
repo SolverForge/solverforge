@@ -8,7 +8,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::heuristic::r#move::{EitherMove, ListMoveImpl, Move, MoveArena};
-use crate::heuristic::selector::decorator::{SelectedCountLimitMoveSelector, VecUnionSelector};
+use crate::heuristic::selector::decorator::VecUnionSelector;
 use crate::heuristic::selector::move_selector::MoveSelector;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::dynamic_vnd::DynamicVndPhase;
@@ -24,9 +24,6 @@ use super::standard_selector::{build_standard_move_selector, StandardLeafSelecto
 
 type LeafSelector<S, V, DM, IDM> =
     VecUnionSelector<S, NeighborhoodMove<S, V>, NeighborhoodLeaf<S, V, DM, IDM>>;
-
-type LimitedNeighborhood<S, V, DM, IDM> =
-    SelectedCountLimitMoveSelector<S, NeighborhoodMove<S, V>, LeafSelector<S, V, DM, IDM>>;
 
 pub enum NeighborhoodMove<S, V> {
     Scalar(EitherMove<S, usize>),
@@ -197,7 +194,10 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone,
 {
     Flat(LeafSelector<S, V, DM, IDM>),
-    Limited(LimitedNeighborhood<S, V, DM, IDM>),
+    Limited {
+        selector: LeafSelector<S, V, DM, IDM>,
+        selected_count_limit: usize,
+    },
 }
 
 impl<S, V, DM, IDM> Debug for Neighborhood<S, V, DM, IDM>
@@ -210,7 +210,14 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Flat(selector) => write!(f, "Neighborhood::Flat({selector:?})"),
-            Self::Limited(selector) => write!(f, "Neighborhood::Limited({selector:?})"),
+            Self::Limited {
+                selector,
+                selected_count_limit,
+            } => f
+                .debug_struct("Neighborhood::Limited")
+                .field("selector", selector)
+                .field("selected_count_limit", selected_count_limit)
+                .finish(),
         }
     }
 }
@@ -248,16 +255,24 @@ where
 
         match self {
             Self::Flat(selector) => NeighborhoodIter::Flat(selector.open_cursor(score_director)),
-            Self::Limited(selector) => {
-                NeighborhoodIter::Limited(selector.open_cursor(score_director))
-            }
+            Self::Limited {
+                selector,
+                selected_count_limit,
+            } => NeighborhoodIter::Limited(
+                selector
+                    .open_cursor(score_director)
+                    .take(*selected_count_limit),
+            ),
         }
     }
 
     fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
         match self {
             Self::Flat(selector) => selector.size(score_director),
-            Self::Limited(selector) => selector.size(score_director),
+            Self::Limited {
+                selector,
+                selected_count_limit,
+            } => selector.size(score_director).min(*selected_count_limit),
         }
     }
 }
@@ -298,9 +313,7 @@ fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
         | MoveSelectorConfig::ListReverseMoveSelector(_)
         | MoveSelectorConfig::KOptMoveSelector(_)
         | MoveSelectorConfig::ListRuinMoveSelector(_) => SelectorFamily::List,
-        MoveSelectorConfig::SelectedCountLimitMoveSelector(limit) => {
-            selector_family(limit.selector.as_ref())
-        }
+        MoveSelectorConfig::LimitedNeighborhood(limit) => selector_family(limit.selector.as_ref()),
         MoveSelectorConfig::UnionMoveSelector(union) => {
             let mut family = None;
             for child in &union.selectors {
@@ -418,8 +431,8 @@ where
                 }
             }
         }
-        Some(MoveSelectorConfig::SelectedCountLimitMoveSelector(_)) => {
-            panic!("selected_count_limit_move_selector must be wrapped at the neighborhood level");
+        Some(MoveSelectorConfig::LimitedNeighborhood(_)) => {
+            panic!("limited_neighborhood must be wrapped at the neighborhood level");
         }
         Some(MoveSelectorConfig::CartesianProductMoveSelector(_)) => {
             panic!(
@@ -521,12 +534,12 @@ fn collect_neighborhoods<S, V, DM, IDM>(
                 collect_neighborhoods(Some(child), model, random_seed, out);
             }
         }
-        Some(MoveSelectorConfig::SelectedCountLimitMoveSelector(limit)) => {
+        Some(MoveSelectorConfig::LimitedNeighborhood(limit)) => {
             let selector = build_leaf_selector(Some(limit.selector.as_ref()), model, random_seed);
-            out.push(Neighborhood::Limited(SelectedCountLimitMoveSelector::new(
+            out.push(Neighborhood::Limited {
                 selector,
-                limit.selected_count_limit,
-            )));
+                selected_count_limit: limit.selected_count_limit,
+            });
         }
         Some(MoveSelectorConfig::CartesianProductMoveSelector(_)) => {
             panic!(

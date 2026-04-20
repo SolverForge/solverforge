@@ -313,7 +313,7 @@ fn is_standard_only_heuristic(heuristic: ConstructionHeuristicType) -> bool {
 
 fn list_target_matches<S, V>(
     config: &ConstructionHeuristicConfig,
-    list_construction: Option<&ConstructionArgs<S, V>>,
+    list_construction: &ConstructionArgs<S, V>,
 ) -> bool
 where
     S: PlanningSolution,
@@ -322,10 +322,6 @@ where
     if !has_explicit_target(config) {
         return false;
     }
-
-    let Some(list_construction) = list_construction else {
-        return false;
-    };
 
     config
         .target
@@ -337,6 +333,29 @@ where
             .entity_class
             .as_deref()
             .is_none_or(|name| name == list_construction.entity_type_name)
+}
+
+fn matching_list_construction<S, V>(
+    config: Option<&ConstructionHeuristicConfig>,
+    list_construction: &[ConstructionArgs<S, V>],
+) -> Vec<ConstructionArgs<S, V>>
+where
+    S: PlanningSolution,
+    V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
+{
+    let Some(config) = config else {
+        return list_construction.to_vec();
+    };
+
+    if !has_explicit_target(config) {
+        return list_construction.to_vec();
+    }
+
+    list_construction
+        .iter()
+        .copied()
+        .filter(|args| list_target_matches(config, args))
+        .collect()
 }
 
 fn normalize_list_construction_config(
@@ -493,7 +512,7 @@ where
 {
     config: Option<ConstructionHeuristicConfig>,
     descriptor: SolutionDescriptor,
-    list_construction: Option<ConstructionArgs<S, V>>,
+    list_construction: Vec<ConstructionArgs<S, V>>,
 }
 
 impl<S, V> Construction<S, V>
@@ -504,7 +523,7 @@ where
     fn new(
         config: Option<ConstructionHeuristicConfig>,
         descriptor: SolutionDescriptor,
-        list_construction: Option<ConstructionArgs<S, V>>,
+        list_construction: Vec<ConstructionArgs<S, V>>,
     ) -> Self {
         Self {
             config,
@@ -522,7 +541,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Construction")
             .field("config", &self.config)
-            .field("has_list_construction", &self.list_construction.is_some())
+            .field("list_construction_count", &self.list_construction.len())
             .finish()
     }
 }
@@ -542,11 +561,11 @@ where
         let standard_matches = config.is_some_and(|_| {
             standard_target_matches(&self.descriptor, entity_class, variable_name)
         });
-        let list_matches =
-            config.is_some_and(|cfg| list_target_matches(cfg, self.list_construction.as_ref()));
+        let matching_list_construction =
+            matching_list_construction(config, &self.list_construction);
 
         if let Some(cfg) = config {
-            if explicit_target && !standard_matches && !list_matches {
+            if explicit_target && !standard_matches && matching_list_construction.is_empty() {
                 panic!(
                     "construction heuristic matched no planning variables for entity_class={:?} variable_name={:?}",
                     cfg.target.entity_class,
@@ -557,18 +576,18 @@ where
             let heuristic = cfg.construction_heuristic_type;
             if is_list_only_heuristic(heuristic) {
                 assert!(
-                    self.list_construction.is_some(),
+                    !self.list_construction.is_empty(),
                     "list construction heuristic {:?} configured against a solution with no planning list variable",
                     heuristic
                 );
                 assert!(
-                    !explicit_target || list_matches,
+                    !explicit_target || !matching_list_construction.is_empty(),
                     "list construction heuristic {:?} does not match the targeted planning list variable for entity_class={:?} variable_name={:?}",
                     heuristic,
                     cfg.target.entity_class,
                     cfg.target.variable_name
                 );
-                self.solve_list(solver_scope);
+                self.solve_list(solver_scope, &matching_list_construction);
                 return;
             }
 
@@ -585,7 +604,7 @@ where
             }
         }
 
-        if self.list_construction.is_none() {
+        if self.list_construction.is_empty() {
             build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
             return;
         }
@@ -596,20 +615,15 @@ where
             if explicit_target { variable_name } else { None },
             solver_scope.working_solution(),
         );
-        let list_remaining = self
-            .list_construction
-            .as_ref()
-            .map(|args| {
-                (!explicit_target || list_matches)
-                    && list_work_remaining(args, solver_scope.working_solution())
-            })
-            .unwrap_or(false);
+        let list_remaining = matching_list_construction
+            .iter()
+            .any(|args| list_work_remaining(args, solver_scope.working_solution()));
 
         if standard_remaining {
             build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
         }
         if list_remaining {
-            self.solve_list(solver_scope);
+            self.solve_list(solver_scope, &matching_list_construction);
         }
     }
 
@@ -623,16 +637,25 @@ where
     S: PlanningSolution + 'static,
     V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
 {
-    fn solve_list<D, ProgressCb>(&self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)
+    fn solve_list<D, ProgressCb>(
+        &self,
+        solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+        list_construction: &[ConstructionArgs<S, V>],
+    )
     where
         D: solverforge_scoring::Director<S>,
         ProgressCb: ProgressCallback<S>,
     {
-        let Some(args) = self.list_construction.as_ref() else {
+        if list_construction.is_empty() {
             panic!("list construction configured against a scalar-only context");
-        };
+        }
         let normalized = normalize_list_construction_config(self.config.as_ref());
-        build_list_construction(normalized.as_ref(), args).solve(solver_scope);
+        for args in list_construction {
+            if !list_work_remaining(args, solver_scope.working_solution()) {
+                continue;
+            }
+            build_list_construction(normalized.as_ref(), args).solve(solver_scope);
+        }
     }
 }
 
@@ -683,7 +706,7 @@ pub fn build_phases<S, V, DM, IDM>(
     config: &SolverConfig,
     descriptor: &SolutionDescriptor,
     model: &ModelContext<S, V, DM, IDM>,
-    list_construction: Option<ConstructionArgs<S, V>>,
+    list_construction: Vec<ConstructionArgs<S, V>>,
 ) -> PhaseSequence<RuntimePhase<Construction<S, V>, LocalSearch<S, V, DM, IDM>, Vnd<S, V, DM, IDM>>>
 where
     S: PlanningSolution + 'static,
@@ -698,7 +721,7 @@ where
         phases.push(RuntimePhase::Construction(Construction::new(
             None,
             descriptor.clone(),
-            list_construction,
+            list_construction.clone(),
         )));
         phases.push(RuntimePhase::LocalSearch(build_local_search(
             None,
@@ -714,7 +737,7 @@ where
                 phases.push(RuntimePhase::Construction(Construction::new(
                     Some(ch.clone()),
                     descriptor.clone(),
-                    list_construction,
+                    list_construction.clone(),
                 )));
             }
             PhaseConfig::LocalSearch(ls) => {

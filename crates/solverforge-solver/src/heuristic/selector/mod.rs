@@ -15,6 +15,7 @@ pub mod mimic;
 pub mod move_selector;
 pub mod nearby;
 pub mod nearby_list_change;
+mod nearby_list_support;
 pub mod nearby_list_swap;
 pub mod pillar;
 pub mod ruin;

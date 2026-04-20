@@ -83,6 +83,9 @@ use crate::heuristic::r#move::{ListMoveImpl, ListSwapMove};
 use super::entity::EntitySelector;
 use super::move_selector::MoveSelector;
 use super::nearby_list_change::CrossEntityDistanceMeter;
+use super::nearby_list_support::{
+    collect_selected_entities, sort_and_limit_nearby_candidates, NearbyCandidate,
+};
 
 /// A distance-pruned list swap move selector.
 ///
@@ -167,26 +170,20 @@ where
         &'a self,
         score_director: &SD,
     ) -> impl Iterator<Item = ListSwapMove<S, V>> + 'a {
-        let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_get = self.list_get;
         let list_set = self.list_set;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let max_nearby = self.max_nearby;
+        let solution = score_director.working_solution();
 
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
+        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let entities = selected.entities;
+        let route_lens = selected.route_lens;
 
         let mut moves = Vec::new();
-        // Track seen pairs to avoid duplicates (a,pa) <-> (b,pb) == (b,pb) <-> (a,pa)
-        let mut seen: std::collections::HashSet<(usize, usize, usize, usize)> =
-            std::collections::HashSet::new();
+        let mut candidates: Vec<NearbyCandidate> = Vec::new();
 
         for (src_idx, &src_entity) in entities.iter().enumerate() {
             let src_len = route_lens[src_idx];
@@ -195,8 +192,7 @@ where
             }
 
             for src_pos in 0..src_len {
-                // Collect all candidate swap partners with distances
-                let mut candidates: Vec<(usize, usize, f64)> = Vec::new();
+                candidates.clear();
 
                 // Intra-entity candidates: positions after src_pos (triangular)
                 for dst_pos in src_pos + 1..src_len {
@@ -228,32 +224,20 @@ where
                     }
                 }
 
-                // Sort by distance, keep top max_nearby
-                candidates
-                    .sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
-                candidates.truncate(max_nearby);
+                sort_and_limit_nearby_candidates(&mut candidates, max_nearby);
 
-                for (dst_entity, dst_pos, _) in candidates {
-                    // Canonical form: smaller entity/pos first to avoid generating reverse
-                    let key = if (src_entity, src_pos) < (dst_entity, dst_pos) {
-                        (src_entity, src_pos, dst_entity, dst_pos)
-                    } else {
-                        (dst_entity, dst_pos, src_entity, src_pos)
-                    };
-
-                    if seen.insert(key) {
-                        moves.push(ListSwapMove::new(
-                            src_entity,
-                            src_pos,
-                            dst_entity,
-                            dst_pos,
-                            list_len,
-                            list_get,
-                            list_set,
-                            variable_name,
-                            descriptor_index,
-                        ));
-                    }
+                for &(dst_entity, dst_pos, _) in &candidates {
+                    moves.push(ListSwapMove::new(
+                        src_entity,
+                        src_pos,
+                        dst_entity,
+                        dst_pos,
+                        list_len,
+                        list_get,
+                        list_set,
+                        variable_name,
+                        descriptor_index,
+                    ));
                 }
             }
         }
@@ -262,17 +246,11 @@ where
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
+        let selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
 
-        let total_elements: usize = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| list_len(solution, r.entity_index))
-            .sum();
-
-        // Each element generates at most max_nearby swap candidates
-        total_elements * self.max_nearby / 2 // /2 for deduplication
+        // Each element generates at most max_nearby canonical swap partners.
+        selected.total_elements() * self.max_nearby / 2
     }
 }
 

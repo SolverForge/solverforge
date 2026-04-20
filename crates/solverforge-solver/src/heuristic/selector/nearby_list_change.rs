@@ -100,6 +100,9 @@ use crate::heuristic::r#move::{ListChangeMove, ListMoveImpl};
 
 use super::entity::EntitySelector;
 use super::move_selector::MoveSelector;
+use super::nearby_list_support::{
+    collect_selected_entities, sort_and_limit_nearby_candidates, NearbyCandidate,
+};
 
 /// Measures distance between two list positions, potentially across different entities.
 ///
@@ -241,23 +244,20 @@ where
         &'a self,
         score_director: &SD,
     ) -> impl Iterator<Item = ListChangeMove<S, V>> + 'a {
-        let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let max_nearby = self.max_nearby;
+        let solution = score_director.working_solution();
 
-        let entities: Vec<usize> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-
-        let route_lens: Vec<usize> = entities.iter().map(|&e| list_len(solution, e)).collect();
+        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let entities = selected.entities;
+        let route_lens = selected.route_lens;
 
         let mut moves = Vec::new();
+        let mut candidates: Vec<NearbyCandidate> = Vec::new();
 
         for (src_idx, &src_entity) in entities.iter().enumerate() {
             let src_len = route_lens[src_idx];
@@ -266,8 +266,7 @@ where
             }
 
             for src_pos in 0..src_len {
-                // Collect all candidate (dst_entity, dst_pos) pairs with distances
-                let mut candidates: Vec<(usize, usize, f64)> = Vec::new();
+                candidates.clear();
 
                 // Intra-entity candidates
                 for dst_pos in 0..src_len {
@@ -301,12 +300,9 @@ where
                     }
                 }
 
-                // Sort by distance, keep top max_nearby
-                candidates
-                    .sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
-                candidates.truncate(max_nearby);
+                sort_and_limit_nearby_candidates(&mut candidates, max_nearby);
 
-                for (dst_entity, dst_pos, _) in candidates {
+                for &(dst_entity, dst_pos, _) in &candidates {
                     moves.push(ListChangeMove::new(
                         src_entity,
                         src_pos,
@@ -326,17 +322,11 @@ where
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
-
-        let total_elements: usize = self
-            .entity_selector
-            .iter(score_director)
-            .map(|r| list_len(solution, r.entity_index))
-            .sum();
+        let selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
 
         // Each element generates at most max_nearby moves
-        total_elements * self.max_nearby
+        selected.total_elements() * self.max_nearby
     }
 }
 

@@ -38,12 +38,12 @@ pub(super) fn generate_standard_helpers(
 
         helpers.push(quote! {
             #[inline]
-            fn #typed_getter_name(entity: &Self) -> ::core::option::Option<usize> {
+            pub(crate) fn #typed_getter_name(entity: &Self) -> ::core::option::Option<usize> {
                 entity.#field_name
             }
 
             #[inline]
-            fn #typed_setter_name(
+            pub(crate) fn #typed_setter_name(
                 entity: &mut Self,
                 value: ::core::option::Option<usize>,
             ) {
@@ -72,7 +72,7 @@ pub(super) fn generate_standard_helpers(
             );
             helpers.push(quote! {
                 #[inline]
-                fn #typed_provider_name(entity: &Self) -> &[usize] {
+                pub(crate) fn #typed_provider_name(entity: &Self) -> &[usize] {
                     &entity.#provider_field
                 }
             });

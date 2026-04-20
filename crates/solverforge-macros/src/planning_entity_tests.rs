@@ -28,6 +28,8 @@ fn golden_entity_expansion_includes_descriptor_and_planning_id() {
     assert!(expanded.contains(
         "pub const __SOLVERFORGE_LIST_ELEMENT_COLLECTION : & 'static str = \"all_tasks\""
     ));
+    assert!(expanded.contains("pub (crate) fn __solverforge_get_worker_idx_typed"));
+    assert!(expanded.contains("pub (crate) fn __solverforge_set_worker_idx_typed"));
     assert!(expanded.contains("const HAS_LIST_VARIABLE : bool = true"));
     assert!(expanded.contains("LIST_ELEMENT_SOURCE"));
     assert!(expanded.contains("pub fn __solverforge_list_metadata < Solution >"));

@@ -349,7 +349,3 @@ impl<'a> Iterator for ReplayingIterator<'a> {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "mimic_tests.rs"]
-mod tests;

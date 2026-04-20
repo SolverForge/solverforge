@@ -5,20 +5,8 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::director::score_director::ScoreDirector;
-use crate::director::shadow_aware::ShadowVariableSupport;
 
 use solverforge_test::shadow::ShadowSolution;
-
-// Implement ShadowVariableSupport for ShadowSolution (trait is in this crate)
-impl ShadowVariableSupport for ShadowSolution {
-    fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {
-        self.cached_sum = self.values.iter().sum();
-    }
-
-    fn update_all_shadows(&mut self) {
-        self.cached_sum = self.values.iter().sum();
-    }
-}
 
 // Creates a constraint that penalizes when cached_sum exceeds 100.
 fn make_sum_constraint() -> IncrementalUniConstraint<
@@ -67,7 +55,7 @@ fn create_director(
 > {
     let solution = ShadowSolution::new(values);
     let constraint = make_sum_constraint();
-    ScoreDirector::new_with_shadow_support(solution, (constraint,))
+    ScoreDirector::new(solution, (constraint,))
 }
 
 #[test]

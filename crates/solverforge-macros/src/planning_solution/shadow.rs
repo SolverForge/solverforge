@@ -124,15 +124,10 @@ fn shadow_updates_requested(config: &ShadowConfig) -> bool {
 pub(super) fn generate_shadow_support(
     config: &ShadowConfig,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    solution_name: &Ident,
+    _solution_name: &Ident,
 ) -> Result<TokenStream, Error> {
     if !shadow_updates_requested(config) {
-        return Ok(quote! {
-            impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
-                #[inline]
-                fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_idx: usize) {}
-            }
-        });
+        return Ok(TokenStream::new());
     }
 
     let Some(list_owner) = find_list_owner_config(config, fields)? else {
@@ -240,30 +235,28 @@ pub(super) fn generate_shadow_support(
         .collect();
 
     Ok(quote! {
-        impl ::solverforge::__internal::ShadowVariableSupport for #solution_name {
-            #[inline]
-            fn update_entity_shadows(&mut self, descriptor_index: usize, entity_idx: usize) {
-                if descriptor_index != #list_owner_descriptor_index {
-                    return;
-                }
-
-                let element_indices: Vec<usize> =
-                    #list_trait::list_field(&self.#list_owner_ident[entity_idx]).to_vec();
-
-                #inverse_update
-                #previous_update
-                #next_update
-                #cascading_update
-                #(#aggregate_updates)*
-                #(#compute_updates)*
-                #post_update
+        #[inline]
+        fn update_entity_shadows(&mut self, descriptor_index: usize, entity_idx: usize) {
+            if descriptor_index != #list_owner_descriptor_index {
+                return;
             }
 
-            #[inline]
-            fn update_all_shadows(&mut self) {
-                for entity_idx in 0..self.#list_owner_ident.len() {
-                    self.update_entity_shadows(#list_owner_descriptor_index, entity_idx);
-                }
+            let element_indices: Vec<usize> =
+                #list_trait::list_field(&self.#list_owner_ident[entity_idx]).to_vec();
+
+            #inverse_update
+            #previous_update
+            #next_update
+            #cascading_update
+            #(#aggregate_updates)*
+            #(#compute_updates)*
+            #post_update
+        }
+
+        #[inline]
+        fn update_all_shadows(&mut self) {
+            for entity_idx in 0..self.#list_owner_ident.len() {
+                self.update_entity_shadows(#list_owner_descriptor_index, entity_idx);
             }
         }
     })

@@ -45,7 +45,7 @@ Score Directors
 */
 
 pub use director::score_director::ScoreDirector;
-pub use director::{Director, RecordingDirector, ShadowVariableSupport, SolvableSolution};
+pub use director::{Director, RecordingDirector, SolvableSolution};
 
 /* ============================================================================
 Analysis (for score explanation)

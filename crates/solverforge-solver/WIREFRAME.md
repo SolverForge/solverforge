@@ -834,7 +834,7 @@ Scalar and list-heavy models both target this same runtime layer. Documentation 
 
 ### `run_solver()` — `run.rs`
 
-Canonical solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume. Requires `S: ShadowVariableSupport`; macro-generated solutions always satisfy this and the canonical score-director path updates shadows before initialization and reinsertion.
+Canonical solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume. `ScoreDirector` now calls `PlanningSolution::update_all_shadows()` before initialization and `PlanningSolution::update_entity_shadows()` before reinsertion, so the canonical solver path stays fully monomorphized.
 
 ## Architectural Notes
 

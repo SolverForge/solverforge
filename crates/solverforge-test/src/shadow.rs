@@ -1,8 +1,7 @@
 /* Shadow variable test fixtures.
 
 Provides a solution type for testing shadow variable infrastructure.
-The `ShadowVariableSupport` trait is defined in `solverforge-scoring`,
-so tests must implement it there.
+Shadow updates are implemented directly on `PlanningSolution`.
 
 # Example
 
@@ -70,6 +69,14 @@ impl PlanningSolution for ShadowSolution {
 
     fn set_score(&mut self, score: Option<Self::Score>) {
         self.score = score;
+    }
+
+    fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {
+        self.cached_sum = self.values.iter().sum();
+    }
+
+    fn update_all_shadows(&mut self) {
+        self.cached_sum = self.values.iter().sum();
     }
 }
 

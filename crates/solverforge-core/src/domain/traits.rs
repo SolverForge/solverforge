@@ -55,6 +55,20 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
 
     fn set_score(&mut self, score: Option<Self::Score>);
 
+    /* Updates shadow variables for the descriptor/entity pair.
+
+    Default implementation is a no-op. Solutions with derived state can override
+    this to keep cached or chained values synchronized during solving.
+    */
+    fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    /* Updates all shadow variables for the full solution.
+
+    Default implementation is a no-op. Solutions with derived state can override
+    this to refresh all cached or chained values before initialization.
+    */
+    fn update_all_shadows(&mut self) {}
+
     /* Returns true if this solution is fully initialized.
 
     A solution is initialized when all planning variables have been assigned.

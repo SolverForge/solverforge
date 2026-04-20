@@ -78,8 +78,6 @@ where
     throughout the solver pipeline.
     */
     pub(super) entity_counter: fn(&S, usize) -> usize,
-    shadow_update_entity: fn(&mut S, usize, usize),
-    shadow_update_all: fn(&mut S),
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -99,20 +97,6 @@ where
     pub fn new(solution: S, constraints: C) -> Self {
         use std::any::TypeId;
         Self::with_descriptor(
-            solution,
-            constraints,
-            SolutionDescriptor::new("", TypeId::of::<()>()),
-            |_, _| 0,
-        )
-    }
-
-    /* Creates a new typed score director that runs shadow updates on the canonical lifecycle. */
-    pub fn new_with_shadow_support(solution: S, constraints: C) -> Self
-    where
-        S: crate::director::ShadowVariableSupport,
-    {
-        use std::any::TypeId;
-        Self::with_descriptor_and_shadow_support(
             solution,
             constraints,
             SolutionDescriptor::new("", TypeId::of::<()>()),
@@ -145,32 +129,6 @@ where
             initialized: false,
             solution_descriptor,
             entity_counter,
-            shadow_update_entity: |_, _, _| {},
-            shadow_update_all: |_| {},
-            _phantom: PhantomData,
-        }
-    }
-
-    /* Creates a typed score director with descriptor metadata and canonical shadow updates. */
-    pub fn with_descriptor_and_shadow_support(
-        solution: S,
-        constraints: C,
-        solution_descriptor: SolutionDescriptor,
-        entity_counter: fn(&S, usize) -> usize,
-    ) -> Self
-    where
-        S: crate::director::ShadowVariableSupport,
-    {
-        Self {
-            working_solution: solution,
-            constraints,
-            cached_score: S::Score::zero(),
-            initialized: false,
-            solution_descriptor,
-            entity_counter,
-            shadow_update_entity:
-                <S as crate::director::ShadowVariableSupport>::update_entity_shadows,
-            shadow_update_all: <S as crate::director::ShadowVariableSupport>::update_all_shadows,
             _phantom: PhantomData,
         }
     }
@@ -182,7 +140,7 @@ where
 
     pub(crate) fn calculate_score_impl(&mut self) -> S::Score {
         if !self.initialized {
-            (self.shadow_update_all)(&mut self.working_solution);
+            self.working_solution.update_all_shadows();
             self.cached_score = self.constraints.initialize_all(&self.working_solution);
             self.initialized = true;
         }
@@ -212,7 +170,8 @@ where
         if !self.initialized {
             return;
         }
-        (self.shadow_update_entity)(&mut self.working_solution, descriptor_index, entity_index);
+        self.working_solution
+            .update_entity_shadows(descriptor_index, entity_index);
         let delta =
             self.constraints
                 .on_insert_all(&self.working_solution, entity_index, descriptor_index);
@@ -412,18 +371,6 @@ where
         entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
         Self::with_descriptor(solution, (), descriptor, entity_counter)
-    }
-
-    /* Creates a non-incremental director whose canonical lifecycle updates shadows. */
-    pub fn simple_with_shadow_support(
-        solution: S,
-        descriptor: SolutionDescriptor,
-        entity_counter: fn(&S, usize) -> usize,
-    ) -> Self
-    where
-        S: crate::director::ShadowVariableSupport,
-    {
-        Self::with_descriptor_and_shadow_support(solution, (), descriptor, entity_counter)
     }
 
     /* Creates a non-incremental director with empty descriptor and zero entity counter. */

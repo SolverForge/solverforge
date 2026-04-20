@@ -683,7 +683,7 @@ pub(super) fn generate_solvable_solution(
                     };
 
                     let constraints = #constraints_fn();
-                    let mut director = ScoreDirector::with_descriptor_and_shadow_support(
+                    let mut director = ScoreDirector::with_descriptor(
                         self.clone(),
                         constraints,
                         Self::descriptor(),

@@ -1,8 +1,6 @@
 // Integration tests for derive macros.
 
-use solverforge::__internal::{
-    PlanningId, PlanningSolution as PlanningSolutionTrait, ShadowVariableSupport,
-};
+use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
 use solverforge::prelude::*;
 
 // A problem fact representing an employee.
@@ -250,14 +248,14 @@ fn test_multi_owner_shadow_updates_are_descriptor_scoped() {
         score: None,
     };
 
-    <MultiOwnerShadowPlan as ShadowVariableSupport>::update_entity_shadows(&mut plan, 1, 0);
+    <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_entity_shadows(&mut plan, 1, 0);
     assert_eq!(plan.routed_visits[0].route, None);
 
-    <MultiOwnerShadowPlan as ShadowVariableSupport>::update_entity_shadows(&mut plan, 0, 0);
+    <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_entity_shadows(&mut plan, 0, 0);
     assert_eq!(plan.routed_visits[0].route, Some(0));
 
     plan.routed_visits[0].route = None;
-    <MultiOwnerShadowPlan as ShadowVariableSupport>::update_all_shadows(&mut plan);
+    <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_all_shadows(&mut plan);
     assert_eq!(plan.routed_visits[0].route, Some(0));
 }
 

@@ -97,13 +97,12 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `k_opt_get_route`, `k_opt_set_route`, `k_opt_depot_fn`, `k_opt_distance_fn`, `k_opt_feasible_fn` — K-opt hooks
 
 **Generated code:**
-- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`
+- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` overrides when shadow updates are configured
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable metadata is preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - Private owner-specific list operations used by the canonical runtime: `__solverforge_list_len_<owner>()`, `__solverforge_list_remove_<owner>()`, `__solverforge_list_insert_<owner>()`, `__solverforge_list_get_<owner>()`, `__solverforge_list_set_<owner>()`, `__solverforge_list_reverse_<owner>()`, `__solverforge_sublist_remove_<owner>()`, `__solverforge_sublist_insert_<owner>()`, `__solverforge_ruin_remove_<owner>()`, `__solverforge_ruin_insert_<owner>()`, `__solverforge_list_remove_for_construction_<owner>()`, `__solverforge_index_to_element_<owner>()`, `__solverforge_element_count_<owner>()`, `__solverforge_assigned_elements_<owner>()`, `__solverforge_n_entities_<owner>()`, `__solverforge_assign_element_<owner>()`, plus aggregate helpers `__solverforge_total_list_entities()` and `__solverforge_total_list_elements()`
 - Public owner-scoped list operations for each real list owner discovered from entity metadata: `{owner}_list_len()`, `{owner}_list_len_static()`, `{owner}_list_remove()`, `{owner}_list_insert()`, `{owner}_list_get()`, `{owner}_list_set()`, `{owner}_list_reverse()`, `{owner}_sublist_remove()`, `{owner}_sublist_insert()`, `{owner}_ruin_remove()`, `{owner}_ruin_insert()`, `{owner}_list_remove_for_construction()`, `{owner}_index_to_element_static()`, `{owner}_list_variable_descriptor_index()`, `{owner}_element_count()`, `{owner}_assigned_elements()`, `{owner}_n_entities()`, `{owner}_assign_element()`
 - Generic single-owner convenience aliases are generated only when exactly one real list owner exists: `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
-- `impl ShadowVariableSupport for T` — `update_entity_shadows(descriptor_index, entity_index)` plus `update_all_shadows()` for the configured owner (no-op if no shadow config; generates inverse/previous/next/cascading/aggregate/compute updates otherwise)
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
@@ -145,7 +144,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
 | `generate_list_operations` | `fn(&Fields) -> TokenStream` | Generates the private runtime helper family, public owner-scoped list methods, and single-owner generic aliases when unambiguous |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
-| `generate_shadow_support` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates ShadowVariableSupport impl |
+| `generate_shadow_support` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates `PlanningSolution` shadow method overrides |
 | `generate_constraint_stream_extensions` | `fn(&Fields, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory |
 | `extract_option_inner_type` | `fn(&Type) -> Result<&Type, Error>` | Extracts `T` from `Option<T>` |
 | `extract_collection_inner_type` | `fn(&Type) -> Option<&Type>` | Extracts `T` from `Vec<T>` |
@@ -175,7 +174,7 @@ All generated code references types via `::solverforge::__internal::*` paths, me
 - `PlanningEntity`, `PlanningSolution`, `PlanningId`, `ProblemFact`
 - `EntityDescriptor`, `SolutionDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`
 - `EntityCollectionExtractor`
-- `ShadowVariableKind`, `ShadowVariableSupport`, `SolvableSolution`
+- `ShadowVariableKind`, `SolvableSolution`
 - `ScoreDirector`, `Director`
 
 Trait impls like `Solvable`, `Analyzable`, and `ScoreAnalysis` reference `::solverforge::*` directly.

@@ -128,6 +128,8 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 |--------|-----------|------|
 | `score` | `fn score(&self) -> Option<Self::Score>` | Current score, None if unscored |
 | `set_score` | `fn set_score(&mut self, score: Option<Self::Score>)` | Set the score |
+| `update_entity_shadows` | `fn update_entity_shadows(&mut self, descriptor_index: usize, entity_index: usize)` | Default: no-op shadow update hook |
+| `update_all_shadows` | `fn update_all_shadows(&mut self)` | Default: no-op full shadow refresh hook |
 | `is_initialized` | `fn is_initialized(&self) -> bool` | Default: `true` |
 
 **Associated type:** `type Score: Score`

@@ -160,7 +160,7 @@ Used exclusively by macro-generated code. Not public API.
 
 **Scoring (from `solverforge-scoring`):**
 - `Director`, `ScoreDirector`
-- `ShadowVariableSupport`, `SolvableSolution`
+- `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`

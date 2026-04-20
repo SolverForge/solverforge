@@ -122,6 +122,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             type Score = #score_type;
             fn score(&self) -> Option<Self::Score> { self.#score_field_name.clone() }
             fn set_score(&mut self, score: Option<Self::Score>) { self.#score_field_name = score; }
+            #shadow_support_impl
         }
 
         impl #impl_generics #name #ty_generics #where_clause {
@@ -148,8 +149,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         }
 
         #runtime_phase_support
-        #shadow_support_impl
-
         #solvable_solution_impl
 
         #stream_extensions

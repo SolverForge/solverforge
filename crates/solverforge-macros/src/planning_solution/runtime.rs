@@ -291,8 +291,9 @@ pub(super) fn generate_runtime_phase_support(
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
         .enumerate()
         .filter_map(|(idx, field)| {
+            let field_ident = field.ident.as_ref()?;
             let field_type = extract_collection_inner_type(&field.ty)?;
-            Some((idx, field_type))
+            Some((idx, field_ident, field_type))
         })
         .collect();
     let standard_setup = generate_scalar_runtime_setup(fields, solution_name);
@@ -302,7 +303,7 @@ pub(super) fn generate_runtime_phase_support(
         let intra_enum_ident = format_ident!("__{}IntraDistanceMeter", solution_name);
         let has_list_variable_terms: Vec<_> = list_owners
             .iter()
-            .map(|(_, field_type)| {
+            .map(|(_, _, field_type)| {
                 let list_trait =
                     quote! { <#field_type as ::solverforge::__internal::ListVariableEntity<#solution_name>> };
                 quote! { #list_trait::HAS_LIST_VARIABLE }
@@ -311,7 +312,7 @@ pub(super) fn generate_runtime_phase_support(
 
         let cross_variants: Vec<_> = list_owners
             .iter()
-            .map(|(idx, field_type)| {
+            .map(|(idx, _, field_type)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     #variant(
@@ -322,7 +323,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let intra_variants: Vec<_> = list_owners
             .iter()
-            .map(|(idx, field_type)| {
+            .map(|(idx, _, field_type)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     #variant(
@@ -333,7 +334,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let cross_match_arms: Vec<_> = list_owners
             .iter()
-            .map(|(idx, _)| {
+            .map(|(idx, _, _)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     Self::#variant(meter) => meter.distance(solution, src_entity, src_pos, dst_entity, dst_pos),
@@ -342,7 +343,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let intra_match_arms: Vec<_> = list_owners
             .iter()
-            .map(|(idx, _)| {
+            .map(|(idx, _, _)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     Self::#variant(meter) => meter.distance(solution, src_entity, src_pos, dst_entity, dst_pos),
@@ -351,13 +352,38 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let list_runtime_setup: Vec<_> = list_owners
             .iter()
-            .map(|(idx, field_type)| {
+            .map(|(idx, field_ident, field_type)| {
+                let field_name = field_ident.to_string();
                 let variant = format_ident!("Entity{idx}");
                 let descriptor_index_lit =
                     syn::LitInt::new(&idx.to_string(), proc_macro2::Span::call_site());
                 let list_trait = quote! {
                     <#field_type as ::solverforge::__internal::ListVariableEntity<#solution_name>>
                 };
+                let list_len_ident = format_ident!("__solverforge_list_len_{}", field_name);
+                let list_remove_ident = format_ident!("__solverforge_list_remove_{}", field_name);
+                let list_insert_ident = format_ident!("__solverforge_list_insert_{}", field_name);
+                let list_get_ident = format_ident!("__solverforge_list_get_{}", field_name);
+                let list_set_ident = format_ident!("__solverforge_list_set_{}", field_name);
+                let list_reverse_ident =
+                    format_ident!("__solverforge_list_reverse_{}", field_name);
+                let sublist_remove_ident =
+                    format_ident!("__solverforge_sublist_remove_{}", field_name);
+                let sublist_insert_ident =
+                    format_ident!("__solverforge_sublist_insert_{}", field_name);
+                let ruin_remove_ident = format_ident!("__solverforge_ruin_remove_{}", field_name);
+                let ruin_insert_ident = format_ident!("__solverforge_ruin_insert_{}", field_name);
+                let n_entities_ident = format_ident!("__solverforge_n_entities_{}", field_name);
+                let element_count_ident =
+                    format_ident!("__solverforge_element_count_{}", field_name);
+                let assigned_elements_ident =
+                    format_ident!("__solverforge_assigned_elements_{}", field_name);
+                let list_remove_for_construction_ident = format_ident!(
+                    "__solverforge_list_remove_for_construction_{}",
+                    field_name
+                );
+                let index_to_element_ident =
+                    format_ident!("__solverforge_index_to_element_{}", field_name);
                 quote! {
                     if #list_trait::HAS_LIST_VARIABLE {
                         let metadata = #list_trait::list_metadata();
@@ -365,17 +391,17 @@ pub(super) fn generate_runtime_phase_support(
                             ::solverforge::__internal::VariableContext::List(
                                 ::solverforge::__internal::ListVariableContext::new(
                                     stringify!(#field_type),
-                                    Self::list_len_static,
-                                    Self::list_remove,
-                                    Self::list_insert,
-                                    Self::list_get,
-                                    Self::list_set,
-                                    Self::list_reverse,
-                                    Self::sublist_remove,
-                                    Self::sublist_insert,
-                                    Self::ruin_remove,
-                                    Self::ruin_insert,
-                                    Self::n_entities,
+                                    Self::#list_len_ident,
+                                    Self::#list_remove_ident,
+                                    Self::#list_insert_ident,
+                                    Self::#list_get_ident,
+                                    Self::#list_set_ident,
+                                    Self::#list_reverse_ident,
+                                    Self::#sublist_remove_ident,
+                                    Self::#sublist_insert_ident,
+                                    Self::#ruin_remove_ident,
+                                    Self::#ruin_insert_ident,
+                                    Self::#n_entities_ident,
                                     #cross_enum_ident::#variant(metadata.cross_distance_meter.clone()),
                                     #intra_enum_ident::#variant(metadata.intra_distance_meter.clone()),
                                     #list_trait::LIST_VARIABLE_NAME,
@@ -385,13 +411,13 @@ pub(super) fn generate_runtime_phase_support(
                         );
                         __solverforge_construction.push(
                             ::solverforge::__internal::ConstructionArgs {
-                                element_count: Self::element_count,
-                                assigned_elements: Self::assigned_elements,
-                                entity_count: Self::n_entities,
-                                list_len: Self::list_len_static,
-                                list_insert: Self::list_insert,
-                                list_remove: Self::list_remove_for_construction,
-                                index_to_element: Self::index_to_element_static,
+                                element_count: Self::#element_count_ident,
+                                assigned_elements: Self::#assigned_elements_ident,
+                                entity_count: Self::#n_entities_ident,
+                                list_len: Self::#list_len_ident,
+                                list_insert: Self::#list_insert_ident,
+                                list_remove: Self::#list_remove_for_construction_ident,
+                                index_to_element: Self::#index_to_element_ident,
                                 descriptor_index: #descriptor_index_lit,
                                 entity_type_name: stringify!(#field_type),
                                 variable_name: #list_trait::LIST_VARIABLE_NAME,
@@ -482,7 +508,8 @@ pub(super) fn generate_runtime_phase_support(
                         return !has_standard;
                     }
 
-                    let has_list = Self::n_entities(solution) > 0 && Self::element_count(solution) > 0;
+                    let has_list = Self::__solverforge_total_list_entities(solution) > 0
+                        && Self::__solverforge_total_list_elements(solution) > 0;
                     !has_standard && !has_list
                 }
 
@@ -491,8 +518,10 @@ pub(super) fn generate_runtime_phase_support(
                     let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
                     if Self::__solverforge_has_list_variable() {
                         ::solverforge::__internal::log_solve_start(
-                            Self::n_entities(solution),
-                            ::core::option::Option::Some(Self::element_count(solution)),
+                            Self::__solverforge_total_list_entities(solution),
+                            ::core::option::Option::Some(
+                                Self::__solverforge_total_list_elements(solution),
+                            ),
                             ::core::option::Option::Some(has_standard),
                             ::core::option::Option::None,
                         );

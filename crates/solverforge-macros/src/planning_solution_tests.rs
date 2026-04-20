@@ -73,3 +73,37 @@ fn golden_solution_expansion_embeds_explicit_solver_toml_source() {
     assert!(expanded.contains("run_solver_with_config"));
     assert!(!expanded.contains("load_solver_config ()"));
 }
+
+#[test]
+fn golden_solution_expansion_binds_owner_specific_list_helpers() {
+    let input = parse_quote! {
+        #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+        struct Plan {
+            #[planning_entity_collection]
+            routes: Vec<Route>,
+            #[planning_entity_collection]
+            shifts: Vec<Shift>,
+            #[problem_fact_collection]
+            route_tasks: Vec<RouteTask>,
+            #[problem_fact_collection]
+            shift_tasks: Vec<ShiftTask>,
+            #[planning_score]
+            score: Option<HardSoftScore>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("solution expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("fn __solverforge_list_insert_routes"));
+    assert!(expanded.contains("fn __solverforge_list_insert_shifts"));
+    assert!(expanded.contains("fn __solverforge_index_to_element_routes"));
+    assert!(expanded.contains("fn __solverforge_index_to_element_shifts"));
+    assert!(expanded.contains("Self :: __solverforge_list_insert_routes"));
+    assert!(expanded.contains("Self :: __solverforge_list_insert_shifts"));
+    assert!(expanded.contains("Self :: __solverforge_index_to_element_routes"));
+    assert!(expanded.contains("Self :: __solverforge_index_to_element_shifts"));
+    assert!(expanded.contains("Self :: __solverforge_total_list_entities"));
+    assert!(expanded.contains("Self :: __solverforge_total_list_elements"));
+}

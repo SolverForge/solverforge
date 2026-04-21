@@ -84,8 +84,6 @@ src/
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
-- `AnyTermination`
-- `build_termination`
 - `SolverManager`
 - `SolverRuntime`
 - `SolverEvent`

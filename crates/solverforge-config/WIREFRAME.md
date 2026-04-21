@@ -409,20 +409,20 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `FirstFit` | **Default.** Standard variable first fit |
-| `FirstFitDecreasing` | First fit by entity difficulty |
-| `WeakestFit` | |
-| `WeakestFitDecreasing` | |
-| `StrongestFit` | |
-| `StrongestFitDecreasing` | |
-| `CheapestInsertion` | Greedy, basic variables |
-| `AllocateEntityFromQueue` | |
-| `AllocateToValueFromQueue` | |
-| `ListRoundRobin` | List variable: even distribution |
-| `ListCheapestInsertion` | List variable: minimize insertion cost |
-| `ListRegretInsertion` | List variable: maximize regret |
-| `ListClarkeWright` | List variable: greedy route merging by savings |
-| `ListKOpt` | List variable: per-route k-opt polishing (k=2 = 2-opt) |
+| `FirstFit` | **Default.** Generic first-fit construction over scalar-only, list-only, or mixed `ModelContext` targets |
+| `FirstFitDecreasing` | Specialized scalar-only first fit by entity difficulty |
+| `WeakestFit` | Specialized scalar-only weakest-fit heuristic |
+| `WeakestFitDecreasing` | Specialized scalar-only weakest-fit-by-difficulty heuristic |
+| `StrongestFit` | Specialized scalar-only strongest-fit heuristic |
+| `StrongestFitDecreasing` | Specialized scalar-only strongest-fit-by-difficulty heuristic |
+| `CheapestInsertion` | Generic best-score construction over scalar-only, list-only, or mixed `ModelContext` targets |
+| `AllocateEntityFromQueue` | Specialized scalar-only queue-driven allocation |
+| `AllocateToValueFromQueue` | Specialized scalar-only value-queue allocation |
+| `ListRoundRobin` | Specialized list-only even distribution |
+| `ListCheapestInsertion` | Specialized list-only score-minimizing insertion |
+| `ListRegretInsertion` | Specialized list-only highest-regret insertion |
+| `ListClarkeWright` | Specialized list-only greedy route merging by savings |
+| `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt) |
 
 ### `AcceptorConfig`
 

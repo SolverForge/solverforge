@@ -24,7 +24,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly over `ModelContext`; chooses unified generic construction or specialized scalar/list phases
+├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; dispatches unified generic construction and delegates specialized scalar/list phases
 ├── list_solver_tests.rs                 — Tests
 ├── descriptor_standard.rs               — Re-exports the explicit descriptor-standard bindings, selectors, move types, and construction helpers
 ├── descriptor_standard/
@@ -823,11 +823,11 @@ formatting edges.
 
 Runtime helpers:
 
-- `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` dispatch into `phase/construction/unified.rs`, while specialized scalar-only and list-only heuristics keep their dedicated paths
+- `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`; available from `solverforge_solver::runtime`, not re-exported at crate root
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` dispatch into `phase/construction/unified.rs`, while specialized scalar-only and list-only heuristics delegate to the existing descriptor/list phase implementations
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
-- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`
+- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`; available from `solverforge_solver::runtime`, not re-exported at crate root
 
 Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `ModelContext`. Generic construction order is the descriptor-backed variable order emitted by the macros; specialized list heuristics remain explicit non-generic phases.
 

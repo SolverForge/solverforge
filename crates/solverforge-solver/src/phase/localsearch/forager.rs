@@ -55,15 +55,16 @@ mod improving;
 
 pub use improving::{FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager};
 
-/// A forager that collects a limited number of accepted moves.
+/// A forager that retains up to `N` accepted moves and picks the best.
 ///
-/// Once the limit is reached, it quits early. It picks the best
-/// move among those collected.
+/// This forager does **not** quit early. The limit controls retained
+/// accepted candidates, not neighborhood traversal. Early-exit behavior
+/// belongs to the explicit `First*Improving` foragers.
 pub struct AcceptedCountForager<S>
 where
     S: PlanningSolution,
 {
-    // Maximum number of accepted moves to collect.
+    // Maximum number of accepted moves to retain.
     accepted_count_limit: usize,
     // Collected move indices with their scores.
     accepted_moves: Vec<(usize, S::Score)>,
@@ -81,7 +82,7 @@ where
     /// evaluating any move, silently skipping every step.
     ///
     /// # Arguments
-    /// * `accepted_count_limit` - Stop after collecting this many accepted moves
+    /// * `accepted_count_limit` - Retain up to this many accepted moves
     pub fn new(accepted_count_limit: usize) -> Self {
         assert!(
             accepted_count_limit > 0,
@@ -130,11 +131,27 @@ where
     }
 
     fn add_move_index(&mut self, index: usize, score: S::Score) {
-        self.accepted_moves.push((index, score));
+        if self.accepted_moves.len() < self.accepted_count_limit {
+            self.accepted_moves.push((index, score));
+            return;
+        }
+
+        let mut worst_idx = 0;
+        let mut worst_score = self.accepted_moves[0].1;
+        for (i, &(_, retained_score)) in self.accepted_moves.iter().enumerate().skip(1) {
+            if retained_score < worst_score {
+                worst_idx = i;
+                worst_score = retained_score;
+            }
+        }
+
+        if score > worst_score {
+            self.accepted_moves[worst_idx] = (index, score);
+        }
     }
 
     fn is_quit_early(&self) -> bool {
-        self.accepted_moves.len() >= self.accepted_count_limit
+        false
     }
 
     fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {

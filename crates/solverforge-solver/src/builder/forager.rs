@@ -18,7 +18,7 @@ Dispatches to the inner forager via `match` — fully monomorphized.
 */
 #[allow(clippy::large_enum_variant)]
 pub enum AnyForager<S: PlanningSolution> {
-    // Collects up to `N` accepted moves, picks the best.
+    // Retains up to `N` accepted moves, picks the best.
     AcceptedCount(AcceptedCountForager<S>),
     // Picks the first accepted move.
     FirstAccepted(FirstAcceptedForager<S>),

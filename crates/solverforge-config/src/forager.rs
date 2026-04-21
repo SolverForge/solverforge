@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ForagerConfig {
-    // Maximum number of accepted moves to consider.
+    // Maximum number of accepted moves to retain for final selection.
     pub accepted_count_limit: Option<usize>,
 
-    // Whether to pick early if an improving move is found.
+    // Whether to stop neighborhood traversal early if an improving move is found.
     pub pick_early_type: Option<PickEarlyType>,
 }
 

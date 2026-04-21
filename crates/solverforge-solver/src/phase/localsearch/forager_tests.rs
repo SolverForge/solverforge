@@ -27,7 +27,7 @@ fn zero() -> SoftScore {
 }
 
 #[test]
-fn test_accepted_count_forager_collects_indices() {
+fn test_accepted_count_forager_never_quits_early() {
     let mut forager = AcceptedCountForager::<DummySolution>::new(3);
     <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
         &mut forager,
@@ -63,10 +63,49 @@ fn test_accepted_count_forager_collects_indices() {
         SoftScore::of(-8),
     );
     assert!(
-        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(
+        !<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(
             &forager,
         )
     );
+}
+
+#[test]
+fn test_accepted_count_forager_retains_best_n_moves() {
+    let mut forager = AcceptedCountForager::<DummySolution>::new(2);
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
+        &mut forager,
+        zero(),
+        zero(),
+    );
+
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut forager,
+        0,
+        SoftScore::of(-10),
+    );
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut forager,
+        1,
+        SoftScore::of(-5),
+    );
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut forager,
+        2,
+        SoftScore::of(-8),
+    );
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut forager,
+        3,
+        SoftScore::of(-1),
+    );
+
+    let (index, score) = <AcceptedCountForager<DummySolution> as LocalSearchForager<
+        DummySolution,
+        TestMove,
+    >>::pick_move_index(&mut forager)
+    .unwrap();
+    assert_eq!(index, 3);
+    assert_eq!(score, SoftScore::of(-1));
 }
 
 #[test]

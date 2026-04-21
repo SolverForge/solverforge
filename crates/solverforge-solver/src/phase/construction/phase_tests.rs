@@ -572,12 +572,72 @@ fn best_fit_assigns_when_candidate_is_strictly_better_than_none() {
 }
 
 #[test]
-fn first_fit_optional_construction_selects_first_doable_move() {
+fn first_fit_optional_construction_keeps_current_when_baseline_is_not_beaten() {
     let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let placer = ScoredConstructionPlacer::new(vec![3, 4], true);
+    let placer = ScoredConstructionPlacer::new(vec![-5, -1], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, None);
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(0))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 0);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn first_fit_optional_construction_skips_worse_candidate_and_takes_later_improvement() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-5, 7], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(7));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn first_fit_optional_construction_takes_first_improving_candidate() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![7, -5], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(7));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn first_fit_required_construction_still_selects_first_doable_candidate() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![3, 4], false);
     let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new());
 
     phase.solve(&mut solver_scope);

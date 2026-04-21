@@ -12,7 +12,8 @@ use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::decision::{
-    select_best_fit, select_first_feasible, select_first_fit, ScoredChoiceTracker,
+    is_first_fit_improvement, select_best_fit, select_first_feasible, select_first_fit,
+    ScoredChoiceTracker,
 };
 use crate::phase::construction::evaluation::evaluate_trial_move;
 use crate::phase::construction::{
@@ -291,13 +292,33 @@ where
     M: Move<S> + 'static,
 {
     let mut first_doable = None;
+    let baseline_score = placement
+        .keep_current_legal()
+        .then(|| step_scope.calculate_score());
 
     for (idx, m) in placement.moves.iter().enumerate() {
         let evaluation_started = Instant::now();
         if should_interrupt_evaluation(step_scope, idx) {
             return ConstructionSelection::Interrupted;
         }
-        if m.is_doable(step_scope.score_director()) {
+        if !m.is_doable(step_scope.score_director()) {
+            step_scope
+                .phase_scope_mut()
+                .record_evaluated_move(evaluation_started.elapsed());
+            continue;
+        }
+
+        if let Some(baseline_score) = baseline_score {
+            let score = evaluate_trial_move(step_scope.score_director_mut(), m);
+            step_scope.phase_scope_mut().record_score_calculation();
+            if is_first_fit_improvement(baseline_score, score) {
+                first_doable = Some(idx);
+                step_scope
+                    .phase_scope_mut()
+                    .record_evaluated_move(evaluation_started.elapsed());
+                break;
+            }
+        } else {
             first_doable = Some(idx);
             step_scope
                 .phase_scope_mut()

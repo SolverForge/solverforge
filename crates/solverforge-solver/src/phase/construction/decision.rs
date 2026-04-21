@@ -60,6 +60,16 @@ pub(crate) fn select_first_fit(first_doable_idx: Option<usize>) -> ConstructionC
         .unwrap_or(ConstructionChoice::KeepCurrent)
 }
 
+pub(crate) fn is_first_fit_improvement<ScoreT>(
+    baseline_score: ScoreT,
+    candidate_score: ScoreT,
+) -> bool
+where
+    ScoreT: Score,
+{
+    candidate_score > baseline_score
+}
+
 pub(crate) fn select_best_fit<ScoreT>(
     tracker: ScoredChoiceTracker<ScoreT>,
     baseline_score: Option<ScoreT>,

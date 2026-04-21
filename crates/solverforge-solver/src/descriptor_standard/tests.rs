@@ -57,6 +57,10 @@ struct PlanScoreDirector {
 enum PlanScoreMode {
     AllAssignedBonus,
     PreferUnassigned,
+    ByWorker {
+        unassigned_score: i64,
+        assigned_scores: [i64; 3],
+    },
 }
 
 impl PlanScoreDirector {
@@ -111,6 +115,15 @@ impl solverforge_scoring::Director<Plan> for PlanScoreDirector {
                     SoftScore::of(-1)
                 }
             }
+            PlanScoreMode::ByWorker {
+                unassigned_score,
+                assigned_scores,
+            } => SoftScore::of(
+                self.working_solution.tasks[0]
+                    .worker_idx
+                    .map(|worker_idx| assigned_scores[worker_idx])
+                    .unwrap_or(unassigned_score),
+            ),
         };
         self.working_solution.set_score(Some(score));
         score
@@ -151,7 +164,7 @@ fn set_worker_idx(entity: &mut dyn Any, value: Option<usize>) {
         .worker_idx = value;
 }
 
-fn descriptor() -> SolutionDescriptor {
+fn descriptor_with_allows_unassigned(allows_unassigned: bool) -> SolutionDescriptor {
     SolutionDescriptor::new("Plan", TypeId::of::<Plan>())
         .with_entity(
             EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
@@ -163,7 +176,7 @@ fn descriptor() -> SolutionDescriptor {
                 )))
                 .with_variable(
                     VariableDescriptor::genuine("worker_idx")
-                        .with_allows_unassigned(true)
+                        .with_allows_unassigned(allows_unassigned)
                         .with_value_range("workers")
                         .with_usize_accessors(get_worker_idx, set_worker_idx),
                 ),
@@ -178,6 +191,10 @@ fn descriptor() -> SolutionDescriptor {
                 )),
             ),
         )
+}
+
+fn descriptor() -> SolutionDescriptor {
+    descriptor_with_allows_unassigned(true)
 }
 
 #[test]
@@ -230,8 +247,8 @@ fn descriptor_change_selector_adds_to_none_for_assigned_optional_variables() {
 }
 
 #[test]
-fn descriptor_first_fit_assigns_optional_variables_when_moves_are_doable() {
-    let descriptor = descriptor();
+fn descriptor_first_fit_required_slot_still_assigns_first_doable_value() {
+    let descriptor = descriptor_with_allows_unassigned(false);
     let plan = Plan {
         workers: vec![Worker, Worker, Worker],
         tasks: vec![Task { worker_idx: None }, Task { worker_idx: None }],
@@ -250,6 +267,97 @@ fn descriptor_first_fit_assigns_optional_variables_when_moves_are_doable() {
         .iter()
         .all(|task| task.worker_idx == Some(0)));
     assert_eq!(solver_scope.stats().moves_accepted, 2);
+}
+
+#[test]
+fn descriptor_first_fit_optional_slot_keeps_none_when_baseline_is_not_beaten() {
+    let descriptor = descriptor();
+    let plan = Plan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![Task { worker_idx: None }],
+        score: None,
+    };
+    let director = PlanScoreDirector::with_mode(
+        plan,
+        descriptor.clone(),
+        PlanScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [-5, -1, -2],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = build_descriptor_construction::<Plan>(None, &descriptor);
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(0))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 0);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn descriptor_first_fit_optional_slot_skips_worse_candidate_for_later_improvement() {
+    let descriptor = descriptor();
+    let plan = Plan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![Task { worker_idx: None }],
+        score: None,
+    };
+    let director = PlanScoreDirector::with_mode(
+        plan,
+        descriptor.clone(),
+        PlanScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [-5, 7, -1],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = build_descriptor_construction::<Plan>(None, &descriptor);
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(1));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
+fn descriptor_first_fit_optional_slot_takes_first_improving_candidate() {
+    let descriptor = descriptor();
+    let plan = Plan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![Task { worker_idx: None }],
+        score: None,
+    };
+    let director = PlanScoreDirector::with_mode(
+        plan,
+        descriptor.clone(),
+        PlanScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [7, -5, 3],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = build_descriptor_construction::<Plan>(None, &descriptor);
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(0));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
 }
 
 #[test]
@@ -342,6 +450,10 @@ fn descriptor_reopened_optional_slot_is_revisited_by_later_construction() {
     local_search.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
+
+    solver_scope
+        .score_director_mut()
+        .set_score_mode(PlanScoreMode::AllAssignedBonus);
 
     let mut reconstruct = build_descriptor_construction::<Plan>(None, &descriptor);
     reconstruct.solve(&mut solver_scope);

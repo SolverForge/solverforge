@@ -105,6 +105,38 @@ struct StandardRuntimePlan {
 struct StandardRuntimeDirector {
     working_solution: StandardRuntimePlan,
     descriptor: SolutionDescriptor,
+    score_mode: StandardRuntimeScoreMode,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum StandardRuntimeScoreMode {
+    PreferUnassigned,
+    ByWorker {
+        unassigned_score: i64,
+        assigned_scores: [i64; 3],
+    },
+}
+
+impl StandardRuntimeDirector {
+    fn new(working_solution: StandardRuntimePlan, descriptor: SolutionDescriptor) -> Self {
+        Self::with_score_mode(
+            working_solution,
+            descriptor,
+            StandardRuntimeScoreMode::PreferUnassigned,
+        )
+    }
+
+    fn with_score_mode(
+        working_solution: StandardRuntimePlan,
+        descriptor: SolutionDescriptor,
+        score_mode: StandardRuntimeScoreMode,
+    ) -> Self {
+        Self {
+            working_solution,
+            descriptor,
+            score_mode,
+        }
+    }
 }
 
 impl PlanningSolution for StandardRuntimePlan {
@@ -129,10 +161,23 @@ impl Director<StandardRuntimePlan> for StandardRuntimeDirector {
     }
 
     fn calculate_score(&mut self) -> SoftScore {
-        let score = if self.working_solution.tasks[0].worker_idx.is_none() {
-            SoftScore::of(0)
-        } else {
-            SoftScore::of(-1)
+        let score = match self.score_mode {
+            StandardRuntimeScoreMode::PreferUnassigned => {
+                if self.working_solution.tasks[0].worker_idx.is_none() {
+                    SoftScore::of(0)
+                } else {
+                    SoftScore::of(-1)
+                }
+            }
+            StandardRuntimeScoreMode::ByWorker {
+                unassigned_score,
+                assigned_scores,
+            } => SoftScore::of(
+                self.working_solution.tasks[0]
+                    .worker_idx
+                    .map(|worker_idx| assigned_scores[worker_idx])
+                    .unwrap_or(unassigned_score),
+            ),
         };
         self.working_solution.set_score(Some(score));
         score
@@ -173,7 +218,9 @@ fn set_runtime_worker_idx(entity: &mut dyn std::any::Any, value: Option<usize>) 
         .worker_idx = value;
 }
 
-fn standard_runtime_descriptor() -> SolutionDescriptor {
+fn standard_runtime_descriptor_with_allows_unassigned(
+    allows_unassigned: bool,
+) -> SolutionDescriptor {
     SolutionDescriptor::new("StandardRuntimePlan", TypeId::of::<StandardRuntimePlan>())
         .with_entity(
             EntityDescriptor::new("Task", TypeId::of::<StandardRuntimeTask>(), "tasks")
@@ -185,7 +232,7 @@ fn standard_runtime_descriptor() -> SolutionDescriptor {
                 )))
                 .with_variable(
                     VariableDescriptor::genuine("worker_idx")
-                        .with_allows_unassigned(true)
+                        .with_allows_unassigned(allows_unassigned)
                         .with_value_range("workers")
                         .with_usize_accessors(get_runtime_worker_idx, set_runtime_worker_idx),
                 ),
@@ -199,6 +246,10 @@ fn standard_runtime_descriptor() -> SolutionDescriptor {
                     |solution: &mut StandardRuntimePlan| &mut solution.workers,
                 ))),
         )
+}
+
+fn standard_runtime_descriptor() -> SolutionDescriptor {
+    standard_runtime_descriptor_with_allows_unassigned(true)
 }
 
 fn standard_runtime_task_count(solution: &StandardRuntimePlan) -> usize {
@@ -224,8 +275,9 @@ fn standard_runtime_worker_set(
     solution.tasks[entity_index].worker_idx = value;
 }
 
-fn standard_runtime_model() -> ModelContext<StandardRuntimePlan, usize, DefaultMeter, DefaultMeter>
-{
+fn standard_runtime_model_with_allows_unassigned(
+    allows_unassigned: bool,
+) -> ModelContext<StandardRuntimePlan, usize, DefaultMeter, DefaultMeter> {
     ModelContext::new(vec![VariableContext::Scalar(ScalarVariableContext::new(
         0,
         "Task",
@@ -236,8 +288,13 @@ fn standard_runtime_model() -> ModelContext<StandardRuntimePlan, usize, DefaultM
         ValueSource::SolutionCount {
             count_fn: standard_runtime_worker_count,
         },
-        true,
+        allows_unassigned,
     ))])
+}
+
+fn standard_runtime_model() -> ModelContext<StandardRuntimePlan, usize, DefaultMeter, DefaultMeter>
+{
+    standard_runtime_model_with_allows_unassigned(true)
 }
 
 #[test]
@@ -248,10 +305,7 @@ fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
         workers: vec![StandardRuntimeWorker],
         tasks: vec![StandardRuntimeTask { worker_idx: None }],
     };
-    let director = StandardRuntimeDirector {
-        working_solution: plan,
-        descriptor: descriptor.clone(),
-    };
+    let director = StandardRuntimeDirector::new(plan, descriptor.clone());
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
@@ -298,10 +352,7 @@ fn no_op_runtime_construction_still_seeds_score_and_best_solution() {
             worker_idx: Some(0),
         }],
     };
-    let director = StandardRuntimeDirector {
-        working_solution: plan,
-        descriptor: descriptor.clone(),
-    };
+    let director = StandardRuntimeDirector::new(plan, descriptor.clone());
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
@@ -313,6 +364,143 @@ fn no_op_runtime_construction_still_seeds_score_and_best_solution() {
         Some(SoftScore::of(-1))
     );
     assert_eq!(solver_scope.best_score().copied(), Some(SoftScore::of(-1)));
+}
+
+#[test]
+fn standard_runtime_first_fit_keeps_none_when_optional_baseline_is_not_beaten() {
+    let descriptor = standard_runtime_descriptor();
+    let plan = StandardRuntimePlan {
+        score: None,
+        workers: vec![
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+        ],
+        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+    };
+    let director = StandardRuntimeDirector::with_score_mode(
+        plan,
+        descriptor.clone(),
+        StandardRuntimeScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [-5, -1, -2],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(0))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 0);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn standard_runtime_first_fit_skips_worse_candidate_for_later_improvement() {
+    let descriptor = standard_runtime_descriptor();
+    let plan = StandardRuntimePlan {
+        score: None,
+        workers: vec![
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+        ],
+        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+    };
+    let director = StandardRuntimeDirector::with_score_mode(
+        plan,
+        descriptor.clone(),
+        StandardRuntimeScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [-5, 7, -1],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(1));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
+fn standard_runtime_first_fit_takes_first_improving_candidate() {
+    let descriptor = standard_runtime_descriptor();
+    let plan = StandardRuntimePlan {
+        score: None,
+        workers: vec![
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+        ],
+        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+    };
+    let director = StandardRuntimeDirector::with_score_mode(
+        plan,
+        descriptor.clone(),
+        StandardRuntimeScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [7, -5, 3],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(0));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
+fn standard_runtime_first_fit_required_slot_still_assigns_first_doable() {
+    let descriptor = standard_runtime_descriptor_with_allows_unassigned(false);
+    let plan = StandardRuntimePlan {
+        score: None,
+        workers: vec![
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+            StandardRuntimeWorker,
+        ],
+        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+    };
+    let director = StandardRuntimeDirector::with_score_mode(
+        plan,
+        descriptor.clone(),
+        StandardRuntimeScoreMode::ByWorker {
+            unassigned_score: 0,
+            assigned_scores: [-5, -1, -2],
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(
+        None,
+        descriptor,
+        standard_runtime_model_with_allows_unassigned(false),
+    );
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(0));
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
 }
 
 #[derive(Clone, Debug)]
@@ -1104,6 +1292,13 @@ impl PlanningSolution for MixedTargetPlan {
 struct MixedTargetDirector {
     working_solution: MixedTargetPlan,
     descriptor: SolutionDescriptor,
+    score_mode: MixedTargetScoreMode,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum MixedTargetScoreMode {
+    Flat,
+    PreferAssignedWorker,
 }
 
 impl Director<MixedTargetPlan> for MixedTargetDirector {
@@ -1116,7 +1311,15 @@ impl Director<MixedTargetPlan> for MixedTargetDirector {
     }
 
     fn calculate_score(&mut self) -> SoftScore {
-        let score = SoftScore::of(0);
+        let score = match self.score_mode {
+            MixedTargetScoreMode::Flat => SoftScore::of(0),
+            MixedTargetScoreMode::PreferAssignedWorker => SoftScore::of(
+                self.working_solution.routes[0]
+                    .worker_idx
+                    .map(|_| 1)
+                    .unwrap_or(0),
+            ),
+        };
         self.working_solution.set_score(Some(score));
         score
     }
@@ -1389,11 +1592,13 @@ fn mixed_target_model() -> ModelContext<MixedTargetPlan, usize, DefaultMeter, De
 fn solve_mixed_target_construction(
     kind: ConstructionHeuristicType,
     entity_class: Option<&str>,
+    score_mode: MixedTargetScoreMode,
 ) -> MixedTargetPlan {
     let descriptor = mixed_target_descriptor();
     let director = MixedTargetDirector {
         working_solution: mixed_target_plan(),
         descriptor: descriptor.clone(),
+        score_mode,
     };
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
@@ -1409,8 +1614,11 @@ fn solve_mixed_target_construction(
 
 #[test]
 fn unified_entity_class_target_matches_scalar_and_list_in_same_owner() {
-    let solution =
-        solve_mixed_target_construction(ConstructionHeuristicType::FirstFit, Some("Route"));
+    let solution = solve_mixed_target_construction(
+        ConstructionHeuristicType::FirstFit,
+        Some("Route"),
+        MixedTargetScoreMode::PreferAssignedWorker,
+    );
 
     assert_eq!(solution.routes[0].worker_idx, Some(0));
     assert_eq!(solution.routes[0].tasks, vec![10]);
@@ -1421,6 +1629,7 @@ fn mixed_cheapest_insertion_breaks_equal_scores_by_canonical_order() {
     let solution = solve_mixed_target_construction(
         ConstructionHeuristicType::CheapestInsertion,
         Some("Route"),
+        MixedTargetScoreMode::Flat,
     );
 
     assert_eq!(solution.routes[0].worker_idx, Some(0));

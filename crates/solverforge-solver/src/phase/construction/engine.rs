@@ -12,7 +12,9 @@ use crate::builder::{
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 
-use super::decision::{select_best_fit, select_first_fit, ScoredChoiceTracker};
+use super::decision::{
+    is_first_fit_improvement, select_best_fit, select_first_fit, ScoredChoiceTracker,
+};
 use super::evaluation::evaluate_trial_move;
 use super::ConstructionListElementId;
 use super::ConstructionSlotId;
@@ -282,6 +284,7 @@ where
         }
 
         let mut first_doable = None;
+        let baseline_score = ctx.allows_unassigned.then(|| phase_scope.calculate_score());
 
         for (value_index, value) in values.into_iter().enumerate() {
             let mov = ChangeMove::new(
@@ -292,18 +295,36 @@ where
                 ctx.variable_name,
                 ctx.descriptor_index,
             );
-            if mov.is_doable(phase_scope.score_director()) {
-                let score = candidate_score(phase_scope, &mov);
+            if !mov.is_doable(phase_scope.score_director()) {
+                continue;
+            }
+
+            let score = candidate_score(phase_scope, &mov);
+
+            if let Some(baseline_score) = baseline_score {
+                if is_first_fit_improvement(baseline_score, score) {
+                    first_doable = Some((value_index, value, score));
+                    break;
+                }
+            } else {
                 first_doable = Some((value_index, value, score));
                 break;
             }
         }
 
-        if let Some((value_index, value, score)) = first_doable {
-            if matches!(
-                select_first_fit(Some(value_index)),
-                crate::phase::construction::ConstructionChoice::Select(_)
-            ) {
+        let selection = select_first_fit(
+            first_doable
+                .as_ref()
+                .map(|(value_index, _, _)| *value_index),
+        );
+
+        match selection {
+            crate::phase::construction::ConstructionChoice::Select(selected_index) => {
+                let Some((value_index, value, score)) =
+                    first_doable.filter(|(value_index, _, _)| *value_index == selected_index)
+                else {
+                    unreachable!("selected scalar construction candidate should exist");
+                };
                 return IterationProgress::Committed(Candidate::Scalar {
                     ctx,
                     entity_index,
@@ -312,11 +333,13 @@ where
                     score,
                 });
             }
-        }
-
-        if ctx.allows_unassigned {
-            complete_scalar_slot(slot_id, phase_scope);
-            return IterationProgress::CompletedOnly;
+            crate::phase::construction::ConstructionChoice::KeepCurrent
+                if ctx.allows_unassigned =>
+            {
+                complete_scalar_slot(slot_id, phase_scope);
+                return IterationProgress::CompletedOnly;
+            }
+            crate::phase::construction::ConstructionChoice::KeepCurrent => {}
         }
     }
 
@@ -463,7 +486,10 @@ where
                     return IterationProgress::CompletedOnly;
                 }
             }
-            (crate::phase::construction::ConstructionChoice::Select(_), Some((value_index, value, score))) => {
+            (
+                crate::phase::construction::ConstructionChoice::Select(_),
+                Some((value_index, value, score)),
+            ) => {
                 return IterationProgress::Committed(Candidate::Scalar {
                     ctx,
                     entity_index,

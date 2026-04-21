@@ -19,7 +19,8 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::Move;
 
 use super::decision::{
-    select_best_fit, select_first_feasible, select_first_fit, ScoredChoiceTracker,
+    is_first_fit_improvement, select_best_fit, select_first_feasible, select_first_fit,
+    ScoredChoiceTracker,
 };
 use super::evaluation::evaluate_trial_move;
 use super::Placement;
@@ -100,9 +101,22 @@ where
         score_director: &mut D,
     ) -> ConstructionChoice {
         let mut first_doable = None;
+        let baseline_score = placement
+            .keep_current_legal()
+            .then(|| score_director.calculate_score());
 
         for (idx, m) in placement.moves.iter().enumerate() {
-            if m.is_doable(score_director) {
+            if !m.is_doable(score_director) {
+                continue;
+            }
+
+            if let Some(baseline_score) = baseline_score {
+                let candidate_score = evaluate_trial_move(score_director, m);
+                if is_first_fit_improvement(baseline_score, candidate_score) {
+                    first_doable = Some(idx);
+                    break;
+                }
+            } else {
                 first_doable = Some(idx);
                 break;
             }

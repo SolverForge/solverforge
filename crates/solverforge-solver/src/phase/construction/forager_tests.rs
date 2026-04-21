@@ -246,9 +246,35 @@ fn test_strongest_fit_forager() {
 }
 
 #[test]
-fn first_fit_selects_first_doable_move_even_when_keep_current_is_legal() {
-    let mut director = create_test_director();
-    let placement = create_placement().with_keep_current_legal(true);
+fn first_fit_keeps_current_when_optional_baseline_is_not_beaten() {
+    let mut director = create_scored_director(0);
+    let placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
+
+    let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::KeepCurrent
+    );
+}
+
+#[test]
+fn first_fit_selects_later_improving_candidate_when_earlier_one_is_worse() {
+    let mut director = create_scored_director(0);
+    let placement = create_placement_with_values([-5, 7, -1]).with_keep_current_legal(true);
+
+    let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::Select(1)
+    );
+}
+
+#[test]
+fn first_fit_selects_first_improving_candidate_over_optional_baseline() {
+    let mut director = create_scored_director(0);
+    let placement = create_placement_with_values([7, -5, 3]).with_keep_current_legal(true);
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
 

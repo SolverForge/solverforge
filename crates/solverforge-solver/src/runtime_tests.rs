@@ -1,10 +1,11 @@
-use super::{
-    list_target_matches, matching_list_construction, normalize_list_construction_config,
-    Construction, ConstructionArgs,
+use super::Construction;
+use crate::builder::{
+    ListVariableContext, ModelContext, ScalarVariableContext, ValueSource, VariableContext,
 };
-use crate::descriptor_standard::standard_target_matches;
+use crate::descriptor_standard::{standard_target_matches, standard_work_remaining_with_frontier};
 use crate::phase::Phase;
 use crate::scope::SolverScope;
+use crate::DefaultCrossEntityDistanceMeter;
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, VariableTargetConfig,
 };
@@ -13,16 +14,18 @@ use solverforge_core::domain::{
     SolutionDescriptor, VariableDescriptor, VariableType,
 };
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::{Director, ScoreDirector};
 use std::any::TypeId;
+
+type DefaultMeter = DefaultCrossEntityDistanceMeter;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
-    score: Option<solverforge_core::score::SoftScore>,
+    score: Option<SoftScore>,
 }
 
 impl PlanningSolution for TestSolution {
-    type Score = solverforge_core::score::SoftScore;
+    type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
         self.score
@@ -61,32 +64,6 @@ fn descriptor() -> SolutionDescriptor {
         )
 }
 
-fn list_args() -> ConstructionArgs<TestSolution, usize> {
-    ConstructionArgs {
-        element_count: |_| 0,
-        assigned_elements: |_| Vec::new(),
-        entity_count: |_| 0,
-        list_len: |_, _| 0,
-        list_insert: |_, _, _, _| {},
-        list_remove: |_, _, _| 0,
-        index_to_element: |_, _| 0,
-        descriptor_index: 0,
-        entity_type_name: "Route",
-        variable_name: "visits",
-        depot_fn: None,
-        distance_fn: None,
-        element_load_fn: None,
-        capacity_fn: None,
-        assign_route_fn: None,
-        merge_feasible_fn: None,
-        k_opt_get_route: None,
-        k_opt_set_route: None,
-        k_opt_depot_fn: None,
-        k_opt_distance_fn: None,
-        k_opt_feasible_fn: None,
-    }
-}
-
 fn config(
     construction_heuristic_type: ConstructionHeuristicType,
     entity_class: Option<&str>,
@@ -101,80 +78,6 @@ fn config(
         k: 2,
         termination: None,
     }
-}
-
-#[test]
-fn list_target_requires_matching_variable_name() {
-    let cfg = config(
-        ConstructionHeuristicType::ListCheapestInsertion,
-        Some("Shift"),
-        Some("employee_id"),
-    );
-    assert!(!list_target_matches(&cfg, &list_args()));
-}
-
-#[test]
-fn list_target_matches_entity_class_only_for_owner() {
-    let cfg = config(
-        ConstructionHeuristicType::ListCheapestInsertion,
-        Some("Route"),
-        None,
-    );
-    assert!(list_target_matches(&cfg, &list_args()));
-}
-
-#[test]
-fn matching_list_construction_returns_all_owners_without_target() {
-    let args = vec![
-        list_args(),
-        ConstructionArgs {
-            entity_type_name: "Shift",
-            variable_name: "visits",
-            ..list_args()
-        },
-    ];
-
-    let matches = matching_list_construction::<TestSolution, usize>(None, &args);
-
-    assert_eq!(matches.len(), 2);
-}
-
-#[test]
-fn matching_list_construction_filters_to_targeted_owner() {
-    let args = vec![
-        list_args(),
-        ConstructionArgs {
-            entity_type_name: "Shift",
-            variable_name: "assignments",
-            ..list_args()
-        },
-    ];
-    let cfg = config(
-        ConstructionHeuristicType::ListCheapestInsertion,
-        Some("Shift"),
-        Some("assignments"),
-    );
-
-    let matches = matching_list_construction(Some(&cfg), &args);
-
-    assert_eq!(matches.len(), 1);
-    assert_eq!(matches[0].entity_type_name, "Shift");
-    assert_eq!(matches[0].variable_name, "assignments");
-}
-
-#[test]
-fn generic_list_dispatch_normalizes_to_list_cheapest_insertion() {
-    let cfg = config(
-        ConstructionHeuristicType::FirstFit,
-        Some("Route"),
-        Some("visits"),
-    );
-    let normalized = normalize_list_construction_config(Some(&cfg))
-        .expect("generic list config should normalize");
-    assert_eq!(
-        normalized.construction_heuristic_type,
-        ConstructionHeuristicType::ListCheapestInsertion
-    );
 }
 
 #[test]
@@ -216,7 +119,7 @@ impl PlanningSolution for StandardRuntimePlan {
     }
 }
 
-impl solverforge_scoring::Director<StandardRuntimePlan> for StandardRuntimeDirector {
+impl Director<StandardRuntimePlan> for StandardRuntimeDirector {
     fn working_solution(&self) -> &StandardRuntimePlan {
         &self.working_solution
     }
@@ -298,30 +201,43 @@ fn standard_runtime_descriptor() -> SolutionDescriptor {
         )
 }
 
-fn standard_runtime_list_args() -> ConstructionArgs<StandardRuntimePlan, usize> {
-    ConstructionArgs {
-        element_count: |_| 0,
-        assigned_elements: |_| Vec::new(),
-        entity_count: |_| 0,
-        list_len: |_, _| 0,
-        list_insert: |_, _, _, _| {},
-        list_remove: |_, _, _| 0,
-        index_to_element: |_, _| 0,
-        descriptor_index: 0,
-        entity_type_name: "Route",
-        variable_name: "visits",
-        depot_fn: None,
-        distance_fn: None,
-        element_load_fn: None,
-        capacity_fn: None,
-        assign_route_fn: None,
-        merge_feasible_fn: None,
-        k_opt_get_route: None,
-        k_opt_set_route: None,
-        k_opt_depot_fn: None,
-        k_opt_distance_fn: None,
-        k_opt_feasible_fn: None,
-    }
+fn standard_runtime_task_count(solution: &StandardRuntimePlan) -> usize {
+    solution.tasks.len()
+}
+
+fn standard_runtime_worker_count(solution: &StandardRuntimePlan) -> usize {
+    solution.workers.len()
+}
+
+fn standard_runtime_worker_get(
+    solution: &StandardRuntimePlan,
+    entity_index: usize,
+) -> Option<usize> {
+    solution.tasks[entity_index].worker_idx
+}
+
+fn standard_runtime_worker_set(
+    solution: &mut StandardRuntimePlan,
+    entity_index: usize,
+    value: Option<usize>,
+) {
+    solution.tasks[entity_index].worker_idx = value;
+}
+
+fn standard_runtime_model() -> ModelContext<StandardRuntimePlan, usize, DefaultMeter, DefaultMeter>
+{
+    ModelContext::new(vec![VariableContext::Scalar(ScalarVariableContext::new(
+        0,
+        "Task",
+        standard_runtime_task_count,
+        "worker_idx",
+        standard_runtime_worker_get,
+        standard_runtime_worker_set,
+        ValueSource::SolutionCount {
+            count_fn: standard_runtime_worker_count,
+        },
+        true,
+    ))])
 }
 
 #[test]
@@ -346,16 +262,16 @@ fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
             Some("worker_idx"),
         )),
         descriptor.clone(),
-        vec![standard_runtime_list_args()],
+        standard_runtime_model(),
     );
     targeted_phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
     assert_eq!(solver_scope.stats().step_count, 1);
     assert!(
-        !super::standard_work_remaining_with_frontier(
+        !standard_work_remaining_with_frontier(
             &descriptor,
-            solver_scope.standard_construction_frontier(),
+            solver_scope.construction_frontier(),
             solver_scope.solution_revision(),
             None,
             None,
@@ -364,8 +280,7 @@ fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
         "completed optional None should not be treated as remaining standard work",
     );
 
-    let mut untargeted_phase =
-        Construction::new(None, descriptor, vec![standard_runtime_list_args()]);
+    let mut untargeted_phase = Construction::new(None, descriptor, standard_runtime_model());
     untargeted_phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
@@ -390,7 +305,7 @@ fn no_op_runtime_construction_still_seeds_score_and_best_solution() {
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let mut phase = Construction::new(None, descriptor, vec![standard_runtime_list_args()]);
+    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
     phase.solve(&mut solver_scope);
 
     assert_eq!(
@@ -435,7 +350,7 @@ impl PlanningSolution for RevisionPlan {
     }
 }
 
-impl solverforge_scoring::Director<RevisionPlan> for RevisionDirector {
+impl Director<RevisionPlan> for RevisionDirector {
     fn working_solution(&self) -> &RevisionPlan {
         &self.working_solution
     }
@@ -472,12 +387,13 @@ impl solverforge_scoring::Director<RevisionPlan> for RevisionDirector {
     fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
         match descriptor_index {
             0 => Some(self.working_solution.tasks.len()),
+            1 => Some(self.working_solution.routes.len()),
             _ => None,
         }
     }
 
     fn total_entity_count(&self) -> Option<usize> {
-        Some(self.working_solution.tasks.len())
+        Some(self.working_solution.tasks.len() + self.working_solution.routes.len())
     }
 }
 
@@ -512,6 +428,16 @@ fn revision_descriptor() -> SolutionDescriptor {
                         .with_usize_accessors(revision_task_getter, revision_task_setter),
                 ),
         )
+        .with_entity(
+            EntityDescriptor::new("Route", TypeId::of::<Vec<usize>>(), "routes").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Route",
+                    "routes",
+                    |solution: &RevisionPlan| &solution.routes,
+                    |solution: &mut RevisionPlan| &mut solution.routes,
+                )),
+            ),
+        )
         .with_problem_fact(
             ProblemFactDescriptor::new("Worker", TypeId::of::<RevisionWorker>(), "workers")
                 .with_extractor(Box::new(EntityCollectionExtractor::new(
@@ -523,42 +449,176 @@ fn revision_descriptor() -> SolutionDescriptor {
         )
 }
 
-fn revision_list_args() -> ConstructionArgs<RevisionPlan, usize> {
-    ConstructionArgs {
-        element_count: |solution| solution.route_pool.len(),
-        assigned_elements: |solution| {
-            solution
-                .routes
-                .iter()
-                .flat_map(|route| route.iter().copied())
-                .collect()
-        },
-        entity_count: |solution| solution.routes.len(),
-        list_len: |solution, entity_idx| solution.routes[entity_idx].len(),
-        list_insert: |solution, entity_idx, pos, value| {
-            solution.routes[entity_idx].insert(pos, value);
-        },
-        list_remove: |solution, entity_idx, pos| solution.routes[entity_idx].remove(pos),
-        index_to_element: |solution, idx| solution.route_pool[idx],
-        descriptor_index: 1,
-        entity_type_name: "Route",
-        variable_name: "visits",
-        depot_fn: None,
-        distance_fn: None,
-        element_load_fn: None,
-        capacity_fn: None,
-        assign_route_fn: None,
-        merge_feasible_fn: None,
-        k_opt_get_route: None,
-        k_opt_set_route: None,
-        k_opt_depot_fn: None,
-        k_opt_distance_fn: None,
-        k_opt_feasible_fn: None,
-    }
+fn revision_task_count(solution: &RevisionPlan) -> usize {
+    solution.tasks.len()
+}
+
+fn revision_worker_count(solution: &RevisionPlan) -> usize {
+    solution.workers.len()
+}
+
+fn revision_worker_get(solution: &RevisionPlan, entity_index: usize) -> Option<usize> {
+    solution.tasks[entity_index].worker_idx
+}
+
+fn revision_worker_set(solution: &mut RevisionPlan, entity_index: usize, value: Option<usize>) {
+    solution.tasks[entity_index].worker_idx = value;
+}
+
+fn revision_route_count(solution: &RevisionPlan) -> usize {
+    solution.routes.len()
+}
+
+fn revision_route_element_count(solution: &RevisionPlan) -> usize {
+    solution.route_pool.len()
+}
+
+fn revision_assigned_route_elements(solution: &RevisionPlan) -> Vec<usize> {
+    solution
+        .routes
+        .iter()
+        .flat_map(|route| route.iter().copied())
+        .collect()
+}
+
+fn revision_route_len(solution: &RevisionPlan, entity_index: usize) -> usize {
+    solution.routes[entity_index].len()
+}
+
+fn revision_route_remove(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    pos: usize,
+) -> Option<usize> {
+    let route = solution.routes.get_mut(entity_index)?;
+    (pos < route.len()).then(|| route.remove(pos))
+}
+
+fn revision_route_remove_for_construction(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    pos: usize,
+) -> usize {
+    solution.routes[entity_index].remove(pos)
+}
+
+fn revision_route_insert(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    pos: usize,
+    value: usize,
+) {
+    solution.routes[entity_index].insert(pos, value);
+}
+
+fn revision_route_get(solution: &RevisionPlan, entity_index: usize, pos: usize) -> Option<usize> {
+    solution.routes[entity_index].get(pos).copied()
+}
+
+fn revision_route_set(solution: &mut RevisionPlan, entity_index: usize, pos: usize, value: usize) {
+    solution.routes[entity_index][pos] = value;
+}
+
+fn revision_route_reverse(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    start: usize,
+    end: usize,
+) {
+    solution.routes[entity_index][start..end].reverse();
+}
+
+fn revision_route_sublist_remove(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    start: usize,
+    end: usize,
+) -> Vec<usize> {
+    solution.routes[entity_index].drain(start..end).collect()
+}
+
+fn revision_route_sublist_insert(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    pos: usize,
+    values: Vec<usize>,
+) {
+    solution.routes[entity_index].splice(pos..pos, values);
+}
+
+fn revision_route_ruin_remove(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    pos: usize,
+) -> usize {
+    solution.routes[entity_index].remove(pos)
+}
+
+fn revision_route_ruin_insert(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    pos: usize,
+    value: usize,
+) {
+    solution.routes[entity_index].insert(pos, value);
+}
+
+fn revision_route_index_to_element(solution: &RevisionPlan, idx: usize) -> usize {
+    solution.route_pool[idx]
+}
+
+fn revision_model() -> ModelContext<RevisionPlan, usize, DefaultMeter, DefaultMeter> {
+    ModelContext::new(vec![
+        VariableContext::Scalar(ScalarVariableContext::new(
+            0,
+            "Task",
+            revision_task_count,
+            "worker_idx",
+            revision_worker_get,
+            revision_worker_set,
+            ValueSource::SolutionCount {
+                count_fn: revision_worker_count,
+            },
+            true,
+        )),
+        VariableContext::List(ListVariableContext::new(
+            "Route",
+            revision_route_element_count,
+            revision_assigned_route_elements,
+            revision_route_len,
+            revision_route_remove,
+            revision_route_remove_for_construction,
+            revision_route_insert,
+            revision_route_get,
+            revision_route_set,
+            revision_route_reverse,
+            revision_route_sublist_remove,
+            revision_route_sublist_insert,
+            revision_route_ruin_remove,
+            revision_route_ruin_insert,
+            revision_route_index_to_element,
+            revision_route_count,
+            DefaultMeter::default(),
+            DefaultMeter::default(),
+            "visits",
+            1,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )),
+    ])
 }
 
 #[test]
-fn later_construction_revisits_optional_none_after_unrelated_list_commit() {
+fn generic_mixed_phase_reopens_optional_none_after_list_commit() {
     let descriptor = revision_descriptor();
     let plan = RevisionPlan {
         score: None,
@@ -574,40 +634,12 @@ fn later_construction_revisits_optional_none_after_unrelated_list_commit() {
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let mut standard_phase = Construction::new(
-        Some(config(
-            ConstructionHeuristicType::CheapestInsertion,
-            Some("Task"),
-            Some("worker_idx"),
-        )),
-        descriptor.clone(),
-        vec![revision_list_args()],
-    );
-    standard_phase.solve(&mut solver_scope);
-
-    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
-    assert_eq!(
-        solver_scope.working_solution().routes[0],
-        Vec::<usize>::new()
-    );
-
-    let mut list_phase = Construction::new(
-        Some(config(
-            ConstructionHeuristicType::ListRoundRobin,
-            Some("Route"),
-            Some("visits"),
-        )),
-        descriptor.clone(),
-        vec![revision_list_args()],
-    );
-    list_phase.solve(&mut solver_scope);
+    let mut phase = Construction::new(None, descriptor, revision_model());
+    phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().routes[0], vec![10]);
-
-    let mut reconstruct = Construction::new(None, descriptor, vec![revision_list_args()]);
-    reconstruct.solve(&mut solver_scope);
-
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(0));
+    assert_eq!(solver_scope.stats().moves_accepted, 2);
 }
 
 #[derive(Clone, Debug, Default)]
@@ -645,98 +677,344 @@ fn multi_owner_solution() -> MultiOwnerSolution {
 
 fn multi_owner_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("MultiOwnerSolution", TypeId::of::<MultiOwnerSolution>())
+        .with_entity(
+            EntityDescriptor::new("Route", TypeId::of::<Vec<usize>>(), "routes").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Route",
+                    "routes",
+                    |solution: &MultiOwnerSolution| &solution.routes,
+                    |solution: &mut MultiOwnerSolution| &mut solution.routes,
+                )),
+            ),
+        )
+        .with_entity(
+            EntityDescriptor::new("Shift", TypeId::of::<Vec<usize>>(), "shifts").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Shift",
+                    "shifts",
+                    |solution: &MultiOwnerSolution| &solution.shifts,
+                    |solution: &mut MultiOwnerSolution| &mut solution.shifts,
+                )),
+            ),
+        )
 }
 
-fn route_args() -> ConstructionArgs<MultiOwnerSolution, usize> {
-    ConstructionArgs {
-        element_count: |solution| solution.route_pool.len(),
-        assigned_elements: |solution| {
-            solution
-                .routes
-                .iter()
-                .flat_map(|route| route.iter().copied())
-                .collect()
-        },
-        entity_count: |solution| solution.routes.len(),
-        list_len: |solution, entity_idx| solution.routes[entity_idx].len(),
-        list_insert: |solution, entity_idx, pos, value| {
-            solution.log.push("Route");
-            solution.routes[entity_idx].insert(pos, value);
-        },
-        list_remove: |solution, entity_idx, pos| solution.routes[entity_idx].remove(pos),
-        index_to_element: |solution, idx| solution.route_pool[idx],
-        descriptor_index: 0,
-        entity_type_name: "Route",
-        variable_name: "tasks",
-        depot_fn: None,
-        distance_fn: None,
-        element_load_fn: None,
-        capacity_fn: None,
-        assign_route_fn: None,
-        merge_feasible_fn: None,
-        k_opt_get_route: None,
-        k_opt_set_route: None,
-        k_opt_depot_fn: None,
-        k_opt_distance_fn: None,
-        k_opt_feasible_fn: None,
-    }
+fn route_entity_count(solution: &MultiOwnerSolution) -> usize {
+    solution.routes.len()
 }
 
-fn shift_args() -> ConstructionArgs<MultiOwnerSolution, usize> {
-    ConstructionArgs {
-        element_count: |solution| solution.shift_pool.len(),
-        assigned_elements: |solution| {
-            solution
-                .shifts
-                .iter()
-                .flat_map(|shift| shift.iter().copied())
-                .collect()
-        },
-        entity_count: |solution| solution.shifts.len(),
-        list_len: |solution, entity_idx| solution.shifts[entity_idx].len(),
-        list_insert: |solution, entity_idx, pos, value| {
-            solution.log.push("Shift");
-            solution.shifts[entity_idx].insert(pos, value);
-        },
-        list_remove: |solution, entity_idx, pos| solution.shifts[entity_idx].remove(pos),
-        index_to_element: |solution, idx| solution.shift_pool[idx],
-        descriptor_index: 1,
-        entity_type_name: "Shift",
-        variable_name: "tasks",
-        depot_fn: None,
-        distance_fn: None,
-        element_load_fn: None,
-        capacity_fn: None,
-        assign_route_fn: None,
-        merge_feasible_fn: None,
-        k_opt_get_route: None,
-        k_opt_set_route: None,
-        k_opt_depot_fn: None,
-        k_opt_distance_fn: None,
-        k_opt_feasible_fn: None,
-    }
+fn route_element_count(solution: &MultiOwnerSolution) -> usize {
+    solution.route_pool.len()
+}
+
+fn assigned_route_elements(solution: &MultiOwnerSolution) -> Vec<usize> {
+    solution
+        .routes
+        .iter()
+        .flat_map(|route| route.iter().copied())
+        .collect()
+}
+
+fn route_len(solution: &MultiOwnerSolution, entity_index: usize) -> usize {
+    solution.routes[entity_index].len()
+}
+
+fn route_remove(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+) -> Option<usize> {
+    let route = solution.routes.get_mut(entity_index)?;
+    (pos < route.len()).then(|| route.remove(pos))
+}
+
+fn route_remove_for_construction(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+) -> usize {
+    solution.routes[entity_index].remove(pos)
+}
+
+fn route_insert(solution: &mut MultiOwnerSolution, entity_index: usize, pos: usize, value: usize) {
+    solution.log.push("Route");
+    solution.routes[entity_index].insert(pos, value);
+}
+
+fn route_get(solution: &MultiOwnerSolution, entity_index: usize, pos: usize) -> Option<usize> {
+    solution.routes[entity_index].get(pos).copied()
+}
+
+fn route_set(solution: &mut MultiOwnerSolution, entity_index: usize, pos: usize, value: usize) {
+    solution.routes[entity_index][pos] = value;
+}
+
+fn route_reverse(solution: &mut MultiOwnerSolution, entity_index: usize, start: usize, end: usize) {
+    solution.routes[entity_index][start..end].reverse();
+}
+
+fn route_sublist_remove(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    start: usize,
+    end: usize,
+) -> Vec<usize> {
+    solution.routes[entity_index].drain(start..end).collect()
+}
+
+fn route_sublist_insert(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+    values: Vec<usize>,
+) {
+    solution.routes[entity_index].splice(pos..pos, values);
+}
+
+fn route_ruin_remove(solution: &mut MultiOwnerSolution, entity_index: usize, pos: usize) -> usize {
+    solution.routes[entity_index].remove(pos)
+}
+
+fn route_ruin_insert(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+    value: usize,
+) {
+    solution.routes[entity_index].insert(pos, value);
+}
+
+fn route_index_to_element(solution: &MultiOwnerSolution, idx: usize) -> usize {
+    solution.route_pool[idx]
+}
+
+fn shift_entity_count(solution: &MultiOwnerSolution) -> usize {
+    solution.shifts.len()
+}
+
+fn shift_element_count(solution: &MultiOwnerSolution) -> usize {
+    solution.shift_pool.len()
+}
+
+fn assigned_shift_elements(solution: &MultiOwnerSolution) -> Vec<usize> {
+    solution
+        .shifts
+        .iter()
+        .flat_map(|shift| shift.iter().copied())
+        .collect()
+}
+
+fn shift_len(solution: &MultiOwnerSolution, entity_index: usize) -> usize {
+    solution.shifts[entity_index].len()
+}
+
+fn shift_remove(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+) -> Option<usize> {
+    let shift = solution.shifts.get_mut(entity_index)?;
+    (pos < shift.len()).then(|| shift.remove(pos))
+}
+
+fn shift_remove_for_construction(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+) -> usize {
+    solution.shifts[entity_index].remove(pos)
+}
+
+fn shift_insert(solution: &mut MultiOwnerSolution, entity_index: usize, pos: usize, value: usize) {
+    solution.log.push("Shift");
+    solution.shifts[entity_index].insert(pos, value);
+}
+
+fn shift_get(solution: &MultiOwnerSolution, entity_index: usize, pos: usize) -> Option<usize> {
+    solution.shifts[entity_index].get(pos).copied()
+}
+
+fn shift_set(solution: &mut MultiOwnerSolution, entity_index: usize, pos: usize, value: usize) {
+    solution.shifts[entity_index][pos] = value;
+}
+
+fn shift_reverse(solution: &mut MultiOwnerSolution, entity_index: usize, start: usize, end: usize) {
+    solution.shifts[entity_index][start..end].reverse();
+}
+
+fn shift_sublist_remove(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    start: usize,
+    end: usize,
+) -> Vec<usize> {
+    solution.shifts[entity_index].drain(start..end).collect()
+}
+
+fn shift_sublist_insert(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+    values: Vec<usize>,
+) {
+    solution.shifts[entity_index].splice(pos..pos, values);
+}
+
+fn shift_ruin_remove(solution: &mut MultiOwnerSolution, entity_index: usize, pos: usize) -> usize {
+    solution.shifts[entity_index].remove(pos)
+}
+
+fn shift_ruin_insert(
+    solution: &mut MultiOwnerSolution,
+    entity_index: usize,
+    pos: usize,
+    value: usize,
+) {
+    solution.shifts[entity_index].insert(pos, value);
+}
+
+fn shift_index_to_element(solution: &MultiOwnerSolution, idx: usize) -> usize {
+    solution.shift_pool[idx]
+}
+
+fn multi_owner_model() -> ModelContext<MultiOwnerSolution, usize, DefaultMeter, DefaultMeter> {
+    ModelContext::new(vec![
+        VariableContext::List(ListVariableContext::new(
+            "Route",
+            route_element_count,
+            assigned_route_elements,
+            route_len,
+            route_remove,
+            route_remove_for_construction,
+            route_insert,
+            route_get,
+            route_set,
+            route_reverse,
+            route_sublist_remove,
+            route_sublist_insert,
+            route_ruin_remove,
+            route_ruin_insert,
+            route_index_to_element,
+            route_entity_count,
+            DefaultMeter::default(),
+            DefaultMeter::default(),
+            "tasks",
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )),
+        VariableContext::List(ListVariableContext::new(
+            "Shift",
+            shift_element_count,
+            assigned_shift_elements,
+            shift_len,
+            shift_remove,
+            shift_remove_for_construction,
+            shift_insert,
+            shift_get,
+            shift_set,
+            shift_reverse,
+            shift_sublist_remove,
+            shift_sublist_insert,
+            shift_ruin_remove,
+            shift_ruin_insert,
+            shift_index_to_element,
+            shift_entity_count,
+            DefaultMeter::default(),
+            DefaultMeter::default(),
+            "tasks",
+            1,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )),
+    ])
 }
 
 fn multi_owner_scope(
     solution: MultiOwnerSolution,
 ) -> SolverScope<'static, MultiOwnerSolution, ScoreDirector<MultiOwnerSolution, ()>> {
-    let director = ScoreDirector::simple(solution, multi_owner_descriptor(), |_, _| 0);
+    let director = ScoreDirector::simple(
+        solution,
+        multi_owner_descriptor(),
+        |solution, descriptor_index| match descriptor_index {
+            0 => solution.routes.len(),
+            1 => solution.shifts.len(),
+            _ => 0,
+        },
+    );
     SolverScope::new(director)
 }
 
 fn solve_multi_owner_construction(config: ConstructionHeuristicConfig) -> MultiOwnerSolution {
-    let mut phase = Construction::new(
-        Some(config),
-        multi_owner_descriptor(),
-        vec![route_args(), shift_args()],
-    );
+    let mut phase = Construction::new(Some(config), multi_owner_descriptor(), multi_owner_model());
     let mut solver_scope = multi_owner_scope(multi_owner_solution());
     phase.solve(&mut solver_scope);
     solver_scope.working_solution().clone()
 }
 
 #[test]
-fn untargeted_multi_owner_list_construction_runs_all_owners_in_declaration_order() {
+fn unified_list_target_matches_entity_class_only() {
+    let solution = solve_multi_owner_construction(config(
+        ConstructionHeuristicType::FirstFit,
+        Some("Route"),
+        None,
+    ));
+
+    assert_eq!(solution.routes, vec![vec![11, 10]]);
+    assert_eq!(solution.shifts, vec![Vec::<usize>::new()]);
+}
+
+#[test]
+fn unified_list_target_matches_variable_name_across_all_owners() {
+    let solution = solve_multi_owner_construction(config(
+        ConstructionHeuristicType::FirstFit,
+        None,
+        Some("tasks"),
+    ));
+
+    assert_eq!(solution.routes, vec![vec![11, 10]]);
+    assert_eq!(solution.shifts, vec![vec![21, 20]]);
+}
+
+#[test]
+fn unified_target_panics_when_no_variable_matches() {
+    let panic = std::panic::catch_unwind(|| {
+        let _ = solve_multi_owner_construction(config(
+            ConstructionHeuristicType::FirstFit,
+            Some("Worker"),
+            Some("tasks"),
+        ));
+    })
+    .expect_err("missing generic target should panic");
+
+    let message = panic
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| panic.downcast_ref::<&'static str>().copied())
+        .unwrap_or("");
+    assert!(message.contains("matched no planning variables"));
+}
+
+#[test]
+fn untargeted_multi_owner_list_round_robin_runs_all_owners_in_declaration_order() {
     let solution = solve_multi_owner_construction(config(
         ConstructionHeuristicType::ListRoundRobin,
         None,
@@ -749,7 +1027,7 @@ fn untargeted_multi_owner_list_construction_runs_all_owners_in_declaration_order
 }
 
 #[test]
-fn targeted_multi_owner_list_construction_runs_only_matching_owner() {
+fn targeted_multi_owner_list_round_robin_runs_only_matching_owner() {
     let solution = solve_multi_owner_construction(config(
         ConstructionHeuristicType::ListRoundRobin,
         Some("Shift"),
@@ -762,7 +1040,7 @@ fn targeted_multi_owner_list_construction_runs_only_matching_owner() {
 }
 
 #[test]
-fn targeted_multi_owner_list_construction_runs_all_matching_owners() {
+fn targeted_multi_owner_list_round_robin_runs_all_matching_owners() {
     let solution = solve_multi_owner_construction(config(
         ConstructionHeuristicType::ListRoundRobin,
         None,
@@ -775,7 +1053,7 @@ fn targeted_multi_owner_list_construction_runs_all_matching_owners() {
 }
 
 #[test]
-fn targeted_multi_owner_list_construction_panics_when_no_owner_matches() {
+fn targeted_multi_owner_list_round_robin_panics_when_no_owner_matches() {
     let panic = std::panic::catch_unwind(|| {
         let _ = solve_multi_owner_construction(config(
             ConstructionHeuristicType::ListRoundRobin,
@@ -790,5 +1068,5 @@ fn targeted_multi_owner_list_construction_panics_when_no_owner_matches() {
         .map(String::as_str)
         .or_else(|| panic.downcast_ref::<&'static str>().copied())
         .unwrap_or("");
-    assert!(message.contains("matched no planning variables"));
+    assert!(message.contains("does not match the targeted planning list variable"));
 }

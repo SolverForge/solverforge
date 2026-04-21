@@ -10,7 +10,7 @@ use solverforge_core::score::{ParseableScore, Score};
 
 use crate::builder::{build_local_search, build_vnd, LocalSearch, ModelContext, Vnd};
 use crate::descriptor_standard::{
-    build_descriptor_construction, standard_target_matches, standard_work_remaining_with_frontier,
+    build_descriptor_construction, standard_work_remaining_with_frontier,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::manager::{
@@ -93,78 +93,15 @@ impl<S, DM, IDM> ListVariableMetadata<S, DM, IDM> {
     }
 }
 
-enum ListConstruction<S, V>
-where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + 'static,
-{
-    RoundRobin(ListRoundRobinPhase<S, V>),
-    CheapestInsertion(ListCheapestInsertionPhase<S, V>),
-    RegretInsertion(ListRegretInsertionPhase<S, V>),
-    ClarkeWright(ListClarkeWrightPhase<S, V>),
-    KOpt(ListKOptPhase<S, V>),
-}
-
-impl<S, V> Debug for ListConstruction<S, V>
-where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RoundRobin(phase) => write!(f, "ListConstruction::RoundRobin({phase:?})"),
-            Self::CheapestInsertion(phase) => {
-                write!(f, "ListConstruction::CheapestInsertion({phase:?})")
-            }
-            Self::RegretInsertion(phase) => {
-                write!(f, "ListConstruction::RegretInsertion({phase:?})")
-            }
-            Self::ClarkeWright(phase) => {
-                write!(f, "ListConstruction::ClarkeWright({phase:?})")
-            }
-            Self::KOpt(phase) => write!(f, "ListConstruction::KOpt({phase:?})"),
-        }
-    }
-}
-
-impl<S, V, D, BestCb> Phase<S, D, BestCb> for ListConstruction<S, V>
-where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
-    D: solverforge_scoring::Director<S>,
-    BestCb: crate::scope::ProgressCallback<S>,
-{
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
-        match self {
-            Self::RoundRobin(phase) => phase.solve(solver_scope),
-            Self::CheapestInsertion(phase) => phase.solve(solver_scope),
-            Self::RegretInsertion(phase) => phase.solve(solver_scope),
-            Self::ClarkeWright(phase) => phase.solve(solver_scope),
-            Self::KOpt(phase) => phase.solve(solver_scope),
-        }
-    }
-
-    fn phase_type_name(&self) -> &'static str {
-        "ListConstruction"
-    }
-}
-
-struct ListRoundRobinPhase<S, V>
+struct ListRoundRobinPhase<S, V, DM, IDM>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
 {
-    element_count: fn(&S) -> usize,
-    get_assigned: fn(&S) -> Vec<V>,
-    entity_count: fn(&S) -> usize,
-    list_len: fn(&S, usize) -> usize,
-    list_insert: fn(&mut S, usize, usize, V),
-    index_to_element: fn(&S, usize) -> V,
-    descriptor_index: usize,
-    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+    ctx: crate::builder::ListVariableContext<S, V, DM, IDM>,
 }
 
-impl<S, V> Debug for ListRoundRobinPhase<S, V>
+impl<S, V, DM, IDM> Debug for ListRoundRobinPhase<S, V, DM, IDM>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
@@ -172,114 +109,6 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ListRoundRobinPhase").finish()
     }
-}
-
-impl<S, V, D, ProgressCb> Phase<S, D, ProgressCb> for ListRoundRobinPhase<S, V>
-where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
-    D: solverforge_scoring::Director<S>,
-    ProgressCb: ProgressCallback<S>,
-{
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
-
-        let solution = phase_scope.score_director().working_solution();
-        let n_elements = (self.element_count)(solution);
-        let n_entities = (self.entity_count)(solution);
-
-        if n_entities == 0 || n_elements == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let assigned: Vec<V> = (self.get_assigned)(phase_scope.score_director().working_solution());
-        if assigned.len() >= n_elements {
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let assigned_set: std::collections::HashSet<V> = assigned.into_iter().collect();
-        let mut entity_idx = 0;
-
-        for elem_idx in 0..n_elements {
-            if phase_scope
-                .solver_scope_mut()
-                .should_terminate_construction()
-            {
-                break;
-            }
-
-            let element =
-                (self.index_to_element)(phase_scope.score_director().working_solution(), elem_idx);
-            if assigned_set.contains(&element) {
-                continue;
-            }
-
-            let mut step_scope = StepScope::new(&mut phase_scope);
-
-            step_scope.apply_committed_change(|sd| {
-                let insert_pos = (self.list_len)(sd.working_solution(), entity_idx);
-                sd.before_variable_changed(self.descriptor_index, entity_idx);
-                (self.list_insert)(sd.working_solution_mut(), entity_idx, insert_pos, element);
-                sd.after_variable_changed(self.descriptor_index, entity_idx);
-            });
-
-            let step_score = step_scope.calculate_score();
-            step_scope.set_step_score(step_score);
-            step_scope.complete();
-
-            entity_idx = (entity_idx + 1) % n_entities;
-        }
-
-        phase_scope.update_best_solution();
-    }
-
-    fn phase_type_name(&self) -> &'static str {
-        "ListRoundRobin"
-    }
-}
-
-pub struct ConstructionArgs<S, V> {
-    pub element_count: fn(&S) -> usize,
-    pub assigned_elements: fn(&S) -> Vec<V>,
-    pub entity_count: fn(&S) -> usize,
-    pub list_len: fn(&S, usize) -> usize,
-    pub list_insert: fn(&mut S, usize, usize, V),
-    pub list_remove: fn(&mut S, usize, usize) -> V,
-    pub index_to_element: fn(&S, usize) -> V,
-    pub descriptor_index: usize,
-    pub entity_type_name: &'static str,
-    pub variable_name: &'static str,
-    pub depot_fn: Option<fn(&S) -> usize>,
-    pub distance_fn: Option<fn(&S, usize, usize) -> i64>,
-    pub element_load_fn: Option<fn(&S, usize) -> i64>,
-    pub capacity_fn: Option<fn(&S) -> i64>,
-    pub assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
-    pub merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
-    pub k_opt_get_route: Option<fn(&S, usize) -> Vec<usize>>,
-    pub k_opt_set_route: Option<fn(&mut S, usize, Vec<usize>)>,
-    pub k_opt_depot_fn: Option<fn(&S, usize) -> usize>,
-    pub k_opt_distance_fn: Option<fn(&S, usize, usize) -> i64>,
-    pub k_opt_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
-}
-
-impl<S, V> Clone for ConstructionArgs<S, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, V> Copy for ConstructionArgs<S, V> {}
-
-fn list_work_remaining<S, V>(args: &ConstructionArgs<S, V>, solution: &S) -> bool
-where
-    S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
-{
-    (args.assigned_elements)(solution).len() < (args.element_count)(solution)
 }
 
 fn has_explicit_target(config: &ConstructionHeuristicConfig) -> bool {
@@ -310,339 +139,364 @@ fn is_standard_only_heuristic(heuristic: ConstructionHeuristicType) -> bool {
     )
 }
 
-fn list_target_matches<S, V>(
-    config: &ConstructionHeuristicConfig,
-    list_construction: &ConstructionArgs<S, V>,
+fn list_work_remaining<S, V, DM, IDM>(
+    ctx: &crate::builder::ListVariableContext<S, V, DM, IDM>,
+    solution: &S,
 ) -> bool
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
 {
-    if !has_explicit_target(config) {
-        return false;
-    }
-
-    config
-        .target
-        .variable_name
-        .as_deref()
-        .is_none_or(|name| name == list_construction.variable_name)
-        && config
-            .target
-            .entity_class
-            .as_deref()
-            .is_none_or(|name| name == list_construction.entity_type_name)
+    (ctx.assigned_elements)(solution).len() < (ctx.element_count)(solution)
 }
 
-fn matching_list_construction<S, V>(
+fn matching_list_variables<S, V, DM, IDM>(
     config: Option<&ConstructionHeuristicConfig>,
-    list_construction: &[ConstructionArgs<S, V>],
-) -> Vec<ConstructionArgs<S, V>>
+    model: &ModelContext<S, V, DM, IDM>,
+) -> Vec<crate::builder::ListVariableContext<S, V, DM, IDM>>
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
+    DM: Clone,
+    IDM: Clone,
 {
-    let Some(config) = config else {
-        return list_construction.to_vec();
-    };
+    let entity_class = config.and_then(|cfg| cfg.target.entity_class.as_deref());
+    let variable_name = config.and_then(|cfg| cfg.target.variable_name.as_deref());
+    let explicit_target = config.is_some_and(has_explicit_target);
 
-    if !has_explicit_target(config) {
-        return list_construction.to_vec();
-    }
-
-    list_construction
-        .iter()
-        .copied()
-        .filter(|args| list_target_matches(config, args))
+    model
+        .list_variables()
+        .filter(|ctx| !explicit_target || ctx.matches_target(entity_class, variable_name))
+        .cloned()
         .collect()
 }
 
-fn normalize_list_construction_config(
+fn has_matching_scalar_target<S, V, DM, IDM>(
     config: Option<&ConstructionHeuristicConfig>,
-) -> Option<ConstructionHeuristicConfig> {
-    let mut config = config.cloned()?;
-    config.construction_heuristic_type = match config.construction_heuristic_type {
-        ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::CheapestInsertion => {
-            ConstructionHeuristicType::ListCheapestInsertion
-        }
-        other => other,
-    };
-    Some(config)
-}
-
-fn build_list_construction<S, V>(
-    config: Option<&ConstructionHeuristicConfig>,
-    args: &ConstructionArgs<S, V>,
-) -> ListConstruction<S, V>
+    model: &ModelContext<S, V, DM, IDM>,
+) -> bool
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
 {
-    let Some((ch_type, k)) = config.map(|cfg| (cfg.construction_heuristic_type, cfg.k)) else {
-        return ListConstruction::CheapestInsertion(ListCheapestInsertionPhase::new(
-            args.element_count,
-            args.assigned_elements,
-            args.entity_count,
-            args.list_len,
-            args.list_insert,
-            args.list_remove,
-            args.index_to_element,
-            args.descriptor_index,
-        ));
-    };
+    let entity_class = config.and_then(|cfg| cfg.target.entity_class.as_deref());
+    let variable_name = config.and_then(|cfg| cfg.target.variable_name.as_deref());
+    let explicit_target = config.is_some_and(has_explicit_target);
 
-    match ch_type {
-        ConstructionHeuristicType::ListRoundRobin => {
-            ListConstruction::RoundRobin(ListRoundRobinPhase {
-                element_count: args.element_count,
-                get_assigned: args.assigned_elements,
-                entity_count: args.entity_count,
-                list_len: args.list_len,
-                list_insert: args.list_insert,
-                index_to_element: args.index_to_element,
-                descriptor_index: args.descriptor_index,
-                _phantom: PhantomData,
-            })
+    model
+        .scalar_variables()
+        .any(|ctx| !explicit_target || ctx.matches_target(entity_class, variable_name))
+}
+
+impl<S, V, DM, IDM, D, ProgressCb> Phase<S, D, ProgressCb> for ListRoundRobinPhase<S, V, DM, IDM>
+where
+    S: PlanningSolution,
+    V: Copy + PartialEq + Eq + Hash + Send + Sync + Debug + 'static,
+    DM: Clone + Send,
+    IDM: Clone + Send,
+    D: solverforge_scoring::Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
+        let mut phase_scope = PhaseScope::new(solver_scope, 0);
+        let solution = phase_scope.score_director().working_solution();
+        let n_elements = (self.ctx.element_count)(solution);
+        let n_entities = (self.ctx.entity_count)(solution);
+
+        if n_entities == 0 || n_elements == 0 {
+            let _score = phase_scope.score_director_mut().calculate_score();
+            phase_scope.update_best_solution();
+            return;
         }
-        ConstructionHeuristicType::ListRegretInsertion => {
-            ListConstruction::RegretInsertion(ListRegretInsertionPhase::new(
-                args.element_count,
-                args.assigned_elements,
-                args.entity_count,
-                args.list_len,
-                args.list_insert,
-                args.list_remove,
-                args.index_to_element,
-                args.descriptor_index,
-            ))
+
+        let assigned = (self.ctx.assigned_elements)(solution);
+        if assigned.len() >= n_elements {
+            let _score = phase_scope.score_director_mut().calculate_score();
+            phase_scope.update_best_solution();
+            return;
         }
-        ConstructionHeuristicType::ListClarkeWright => {
-            match (
-                args.depot_fn,
-                args.distance_fn,
-                args.element_load_fn,
-                args.capacity_fn,
-                args.assign_route_fn,
-            ) {
-                (Some(depot), Some(dist), Some(load), Some(cap), Some(assign)) => {
-                    ListConstruction::ClarkeWright(ListClarkeWrightPhase::new(
-                        args.element_count,
-                        args.assigned_elements,
-                        args.entity_count,
-                        args.list_len,
-                        assign,
-                        args.index_to_element,
-                        depot,
-                        dist,
-                        load,
-                        cap,
-                        args.merge_feasible_fn,
-                        args.descriptor_index,
-                    ))
-                }
-                _ => {
-                    panic!(
-                        "list_clarke_wright requires depot_fn, distance_fn, element_load_fn, capacity_fn, and assign_route_fn"
-                    );
-                }
+
+        let assigned_set: std::collections::HashSet<V> = assigned.into_iter().collect();
+        let mut entity_idx = 0;
+
+        for elem_idx in 0..n_elements {
+            if phase_scope
+                .solver_scope_mut()
+                .should_terminate_construction()
+            {
+                break;
             }
-        }
-        ConstructionHeuristicType::ListKOpt => match (
-            args.k_opt_get_route,
-            args.k_opt_set_route,
-            args.k_opt_depot_fn,
-            args.k_opt_distance_fn,
-        ) {
-            (Some(get_route), Some(set_route), Some(ko_depot), Some(ko_dist)) => {
-                ListConstruction::KOpt(ListKOptPhase::new(
-                    k,
-                    args.entity_count,
-                    get_route,
-                    set_route,
-                    ko_depot,
-                    ko_dist,
-                    args.k_opt_feasible_fn,
-                    args.descriptor_index,
-                ))
+
+            let element = (self.ctx.index_to_element)(
+                phase_scope.score_director().working_solution(),
+                elem_idx,
+            );
+            if assigned_set.contains(&element) {
+                continue;
             }
-            _ => {
-                panic!(
-                    "list_k_opt requires k_opt_get_route, k_opt_set_route, k_opt_depot_fn, and k_opt_distance_fn"
+
+            let mut step_scope = StepScope::new(&mut phase_scope);
+            step_scope.apply_committed_change(|score_director| {
+                let insert_pos = (self.ctx.list_len)(score_director.working_solution(), entity_idx);
+                score_director.before_variable_changed(self.ctx.descriptor_index, entity_idx);
+                (self.ctx.list_insert)(
+                    score_director.working_solution_mut(),
+                    entity_idx,
+                    insert_pos,
+                    element,
                 );
-            }
-        },
-        ConstructionHeuristicType::ListCheapestInsertion => {
-            ListConstruction::CheapestInsertion(ListCheapestInsertionPhase::new(
-                args.element_count,
-                args.assigned_elements,
-                args.entity_count,
-                args.list_len,
-                args.list_insert,
-                args.list_remove,
-                args.index_to_element,
-                args.descriptor_index,
-            ))
+                score_director.after_variable_changed(self.ctx.descriptor_index, entity_idx);
+            });
+
+            let step_score = step_scope.calculate_score();
+            step_scope.set_step_score(step_score);
+            step_scope.complete();
+            entity_idx = (entity_idx + 1) % n_entities;
         }
-        ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::CheapestInsertion => {
-            panic!(
-                "generic construction heuristic {:?} must be normalized before list construction",
-                ch_type
-            );
-        }
-        ConstructionHeuristicType::FirstFitDecreasing
-        | ConstructionHeuristicType::WeakestFit
-        | ConstructionHeuristicType::WeakestFitDecreasing
-        | ConstructionHeuristicType::StrongestFit
-        | ConstructionHeuristicType::StrongestFitDecreasing
-        | ConstructionHeuristicType::AllocateEntityFromQueue
-        | ConstructionHeuristicType::AllocateToValueFromQueue => {
-            panic!(
-                "standard construction heuristic {:?} configured against a list variable",
-                ch_type
-            );
-        }
+
+        phase_scope.update_best_solution();
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "ListRoundRobin"
     }
 }
 
-pub struct Construction<S, V>
+pub struct Construction<S, V, DM, IDM>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + 'static,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: Clone + Debug + Send + 'static,
+    IDM: Clone + Debug + Send + 'static,
 {
     config: Option<ConstructionHeuristicConfig>,
     descriptor: SolutionDescriptor,
-    list_construction: Vec<ConstructionArgs<S, V>>,
+    model: ModelContext<S, V, DM, IDM>,
 }
 
-impl<S, V> Construction<S, V>
+impl<S, V, DM, IDM> Construction<S, V, DM, IDM>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + 'static,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: Clone + Debug + Send + 'static,
+    IDM: Clone + Debug + Send + 'static,
 {
     fn new(
         config: Option<ConstructionHeuristicConfig>,
         descriptor: SolutionDescriptor,
-        list_construction: Vec<ConstructionArgs<S, V>>,
+        model: ModelContext<S, V, DM, IDM>,
     ) -> Self {
         Self {
             config,
             descriptor,
-            list_construction,
+            model,
         }
+    }
+
+    fn solve_list<D, ProgressCb>(
+        &self,
+        solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+        list_variables: &[crate::builder::ListVariableContext<S, V, DM, IDM>],
+    ) -> bool
+    where
+        D: solverforge_scoring::Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        let Some(config) = self.config.as_ref() else {
+            panic!("specialized list construction requires explicit configuration");
+        };
+        if list_variables.is_empty() {
+            panic!("list construction configured against a scalar-only context");
+        }
+
+        let mut ran_phase = false;
+        for ctx in list_variables {
+            if !list_work_remaining(ctx, solver_scope.working_solution()) {
+                continue;
+            }
+            match config.construction_heuristic_type {
+                ConstructionHeuristicType::ListRoundRobin => {
+                    ListRoundRobinPhase { ctx: ctx.clone() }.solve(solver_scope);
+                }
+                ConstructionHeuristicType::ListCheapestInsertion => {
+                    ListCheapestInsertionPhase::new(
+                        ctx.element_count,
+                        ctx.assigned_elements,
+                        ctx.entity_count,
+                        ctx.list_len,
+                        ctx.list_insert,
+                        ctx.construction_list_remove,
+                        ctx.index_to_element,
+                        ctx.descriptor_index,
+                    )
+                    .solve(solver_scope);
+                }
+                ConstructionHeuristicType::ListRegretInsertion => {
+                    ListRegretInsertionPhase::new(
+                        ctx.element_count,
+                        ctx.assigned_elements,
+                        ctx.entity_count,
+                        ctx.list_len,
+                        ctx.list_insert,
+                        ctx.construction_list_remove,
+                        ctx.index_to_element,
+                        ctx.descriptor_index,
+                    )
+                    .solve(solver_scope);
+                }
+                ConstructionHeuristicType::ListClarkeWright => {
+                    let (Some(depot), Some(dist), Some(load), Some(cap), Some(assign)) = (
+                        ctx.cw_depot_fn,
+                        ctx.cw_distance_fn,
+                        ctx.cw_element_load_fn,
+                        ctx.cw_capacity_fn,
+                        ctx.cw_assign_route_fn,
+                    ) else {
+                        panic!(
+                            "list_clarke_wright requires depot_fn, distance_fn, element_load_fn, capacity_fn, and assign_route_fn"
+                        );
+                    };
+                    ListClarkeWrightPhase::new(
+                        ctx.element_count,
+                        ctx.assigned_elements,
+                        ctx.entity_count,
+                        ctx.list_len,
+                        assign,
+                        ctx.index_to_element,
+                        depot,
+                        dist,
+                        load,
+                        cap,
+                        ctx.merge_feasible_fn,
+                        ctx.descriptor_index,
+                    )
+                    .solve(solver_scope);
+                }
+                ConstructionHeuristicType::ListKOpt => {
+                    let (Some(get_route), Some(set_route), Some(ko_depot), Some(ko_dist)) = (
+                        ctx.k_opt_get_route,
+                        ctx.k_opt_set_route,
+                        ctx.k_opt_depot_fn,
+                        ctx.k_opt_distance_fn,
+                    ) else {
+                        panic!(
+                            "list_k_opt requires k_opt_get_route, k_opt_set_route, k_opt_depot_fn, and k_opt_distance_fn"
+                        );
+                    };
+                    ListKOptPhase::<S, V>::new(
+                        config.k,
+                        ctx.entity_count,
+                        get_route,
+                        set_route,
+                        ko_depot,
+                        ko_dist,
+                        ctx.k_opt_feasible_fn,
+                        ctx.descriptor_index,
+                    )
+                    .solve(solver_scope);
+                }
+                other => panic!(
+                    "list construction heuristic {:?} configured against a list variable",
+                    other
+                ),
+            }
+            ran_phase = true;
+        }
+        ran_phase
     }
 }
 
-impl<S, V> Debug for Construction<S, V>
+impl<S, V, DM, IDM> Debug for Construction<S, V, DM, IDM>
 where
     S: PlanningSolution,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: Clone + Debug + Send + 'static,
+    IDM: Clone + Debug + Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Construction")
             .field("config", &self.config)
-            .field("list_construction_count", &self.list_construction.len())
+            .field("variable_count", &self.model.variables().len())
             .finish()
     }
 }
 
-impl<S, V, D, ProgressCb> Phase<S, D, ProgressCb> for Construction<S, V>
+impl<S, V, DM, IDM, D, ProgressCb> Phase<S, D, ProgressCb> for Construction<S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    S::Score: Score + Copy,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
     D: solverforge_scoring::Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
         let config = self.config.as_ref();
+        let heuristic = config
+            .map(|cfg| cfg.construction_heuristic_type)
+            .unwrap_or(ConstructionHeuristicType::FirstFit);
+        let list_variables = matching_list_variables(config, &self.model);
+        let has_matching_scalar = has_matching_scalar_target(config, &self.model);
         let explicit_target = config.is_some_and(has_explicit_target);
-        let entity_class = config.and_then(|cfg| cfg.target.entity_class.as_deref());
-        let variable_name = config.and_then(|cfg| cfg.target.variable_name.as_deref());
-        let standard_matches = config.is_some_and(|_| {
-            standard_target_matches(&self.descriptor, entity_class, variable_name)
-        });
-        let matching_list_construction =
-            matching_list_construction(config, &self.list_construction);
-        let standard_remaining = standard_work_remaining_with_frontier(
-            &self.descriptor,
-            solver_scope.standard_construction_frontier(),
-            solver_scope.solution_revision(),
-            if explicit_target { entity_class } else { None },
-            if explicit_target { variable_name } else { None },
-            solver_scope.working_solution(),
-        );
-        let mut ran_child_phase = false;
 
-        if let Some(cfg) = config {
-            if explicit_target && !standard_matches && matching_list_construction.is_empty() {
-                panic!(
-                    "construction heuristic matched no planning variables for entity_class={:?} variable_name={:?}",
-                    cfg.target.entity_class,
-                    cfg.target.variable_name
-                );
-            }
+        if is_list_only_heuristic(heuristic) {
+            assert!(
+                self.model.has_list_variables(),
+                "list construction heuristic {:?} configured against a solution with no planning list variable",
+                heuristic
+            );
+            assert!(
+                !explicit_target || !list_variables.is_empty(),
+                "list construction heuristic {:?} does not match the targeted planning list variable for entity_class={:?} variable_name={:?}",
+                heuristic,
+                config.and_then(|cfg| cfg.target.entity_class.as_deref()),
+                config.and_then(|cfg| cfg.target.variable_name.as_deref()),
+            );
 
-            let heuristic = cfg.construction_heuristic_type;
-            if is_list_only_heuristic(heuristic) {
-                assert!(
-                    !self.list_construction.is_empty(),
-                    "list construction heuristic {:?} configured against a solution with no planning list variable",
-                    heuristic
-                );
-                assert!(
-                    !explicit_target || !matching_list_construction.is_empty(),
-                    "list construction heuristic {:?} does not match the targeted planning list variable for entity_class={:?} variable_name={:?}",
-                    heuristic,
-                    cfg.target.entity_class,
-                    cfg.target.variable_name
-                );
-                ran_child_phase = self.solve_list(solver_scope, &matching_list_construction);
-                if !ran_child_phase {
-                    finalize_noop_construction(solver_scope);
-                }
-                return;
-            }
-
-            if is_standard_only_heuristic(heuristic) {
-                assert!(
-                    !explicit_target || standard_matches,
-                    "standard construction heuristic {:?} does not match targeted standard planning variables for entity_class={:?} variable_name={:?}",
-                    heuristic,
-                    cfg.target.entity_class,
-                    cfg.target.variable_name
-                );
-                if standard_remaining {
-                    build_descriptor_construction(Some(cfg), &self.descriptor).solve(solver_scope);
-                    ran_child_phase = true;
-                }
-                if !ran_child_phase {
-                    finalize_noop_construction(solver_scope);
-                }
-                return;
-            }
-        }
-
-        if self.list_construction.is_empty() {
-            if standard_remaining {
-                build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
-                ran_child_phase = true;
-            }
+            let ran_child_phase = self.solve_list(solver_scope, &list_variables);
             if !ran_child_phase {
                 finalize_noop_construction(solver_scope);
             }
             return;
         }
 
-        let list_remaining = matching_list_construction
-            .iter()
-            .any(|args| list_work_remaining(args, solver_scope.working_solution()));
+        if is_standard_only_heuristic(heuristic) {
+            assert!(
+                !explicit_target || has_matching_scalar,
+                "standard construction heuristic {:?} does not match targeted standard planning variables for entity_class={:?} variable_name={:?}",
+                heuristic,
+                config.and_then(|cfg| cfg.target.entity_class.as_deref()),
+                config.and_then(|cfg| cfg.target.variable_name.as_deref()),
+            );
+            let standard_remaining = standard_work_remaining_with_frontier(
+                &self.descriptor,
+                solver_scope.construction_frontier(),
+                solver_scope.solution_revision(),
+                if explicit_target {
+                    config.and_then(|cfg| cfg.target.entity_class.as_deref())
+                } else {
+                    None
+                },
+                if explicit_target {
+                    config.and_then(|cfg| cfg.target.variable_name.as_deref())
+                } else {
+                    None
+                },
+                solver_scope.working_solution(),
+            );
+            if standard_remaining {
+                build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
+            } else {
+                finalize_noop_construction(solver_scope);
+            }
+            return;
+        }
 
-        if standard_remaining {
-            build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
-            ran_child_phase = true;
-        }
-        if list_remaining {
-            ran_child_phase |= self.solve_list(solver_scope, &matching_list_construction);
-        }
+        let ran_child_phase = crate::phase::construction::solve_unified_construction(
+            config,
+            &self.model,
+            solver_scope,
+        );
         if !ran_child_phase {
             finalize_noop_construction(solver_scope);
         }
@@ -650,36 +504,6 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "Construction"
-    }
-}
-
-impl<S, V> Construction<S, V>
-where
-    S: PlanningSolution + 'static,
-    V: Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
-{
-    fn solve_list<D, ProgressCb>(
-        &self,
-        solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-        list_construction: &[ConstructionArgs<S, V>],
-    ) -> bool
-    where
-        D: solverforge_scoring::Director<S>,
-        ProgressCb: ProgressCallback<S>,
-    {
-        if list_construction.is_empty() {
-            panic!("list construction configured against a scalar-only context");
-        }
-        let normalized = normalize_list_construction_config(self.config.as_ref());
-        let mut ran_phase = false;
-        for args in list_construction {
-            if !list_work_remaining(args, solver_scope.working_solution()) {
-                continue;
-            }
-            build_list_construction(normalized.as_ref(), args).solve(solver_scope);
-            ran_phase = true;
-        }
-        ran_phase
     }
 }
 
@@ -744,14 +568,15 @@ pub fn build_phases<S, V, DM, IDM>(
     config: &SolverConfig,
     descriptor: &SolutionDescriptor,
     model: &ModelContext<S, V, DM, IDM>,
-    list_construction: Vec<ConstructionArgs<S, V>>,
-) -> PhaseSequence<RuntimePhase<Construction<S, V>, LocalSearch<S, V, DM, IDM>, Vnd<S, V, DM, IDM>>>
+) -> PhaseSequence<
+    RuntimePhase<Construction<S, V, DM, IDM>, LocalSearch<S, V, DM, IDM>, Vnd<S, V, DM, IDM>>,
+>
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
     V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
 {
     let mut phases = Vec::new();
 
@@ -759,7 +584,7 @@ where
         phases.push(RuntimePhase::Construction(Construction::new(
             None,
             descriptor.clone(),
-            list_construction.clone(),
+            model.clone(),
         )));
         phases.push(RuntimePhase::LocalSearch(build_local_search(
             None,
@@ -775,7 +600,7 @@ where
                 phases.push(RuntimePhase::Construction(Construction::new(
                     Some(ch.clone()),
                     descriptor.clone(),
-                    list_construction.clone(),
+                    model.clone(),
                 )));
             }
             PhaseConfig::LocalSearch(ls) => {

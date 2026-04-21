@@ -9,10 +9,10 @@ use rand::SeedableRng;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 
-use crate::descriptor_standard::{collect_bindings, StandardConstructionFrontier};
+use crate::descriptor_standard::ConstructionFrontier;
 use crate::heuristic::r#move::Move;
 use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};
-use crate::phase::construction::ConstructionSlotId;
+use crate::phase::construction::{ConstructionListElementId, ConstructionSlotId};
 use crate::stats::SolverStats;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,7 +67,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     last_best_elapsed: Option<Duration>,
     best_solution_revision: Option<u64>,
     solution_revision: u64,
-    standard_construction_frontier: StandardConstructionFrontier,
+    construction_frontier: ConstructionFrontier,
     pub inphase_step_count_limit: Option<u64>,
     pub inphase_move_count_limit: Option<u64>,
     pub inphase_score_calc_count_limit: Option<u64>,
@@ -83,8 +83,7 @@ pub(crate) enum PendingControl {
 
 impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
     pub fn new(score_director: D) -> Self {
-        let binding_count = collect_bindings(score_director.solution_descriptor()).len();
-        let standard_construction_frontier = StandardConstructionFrontier::new(binding_count);
+        let construction_frontier = ConstructionFrontier::new();
         Self {
             score_director,
             best_solution: None,
@@ -103,7 +102,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             last_best_elapsed: None,
             best_solution_revision: None,
             solution_revision: 1,
-            standard_construction_frontier,
+            construction_frontier,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -120,8 +119,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         terminate: Option<&'t AtomicBool>,
         runtime: Option<SolverRuntime<S>>,
     ) -> Self {
-        let binding_count = collect_bindings(score_director.solution_descriptor()).len();
-        let standard_construction_frontier = StandardConstructionFrontier::new(binding_count);
+        let construction_frontier = ConstructionFrontier::new();
         Self {
             score_director,
             best_solution: None,
@@ -140,7 +138,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             last_best_elapsed: None,
             best_solution_revision: None,
             solution_revision: 1,
-            standard_construction_frontier,
+            construction_frontier,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -184,7 +182,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             last_best_elapsed: self.last_best_elapsed,
             best_solution_revision: self.best_solution_revision,
             solution_revision: self.solution_revision,
-            standard_construction_frontier: self.standard_construction_frontier,
+            construction_frontier: self.construction_frontier,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
@@ -199,7 +197,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.last_best_elapsed = None;
         self.best_solution_revision = None;
         self.solution_revision = 1;
-        self.standard_construction_frontier.reset();
+        self.construction_frontier.reset();
         self.stats.start();
     }
 
@@ -269,7 +267,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.current_score = None;
         self.best_solution_revision = None;
         self.solution_revision = 1;
-        self.standard_construction_frontier.reset();
+        self.construction_frontier.reset();
         self.calculate_score()
     }
 
@@ -286,13 +284,23 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub(crate) fn is_standard_slot_completed(&self, slot_id: ConstructionSlotId) -> bool {
-        self.standard_construction_frontier
+        self.construction_frontier
             .is_completed(slot_id, self.solution_revision)
     }
 
     pub(crate) fn mark_standard_slot_completed(&mut self, slot_id: ConstructionSlotId) {
-        self.standard_construction_frontier
+        self.construction_frontier
             .mark_completed(slot_id, self.solution_revision);
+    }
+
+    pub(crate) fn is_list_element_completed(&self, element_id: ConstructionListElementId) -> bool {
+        self.construction_frontier
+            .is_list_completed(element_id, self.solution_revision)
+    }
+
+    pub(crate) fn mark_list_element_completed(&mut self, element_id: ConstructionListElementId) {
+        self.construction_frontier
+            .mark_list_completed(element_id, self.solution_revision);
     }
 
     pub(crate) fn solution_revision(&self) -> u64 {
@@ -313,8 +321,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.committed_mutation(change);
     }
 
-    pub(crate) fn standard_construction_frontier(&self) -> &StandardConstructionFrontier {
-        &self.standard_construction_frontier
+    pub(crate) fn construction_frontier(&self) -> &ConstructionFrontier {
+        &self.construction_frontier
     }
 
     pub fn terminal_reason(&self) -> SolverTerminalReason {
@@ -581,7 +589,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.solution_revision = self.solution_revision.wrapping_add(1);
         if self.solution_revision == 0 {
             self.solution_revision = 1;
-            self.standard_construction_frontier.reset();
+            self.construction_frontier.reset();
         }
     }
 

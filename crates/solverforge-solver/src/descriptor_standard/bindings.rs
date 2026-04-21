@@ -8,7 +8,7 @@ use solverforge_core::domain::{
 
 use crate::phase::construction::ConstructionSlotId;
 
-use super::StandardConstructionFrontier;
+use super::ConstructionFrontier;
 
 #[derive(Clone)]
 pub(crate) struct VariableBinding {
@@ -127,7 +127,7 @@ pub fn descriptor_has_bindings(descriptor: &SolutionDescriptor) -> bool {
 
 pub(crate) fn standard_work_remaining_with_frontier<S>(
     descriptor: &SolutionDescriptor,
-    frontier: &StandardConstructionFrontier,
+    frontier: &ConstructionFrontier,
     solution_revision: u64,
     entity_class: Option<&str>,
     variable_name: Option<&str>,

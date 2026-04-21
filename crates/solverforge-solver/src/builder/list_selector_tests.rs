@@ -147,14 +147,36 @@ fn entity_count(s: &Plan) -> usize {
     s.vehicles.len()
 }
 
+fn element_count(s: &Plan) -> usize {
+    s.vehicles.iter().map(|vehicle| vehicle.visits.len()).sum()
+}
+
+fn assigned_elements(s: &Plan) -> Vec<usize> {
+    s.vehicles
+        .iter()
+        .flat_map(|vehicle| vehicle.visits.iter().copied())
+        .collect()
+}
+
+fn construction_list_remove(s: &mut Plan, entity_idx: usize, pos: usize) -> usize {
+    s.vehicles[entity_idx].visits.remove(pos)
+}
+
+fn index_to_element(s: &Plan, idx: usize) -> usize {
+    assigned_elements(s).get(idx).copied().unwrap_or(idx)
+}
+
 #[test]
 fn nearby_list_swap_uses_cross_entity_meter() {
     let (cross_meter, cross_calls) = CountingMeter::new();
     let (intra_meter, intra_calls) = CountingMeter::new();
     let ctx = ListVariableContext::new(
         "Vehicle",
+        element_count,
+        assigned_elements,
         list_len,
         list_remove,
+        construction_list_remove,
         list_insert,
         list_get,
         list_set,
@@ -163,11 +185,23 @@ fn nearby_list_swap_uses_cross_entity_meter() {
         sublist_insert,
         ruin_remove,
         ruin_insert,
+        index_to_element,
         entity_count,
         cross_meter,
         intra_meter,
         "visits",
         0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     );
     let config = MoveSelectorConfig::NearbyListSwapMoveSelector(NearbyListSwapMoveConfig {
         max_nearby: 4,

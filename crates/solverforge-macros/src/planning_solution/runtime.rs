@@ -293,7 +293,11 @@ pub(super) fn generate_runtime_phase_support(
         .filter_map(|(idx, field)| {
             let field_ident = field.ident.as_ref()?;
             let field_type = extract_collection_inner_type(&field.ty)?;
-            Some((idx, field_ident, field_type))
+            let syn::Type::Path(type_path) = &field_type else {
+                return None;
+            };
+            let type_name = type_path.path.segments.last()?.ident.to_string();
+            Some((idx, field_ident, field_type, type_name))
         })
         .collect();
     let standard_setup = generate_scalar_runtime_setup(fields, solution_name);
@@ -303,7 +307,7 @@ pub(super) fn generate_runtime_phase_support(
         let intra_enum_ident = format_ident!("__{}IntraDistanceMeter", solution_name);
         let has_list_variable_terms: Vec<_> = list_owners
             .iter()
-            .map(|(_, _, field_type)| {
+            .map(|(_, _, field_type, _)| {
                 let list_trait =
                     quote! { <#field_type as ::solverforge::__internal::ListVariableEntity<#solution_name>> };
                 quote! { #list_trait::HAS_LIST_VARIABLE }
@@ -312,7 +316,7 @@ pub(super) fn generate_runtime_phase_support(
 
         let cross_variants: Vec<_> = list_owners
             .iter()
-            .map(|(idx, _, field_type)| {
+            .map(|(idx, _, field_type, _)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     #variant(
@@ -323,7 +327,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let intra_variants: Vec<_> = list_owners
             .iter()
-            .map(|(idx, _, field_type)| {
+            .map(|(idx, _, field_type, _)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     #variant(
@@ -334,7 +338,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let cross_match_arms: Vec<_> = list_owners
             .iter()
-            .map(|(idx, _, _)| {
+            .map(|(idx, _, _, _)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     Self::#variant(meter) => meter.distance(solution, src_entity, src_pos, dst_entity, dst_pos),
@@ -343,7 +347,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let intra_match_arms: Vec<_> = list_owners
             .iter()
-            .map(|(idx, _, _)| {
+            .map(|(idx, _, _, _)| {
                 let variant = format_ident!("Entity{idx}");
                 quote! {
                     Self::#variant(meter) => meter.distance(solution, src_entity, src_pos, dst_entity, dst_pos),
@@ -352,7 +356,7 @@ pub(super) fn generate_runtime_phase_support(
             .collect();
         let list_runtime_setup: Vec<_> = list_owners
             .iter()
-            .map(|(idx, field_ident, field_type)| {
+            .map(|(idx, field_ident, field_type, type_name)| {
                 let field_name = field_ident.to_string();
                 let variant = format_ident!("Entity{idx}");
                 let descriptor_index_lit =
@@ -390,9 +394,12 @@ pub(super) fn generate_runtime_phase_support(
                         __solverforge_variables.push(
                             ::solverforge::__internal::VariableContext::List(
                                 ::solverforge::__internal::ListVariableContext::new(
-                                    stringify!(#field_type),
+                                    #type_name,
+                                    Self::#element_count_ident,
+                                    Self::#assigned_elements_ident,
                                     Self::#list_len_ident,
                                     Self::#list_remove_ident,
+                                    Self::#list_remove_for_construction_ident,
                                     Self::#list_insert_ident,
                                     Self::#list_get_ident,
                                     Self::#list_set_ident,
@@ -401,38 +408,25 @@ pub(super) fn generate_runtime_phase_support(
                                     Self::#sublist_insert_ident,
                                     Self::#ruin_remove_ident,
                                     Self::#ruin_insert_ident,
+                                    Self::#index_to_element_ident,
                                     Self::#n_entities_ident,
                                     #cross_enum_ident::#variant(metadata.cross_distance_meter.clone()),
                                     #intra_enum_ident::#variant(metadata.intra_distance_meter.clone()),
                                     #list_trait::LIST_VARIABLE_NAME,
                                     #descriptor_index_lit,
+                                    metadata.merge_feasible_fn,
+                                    metadata.cw_depot_fn,
+                                    metadata.cw_distance_fn,
+                                    metadata.cw_element_load_fn,
+                                    metadata.cw_capacity_fn,
+                                    metadata.cw_assign_route_fn,
+                                    metadata.k_opt_get_route,
+                                    metadata.k_opt_set_route,
+                                    metadata.k_opt_depot_fn,
+                                    metadata.k_opt_distance_fn,
+                                    metadata.k_opt_feasible_fn,
                                 )
                             )
-                        );
-                        __solverforge_construction.push(
-                            ::solverforge::__internal::ConstructionArgs {
-                                element_count: Self::#element_count_ident,
-                                assigned_elements: Self::#assigned_elements_ident,
-                                entity_count: Self::#n_entities_ident,
-                                list_len: Self::#list_len_ident,
-                                list_insert: Self::#list_insert_ident,
-                                list_remove: Self::#list_remove_for_construction_ident,
-                                index_to_element: Self::#index_to_element_ident,
-                                descriptor_index: #descriptor_index_lit,
-                                entity_type_name: stringify!(#field_type),
-                                variable_name: #list_trait::LIST_VARIABLE_NAME,
-                                depot_fn: metadata.cw_depot_fn,
-                                distance_fn: metadata.cw_distance_fn,
-                                element_load_fn: metadata.cw_element_load_fn,
-                                capacity_fn: metadata.cw_capacity_fn,
-                                assign_route_fn: metadata.cw_assign_route_fn,
-                                merge_feasible_fn: metadata.merge_feasible_fn,
-                                k_opt_get_route: metadata.k_opt_get_route,
-                                k_opt_set_route: metadata.k_opt_set_route,
-                                k_opt_depot_fn: metadata.k_opt_depot_fn,
-                                k_opt_distance_fn: metadata.k_opt_distance_fn,
-                                k_opt_feasible_fn: metadata.k_opt_feasible_fn,
-                            }
                         );
                     }
                 }
@@ -543,7 +537,12 @@ pub(super) fn generate_runtime_phase_support(
                     config: &::solverforge::__internal::SolverConfig,
                 ) -> ::solverforge::__internal::PhaseSequence<
                     ::solverforge::__internal::RuntimePhase<
-                        ::solverforge::__internal::Construction<#solution_name, usize>,
+                        ::solverforge::__internal::Construction<
+                            #solution_name,
+                            usize,
+                            #cross_enum_ident,
+                            #intra_enum_ident
+                        >,
                         ::solverforge::__internal::LocalSearch<
                             #solution_name,
                             usize,
@@ -560,8 +559,28 @@ pub(super) fn generate_runtime_phase_support(
                 > {
                     let descriptor = Self::descriptor();
                     #standard_setup
-                    let mut __solverforge_construction = ::std::vec::Vec::new();
                     #(#list_runtime_setup)*
+                    __solverforge_variables.sort_by_key(|variable| {
+                        let (descriptor_index, variable_name) = match variable {
+                            ::solverforge::__internal::VariableContext::Scalar(ctx) => {
+                                (ctx.descriptor_index, ctx.variable_name)
+                            }
+                            ::solverforge::__internal::VariableContext::List(ctx) => {
+                                (ctx.descriptor_index, ctx.variable_name)
+                            }
+                        };
+                        let variable_order = descriptor
+                            .entity_descriptors
+                            .get(descriptor_index)
+                            .and_then(|entity| {
+                                entity
+                                    .variable_descriptors
+                                    .iter()
+                                    .position(|descriptor_var| descriptor_var.name == variable_name)
+                            })
+                            .unwrap_or(::core::usize::MAX);
+                        (descriptor_index, variable_order)
+                    });
                     let model = ::solverforge::__internal::ModelContext::<
                         #solution_name,
                         usize,
@@ -572,7 +591,6 @@ pub(super) fn generate_runtime_phase_support(
                         config,
                         &descriptor,
                         &model,
-                        __solverforge_construction,
                     )
                 }
             }
@@ -612,7 +630,12 @@ pub(super) fn generate_runtime_phase_support(
                 config: &::solverforge::__internal::SolverConfig,
             ) -> ::solverforge::__internal::PhaseSequence<
                 ::solverforge::__internal::RuntimePhase<
-                    ::solverforge::__internal::Construction<#solution_name, usize>,
+                    ::solverforge::__internal::Construction<
+                        #solution_name,
+                        usize,
+                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                    >,
                     ::solverforge::__internal::LocalSearch<
                         #solution_name,
                         usize,
@@ -639,7 +662,6 @@ pub(super) fn generate_runtime_phase_support(
                     config,
                     &descriptor,
                     &model,
-                    ::std::vec::Vec::new(),
                 )
             }
         }

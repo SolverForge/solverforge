@@ -37,11 +37,12 @@ pub use solverforge_solver::heuristic::selector::{
 pub use solverforge_solver::manager::{
     KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
 };
+pub use solverforge_solver::runtime::{build_phases, Construction, RuntimePhase};
+pub use solverforge_solver::runtime::{ListVariableEntity, ListVariableMetadata};
 pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
 pub use solverforge_solver::{
-    build_phases, descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config,
-    Construction, ConstructionArgs, ListVariableEntity, ListVariableMetadata, PhaseSequence,
-    RuntimePhase, SolverEvent, SolverRuntime, SolverTelemetry,
+    descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config, PhaseSequence,
+    SolverEvent, SolverRuntime, SolverTelemetry,
 };
 
 // Config

@@ -211,6 +211,26 @@ fn ruin_insert(solution: &mut MixedPlan, entity_index: usize, pos: usize, value:
     solution.vehicles[entity_index].visits.insert(pos, value);
 }
 
+fn assigned_visits(solution: &MixedPlan) -> Vec<usize> {
+    solution
+        .vehicles
+        .iter()
+        .flat_map(|vehicle| vehicle.visits.iter().copied())
+        .collect()
+}
+
+fn visit_count(solution: &MixedPlan) -> usize {
+    assigned_visits(solution).len()
+}
+
+fn construction_list_remove(solution: &mut MixedPlan, entity_index: usize, pos: usize) -> usize {
+    solution.vehicles[entity_index].visits.remove(pos)
+}
+
+fn index_to_visit(solution: &MixedPlan, idx: usize) -> usize {
+    assigned_visits(solution).get(idx).copied().unwrap_or(idx)
+}
+
 fn scalar_context() -> ScalarVariableContext<MixedPlan> {
     ScalarVariableContext::new(
         0,
@@ -229,8 +249,11 @@ fn scalar_context() -> ScalarVariableContext<MixedPlan> {
 fn list_context() -> ListVariableContext<MixedPlan, usize, NoopMeter, NoopMeter> {
     ListVariableContext::new(
         "Vehicle",
+        visit_count,
+        assigned_visits,
         list_len,
         list_remove,
+        construction_list_remove,
         list_insert,
         list_get,
         list_set,
@@ -239,11 +262,23 @@ fn list_context() -> ListVariableContext<MixedPlan, usize, NoopMeter, NoopMeter>
         sublist_insert,
         ruin_remove,
         ruin_insert,
+        index_to_visit,
         vehicle_count,
         NoopMeter,
         NoopMeter,
         "visits",
         1,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
 }
 

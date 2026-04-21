@@ -86,99 +86,114 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .filter(|f| has_attribute(&f.attrs, "cascading_update_shadow_variable"))
         .collect();
 
-    let variable_descriptors: Vec<_> = planning_variables
+    let genuine_variable_descriptors: Vec<_> = fields
         .iter()
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_name_str = field_name.to_string();
-            let supports_usize_hooks = field_is_option_usize(&field.ty);
-            let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
-            let allows_unassigned =
-                parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false);
-            let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
-            let value_range_provider = parse_attribute_string(attr, "value_range_provider")
-                .or_else(|| parse_attribute_string(attr, "value_range"));
-            let countable_range = parse_attribute_string(attr, "countable_range");
-            let getter_name = syn::Ident::new(
-                &format!("__solverforge_get_{}", field_name_str),
-                proc_macro2::Span::call_site(),
-            );
-            let setter_name = syn::Ident::new(
-                &format!("__solverforge_set_{}", field_name_str),
-                proc_macro2::Span::call_site(),
-            );
-
-            let base = if is_chained {
-                quote! { ::solverforge::__internal::VariableDescriptor::chained(#field_name_str) }
-            } else {
-                let maybe_usize_accessors = if supports_usize_hooks {
-                    quote! { .with_usize_accessors(Self::#getter_name, Self::#setter_name) }
-                } else {
-                    TokenStream::new()
-                };
-                quote! {
-                    ::solverforge::__internal::VariableDescriptor::genuine(#field_name_str)
-                        .with_allows_unassigned(#allows_unassigned)
-                        #maybe_usize_accessors
-                }
-            };
-
-            let provider_is_entity_field =
-                value_range_provider.as_ref().is_some_and(|provider_id| {
-                    fields.iter().any(|candidate| {
-                        candidate
-                            .ident
-                            .as_ref()
-                            .map(|ident| ident == provider_id)
-                            .unwrap_or(false)
-                    })
-                });
-
-            let with_provider = if let Some(provider_id) = value_range_provider {
-                let provider_getter_name = syn::Ident::new(
-                    &format!("__solverforge_values_for_{}", field_name_str),
+        .filter_map(|field| {
+            if has_attribute(&field.attrs, "planning_variable") {
+                let field_name = field.ident.as_ref().unwrap();
+                let field_name_str = field_name.to_string();
+                let supports_usize_hooks = field_is_option_usize(&field.ty);
+                let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
+                let allows_unassigned =
+                    parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false);
+                let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
+                let value_range_provider = parse_attribute_string(attr, "value_range_provider")
+                    .or_else(|| parse_attribute_string(attr, "value_range"));
+                let countable_range = parse_attribute_string(attr, "countable_range");
+                let getter_name = syn::Ident::new(
+                    &format!("__solverforge_get_{}", field_name_str),
                     proc_macro2::Span::call_site(),
                 );
-                let maybe_entity_provider = if supports_usize_hooks && provider_is_entity_field {
-                    quote! { .with_entity_value_provider(Self::#provider_getter_name) }
-                } else {
-                    TokenStream::new()
-                };
-                quote! {
-                    #base
-                        .with_value_range(#provider_id)
-                        #maybe_entity_provider
-                }
-            } else {
-                base
-            };
+                let setter_name = syn::Ident::new(
+                    &format!("__solverforge_set_{}", field_name_str),
+                    proc_macro2::Span::call_site(),
+                );
 
-            if let Some(range) = countable_range {
-                let parts: Vec<_> = range.split("..").collect();
-                if parts.len() != 2 {
-                    return quote! {
-                        compile_error!("countable_range must use `from..to` syntax");
+                let base = if is_chained {
+                    quote! { ::solverforge::__internal::VariableDescriptor::chained(#field_name_str) }
+                } else {
+                    let maybe_usize_accessors = if supports_usize_hooks {
+                        quote! { .with_usize_accessors(Self::#getter_name, Self::#setter_name) }
+                    } else {
+                        TokenStream::new()
                     };
-                }
-                let from_lit: i64 = parts[0]
-                    .trim()
-                    .parse()
-                    .expect("countable_range start must be an integer");
-                let to_lit: i64 = parts[1]
-                    .trim()
-                    .parse()
-                    .expect("countable_range end must be an integer");
-                quote! {
-                    #with_provider.with_value_range_type(
-                        ::solverforge::__internal::ValueRangeType::CountableRange {
-                            from: #from_lit,
-                            to: #to_lit,
+                    quote! {
+                        ::solverforge::__internal::VariableDescriptor::genuine(#field_name_str)
+                            .with_allows_unassigned(#allows_unassigned)
+                            #maybe_usize_accessors
+                    }
+                };
+
+                let provider_is_entity_field =
+                    value_range_provider.as_ref().is_some_and(|provider_id| {
+                        fields.iter().any(|candidate| {
+                            candidate
+                                .ident
+                                .as_ref()
+                                .map(|ident| ident == provider_id)
+                                .unwrap_or(false)
+                        })
+                    });
+
+                let with_provider = if let Some(provider_id) = value_range_provider {
+                    let provider_getter_name = syn::Ident::new(
+                        &format!("__solverforge_values_for_{}", field_name_str),
+                        proc_macro2::Span::call_site(),
+                    );
+                    let maybe_entity_provider = if supports_usize_hooks && provider_is_entity_field {
+                        quote! { .with_entity_value_provider(Self::#provider_getter_name) }
+                    } else {
+                        TokenStream::new()
+                    };
+                    quote! {
+                        #base
+                            .with_value_range(#provider_id)
+                            #maybe_entity_provider
+                    }
+                } else {
+                    base
+                };
+
+                let descriptor = if let Some(range) = countable_range {
+                    let parts: Vec<_> = range.split("..").collect();
+                    if parts.len() != 2 {
+                        quote! {
+                            compile_error!("countable_range must use `from..to` syntax");
                         }
-                    )
-                }
-            } else {
-                with_provider
+                    } else {
+                        let from_lit: i64 = parts[0]
+                            .trim()
+                            .parse()
+                            .expect("countable_range start must be an integer");
+                        let to_lit: i64 = parts[1]
+                            .trim()
+                            .parse()
+                            .expect("countable_range end must be an integer");
+                        quote! {
+                            #with_provider.with_value_range_type(
+                                ::solverforge::__internal::ValueRangeType::CountableRange {
+                                    from: #from_lit,
+                                    to: #to_lit,
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    with_provider
+                };
+
+                return Some(descriptor);
             }
+
+            if has_attribute(&field.attrs, "planning_list_variable") {
+                let field_name = field.ident.as_ref().unwrap();
+                let field_name_str = field_name.to_string();
+                return Some(
+                    quote! { ::solverforge::__internal::VariableDescriptor::list(#field_name_str) },
+                );
+            }
+
+            None
         })
         .collect();
 
@@ -337,15 +352,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         TokenStream::new()
     };
 
-    let list_variable_descriptors: Vec<_> = list_variables
-        .iter()
-        .map(|field| {
-            let field_name = field.ident.as_ref().unwrap();
-            let field_name_str = field_name.to_string();
-            quote! { ::solverforge::__internal::VariableDescriptor::list(#field_name_str) }
-        })
-        .collect();
-
     let list_metadata = generate_list_metadata(name, &list_variables)?;
     let list_trait_impl = generate_list_trait_impl(name, &list_variables)?;
 
@@ -463,8 +469,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 );
                 #id_field_descriptor
                 #pin_field_descriptor
-                #( desc = desc.with_variable(#variable_descriptors); )*
-                #( desc = desc.with_variable(#list_variable_descriptors); )*
+                #( desc = desc.with_variable(#genuine_variable_descriptors); )*
                 #( desc = desc.with_variable(#inverse_relation_descriptors); )*
                 #( desc = desc.with_variable(#previous_element_descriptors); )*
                 #( desc = desc.with_variable(#next_element_descriptors); )*

@@ -128,10 +128,7 @@ pub use phase::{
     Phase,
 };
 pub use run::{log_solve_start, run_solver, run_solver_with_config};
-pub use runtime::{
-    build_phases, Construction, ConstructionArgs, ListVariableEntity, ListVariableMetadata,
-    RuntimePhase,
-};
+pub use runtime::{ListVariableEntity, ListVariableMetadata};
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};
 pub use stats::{PhaseStats, SolverStats, SolverTelemetry};

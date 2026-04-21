@@ -1152,8 +1152,15 @@ fn multi_owner_scope(
 }
 
 fn solve_multi_owner_construction(config: ConstructionHeuristicConfig) -> MultiOwnerSolution {
+    solve_multi_owner_construction_with_solution(multi_owner_solution(), config)
+}
+
+fn solve_multi_owner_construction_with_solution(
+    solution: MultiOwnerSolution,
+    config: ConstructionHeuristicConfig,
+) -> MultiOwnerSolution {
     let mut phase = Construction::new(Some(config), multi_owner_descriptor(), multi_owner_model());
-    let mut solver_scope = multi_owner_scope(multi_owner_solution());
+    let mut solver_scope = multi_owner_scope(solution);
     phase.solve(&mut solver_scope);
     solver_scope.working_solution().clone()
 }
@@ -1257,6 +1264,22 @@ fn targeted_multi_owner_list_round_robin_panics_when_no_owner_matches() {
         .or_else(|| panic.downcast_ref::<&'static str>().copied())
         .unwrap_or("");
     assert!(message.contains("does not match the targeted planning list variable"));
+}
+
+#[test]
+fn list_round_robin_runtime_appends_after_existing_elements() {
+    let mut solution = multi_owner_solution();
+    solution.routes[0] = vec![99];
+    solution.shifts[0] = vec![88];
+
+    let solution = solve_multi_owner_construction_with_solution(
+        solution,
+        config(ConstructionHeuristicType::ListRoundRobin, None, None),
+    );
+
+    assert_eq!(solution.routes[0], vec![99, 10, 11]);
+    assert_eq!(solution.shifts[0], vec![88, 20, 21]);
+    assert_eq!(solution.log, vec!["Route", "Route", "Shift", "Shift"]);
 }
 
 #[derive(Clone, Debug)]

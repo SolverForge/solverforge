@@ -119,6 +119,75 @@ fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     }
 }
 
+#[derive(Clone, Debug)]
+struct ListVehicle {
+    visits: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct ListSolution {
+    vehicles: Vec<ListVehicle>,
+    visit_pool: Vec<usize>,
+    score: Option<SoftScore>,
+}
+
+impl PlanningSolution for ListSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+fn list_vehicles(solution: &ListSolution) -> &Vec<ListVehicle> {
+    &solution.vehicles
+}
+
+fn list_vehicles_mut(solution: &mut ListSolution) -> &mut Vec<ListVehicle> {
+    &mut solution.vehicles
+}
+
+fn list_element_count(solution: &ListSolution) -> usize {
+    solution.visit_pool.len()
+}
+
+fn list_assigned_elements(solution: &ListSolution) -> Vec<usize> {
+    solution
+        .vehicles
+        .iter()
+        .flat_map(|vehicle| vehicle.visits.iter().copied())
+        .collect()
+}
+
+fn list_entity_count(solution: &ListSolution) -> usize {
+    solution.vehicles.len()
+}
+
+fn list_assign_element(solution: &mut ListSolution, entity_idx: usize, element: usize) {
+    solution.vehicles[entity_idx].visits.push(element);
+}
+
+fn list_index_to_element(solution: &ListSolution, idx: usize) -> usize {
+    solution.visit_pool[idx]
+}
+
+fn list_solution_descriptor() -> SolutionDescriptor {
+    let extractor = Box::new(EntityCollectionExtractor::new(
+        "Vehicle",
+        "vehicles",
+        list_vehicles,
+        list_vehicles_mut,
+    ));
+    let entity_desc = EntityDescriptor::new("Vehicle", TypeId::of::<ListVehicle>(), "vehicles")
+        .with_extractor(extractor);
+
+    SolutionDescriptor::new("ListSolution", TypeId::of::<ListSolution>()).with_entity(entity_desc)
+}
+
 // ==================== Standard Variant Tests ====================
 
 #[test]
@@ -265,4 +334,30 @@ fn test_construction_phase_factory_implements_solver_phase_factory() {
     let factory_ref: &dyn SolverPhaseFactory<TestSolution> = &factory;
     let phase = factory_ref.create_phase();
     assert_eq!(phase.phase_type_name(), "ConstructionHeuristic");
+}
+
+#[test]
+fn list_construction_phase_builder_still_appends_after_existing_elements() {
+    let builder = ListConstructionPhaseBuilder::<ListSolution, usize>::new(
+        list_element_count,
+        list_assigned_elements,
+        list_entity_count,
+        list_assign_element,
+        list_index_to_element,
+        0,
+    );
+    let solution = ListSolution {
+        vehicles: vec![ListVehicle { visits: vec![99] }],
+        visit_pool: vec![10, 11],
+        score: None,
+    };
+    let director = ScoreDirector::simple(solution, list_solution_descriptor(), |s, _| {
+        s.vehicles.len()
+    });
+    let mut solver_scope = SolverScope::new(director);
+
+    let mut phase = builder.create_phase();
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().vehicles[0].visits, vec![99, 10, 11]);
 }

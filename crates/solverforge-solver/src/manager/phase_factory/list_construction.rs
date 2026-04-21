@@ -27,7 +27,6 @@ mod state;
 
 pub use cheapest::ListCheapestInsertionPhase;
 pub use regret::ListRegretInsertionPhase;
-use round_robin::RuntimeListRoundRobinPhase;
 pub use round_robin::{ListConstructionPhase, ListConstructionPhaseBuilder};
 
 fn list_work_remaining<S, V, DM, IDM>(
@@ -64,7 +63,7 @@ where
 
         match heuristic {
             ConstructionHeuristicType::ListRoundRobin => {
-                RuntimeListRoundRobinPhase { ctx: ctx.clone() }.solve(solver_scope);
+                ListConstructionPhase::from_variable_context(ctx).solve(solver_scope);
             }
             ConstructionHeuristicType::ListCheapestInsertion => {
                 ListCheapestInsertionPhase::new(

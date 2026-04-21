@@ -136,10 +136,14 @@ where
                     continue;
                 }
 
-                placements.push(Placement::new(
-                    EntityReference::new(binding.descriptor_index, entity_index),
-                    moves,
-                ));
+                placements.push(
+                    Placement::new(
+                        EntityReference::new(binding.descriptor_index, entity_index),
+                        moves,
+                    )
+                    .with_slot_id(binding.slot_id(entity_index))
+                    .with_keep_current_legal(binding.allows_unassigned),
+                );
             }
         }
 

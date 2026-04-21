@@ -196,6 +196,61 @@ fn test_change_move_selector() {
 }
 
 #[test]
+fn change_selector_emits_single_to_none_move_for_assigned_entities_when_enabled() {
+    let director = create_director(vec![
+        Task {
+            id: 0,
+            priority: Some(1),
+        },
+        Task {
+            id: 1,
+            priority: None,
+        },
+    ]);
+
+    let selector =
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20])
+            .with_allows_unassigned(true);
+
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(selector.size(&director), 5);
+    assert_eq!(moves.len(), 5);
+    assert_eq!(
+        moves
+            .iter()
+            .filter(|mov| mov.entity_index() == 0)
+            .map(|mov| mov.to_value().copied())
+            .collect::<Vec<_>>(),
+        vec![Some(10), Some(20), None]
+    );
+    assert_eq!(
+        moves
+            .iter()
+            .filter(|mov| mov.entity_index() == 1)
+            .map(|mov| mov.to_value().copied())
+            .collect::<Vec<_>>(),
+        vec![Some(10), Some(20)]
+    );
+}
+
+#[test]
+fn change_selector_does_not_emit_to_none_without_unassigned_support() {
+    let director = create_director(vec![Task {
+        id: 0,
+        priority: Some(1),
+    }]);
+
+    let selector =
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
+
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(selector.size(&director), 2);
+    assert!(moves.iter().all(|mov| mov.to_value().is_some()));
+}
+
+#[test]
 fn change_selector_clones_values_as_cursor_advances() {
     let director = create_counted_director(vec![CountedTask { value: None }]);
     let cloned = Arc::new(AtomicUsize::new(0));

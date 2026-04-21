@@ -9,7 +9,8 @@ use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, VariableTargetConfig,
 };
 use solverforge_core::domain::{
-    EntityDescriptor, PlanningSolution, SolutionDescriptor, VariableDescriptor, VariableType,
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, ProblemFactDescriptor,
+    SolutionDescriptor, VariableDescriptor, VariableType,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -180,6 +181,433 @@ fn generic_list_dispatch_normalizes_to_list_cheapest_insertion() {
 fn standard_target_matches_entity_class_only_target() {
     let descriptor = descriptor();
     assert!(standard_target_matches(&descriptor, Some("Route"), None));
+}
+
+#[derive(Clone, Debug)]
+struct StandardRuntimeWorker;
+
+#[derive(Clone, Debug)]
+struct StandardRuntimeTask {
+    worker_idx: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct StandardRuntimePlan {
+    score: Option<SoftScore>,
+    workers: Vec<StandardRuntimeWorker>,
+    tasks: Vec<StandardRuntimeTask>,
+}
+
+#[derive(Clone, Debug)]
+struct StandardRuntimeDirector {
+    working_solution: StandardRuntimePlan,
+    descriptor: SolutionDescriptor,
+}
+
+impl PlanningSolution for StandardRuntimePlan {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl solverforge_scoring::Director<StandardRuntimePlan> for StandardRuntimeDirector {
+    fn working_solution(&self) -> &StandardRuntimePlan {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut StandardRuntimePlan {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        let score = if self.working_solution.tasks[0].worker_idx.is_none() {
+            SoftScore::of(0)
+        } else {
+            SoftScore::of(-1)
+        };
+        self.working_solution.set_score(Some(score));
+        score
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> StandardRuntimePlan {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        (descriptor_index == 0).then_some(self.working_solution.tasks.len())
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(self.working_solution.tasks.len())
+    }
+}
+
+fn get_runtime_worker_idx(entity: &dyn std::any::Any) -> Option<usize> {
+    entity
+        .downcast_ref::<StandardRuntimeTask>()
+        .expect("task expected")
+        .worker_idx
+}
+
+fn set_runtime_worker_idx(entity: &mut dyn std::any::Any, value: Option<usize>) {
+    entity
+        .downcast_mut::<StandardRuntimeTask>()
+        .expect("task expected")
+        .worker_idx = value;
+}
+
+fn standard_runtime_descriptor() -> SolutionDescriptor {
+    SolutionDescriptor::new("StandardRuntimePlan", TypeId::of::<StandardRuntimePlan>())
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<StandardRuntimeTask>(), "tasks")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Task",
+                    "tasks",
+                    |solution: &StandardRuntimePlan| &solution.tasks,
+                    |solution: &mut StandardRuntimePlan| &mut solution.tasks,
+                )))
+                .with_variable(
+                    VariableDescriptor::genuine("worker_idx")
+                        .with_allows_unassigned(true)
+                        .with_value_range("workers")
+                        .with_usize_accessors(get_runtime_worker_idx, set_runtime_worker_idx),
+                ),
+        )
+        .with_problem_fact(
+            ProblemFactDescriptor::new("Worker", TypeId::of::<StandardRuntimeWorker>(), "workers")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Worker",
+                    "workers",
+                    |solution: &StandardRuntimePlan| &solution.workers,
+                    |solution: &mut StandardRuntimePlan| &mut solution.workers,
+                ))),
+        )
+}
+
+fn standard_runtime_list_args() -> ConstructionArgs<StandardRuntimePlan, usize> {
+    ConstructionArgs {
+        element_count: |_| 0,
+        assigned_elements: |_| Vec::new(),
+        entity_count: |_| 0,
+        list_len: |_, _| 0,
+        list_insert: |_, _, _, _| {},
+        list_remove: |_, _, _| 0,
+        index_to_element: |_, _| 0,
+        descriptor_index: 0,
+        entity_type_name: "Route",
+        variable_name: "visits",
+        depot_fn: None,
+        distance_fn: None,
+        element_load_fn: None,
+        capacity_fn: None,
+        assign_route_fn: None,
+        merge_feasible_fn: None,
+        k_opt_get_route: None,
+        k_opt_set_route: None,
+        k_opt_depot_fn: None,
+        k_opt_distance_fn: None,
+        k_opt_feasible_fn: None,
+    }
+}
+
+#[test]
+fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
+    let descriptor = standard_runtime_descriptor();
+    let plan = StandardRuntimePlan {
+        score: None,
+        workers: vec![StandardRuntimeWorker],
+        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+    };
+    let director = StandardRuntimeDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut targeted_phase = Construction::new(
+        Some(config(
+            ConstructionHeuristicType::CheapestInsertion,
+            Some("Task"),
+            Some("worker_idx"),
+        )),
+        descriptor.clone(),
+        vec![standard_runtime_list_args()],
+    );
+    targeted_phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
+    assert_eq!(solver_scope.stats().step_count, 1);
+    assert!(
+        !super::standard_work_remaining_with_frontier(
+            &descriptor,
+            solver_scope.standard_construction_frontier(),
+            solver_scope.solution_revision(),
+            None,
+            None,
+            solver_scope.working_solution(),
+        ),
+        "completed optional None should not be treated as remaining standard work",
+    );
+
+    let mut untargeted_phase =
+        Construction::new(None, descriptor, vec![standard_runtime_list_args()]);
+    untargeted_phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
+    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted, 0);
+}
+
+#[test]
+fn no_op_runtime_construction_still_seeds_score_and_best_solution() {
+    let descriptor = standard_runtime_descriptor();
+    let plan = StandardRuntimePlan {
+        score: None,
+        workers: vec![StandardRuntimeWorker],
+        tasks: vec![StandardRuntimeTask {
+            worker_idx: Some(0),
+        }],
+    };
+    let director = StandardRuntimeDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(None, descriptor, vec![standard_runtime_list_args()]);
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(-1))
+    );
+    assert_eq!(solver_scope.best_score().copied(), Some(SoftScore::of(-1)));
+}
+
+#[derive(Clone, Debug)]
+struct RevisionWorker;
+
+#[derive(Clone, Debug)]
+struct RevisionTask {
+    worker_idx: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct RevisionPlan {
+    score: Option<SoftScore>,
+    workers: Vec<RevisionWorker>,
+    tasks: Vec<RevisionTask>,
+    routes: Vec<Vec<usize>>,
+    route_pool: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct RevisionDirector {
+    working_solution: RevisionPlan,
+    descriptor: SolutionDescriptor,
+}
+
+impl PlanningSolution for RevisionPlan {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl solverforge_scoring::Director<RevisionPlan> for RevisionDirector {
+    fn working_solution(&self) -> &RevisionPlan {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut RevisionPlan {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        let route_ready = !self.working_solution.routes[0].is_empty();
+        let assigned = self.working_solution.tasks[0].worker_idx.is_some();
+        let score = match (route_ready, assigned) {
+            (false, false) => SoftScore::of(0),
+            (false, true) => SoftScore::of(-1),
+            (true, false) => SoftScore::of(0),
+            (true, true) => SoftScore::of(10),
+        };
+        self.working_solution.set_score(Some(score));
+        score
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> RevisionPlan {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        match descriptor_index {
+            0 => Some(self.working_solution.tasks.len()),
+            _ => None,
+        }
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(self.working_solution.tasks.len())
+    }
+}
+
+fn revision_task_getter(entity: &dyn std::any::Any) -> Option<usize> {
+    entity
+        .downcast_ref::<RevisionTask>()
+        .expect("task expected")
+        .worker_idx
+}
+
+fn revision_task_setter(entity: &mut dyn std::any::Any, value: Option<usize>) {
+    entity
+        .downcast_mut::<RevisionTask>()
+        .expect("task expected")
+        .worker_idx = value;
+}
+
+fn revision_descriptor() -> SolutionDescriptor {
+    SolutionDescriptor::new("RevisionPlan", TypeId::of::<RevisionPlan>())
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<RevisionTask>(), "tasks")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Task",
+                    "tasks",
+                    |solution: &RevisionPlan| &solution.tasks,
+                    |solution: &mut RevisionPlan| &mut solution.tasks,
+                )))
+                .with_variable(
+                    VariableDescriptor::genuine("worker_idx")
+                        .with_allows_unassigned(true)
+                        .with_value_range("workers")
+                        .with_usize_accessors(revision_task_getter, revision_task_setter),
+                ),
+        )
+        .with_problem_fact(
+            ProblemFactDescriptor::new("Worker", TypeId::of::<RevisionWorker>(), "workers")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Worker",
+                    "workers",
+                    |solution: &RevisionPlan| &solution.workers,
+                    |solution: &mut RevisionPlan| &mut solution.workers,
+                ))),
+        )
+}
+
+fn revision_list_args() -> ConstructionArgs<RevisionPlan, usize> {
+    ConstructionArgs {
+        element_count: |solution| solution.route_pool.len(),
+        assigned_elements: |solution| {
+            solution
+                .routes
+                .iter()
+                .flat_map(|route| route.iter().copied())
+                .collect()
+        },
+        entity_count: |solution| solution.routes.len(),
+        list_len: |solution, entity_idx| solution.routes[entity_idx].len(),
+        list_insert: |solution, entity_idx, pos, value| {
+            solution.routes[entity_idx].insert(pos, value);
+        },
+        list_remove: |solution, entity_idx, pos| solution.routes[entity_idx].remove(pos),
+        index_to_element: |solution, idx| solution.route_pool[idx],
+        descriptor_index: 1,
+        entity_type_name: "Route",
+        variable_name: "visits",
+        depot_fn: None,
+        distance_fn: None,
+        element_load_fn: None,
+        capacity_fn: None,
+        assign_route_fn: None,
+        merge_feasible_fn: None,
+        k_opt_get_route: None,
+        k_opt_set_route: None,
+        k_opt_depot_fn: None,
+        k_opt_distance_fn: None,
+        k_opt_feasible_fn: None,
+    }
+}
+
+#[test]
+fn later_construction_revisits_optional_none_after_unrelated_list_commit() {
+    let descriptor = revision_descriptor();
+    let plan = RevisionPlan {
+        score: None,
+        workers: vec![RevisionWorker],
+        tasks: vec![RevisionTask { worker_idx: None }],
+        routes: vec![Vec::new()],
+        route_pool: vec![10],
+    };
+    let director = RevisionDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut standard_phase = Construction::new(
+        Some(config(
+            ConstructionHeuristicType::CheapestInsertion,
+            Some("Task"),
+            Some("worker_idx"),
+        )),
+        descriptor.clone(),
+        vec![revision_list_args()],
+    );
+    standard_phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
+    assert_eq!(
+        solver_scope.working_solution().routes[0],
+        Vec::<usize>::new()
+    );
+
+    let mut list_phase = Construction::new(
+        Some(config(
+            ConstructionHeuristicType::ListRoundRobin,
+            Some("Route"),
+            Some("visits"),
+        )),
+        descriptor.clone(),
+        vec![revision_list_args()],
+    );
+    list_phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().routes[0], vec![10]);
+
+    let mut reconstruct = Construction::new(None, descriptor, vec![revision_list_args()]);
+    reconstruct.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(0));
 }
 
 #[derive(Clone, Debug, Default)]

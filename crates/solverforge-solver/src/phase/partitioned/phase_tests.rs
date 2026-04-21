@@ -130,10 +130,10 @@ where
         &mut self,
         solver_scope: &mut SolverScope<'_, PartitionedLifecycleSolution, D, BestCb>,
     ) {
-        solver_scope.working_solution_mut().value = self.value;
-        solver_scope
-            .score_director_mut()
-            .after_variable_changed(0, 0);
+        solver_scope.mutate(|score_director| {
+            score_director.working_solution_mut().value = self.value;
+            score_director.after_variable_changed(0, 0);
+        });
 
         let shadow = solver_scope.working_solution().shadow;
         let mut best = solver_scope.working_solution().clone();

@@ -281,7 +281,7 @@ where
             // Apply best move if found
             if let (Some(idx), Some(score)) = (best_move_idx, best_score) {
                 let selected_move = arena.take(idx);
-                selected_move.do_move(step_scope.score_director_mut());
+                step_scope.apply_committed_move(&selected_move);
                 step_scope.set_step_score(score);
                 last_step_score = score;
                 step_scope.phase_scope_mut().update_best_solution();

@@ -108,8 +108,14 @@ fn builds_solution_count_standard_selectors_without_descriptor_bindings() {
     let selector = build_standard_move_selector::<Schedule>(None, &scalar_variables);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
-    assert_eq!(selector.size(&director), 7);
-    assert_eq!(moves.len(), 7);
+    assert_eq!(selector.size(&director), 9);
+    assert_eq!(moves.len(), 9);
+    assert_eq!(
+        moves.iter()
+            .filter(|mov| matches!(mov, crate::heuristic::r#move::EitherMove::Change(change) if change.to_value().is_none()))
+            .count(),
+        2
+    );
 }
 
 #[test]
@@ -152,6 +158,12 @@ fn filters_change_moves_against_entity_slice_candidates() {
     let selector = build_standard_move_selector(Some(&config), &scalar_variables);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
-    assert_eq!(selector.size(&director), 3);
-    assert_eq!(moves.len(), 3);
+    assert_eq!(selector.size(&director), 5);
+    assert_eq!(moves.len(), 5);
+    assert_eq!(
+        moves.iter()
+            .filter(|mov| matches!(mov, crate::heuristic::r#move::EitherMove::Change(change) if change.to_value().is_none()))
+            .count(),
+        2
+    );
 }

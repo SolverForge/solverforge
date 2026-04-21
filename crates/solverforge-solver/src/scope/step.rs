@@ -1,7 +1,9 @@
 // Step-level scope.
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
+use solverforge_scoring::{Director, RecordingDirector};
+
+use crate::heuristic::r#move::Move;
 
 use super::solver::ProgressCallback;
 use super::PhaseScope;
@@ -70,8 +72,40 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         self.phase_scope.score_director()
     }
 
-    pub fn score_director_mut(&mut self) -> &mut D {
+    pub(crate) fn score_director_mut(&mut self) -> &mut D {
         self.phase_scope.score_director_mut()
+    }
+
+    pub fn trial<T, F>(&mut self, trial: F) -> T
+    where
+        F: FnOnce(&mut RecordingDirector<'_, S, D>) -> T,
+    {
+        self.phase_scope.trial(trial)
+    }
+
+    pub fn mutate<T, F>(&mut self, mutate: F) -> T
+    where
+        F: FnOnce(&mut D) -> T,
+    {
+        self.phase_scope.mutate(mutate)
+    }
+
+    pub(crate) fn apply_committed_move<M>(&mut self, mov: &M)
+    where
+        M: Move<S>,
+    {
+        self.phase_scope
+            .solver_scope_mut()
+            .apply_committed_move(mov);
+    }
+
+    pub(crate) fn apply_committed_change<F>(&mut self, change: F)
+    where
+        F: FnOnce(&mut D),
+    {
+        self.phase_scope
+            .solver_scope_mut()
+            .apply_committed_change(change);
     }
 
     /// Calculates the current score.

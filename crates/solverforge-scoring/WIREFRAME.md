@@ -155,7 +155,7 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 // Score Directors
 pub use director::score_director::ScoreDirector;
 pub use director::{
-    RecordingDirector, Director, SolvableSolution,
+    RecordingDirector, Director, DirectorScoreState, SolvableSolution,
 };
 
 // Analysis
@@ -187,8 +187,15 @@ pub use stream::{
 | `entity_count` | `fn entity_count(&self, descriptor_index: usize) -> Option<usize>` | Count entities by descriptor |
 | `total_entity_count` | `fn total_entity_count(&self) -> Option<usize>` | Total across all descriptors |
 | `is_incremental` | `fn is_incremental(&self) -> bool` | Default: false |
+| `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
+| `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
 | `reset` | `fn reset(&mut self)` | Default: no-op |
 | `register_undo` | `fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>)` | Default: no-op |
+
+### `DirectorScoreState<Sc>`
+
+Committed score-state snapshot used to roll back speculative evaluation. Fields:
+`solution_score`, `committed_score`, `initialized`.
 
 ### `IncrementalConstraint<S, Sc: Score>` — `Send + Sync`
 
@@ -294,6 +301,8 @@ All `Send + Sync`:
 
 **`RecordingDirector<'a, S, D>`** where `S: PlanningSolution`, `D: Director<S>`
 - Wraps any director with automatic undo tracking.
+- Restores the wrapped director's committed score state after speculative
+  evaluation and undo.
 - Key methods: `new()`, `undo_changes()`, `reset()`, `change_count()`, `is_empty()`
 - Implements `Director<S>`
 

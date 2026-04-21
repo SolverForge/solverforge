@@ -385,8 +385,7 @@ where
             let descriptor_index = self.descriptor_index;
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            {
-                let sd = step_scope.score_director_mut();
+            step_scope.apply_committed_change(|sd| {
                 for (entity_idx, index_route) in available_entity_slots.into_iter().zip(non_empty) {
                     sd.before_variable_changed(descriptor_index, entity_idx);
                     let element_route: Vec<E> = index_route
@@ -396,7 +395,7 @@ where
                     assign_route(sd.working_solution_mut(), entity_idx, element_route);
                     sd.after_variable_changed(descriptor_index, entity_idx);
                 }
-            }
+            });
 
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);

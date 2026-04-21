@@ -216,12 +216,11 @@ where
 
             if changed {
                 let mut step_scope = StepScope::new(&mut phase_scope);
-                {
-                    let sd = step_scope.score_director_mut();
+                step_scope.apply_committed_change(|sd| {
                     sd.before_variable_changed(descriptor_index, entity_idx);
                     (self.set_route)(sd.working_solution_mut(), entity_idx, route);
                     sd.after_variable_changed(descriptor_index, entity_idx);
-                }
+                });
                 let step_score = step_scope.calculate_score();
                 step_scope.set_step_score(step_score);
                 step_scope.complete();

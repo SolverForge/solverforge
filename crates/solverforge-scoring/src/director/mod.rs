@@ -19,4 +19,4 @@ mod tests;
 
 pub use recording::RecordingDirector;
 pub use shadow_aware::SolvableSolution;
-pub use traits::Director;
+pub use traits::{Director, DirectorScoreState};

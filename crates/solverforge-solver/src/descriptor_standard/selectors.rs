@@ -16,6 +16,7 @@ use super::move_types::{DescriptorChangeMove, DescriptorEitherMove, DescriptorSw
 pub struct DescriptorChangeMoveSelector<S> {
     binding: VariableBinding,
     solution_descriptor: SolutionDescriptor,
+    allows_unassigned: bool,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -29,9 +30,11 @@ impl<S> Debug for DescriptorChangeMoveSelector<S> {
 
 impl<S> DescriptorChangeMoveSelector<S> {
     fn new(binding: VariableBinding, solution_descriptor: SolutionDescriptor) -> Self {
+        let allows_unassigned = binding.allows_unassigned;
         Self {
             binding,
             solution_descriptor,
+            allows_unassigned,
             _phantom: PhantomData,
         }
     }
@@ -50,12 +53,26 @@ where
             .unwrap_or(0);
         let descriptor = self.solution_descriptor.clone();
         let binding = self.binding.clone();
+        let allows_unassigned = self.allows_unassigned;
         let solution = score_director.working_solution() as &dyn Any;
         let moves: Vec<_> = (0..count)
             .flat_map(move |entity_index| {
                 let entity = descriptor
                     .get_entity(solution, binding.descriptor_index, entity_index)
                     .expect("entity lookup failed for change selector");
+                let current_value = (binding.getter)(entity);
+                let unassign_move = (allows_unassigned && current_value.is_some()).then({
+                    let binding = binding.clone();
+                    let descriptor = descriptor.clone();
+                    move || {
+                        DescriptorEitherMove::Change(DescriptorChangeMove::new(
+                            binding.clone(),
+                            entity_index,
+                            None,
+                            descriptor.clone(),
+                        ))
+                    }
+                });
                 binding
                     .values_for_entity(&descriptor, solution, entity)
                     .into_iter()
@@ -71,6 +88,7 @@ where
                             ))
                         }
                     })
+                    .chain(unassign_move)
             })
             .collect();
         moves.into_iter()
@@ -97,7 +115,8 @@ where
                     score_director.working_solution() as &dyn Any,
                     entity,
                 )
-                .len();
+                .len()
+                + usize::from(self.allows_unassigned && (self.binding.getter)(entity).is_some());
         }
         total
     }

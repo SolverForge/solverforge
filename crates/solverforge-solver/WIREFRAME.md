@@ -24,17 +24,18 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly, explicit descriptor-standard construction dispatch, and list metadata hooks
+├── runtime.rs                           — Runtime assembly, frontier-aware descriptor-standard construction dispatch, no-op construction finalization, and list metadata hooks
 ├── list_solver_tests.rs                 — Tests
 ├── descriptor_standard.rs               — Re-exports the explicit descriptor-standard bindings, selectors, move types, and construction helpers
 ├── descriptor_standard/
-│   ├── bindings.rs                      — Standard-variable binding discovery, matching, and work checks
+│   ├── bindings.rs                      — Standard-variable binding discovery, matching, and frontier-aware work checks
+│   ├── frontier.rs                      — Revision-scoped standard construction completion cache
 │   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorEitherMove<S>
-│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, build_descriptor_move_selector()
-│   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>, build_descriptor_construction()
+│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, build_descriptor_move_selector(); optional assigned variables can emit one `Some(v) -> None` change
+│   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>, build_descriptor_construction(); descriptor placements carry optional keep-current legality and slot identity
 │   └── tests.rs                         — Tests
 ├── runtime_tests.rs                     — Tests
-├── run.rs                               — AnyTermination, build_termination, run_solver()
+├── run.rs                               — AnyTermination, build_termination, run_solver(), run_solver_with_config()
 ├── run_tests.rs                         — Tests
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
@@ -95,7 +96,7 @@ src/
 │       ├── mod.rs                       — Re-exports
 │       ├── entity.rs                    — EntitySelector trait, FromSolutionEntitySelector, AllEntitiesSelector
 │       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
-│       ├── move_selector.rs             — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, re-exports
+│       ├── move_selector.rs             — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, re-exports; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
 │       ├── move_selector/either.rs      — EitherChangeMoveSelector, EitherSwapMoveSelector
 │       ├── move_selector/list_adapters.rs — ListMoveListChangeSelector, ListMoveKOptSelector, ListMoveNearbyKOptSelector, ListMoveListRuinSelector
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
@@ -159,9 +160,12 @@ src/
 │   ├── mod.rs                           — Phase<S, D> trait, tuple impls
 │   ├── construction/
 │   │   ├── mod.rs                       — ForagerType enum, ConstructionHeuristicConfig, re-exports
+│   │   ├── decision.rs                  — Shared baseline/tie-breaking helpers for construction choice resolution
+│   │   ├── evaluation.rs                — Trial-move evaluation via RecordingDirector with exact rollback
 │   │   ├── phase.rs                     — ConstructionHeuristicPhase<S, M, P, Fo>
-│   │   ├── forager.rs                   — ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit foragers
-│   │   ├── placer.rs                    — EntityPlacer trait, Placement, QueuedEntityPlacer, SortedEntityPlacer
+│   │   ├── forager.rs                   — ConstructionChoice enum, ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit foragers
+│   │   ├── placer.rs                    — EntityPlacer trait, Placement, QueuedEntityPlacer, SortedEntityPlacer; queued placements expose optional keep-current legality
+│   │   ├── slot.rs                      — ConstructionSlotId for descriptor-standard frontier tracking
 │   │   ├── phase_tests.rs              — Tests
 │   │   ├── forager_tests.rs            — Tests
 │   │   └── placer_tests.rs             — Tests
@@ -374,7 +378,7 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
 
 | Method | Signature |
 |--------|-----------|
-| `pick_move_index` | `fn<D: Director<S>>(&self, placement: &Placement<S, M>, score_director: &mut D) -> Option<usize>` |
+| `pick_move_index` | `fn<D: Director<S>>(&self, placement: &Placement<S, M>, score_director: &mut D) -> ConstructionChoice` |
 
 ### `LocalSearchForager<S, M>` — `localsearch/forager.rs`
 
@@ -554,7 +558,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 | Selector | Produces | Note |
 |----------|----------|------|
-| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Standard variable change |
+| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Standard variable change; `.with_allows_unassigned(true)` adds exactly one assigned-entity `Some(v) -> None` move |
 | `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Standard variable swap |
 | `EitherChangeMoveSelector<S, V, ES, VS>` | `EitherMove<S, V>` | Wraps ChangeMoveSelector |
 | `EitherSwapMoveSelector<S, V, LES, RES>` | `EitherMove<S, V>` | Wraps SwapMoveSelector |
@@ -622,10 +626,10 @@ Entity placers:
 
 | Placer | Note |
 |--------|------|
-| `QueuedEntityPlacer<S, V, ES, VS>` | Iterates entities, generates ChangeMove per value |
+| `QueuedEntityPlacer<S, V, ES, VS>` | Iterates entities, generates ChangeMove per value, and can mark keep-current as legal for optional variables via `.with_allows_unassigned(true)` |
 | `SortedEntityPlacer<S, M, Inner>` | Wraps placer, sorts entities by comparator |
 
-**`Placement<S, M>`** — `{ entity_ref: EntityReference, moves: Vec<M> }`.
+**`Placement<S, M>`** — public fields `{ entity_ref: EntityReference, moves: Vec<M> }`; methods `is_empty()`, `with_keep_current_legal()`, `keep_current_legal()`, `take_move()`.
 
 ### Local Search
 
@@ -695,17 +699,17 @@ Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op)
 
 Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, and termination state.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `working_solution()`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `trial(...)`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-standard construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. `trial(...)` wraps a `RecordingDirector` and restores both solution values and committed score state after speculative work. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
 ### `PhaseScope<'t, 'a, S, D, BestCb = ()>`
 
-Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count, PhaseStats.
+Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count, PhaseStats. Public mutation and speculative work delegate to `mutate(...)` and `trial(...)` on the parent solver scope.
 
 ### `StepScope<'t, 'a, 'b, S, D, BestCb = ()>`
 
-Borrows `&mut PhaseScope`. Tracks per-step state: step_index, step_score. `complete()` records step in stats.
+Borrows `&mut PhaseScope`. Tracks per-step state: step_index, step_score. `complete()` records step in stats, while public speculative and committed work delegate to the same `trial(...)` and `mutate(...)` boundary used by `SolverScope`.
 
 ## Termination Types
 
@@ -830,9 +834,9 @@ Scalar and list-heavy models both target this same runtime layer. Documentation 
 
 `AnyTermination` is an enum over all built-in termination types for config-driven dispatch. `build_termination()` constructs an `AnyTermination` from a `SolverConfig`.
 
-### `run_solver()` — `run.rs`
+### `run_solver()` / `run_solver_with_config()` — `run.rs`
 
-Canonical solve entrypoint used by macro-generated solving. Accepts generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume. `ScoreDirector` now calls `PlanningSolution::update_all_shadows()` before initialization and `PlanningSolution::update_entity_shadows()` before reinsertion, so the canonical solver path stays fully monomorphized.
+Canonical solve entrypoints used by macro-generated solving. They accept generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume. `ScoreDirector` now calls `PlanningSolution::update_all_shadows()` before initialization and `PlanningSolution::update_entity_shadows()` before reinsertion, so the canonical solver path stays fully monomorphized.
 
 ## Architectural Notes
 

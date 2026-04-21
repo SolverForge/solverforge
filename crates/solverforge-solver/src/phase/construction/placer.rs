@@ -13,6 +13,8 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::heuristic::selector::{EntityReference, EntitySelector, ValueSelector};
 
+use super::ConstructionSlotId;
+
 /// A placement represents an entity that needs a value assigned,
 /// along with the candidate moves to assign values.
 ///
@@ -28,6 +30,9 @@ where
     pub entity_ref: EntityReference,
     // Candidate moves for this placement.
     pub moves: Vec<M>,
+    // Whether keeping the current value is a legal construction choice.
+    keep_current_legal: bool,
+    slot_id: Option<ConstructionSlotId>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -40,12 +45,32 @@ where
         Self {
             entity_ref,
             moves,
+            keep_current_legal: false,
+            slot_id: None,
             _phantom: PhantomData,
         }
     }
 
     pub fn is_empty(&self) -> bool {
         self.moves.is_empty()
+    }
+
+    pub fn with_keep_current_legal(mut self, legal: bool) -> Self {
+        self.keep_current_legal = legal;
+        self
+    }
+
+    pub fn keep_current_legal(&self) -> bool {
+        self.keep_current_legal
+    }
+
+    pub(crate) fn with_slot_id(mut self, slot_id: ConstructionSlotId) -> Self {
+        self.slot_id = Some(slot_id);
+        self
+    }
+
+    pub(crate) fn slot_id(&self) -> Option<ConstructionSlotId> {
+        self.slot_id
     }
 
     /// Takes ownership of a move at the given index.
@@ -65,6 +90,8 @@ where
         f.debug_struct("Placement")
             .field("entity_ref", &self.entity_ref)
             .field("move_count", &self.moves.len())
+            .field("keep_current_legal", &self.keep_current_legal)
+            .field("slot_id", &self.slot_id)
             .finish()
     }
 }
@@ -114,6 +141,8 @@ where
     variable_name: &'static str,
     // The descriptor index.
     descriptor_index: usize,
+    // Whether the variable can remain unassigned during construction.
+    allows_unassigned: bool,
     _phantom: PhantomData<fn() -> V>,
 }
 
@@ -138,8 +167,14 @@ where
             setter,
             variable_name,
             descriptor_index,
+            allows_unassigned: false,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_allows_unassigned(mut self, allows_unassigned: bool) -> Self {
+        self.allows_unassigned = allows_unassigned;
+        self
     }
 }
 
@@ -154,6 +189,7 @@ where
             .field("entity_selector", &self.entity_selector)
             .field("value_selector", &self.value_selector)
             .field("variable_name", &self.variable_name)
+            .field("allows_unassigned", &self.allows_unassigned)
             .finish()
     }
 }
@@ -173,6 +209,7 @@ where
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;
         let setter = self.setter;
+        let allows_unassigned = self.allows_unassigned;
 
         self.entity_selector
             .iter(score_director)
@@ -209,7 +246,10 @@ where
                 if moves.is_empty() {
                     None
                 } else {
-                    Some(Placement::new(entity_ref, moves))
+                    Some(
+                        Placement::new(entity_ref, moves)
+                            .with_keep_current_legal(allows_unassigned),
+                    )
                 }
             })
             .collect()

@@ -288,7 +288,7 @@ fn default_scalar_selector_uses_change_only() {
                 &leafs.selectors()[0],
                 NeighborhoodLeaf::Scalar(StandardLeafSelector::Change(_))
             ));
-            assert_eq!(selector.size(&director), 4);
+            assert_eq!(selector.size(&director), 6);
         }
         Neighborhood::Limited { .. } => panic!("default scalar selector must not wrap a limit"),
     }

@@ -7,9 +7,12 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
+use solverforge_scoring::{Director, RecordingDirector};
 
+use crate::descriptor_standard::{collect_bindings, StandardConstructionFrontier};
+use crate::heuristic::r#move::Move;
 use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};
+use crate::phase::construction::ConstructionSlotId;
 use crate::stats::SolverStats;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +65,9 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     progress_callback: ProgressCb,
     terminal_reason: Option<SolverTerminalReason>,
     last_best_elapsed: Option<Duration>,
+    best_solution_revision: Option<u64>,
+    solution_revision: u64,
+    standard_construction_frontier: StandardConstructionFrontier,
     pub inphase_step_count_limit: Option<u64>,
     pub inphase_move_count_limit: Option<u64>,
     pub inphase_score_calc_count_limit: Option<u64>,
@@ -77,6 +83,8 @@ pub(crate) enum PendingControl {
 
 impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
     pub fn new(score_director: D) -> Self {
+        let binding_count = collect_bindings(score_director.solution_descriptor()).len();
+        let standard_construction_frontier = StandardConstructionFrontier::new(binding_count);
         Self {
             score_director,
             best_solution: None,
@@ -93,6 +101,9 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             progress_callback: (),
             terminal_reason: None,
             last_best_elapsed: None,
+            best_solution_revision: None,
+            solution_revision: 1,
+            standard_construction_frontier,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -109,6 +120,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         terminate: Option<&'t AtomicBool>,
         runtime: Option<SolverRuntime<S>>,
     ) -> Self {
+        let binding_count = collect_bindings(score_director.solution_descriptor()).len();
+        let standard_construction_frontier = StandardConstructionFrontier::new(binding_count);
         Self {
             score_director,
             best_solution: None,
@@ -125,6 +138,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             progress_callback: callback,
             terminal_reason: None,
             last_best_elapsed: None,
+            best_solution_revision: None,
+            solution_revision: 1,
+            standard_construction_frontier,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -166,6 +182,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             progress_callback: callback,
             terminal_reason: self.terminal_reason,
             last_best_elapsed: self.last_best_elapsed,
+            best_solution_revision: self.best_solution_revision,
+            solution_revision: self.solution_revision,
+            standard_construction_frontier: self.standard_construction_frontier,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
@@ -178,6 +197,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.total_step_count = 0;
         self.terminal_reason = None;
         self.last_best_elapsed = None;
+        self.best_solution_revision = None;
+        self.solution_revision = 1;
+        self.standard_construction_frontier.reset();
         self.stats.start();
     }
 
@@ -199,7 +221,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         &self.score_director
     }
 
-    pub fn score_director_mut(&mut self) -> &mut D {
+    pub(crate) fn score_director_mut(&mut self) -> &mut D {
         &mut self.score_director
     }
 
@@ -207,8 +229,21 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.score_director.working_solution()
     }
 
-    pub fn working_solution_mut(&mut self) -> &mut S {
-        self.score_director.working_solution_mut()
+    pub fn trial<T, F>(&mut self, trial: F) -> T
+    where
+        F: FnOnce(&mut RecordingDirector<'_, S, D>) -> T,
+    {
+        let mut recording = RecordingDirector::new(&mut self.score_director);
+        let output = trial(&mut recording);
+        recording.undo_changes();
+        output
+    }
+
+    pub fn mutate<T, F>(&mut self, mutate: F) -> T
+    where
+        F: FnOnce(&mut D) -> T,
+    {
+        self.committed_mutation(mutate)
     }
 
     pub fn calculate_score(&mut self) -> S::Score {
@@ -232,6 +267,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         *self.score_director.working_solution_mut() = solution;
         self.score_director.reset();
         self.current_score = None;
+        self.best_solution_revision = None;
+        self.solution_revision = 1;
+        self.standard_construction_frontier.reset();
         self.calculate_score()
     }
 
@@ -245,6 +283,38 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     pub fn current_score(&self) -> Option<&S::Score> {
         self.current_score.as_ref()
+    }
+
+    pub(crate) fn is_standard_slot_completed(&self, slot_id: ConstructionSlotId) -> bool {
+        self.standard_construction_frontier
+            .is_completed(slot_id, self.solution_revision)
+    }
+
+    pub(crate) fn mark_standard_slot_completed(&mut self, slot_id: ConstructionSlotId) {
+        self.standard_construction_frontier
+            .mark_completed(slot_id, self.solution_revision);
+    }
+
+    pub(crate) fn solution_revision(&self) -> u64 {
+        self.solution_revision
+    }
+
+    pub(crate) fn apply_committed_move<M>(&mut self, mov: &M)
+    where
+        M: Move<S>,
+    {
+        self.committed_mutation(|score_director| mov.do_move(score_director));
+    }
+
+    pub(crate) fn apply_committed_change<F>(&mut self, change: F)
+    where
+        F: FnOnce(&mut D),
+    {
+        self.committed_mutation(change);
+    }
+
+    pub(crate) fn standard_construction_frontier(&self) -> &StandardConstructionFrontier {
+        &self.standard_construction_frontier
     }
 
     pub fn terminal_reason(&self) -> SolverTerminalReason {
@@ -290,6 +360,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             self.best_solution = Some(self.score_director.clone_working_solution());
             self.best_score = Some(current_score);
             self.last_best_elapsed = self.elapsed();
+            self.best_solution_revision = Some(self.solution_revision);
             self.report_best_solution();
         }
     }
@@ -302,8 +373,11 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             return;
         };
 
-        if current_score == best_score {
+        if current_score == best_score
+            && self.best_solution_revision != Some(self.solution_revision)
+        {
             self.best_solution = Some(self.score_director.clone_working_solution());
+            self.best_solution_revision = Some(self.solution_revision);
             self.report_best_solution();
         }
     }
@@ -316,6 +390,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.best_solution = Some(solution);
         self.best_score = Some(score);
         self.last_best_elapsed = self.elapsed();
+        self.best_solution_revision = Some(self.solution_revision);
     }
 
     pub fn rng(&mut self) -> &mut StdRng {
@@ -500,5 +575,23 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.time_limit
             .zip(self.elapsed())
             .is_some_and(|(limit, elapsed)| elapsed >= limit)
+    }
+
+    fn advance_solution_revision(&mut self) {
+        self.solution_revision = self.solution_revision.wrapping_add(1);
+        if self.solution_revision == 0 {
+            self.solution_revision = 1;
+            self.standard_construction_frontier.reset();
+        }
+    }
+
+    fn committed_mutation<T, F>(&mut self, mutate: F) -> T
+    where
+        F: FnOnce(&mut D) -> T,
+    {
+        self.current_score = None;
+        let output = mutate(&mut self.score_director);
+        self.advance_solution_revision();
+        output
     }
 }

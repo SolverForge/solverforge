@@ -7,7 +7,7 @@ use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::ScoreDirector;
+use solverforge_scoring::{Director, ScoreDirector};
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -57,6 +57,12 @@ fn create_test_director() -> ScoreDirector<NQueensSolution, ()> {
         score: None,
     };
 
+    let descriptor = create_descriptor();
+
+    ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
+}
+
+fn create_descriptor() -> SolutionDescriptor {
     let extractor = Box::new(EntityCollectionExtractor::new(
         "Queen",
         "queens",
@@ -66,22 +72,85 @@ fn create_test_director() -> ScoreDirector<NQueensSolution, ()> {
     let entity_desc =
         EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
 
-    let descriptor = SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc);
+    SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
+        .with_entity(entity_desc)
+}
 
-    ScoreDirector::simple(solution, descriptor, |s, _| s.queens.len())
+#[derive(Clone, Debug)]
+struct ScoredDirector {
+    working_solution: NQueensSolution,
+    descriptor: SolutionDescriptor,
+    unassigned_score: i64,
+}
+
+impl Director<NQueensSolution> for ScoredDirector {
+    fn working_solution(&self) -> &NQueensSolution {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut NQueensSolution {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        let score = SoftScore::of(
+            self.working_solution
+                .queens
+                .iter()
+                .map(|queen| queen.row.unwrap_or(self.unassigned_score))
+                .sum(),
+        );
+        self.working_solution.set_score(Some(score));
+        score
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> NQueensSolution {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        (descriptor_index == 0).then_some(self.working_solution.queens.len())
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(self.working_solution.queens.len())
+    }
 }
 
 type TestMove = ChangeMove<NQueensSolution, i64>;
 
 fn create_placement() -> Placement<NQueensSolution, TestMove> {
+    create_placement_with_values([1, 5, 3])
+}
+
+fn create_placement_with_values(
+    values: impl IntoIterator<Item = i64>,
+) -> Placement<NQueensSolution, TestMove> {
     let entity_ref = EntityReference::new(0, 0);
-    let moves: Vec<TestMove> = vec![
-        ChangeMove::new(0, Some(1i64), get_queen_row, set_queen_row, "row", 0),
-        ChangeMove::new(0, Some(5i64), get_queen_row, set_queen_row, "row", 0),
-        ChangeMove::new(0, Some(3i64), get_queen_row, set_queen_row, "row", 0),
-    ];
+    let moves: Vec<TestMove> = values
+        .into_iter()
+        .map(|value| ChangeMove::new(0, Some(value), get_queen_row, set_queen_row, "row", 0))
+        .collect();
     Placement::new(entity_ref, moves)
+}
+
+fn create_scored_director(unassigned_score: i64) -> ScoredDirector {
+    ScoredDirector {
+        working_solution: NQueensSolution {
+            queens: vec![Queen { row: None }],
+            score: None,
+        },
+        descriptor: create_descriptor(),
+        unassigned_score,
+    }
 }
 
 #[test]
@@ -90,13 +159,13 @@ fn test_first_fit_forager() {
     let mut placement = create_placement();
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
-    let selected_idx = forager.pick_move_index(&placement, &mut director);
+    let selected = forager.pick_move_index(&placement, &mut director);
 
     // First Fit should pick the first move (index 0)
-    assert_eq!(selected_idx, Some(0));
+    assert_eq!(selected, ConstructionChoice::Select(0));
 
     // Take move and execute
-    if let Some(idx) = selected_idx {
+    if let ConstructionChoice::Select(idx) = selected {
         let m = placement.moves.swap_remove(idx);
         m.do_move(&mut director);
     }
@@ -108,13 +177,13 @@ fn test_best_fit_forager() {
     let mut placement = create_placement();
 
     let forager = BestFitForager::<NQueensSolution, TestMove>::new();
-    let selected_idx = forager.pick_move_index(&placement, &mut director);
+    let selected = forager.pick_move_index(&placement, &mut director);
 
     // Best Fit picks some move when all score equally (empty constraint set)
-    assert!(selected_idx.is_some());
+    assert!(matches!(selected, ConstructionChoice::Select(_)));
 
     // Take move and execute
-    if let Some(idx) = selected_idx {
+    if let ConstructionChoice::Select(idx) = selected {
         let m = placement.moves.swap_remove(idx);
         m.do_move(&mut director);
         let score = director.calculate_score();
@@ -129,9 +198,9 @@ fn test_empty_placement() {
         Placement::new(EntityReference::new(0, 0), vec![]);
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
-    let selected_idx = forager.pick_move_index(&placement, &mut director);
+    let selected = forager.pick_move_index(&placement, &mut director);
 
-    assert!(selected_idx.is_none());
+    assert_eq!(selected, ConstructionChoice::KeepCurrent);
 }
 
 fn value_strength(m: &TestMove) -> i64 {
@@ -144,12 +213,12 @@ fn test_weakest_fit_forager() {
     let mut placement = create_placement(); // values: 1, 5, 3
 
     let forager = WeakestFitForager::<NQueensSolution, TestMove>::new(value_strength);
-    let selected_idx = forager.pick_move_index(&placement, &mut director);
+    let selected = forager.pick_move_index(&placement, &mut director);
 
     // Weakest Fit should pick the move with lowest strength (index 0, value 1)
-    assert_eq!(selected_idx, Some(0));
+    assert_eq!(selected, ConstructionChoice::Select(0));
 
-    if let Some(idx) = selected_idx {
+    if let ConstructionChoice::Select(idx) = selected {
         let m = placement.moves.swap_remove(idx);
         m.do_move(&mut director);
         let score = director.calculate_score();
@@ -163,15 +232,106 @@ fn test_strongest_fit_forager() {
     let mut placement = create_placement(); // values: 1, 5, 3
 
     let forager = StrongestFitForager::<NQueensSolution, TestMove>::new(value_strength);
-    let selected_idx = forager.pick_move_index(&placement, &mut director);
+    let selected = forager.pick_move_index(&placement, &mut director);
 
     // Strongest Fit should pick the move with highest strength (index 1, value 5)
-    assert_eq!(selected_idx, Some(1));
+    assert_eq!(selected, ConstructionChoice::Select(1));
 
-    if let Some(idx) = selected_idx {
+    if let ConstructionChoice::Select(idx) = selected {
         let m = placement.moves.swap_remove(idx);
         m.do_move(&mut director);
         let score = director.calculate_score();
         assert_eq!(score, SoftScore::of(0));
     }
+}
+
+#[test]
+fn first_fit_selects_first_doable_move_even_when_keep_current_is_legal() {
+    let mut director = create_test_director();
+    let placement = create_placement().with_keep_current_legal(true);
+
+    let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::Select(0)
+    );
+}
+
+#[test]
+fn best_fit_prefers_first_equal_score_candidate_over_keep_current() {
+    let mut director = create_test_director();
+    let placement = create_placement().with_keep_current_legal(true);
+
+    let forager = BestFitForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::Select(0)
+    );
+}
+
+#[test]
+fn first_feasible_returns_keep_current_when_baseline_is_feasible() {
+    let mut director = create_test_director();
+    let placement = create_placement().with_keep_current_legal(true);
+
+    let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::KeepCurrent
+    );
+}
+
+#[test]
+fn best_fit_keeps_current_when_all_candidates_are_worse_than_baseline() {
+    let mut director = create_scored_director(0);
+    let placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
+
+    let forager = BestFitForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::KeepCurrent
+    );
+}
+
+#[test]
+fn best_fit_selects_best_candidate_when_it_beats_baseline() {
+    let mut director = create_scored_director(0);
+    let placement = create_placement_with_values([-5, 7, 3]).with_keep_current_legal(true);
+
+    let forager = BestFitForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::Select(1)
+    );
+}
+
+#[test]
+fn first_feasible_selects_first_feasible_candidate_when_baseline_is_infeasible() {
+    let mut director = create_scored_director(-2);
+    let placement = create_placement_with_values([-3, 1, 5]).with_keep_current_legal(true);
+
+    let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::Select(1)
+    );
+}
+
+#[test]
+fn first_feasible_prefers_equal_score_candidate_over_infeasible_baseline() {
+    let mut director = create_scored_director(-1);
+    let placement = create_placement_with_values([-1, -2]).with_keep_current_legal(true);
+
+    let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
+
+    assert_eq!(
+        forager.pick_move_index(&placement, &mut director),
+        ConstructionChoice::Select(0)
+    );
 }

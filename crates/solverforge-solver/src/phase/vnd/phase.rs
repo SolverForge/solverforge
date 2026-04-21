@@ -100,7 +100,7 @@ macro_rules! impl_vnd_phase {
 
                     match find_best_improving_move(cursor, &mut step_scope, &current_score) {
                         MoveSearchResult::Found(selected_move, selected_score) => {
-                            selected_move.do_move(step_scope.score_director_mut());
+                            step_scope.apply_committed_move(&selected_move);
                             step_scope.set_step_score(selected_score);
                             current_score = selected_score;
                             step_scope.phase_scope_mut().update_best_solution();
@@ -152,7 +152,7 @@ macro_rules! impl_vnd_phase {
 
                     match search_result {
                         MoveSearchResult::Found(selected_move, selected_score) => {
-                            selected_move.do_move(step_scope.score_director_mut());
+                            step_scope.apply_committed_move(&selected_move);
                             step_scope.set_step_score(selected_score);
                             current_score = selected_score;
                             step_scope.phase_scope_mut().update_best_solution();

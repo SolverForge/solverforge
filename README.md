@@ -37,6 +37,7 @@ Open http://localhost:7860 to see your solver in action.
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
+Standard variables declared with `allows_unassigned = true` keep optional-assignment semantics in the built-in runtime: stock construction can keep `None` when it is the best legal baseline while still progressing through equal-score assignment plateaus, pause snapshots stay score-exact after those keep-current steps, intentionally kept `None` stays completed for the current working-solution revision, later revision-advancing runtime mutations reopen those optional slots for reconsideration, and stock local search can both assign and unassign.
 
 ## Extend the Scaffold
 

@@ -2,6 +2,17 @@
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
+/// Snapshot of the director's committed score state.
+///
+/// Construction and local-search trial evaluation use this to restore the
+/// wrapped director after speculative scoring.
+#[derive(Debug, PartialEq, Eq)]
+pub struct DirectorScoreState<Sc> {
+    pub solution_score: Option<Sc>,
+    pub committed_score: Option<Sc>,
+    pub initialized: bool,
+}
+
 /* The score director manages solution state and score calculation.
 
 It is responsible for:
@@ -41,6 +52,22 @@ pub trait Director<S: PlanningSolution>: Send {
     // Returns true if this score director supports incremental scoring.
     fn is_incremental(&self) -> bool {
         false
+    }
+
+    // Snapshots the committed score state so speculative evaluation can roll
+    // back exactly.
+    fn snapshot_score_state(&self) -> DirectorScoreState<S::Score> {
+        let solution_score = self.working_solution().score();
+        DirectorScoreState {
+            solution_score,
+            committed_score: solution_score,
+            initialized: solution_score.is_some(),
+        }
+    }
+
+    // Restores a previously snapshotted committed score state.
+    fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) {
+        self.working_solution_mut().set_score(state.solution_score);
     }
 
     // Resets the score director state.

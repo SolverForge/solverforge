@@ -38,6 +38,7 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
 - `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
 - `docs/*.md` files capture focused extension and architecture guidance. When a refactor changes naming or explains an intentional boundary, update the relevant doc or add a dedicated audit note.
 - `AGENTS.md` records repository-specific rules for future coding agents. Update it when the engineering workflow or documentation policy changes.
+- Documentation must describe the current checked-in code and public surface, not an intended future design. If a refactor is incomplete, document the shipped boundary and current limitation explicitly instead of documenting the target state as if it already exists.
 
 ## Wireframes Are Canonical
 

@@ -72,9 +72,15 @@ src/
 - `Director` (trait)
 - `ScoreDirector`
 
+### Configuration (from `solverforge-config`)
+
+- `SolverConfig`
+- `SolverConfigOverride`
+
 ### Solver (from `solverforge-solver`)
 
 - `run_solver`
+- `run_solver_with_config`
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
@@ -166,7 +172,10 @@ Used exclusively by macro-generated code. Not public API.
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
-- `SolverRuntime`
+- `Construction`, `ConstructionArgs`, `PhaseSequence`, `RuntimePhase`
+- `ProgressCallback`, `SolverScope`
+- `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
+- `build_phases`, `descriptor_has_bindings`, `log_solve_start`, `run_solver`, `run_solver_with_config`
 - `ListVariableEntity`, `ListVariableMetadata`
 
 **Config (from `solverforge-config`):**
@@ -185,6 +194,7 @@ Used exclusively by macro-generated code. Not public API.
 | Function | Signature | Note |
 |----------|-----------|------|
 | `init_console` | `fn()` | No-op unless `console` feature enabled |
+| `load_solver_config` | `fn() -> SolverConfig` | Loads `solver.toml`, falling back to `SolverConfig::default()` |
 
 ## Architectural Notes
 

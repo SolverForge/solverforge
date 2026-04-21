@@ -14,16 +14,28 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 
+use super::decision::{
+    resolve_scored_choice, select_first_doable, should_keep_current_immediately, BaselinePolicy,
+    EqualScorePolicy, ScoredChoiceTracker,
+};
+use super::evaluation::evaluate_trial_move;
 use super::Placement;
+
+/// Selection result for a single construction placement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstructionChoice {
+    KeepCurrent,
+    Select(usize),
+}
 
 /// Trait for selecting a move during construction.
 ///
 /// Foragers evaluate candidate moves and pick one based on their strategy.
-// Returns the index of the selected move, not a cloned move.
+// Returns either a selected move index or an explicit keep-current choice.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -33,15 +45,13 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /* Picks a move index from the placement's candidates.
-
-    Returns None if no suitable move is found.
-    */
+    /* Picks a construction choice from the placement's candidates.
+     */
     fn pick_move_index<D: Director<S>>(
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<usize>;
+    ) -> ConstructionChoice;
 }
 
 /// First Fit forager - picks the first feasible move.
@@ -89,13 +99,17 @@ where
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<usize> {
+    ) -> ConstructionChoice {
+        let mut first_doable = None;
+
         for (idx, m) in placement.moves.iter().enumerate() {
             if m.is_doable(score_director) {
-                return Some(idx);
+                first_doable = Some(idx);
+                break;
             }
         }
-        None
+
+        select_first_doable(first_doable)
     }
 }
 
@@ -145,44 +159,28 @@ where
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<usize> {
-        let mut best_idx: Option<usize> = None;
-        let mut best_score: Option<S::Score> = None;
+    ) -> ConstructionChoice {
+        let baseline_score = placement
+            .keep_current_legal()
+            .then(|| score_director.calculate_score());
+        let mut tracker = ScoredChoiceTracker::default();
 
         for (idx, m) in placement.moves.iter().enumerate() {
             if !m.is_doable(score_director) {
                 continue;
             }
 
-            // Use RecordingDirector for automatic undo
-            let score = {
-                let mut recording = RecordingDirector::new(score_director);
+            let score = evaluate_trial_move(score_director, m);
 
-                // Execute move
-                m.do_move(&mut recording);
-
-                // Evaluate
-                let score = recording.calculate_score();
-
-                // Undo move
-                recording.undo_changes();
-
-                score
-            };
-
-            // Check if this is the best so far
-            let is_better = match &best_score {
-                None => true,
-                Some(best) => score > *best,
-            };
-
-            if is_better {
-                best_idx = Some(idx);
-                best_score = Some(score);
-            }
+            tracker.consider(idx, score);
         }
 
-        best_idx
+        resolve_scored_choice(
+            tracker,
+            baseline_score,
+            BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
+            EqualScorePolicy::PreferMove,
+        )
     }
 }
 
@@ -231,51 +229,37 @@ where
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<usize> {
-        let mut fallback_idx: Option<usize> = None;
-        let mut fallback_score: Option<S::Score> = None;
+    ) -> ConstructionChoice {
+        let baseline_score = placement
+            .keep_current_legal()
+            .then(|| score_director.calculate_score());
+
+        if should_keep_current_immediately(baseline_score, BaselinePolicy::KeepIfAlreadyFeasible) {
+            return ConstructionChoice::KeepCurrent;
+        }
+
+        let mut fallback_tracker = ScoredChoiceTracker::default();
 
         for (idx, m) in placement.moves.iter().enumerate() {
             if !m.is_doable(score_director) {
                 continue;
             }
 
-            // Use RecordingDirector for automatic undo
-            let score = {
-                let mut recording = RecordingDirector::new(score_director);
+            let score = evaluate_trial_move(score_director, m);
 
-                // Execute move
-                m.do_move(&mut recording);
-
-                // Evaluate
-                let score = recording.calculate_score();
-
-                // If feasible, return this move index immediately
-                if score.is_feasible() {
-                    recording.undo_changes();
-                    return Some(idx);
-                }
-
-                // Undo move
-                recording.undo_changes();
-
-                score
-            };
-
-            // Track best infeasible as fallback
-            let is_better = match &fallback_score {
-                None => true,
-                Some(best) => score > *best,
-            };
-
-            if is_better {
-                fallback_idx = Some(idx);
-                fallback_score = Some(score);
+            if score.is_feasible() {
+                return ConstructionChoice::Select(idx);
             }
+
+            fallback_tracker.consider(idx, score);
         }
 
-        // No feasible move found, return best infeasible
-        fallback_idx
+        resolve_scored_choice(
+            fallback_tracker,
+            baseline_score,
+            BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
+            EqualScorePolicy::PreferMove,
+        )
     }
 }
 
@@ -326,7 +310,7 @@ where
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<usize> {
+    ) -> ConstructionChoice {
         let mut best_idx: Option<usize> = None;
         let mut min_strength: Option<i64> = None;
 
@@ -349,6 +333,8 @@ where
         }
 
         best_idx
+            .map(ConstructionChoice::Select)
+            .unwrap_or(ConstructionChoice::KeepCurrent)
     }
 }
 
@@ -399,7 +385,7 @@ where
         &self,
         placement: &Placement<S, M>,
         score_director: &mut D,
-    ) -> Option<usize> {
+    ) -> ConstructionChoice {
         let mut best_idx: Option<usize> = None;
         let mut max_strength: Option<i64> = None;
 
@@ -422,6 +408,8 @@ where
         }
 
         best_idx
+            .map(ConstructionChoice::Select)
+            .unwrap_or(ConstructionChoice::KeepCurrent)
     }
 }
 

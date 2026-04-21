@@ -3,10 +3,14 @@
 use crate::director::recording::RecordingDirector;
 use crate::director::score_director::ScoreDirector;
 use crate::Director;
+use crate::{ConstraintAnalysis, ConstraintResult, ConstraintSet};
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
+use solverforge_core::ConstraintRef;
 use solverforge_test::nqueens::{
     create_nqueens_descriptor, get_row, set_row, NQueensSolution, Queen,
 };
+use std::any::TypeId;
 
 fn create_inner(queens: Vec<Queen>) -> ScoreDirector<NQueensSolution, ()> {
     let descriptor = create_nqueens_descriptor();
@@ -207,4 +211,120 @@ fn test_recording_entity_count() {
     let recording = RecordingDirector::new(&mut inner);
     assert_eq!(recording.entity_count(0), Some(2));
     assert_eq!(recording.total_entity_count(), Some(2));
+}
+
+#[derive(Clone)]
+struct ScoreProbeSolution {
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+#[derive(Default)]
+struct ValueConstraintSet;
+
+impl ConstraintSet<ScoreProbeSolution, SoftScore> for ValueConstraintSet {
+    fn evaluate_all(&self, solution: &ScoreProbeSolution) -> SoftScore {
+        SoftScore::of(solution.value)
+    }
+
+    fn constraint_count(&self) -> usize {
+        1
+    }
+
+    fn evaluate_each(&self, solution: &ScoreProbeSolution) -> Vec<ConstraintResult<SoftScore>> {
+        vec![ConstraintResult {
+            name: "value".to_string(),
+            score: self.evaluate_all(solution),
+            match_count: 1,
+            is_hard: false,
+        }]
+    }
+
+    fn evaluate_detailed(
+        &self,
+        solution: &ScoreProbeSolution,
+    ) -> Vec<ConstraintAnalysis<SoftScore>> {
+        vec![ConstraintAnalysis::new(
+            ConstraintRef::new("", "value"),
+            SoftScore::of(1),
+            self.evaluate_all(solution),
+            Vec::new(),
+            false,
+        )]
+    }
+
+    fn initialize_all(&mut self, solution: &ScoreProbeSolution) -> SoftScore {
+        self.evaluate_all(solution)
+    }
+
+    fn on_insert_all(
+        &mut self,
+        solution: &ScoreProbeSolution,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SoftScore {
+        self.evaluate_all(solution)
+    }
+
+    fn on_retract_all(
+        &mut self,
+        solution: &ScoreProbeSolution,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SoftScore {
+        -self.evaluate_all(solution)
+    }
+
+    fn reset_all(&mut self) {}
+}
+
+impl PlanningSolution for ScoreProbeSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+#[test]
+fn test_recording_undo_restores_committed_cached_score_state() {
+    let descriptor =
+        SolutionDescriptor::new("ScoreProbeSolution", TypeId::of::<ScoreProbeSolution>());
+    let mut inner = ScoreDirector::with_descriptor(
+        ScoreProbeSolution {
+            value: 2,
+            score: None,
+        },
+        ValueConstraintSet,
+        descriptor,
+        |_, descriptor_index| usize::from(descriptor_index == 0),
+    );
+
+    assert_eq!(inner.calculate_score(), SoftScore::of(2));
+
+    {
+        let mut recording = RecordingDirector::new(&mut inner);
+        let old_value = recording.working_solution().value;
+        recording.before_variable_changed(0, 0);
+        recording.working_solution_mut().value = 7;
+        recording.after_variable_changed(0, 0);
+        recording.register_undo(Box::new(move |solution: &mut ScoreProbeSolution| {
+            solution.value = old_value;
+        }));
+
+        assert_eq!(recording.calculate_score(), SoftScore::of(7));
+        recording.undo_changes();
+    }
+
+    assert_eq!(inner.working_solution().value, 2);
+    assert_eq!(inner.working_solution().score(), Some(SoftScore::of(2)));
+    assert_eq!(
+        inner.clone_working_solution().score(),
+        Some(SoftScore::of(2))
+    );
+    assert_eq!(inner.calculate_score(), SoftScore::of(2));
 }

@@ -1,8 +1,13 @@
 use super::*;
 
+use std::any::TypeId;
 use std::thread;
 use std::time::Duration;
 
+use solverforge_core::domain::{
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
+};
+use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
@@ -25,6 +30,122 @@ fn create_move_selector(
     crate::heuristic::selector::StaticValueSelector<NQueensSolution, i64>,
 > {
     ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
+}
+
+#[derive(Clone, Debug)]
+struct OptionalTask {
+    worker: Option<i64>,
+}
+
+#[derive(Clone, Debug)]
+struct OptionalTaskSolution {
+    tasks: Vec<OptionalTask>,
+    score: Option<SoftScore>,
+}
+
+impl PlanningSolution for OptionalTaskSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+#[derive(Clone, Debug)]
+struct OptionalScoreDirector {
+    working_solution: OptionalTaskSolution,
+    descriptor: SolutionDescriptor,
+}
+
+impl OptionalScoreDirector {
+    fn new(solution: OptionalTaskSolution, descriptor: SolutionDescriptor) -> Self {
+        Self {
+            working_solution: solution,
+            descriptor,
+        }
+    }
+}
+
+impl Director<OptionalTaskSolution> for OptionalScoreDirector {
+    fn working_solution(&self) -> &OptionalTaskSolution {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut OptionalTaskSolution {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        let score = self.working_solution.tasks.iter().fold(0, |acc, task| {
+            acc + match task.worker {
+                Some(worker) => -worker,
+                None => 0,
+            }
+        });
+        let score = SoftScore::of(score);
+        self.working_solution.set_score(Some(score));
+        score
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> OptionalTaskSolution {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        (descriptor_index == 0).then_some(self.working_solution.tasks.len())
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(self.working_solution.tasks.len())
+    }
+}
+
+fn get_optional_tasks(solution: &OptionalTaskSolution) -> &Vec<OptionalTask> {
+    &solution.tasks
+}
+
+fn get_optional_tasks_mut(solution: &mut OptionalTaskSolution) -> &mut Vec<OptionalTask> {
+    &mut solution.tasks
+}
+
+fn get_optional_worker(solution: &OptionalTaskSolution, entity_index: usize) -> Option<i64> {
+    solution.tasks[entity_index].worker
+}
+
+fn set_optional_worker(
+    solution: &mut OptionalTaskSolution,
+    entity_index: usize,
+    value: Option<i64>,
+) {
+    solution.tasks[entity_index].worker = value;
+}
+
+fn create_optional_director(solution: OptionalTaskSolution) -> OptionalScoreDirector {
+    let descriptor =
+        SolutionDescriptor::new("OptionalTaskSolution", TypeId::of::<OptionalTaskSolution>())
+            .with_entity(
+                EntityDescriptor::new("OptionalTask", TypeId::of::<OptionalTask>(), "tasks")
+                    .with_extractor(Box::new(EntityCollectionExtractor::new(
+                        "OptionalTask",
+                        "tasks",
+                        get_optional_tasks,
+                        get_optional_tasks_mut,
+                    ))),
+            );
+
+    OptionalScoreDirector::new(solution, descriptor)
 }
 
 #[test]
@@ -68,6 +189,39 @@ fn test_local_search_reaches_optimal() {
 
     let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
     assert!(final_score >= initial_score);
+}
+
+#[test]
+fn local_search_can_improve_by_unassigning_optional_variable() {
+    type OptionalMove = crate::heuristic::r#move::ChangeMove<OptionalTaskSolution, i64>;
+
+    let director = create_optional_director(OptionalTaskSolution {
+        tasks: vec![OptionalTask { worker: Some(5) }],
+        score: None,
+    });
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let initial_score = solver_scope.calculate_score();
+
+    let move_selector = ChangeMoveSelector::simple(
+        get_optional_worker,
+        set_optional_worker,
+        0,
+        "worker",
+        vec![5],
+    )
+    .with_allows_unassigned(true);
+    let acceptor = HillClimbingAcceptor::new();
+    let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
+    let mut phase: LocalSearchPhase<_, OptionalMove, _, _, _> =
+        LocalSearchPhase::new(move_selector, acceptor, forager, Some(5));
+
+    phase.solve(&mut solver_scope);
+
+    let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
+    assert!(final_score > initial_score);
+    assert_eq!(solver_scope.working_solution().tasks[0].worker, None);
 }
 
 #[test]

@@ -6,11 +6,17 @@ use solverforge_core::domain::{
     ValueRangeType,
 };
 
+use crate::phase::construction::ConstructionSlotId;
+
+use super::StandardConstructionFrontier;
+
 #[derive(Clone)]
 pub(crate) struct VariableBinding {
+    pub(crate) binding_index: usize,
     pub(crate) descriptor_index: usize,
     pub(crate) entity_type_name: &'static str,
     pub(crate) variable_name: &'static str,
+    pub(crate) allows_unassigned: bool,
     pub(crate) getter: UsizeGetter,
     pub(crate) setter: UsizeSetter,
     pub(crate) value_range_provider: Option<&'static str>,
@@ -21,15 +27,21 @@ pub(crate) struct VariableBinding {
 impl Debug for VariableBinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("VariableBinding")
+            .field("binding_index", &self.binding_index)
             .field("descriptor_index", &self.descriptor_index)
             .field("entity_type_name", &self.entity_type_name)
             .field("variable_name", &self.variable_name)
+            .field("allows_unassigned", &self.allows_unassigned)
             .field("range_type", &self.range_type)
             .finish()
     }
 }
 
 impl VariableBinding {
+    pub(crate) fn slot_id(&self, entity_index: usize) -> ConstructionSlotId {
+        ConstructionSlotId::new(self.binding_index, entity_index)
+    }
+
     pub(crate) fn values_for_entity(
         &self,
         solution_descriptor: &SolutionDescriptor,
@@ -80,9 +92,11 @@ pub(crate) fn collect_bindings(descriptor: &SolutionDescriptor) -> Vec<VariableB
                 continue;
             };
             bindings.push(VariableBinding {
+                binding_index: bindings.len(),
                 descriptor_index,
                 entity_type_name: entity_descriptor.type_name,
                 variable_name: variable.name,
+                allows_unassigned: variable.allows_unassigned,
                 getter,
                 setter,
                 value_range_provider: variable.value_range_provider,
@@ -109,6 +123,46 @@ pub(crate) fn find_binding(
 
 pub fn descriptor_has_bindings(descriptor: &SolutionDescriptor) -> bool {
     !collect_bindings(descriptor).is_empty()
+}
+
+pub(crate) fn standard_work_remaining_with_frontier<S>(
+    descriptor: &SolutionDescriptor,
+    frontier: &StandardConstructionFrontier,
+    solution_revision: u64,
+    entity_class: Option<&str>,
+    variable_name: Option<&str>,
+    solution: &S,
+) -> bool
+where
+    S: PlanningSolution + 'static,
+{
+    let bindings = find_binding(&collect_bindings(descriptor), entity_class, variable_name);
+    for binding in bindings {
+        let Some(entity_count) = descriptor
+            .entity_descriptors
+            .get(binding.descriptor_index)
+            .and_then(|entity| entity.entity_count(solution as &dyn Any))
+        else {
+            continue;
+        };
+        for entity_index in 0..entity_count {
+            let entity = descriptor
+                .get_entity(solution as &dyn Any, binding.descriptor_index, entity_index)
+                .expect("entity lookup failed while checking standard work");
+            if (binding.getter)(entity).is_some()
+                || frontier.is_completed(binding.slot_id(entity_index), solution_revision)
+            {
+                continue;
+            }
+            if !binding
+                .values_for_entity(descriptor, solution as &dyn Any, entity)
+                .is_empty()
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 pub fn standard_work_remaining<S>(

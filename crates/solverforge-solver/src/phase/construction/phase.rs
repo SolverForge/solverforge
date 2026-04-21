@@ -7,12 +7,18 @@ use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::heuristic::r#move::Move;
+use crate::phase::construction::decision::{
+    resolve_scored_choice, select_first_doable, should_keep_current_immediately, BaselinePolicy,
+    EqualScorePolicy, ScoredChoiceTracker,
+};
+use crate::phase::construction::evaluation::evaluate_trial_move;
 use crate::phase::construction::{
-    BestFitForager, ConstructionForager, EntityPlacer, FirstFeasibleForager, FirstFitForager,
+    BestFitForager, ConstructionChoice, ConstructionForager, EntityPlacer, FirstFeasibleForager,
+    FirstFitForager, Placement,
 };
 use crate::phase::control::{
     settle_construction_interrupt, should_interrupt_evaluation, StepInterrupt,
@@ -78,6 +84,7 @@ where
 impl<S, D, BestCb, M, P, Fo> Phase<S, D, BestCb> for ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
+    S::Score: Copy,
     D: Director<S>,
     BestCb: ProgressCallback<S>,
     M: Move<S> + 'static,
@@ -96,7 +103,10 @@ where
 
         // Get all placements (entities that need values assigned)
         let placement_generation_started = Instant::now();
-        let placements = self.placer.get_placements(phase_scope.score_director());
+        let placements = filter_completed_standard_placements(
+            self.placer.get_placements(phase_scope.score_director()),
+            phase_scope.solver_scope(),
+        );
         let placement_generation_elapsed = placement_generation_started.elapsed();
         let generated_moves = placements
             .iter()
@@ -124,8 +134,8 @@ where
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Use forager to pick the best move index for this placement
-            let selected_idx = match select_move_index(&self.forager, &placement, &mut step_scope) {
-                ConstructionSelection::Selected(selected_idx) => selected_idx,
+            let selection = match select_move_index(&self.forager, &placement, &mut step_scope) {
+                ConstructionSelection::Selected(selection) => selection,
                 ConstructionSelection::Interrupted => {
                     match settle_construction_interrupt(&mut step_scope) {
                         StepInterrupt::Restart => {
@@ -137,18 +147,7 @@ where
                 }
             };
 
-            if let Some(idx) = selected_idx {
-                step_scope.phase_scope_mut().record_move_accepted();
-                // Take ownership of the move
-                let m = placement.take_move(idx);
-
-                // Execute the move
-                m.do_move(step_scope.score_director_mut());
-
-                // Calculate and record the step score
-                let step_score = step_scope.calculate_score();
-                step_scope.set_step_score(step_score);
-            }
+            commit_selection(&mut placement, selection, &mut step_scope);
 
             step_scope.complete();
         }
@@ -195,8 +194,61 @@ where
 }
 
 enum ConstructionSelection {
-    Selected(Option<usize>),
+    Selected(ConstructionChoice),
     Interrupted,
+}
+
+fn filter_completed_standard_placements<S, D, BestCb, M>(
+    placements: Vec<Placement<S, M>>,
+    solver_scope: &SolverScope<'_, S, D, BestCb>,
+) -> Vec<Placement<S, M>>
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+{
+    placements
+        .into_iter()
+        .filter(|placement| {
+            !placement
+                .slot_id()
+                .is_some_and(|slot_id| solver_scope.is_standard_slot_completed(slot_id))
+        })
+        .collect()
+}
+
+fn commit_selection<S, D, BestCb, M>(
+    placement: &mut Placement<S, M>,
+    selection: ConstructionChoice,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    S::Score: Copy,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+{
+    match selection {
+        ConstructionChoice::KeepCurrent => {}
+        ConstructionChoice::Select(idx) => {
+            step_scope.phase_scope_mut().record_move_accepted();
+            let m = placement.take_move(idx);
+            step_scope.apply_committed_move(&m);
+        }
+    }
+
+    let step_score = step_scope.calculate_score();
+    step_scope.set_step_score(step_score);
+
+    if matches!(selection, ConstructionChoice::Select(_)) || placement.keep_current_legal() {
+        if let Some(slot_id) = placement.slot_id() {
+            step_scope
+                .phase_scope_mut()
+                .solver_scope_mut()
+                .mark_standard_slot_completed(slot_id);
+        }
+    }
 }
 
 fn select_move_index<S, D, BestCb, M, Fo>(
@@ -239,22 +291,26 @@ where
     BestCb: ProgressCallback<S>,
     M: Move<S> + 'static,
 {
+    let mut first_doable = None;
+
     for (idx, m) in placement.moves.iter().enumerate() {
         let evaluation_started = Instant::now();
         if should_interrupt_evaluation(step_scope, idx) {
             return ConstructionSelection::Interrupted;
         }
         if m.is_doable(step_scope.score_director()) {
+            first_doable = Some(idx);
             step_scope
                 .phase_scope_mut()
                 .record_evaluated_move(evaluation_started.elapsed());
-            return ConstructionSelection::Selected(Some(idx));
+            break;
         }
         step_scope
             .phase_scope_mut()
             .record_evaluated_move(evaluation_started.elapsed());
     }
-    ConstructionSelection::Selected(None)
+
+    ConstructionSelection::Selected(select_first_doable(first_doable))
 }
 
 fn select_best_fit_index<S, D, BestCb, M>(
@@ -268,8 +324,10 @@ where
     BestCb: ProgressCallback<S>,
     M: Move<S> + 'static,
 {
-    let mut best_idx: Option<usize> = None;
-    let mut best_score: Option<S::Score> = None;
+    let baseline_score = placement
+        .keep_current_legal()
+        .then(|| step_scope.calculate_score());
+    let mut tracker = ScoredChoiceTracker::default();
 
     for (idx, m) in placement.moves.iter().enumerate() {
         let evaluation_started = Instant::now();
@@ -283,29 +341,21 @@ where
             continue;
         }
 
-        let score = {
-            let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-            m.do_move(&mut recording);
-            let score = recording.calculate_score();
-            recording.undo_changes();
-            score
-        };
+        let score = evaluate_trial_move(step_scope.score_director_mut(), m);
         step_scope.phase_scope_mut().record_score_calculation();
         step_scope
             .phase_scope_mut()
             .record_evaluated_move(evaluation_started.elapsed());
 
-        let is_better = match &best_score {
-            None => true,
-            Some(best) => score > *best,
-        };
-        if is_better {
-            best_idx = Some(idx);
-            best_score = Some(score);
-        }
+        tracker.consider(idx, score);
     }
 
-    ConstructionSelection::Selected(best_idx)
+    ConstructionSelection::Selected(resolve_scored_choice(
+        tracker,
+        baseline_score,
+        BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
+        EqualScorePolicy::PreferMove,
+    ))
 }
 
 fn select_first_feasible_index<S, D, BestCb, M>(
@@ -319,8 +369,15 @@ where
     BestCb: ProgressCallback<S>,
     M: Move<S> + 'static,
 {
-    let mut fallback_idx: Option<usize> = None;
-    let mut fallback_score: Option<S::Score> = None;
+    let baseline_score = placement
+        .keep_current_legal()
+        .then(|| step_scope.calculate_score());
+
+    if should_keep_current_immediately(baseline_score, BaselinePolicy::KeepIfAlreadyFeasible) {
+        return ConstructionSelection::Selected(ConstructionChoice::KeepCurrent);
+    }
+
+    let mut fallback_tracker = ScoredChoiceTracker::default();
 
     for (idx, m) in placement.moves.iter().enumerate() {
         let evaluation_started = Instant::now();
@@ -334,33 +391,25 @@ where
             continue;
         }
 
-        let score = {
-            let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-            m.do_move(&mut recording);
-            let score = recording.calculate_score();
-            recording.undo_changes();
-            score
-        };
+        let score = evaluate_trial_move(step_scope.score_director_mut(), m);
         step_scope.phase_scope_mut().record_score_calculation();
         step_scope
             .phase_scope_mut()
             .record_evaluated_move(evaluation_started.elapsed());
 
         if score.is_feasible() {
-            return ConstructionSelection::Selected(Some(idx));
+            return ConstructionSelection::Selected(ConstructionChoice::Select(idx));
         }
 
-        let is_better = match &fallback_score {
-            None => true,
-            Some(best) => score > *best,
-        };
-        if is_better {
-            fallback_idx = Some(idx);
-            fallback_score = Some(score);
-        }
+        fallback_tracker.consider(idx, score);
     }
 
-    ConstructionSelection::Selected(fallback_idx)
+    ConstructionSelection::Selected(resolve_scored_choice(
+        fallback_tracker,
+        baseline_score,
+        BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
+        EqualScorePolicy::PreferMove,
+    ))
 }
 
 #[cfg(test)]

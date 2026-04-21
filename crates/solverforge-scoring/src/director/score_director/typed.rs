@@ -184,6 +184,33 @@ where
         self.cached_score = S::Score::zero();
     }
 
+    pub(crate) fn snapshot_score_state_impl(
+        &self,
+    ) -> crate::director::DirectorScoreState<S::Score> {
+        crate::director::DirectorScoreState {
+            solution_score: self.working_solution.score(),
+            committed_score: self.initialized.then_some(self.cached_score),
+            initialized: self.initialized,
+        }
+    }
+
+    pub(crate) fn restore_score_state_impl(
+        &mut self,
+        state: crate::director::DirectorScoreState<S::Score>,
+    ) {
+        self.working_solution.set_score(state.solution_score);
+        if state.initialized {
+            self.cached_score = state
+                .committed_score
+                .expect("initialized score state must include committed_score");
+            self.initialized = true;
+        } else {
+            self.constraints.reset_all();
+            self.cached_score = S::Score::zero();
+            self.initialized = false;
+        }
+    }
+
     pub(crate) fn clone_working_solution_impl(&self) -> S {
         let mut cloned = self.working_solution.clone();
         cloned.set_score(Some(self.cached_score));

@@ -12,7 +12,9 @@ use crate::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector
 use crate::manager::{
     Solvable, SolverEvent, SolverLifecycleState, SolverManager, SolverRuntime, SolverTerminalReason,
 };
-use crate::phase::construction::{BestFitForager, FirstFitForager, Placement, QueuedEntityPlacer};
+use crate::phase::construction::{
+    BestFitForager, FirstFeasibleForager, FirstFitForager, Placement, QueuedEntityPlacer,
+};
 use crate::test_utils::{
     create_simple_nqueens_director, get_queen_row, set_queen_row, NQueensSolution,
 };
@@ -122,14 +124,33 @@ struct ConstructionPauseSolution {
     entities: Vec<ConstructionPauseEntity>,
     score: Option<SoftScore>,
     eval_gate: Option<BlockingEvaluationGate>,
+    solvable_mode: ConstructionPauseSolvableMode,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ConstructionPauseSolvableMode {
+    FirstFitMax64,
+    BestFitKeepCurrent,
 }
 
 impl ConstructionPauseSolution {
     fn new(eval_gate: Option<BlockingEvaluationGate>) -> Self {
+        Self::with_entity_count(1, eval_gate)
+    }
+
+    fn with_entity_count(entity_count: usize, eval_gate: Option<BlockingEvaluationGate>) -> Self {
         Self {
-            entities: vec![ConstructionPauseEntity { value: None }],
+            entities: vec![ConstructionPauseEntity { value: None }; entity_count],
             score: None,
             eval_gate,
+            solvable_mode: ConstructionPauseSolvableMode::FirstFitMax64,
+        }
+    }
+
+    fn keep_current_pause(eval_gate: Option<BlockingEvaluationGate>) -> Self {
+        Self {
+            solvable_mode: ConstructionPauseSolvableMode::BestFitKeepCurrent,
+            ..Self::new(eval_gate)
         }
     }
 }
@@ -150,16 +171,41 @@ impl PlanningSolution for ConstructionPauseSolution {
 struct ConstructionPauseDirector {
     working_solution: ConstructionPauseSolution,
     descriptor: SolutionDescriptor,
+    score_mode: ConstructionPauseScoreMode,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ConstructionPauseScoreMode {
+    AssignedSum {
+        unassigned_score: i64,
+    },
+    CompletionBonus {
+        incomplete_score: i64,
+        complete_score: i64,
+    },
 }
 
 impl ConstructionPauseDirector {
     fn new(solution: ConstructionPauseSolution) -> Self {
+        Self::with_score_mode(
+            solution,
+            ConstructionPauseScoreMode::AssignedSum {
+                unassigned_score: 0,
+            },
+        )
+    }
+
+    fn with_score_mode(
+        solution: ConstructionPauseSolution,
+        score_mode: ConstructionPauseScoreMode,
+    ) -> Self {
         Self {
             working_solution: solution,
             descriptor: SolutionDescriptor::new(
                 "ConstructionPauseSolution",
                 TypeId::of::<ConstructionPauseSolution>(),
             ),
+            score_mode,
         }
     }
 }
@@ -174,13 +220,30 @@ impl Director<ConstructionPauseSolution> for ConstructionPauseDirector {
     }
 
     fn calculate_score(&mut self) -> SoftScore {
-        let score = SoftScore::of(
-            self.working_solution
-                .entities
-                .iter()
-                .filter_map(|entity| entity.value)
-                .sum(),
-        );
+        let score = match self.score_mode {
+            ConstructionPauseScoreMode::AssignedSum { unassigned_score } => SoftScore::of(
+                self.working_solution
+                    .entities
+                    .iter()
+                    .map(|entity| entity.value.unwrap_or(unassigned_score))
+                    .sum(),
+            ),
+            ConstructionPauseScoreMode::CompletionBonus {
+                incomplete_score,
+                complete_score,
+            } => {
+                let all_assigned = self
+                    .working_solution
+                    .entities
+                    .iter()
+                    .all(|entity| entity.value.is_some());
+                SoftScore::of(if all_assigned {
+                    complete_score
+                } else {
+                    incomplete_score
+                })
+            }
+        };
         self.working_solution.set_score(Some(score));
         score
     }
@@ -241,7 +304,13 @@ impl Move<ConstructionPauseSolution> for ConstructionPauseMove {
     }
 
     fn do_move<D: Director<ConstructionPauseSolution>>(&self, score_director: &mut D) {
+        let old_value = score_director.working_solution().entities[self.entity_index].value;
         score_director.working_solution_mut().entities[self.entity_index].value = Some(self.value);
+
+        let entity_index = self.entity_index;
+        score_director.register_undo(Box::new(move |solution: &mut ConstructionPauseSolution| {
+            solution.entities[entity_index].value = old_value;
+        }));
     }
 
     fn descriptor_index(&self) -> usize {
@@ -300,9 +369,71 @@ impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for Construc
     }
 }
 
+#[derive(Clone, Debug)]
+struct ScoredConstructionPlacer {
+    values: Vec<i64>,
+    keep_current_legal: bool,
+    eval_gate: Option<BlockingEvaluationGate>,
+}
+
+impl ScoredConstructionPlacer {
+    fn new(values: Vec<i64>, keep_current_legal: bool) -> Self {
+        Self {
+            values,
+            keep_current_legal,
+            eval_gate: None,
+        }
+    }
+
+    fn with_eval_gate(mut self, eval_gate: Option<BlockingEvaluationGate>) -> Self {
+        self.eval_gate = eval_gate;
+        self
+    }
+}
+
+impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for ScoredConstructionPlacer {
+    fn get_placements<D: Director<ConstructionPauseSolution>>(
+        &self,
+        score_director: &D,
+    ) -> Vec<Placement<ConstructionPauseSolution, ConstructionPauseMove>> {
+        score_director
+            .working_solution()
+            .entities
+            .iter()
+            .enumerate()
+            .filter_map(|(entity_index, entity)| {
+                if entity.value.is_some() {
+                    return None;
+                }
+
+                let moves = self
+                    .values
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .map(|(idx, value)| {
+                        ConstructionPauseMove::new(
+                            entity_index,
+                            value,
+                            true,
+                            (idx == 0).then(|| self.eval_gate.clone()).flatten(),
+                        )
+                    })
+                    .collect();
+
+                Some(
+                    Placement::new(EntityReference::new(0, entity_index), moves)
+                        .with_keep_current_legal(self.keep_current_legal),
+                )
+            })
+            .collect()
+    }
+}
+
 impl Solvable for ConstructionPauseSolution {
     fn solve(self, runtime: SolverRuntime<Self>) {
         let eval_gate = self.eval_gate.clone();
+        let solvable_mode = self.solvable_mode;
         let mut solver_scope = SolverScope::new_with_callback(
             ConstructionPauseDirector::new(self),
             (),
@@ -312,11 +443,22 @@ impl Solvable for ConstructionPauseSolution {
 
         solver_scope.start_solving();
 
-        let mut phase = ConstructionHeuristicPhase::new(
-            ConstructionPausePlacer::new(eval_gate),
-            FirstFitForager::new(),
-        );
-        phase.solve(&mut solver_scope);
+        match solvable_mode {
+            ConstructionPauseSolvableMode::FirstFitMax64 => {
+                let mut phase = ConstructionHeuristicPhase::new(
+                    ConstructionPausePlacer::new(eval_gate),
+                    FirstFitForager::new(),
+                );
+                phase.solve(&mut solver_scope);
+            }
+            ConstructionPauseSolvableMode::BestFitKeepCurrent => {
+                let mut phase = ConstructionHeuristicPhase::new(
+                    ScoredConstructionPlacer::new(vec![-5], true).with_eval_gate(eval_gate),
+                    BestFitForager::new(),
+                );
+                phase.solve(&mut solver_scope);
+            }
+        }
 
         let mut current_score = solver_scope.current_score().copied();
         let best_score = if let Some(best_score) = solver_scope.best_score().copied() {
@@ -391,6 +533,176 @@ fn test_construction_best_fit() {
 }
 
 #[test]
+fn best_fit_keeps_current_when_every_assignment_is_worse() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-5, -1], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, BestFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, None);
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(0))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 0);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn best_fit_assigns_when_candidate_is_strictly_better_than_none() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-5, 7], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, BestFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(7));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(7))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
+fn first_fit_optional_construction_selects_first_doable_move() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![3, 4], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(3));
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn best_fit_prefers_equal_score_candidate_over_keep_current() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![0, -1], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, BestFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(0))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
+fn best_fit_progresses_across_equal_score_plateau() {
+    let director = ConstructionPauseDirector::with_score_mode(
+        ConstructionPauseSolution::with_entity_count(2, None),
+        ConstructionPauseScoreMode::CompletionBonus {
+            incomplete_score: 0,
+            complete_score: 5,
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![1], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, BestFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(
+        solver_scope
+            .working_solution()
+            .entities
+            .iter()
+            .map(|entity| entity.value)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(1)]
+    );
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(5))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 2);
+}
+
+#[test]
+fn first_feasible_keeps_current_when_baseline_is_already_feasible() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![2, 4], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFeasibleForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, None);
+    assert_eq!(solver_scope.stats().moves_accepted, 0);
+}
+
+#[test]
+fn first_feasible_selects_first_feasible_move_when_baseline_is_infeasible() {
+    let director = ConstructionPauseDirector::with_score_mode(
+        ConstructionPauseSolution::new(None),
+        ConstructionPauseScoreMode::AssignedSum {
+            unassigned_score: -2,
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-3, 1, 5], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFeasibleForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(1));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(1))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
+fn first_feasible_prefers_equal_score_candidate_over_infeasible_baseline() {
+    let director = ConstructionPauseDirector::with_score_mode(
+        ConstructionPauseSolution::new(None),
+        ConstructionPauseScoreMode::AssignedSum {
+            unassigned_score: -1,
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-1, -2], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFeasibleForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(-1));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(-1))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+}
+
+#[test]
 fn test_construction_phase_reports_one_best_solution_on_improvement() {
     let director = create_simple_nqueens_director(4);
     let best_events = Arc::new(AtomicUsize::new(0));
@@ -431,6 +743,71 @@ fn test_construction_empty_solution() {
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.stats().moves_evaluated, 0);
+}
+
+#[test]
+fn keep_current_pause_snapshot_has_committed_score() {
+    static MANAGER: SolverManager<ConstructionPauseSolution> = SolverManager::new();
+
+    let gate = BlockingEvaluationGate::new(1);
+    let (job_id, mut receiver) = MANAGER
+        .solve(ConstructionPauseSolution::keep_current_pause(Some(
+            gate.clone(),
+        )))
+        .expect("paused keep-current job should start");
+
+    gate.wait_until_blocked();
+    MANAGER.pause(job_id).expect("pause should be accepted");
+
+    match receiver.blocking_recv().expect("pause requested event") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    gate.release();
+
+    let paused_snapshot_revision = match receiver.blocking_recv().expect("paused event") {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
+            metadata
+                .snapshot_revision
+                .expect("paused snapshot revision")
+        }
+        other => panic!("unexpected event: {other:?}"),
+    };
+
+    let paused_snapshot = MANAGER
+        .get_snapshot(job_id, Some(paused_snapshot_revision))
+        .expect("paused snapshot");
+    assert_eq!(paused_snapshot.current_score, Some(SoftScore::of(0)));
+    assert_eq!(paused_snapshot.best_score, None);
+    assert_eq!(paused_snapshot.solution.entities[0].value, None);
+    assert_eq!(paused_snapshot.solution.score(), Some(SoftScore::of(0)));
+
+    MANAGER.resume(job_id).expect("resume should be accepted");
+
+    match receiver.blocking_recv().expect("resumed event") {
+        SolverEvent::Resumed { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    match receiver.blocking_recv().expect("completed event") {
+        SolverEvent::Completed { metadata, solution } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+            assert_eq!(solution.entities[0].value, None);
+            assert_eq!(solution.score(), Some(SoftScore::of(0)));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.delete(job_id).expect("delete paused job");
 }
 
 #[test]

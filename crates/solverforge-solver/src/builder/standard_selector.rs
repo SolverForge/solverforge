@@ -227,14 +227,17 @@ fn collect_standard_leaf_selectors<S>(
         ctx: &ScalarVariableContext<S>,
         leaves: &mut Vec<StandardLeafSelector<S>>,
     ) {
-        leaves.push(StandardLeafSelector::Change(ChangeMoveSelector::new(
-            FromSolutionEntitySelector::new(ctx.descriptor_index),
-            StandardValueSelector::from_source(ctx.value_source),
-            ctx.getter,
-            ctx.setter,
-            ctx.descriptor_index,
-            ctx.variable_name,
-        )));
+        leaves.push(StandardLeafSelector::Change(
+            ChangeMoveSelector::new(
+                FromSolutionEntitySelector::new(ctx.descriptor_index),
+                StandardValueSelector::from_source(ctx.value_source),
+                ctx.getter,
+                ctx.setter,
+                ctx.descriptor_index,
+                ctx.variable_name,
+            )
+            .with_allows_unassigned(ctx.allows_unassigned),
+        ));
     }
 
     fn push_swap<S: PlanningSolution + 'static>(

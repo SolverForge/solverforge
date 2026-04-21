@@ -101,7 +101,7 @@ pub use manager::{
 };
 pub use phase::{
     construction::{
-        BestFitForager, ConstructionForager, ConstructionHeuristicConfig,
+        BestFitForager, ConstructionChoice, ConstructionForager, ConstructionHeuristicConfig,
         ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
         ForagerType, Placement, QueuedEntityPlacer,
     },

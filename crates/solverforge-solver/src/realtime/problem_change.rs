@@ -9,6 +9,8 @@ use solverforge_scoring::Director;
 ///
 /// Problem changes allow modifying the solution while the solver is running.
 /// Changes are queued and processed at step boundaries to maintain consistency.
+/// The solver applies each change through its committed mutation boundary so
+/// optional-construction frontier revisions stay coherent.
 ///
 /// # Implementation Notes
 ///

@@ -268,7 +268,7 @@ where
             // Pick the best accepted move index
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
                 let selected_move = self.arena.take(selected_index);
-                selected_move.do_move(step_scope.score_director_mut());
+                step_scope.apply_committed_move(&selected_move);
                 step_scope.set_step_score(selected_score);
 
                 // Update last step score

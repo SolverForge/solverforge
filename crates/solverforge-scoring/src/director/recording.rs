@@ -17,7 +17,7 @@ via `register_undo()`. No BoxedValue, no type erasure on the undo path.
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
-use super::Director;
+use super::{Director, DirectorScoreState};
 
 /* A score director wrapper that stores typed undo closures.
 
@@ -70,12 +70,14 @@ pub struct RecordingDirector<'a, S: PlanningSolution, D: Director<S>> {
     // Entities modified during this step that need shadow refresh after undo.
     // Stores (descriptor_index, entity_index) pairs.
     modified_entities: Vec<(usize, usize)>,
+    initial_score_state: Option<DirectorScoreState<S::Score>>,
 }
 
 impl<'a, S: PlanningSolution, D: Director<S>> RecordingDirector<'a, S, D> {
     // Creates a new recording score director wrapping the inner director.
     pub fn new(inner: &'a mut D) -> Self {
         Self {
+            initial_score_state: Some(inner.snapshot_score_state()),
             inner,
             undo_stack: Vec::with_capacity(16),
             modified_entities: Vec::with_capacity(8),
@@ -106,6 +108,11 @@ impl<'a, S: PlanningSolution, D: Director<S>> RecordingDirector<'a, S, D> {
             self.inner
                 .after_variable_changed(descriptor_idx, entity_idx);
         }
+
+        if let Some(initial_score_state) = self.initial_score_state.take() {
+            self.inner.restore_score_state(initial_score_state);
+        }
+        self.initial_score_state = Some(self.inner.snapshot_score_state());
     }
 
     /* Resets the recording state for reuse.
@@ -115,6 +122,7 @@ impl<'a, S: PlanningSolution, D: Director<S>> RecordingDirector<'a, S, D> {
     pub fn reset(&mut self) {
         self.undo_stack.clear();
         self.modified_entities.clear();
+        self.initial_score_state = Some(self.inner.snapshot_score_state());
     }
 
     // Returns the number of recorded undo closures.
@@ -177,12 +185,21 @@ impl<S: PlanningSolution, D: Director<S>> Director<S> for RecordingDirector<'_, 
         self.inner.is_incremental()
     }
 
+    fn snapshot_score_state(&self) -> DirectorScoreState<S::Score> {
+        self.inner.snapshot_score_state()
+    }
+
+    fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) {
+        self.inner.restore_score_state(state);
+    }
+
     fn reset(&mut self) {
         // Forward to inner
         self.inner.reset();
         // Also clear our recording state
         self.undo_stack.clear();
         self.modified_entities.clear();
+        self.initial_score_state = Some(self.inner.snapshot_score_state());
     }
 
     fn register_undo(&mut self, undo: Box<dyn FnOnce(&mut S) + Send>) {

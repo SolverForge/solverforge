@@ -10,7 +10,7 @@ use solverforge_core::score::{ParseableScore, Score};
 
 use crate::builder::{build_local_search, build_vnd, LocalSearch, ModelContext, Vnd};
 use crate::descriptor_standard::{
-    build_descriptor_construction, standard_target_matches, standard_work_remaining,
+    build_descriptor_construction, standard_target_matches, standard_work_remaining_with_frontier,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::manager::{
@@ -220,13 +220,12 @@ where
 
             let mut step_scope = StepScope::new(&mut phase_scope);
 
-            {
-                let sd = step_scope.score_director_mut();
+            step_scope.apply_committed_change(|sd| {
                 let insert_pos = (self.list_len)(sd.working_solution(), entity_idx);
                 sd.before_variable_changed(self.descriptor_index, entity_idx);
                 (self.list_insert)(sd.working_solution_mut(), entity_idx, insert_pos, element);
                 sd.after_variable_changed(self.descriptor_index, entity_idx);
-            }
+            });
 
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
@@ -563,6 +562,15 @@ where
         });
         let matching_list_construction =
             matching_list_construction(config, &self.list_construction);
+        let standard_remaining = standard_work_remaining_with_frontier(
+            &self.descriptor,
+            solver_scope.standard_construction_frontier(),
+            solver_scope.solution_revision(),
+            if explicit_target { entity_class } else { None },
+            if explicit_target { variable_name } else { None },
+            solver_scope.working_solution(),
+        );
+        let mut ran_child_phase = false;
 
         if let Some(cfg) = config {
             if explicit_target && !standard_matches && matching_list_construction.is_empty() {
@@ -587,7 +595,10 @@ where
                     cfg.target.entity_class,
                     cfg.target.variable_name
                 );
-                self.solve_list(solver_scope, &matching_list_construction);
+                ran_child_phase = self.solve_list(solver_scope, &matching_list_construction);
+                if !ran_child_phase {
+                    finalize_noop_construction(solver_scope);
+                }
                 return;
             }
 
@@ -599,31 +610,41 @@ where
                     cfg.target.entity_class,
                     cfg.target.variable_name
                 );
-                build_descriptor_construction(Some(cfg), &self.descriptor).solve(solver_scope);
+                if standard_remaining {
+                    build_descriptor_construction(Some(cfg), &self.descriptor).solve(solver_scope);
+                    ran_child_phase = true;
+                }
+                if !ran_child_phase {
+                    finalize_noop_construction(solver_scope);
+                }
                 return;
             }
         }
 
         if self.list_construction.is_empty() {
-            build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
+            if standard_remaining {
+                build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
+                ran_child_phase = true;
+            }
+            if !ran_child_phase {
+                finalize_noop_construction(solver_scope);
+            }
             return;
         }
 
-        let standard_remaining = standard_work_remaining(
-            &self.descriptor,
-            if explicit_target { entity_class } else { None },
-            if explicit_target { variable_name } else { None },
-            solver_scope.working_solution(),
-        );
         let list_remaining = matching_list_construction
             .iter()
             .any(|args| list_work_remaining(args, solver_scope.working_solution()));
 
         if standard_remaining {
             build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
+            ran_child_phase = true;
         }
         if list_remaining {
-            self.solve_list(solver_scope, &matching_list_construction);
+            ran_child_phase |= self.solve_list(solver_scope, &matching_list_construction);
+        }
+        if !ran_child_phase {
+            finalize_noop_construction(solver_scope);
         }
     }
 
@@ -641,7 +662,8 @@ where
         &self,
         solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
         list_construction: &[ConstructionArgs<S, V>],
-    ) where
+    ) -> bool
+    where
         D: solverforge_scoring::Director<S>,
         ProgressCb: ProgressCallback<S>,
     {
@@ -649,12 +671,29 @@ where
             panic!("list construction configured against a scalar-only context");
         }
         let normalized = normalize_list_construction_config(self.config.as_ref());
+        let mut ran_phase = false;
         for args in list_construction {
             if !list_work_remaining(args, solver_scope.working_solution()) {
                 continue;
             }
             build_list_construction(normalized.as_ref(), args).solve(solver_scope);
+            ran_phase = true;
         }
+        ran_phase
+    }
+}
+
+fn finalize_noop_construction<S, D, ProgressCb>(
+    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+) where
+    S: PlanningSolution,
+    D: solverforge_scoring::Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    let had_best = solver_scope.best_score().is_some();
+    solver_scope.update_best_solution();
+    if had_best {
+        solver_scope.promote_current_solution_on_score_tie();
     }
 }
 

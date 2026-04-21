@@ -72,6 +72,14 @@ where
         true
     }
 
+    fn snapshot_score_state(&self) -> crate::director::DirectorScoreState<S::Score> {
+        self.snapshot_score_state_impl()
+    }
+
+    fn restore_score_state(&mut self, state: crate::director::DirectorScoreState<S::Score>) {
+        self.restore_score_state_impl(state);
+    }
+
     fn reset(&mut self) {
         self.reset_impl();
     }

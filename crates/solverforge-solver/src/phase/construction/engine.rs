@@ -1,16 +1,19 @@
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::time::Instant;
 
 use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::{Director, RecordingDirector};
+use tracing::info;
 
 use crate::builder::{
     ListVariableContext, ModelContext, ScalarVariableContext, ValueSource, VariableContext,
 };
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
+use crate::stats::{format_duration, whole_units_per_second};
 
 use super::decision::{
     is_first_fit_improvement, select_best_fit, select_first_fit, ScoredChoiceTracker,
@@ -104,9 +107,16 @@ where
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
 
-    let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "Construction");
+    let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "Construction Heuristic");
+    let phase_index = phase_scope.phase_index();
     let previous_best_score = phase_scope.solver_scope().best_score().copied();
     let mut ran_step = false;
+
+    info!(
+        event = "phase_start",
+        phase = "Construction Heuristic",
+        phase_index = phase_index,
+    );
 
     loop {
         if phase_scope
@@ -145,6 +155,32 @@ where
             phase_scope.promote_current_solution_on_score_tie();
         }
     }
+
+    let best_score = phase_scope
+        .solver_scope()
+        .best_score()
+        .map(|s| format!("{}", s))
+        .unwrap_or_else(|| "none".to_string());
+    let duration = phase_scope.elapsed();
+    let steps = phase_scope.step_count();
+    let speed = whole_units_per_second(steps, duration);
+    let stats = phase_scope.stats();
+
+    info!(
+        event = "phase_end",
+        phase = "Construction Heuristic",
+        phase_index = phase_index,
+        duration = %format_duration(duration),
+        steps = steps,
+        moves_generated = stats.moves_generated,
+        moves_evaluated = stats.moves_evaluated,
+        moves_accepted = stats.moves_accepted,
+        score_calculations = stats.score_calculations,
+        generation_time = %format_duration(stats.generation_time()),
+        evaluation_time = %format_duration(stats.evaluation_time()),
+        speed = speed,
+        score = best_score,
+    );
 
     ran_step
 }
@@ -706,8 +742,11 @@ where
     ProgressCb: ProgressCallback<S>,
     V: Copy + 'static,
 {
-    phase_scope.record_generated_move(std::time::Duration::default());
+    let generation_started = Instant::now();
+    phase_scope.record_generated_move(generation_started.elapsed());
+
     let mut recording = RecordingDirector::new(phase_scope.score_director_mut());
+    let evaluation_started = Instant::now();
     recording.before_variable_changed(ctx.descriptor_index, entity_index);
     (ctx.list_insert)(
         recording.working_solution_mut(),
@@ -723,7 +762,7 @@ where
     let score = recording.calculate_score();
     recording.undo_changes();
     phase_scope.record_score_calculation();
-    phase_scope.record_evaluated_move(std::time::Duration::default());
+    phase_scope.record_evaluated_move(evaluation_started.elapsed());
     score
 }
 
@@ -737,10 +776,13 @@ where
     ProgressCb: ProgressCallback<S>,
     M: Move<S>,
 {
-    phase_scope.record_generated_move(std::time::Duration::default());
+    let generation_started = Instant::now();
+    phase_scope.record_generated_move(generation_started.elapsed());
+
+    let evaluation_started = Instant::now();
     let score = evaluate_trial_move(phase_scope.score_director_mut(), mov);
     phase_scope.record_score_calculation();
-    phase_scope.record_evaluated_move(std::time::Duration::default());
+    phase_scope.record_evaluated_move(evaluation_started.elapsed());
     score
 }
 

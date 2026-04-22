@@ -11,10 +11,12 @@ the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
 
 use std::fmt::Debug;
 
+use smallvec::smallvec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{encode_option_debug, encode_usize, hash_str, MoveTabuScope};
+use super::{Move, MoveTabuSignature};
 
 /// A move that assigns a value to an entity's variable.
 ///
@@ -156,5 +158,34 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let current = (self.getter)(score_director.working_solution(), self.entity_index);
+        let from_id = encode_option_debug(current.as_ref());
+        let to_id = encode_option_debug(self.to_value.as_ref());
+        let entity_id = encode_usize(self.entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+
+        MoveTabuSignature::new(
+            scope,
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                entity_id,
+                from_id,
+                to_id
+            ],
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                entity_id,
+                to_id,
+                from_id
+            ],
+        )
+        .with_entity_tokens([scope.entity_token(entity_id)])
+        .with_destination_value_tokens([scope.value_token(to_id)])
     }
 }

@@ -11,10 +11,14 @@ Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedValueTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A move that reverses a segment within a list.
 ///
@@ -42,6 +46,7 @@ use super::Move;
 /// }
 ///
 /// fn list_len(s: &Tour, _: usize) -> usize { s.cities.len() }
+/// fn list_get(s: &Tour, _: usize, pos: usize) -> Option<i32> { s.cities.get(pos).copied() }
 /// fn list_reverse(s: &mut Tour, _: usize, start: usize, end: usize) {
 ///     s.cities[start..end].reverse();
 /// }
@@ -49,7 +54,7 @@ use super::Move;
 /// // Reverse segment [1..4) in tour: [A, B, C, D, E] -> [A, D, C, B, E]
 /// let m = ListReverseMove::<Tour, i32>::new(
 ///     0, 1, 4,
-///     list_len, list_reverse,
+///     list_len, list_get, list_reverse,
 ///     "cities", 0,
 /// );
 /// ```
@@ -61,6 +66,7 @@ pub struct ListReverseMove<S, V> {
     // End of range to reverse (exclusive)
     end: usize,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Reverse elements in range [start, end)
     list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
@@ -104,6 +110,7 @@ impl<S, V> ListReverseMove<S, V> {
         start: usize,
         end: usize,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_reverse: fn(&mut S, usize, usize, usize),
         variable_name: &'static str,
         descriptor_index: usize,
@@ -113,6 +120,7 @@ impl<S, V> ListReverseMove<S, V> {
             start,
             end,
             list_len,
+            list_get,
             list_reverse,
             variable_name,
             descriptor_index,
@@ -195,5 +203,33 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
+        for pos in self.start..self.end {
+            let value = (self.list_get)(score_director.working_solution(), self.entity_index, pos);
+            value_ids.push(encode_option_debug(value.as_ref()));
+        }
+        let entity_id = encode_usize(self.entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = value_ids
+            .iter()
+            .copied()
+            .map(|value_id| scope.value_token(value_id))
+            .collect();
+        let mut move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            entity_id,
+            encode_usize(self.start),
+            encode_usize(self.end)
+        ];
+        move_id.extend(value_ids.iter().copied());
+
+        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+            .with_entity_tokens([scope.entity_token(entity_id)])
+            .with_destination_value_tokens(destination_value_tokens)
     }
 }

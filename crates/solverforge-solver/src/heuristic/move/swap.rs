@@ -11,10 +11,12 @@ compile-time type safety. No runtime type checks or downcasting.
 
 use std::fmt::Debug;
 
+use smallvec::smallvec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{encode_option_debug, encode_usize, hash_str, MoveTabuScope};
+use super::{Move, MoveTabuSignature};
 
 /// A move that swaps values between two entities.
 ///
@@ -182,5 +184,41 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let left_val = (self.getter)(score_director.working_solution(), self.left_entity_index);
+        let right_val = (self.getter)(score_director.working_solution(), self.right_entity_index);
+        let left_id = encode_option_debug(left_val.as_ref());
+        let right_id = encode_option_debug(right_val.as_ref());
+        let left_entity_id = encode_usize(self.left_entity_index);
+        let right_entity_id = encode_usize(self.right_entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+
+        MoveTabuSignature::new(
+            scope,
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                left_entity_id,
+                right_entity_id,
+                left_id,
+                right_id
+            ],
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                left_entity_id,
+                right_entity_id,
+                left_id,
+                right_id
+            ],
+        )
+        .with_entity_tokens([
+            scope.entity_token(left_entity_id),
+            scope.entity_token(right_entity_id),
+        ])
+        .with_destination_value_tokens([scope.value_token(right_id), scope.value_token(left_id)])
     }
 }

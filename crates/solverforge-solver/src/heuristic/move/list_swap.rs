@@ -10,10 +10,14 @@ Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A move that swaps two elements in list variables.
 ///
@@ -264,5 +268,58 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let first_val = (self.list_get)(
+            score_director.working_solution(),
+            self.first_entity_index,
+            self.first_position,
+        );
+        let second_val = (self.list_get)(
+            score_director.working_solution(),
+            self.second_entity_index,
+            self.second_position,
+        );
+        let first_id = encode_option_debug(first_val.as_ref());
+        let second_id = encode_option_debug(second_val.as_ref());
+        let first_entity_id = encode_usize(self.first_entity_index);
+        let second_entity_id = encode_usize(self.second_entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
+            smallvec![scope.entity_token(first_entity_id)];
+        if !self.is_intra_list() {
+            entity_tokens.push(scope.entity_token(second_entity_id));
+        }
+
+        MoveTabuSignature::new(
+            scope,
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                first_entity_id,
+                encode_usize(self.first_position),
+                second_entity_id,
+                encode_usize(self.second_position),
+                first_id,
+                second_id
+            ],
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                first_entity_id,
+                encode_usize(self.first_position),
+                second_entity_id,
+                encode_usize(self.second_position),
+                first_id,
+                second_id
+            ],
+        )
+        .with_entity_tokens(entity_tokens)
+        .with_destination_value_tokens([
+            scope.value_token(second_id),
+            scope.value_token(first_id),
+        ])
     }
 }

@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.8.13`
+**Workspace Release:** `0.9.0`
 
 ## Dependencies
 
@@ -24,13 +24,13 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes pure scalar generic construction to the descriptor-standard path, uses the canonical construction engine for mixed/list-bearing targets, and delegates specialized list phases
+├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes pure scalar generic construction to the descriptor-scalar path, uses the canonical construction engine for mixed/list-bearing targets, and delegates specialized list phases
 ├── list_solver_tests.rs                 — Tests
-├── descriptor_standard.rs               — Re-exports the explicit descriptor-standard bindings, selectors, move types, and construction helpers
-├── descriptor_standard/
-│   ├── bindings.rs                      — Standard-variable binding discovery, matching, and frontier-aware work checks
-│   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorEitherMove<S>
-│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, build_descriptor_move_selector(); optional assigned variables can emit one `Some(v) -> None` change
+├── descriptor_scalar.rs               — Re-exports the explicit descriptor-scalar bindings, selectors, move types, and construction helpers
+├── descriptor_scalar/
+│   ├── bindings.rs                      — Scalar-variable binding discovery, matching, and frontier-aware work checks
+│   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorScalarMoveUnion<S>
+│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(); nearby selectors require descriptor-provided nearby meters, optional assigned variables can emit one `Some(v) -> None` change, and top-level cartesian selectors build sequential composites
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>, build_descriptor_construction(); descriptor placements carry optional keep-current legality and slot identity
 │   └── tests.rs                         — Tests
 ├── runtime_tests.rs                     — Tests
@@ -64,8 +64,8 @@ src/
 │   │   ├── list_swap.rs                — ListSwapMove<S, V>
 │   │   ├── list_reverse.rs             — ListReverseMove<S, V>
 │   │   ├── list_ruin.rs                — ListRuinMove<S, V>
-│   │   ├── sublist_change.rs           — SubListChangeMove<S, V>
-│   │   ├── sublist_swap.rs             — SubListSwapMove<S, V>
+│   │   ├── sublist_change.rs           — SublistChangeMove<S, V>
+│   │   ├── sublist_swap.rs             — SublistSwapMove<S, V>
 │   │   ├── pillar_change.rs            — PillarChangeMove<S, V>
 │   │   ├── pillar_swap.rs              — PillarSwapMove<S, V>
 │   │   ├── ruin.rs                      — RuinMove<S, V>
@@ -73,8 +73,8 @@ src/
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>
-│   │   ├── either.rs                    — EitherMove<S, V> enum
-│   │   ├── list_either.rs              — ListMoveImpl<S, V> enum
+│   │   ├── either.rs                    — ScalarMoveUnion<S, V> enum
+│   │   ├── list_either.rs              — ListMoveUnion<S, V> enum
 │   │   └── tests/                       — Additional test modules
 │   │       ├── mod.rs
 │   │       ├── arena.rs
@@ -95,17 +95,16 @@ src/
 │       ├── mod.rs                       — Re-exports
 │       ├── entity.rs                    — EntitySelector trait, FromSolutionEntitySelector, AllEntitiesSelector
 │       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
-│       ├── move_selector.rs             — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, re-exports; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
-│       ├── move_selector/either.rs      — EitherChangeMoveSelector, EitherSwapMoveSelector
-│       ├── move_selector/list_adapters.rs — ListMoveListChangeSelector, ListMoveKOptSelector, ListMoveNearbyKOptSelector, ListMoveListRuinSelector
+│       ├── move_selector.rs             — MoveSelector trait, ChangeMoveSelector, SwapMoveSelector, scalar union helpers; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
+│       ├── move_selector/either.rs      — ScalarChangeMoveSelector, ScalarSwapMoveSelector
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
 │       ├── list_support.rs             — Private selected-entity snapshots and exact list-neighborhood counting
-│       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>, ListMoveListSwapSelector
-│       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>, ListMoveListReverseSelector
+│       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>
+│       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
-│       ├── sublist_change.rs           — SubListChangeMoveSelector<S, V, ES>, ListMoveSubListChangeSelector
+│       ├── sublist_change.rs           — SublistChangeMoveSelector<S, V, ES>
 │       ├── sublist_support.rs          — Private sublist segment enumeration and exact counting helpers
-│       ├── sublist_swap.rs             — SubListSwapMoveSelector<S, V, ES>, ListMoveSubListSwapSelector
+│       ├── sublist_swap.rs             — SublistSwapMoveSelector<S, V, ES>
 │       ├── pillar.rs                    — PillarSelector trait, DefaultPillarSelector, Pillar, SubPillarConfig
 │       ├── ruin.rs                      — RuinMoveSelector<S, V>
 │       ├── mimic.rs                     — MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector
@@ -114,13 +113,14 @@ src/
 │       ├── entity_tests.rs              — Tests
 │       ├── value_selector_tests.rs     — Tests
 │       ├── nearby.rs                    — NearbyDistanceMeter trait, DynDistanceMeter, NearbyEntitySelector, NearbySelectionConfig
-│       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait, NearbyListChangeMoveSelector, ListMoveNearbyListChangeSelector
+│       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait, NearbyListChangeMoveSelector
 │       ├── nearby_list_support.rs      — Private selected-entity snapshots and nearby candidate ordering
-│       ├── nearby_list_swap.rs         — NearbyListSwapMoveSelector, ListMoveNearbyListSwapSelector
+│       ├── nearby_list_swap.rs         — NearbyListSwapMoveSelector
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
-│       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>
+│       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>, CartesianProductSelector<S, M, Left, Right>
 │       │   ├── cartesian_product_tests.rs — Tests
+│       │   ├── map.rs                  — MapMoveSelector<S, InM, OutM, Inner>
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering_tests.rs      — Tests
 │       │   ├── probability.rs          — ProbabilityMoveSelector<S, M, Inner>
@@ -303,8 +303,18 @@ Requires: `Send + Sync + Debug`.
 | `descriptor_index` | `fn(&self) -> usize` |
 | `entity_indices` | `fn(&self) -> &[usize]` |
 | `variable_name` | `fn(&self) -> &str` |
+| `tabu_signature` | `fn<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature` |
 
 Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
+
+### `MoveTabuSignature` and Scoped Tokens — `heuristic/move/metadata.rs`
+
+- `MoveTabuScope { descriptor_index, variable_name }`
+- `ScopedEntityTabuToken { scope, entity_id }`
+- `ScopedValueTabuToken { scope, value_id }`
+- `MoveTabuSignature { scope, entity_tokens, destination_value_tokens, move_id, undo_move_id }`
+
+Entity and destination-value tabu memories compare scoped tokens directly, so equal raw ids from different descriptors or variables do not collide. Exact move memories still store ordered `move_id` and `undo_move_id` sequences without hashing away structure.
 
 ### `Phase<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S> = ()>` — `phase/mod.rs`
 
@@ -360,7 +370,7 @@ Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `iter_typed` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D, descriptor_index: usize, entity_index: usize) -> impl Iterator<Item = V> + 'a` |
+| `iter` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D, descriptor_index: usize, entity_index: usize) -> impl Iterator<Item = V> + 'a` |
 | `size` | `fn<D: Director<S>>(&self, score_director: &D, descriptor_index: usize, entity_index: usize) -> usize` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
@@ -511,8 +521,8 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `ListSwapMove` | `<S, V>` | first/second entity+position, list_len/get/set fn ptrs | Yes | Yes |
 | `ListReverseMove` | `<S, V>` | entity_index, start/end, list_len/reverse fn ptrs | Yes | Yes |
 | `ListRuinMove` | `<S, V>` | entity_index, SmallVec element_indices, fn ptrs | Yes (manual) | No |
-| `SubListChangeMove` | `<S, V>` | src entity+start/end, dst entity+position, fn ptrs | Yes | Yes |
-| `SubListSwapMove` | `<S, V>` | first/second entity+start/end, fn ptrs | Yes | Yes |
+| `SublistChangeMove` | `<S, V>` | src entity+start/end, dst entity+position, fn ptrs | Yes | Yes |
+| `SublistSwapMove` | `<S, V>` | first/second entity+start/end, fn ptrs | Yes | Yes |
 | `PillarChangeMove` | `<S, V>` | Vec entity_indices, to_value, getter/setter fn ptrs | Yes (manual) | No |
 | `PillarSwapMove` | `<S, V>` | Vec left/right indices, getter/setter fn ptrs | Yes (manual) | No |
 | `RuinMove` | `<S, V>` | SmallVec entity_indices, getter/setter fn ptrs | Yes (manual) | No |
@@ -521,11 +531,11 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 ### Move Union Enums
 
-**`EitherMove<S, V>`** — Standard variable union:
-- `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`
+**`ScalarMoveUnion<S, V>`** — Scalar variable union:
+- `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`, `PillarChange(PillarChangeMove<S, V>)`, `PillarSwap(PillarSwapMove<S, V>)`, `RuinRecreate(RuinRecreateMove<S>)`, `Composite(SequentialCompositeMove<S, ScalarMoveUnion<S, V>>)`
 
-**`ListMoveImpl<S, V>`** — List variable union:
-- `ListChange`, `ListSwap`, `SubListChange`, `SubListSwap`, `ListReverse`, `KOpt`, `ListRuin`
+**`ListMoveUnion<S, V>`** — List variable union:
+- `ListChange`, `ListSwap`, `SublistChange`, `SublistSwap`, `ListReverse`, `KOpt`, `ListRuin`, `Composite`
 
 ### Supporting Types
 
@@ -559,24 +569,23 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 | Selector | Produces | Note |
 |----------|----------|------|
-| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Standard variable change; `.with_allows_unassigned(true)` adds exactly one assigned-entity `Some(v) -> None` move |
-| `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Standard variable swap |
-| `EitherChangeMoveSelector<S, V, ES, VS>` | `EitherMove<S, V>` | Wraps ChangeMoveSelector |
-| `EitherSwapMoveSelector<S, V, LES, RES>` | `EitherMove<S, V>` | Wraps SwapMoveSelector |
+| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Scalar variable change; `.with_allows_unassigned(true)` adds exactly one assigned-entity `Some(v) -> None` move |
+| `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Scalar variable swap |
+| `ScalarChangeMoveSelector<S, V, ES, VS>` | `ScalarMoveUnion<S, V>` | Wraps ChangeMoveSelector |
+| `ScalarSwapMoveSelector<S, V, LES, RES>` | `ScalarMoveUnion<S, V>` | Wraps SwapMoveSelector |
 | `ListChangeMoveSelector<S, V, ES>` | `ListChangeMove<S, V>` | List element relocation; canonical order, exact `size()` |
 | `ListSwapMoveSelector<S, V, ES>` | `ListSwapMove<S, V>` | List element swap; canonical pair order, exact `size()` |
 | `ListReverseMoveSelector<S, V, ES>` | `ListReverseMove<S, V>` | Segment reversal (2-opt) |
 | `ListRuinMoveSelector<S, V>` | `ListRuinMove<S, V>` | LNS element removal |
-| `SubListChangeMoveSelector<S, V, ES>` | `SubListChangeMove<S, V>` | Segment relocation (Or-opt); canonical order, exact `size()` |
-| `SubListSwapMoveSelector<S, V, ES>` | `SubListSwapMove<S, V>` | Segment swap; canonical pair order, exact `size()` |
+| `SublistChangeMoveSelector<S, V, ES>` | `SublistChangeMove<S, V>` | Segment relocation (Or-opt); canonical order, exact `size()` |
+| `SublistSwapMoveSelector<S, V, ES>` | `SublistSwapMove<S, V>` | Segment swap; canonical pair order, exact `size()` |
 | `KOptMoveSelector<S, V, ES>` | `KOptMove<S, V>` | K-opt tour optimization |
 | `NearbyKOptMoveSelector<S, V, D, ES>` | `KOptMove<S, V>` | Distance-pruned k-opt |
 | `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation with stable tie ordering |
 | `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap with canonical pair ordering |
-| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Standard variable LNS |
+| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Scalar variable LNS |
 
-**ListMove* wrappers** adapt specific move selectors to produce `ListMoveImpl<S, V>`:
-`ListMoveListChangeSelector`, `ListMoveListSwapSelector`, `ListMoveListReverseSelector`, `ListMoveSubListChangeSelector`, `ListMoveSubListSwapSelector`, `ListMoveKOptSelector`, `ListMoveNearbyKOptSelector`, `ListMoveListRuinSelector`, `ListMoveNearbyListChangeSelector`, `ListMoveNearbyListSwapSelector`.
+**`MapMoveSelector<S, InM, OutM, Inner>`** lifts a concrete selector into a union surface without a per-family adapter type. The canonical list builder uses it to map concrete list selectors into `ListMoveUnion<S, V>`.
 
 ### Selector Decorators
 
@@ -584,6 +593,8 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 |-----------|-------------|------|
 | `UnionMoveSelector<S, M, A, B>` | Two selectors | Sequential combination |
 | `CartesianProductArena<S, M1, M2>` | Two move types | Cross-product iteration arena |
+| `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition |
+| `MapMoveSelector<S, InM, OutM, Inner>` | Concrete selector plus mapping function | Generic typed lifting without wrapper families |
 | `FilteringMoveSelector<S, M, Inner>` | Predicate `fn(&M) -> bool` | Filters moves |
 | `ShufflingMoveSelector<S, M, Inner>` | RNG | Randomizes order |
 | `SortingMoveSelector<S, M, Inner>` | Comparator `fn(&M, &M) -> Ordering` | Sorts moves |
@@ -593,7 +604,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 
 **`EntityReference`** — `{ descriptor_index: usize, entity_index: usize }`.
 
-**`Pillar`** — `{ entities: Vec<EntityReference> }`. Methods: `size()`, `is_empty()`, `first()`, `iter()`.
+**`Pillar`** — `{ entities: Vec<EntityReference> }`. Methods: `size()`, `is_empty()`, `first()`, `iter()`. Canonical public pillar semantics exclude unassigned entities and singleton pillars; entity order within a pillar is deterministic by `entity_index`.
 
 **`SubPillarConfig`** — `{ enabled: bool, minimum_size: usize, maximum_size: usize }`. Methods: `none()`, `all()`, `with_minimum_size()`, `with_maximum_size()`.
 
@@ -602,6 +613,10 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 **`NearbySelectionConfig`** — Builder: `with_distribution_type()`, `with_max_nearby_size()`, `with_min_distance()`.
 
 **`KOptConfig`** — `{ k: usize, min_segment_len: usize, limited_patterns: bool }`. Methods: `new(k)`, `with_min_segment_len()`, `with_limited_patterns()`.
+
+**`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the typed runtime. In addition to getter/setter/value-source hooks it now carries optional nearby hooks via builder-style methods:
+- `with_nearby_value_distance_meter(fn(&S, usize, usize) -> f64)` for nearby change
+- `with_nearby_entity_distance_meter(fn(&S, usize, usize) -> f64)` for nearby swap
 
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
@@ -653,7 +668,7 @@ Local search foragers:
 | `HillClimbingAcceptor` | — | — |
 | `LateAcceptanceAcceptor<S>` | `S: PlanningSolution` | `late_acceptance_size` |
 | `SimulatedAnnealingAcceptor` | — | `starting_temperature`, `decay_rate` |
-| `TabuSearchAcceptor<S>` | `S: PlanningSolution` | `tabu_size`, `aspiration_enabled` |
+| `TabuSearchAcceptor<S>` | `S: PlanningSolution` | `entity_tabu_size`, `value_tabu_size`, `move_tabu_size`, `undo_move_tabu_size`, `aspiration_enabled`; config with all four sizes omitted normalizes to move-tabu-only with `move_tabu_size = 10` |
 | `EntityTabuAcceptor` | — | `entity_tabu_size` |
 | `ValueTabuAcceptor` | — | `value_tabu_size` |
 | `MoveTabuAcceptor` | — | `move_tabu_size`, `aspiration_enabled` |
@@ -700,7 +715,7 @@ Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op)
 
 Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, and termination state.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `trial(...)`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-standard construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. `trial(...)` wraps a `RecordingDirector` and restores both solution values and committed score state after speculative work. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `trial(...)`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-scalar construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. `trial(...)` wraps a `RecordingDirector` and restores both solution values and committed score state after speculative work. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
@@ -823,7 +838,7 @@ formatting edges.
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, reuse the descriptor-standard scalar path for pure scalar matches, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, reuse the descriptor-scalar scalar path for pure scalar matches, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`
@@ -835,7 +850,7 @@ Scalar-only, list-only, and mixed planning models now target the same canonical 
 `AnyTermination` is an enum over all built-in termination types for config-driven dispatch. `build_termination()` constructs an `AnyTermination` from a `SolverConfig`.
 
 `log_solve_start()` in the same module emits shape-specific startup telemetry:
-list solves log `element_count`, standard scalar solves log average
+list solves log `element_count`, scalar solves log average
 `candidate_count`, and legacy/basic solution logging falls back to
 `value_count`. Console formatting uses those fields to label startup scale as
 `elements`, `candidates`, or `values`.
@@ -848,7 +863,7 @@ Canonical solve entrypoints used by macro-generated solving. They accept generat
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
 - **Typed runtime selectors.** `builder/selector.rs` consumes the typed `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
-- **Explicit descriptor-standard boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_standard/*` and are used only by callers that intentionally choose that engine.
+- **Explicit descriptor-scalar boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_scalar/*` and are used only by callers that intentionally choose that engine.
 - **Function pointer storage.** Moves and selectors store `fn` pointers (e.g., `fn(&S, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.

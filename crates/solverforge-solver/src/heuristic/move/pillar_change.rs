@@ -11,10 +11,14 @@ compile-time type safety. No runtime type checks or downcasting.
 
 use std::fmt::Debug;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A move that assigns a value to all entities in a pillar.
 ///
@@ -172,5 +176,47 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let from_value = self
+            .entity_indices
+            .first()
+            .and_then(|&idx| (self.getter)(score_director.working_solution(), idx));
+        let from_id = encode_option_debug(from_value.as_ref());
+        let to_id = encode_option_debug(self.to_value.as_ref());
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let entity_ids: SmallVec<[u64; 2]> = self
+            .entity_indices
+            .iter()
+            .map(|&idx| encode_usize(idx))
+            .collect();
+        let entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> = entity_ids
+            .iter()
+            .copied()
+            .map(|entity_id| scope.entity_token(entity_id))
+            .collect();
+        let mut move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            encode_usize(self.entity_indices.len()),
+            from_id,
+            to_id
+        ];
+        move_id.extend(entity_ids.iter().copied());
+
+        let mut undo_move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            encode_usize(self.entity_indices.len()),
+            to_id,
+            from_id
+        ];
+        undo_move_id.extend(entity_ids.iter().copied());
+
+        MoveTabuSignature::new(scope, move_id, undo_move_id)
+            .with_entity_tokens(entity_tokens)
+            .with_destination_value_tokens([scope.value_token(to_id)])
     }
 }

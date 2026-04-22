@@ -61,11 +61,15 @@ sublist_insert,
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::k_opt_reconnection::KOptReconnection;
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedValueTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /* A cut point in a route, defining where an edge is removed.
 
@@ -134,6 +138,7 @@ pub struct KOptMove<S, V> {
     // Reconnection pattern to apply (stored by value — `KOptReconnection` is `Copy`).
     reconnection: KOptReconnection,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove sublist [start, end), returns removed elements.
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     // Insert elements at position.
@@ -154,6 +159,7 @@ impl<S, V> Clone for KOptMove<S, V> {
             cut_count: self.cut_count,
             reconnection: self.reconnection,
             list_len: self.list_len,
+            list_get: self.list_get,
             sublist_remove: self.sublist_remove,
             sublist_insert: self.sublist_insert,
             variable_name: self.variable_name,
@@ -202,6 +208,7 @@ impl<S, V> KOptMove<S, V> {
         cuts: &[CutPoint],
         reconnection: &KOptReconnection,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
@@ -222,6 +229,7 @@ impl<S, V> KOptMove<S, V> {
             cut_count: cuts.len() as u8,
             reconnection: *reconnection,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             variable_name,
@@ -381,5 +389,81 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let mut touched_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
+        let len = (self.list_len)(score_director.working_solution(), self.entity_index);
+        let k = self.cut_count as usize;
+        let first_pos = self.cuts[0].position;
+        let last_pos = self.cuts[k - 1].position;
+        for pos in first_pos..len.min(last_pos.max(first_pos)) {
+            let value = (self.list_get)(score_director.working_solution(), self.entity_index, pos);
+            touched_value_ids.push(encode_option_debug(value.as_ref()));
+        }
+
+        let entity_id = encode_usize(self.entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = touched_value_ids
+            .iter()
+            .copied()
+            .map(|value_id| scope.value_token(value_id))
+            .collect();
+        let mut move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            entity_id,
+            encode_usize(k)
+        ];
+        for cut in &self.cuts[..k] {
+            move_id.push(encode_usize(cut.position));
+        }
+        for segment in self.reconnection.segment_order() {
+            move_id.push(u64::from(*segment));
+        }
+        for idx in 0..self.reconnection.segment_count() {
+            move_id.push(if self.reconnection.should_reverse(idx) {
+                1
+            } else {
+                0
+            });
+        }
+        move_id.extend(touched_value_ids.iter().copied());
+
+        let mut inverse_order = vec![0u8; self.reconnection.segment_count()];
+        for (pos, segment) in self
+            .reconnection
+            .segment_order()
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            inverse_order[segment as usize] = pos as u8;
+        }
+        let mut undo_move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            entity_id,
+            encode_usize(k)
+        ];
+        for cut in &self.cuts[..k] {
+            undo_move_id.push(encode_usize(cut.position));
+        }
+        for segment in inverse_order {
+            undo_move_id.push(u64::from(segment));
+        }
+        for idx in 0..self.reconnection.segment_count() {
+            undo_move_id.push(if self.reconnection.should_reverse(idx) {
+                1
+            } else {
+                0
+            });
+        }
+        undo_move_id.extend(touched_value_ids.iter().copied());
+
+        MoveTabuSignature::new(scope, move_id, undo_move_id)
+            .with_entity_tokens([scope.entity_token(entity_id)])
+            .with_destination_value_tokens(destination_value_tokens)
     }
 }

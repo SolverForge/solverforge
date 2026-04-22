@@ -3,7 +3,7 @@
 Serde-based configuration system for loading solver settings from TOML or YAML files.
 
 **Location:** `crates/solverforge-config/`
-**Workspace Release:** `0.8.13`
+**Workspace Release:** `0.9.0`
 
 ## Dependencies
 
@@ -170,6 +170,10 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `move_tabu_size` | `Option<usize>` |
 | `undo_move_tabu_size` | `Option<usize>` |
 
+Normalization notes:
+- `acceptor = { type = "tabu_search" }` normalizes to move-tabu-only with `move_tabu_size = 10` and `aspiration_enabled = true`.
+- Any explicit `*_tabu_size = 0` is rejected during solver build.
+
 ### `SimulatedAnnealingConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
@@ -250,7 +254,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default` (max_nearby = 
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
-### `SubListChangeMoveConfig`
+### `SublistChangeMoveConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
@@ -261,7 +265,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
-### `SubListSwapMoveConfig`
+### `SublistSwapMoveConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
@@ -280,6 +284,48 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 |-------|------|
 | `entity_class` | `Option<String>` |
 | `variable_name` | `Option<String>` |
+
+### `NearbyChangeMoveConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `max_nearby` | `usize` | `10` |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+### `NearbySwapMoveConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `max_nearby` | `usize` | `10` |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+### `PillarChangeMoveConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
+| `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+### `PillarSwapMoveConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
+| `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
 
 ### `KOptMoveSelectorConfig`
 
@@ -302,6 +348,23 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `min_ruin_count` | `usize` | `2` |
 | `max_ruin_count` | `usize` | `5` |
 | `moves_per_step` | `Option<usize>` | `None` |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+### `RecreateHeuristicType`
+
+Enum: `FirstFit`, `CheapestInsertion` (default).
+
+### `RuinRecreateMoveSelectorConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `min_ruin_count` | `usize` | `2` |
+| `max_ruin_count` | `usize` | `5` |
+| `moves_per_step` | `Option<usize>` | `None` |
+| `recreate_heuristic_type` | `RecreateHeuristicType` | `CheapestInsertion` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -411,13 +474,13 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing `ModelContext` targets; pure scalar matches reuse the descriptor-standard scalar path |
+| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing `ModelContext` targets; pure scalar matches reuse the descriptor-scalar scalar path |
 | `FirstFitDecreasing` | Specialized scalar-only first fit by entity difficulty |
 | `WeakestFit` | Specialized scalar-only weakest-fit heuristic |
 | `WeakestFitDecreasing` | Specialized scalar-only weakest-fit-by-difficulty heuristic |
 | `StrongestFit` | Specialized scalar-only strongest-fit heuristic |
 | `StrongestFitDecreasing` | Specialized scalar-only strongest-fit-by-difficulty heuristic |
-| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing `ModelContext` targets; pure scalar matches reuse the descriptor-standard scalar path |
+| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing `ModelContext` targets; pure scalar matches reuse the descriptor-scalar scalar path |
 | `AllocateEntityFromQueue` | Specialized scalar-only queue-driven allocation |
 | `AllocateToValueFromQueue` | Specialized scalar-only value-queue allocation |
 | `ListRoundRobin` | Specialized list-only even distribution |
@@ -465,12 +528,17 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 |---------|---------|
 | `ChangeMoveSelector` | `ChangeMoveConfig` |
 | `SwapMoveSelector` | `SwapMoveConfig` |
+| `NearbyChangeMoveSelector` | `NearbyChangeMoveConfig` |
+| `NearbySwapMoveSelector` | `NearbySwapMoveConfig` |
+| `PillarChangeMoveSelector` | `PillarChangeMoveConfig` |
+| `PillarSwapMoveSelector` | `PillarSwapMoveConfig` |
+| `RuinRecreateMoveSelector` | `RuinRecreateMoveSelectorConfig` |
 | `ListChangeMoveSelector` | `ListChangeMoveConfig` |
 | `NearbyListChangeMoveSelector` | `NearbyListChangeMoveConfig` |
 | `ListSwapMoveSelector` | `ListSwapMoveConfig` |
 | `NearbyListSwapMoveSelector` | `NearbyListSwapMoveConfig` |
-| `SubListChangeMoveSelector` | `SubListChangeMoveConfig` |
-| `SubListSwapMoveSelector` | `SubListSwapMoveConfig` |
+| `SublistChangeMoveSelector` | `SublistChangeMoveConfig` |
+| `SublistSwapMoveSelector` | `SublistSwapMoveConfig` |
 | `ListReverseMoveSelector` | `ListReverseMoveConfig` |
 | `KOptMoveSelector` | `KOptMoveSelectorConfig` |
 | `ListRuinMoveSelector` | `ListRuinMoveSelectorConfig` |

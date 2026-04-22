@@ -9,6 +9,7 @@ use crate::heuristic::{Move, MoveSelector};
 use crate::phase::localsearch::{
     AcceptedCountForager, Acceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
     LocalSearchForager, LocalSearchPhase, SimulatedAnnealingAcceptor, TabuSearchAcceptor,
+    TabuSearchPolicy,
 };
 
 use super::super::PhaseFactory;
@@ -90,7 +91,7 @@ where
     pub fn tabu_search(move_selector: MS, tabu_size: usize) -> Self {
         Self::new(
             move_selector,
-            TabuSearchAcceptor::new(tabu_size),
+            TabuSearchAcceptor::new(TabuSearchPolicy::move_only(tabu_size)),
             AcceptedCountForager::new(1),
         )
     }

@@ -263,6 +263,19 @@ impl Move<TestSolution> for NoopMove {
     fn variable_name(&self) -> &str {
         "noop"
     }
+
+    fn tabu_signature<D: Director<TestSolution>>(
+        &self,
+        _score_director: &D,
+    ) -> crate::heuristic::r#move::MoveTabuSignature {
+        let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "noop");
+        let identity = crate::heuristic::r#move::metadata::hash_str("phase_tests_noop_move");
+        crate::heuristic::r#move::MoveTabuSignature::new(
+            scope,
+            smallvec::smallvec![identity],
+            smallvec::smallvec![identity],
+        )
+    }
 }
 
 #[derive(Debug)]

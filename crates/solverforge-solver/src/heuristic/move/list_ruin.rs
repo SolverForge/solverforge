@@ -13,11 +13,14 @@ Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedValueTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A ruin-and-recreate move for Large Neighborhood Search on list variables.
 ///
@@ -47,6 +50,7 @@ use super::Move;
 ///
 /// fn entity_count(s: &Route) -> usize { 1 }
 /// fn list_len(s: &Route, _: usize) -> usize { s.stops.len() }
+/// fn list_get(s: &Route, _: usize, pos: usize) -> Option<i32> { s.stops.get(pos).copied() }
 /// fn list_remove(s: &mut Route, _: usize, idx: usize) -> i32 { s.stops.remove(idx) }
 /// fn list_insert(s: &mut Route, _: usize, idx: usize, v: i32) { s.stops.insert(idx, v); }
 ///
@@ -55,7 +59,7 @@ use super::Move;
 ///     0,
 ///     &[1, 3],
 ///     entity_count,
-///     list_len, list_remove, list_insert,
+///     list_len, list_get, list_remove, list_insert,
 ///     "stops", 0,
 /// );
 /// ```
@@ -67,6 +71,7 @@ pub struct ListRuinMove<S, V> {
     // Number of entities in solution (for recreate phase)
     entity_count: fn(&S) -> usize,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove element at index, returning it
     list_remove: fn(&mut S, usize, usize) -> V,
     // Insert element at index
@@ -83,6 +88,7 @@ impl<S, V> Clone for ListRuinMove<S, V> {
             element_indices: self.element_indices.clone(),
             entity_count: self.entity_count,
             list_len: self.list_len,
+            list_get: self.list_get,
             list_remove: self.list_remove,
             list_insert: self.list_insert,
             variable_name: self.variable_name,
@@ -121,6 +127,7 @@ impl<S, V> ListRuinMove<S, V> {
         element_indices: &[usize],
         entity_count: fn(&S) -> usize,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> V,
         list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
@@ -133,6 +140,7 @@ impl<S, V> ListRuinMove<S, V> {
             element_indices: indices,
             entity_count,
             list_len,
+            list_get,
             list_remove,
             list_insert,
             variable_name,
@@ -326,5 +334,33 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
+        for &idx in &self.element_indices {
+            let value = (self.list_get)(score_director.working_solution(), self.entity_index, idx);
+            value_ids.push(encode_option_debug(value.as_ref()));
+        }
+        let entity_id = encode_usize(self.entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = value_ids
+            .iter()
+            .copied()
+            .map(|value_id| scope.value_token(value_id))
+            .collect();
+        let mut move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            entity_id,
+            encode_usize(self.element_indices.len())
+        ];
+        move_id.extend(self.element_indices.iter().map(|&idx| encode_usize(idx)));
+        move_id.extend(value_ids.iter().copied());
+
+        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+            .with_entity_tokens([scope.entity_token(entity_id)])
+            .with_destination_value_tokens(destination_value_tokens)
     }
 }

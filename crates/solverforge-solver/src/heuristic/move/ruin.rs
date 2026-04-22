@@ -15,7 +15,8 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken};
+use super::{Move, MoveTabuSignature};
 
 /// A move that unassigns multiple entities for Large Neighborhood Search.
 ///
@@ -177,5 +178,34 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let entity_ids: SmallVec<[u64; 2]> = self
+            .entity_indices
+            .iter()
+            .map(|&idx| encode_usize(idx))
+            .collect();
+        let entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> = entity_ids
+            .iter()
+            .copied()
+            .map(|entity_id| scope.entity_token(entity_id))
+            .collect();
+        let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
+        for &idx in &self.entity_indices {
+            let value = (self.getter)(score_director.working_solution(), idx);
+            value_ids.push(encode_option_debug(value.as_ref()));
+        }
+        let variable_id = hash_str(self.variable_name);
+        let mut move_id = SmallVec::<[u64; 8]>::from_slice(&[
+            encode_usize(self.descriptor_index),
+            variable_id,
+            encode_usize(self.entity_indices.len()),
+        ]);
+        move_id.extend(entity_ids.iter().copied());
+        move_id.extend(value_ids.iter().copied());
+
+        MoveTabuSignature::new(scope, move_id.clone(), move_id).with_entity_tokens(entity_tokens)
     }
 }

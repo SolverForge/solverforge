@@ -11,10 +11,14 @@ compile-time type safety. No runtime type checks or downcasting.
 
 use std::fmt::Debug;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken, NONE_ID,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A move that swaps values between two pillars.
 ///
@@ -196,5 +200,49 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let left_value = self
+            .left_indices
+            .first()
+            .and_then(|&idx| (self.getter)(score_director.working_solution(), idx));
+        let right_value = self
+            .right_indices
+            .first()
+            .and_then(|&idx| (self.getter)(score_director.working_solution(), idx));
+        let left_id = encode_option_debug(left_value.as_ref());
+        let right_id = encode_option_debug(right_value.as_ref());
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let mut entity_ids: SmallVec<[u64; 2]> = self
+            .left_indices
+            .iter()
+            .chain(&self.right_indices)
+            .map(|&idx| encode_usize(idx))
+            .collect();
+        entity_ids.sort_unstable();
+        entity_ids.dedup();
+        let entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> = entity_ids
+            .iter()
+            .copied()
+            .map(|entity_id| scope.entity_token(entity_id))
+            .collect();
+
+        let mut move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            encode_usize(self.left_indices.len()),
+            encode_usize(self.right_indices.len()),
+            left_id,
+            right_id
+        ];
+        move_id.extend(self.left_indices.iter().map(|&idx| encode_usize(idx)));
+        move_id.push(NONE_ID);
+        move_id.extend(self.right_indices.iter().map(|&idx| encode_usize(idx)));
+
+        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+            .with_entity_tokens(entity_tokens)
+            .with_destination_value_tokens([scope.value_token(right_id), scope.value_token(left_id)])
     }
 }

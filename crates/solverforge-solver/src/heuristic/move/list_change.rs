@@ -10,10 +10,14 @@ Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::fmt::Debug;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A move that relocates an element from one list position to another.
 ///
@@ -46,6 +50,12 @@ use super::Move;
 /// fn list_len(s: &Solution, entity_idx: usize) -> usize {
 ///     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
 /// }
+/// fn list_get(s: &Solution, entity_idx: usize, pos: usize) -> Option<i32> {
+///     s.vehicles
+///         .get(entity_idx)
+///         .and_then(|v| v.visits.get(pos))
+///         .copied()
+/// }
 /// fn list_remove(s: &mut Solution, entity_idx: usize, pos: usize) -> Option<i32> {
 ///     s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
 /// }
@@ -56,7 +66,7 @@ use super::Move;
 /// // Move element from vehicle 0 position 2 to vehicle 1 position 0
 /// let m = ListChangeMove::<Solution, i32>::new(
 ///     0, 2, 1, 0,
-///     list_len, list_remove, list_insert,
+///     list_len, list_get, list_remove, list_insert,
 ///     "visits", 0,
 /// );
 /// ```
@@ -70,6 +80,7 @@ pub struct ListChangeMove<S, V> {
     // Position in destination list to insert at
     dest_position: usize,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove element at position, returns removed value
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     // Insert element at position
@@ -121,6 +132,7 @@ impl<S, V> ListChangeMove<S, V> {
         dest_entity_index: usize,
         dest_position: usize,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
@@ -132,6 +144,7 @@ impl<S, V> ListChangeMove<S, V> {
             dest_entity_index,
             dest_position,
             list_len,
+            list_get,
             list_remove,
             list_insert,
             variable_name,
@@ -273,5 +286,52 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let moved_value = (self.list_get)(
+            score_director.working_solution(),
+            self.source_entity_index,
+            self.source_position,
+        );
+        let moved_id = encode_option_debug(moved_value.as_ref());
+        let source_entity_id = encode_usize(self.source_entity_index);
+        let dest_entity_id = encode_usize(self.dest_entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
+            self.dest_position - 1
+        } else {
+            self.dest_position
+        };
+        let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
+            smallvec![scope.entity_token(source_entity_id)];
+        if !self.is_intra_list() {
+            entity_tokens.push(scope.entity_token(dest_entity_id));
+        }
+
+        MoveTabuSignature::new(
+            scope,
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                source_entity_id,
+                encode_usize(self.source_position),
+                dest_entity_id,
+                encode_usize(adjusted_dest),
+                moved_id
+            ],
+            smallvec![
+                encode_usize(self.descriptor_index),
+                variable_id,
+                dest_entity_id,
+                encode_usize(adjusted_dest),
+                source_entity_id,
+                encode_usize(self.source_position),
+                moved_id
+            ],
+        )
+        .with_entity_tokens(entity_tokens)
+        .with_destination_value_tokens([scope.value_token(moved_id)])
     }
 }

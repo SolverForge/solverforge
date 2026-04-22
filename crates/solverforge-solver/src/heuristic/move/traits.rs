@@ -5,6 +5,8 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use super::MoveTabuSignature;
+
 /// A move that modifies one or more planning variables.
 ///
 /// Moves are fully typed for maximum performance - no boxing, no virtual dispatch.
@@ -40,4 +42,6 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
     fn entity_indices(&self) -> &[usize];
 
     fn variable_name(&self) -> &str;
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature;
 }

@@ -7,6 +7,9 @@ pub enum AcceptorConfig {
     // Hill climbing (only accept improving moves).
     HillClimbing,
 
+    // Step counting hill climbing (allow limited non-improving moves).
+    StepCountingHillClimbing(StepCountingHillClimbingConfig),
+
     // Tabu search acceptor.
     TabuSearch(TabuSearchConfig),
 
@@ -16,25 +19,40 @@ pub enum AcceptorConfig {
     // Late acceptance acceptor.
     LateAcceptance(LateAcceptanceConfig),
 
+    // Diversified late acceptance acceptor.
+    DiversifiedLateAcceptance(DiversifiedLateAcceptanceConfig),
+
     // Great deluge acceptor.
     GreatDeluge(GreatDelugeConfig),
+}
+
+// Step counting hill climbing configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct StepCountingHillClimbingConfig {
+    pub step_count_limit: Option<u64>,
 }
 
 // Tabu search configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct TabuSearchConfig {
-    // Size of entity tabu list.
+    // Size of entity tabu list. Explicit `0` is invalid.
     pub entity_tabu_size: Option<usize>,
 
-    // Size of value tabu list.
+    // Size of value tabu list. Explicit `0` is invalid.
     pub value_tabu_size: Option<usize>,
 
-    // Size of move tabu list.
+    // Size of move tabu list. Explicit `0` is invalid.
     pub move_tabu_size: Option<usize>,
 
-    // Size of undo move tabu list.
+    // Size of undo move tabu list. Explicit `0` is invalid.
     pub undo_move_tabu_size: Option<usize>,
+
+    // Whether aspiration can override tabu on strict new-best candidates.
+    // When all sizes are omitted, the canonical runtime normalizes to
+    // move-tabu-only with `move_tabu_size = 10` and `aspiration_enabled = true`.
+    pub aspiration_enabled: Option<bool>,
 }
 
 // Simulated annealing configuration.
@@ -43,6 +61,9 @@ pub struct TabuSearchConfig {
 pub struct SimulatedAnnealingConfig {
     // Starting temperature.
     pub starting_temperature: Option<String>,
+
+    // Decay rate.
+    pub decay_rate: Option<f64>,
 }
 
 // Late acceptance configuration.
@@ -51,6 +72,17 @@ pub struct SimulatedAnnealingConfig {
 pub struct LateAcceptanceConfig {
     // Size of late acceptance list.
     pub late_acceptance_size: Option<usize>,
+}
+
+// Diversified late acceptance configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DiversifiedLateAcceptanceConfig {
+    // Size of late acceptance list.
+    pub late_acceptance_size: Option<usize>,
+
+    // Fractional tolerance against the phase-best score.
+    pub tolerance: Option<f64>,
 }
 
 // Great deluge configuration.

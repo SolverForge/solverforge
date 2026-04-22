@@ -1,4 +1,4 @@
-/* SubListSwapMove - swaps two contiguous sublists within or between list variables.
+/* SublistSwapMove - swaps two contiguous sublists within or between list variables.
 
 This move exchanges two ranges of elements. Essential for vehicle routing
 where segments need to be swapped between vehicles.
@@ -11,10 +11,15 @@ Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::Move;
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+    ScopedValueTabuToken,
+};
+use super::{Move, MoveTabuSignature};
 
 /// A move that swaps two contiguous sublists.
 ///
@@ -28,7 +33,7 @@ use super::Move;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::heuristic::r#move::SubListSwapMove;
+/// use solverforge_solver::heuristic::r#move::SublistSwapMove;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
 ///
@@ -47,6 +52,12 @@ use super::Move;
 /// fn list_len(s: &Solution, entity_idx: usize) -> usize {
 ///     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
 /// }
+/// fn list_get(s: &Solution, entity_idx: usize, pos: usize) -> Option<i32> {
+///     s.vehicles
+///         .get(entity_idx)
+///         .and_then(|v| v.visits.get(pos))
+///         .copied()
+/// }
 /// fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
 ///     s.vehicles.get_mut(entity_idx)
 ///         .map(|v| v.visits.drain(start..end).collect())
@@ -61,14 +72,14 @@ use super::Move;
 /// }
 ///
 /// // Swap [1..3) from vehicle 0 with [0..2) from vehicle 1
-/// let m = SubListSwapMove::<Solution, i32>::new(
+/// let m = SublistSwapMove::<Solution, i32>::new(
 ///     0, 1, 3,  // first: entity 0, range [1, 3)
 ///     1, 0, 2,  // second: entity 1, range [0, 2)
-///     list_len, sublist_remove, sublist_insert,
+///     list_len, list_get, sublist_remove, sublist_insert,
 ///     "visits", 0,
 /// );
 /// ```
-pub struct SubListSwapMove<S, V> {
+pub struct SublistSwapMove<S, V> {
     // First entity index
     first_entity_index: usize,
     // Start of first range (inclusive)
@@ -82,6 +93,7 @@ pub struct SubListSwapMove<S, V> {
     // End of second range (exclusive)
     second_end: usize,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove sublist [start, end), returns removed elements
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     // Insert elements at position
@@ -93,17 +105,17 @@ pub struct SubListSwapMove<S, V> {
     _phantom: PhantomData<fn() -> V>,
 }
 
-impl<S, V> Clone for SubListSwapMove<S, V> {
+impl<S, V> Clone for SublistSwapMove<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<S, V> Copy for SubListSwapMove<S, V> {}
+impl<S, V> Copy for SublistSwapMove<S, V> {}
 
-impl<S, V: Debug> Debug for SubListSwapMove<S, V> {
+impl<S, V: Debug> Debug for SublistSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SubListSwapMove")
+        f.debug_struct("SublistSwapMove")
             .field("first_entity", &self.first_entity_index)
             .field("first_range", &(self.first_start..self.first_end))
             .field("second_entity", &self.second_entity_index)
@@ -113,7 +125,7 @@ impl<S, V: Debug> Debug for SubListSwapMove<S, V> {
     }
 }
 
-impl<S, V> SubListSwapMove<S, V> {
+impl<S, V> SublistSwapMove<S, V> {
     /* Creates a new sublist swap move with typed function pointers.
 
     # Arguments
@@ -138,6 +150,7 @@ impl<S, V> SubListSwapMove<S, V> {
         second_start: usize,
         second_end: usize,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
@@ -151,6 +164,7 @@ impl<S, V> SubListSwapMove<S, V> {
             second_start,
             second_end,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             variable_name,
@@ -197,7 +211,7 @@ impl<S, V> SubListSwapMove<S, V> {
     }
 }
 
-impl<S, V> Move<S> for SubListSwapMove<S, V>
+impl<S, V> Move<S> for SublistSwapMove<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
@@ -394,5 +408,54 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
+        for pos in self.first_start..self.first_end {
+            let value = (self.list_get)(
+                score_director.working_solution(),
+                self.first_entity_index,
+                pos,
+            );
+            value_ids.push(encode_option_debug(value.as_ref()));
+        }
+        for pos in self.second_start..self.second_end {
+            let value = (self.list_get)(
+                score_director.working_solution(),
+                self.second_entity_index,
+                pos,
+            );
+            value_ids.push(encode_option_debug(value.as_ref()));
+        }
+        let first_entity_id = encode_usize(self.first_entity_index);
+        let second_entity_id = encode_usize(self.second_entity_index);
+        let variable_id = hash_str(self.variable_name);
+        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
+        let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
+            smallvec![scope.entity_token(first_entity_id)];
+        if !self.is_intra_list() {
+            entity_tokens.push(scope.entity_token(second_entity_id));
+        }
+        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = value_ids
+            .iter()
+            .copied()
+            .map(|value_id| scope.value_token(value_id))
+            .collect();
+        let mut move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            first_entity_id,
+            encode_usize(self.first_start),
+            encode_usize(self.first_end),
+            second_entity_id,
+            encode_usize(self.second_start),
+            encode_usize(self.second_end)
+        ];
+        move_id.extend(value_ids.iter().copied());
+
+        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+            .with_entity_tokens(entity_tokens)
+            .with_destination_value_tokens(destination_value_tokens)
     }
 }

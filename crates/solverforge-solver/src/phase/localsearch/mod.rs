@@ -5,16 +5,15 @@ that are accepted according to an acceptance criterion.
 */
 
 mod acceptor;
-mod config;
 mod forager;
 mod phase;
 
 pub use acceptor::{
-    Acceptor, DiversifiedLateAcceptanceAcceptor, EntityTabuAcceptor, GreatDelugeAcceptor,
-    HillClimbingAcceptor, LateAcceptanceAcceptor, MoveTabuAcceptor, SimulatedAnnealingAcceptor,
-    StepCountingHillClimbingAcceptor, TabuSearchAcceptor, ValueTabuAcceptor,
+    Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HillClimbingAcceptor,
+    LateAcceptanceAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
+    TabuSearchAcceptor,
 };
-pub use config::{AcceptorType, LocalSearchConfig};
+pub(crate) use acceptor::TabuSearchPolicy;
 pub use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
     FirstLastStepScoreImprovingForager, LocalSearchForager,

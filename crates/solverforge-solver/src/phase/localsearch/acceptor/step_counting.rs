@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 
 use super::Acceptor;
+use crate::heuristic::r#move::MoveTabuSignature;
 
 /// Step Counting Hill Climbing acceptor - allows limited non-improving moves.
 ///
@@ -82,7 +83,12 @@ impl<S: PlanningSolution> Default for StepCountingHillClimbingAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
-    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(
+        &mut self,
+        last_step_score: &S::Score,
+        move_score: &S::Score,
+        _move_signature: Option<&MoveTabuSignature>,
+    ) -> bool {
         // Always accept improving moves
         if move_score > last_step_score {
             return true;
@@ -97,7 +103,11 @@ impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
         self.steps_since_improvement = 0;
     }
 
-    fn step_ended(&mut self, step_score: &S::Score) {
+    fn step_ended(
+        &mut self,
+        step_score: &S::Score,
+        _accepted_move_signature: Option<&MoveTabuSignature>,
+    ) {
         // Check if this step improved on the best score
         let improved = match &self.best_score {
             Some(best) => step_score > best,

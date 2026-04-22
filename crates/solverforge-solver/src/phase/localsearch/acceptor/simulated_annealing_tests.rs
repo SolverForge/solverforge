@@ -44,7 +44,8 @@ fn accepts_improving_moves() {
     assert!(Acceptor::<SimpleSol>::is_accepted(
         &mut acceptor,
         &last,
-        &better
+        &better,
+        None,
     ));
 }
 
@@ -55,7 +56,8 @@ fn accepts_equal_moves() {
     assert!(Acceptor::<SimpleSol>::is_accepted(
         &mut acceptor,
         &score,
-        &score
+        &score,
+        None,
     ));
 }
 
@@ -68,7 +70,8 @@ fn rejects_at_zero_temperature() {
     assert!(!Acceptor::<SimpleSol>::is_accepted(
         &mut acceptor,
         &last,
-        &worse
+        &worse,
+        None,
     ));
 }
 
@@ -79,7 +82,7 @@ fn high_temperature_accepts_most() {
     let worse = SoftScore::of(-11);
     let mut accepted = 0;
     for _ in 0..100 {
-        if Acceptor::<SimpleSol>::is_accepted(&mut acceptor, &last, &worse) {
+        if Acceptor::<SimpleSol>::is_accepted(&mut acceptor, &last, &worse, None) {
             accepted += 1;
         }
     }
@@ -93,7 +96,7 @@ fn low_temperature_rejects_most() {
     let worse = SoftScore::of(-20);
     let mut accepted = 0;
     for _ in 0..100 {
-        if Acceptor::<SimpleSol>::is_accepted(&mut acceptor, &last, &worse) {
+        if Acceptor::<SimpleSol>::is_accepted(&mut acceptor, &last, &worse, None) {
             accepted += 1;
         }
     }
@@ -106,9 +109,9 @@ fn temperature_decays_each_step() {
     let score = SoftScore::of(0);
     Acceptor::<SimpleSol>::phase_started(&mut acceptor, &score);
     assert!((acceptor.current_temperature - 100.0).abs() < f64::EPSILON);
-    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score);
+    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score, None);
     assert!((acceptor.current_temperature - 50.0).abs() < f64::EPSILON);
-    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score);
+    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score, None);
     assert!((acceptor.current_temperature - 25.0).abs() < f64::EPSILON);
 }
 

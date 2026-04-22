@@ -8,6 +8,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
 use super::Acceptor;
+use crate::heuristic::r#move::MoveTabuSignature;
 
 /* Simulated annealing acceptor using the Boltzmann distribution.
 
@@ -129,7 +130,12 @@ impl<S: PlanningSolution> Acceptor<S> for SimulatedAnnealingAcceptor
 where
     S::Score: Score,
 {
-    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(
+        &mut self,
+        last_step_score: &S::Score,
+        move_score: &S::Score,
+        _move_signature: Option<&MoveTabuSignature>,
+    ) -> bool {
         // Always accept improving or equal moves
         if *move_score >= *last_step_score {
             return true;
@@ -171,7 +177,11 @@ where
         self.current_temperature = self.starting_temperature;
     }
 
-    fn step_ended(&mut self, _step_score: &S::Score) {
+    fn step_ended(
+        &mut self,
+        _step_score: &S::Score,
+        _accepted_move_signature: Option<&MoveTabuSignature>,
+    ) {
         self.current_temperature *= self.decay_rate;
     }
 }

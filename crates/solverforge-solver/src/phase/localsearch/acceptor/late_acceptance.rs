@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 
 use super::Acceptor;
+use crate::heuristic::r#move::MoveTabuSignature;
 
 /// Late acceptance acceptor - accepts moves that improve on a historical score.
 ///
@@ -85,7 +86,12 @@ impl<S: PlanningSolution> Default for LateAcceptanceAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
-    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(
+        &mut self,
+        last_step_score: &S::Score,
+        move_score: &S::Score,
+        _move_signature: Option<&MoveTabuSignature>,
+    ) -> bool {
         // Always accept improving or equal moves
         if move_score >= last_step_score {
             return true;
@@ -108,7 +114,11 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
         self.current_index = 0;
     }
 
-    fn step_ended(&mut self, step_score: &S::Score) {
+    fn step_ended(
+        &mut self,
+        step_score: &S::Score,
+        _accepted_move_signature: Option<&MoveTabuSignature>,
+    ) {
         // Record the step score in the history
         self.score_history[self.current_index] = Some(*step_score);
         self.current_index = (self.current_index + 1) % self.late_acceptance_size;

@@ -6,6 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
 use super::Acceptor;
+use crate::heuristic::r#move::MoveTabuSignature;
 
 /// Great Deluge acceptor - accepts moves above a rising water level.
 ///
@@ -86,7 +87,12 @@ impl<S: PlanningSolution> Default for GreatDelugeAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
-    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(
+        &mut self,
+        last_step_score: &S::Score,
+        move_score: &S::Score,
+        _move_signature: Option<&MoveTabuSignature>,
+    ) -> bool {
         // Always accept improving moves
         if move_score > last_step_score {
             return true;
@@ -104,7 +110,11 @@ impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
         self.initial_abs_score = Some(initial_score.abs());
     }
 
-    fn step_ended(&mut self, _step_score: &S::Score) {
+    fn step_ended(
+        &mut self,
+        _step_score: &S::Score,
+        _accepted_move_signature: Option<&MoveTabuSignature>,
+    ) {
         // Raise water level by rain_speed * |initial_score|
         if let (Some(water), Some(abs_score)) = (&self.water_level, &self.initial_abs_score) {
             let increment = abs_score.multiply(self.rain_speed);

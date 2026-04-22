@@ -19,7 +19,7 @@ fn test_accepts_improving_moves() {
     let mut acceptor = DiversifiedLateAcceptanceAcceptor::<TestSolution>::new(5, 0.1);
     acceptor.phase_started(&SoftScore::of(-100));
 
-    assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-90)));
+    assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-90), None));
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn test_accepts_late_equal() {
     let mut acceptor = DiversifiedLateAcceptanceAcceptor::<TestSolution>::new(3, 0.1);
     acceptor.phase_started(&SoftScore::of(-100));
 
-    assert!(acceptor.is_accepted(&SoftScore::of(-90), &SoftScore::of(-100)));
+    assert!(acceptor.is_accepted(&SoftScore::of(-90), &SoftScore::of(-100), None));
 }
 
 #[test]
@@ -35,11 +35,11 @@ fn test_diversification_accepts_within_tolerance() {
     let mut acceptor = DiversifiedLateAcceptanceAcceptor::<TestSolution>::new(3, 0.1);
     acceptor.phase_started(&SoftScore::of(-100));
 
-    acceptor.step_ended(&SoftScore::of(-80));
-    acceptor.step_ended(&SoftScore::of(-70));
-    acceptor.step_ended(&SoftScore::of(-60));
+    acceptor.step_ended(&SoftScore::of(-80), None);
+    acceptor.step_ended(&SoftScore::of(-70), None);
+    acceptor.step_ended(&SoftScore::of(-60), None);
 
-    assert!(acceptor.is_accepted(&SoftScore::of(-60), &SoftScore::of(-65)));
+    assert!(acceptor.is_accepted(&SoftScore::of(-60), &SoftScore::of(-65), None));
 }
 
 #[test]
@@ -47,11 +47,11 @@ fn test_rejects_outside_tolerance() {
     let mut acceptor = DiversifiedLateAcceptanceAcceptor::<TestSolution>::new(3, 0.05);
     acceptor.phase_started(&SoftScore::of(-100));
 
-    acceptor.step_ended(&SoftScore::of(-40));
-    acceptor.step_ended(&SoftScore::of(-40));
-    acceptor.step_ended(&SoftScore::of(-40));
+    acceptor.step_ended(&SoftScore::of(-40), None);
+    acceptor.step_ended(&SoftScore::of(-40), None);
+    acceptor.step_ended(&SoftScore::of(-40), None);
 
-    assert!(!acceptor.is_accepted(&SoftScore::of(-40), &SoftScore::of(-50)));
+    assert!(!acceptor.is_accepted(&SoftScore::of(-40), &SoftScore::of(-50), None));
 }
 
 #[test]
@@ -59,9 +59,9 @@ fn test_history_cycles() {
     let mut acceptor = DiversifiedLateAcceptanceAcceptor::<TestSolution>::new(3, 0.1);
     acceptor.phase_started(&SoftScore::of(-100));
 
-    acceptor.step_ended(&SoftScore::of(-80));
-    acceptor.step_ended(&SoftScore::of(-70));
-    acceptor.step_ended(&SoftScore::of(-60));
+    acceptor.step_ended(&SoftScore::of(-80), None);
+    acceptor.step_ended(&SoftScore::of(-70), None);
+    acceptor.step_ended(&SoftScore::of(-60), None);
 
-    assert!(acceptor.is_accepted(&SoftScore::of(-60), &SoftScore::of(-75)));
+    assert!(acceptor.is_accepted(&SoftScore::of(-60), &SoftScore::of(-75), None));
 }

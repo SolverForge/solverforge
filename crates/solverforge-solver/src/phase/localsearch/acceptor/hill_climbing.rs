@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 
 use super::Acceptor;
+use crate::heuristic::r#move::MoveTabuSignature;
 
 /* Hill climbing acceptor - accepts only improving moves.
 
@@ -29,7 +30,12 @@ impl HillClimbingAcceptor {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for HillClimbingAcceptor {
-    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(
+        &mut self,
+        last_step_score: &S::Score,
+        move_score: &S::Score,
+        _move_signature: Option<&MoveTabuSignature>,
+    ) -> bool {
         // Accept if the move score is better than the last step score
         move_score > last_step_score
     }

@@ -153,6 +153,7 @@ where
                 .unwrap_or(last_step_score);
             self.forager.step_started(best_score, last_step_score);
             self.acceptor.step_started();
+            let requires_move_signatures = self.acceptor.requires_move_signatures();
 
             self.arena.reset();
             let mut interrupted_step = false;
@@ -234,7 +235,17 @@ where
 
                 step_scope.phase_scope_mut().record_score_calculation();
 
-                let accepted = self.acceptor.is_accepted(&last_step_score, &move_score);
+                let move_signature = if requires_move_signatures {
+                    Some(mov.tabu_signature(step_scope.score_director()))
+                } else {
+                    None
+                };
+
+                let accepted = self.acceptor.is_accepted(
+                    &last_step_score,
+                    &move_score,
+                    move_signature.as_ref(),
+                );
 
                 step_scope
                     .phase_scope_mut()
@@ -266,8 +277,13 @@ where
             }
 
             // Pick the best accepted move index
+            let mut accepted_move_signature = None;
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
                 let selected_move = self.arena.take(selected_index);
+                if requires_move_signatures {
+                    accepted_move_signature =
+                        Some(selected_move.tabu_signature(step_scope.score_director()));
+                }
                 step_scope.apply_committed_move(&selected_move);
                 step_scope.set_step_score(selected_score);
 
@@ -287,7 +303,8 @@ where
             the history must advance every step — even steps where no move
             was accepted — otherwise the acceptor state stalls.
             */
-            self.acceptor.step_ended(&last_step_score);
+            self.acceptor
+                .step_ended(&last_step_score, accepted_move_signature.as_ref());
 
             step_scope.complete();
         }

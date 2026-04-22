@@ -6,6 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::Score;
 
 use super::Acceptor;
+use crate::heuristic::r#move::MoveTabuSignature;
 
 /// Diversified late acceptance acceptor - combines late acceptance with best score tracking.
 ///
@@ -108,7 +109,12 @@ impl<S: PlanningSolution> Default for DiversifiedLateAcceptanceAcceptor<S> {
 }
 
 impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
-    fn is_accepted(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool {
+    fn is_accepted(
+        &mut self,
+        last_step_score: &S::Score,
+        move_score: &S::Score,
+        _move_signature: Option<&MoveTabuSignature>,
+    ) -> bool {
         // Accept non-worsening moves (consistent with LateAcceptanceAcceptor which uses >=)
         if move_score >= last_step_score {
             return true;
@@ -146,7 +152,11 @@ impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
         self.best_score = Some(*initial_score);
     }
 
-    fn step_ended(&mut self, step_score: &S::Score) {
+    fn step_ended(
+        &mut self,
+        step_score: &S::Score,
+        _accepted_move_signature: Option<&MoveTabuSignature>,
+    ) {
         // Update best score if improved
         if let Some(best) = &self.best_score {
             if step_score > best {

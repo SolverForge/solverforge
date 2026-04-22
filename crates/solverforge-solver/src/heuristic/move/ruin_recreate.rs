@@ -6,7 +6,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::{Director, RecordingDirector};
 
-use super::metadata::{encode_option_usize, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken};
+use super::metadata::{
+    encode_option_usize, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+};
 use super::{ChangeMove, Move, MoveTabuSignature};
 
 pub enum ScalarRecreateValueSource<S> {

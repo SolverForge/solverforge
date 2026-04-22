@@ -859,9 +859,8 @@ Scalar-only, list-only, and mixed planning models now target the same canonical 
 
 `log_solve_start()` in the same module emits shape-specific startup telemetry:
 list solves log `element_count`, scalar solves log average
-`candidate_count`, and generic solution-level logging falls back to
-`value_count`. Console formatting uses those fields to label startup scale as
-`elements`, `candidates`, or `values`.
+`candidate_count`. Console formatting uses those fields to label startup scale
+as `elements` or `candidates`.
 
 ### `run_solver()` / `run_solver_with_config()` — `run.rs`
 

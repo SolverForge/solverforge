@@ -426,10 +426,7 @@ where
                     (binding.getter)(binding.entity_for_index(&descriptor, solution, entity_index)),
                 )
             }),
-            &build_sub_pillar_config(
-                self.minimum_sub_pillar_size,
-                self.maximum_sub_pillar_size,
-            ),
+            &build_sub_pillar_config(self.minimum_sub_pillar_size, self.maximum_sub_pillar_size),
         )
         .into_iter()
         .flat_map(move |group| {
@@ -443,19 +440,19 @@ where
             })
             .into_iter()
             .filter(move |&value| value != group.shared_value)
-                .map({
-                    let binding = binding.clone();
-                    let descriptor = descriptor.clone();
-                    let entity_indices = entity_indices.clone();
-                    move |value| {
-                        DescriptorScalarMoveUnion::PillarChange(DescriptorPillarChangeMove::new(
-                            binding.clone(),
-                            entity_indices.clone(),
-                            Some(value),
-                            descriptor.clone(),
-                        ))
-                    }
-                })
+            .map({
+                let binding = binding.clone();
+                let descriptor = descriptor.clone();
+                let entity_indices = entity_indices.clone();
+                move |value| {
+                    DescriptorScalarMoveUnion::PillarChange(DescriptorPillarChangeMove::new(
+                        binding.clone(),
+                        entity_indices.clone(),
+                        Some(value),
+                        descriptor.clone(),
+                    ))
+                }
+            })
         })
         .collect();
         moves.into_iter()
@@ -507,10 +504,7 @@ where
                     (binding.getter)(binding.entity_for_index(&descriptor, solution, entity_index)),
                 )
             }),
-            &build_sub_pillar_config(
-                self.minimum_sub_pillar_size,
-                self.maximum_sub_pillar_size,
-            ),
+            &build_sub_pillar_config(self.minimum_sub_pillar_size, self.maximum_sub_pillar_size),
         );
         let mut moves = Vec::new();
         for left_index in 0..pillars.len() {
@@ -518,7 +512,9 @@ where
                 if !pillars_are_swap_compatible(
                     &pillars[left_index],
                     &pillars[right_index],
-                    |entity_index| binding.values_for_entity_index(&descriptor, solution, entity_index),
+                    |entity_index| {
+                        binding.values_for_entity_index(&descriptor, solution, entity_index)
+                    },
                 ) {
                     continue;
                 }

@@ -317,9 +317,6 @@ where
             ],
         )
         .with_entity_tokens(entity_tokens)
-        .with_destination_value_tokens([
-            scope.value_token(second_id),
-            scope.value_token(first_id),
-        ])
+        .with_destination_value_tokens([scope.value_token(second_id), scope.value_token(first_id)])
     }
 }

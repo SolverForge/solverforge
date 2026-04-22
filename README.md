@@ -290,9 +290,8 @@ fn main() {
 
 With `features = ["console"]`, SolverForge displays colorful progress:
 
-The solve-start line is shape-aware: list models show `elements`, scalar
-models show average `candidates`, and generic solution-level logging keeps
-`values`.
+The solve-start line is shape-aware: list models show `elements`, and scalar
+models show average `candidates`.
 
 ```
  ____        _                 _____
@@ -514,7 +513,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 - **Scalar is now the canonical public name for non-list planning variables**: runtime metadata, macro-generated helpers, solve-shape output, and the coordinated docs surface now use `scalar` terminology consistently.
 - **Scalar nearby selectors are model-declared capabilities**: `#[planning_variable]` supports `nearby_value_distance_meter` and `nearby_entity_distance_meter`, and runtime assembly threads those hooks through the canonical typed scalar contexts.
-- **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates` rather than generic `values`.
+- **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates` with no legacy `values` fallback.
 
 ### What's New in 0.8.12
 

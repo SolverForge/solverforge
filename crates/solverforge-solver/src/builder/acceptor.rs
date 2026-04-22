@@ -214,11 +214,9 @@ impl AcceptorBuilder {
                 ))
             }
 
-            AcceptorConfig::TabuSearch(tabu_config) => {
-                AnyAcceptor::TabuSearch(TabuSearchAcceptor::<S>::new(
-                    normalize_tabu_search_policy(tabu_config),
-                ))
-            }
+            AcceptorConfig::TabuSearch(tabu_config) => AnyAcceptor::TabuSearch(
+                TabuSearchAcceptor::<S>::new(normalize_tabu_search_policy(tabu_config)),
+            ),
 
             AcceptorConfig::SimulatedAnnealing(sa_config) => {
                 let starting_temp = sa_config.starting_temperature.as_ref().map(|s| {
@@ -290,8 +288,7 @@ fn normalize_tabu_search_policy(config: &TabuSearchConfig) -> TabuSearchPolicy {
     let entity_tabu_size = validate_tabu_size("entity_tabu_size", config.entity_tabu_size);
     let value_tabu_size = validate_tabu_size("value_tabu_size", config.value_tabu_size);
     let move_tabu_size = validate_tabu_size("move_tabu_size", config.move_tabu_size);
-    let undo_move_tabu_size =
-        validate_tabu_size("undo_move_tabu_size", config.undo_move_tabu_size);
+    let undo_move_tabu_size = validate_tabu_size("undo_move_tabu_size", config.undo_move_tabu_size);
     let aspiration_enabled = config.aspiration_enabled.unwrap_or(true);
 
     if entity_tabu_size.is_none()

@@ -392,7 +392,8 @@ fn pillar_swap_prunes_illegal_entity_slice_partners() {
     for mov in &moves {
         assert!(mov.is_doable(&director));
         if let crate::heuristic::r#move::ScalarMoveUnion::PillarSwap(swap) = mov {
-            let left_value = get_worker(director.working_solution(), swap.left_indices()[0]).unwrap();
+            let left_value =
+                get_worker(director.working_solution(), swap.left_indices()[0]).unwrap();
             let right_value =
                 get_worker(director.working_solution(), swap.right_indices()[0]).unwrap();
             swap_pairs.push((left_value, right_value));

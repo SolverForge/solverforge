@@ -8,12 +8,12 @@ mod acceptor;
 mod forager;
 mod phase;
 
+pub(crate) use acceptor::TabuSearchPolicy;
 pub use acceptor::{
     Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HillClimbingAcceptor,
     LateAcceptanceAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
     TabuSearchAcceptor,
 };
-pub(crate) use acceptor::TabuSearchPolicy;
 pub use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
     FirstLastStepScoreImprovingForager, LocalSearchForager,

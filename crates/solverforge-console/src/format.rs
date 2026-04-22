@@ -62,23 +62,22 @@ fn format_elapsed_duration(duration: Duration) -> String {
 fn format_solve_start(v: &EventVisitor) -> String {
     mark_solve_start();
     let entities = v.entity_count.unwrap_or(0);
-    let values = v.value_count.unwrap_or(0);
-    let value_label = match v.solve_shape.as_deref() {
+    let scale_count = v.scale_count.unwrap_or(0);
+    let scale_label = match v.solve_shape.as_deref() {
         Some("list") => "elements",
-        Some("scalar") => "candidates",
-        _ => "values",
+        _ => "candidates",
     };
     let constraints = v.constraint_count.unwrap_or(0);
     let time_limit = v.time_limit_secs.unwrap_or(0);
-    let scale = calculate_problem_scale(entities as usize, values as usize);
+    let scale = calculate_problem_scale(entities as usize, scale_count as usize);
 
     let mut output = format!(
         "{} {} Solving │ {} entities │ {} {} │ scale {}",
         format_elapsed(),
         "▶".bright_green().bold(),
         entities.to_formatted_string(&Locale::en).bright_yellow(),
-        values.to_formatted_string(&Locale::en).bright_yellow(),
-        value_label,
+        scale_count.to_formatted_string(&Locale::en).bright_yellow(),
+        scale_label,
         scale.bright_magenta()
     );
 
@@ -469,12 +468,12 @@ fn format_score(score: &str) -> String {
     score.white().to_string()
 }
 
-fn calculate_problem_scale(entity_count: usize, value_count: usize) -> String {
-    if entity_count == 0 || value_count == 0 {
+fn calculate_problem_scale(entity_count: usize, scale_count: usize) -> String {
+    if entity_count == 0 || scale_count == 0 {
         return "0".to_string();
     }
 
-    let log_scale = (entity_count as f64) * (value_count as f64).log10();
+    let log_scale = (entity_count as f64) * (scale_count as f64).log10();
     let exponent = log_scale.floor() as i32;
     let mantissa = 10f64.powf(log_scale - exponent as f64);
 

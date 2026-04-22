@@ -168,30 +168,28 @@ where
 pub fn log_solve_start(
     entity_count: usize,
     element_count: Option<usize>,
-    has_scalar: Option<bool>,
     candidate_count: Option<usize>,
 ) {
-    if let Some(element_count) = element_count {
-        info!(
-            event = "solve_start",
-            entity_count = entity_count,
-            element_count = element_count,
-            solve_shape = "list",
-        );
-    } else if has_scalar.unwrap_or(candidate_count.is_some()) {
-        info!(
-            event = "solve_start",
-            entity_count = entity_count,
-            candidate_count = candidate_count.unwrap_or(0),
-            solve_shape = "scalar",
-        );
-    } else {
-        info!(
-            event = "solve_start",
-            entity_count = entity_count,
-            value_count = candidate_count.unwrap_or(0),
-            solve_shape = "solution",
-        );
+    match (element_count, candidate_count) {
+        (Some(element_count), None) => {
+            info!(
+                event = "solve_start",
+                entity_count = entity_count,
+                element_count = element_count,
+                solve_shape = "list",
+            );
+        }
+        (None, Some(candidate_count)) => {
+            info!(
+                event = "solve_start",
+                entity_count = entity_count,
+                candidate_count = candidate_count,
+                solve_shape = "scalar",
+            );
+        }
+        _ => {
+            panic!("log_solve_start requires exactly one solve scale: list elements or scalar candidates");
+        }
     }
 }
 

@@ -96,7 +96,8 @@ where
     }
 
     for entity in pillar.iter().skip(1) {
-        let legal_values: HashSet<usize> = values_for_entity(entity.entity_index).into_iter().collect();
+        let legal_values: HashSet<usize> =
+            values_for_entity(entity.entity_index).into_iter().collect();
         intersection.retain(|value| legal_values.contains(value));
         if intersection.is_empty() {
             break;

@@ -547,10 +547,12 @@ where
             return false;
         };
 
-        let Some(left_value) = self.current_value(score_director.working_solution(), left_index) else {
+        let Some(left_value) = self.current_value(score_director.working_solution(), left_index)
+        else {
             return false;
         };
-        let Some(right_value) = self.current_value(score_director.working_solution(), right_index) else {
+        let Some(right_value) = self.current_value(score_director.working_solution(), right_index)
+        else {
             return false;
         };
         if left_value == right_value {
@@ -705,7 +707,10 @@ where
 
         MoveTabuSignature::new(scope, move_id.clone(), move_id)
             .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens([scope.value_token(right_id), scope.value_token(left_id)])
+            .with_destination_value_tokens([
+                scope.value_token(right_id),
+                scope.value_token(left_id),
+            ])
     }
 }
 

@@ -202,7 +202,7 @@ Used exclusively by macro-generated code. Not public API.
 
 - **Pure re-export crate.** Contains zero implementation logic — only `pub use` statements and the `__internal` module.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
-- **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves, average `candidate_count` for scalar solves, and `value_count` for generic solution-level logging so console startup output can label the scale correctly.
+- **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
 - **Retained lifecycle surface.** The facade re-exports the retained job / snapshot / checkpoint lifecycle contract from `solverforge-solver`, including exact pause/resume, lifecycle-complete events, and snapshot-bound analysis types.
 - **Prelude** provides the minimal set of types needed for defining domain models and constraints. Users import `use solverforge::prelude::*` and get attribute macros, score types, constraint traits, and the stream API.
 - **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.

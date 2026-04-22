@@ -107,7 +107,8 @@ fn late_acceptance_uses_late_score_threshold() {
 
 #[test]
 fn tabu_search_blocks_recent_entities_and_allows_aspiration() {
-    let mut acceptor = TabuSearchAcceptor::<DummySolution>::new(policy(Some(3), None, None, None, true));
+    let mut acceptor =
+        TabuSearchAcceptor::<DummySolution>::new(policy(Some(3), None, None, None, true));
     let first = signature(0, "worker", &[7], &[], &[10], &[11]);
     let second = signature(0, "worker", &[7], &[], &[12], &[13]);
 
@@ -121,7 +122,8 @@ fn tabu_search_blocks_recent_entities_and_allows_aspiration() {
 
 #[test]
 fn tabu_search_blocks_recent_values() {
-    let mut acceptor = TabuSearchAcceptor::<DummySolution>::new(policy(None, Some(2), None, None, false));
+    let mut acceptor =
+        TabuSearchAcceptor::<DummySolution>::new(policy(None, Some(2), None, None, false));
     let first = signature(0, "worker", &[], &[42], &[10], &[11]);
     let second = signature(0, "worker", &[], &[42], &[12], &[13]);
 

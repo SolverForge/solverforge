@@ -388,18 +388,21 @@ where
                     entity_index,
                 )
             });
-            moves.extend(legal_values.into_iter().filter(|&value| value != current_value).map(
-                |value| {
-                    ScalarMoveUnion::PillarChange(PillarChangeMove::new(
-                        entity_indices.clone(),
-                        Some(value),
-                        self.ctx.getter,
-                        self.ctx.setter,
-                        self.ctx.variable_name,
-                        self.ctx.descriptor_index,
-                    ))
-                },
-            ));
+            moves.extend(
+                legal_values
+                    .into_iter()
+                    .filter(|&value| value != current_value)
+                    .map(|value| {
+                        ScalarMoveUnion::PillarChange(PillarChangeMove::new(
+                            entity_indices.clone(),
+                            Some(value),
+                            self.ctx.getter,
+                            self.ctx.setter,
+                            self.ctx.variable_name,
+                            self.ctx.descriptor_index,
+                        ))
+                    }),
+            );
         }
 
         moves.into_iter()

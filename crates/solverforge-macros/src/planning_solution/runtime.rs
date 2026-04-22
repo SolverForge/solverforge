@@ -672,14 +672,12 @@ pub(super) fn generate_runtime_phase_support(
 
                 fn __solverforge_log_scale(solution: &Self) {
                     let descriptor = Self::descriptor();
-                    let has_scalar = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
                     if Self::__solverforge_has_list_variable() {
                         ::solverforge::__internal::log_solve_start(
                             Self::__solverforge_total_list_entities(solution),
                             ::core::option::Option::Some(
                                 Self::__solverforge_total_list_elements(solution),
                             ),
-                            ::core::option::Option::Some(has_scalar),
                             ::core::option::Option::None,
                         );
                     } else {
@@ -687,7 +685,6 @@ pub(super) fn generate_runtime_phase_support(
                             descriptor
                                 .total_entity_count(solution as &dyn ::std::any::Any)
                                 .unwrap_or(0),
-                            ::core::option::Option::None,
                             ::core::option::Option::None,
                             ::core::option::Option::Some(
                                 Self::__solverforge_scalar_candidate_count(solution),
@@ -783,7 +780,6 @@ pub(super) fn generate_runtime_phase_support(
                     descriptor
                         .total_entity_count(solution as &dyn ::std::any::Any)
                         .unwrap_or(0),
-                    ::core::option::Option::None,
                     ::core::option::Option::None,
                     ::core::option::Option::Some(
                         Self::__solverforge_scalar_candidate_count(solution),

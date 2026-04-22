@@ -189,7 +189,8 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
         accepted_move_signature: Option<&MoveTabuSignature>,
     ) {
         if let Some(signature) = accepted_move_signature {
-            self.entity_memory.record_many(signature.entity_tokens.iter());
+            self.entity_memory
+                .record_many(signature.entity_tokens.iter());
             self.value_memory
                 .record_many(signature.destination_value_tokens.iter());
             self.move_memory.record(signature.move_id.clone());

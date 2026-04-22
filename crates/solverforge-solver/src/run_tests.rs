@@ -1,4 +1,4 @@
-use super::load_solver_config_from;
+use super::{load_solver_config_from, log_solve_start};
 use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -42,4 +42,32 @@ construction_heuristic_type = "first_fit"
     assert_eq!(config.phases.len(), 1);
 
     fs::remove_dir_all(parent).expect("temp directory should be removed");
+}
+
+#[test]
+fn log_solve_start_rejects_missing_scale() {
+    let panic = std::panic::catch_unwind(|| log_solve_start(4, None, None))
+        .expect_err("missing solve scale must panic");
+    let message = if let Some(message) = panic.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = panic.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        panic!("unexpected panic payload");
+    };
+    assert!(message.contains("requires exactly one solve scale"));
+}
+
+#[test]
+fn log_solve_start_rejects_ambiguous_scale() {
+    let panic = std::panic::catch_unwind(|| log_solve_start(4, Some(3), Some(9)))
+        .expect_err("ambiguous solve scale must panic");
+    let message = if let Some(message) = panic.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = panic.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        panic!("unexpected panic payload");
+    };
+    assert!(message.contains("requires exactly one solve scale"));
 }

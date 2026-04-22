@@ -243,6 +243,9 @@ where
 
         MoveTabuSignature::new(scope, move_id.clone(), move_id)
             .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens([scope.value_token(right_id), scope.value_token(left_id)])
+            .with_destination_value_tokens([
+                scope.value_token(right_id),
+                scope.value_token(left_id),
+            ])
     }
 }

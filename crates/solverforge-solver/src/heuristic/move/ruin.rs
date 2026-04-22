@@ -15,7 +15,9 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::metadata::{encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken};
+use super::metadata::{
+    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+};
 use super::{Move, MoveTabuSignature};
 
 /// A move that unassigns multiple entities for Large Neighborhood Search.

@@ -757,8 +757,12 @@ fn descriptor_manual_illegal_pillar_moves_are_not_doable() {
         .next()
         .expect("restricted descriptor binding");
 
-    let illegal_change =
-        super::DescriptorPillarChangeMove::new(binding.clone(), vec![0, 1], Some(1), descriptor.clone());
+    let illegal_change = super::DescriptorPillarChangeMove::new(
+        binding.clone(),
+        vec![0, 1],
+        Some(1),
+        descriptor.clone(),
+    );
     let illegal_swap =
         super::DescriptorPillarSwapMove::new(binding, vec![0, 1], vec![2, 3], descriptor);
 

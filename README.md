@@ -37,7 +37,7 @@ Open http://localhost:7860 to see your solver in action.
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
-The generated runtime now builds one `ModelContext` for every planning model. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar matches reuse the descriptor-scalar scalar path. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
+The generated runtime now builds one `ModelContext` for every planning model. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar targets reuse the descriptor-scalar path. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
 Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
 Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
 
@@ -51,6 +51,7 @@ Generated applications and normal `solverforge` facade usage keep the same synta
 - `README.md` is the user-facing entry point for the workspace and generated-project integration model.
 - `docs/extend-solver.md` and `docs/extend-domain.md` cover scaffold extension workflows.
 - `docs/lifecycle-pause-resume-contract.md` defines the retained lifecycle contract, including exact pause/resume semantics, snapshot identity, and terminal-state cleanup rules.
+- `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology and selector-family cleanup.
 - `docs/typed-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.
@@ -75,7 +76,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 - **ConstraintStream API**: Declarative constraint definition with fluent builders
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar scalar routing for pure scalar matches and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
+  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar routing for pure scalar targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
@@ -290,7 +291,7 @@ fn main() {
 With `features = ["console"]`, SolverForge displays colorful progress:
 
 The solve-start line is shape-aware: list models show `elements`, scalar
-models show average `candidates`, and legacy/basic solution logging keeps
+models show average `candidates`, and generic solution-level logging keeps
 `values`.
 
 ```
@@ -511,6 +512,8 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ### What's New in 0.9.0
 
+- **Scalar is now the canonical public name for non-list planning variables**: runtime metadata, macro-generated helpers, solve-shape output, and the coordinated docs surface now use `scalar` terminology consistently.
+- **Scalar nearby selectors are model-declared capabilities**: `#[planning_variable]` supports `nearby_value_distance_meter` and `nearby_entity_distance_meter`, and runtime assembly threads those hooks through the canonical typed scalar contexts.
 - **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates` rather than generic `values`.
 
 ### What's New in 0.8.12
@@ -526,7 +529,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ### What's New in 0.8.8
 
-- **Streaming-first default neighborhoods**: omitting `move_selector` now resolves to explicit streaming defaults instead of broad exhaustive search. Scalar models default to change moves only; list models default to nearby change, nearby swap, and list reverse; mixed models concatenate the list defaults before scalar change.
+- **Streaming-first default neighborhoods**: omitting `move_selector` now resolves to explicit streaming defaults instead of broad exhaustive search. Scalar models default to change plus swap; list models default to nearby change, nearby swap, and list reverse; mixed models concatenate the list defaults before the scalar defaults.
 - **Exact retained telemetry**: retained status/events now preserve generated/evaluated/accepted move counts and generation/evaluation `Duration`s through the solver pipeline. Human-facing `moves/s` remains an edge-derived display metric only.
 
 ### What's New in 0.8.6

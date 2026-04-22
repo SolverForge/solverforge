@@ -3,7 +3,7 @@
 Core types and traits for the SolverForge constraint solver framework.
 
 **Location:** `crates/solverforge-core/`
-**Workspace Release:** `0.8.13`
+**Workspace Release:** `0.9.0`
 
 ## Dependencies
 
@@ -475,12 +475,17 @@ pub struct VariableDescriptor {
     pub value_range_type: ValueRangeType,
     pub source_variable: Option<&'static str>,
     pub source_entity: Option<&'static str>,
+    pub usize_getter: Option<UsizeGetter>,
+    pub usize_setter: Option<UsizeSetter>,
+    pub entity_value_provider: Option<UsizeEntityValueProvider>,
+    pub nearby_value_distance_meter: Option<UsizeNearbyValueDistanceMeter>,
+    pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>,
 }
 ```
 
 Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
 
-Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`
+Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`
 
 ### Supply Types
 

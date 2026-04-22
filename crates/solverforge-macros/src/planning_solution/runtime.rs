@@ -6,7 +6,7 @@ use syn::Ident;
 
 use super::type_helpers::extract_collection_inner_type;
 use crate::attr_parse::has_attribute;
-use crate::standard_registry::lookup_standard_entity_metadata;
+use crate::scalar_registry::lookup_scalar_entity_metadata;
 
 pub(super) fn generate_runtime_solve_internal(
     constraints_path: &Option<String>,
@@ -103,7 +103,7 @@ fn generate_scalar_runtime_setup(
                 return None;
             };
             let type_name = type_path.path.segments.last()?.ident.to_string();
-            let metadata = lookup_standard_entity_metadata(&type_name)?;
+            let metadata = lookup_scalar_entity_metadata(&type_name)?;
             if metadata.variables.is_empty() {
                 return None;
             }
@@ -128,7 +128,7 @@ fn generate_scalar_runtime_setup(
         .map(|provider_field_name| {
             let provider_ident = format_ident!("{provider_field_name}");
             let count_fn_ident =
-                format_ident!("__solverforge_standard_count_{}", provider_field_name);
+                format_ident!("__solverforge_scalar_count_{}", provider_field_name);
             quote! {
                 fn #count_fn_ident(solution: &#solution_name) -> usize {
                     solution.#provider_ident.len()
@@ -140,7 +140,7 @@ fn generate_scalar_runtime_setup(
     let entity_count_helpers: Vec<_> = entity_fields
         .iter()
         .map(|(_, field_name, _, _, _)| {
-            let count_fn_ident = format_ident!("__solverforge_standard_count_{}", field_name);
+            let count_fn_ident = format_ident!("__solverforge_scalar_count_{}", field_name);
             quote! {
                 fn #count_fn_ident(solution: &#solution_name) -> usize {
                     solution.#field_name.len()
@@ -157,24 +157,24 @@ fn generate_scalar_runtime_setup(
                 let variable_name = &variable.field_name;
                 let allows_unassigned = variable.allows_unassigned;
                 let getter_ident = format_ident!(
-                    "__solverforge_standard_get_{}_{}",
+                    "__solverforge_scalar_get_{}_{}",
                     field_name,
                     variable.field_name
                 );
                 let setter_ident = format_ident!(
-                    "__solverforge_standard_set_{}_{}",
+                    "__solverforge_scalar_set_{}_{}",
                     field_name,
                     variable.field_name
                 );
                 let entity_count_fn_ident =
-                    format_ident!("__solverforge_standard_count_{}", field_name);
+                    format_ident!("__solverforge_scalar_count_{}", field_name);
                 let typed_getter_ident =
                     format_ident!("__solverforge_get_{}_typed", variable.field_name);
                 let typed_setter_ident =
                     format_ident!("__solverforge_set_{}_typed", variable.field_name);
                 let maybe_slice_helper = if variable.provider_is_entity_field {
                     let slice_ident = format_ident!(
-                        "__solverforge_standard_values_{}_{}",
+                        "__solverforge_scalar_values_{}_{}",
                         field_name,
                         variable.field_name
                     );
@@ -194,7 +194,7 @@ fn generate_scalar_runtime_setup(
 
                 let value_source = if variable.provider_is_entity_field {
                     let slice_ident = format_ident!(
-                        "__solverforge_standard_values_{}_{}",
+                        "__solverforge_scalar_values_{}_{}",
                         field_name,
                         variable.field_name
                     );
@@ -205,10 +205,10 @@ fn generate_scalar_runtime_setup(
                     }
                 } else if let Some((from, to)) = variable.countable_range {
                     let from_usize = usize::try_from(from).expect(
-                        "countable_range start must be non-negative for canonical standard solving",
+                        "countable_range start must be non-negative for canonical scalar solving",
                     );
                     let to_usize = usize::try_from(to).expect(
-                        "countable_range end must be non-negative for canonical standard solving",
+                        "countable_range end must be non-negative for canonical scalar solving",
                     );
                     quote! {
                         ::solverforge::__internal::ValueSource::CountableRange {
@@ -218,7 +218,7 @@ fn generate_scalar_runtime_setup(
                     }
                 } else if let Some(provider_field_name) = &variable.value_range_provider {
                     let count_fn_ident =
-                        format_ident!("__solverforge_standard_count_{}", provider_field_name);
+                        format_ident!("__solverforge_scalar_count_{}", provider_field_name);
                     quote! {
                         ::solverforge::__internal::ValueSource::SolutionCount {
                             count_fn: #count_fn_ident,
@@ -226,6 +226,83 @@ fn generate_scalar_runtime_setup(
                     }
                 } else {
                     quote! { ::solverforge::__internal::ValueSource::Empty }
+                };
+
+                let nearby_value_distance_helper =
+                    if let Some(meter_name) = &variable.nearby_value_distance_meter {
+                        let meter_ident = format_ident!("{meter_name}");
+                        let helper_ident = format_ident!(
+                            "__solverforge_scalar_nearby_value_distance_{}_{}",
+                            field_name,
+                            variable.field_name
+                        );
+                        quote! {
+                            fn #helper_ident(
+                                solution: &#solution_name,
+                                entity_index: usize,
+                                value: usize,
+                            ) -> f64 {
+                                let entity = &solution.#field_name[entity_index];
+                                #meter_ident(solution, entity, value)
+                            }
+                        }
+                    } else {
+                        TokenStream::new()
+                    };
+
+                let nearby_entity_distance_helper =
+                    if let Some(meter_name) = &variable.nearby_entity_distance_meter {
+                        let meter_ident = format_ident!("{meter_name}");
+                        let helper_ident = format_ident!(
+                            "__solverforge_scalar_nearby_entity_distance_{}_{}",
+                            field_name,
+                            variable.field_name
+                        );
+                        quote! {
+                            fn #helper_ident(
+                                solution: &#solution_name,
+                                left_entity_index: usize,
+                                right_entity_index: usize,
+                            ) -> f64 {
+                                let left = &solution.#field_name[left_entity_index];
+                                let right = &solution.#field_name[right_entity_index];
+                                #meter_ident(solution, left, right)
+                            }
+                        }
+                    } else {
+                        TokenStream::new()
+                    };
+
+                let nearby_value_distance_attach = if variable
+                    .nearby_value_distance_meter
+                    .is_some()
+                {
+                    let helper_ident = format_ident!(
+                        "__solverforge_scalar_nearby_value_distance_{}_{}",
+                        field_name,
+                        variable.field_name
+                    );
+                    quote! {
+                        .with_nearby_value_distance_meter(#helper_ident)
+                    }
+                } else {
+                    TokenStream::new()
+                };
+
+                let nearby_entity_distance_attach = if variable
+                    .nearby_entity_distance_meter
+                    .is_some()
+                {
+                    let helper_ident = format_ident!(
+                        "__solverforge_scalar_nearby_entity_distance_{}_{}",
+                        field_name,
+                        variable.field_name
+                    );
+                    quote! {
+                        .with_nearby_entity_distance_meter(#helper_ident)
+                    }
+                } else {
+                    TokenStream::new()
                 };
 
                 quote! {
@@ -248,6 +325,8 @@ fn generate_scalar_runtime_setup(
                     }
 
                     #maybe_slice_helper
+                    #nearby_value_distance_helper
+                    #nearby_entity_distance_helper
 
                     __solverforge_variables.push(
                         ::solverforge::__internal::VariableContext::Scalar(
@@ -261,6 +340,8 @@ fn generate_scalar_runtime_setup(
                                 #value_source,
                                 #allows_unassigned,
                             )
+                            #nearby_value_distance_attach
+                            #nearby_entity_distance_attach
                         )
                     );
                 }
@@ -277,7 +358,7 @@ fn generate_scalar_runtime_setup(
     }
 }
 
-fn generate_standard_candidate_count_helper(
+fn generate_scalar_candidate_count_helper(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     solution_name: &Ident,
 ) -> TokenStream {
@@ -291,7 +372,7 @@ fn generate_standard_candidate_count_helper(
                 return None;
             };
             let type_name = type_path.path.segments.last()?.ident.to_string();
-            let metadata = lookup_standard_entity_metadata(&type_name)?;
+            let metadata = lookup_scalar_entity_metadata(&type_name)?;
             if metadata.variables.is_empty() {
                 return None;
             }
@@ -342,7 +423,7 @@ fn generate_standard_candidate_count_helper(
         .collect();
 
     quote! {
-        fn __solverforge_standard_candidate_count(solution: &#solution_name) -> usize {
+        fn __solverforge_scalar_candidate_count(solution: &#solution_name) -> usize {
             let mut total_slots = 0usize;
             let mut total_candidates = 0usize;
             #(#candidate_accumulators)*
@@ -378,9 +459,9 @@ pub(super) fn generate_runtime_phase_support(
             Some((idx, field_ident, field_type, type_name))
         })
         .collect();
-    let standard_setup = generate_scalar_runtime_setup(fields, solution_name);
-    let standard_candidate_count_helper =
-        generate_standard_candidate_count_helper(fields, solution_name);
+    let scalar_setup = generate_scalar_runtime_setup(fields, solution_name);
+    let scalar_candidate_count_helper =
+        generate_scalar_candidate_count_helper(fields, solution_name);
 
     if !list_owners.is_empty() {
         let cross_enum_ident = format_ident!("__{}CrossDistanceMeter", solution_name);
@@ -555,7 +636,7 @@ pub(super) fn generate_runtime_phase_support(
             }
 
             impl #solution_name {
-                #standard_candidate_count_helper
+                #scalar_candidate_count_helper
 
                 fn __solverforge_default_time_limit_secs() -> u64 {
                     if Self::__solverforge_has_list_variable() {
@@ -572,7 +653,7 @@ pub(super) fn generate_runtime_phase_support(
 
                 fn __solverforge_is_trivial(solution: &Self) -> bool {
                     let descriptor = Self::descriptor();
-                    let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
+                    let has_scalar = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
                     let total_entity_count = descriptor
                         .total_entity_count(solution as &dyn ::std::any::Any)
                         .unwrap_or(0);
@@ -581,24 +662,24 @@ pub(super) fn generate_runtime_phase_support(
                     }
 
                     if !Self::__solverforge_has_list_variable() {
-                        return !has_standard;
+                        return !has_scalar;
                     }
 
                     let has_list = Self::__solverforge_total_list_entities(solution) > 0
                         && Self::__solverforge_total_list_elements(solution) > 0;
-                    !has_standard && !has_list
+                    !has_scalar && !has_list
                 }
 
                 fn __solverforge_log_scale(solution: &Self) {
                     let descriptor = Self::descriptor();
-                    let has_standard = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
+                    let has_scalar = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
                     if Self::__solverforge_has_list_variable() {
                         ::solverforge::__internal::log_solve_start(
                             Self::__solverforge_total_list_entities(solution),
                             ::core::option::Option::Some(
                                 Self::__solverforge_total_list_elements(solution),
                             ),
-                            ::core::option::Option::Some(has_standard),
+                            ::core::option::Option::Some(has_scalar),
                             ::core::option::Option::None,
                         );
                     } else {
@@ -609,7 +690,7 @@ pub(super) fn generate_runtime_phase_support(
                             ::core::option::Option::None,
                             ::core::option::Option::None,
                             ::core::option::Option::Some(
-                                Self::__solverforge_standard_candidate_count(solution),
+                                Self::__solverforge_scalar_candidate_count(solution),
                             ),
                         );
                     }
@@ -640,7 +721,7 @@ pub(super) fn generate_runtime_phase_support(
                     >
                 > {
                     let descriptor = Self::descriptor();
-                    #standard_setup
+                    #scalar_setup
                     #(#list_runtime_setup)*
                     __solverforge_variables.sort_by_key(|variable| {
                         let (descriptor_index, variable_name) = match variable {
@@ -681,7 +762,7 @@ pub(super) fn generate_runtime_phase_support(
 
     quote! {
         impl #solution_name {
-            #standard_candidate_count_helper
+            #scalar_candidate_count_helper
 
             const fn __solverforge_default_time_limit_secs() -> u64 {
                 30
@@ -705,7 +786,7 @@ pub(super) fn generate_runtime_phase_support(
                     ::core::option::Option::None,
                     ::core::option::Option::None,
                     ::core::option::Option::Some(
-                        Self::__solverforge_standard_candidate_count(solution),
+                        Self::__solverforge_scalar_candidate_count(solution),
                     ),
                 );
             }
@@ -735,7 +816,7 @@ pub(super) fn generate_runtime_phase_support(
                 >
             > {
                 let descriptor = Self::descriptor();
-                #standard_setup
+                #scalar_setup
                 let model = ::solverforge::__internal::ModelContext::<
                     #solution_name,
                     usize,

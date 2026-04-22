@@ -9,8 +9,8 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::builder::{build_local_search, build_vnd, LocalSearch, ModelContext, Vnd};
-use crate::descriptor_standard::{
-    build_descriptor_construction, standard_work_remaining_with_frontier,
+use crate::descriptor_scalar::{
+    build_descriptor_construction, scalar_work_remaining_with_frontier,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::manager::solve_specialized_list_construction;
@@ -106,7 +106,7 @@ fn is_list_only_heuristic(heuristic: ConstructionHeuristicType) -> bool {
     )
 }
 
-fn is_standard_only_heuristic(heuristic: ConstructionHeuristicType) -> bool {
+fn is_scalar_only_heuristic(heuristic: ConstructionHeuristicType) -> bool {
     matches!(
         heuristic,
         ConstructionHeuristicType::FirstFitDecreasing
@@ -119,12 +119,12 @@ fn is_standard_only_heuristic(heuristic: ConstructionHeuristicType) -> bool {
     )
 }
 
-fn should_use_descriptor_standard_path(
+fn should_use_descriptor_scalar_path(
     heuristic: ConstructionHeuristicType,
     has_matching_scalar: bool,
     has_matching_list: bool,
 ) -> bool {
-    has_matching_scalar && (!has_matching_list || is_standard_only_heuristic(heuristic))
+    has_matching_scalar && (!has_matching_list || is_scalar_only_heuristic(heuristic))
 }
 
 fn matching_list_variables<S, V, DM, IDM>(
@@ -276,15 +276,15 @@ where
             return;
         }
 
-        if should_use_descriptor_standard_path(heuristic, has_matching_scalar, has_matching_list) {
+        if should_use_descriptor_scalar_path(heuristic, has_matching_scalar, has_matching_list) {
             assert!(
                 !explicit_target || has_matching_scalar,
-                "standard construction heuristic {:?} does not match targeted standard planning variables for entity_class={:?} variable_name={:?}",
+                "scalar construction heuristic {:?} does not match targeted scalar planning variables for entity_class={:?} variable_name={:?}",
                 heuristic,
                 config.and_then(|cfg| cfg.target.entity_class.as_deref()),
                 config.and_then(|cfg| cfg.target.variable_name.as_deref()),
             );
-            let standard_remaining = standard_work_remaining_with_frontier(
+            let scalar_remaining = scalar_work_remaining_with_frontier(
                 &self.descriptor,
                 solver_scope.construction_frontier(),
                 solver_scope.solution_revision(),
@@ -300,7 +300,7 @@ where
                 },
                 solver_scope.working_solution(),
             );
-            if standard_remaining {
+            if scalar_remaining {
                 build_descriptor_construction(config, &self.descriptor).solve(solver_scope);
             } else {
                 finalize_noop_construction(solver_scope);
@@ -437,12 +437,12 @@ where
 
 #[cfg(test)]
 mod construction_routing_tests {
-    use super::should_use_descriptor_standard_path;
+    use super::should_use_descriptor_scalar_path;
     use solverforge_config::ConstructionHeuristicType;
 
     #[test]
-    fn pure_scalar_first_fit_uses_descriptor_standard_path() {
-        assert!(should_use_descriptor_standard_path(
+    fn pure_scalar_first_fit_uses_descriptor_scalar_path() {
+        assert!(should_use_descriptor_scalar_path(
             ConstructionHeuristicType::FirstFit,
             true,
             false,
@@ -450,8 +450,8 @@ mod construction_routing_tests {
     }
 
     #[test]
-    fn pure_scalar_cheapest_insertion_uses_descriptor_standard_path() {
-        assert!(should_use_descriptor_standard_path(
+    fn pure_scalar_cheapest_insertion_uses_descriptor_scalar_path() {
+        assert!(should_use_descriptor_scalar_path(
             ConstructionHeuristicType::CheapestInsertion,
             true,
             false,
@@ -460,7 +460,7 @@ mod construction_routing_tests {
 
     #[test]
     fn mixed_first_fit_keeps_generic_construction_path() {
-        assert!(!should_use_descriptor_standard_path(
+        assert!(!should_use_descriptor_scalar_path(
             ConstructionHeuristicType::FirstFit,
             true,
             true,
@@ -469,7 +469,7 @@ mod construction_routing_tests {
 
     #[test]
     fn mixed_cheapest_insertion_keeps_generic_construction_path() {
-        assert!(!should_use_descriptor_standard_path(
+        assert!(!should_use_descriptor_scalar_path(
             ConstructionHeuristicType::CheapestInsertion,
             true,
             true,
@@ -477,8 +477,8 @@ mod construction_routing_tests {
     }
 
     #[test]
-    fn standard_only_heuristics_still_route_to_descriptor_path() {
-        assert!(should_use_descriptor_standard_path(
+    fn scalar_only_heuristics_still_route_to_descriptor_path() {
+        assert!(should_use_descriptor_scalar_path(
             ConstructionHeuristicType::StrongestFit,
             true,
             true,

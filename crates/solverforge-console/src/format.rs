@@ -65,7 +65,7 @@ fn format_solve_start(v: &EventVisitor) -> String {
     let values = v.value_count.unwrap_or(0);
     let value_label = match v.solve_shape.as_deref() {
         Some("list") => "elements",
-        Some("standard") => "candidates",
+        Some("scalar") => "candidates",
         _ => "values",
     };
     let constraints = v.constraint_count.unwrap_or(0);

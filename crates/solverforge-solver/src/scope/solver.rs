@@ -284,14 +284,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.current_score.as_ref()
     }
 
-    pub(crate) fn is_standard_slot_completed(&self, slot_id: ConstructionSlotId) -> bool {
+    pub(crate) fn is_scalar_slot_completed(&self, slot_id: ConstructionSlotId) -> bool {
         self.construction_frontier
-            .is_standard_completed(slot_id, self.solution_revision)
+            .is_scalar_completed(slot_id, self.solution_revision)
     }
 
-    pub(crate) fn mark_standard_slot_completed(&mut self, slot_id: ConstructionSlotId) {
+    pub(crate) fn mark_scalar_slot_completed(&mut self, slot_id: ConstructionSlotId) {
         self.construction_frontier
-            .mark_standard_completed(slot_id, self.solution_revision);
+            .mark_scalar_completed(slot_id, self.solution_revision);
     }
 
     pub(crate) fn is_list_element_completed(&self, element_id: ConstructionListElementId) -> bool {

@@ -55,7 +55,7 @@ Audit the former `Typed*` / `typed_*` public surface, explain the architectural 
 - This remains a single breaking sweep with no compatibility shims, consistent with repository policy.
 - Macro expansion paths and facade re-exports are updated in the same change as the core and solver renames.
 - Relevant wireframes are updated in lockstep so the documented public surface matches the implemented API.
-- The selector method name `iter_typed(...)` is intentionally left as-is in this refactor. The drafts agreed on removing the public `Typed*` prefixes first; a method-level rename can be handled separately if the project wants that additional API break.
+- The selector method name is now `iter(...)` across the public value-selector surface. The old `iter_typed(...)` name is removed as part of the same breaking sweep so the typed/scalar naming model stays consistent.
 
 ## Risk summary
 

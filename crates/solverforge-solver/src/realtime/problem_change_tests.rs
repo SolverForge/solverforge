@@ -98,7 +98,7 @@ fn problem_change_apply_through_solver_scope_invalidates_frontier_revision() {
 
     let slot_id = ConstructionSlotId::new(0, 0);
     let element_id = ConstructionListElementId::new(0, 0);
-    scope.mark_standard_slot_completed(slot_id);
+    scope.mark_scalar_slot_completed(slot_id);
     scope.mark_list_element_completed(element_id);
     let initial_revision = scope.solution_revision();
 
@@ -106,7 +106,7 @@ fn problem_change_apply_through_solver_scope_invalidates_frontier_revision() {
     scope.mutate(|score_director| change.apply(score_director));
 
     assert_eq!(scope.solution_revision(), initial_revision + 1);
-    assert!(!scope.is_standard_slot_completed(slot_id));
+    assert!(!scope.is_scalar_slot_completed(slot_id));
     assert!(!scope.is_list_element_completed(element_id));
     assert_eq!(scope.working_solution().tasks.len(), 2);
     assert_eq!(scope.working_solution().tasks[1].id, 1);

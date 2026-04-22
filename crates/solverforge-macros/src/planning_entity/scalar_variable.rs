@@ -3,11 +3,11 @@ use quote::quote;
 use syn::{Error, Ident};
 
 use crate::attr_parse::{get_attribute, parse_attribute_bool, parse_attribute_string};
-use crate::standard_registry::{record_standard_entity_metadata, StandardVariableMetadata};
+use crate::scalar_registry::{record_scalar_entity_metadata, ScalarVariableMetadata};
 
 use super::utils::field_is_option_usize;
 
-pub(super) fn generate_standard_helpers(
+pub(super) fn generate_scalar_helpers(
     entity_name: &Ident,
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     planning_variables: &[&syn::Field],
@@ -22,6 +22,10 @@ pub(super) fn generate_standard_helpers(
         let value_range_provider = parse_attribute_string(attr, "value_range_provider")
             .or_else(|| parse_attribute_string(attr, "value_range"));
         let countable_range = parse_attribute_string(attr, "countable_range");
+        let nearby_value_distance_meter =
+            parse_attribute_string(attr, "nearby_value_distance_meter");
+        let nearby_entity_distance_meter =
+            parse_attribute_string(attr, "nearby_entity_distance_meter");
 
         if !field_is_option_usize(&field.ty) {
             continue;
@@ -78,7 +82,7 @@ pub(super) fn generate_standard_helpers(
             });
         }
 
-        metadata.push(StandardVariableMetadata {
+        metadata.push(ScalarVariableMetadata {
             field_name: field_name_str,
             allows_unassigned: parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false),
             value_range_provider,
@@ -87,10 +91,12 @@ pub(super) fn generate_standard_helpers(
                 .map(|range| parse_range(field, range))
                 .transpose()?,
             provider_is_entity_field,
+            nearby_value_distance_meter,
+            nearby_entity_distance_meter,
         });
     }
 
-    record_standard_entity_metadata(&entity_name.to_string(), metadata);
+    record_scalar_entity_metadata(&entity_name.to_string(), metadata);
 
     Ok(quote! { #(#helpers)* })
 }

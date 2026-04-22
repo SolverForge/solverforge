@@ -1,8 +1,8 @@
-#[path = "fixtures/standard_multi_module_plan.rs"]
+#[path = "fixtures/scalar_multi_module_plan.rs"]
 mod plan;
-#[path = "fixtures/standard_multi_module_task.rs"]
+#[path = "fixtures/scalar_multi_module_task.rs"]
 mod task;
-#[path = "fixtures/standard_multi_module_worker.rs"]
+#[path = "fixtures/scalar_multi_module_worker.rs"]
 mod worker;
 
 pub use plan::Plan;

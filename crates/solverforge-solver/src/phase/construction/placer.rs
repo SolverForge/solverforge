@@ -226,7 +226,7 @@ where
                 // Generate moves for all possible values
                 let moves: Vec<ChangeMove<S, V>> = self
                     .value_selector
-                    .iter_typed(
+                    .iter(
                         score_director,
                         entity_ref.descriptor_index,
                         entity_ref.entity_index,

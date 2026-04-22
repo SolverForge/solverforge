@@ -168,7 +168,7 @@ where
 pub fn log_solve_start(
     entity_count: usize,
     element_count: Option<usize>,
-    has_standard: Option<bool>,
+    has_scalar: Option<bool>,
     candidate_count: Option<usize>,
 ) {
     if let Some(element_count) = element_count {
@@ -178,12 +178,12 @@ pub fn log_solve_start(
             element_count = element_count,
             solve_shape = "list",
         );
-    } else if has_standard.unwrap_or(candidate_count.is_some()) {
+    } else if has_scalar.unwrap_or(candidate_count.is_some()) {
         info!(
             event = "solve_start",
             entity_count = entity_count,
             candidate_count = candidate_count.unwrap_or(0),
-            solve_shape = "standard",
+            solve_shape = "scalar",
         );
     } else {
         info!(

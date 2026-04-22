@@ -106,10 +106,13 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type | Default |
 |-------|------|---------|
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
-| `entity_class` | `Option<String>` | `None` |
-| `variable_name` | `Option<String>` | `None` |
+| `target` | `VariableTargetConfig` | empty target |
 | `k` | `usize` | `2` (for `ListKOpt`) |
 | `termination` | `Option<TerminationConfig>` | `None` |
+
+`target` is flattened in serde, so configuration files still use top-level
+`entity_class = "..."` and `variable_name = "..."` keys when targeting one
+planning variable family.
 
 ### `LocalSearchConfig`
 
@@ -508,13 +511,13 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing `ModelContext` targets; pure scalar matches reuse the descriptor-scalar scalar path |
+| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing `ModelContext` targets; pure scalar targets reuse the descriptor-scalar path |
 | `FirstFitDecreasing` | Specialized scalar-only first fit by entity difficulty |
 | `WeakestFit` | Specialized scalar-only weakest-fit heuristic |
 | `WeakestFitDecreasing` | Specialized scalar-only weakest-fit-by-difficulty heuristic |
 | `StrongestFit` | Specialized scalar-only strongest-fit heuristic |
 | `StrongestFitDecreasing` | Specialized scalar-only strongest-fit-by-difficulty heuristic |
-| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing `ModelContext` targets; pure scalar matches reuse the descriptor-scalar scalar path |
+| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing `ModelContext` targets; pure scalar targets reuse the descriptor-scalar path |
 | `AllocateEntityFromQueue` | Specialized scalar-only queue-driven allocation |
 | `AllocateToValueFromQueue` | Specialized scalar-only value-queue allocation |
 | `ListRoundRobin` | Specialized list-only even distribution |

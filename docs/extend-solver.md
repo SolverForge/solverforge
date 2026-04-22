@@ -30,10 +30,15 @@ application that depends on `solverforge`.
 If `move_selector` is omitted, the runtime keeps one streaming-first default
 story:
 
-- scalar-only models default to `ChangeMoveSelector`
+- scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
-- mixed models use the list defaults first, then scalar change
+- mixed models use the list defaults first, then the scalar defaults
+
+Nearby scalar selectors are explicit model capabilities. If the search policy
+uses `nearby_change_move_selector` or `nearby_swap_move_selector`, the matching
+scalar variable must provide the corresponding nearby distance hook; the runtime
+does not guess one.
 
 `limited_neighborhood` applies a fixed move cap to one configured neighborhood
 when that cap is part of the search policy. The canonical defaults are already

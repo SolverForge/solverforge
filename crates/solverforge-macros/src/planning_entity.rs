@@ -1,6 +1,6 @@
 mod expand;
 mod list_variable;
-mod standard_variable;
+mod scalar_variable;
 mod utils;
 
 #[cfg(test)]

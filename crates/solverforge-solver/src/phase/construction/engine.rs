@@ -295,10 +295,7 @@ where
 
     for entity_index in 0..entity_count {
         let slot_id = ConstructionSlotId::new(ctx.descriptor_index, entity_index);
-        if phase_scope
-            .solver_scope()
-            .is_standard_slot_completed(slot_id)
-        {
+        if phase_scope.solver_scope().is_scalar_slot_completed(slot_id) {
             continue;
         }
 
@@ -461,10 +458,7 @@ where
 
     for entity_index in 0..entity_count {
         let slot_id = ConstructionSlotId::new(ctx.descriptor_index, entity_index);
-        if phase_scope
-            .solver_scope()
-            .is_standard_slot_completed(slot_id)
-        {
+        if phase_scope.solver_scope().is_scalar_slot_completed(slot_id) {
             continue;
         }
 
@@ -708,7 +702,7 @@ fn complete_scalar_slot<S, D, ProgressCb>(
     step_scope
         .phase_scope_mut()
         .solver_scope_mut()
-        .mark_standard_slot_completed(slot_id);
+        .mark_scalar_slot_completed(slot_id);
     let step_score = step_scope.calculate_score();
     step_scope.set_step_score(step_score);
     step_scope.complete();

@@ -103,7 +103,7 @@ where
 
         // Get all placements (entities that need values assigned)
         let placement_generation_started = Instant::now();
-        let placements = filter_completed_standard_placements(
+        let placements = filter_completed_scalar_placements(
             self.placer.get_placements(phase_scope.score_director()),
             phase_scope.solver_scope(),
         );
@@ -198,7 +198,7 @@ enum ConstructionSelection {
     Interrupted,
 }
 
-fn filter_completed_standard_placements<S, D, BestCb, M>(
+fn filter_completed_scalar_placements<S, D, BestCb, M>(
     placements: Vec<Placement<S, M>>,
     solver_scope: &SolverScope<'_, S, D, BestCb>,
 ) -> Vec<Placement<S, M>>
@@ -213,7 +213,7 @@ where
         .filter(|placement| {
             !placement
                 .slot_id()
-                .is_some_and(|slot_id| solver_scope.is_standard_slot_completed(slot_id))
+                .is_some_and(|slot_id| solver_scope.is_scalar_slot_completed(slot_id))
         })
         .collect()
 }
@@ -246,7 +246,7 @@ fn commit_selection<S, D, BestCb, M>(
             step_scope
                 .phase_scope_mut()
                 .solver_scope_mut()
-                .mark_standard_slot_completed(slot_id);
+                .mark_scalar_slot_completed(slot_id);
         }
     }
 }

@@ -7,7 +7,7 @@ use crate::attr_parse::{
 };
 
 use super::list_variable::{generate_list_metadata, generate_list_trait_impl};
-use super::standard_variable::generate_standard_helpers;
+use super::scalar_variable::generate_scalar_helpers;
 use super::utils::{field_is_option_usize, field_option_inner_type};
 
 pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
@@ -51,7 +51,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_variable"))
         .collect();
-    let standard_helpers = generate_standard_helpers(name, fields, &planning_variables)?;
+    let scalar_helpers = generate_scalar_helpers(name, fields, &planning_variables)?;
     let list_variables: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_list_variable"))
@@ -458,7 +458,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
         impl #impl_generics #name #ty_generics #where_clause {
             #(#variable_helpers)*
-            #standard_helpers
+            #scalar_helpers
             #list_metadata
 
             pub fn entity_descriptor(solution_field: &'static str) -> ::solverforge::__internal::EntityDescriptor {

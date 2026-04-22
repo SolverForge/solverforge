@@ -205,7 +205,7 @@ fn test_replace_working_solution_reinitializes_revision_and_frontier() {
     let slot_id = ConstructionSlotId::new(0, 0);
     let element_id = ConstructionListElementId::new(0, 0);
 
-    scope.mark_standard_slot_completed(slot_id);
+    scope.mark_scalar_slot_completed(slot_id);
     scope.mark_list_element_completed(element_id);
     scope.mutate(|score_director| {
         score_director.working_solution_mut().marker = 3;
@@ -219,7 +219,7 @@ fn test_replace_working_solution_reinitializes_revision_and_frontier() {
 
     assert_eq!(score, SoftScore::of(0));
     assert_eq!(scope.solution_revision(), 1);
-    assert!(!scope.is_standard_slot_completed(slot_id));
+    assert!(!scope.is_scalar_slot_completed(slot_id));
     assert!(!scope.is_list_element_completed(element_id));
     assert_eq!(scope.working_solution().marker, 9);
 }

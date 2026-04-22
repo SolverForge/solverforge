@@ -16,6 +16,7 @@ solverforge (facade + re-exports)
     |-- solverforge-config   - TOML/YAML configuration
     |-- solverforge-console  - Tracing-driven console output and progress formatting
     |-- solverforge-cvrp     - CVRP domain helpers and distance utilities
+    |-- solverforge-test     - Shared test utilities for workspace crates
     |
     `-> solverforge-core     - Score types, domain traits, descriptors
          |
@@ -26,7 +27,7 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> cons
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.8.13`.
+Current workspace release version: `0.9.0`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
@@ -37,6 +38,7 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
 - `README.md` is the user-facing entry point. Update it when public workflows, naming, or extension guidance change.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
 - `docs/*.md` files capture focused extension and architecture guidance. When a refactor changes naming or explains an intentional boundary, update the relevant doc or add a dedicated audit note.
+- `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology. Keep it in sync with any public rename or cleanup sweep.
 - `AGENTS.md` records repository-specific rules for future coding agents. Update it when the engineering workflow or documentation policy changes.
 - Documentation must describe the current checked-in code and public surface, not an intended future design. If a refactor is incomplete, document the shipped boundary and current limitation explicitly instead of documenting the target state as if it already exists.
 - Distinguish crate-root re-exports from module-level exports and hidden `__internal` bridges. Do not document a module-only or macro-only symbol as if it were a supported root-level facade export.

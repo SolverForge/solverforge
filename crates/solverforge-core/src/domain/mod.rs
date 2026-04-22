@@ -20,7 +20,8 @@ mod tests;
 
 pub use descriptor::{
     EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, UsizeEntityValueProvider,
-    UsizeGetter, UsizeSetter, VariableDescriptor,
+    UsizeGetter, UsizeNearbyEntityDistanceMeter, UsizeNearbyValueDistanceMeter, UsizeSetter,
+    VariableDescriptor,
 };
 pub use entity_ref::{EntityCollectionExtractor, EntityExtractor, EntityRef};
 pub use listener::{

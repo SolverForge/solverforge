@@ -42,6 +42,7 @@ src/
 │   ├── acceptor_tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
 │   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>, expanded ListVariableContext construction hooks
+│   ├── scalar_selector.rs               — Canonical typed scalar selector assembly, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published ModelContext variable contexts
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
 │   └── list_selector/
@@ -64,8 +65,10 @@ src/
 │   │   ├── list_swap.rs                — ListSwapMove<S, V>
 │   │   ├── list_reverse.rs             — ListReverseMove<S, V>
 │   │   ├── list_ruin.rs                — ListRuinMove<S, V>
+│   │   ├── metadata.rs                 — MoveTabuSignature, scoped entity/value tabu tokens, exact move identities
 │   │   ├── sublist_change.rs           — SublistChangeMove<S, V>
 │   │   ├── sublist_swap.rs             — SublistSwapMove<S, V>
+│   │   ├── segment_layout.rs           — Post-move segment coordinate derivation and reverse-identity helpers for sublist moves
 │   │   ├── pillar_change.rs            — PillarChangeMove<S, V>
 │   │   ├── pillar_swap.rs              — PillarSwapMove<S, V>
 │   │   ├── ruin.rs                      — RuinMove<S, V>
@@ -106,6 +109,7 @@ src/
 │       ├── sublist_support.rs          — Private sublist segment enumeration and exact counting helpers
 │       ├── sublist_swap.rs             — SublistSwapMoveSelector<S, V, ES>
 │       ├── pillar.rs                    — PillarSelector trait, DefaultPillarSelector, Pillar, SubPillarConfig
+│       ├── pillar_support.rs            — Deterministic pillar grouping, legal-domain intersection, and mutual swap-compatibility helpers
 │       ├── ruin.rs                      — RuinMoveSelector<S, V>
 │       ├── mimic.rs                     — MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector
 │       ├── selection_order.rs          — SelectionOrder enum
@@ -157,6 +161,7 @@ src/
 │
 ├── phase/
 │   ├── mod.rs                           — Phase<S, D> trait, tuple impls
+│   ├── control.rs                       — Internal prompt/control settlement helpers for runtime-owned pause and cancellation boundaries
 │   ├── construction/
 │   │   ├── mod.rs                       — ForagerType enum, ConstructionHeuristicConfig, re-exports
 │   │   ├── decision.rs                  — Shared baseline/tie-breaking helpers for construction choice resolution
@@ -344,11 +349,12 @@ Requires: `Send + Debug`.
 
 | Method | Signature | Default |
 |--------|-----------|---------|
-| `is_accepted` | `fn(&mut self, last_step_score: &S::Score, move_score: &S::Score) -> bool` | — |
+| `requires_move_signatures` | `fn(&self) -> bool` | `false` |
+| `is_accepted` | `fn(&mut self, last_step_score: &S::Score, move_score: &S::Score, move_signature: Option<&MoveTabuSignature>) -> bool` | — |
 | `phase_started` | `fn(&mut self, initial_score: &S::Score)` | no-op |
 | `phase_ended` | `fn(&mut self)` | no-op |
 | `step_started` | `fn(&mut self)` | no-op |
-| `step_ended` | `fn(&mut self, step_score: &S::Score)` | no-op |
+| `step_ended` | `fn(&mut self, step_score: &S::Score, accepted_move_signature: Option<&MoveTabuSignature>)` | no-op |
 
 ### `EntitySelector<S: PlanningSolution>` — `entity.rs`
 
@@ -362,8 +368,10 @@ Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
+| `open_cursor` | `fn<'a, D: Director<S>>(&'a self, score_director: &D) -> impl Iterator<Item = M> + 'a` |
 | `iter_moves` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = M> + 'a` |
 | `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
+| `append_moves` | `fn<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>)` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
 ### `ValueSelector<S: PlanningSolution, V>` — `value_selector.rs`
@@ -838,7 +846,7 @@ formatting edges.
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, reuse the descriptor-scalar scalar path for pure scalar matches, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, reuse the descriptor-scalar path for pure scalar targets, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`
@@ -851,7 +859,7 @@ Scalar-only, list-only, and mixed planning models now target the same canonical 
 
 `log_solve_start()` in the same module emits shape-specific startup telemetry:
 list solves log `element_count`, scalar solves log average
-`candidate_count`, and legacy/basic solution logging falls back to
+`candidate_count`, and generic solution-level logging falls back to
 `value_count`. Console formatting uses those fields to label startup scale as
 `elements`, `candidates`, or `values`.
 

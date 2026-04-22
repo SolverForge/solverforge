@@ -8,7 +8,7 @@ mod list_registry;
 mod planning_entity;
 mod planning_solution;
 mod problem_fact;
-mod standard_registry;
+mod scalar_registry;
 
 #[proc_macro_attribute]
 pub fn planning_entity(attr: TokenStream, item: TokenStream) -> TokenStream {

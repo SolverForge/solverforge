@@ -5,8 +5,11 @@ Use the scaffold as a thin starter, then model the real problem in your app.
 ## What belongs in the domain
 
 - Add entities, problem facts, and planning variables for the real data shape.
-- Use field metadata to model standard variables and one or more independent
+- Use field metadata to model scalar variables and one or more independent
   list owners in the same project when needed.
+- When a scalar variable will use nearby local-search selectors, declare the
+  nearby distance hook directly on that variable so the solver policy stays
+  explicit and model-owned.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 

@@ -128,7 +128,7 @@ fn format_event_renders_solve_start_and_end_summaries() {
             target: "solverforge_solver::test",
             event = "solve_start",
             entity_count = 688u64,
-            solve_shape = "standard",
+            solve_shape = "scalar",
             candidate_count = 50u64,
         );
     });
@@ -136,7 +136,7 @@ fn format_event_renders_solve_start_and_end_summaries() {
         .iter()
         .find(|output| output.contains("Solving"))
         .cloned()
-        .expect("expected standard solve_start output");
+        .expect("expected scalar solve_start output");
     assert!(start_output.contains("candidates"));
     assert!(start_output.contains("688"));
     assert!(start_output.contains("50"));

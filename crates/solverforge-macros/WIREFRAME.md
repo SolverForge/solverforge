@@ -3,7 +3,7 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.8.13`
+**Workspace Release:** `0.9.0`
 
 ## Dependencies
 
@@ -23,6 +23,7 @@ src/
 ├── planning_entity/*.rs    — Entity derive expansion, list-variable helpers, and tests
 ├── planning_solution.rs    — PlanningSolutionImpl derive module root
 ├── planning_solution/*.rs  — Solution derive expansion, runtime/shadow helpers, list operations, and tests
+├── scalar_registry.rs      — Private scalar runtime metadata registry used by generated solving helpers
 └── problem_fact.rs         — ProblemFactImpl derive: ProblemFact, PlanningId, problem_fact_descriptor()
 ```
 
@@ -48,6 +49,8 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[planning_id]` — marks the unique ID field
 - `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable
   `value_range = "name"` is accepted as an alias for `value_range_provider`
+  canonical scalar nearby hooks are declared here as well:
+  `nearby_value_distance_meter = "fn_name"` and `nearby_entity_distance_meter = "fn_name"`
 - `#[planning_list_variable(...)]` — list planning variable
   currently requires `Vec<usize>` and `element_collection = "solution_field"`
 - `#[planning_pin]` — boolean field controlling entity pinning
@@ -106,7 +109,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_standard_candidate_count()` for standard scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`. Each accessor returns a `UniConstraintStream` backed by `TrackedExtract<fn(&Solution) -> &[Item]>`, using `ChangeSource::Descriptor(idx)` for planning entities and `ChangeSource::Static` for problem facts so generated streams stay compatible with incremental `.if_exists(...)` / `.if_not_exists(...)` and `.unassigned()`.
 
 ### `ProblemFactImpl`
@@ -182,6 +185,14 @@ Trait impls like `Solvable`, `Analyzable`, and `ScoreAnalysis` reference `::solv
 ### Proc-macro Crate Root Constraint
 
 `lib.rs` intentionally retains the thin `#[proc_macro_attribute]` and `#[proc_macro_derive]` functions because Rust requires proc-macro exports to live at the crate root. All reusable parsing and code generation logic lives in helper modules.
+
+### Scalar Runtime Metadata
+
+`scalar_registry.rs` centralizes the generated scalar-variable metadata used by
+macro-built runtime assembly. Nearby scalar hooks, getter/setter accessors, and
+entity-local value providers are recorded there so emitted solving helpers can
+build typed `ScalarVariableContext` values without reviving old `standard_*`
+helper naming.
 
 ### Shadow Variable Update Order
 

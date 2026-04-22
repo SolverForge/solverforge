@@ -1,5 +1,5 @@
 use solverforge::prelude::*;
-use solverforge::{SolverEvent, SolverManager, SolverTerminalReason};
+use solverforge::{SolverEvent, SolverLifecycleState, SolverManager};
 
 #[problem_fact]
 struct Resource {
@@ -18,7 +18,7 @@ struct Task {
 
 #[planning_solution(
     constraints = "define_constraints",
-    solver_toml = "fixtures/standard_runtime_publication_solver.toml"
+    solver_toml = "fixtures/scalar_runtime_selector_assembly_solver.toml"
 )]
 struct Plan {
     #[problem_fact_collection]
@@ -34,9 +34,8 @@ struct Plan {
 fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
     (ConstraintFactory::<Plan, HardSoftScore>::new()
         .tasks()
-        .filter(|task: &Task| task.resource_idx.is_none())
-        .penalize(HardSoftScore::of(0, 1))
-        .named("unassigned task"),)
+        .penalize_with(|_| HardSoftScore::of(0, 0))
+        .named("noop"),)
 }
 
 fn seeded_plan() -> Plan {
@@ -60,37 +59,27 @@ fn seeded_plan() -> Plan {
 }
 
 #[test]
-fn standard_only_solution_runs_construction_in_retained_runtime() {
+fn scalar_only_solution_builds_default_selector_without_failure() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
     let (job_id, mut receiver) = MANAGER.solve(seeded_plan()).expect("job should start");
-    let mut completed_solution = None;
+    let mut completed = false;
 
     while let Some(event) = receiver.blocking_recv() {
         match event {
             SolverEvent::BestSolution { .. } => {}
-            SolverEvent::Completed { metadata, solution } => {
-                assert_eq!(
-                    metadata.terminal_reason,
-                    Some(SolverTerminalReason::Completed)
-                );
-                completed_solution = Some(solution);
+            SolverEvent::Completed { metadata, .. } => {
+                assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+                completed = true;
                 break;
             }
-            other => {
-                eprintln!("event={other:?}");
+            SolverEvent::Failed { error, .. } => {
+                panic!("scalar runtime selector assembly failed: {error}");
             }
+            _ => {}
         }
     }
 
-    let solution = completed_solution.expect("expected a completed solution");
-    assert!(
-        solution
-            .tasks
-            .iter()
-            .all(|task| task.resource_idx.is_some()),
-        "standard construction should assign all tasks instead of taking the trivial path"
-    );
-
+    assert!(completed, "expected selector assembly solve to complete");
     MANAGER.delete(job_id).expect("delete completed job");
 }

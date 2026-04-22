@@ -7,6 +7,8 @@ use crate::domain::variable::{ShadowVariableKind, ValueRangeType, VariableType};
 pub type UsizeGetter = for<'a> fn(&'a dyn Any) -> Option<usize>;
 pub type UsizeSetter = fn(&mut dyn Any, Option<usize>);
 pub type UsizeEntityValueProvider = for<'a> fn(&'a dyn Any) -> Vec<usize>;
+pub type UsizeNearbyValueDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
+pub type UsizeNearbyEntityDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
 
 // Describes a planning variable at runtime.
 #[derive(Debug, Clone)]
@@ -25,10 +27,12 @@ pub struct VariableDescriptor {
     pub source_variable: Option<&'static str>,
     // For shadow variables: the source entity type name.
     pub source_entity: Option<&'static str>,
-    // Dynamic accessors for canonical standard-variable solving.
+    // Dynamic accessors for canonical scalar-variable solving.
     pub usize_getter: Option<UsizeGetter>,
     pub usize_setter: Option<UsizeSetter>,
     pub entity_value_provider: Option<UsizeEntityValueProvider>,
+    pub nearby_value_distance_meter: Option<UsizeNearbyValueDistanceMeter>,
+    pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>,
 }
 
 impl VariableDescriptor {
@@ -44,6 +48,8 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            nearby_value_distance_meter: None,
+            nearby_entity_distance_meter: None,
         }
     }
 
@@ -63,6 +69,8 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            nearby_value_distance_meter: None,
+            nearby_entity_distance_meter: None,
         }
     }
 
@@ -78,6 +86,8 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            nearby_value_distance_meter: None,
+            nearby_entity_distance_meter: None,
         }
     }
 
@@ -93,6 +103,8 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            nearby_value_distance_meter: None,
+            nearby_entity_distance_meter: None,
         }
     }
 
@@ -122,6 +134,8 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            nearby_value_distance_meter: None,
+            nearby_entity_distance_meter: None,
         }
     }
 
@@ -144,6 +158,22 @@ impl VariableDescriptor {
 
     pub fn with_entity_value_provider(mut self, provider: UsizeEntityValueProvider) -> Self {
         self.entity_value_provider = Some(provider);
+        self
+    }
+
+    pub fn with_nearby_value_distance_meter(
+        mut self,
+        meter: UsizeNearbyValueDistanceMeter,
+    ) -> Self {
+        self.nearby_value_distance_meter = Some(meter);
+        self
+    }
+
+    pub fn with_nearby_entity_distance_meter(
+        mut self,
+        meter: UsizeNearbyEntityDistanceMeter,
+    ) -> Self {
+        self.nearby_entity_distance_meter = Some(meter);
         self
     }
 }

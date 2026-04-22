@@ -2,7 +2,7 @@ use super::Construction;
 use crate::builder::{
     ListVariableContext, ModelContext, ScalarVariableContext, ValueSource, VariableContext,
 };
-use crate::descriptor_standard::{standard_target_matches, standard_work_remaining_with_frontier};
+use crate::descriptor_scalar::{scalar_target_matches, scalar_work_remaining_with_frontier};
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 use crate::DefaultCrossEntityDistanceMeter;
@@ -36,7 +36,7 @@ impl PlanningSolution for TestSolution {
     }
 }
 
-fn standard_variable(name: &'static str) -> VariableDescriptor {
+fn scalar_variable(name: &'static str) -> VariableDescriptor {
     VariableDescriptor {
         name,
         variable_type: VariableType::Genuine,
@@ -48,6 +48,8 @@ fn standard_variable(name: &'static str) -> VariableDescriptor {
         usize_getter: Some(|_| None),
         usize_setter: Some(|_, _| {}),
         entity_value_provider: Some(|_| vec![1]),
+        nearby_value_distance_meter: None,
+        nearby_entity_distance_meter: None,
     }
 }
 
@@ -55,12 +57,12 @@ fn descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(
             EntityDescriptor::new("Route", TypeId::of::<()>(), "routes")
-                .with_variable(standard_variable("vehicle_id"))
+                .with_variable(scalar_variable("vehicle_id"))
                 .with_variable(VariableDescriptor::list("visits")),
         )
         .with_entity(
             EntityDescriptor::new("Shift", TypeId::of::<u8>(), "shifts")
-                .with_variable(standard_variable("employee_id")),
+                .with_variable(scalar_variable("employee_id")),
         )
 }
 
@@ -81,35 +83,35 @@ fn config(
 }
 
 #[test]
-fn standard_target_matches_entity_class_only_target() {
+fn scalar_target_matches_entity_class_only_target() {
     let descriptor = descriptor();
-    assert!(standard_target_matches(&descriptor, Some("Route"), None));
+    assert!(scalar_target_matches(&descriptor, Some("Route"), None));
 }
 
 #[derive(Clone, Debug)]
-struct StandardRuntimeWorker;
+struct ScalarRuntimeWorker;
 
 #[derive(Clone, Debug)]
-struct StandardRuntimeTask {
+struct ScalarRuntimeTask {
     worker_idx: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
-struct StandardRuntimePlan {
+struct ScalarRuntimePlan {
     score: Option<SoftScore>,
-    workers: Vec<StandardRuntimeWorker>,
-    tasks: Vec<StandardRuntimeTask>,
+    workers: Vec<ScalarRuntimeWorker>,
+    tasks: Vec<ScalarRuntimeTask>,
 }
 
 #[derive(Clone, Debug)]
-struct StandardRuntimeDirector {
-    working_solution: StandardRuntimePlan,
+struct ScalarRuntimeDirector {
+    working_solution: ScalarRuntimePlan,
     descriptor: SolutionDescriptor,
-    score_mode: StandardRuntimeScoreMode,
+    score_mode: ScalarRuntimeScoreMode,
 }
 
 #[derive(Clone, Copy, Debug)]
-enum StandardRuntimeScoreMode {
+enum ScalarRuntimeScoreMode {
     PreferUnassigned,
     ByWorker {
         unassigned_score: i64,
@@ -117,19 +119,19 @@ enum StandardRuntimeScoreMode {
     },
 }
 
-impl StandardRuntimeDirector {
-    fn new(working_solution: StandardRuntimePlan, descriptor: SolutionDescriptor) -> Self {
+impl ScalarRuntimeDirector {
+    fn new(working_solution: ScalarRuntimePlan, descriptor: SolutionDescriptor) -> Self {
         Self::with_score_mode(
             working_solution,
             descriptor,
-            StandardRuntimeScoreMode::PreferUnassigned,
+            ScalarRuntimeScoreMode::PreferUnassigned,
         )
     }
 
     fn with_score_mode(
-        working_solution: StandardRuntimePlan,
+        working_solution: ScalarRuntimePlan,
         descriptor: SolutionDescriptor,
-        score_mode: StandardRuntimeScoreMode,
+        score_mode: ScalarRuntimeScoreMode,
     ) -> Self {
         Self {
             working_solution,
@@ -139,7 +141,7 @@ impl StandardRuntimeDirector {
     }
 }
 
-impl PlanningSolution for StandardRuntimePlan {
+impl PlanningSolution for ScalarRuntimePlan {
     type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
@@ -151,25 +153,25 @@ impl PlanningSolution for StandardRuntimePlan {
     }
 }
 
-impl Director<StandardRuntimePlan> for StandardRuntimeDirector {
-    fn working_solution(&self) -> &StandardRuntimePlan {
+impl Director<ScalarRuntimePlan> for ScalarRuntimeDirector {
+    fn working_solution(&self) -> &ScalarRuntimePlan {
         &self.working_solution
     }
 
-    fn working_solution_mut(&mut self) -> &mut StandardRuntimePlan {
+    fn working_solution_mut(&mut self) -> &mut ScalarRuntimePlan {
         &mut self.working_solution
     }
 
     fn calculate_score(&mut self) -> SoftScore {
         let score = match self.score_mode {
-            StandardRuntimeScoreMode::PreferUnassigned => {
+            ScalarRuntimeScoreMode::PreferUnassigned => {
                 if self.working_solution.tasks[0].worker_idx.is_none() {
                     SoftScore::of(0)
                 } else {
                     SoftScore::of(-1)
                 }
             }
-            StandardRuntimeScoreMode::ByWorker {
+            ScalarRuntimeScoreMode::ByWorker {
                 unassigned_score,
                 assigned_scores,
             } => SoftScore::of(
@@ -187,7 +189,7 @@ impl Director<StandardRuntimePlan> for StandardRuntimeDirector {
         &self.descriptor
     }
 
-    fn clone_working_solution(&self) -> StandardRuntimePlan {
+    fn clone_working_solution(&self) -> ScalarRuntimePlan {
         self.working_solution.clone()
     }
 
@@ -206,29 +208,27 @@ impl Director<StandardRuntimePlan> for StandardRuntimeDirector {
 
 fn get_runtime_worker_idx(entity: &dyn std::any::Any) -> Option<usize> {
     entity
-        .downcast_ref::<StandardRuntimeTask>()
+        .downcast_ref::<ScalarRuntimeTask>()
         .expect("task expected")
         .worker_idx
 }
 
 fn set_runtime_worker_idx(entity: &mut dyn std::any::Any, value: Option<usize>) {
     entity
-        .downcast_mut::<StandardRuntimeTask>()
+        .downcast_mut::<ScalarRuntimeTask>()
         .expect("task expected")
         .worker_idx = value;
 }
 
-fn standard_runtime_descriptor_with_allows_unassigned(
-    allows_unassigned: bool,
-) -> SolutionDescriptor {
-    SolutionDescriptor::new("StandardRuntimePlan", TypeId::of::<StandardRuntimePlan>())
+fn scalar_runtime_descriptor_with_allows_unassigned(allows_unassigned: bool) -> SolutionDescriptor {
+    SolutionDescriptor::new("ScalarRuntimePlan", TypeId::of::<ScalarRuntimePlan>())
         .with_entity(
-            EntityDescriptor::new("Task", TypeId::of::<StandardRuntimeTask>(), "tasks")
+            EntityDescriptor::new("Task", TypeId::of::<ScalarRuntimeTask>(), "tasks")
                 .with_extractor(Box::new(EntityCollectionExtractor::new(
                     "Task",
                     "tasks",
-                    |solution: &StandardRuntimePlan| &solution.tasks,
-                    |solution: &mut StandardRuntimePlan| &mut solution.tasks,
+                    |solution: &ScalarRuntimePlan| &solution.tasks,
+                    |solution: &mut ScalarRuntimePlan| &mut solution.tasks,
                 )))
                 .with_variable(
                     VariableDescriptor::genuine("worker_idx")
@@ -238,74 +238,70 @@ fn standard_runtime_descriptor_with_allows_unassigned(
                 ),
         )
         .with_problem_fact(
-            ProblemFactDescriptor::new("Worker", TypeId::of::<StandardRuntimeWorker>(), "workers")
+            ProblemFactDescriptor::new("Worker", TypeId::of::<ScalarRuntimeWorker>(), "workers")
                 .with_extractor(Box::new(EntityCollectionExtractor::new(
                     "Worker",
                     "workers",
-                    |solution: &StandardRuntimePlan| &solution.workers,
-                    |solution: &mut StandardRuntimePlan| &mut solution.workers,
+                    |solution: &ScalarRuntimePlan| &solution.workers,
+                    |solution: &mut ScalarRuntimePlan| &mut solution.workers,
                 ))),
         )
 }
 
-fn standard_runtime_descriptor() -> SolutionDescriptor {
-    standard_runtime_descriptor_with_allows_unassigned(true)
+fn scalar_runtime_descriptor() -> SolutionDescriptor {
+    scalar_runtime_descriptor_with_allows_unassigned(true)
 }
 
-fn standard_runtime_task_count(solution: &StandardRuntimePlan) -> usize {
+fn scalar_runtime_task_count(solution: &ScalarRuntimePlan) -> usize {
     solution.tasks.len()
 }
 
-fn standard_runtime_worker_count(solution: &StandardRuntimePlan) -> usize {
+fn scalar_runtime_worker_count(solution: &ScalarRuntimePlan) -> usize {
     solution.workers.len()
 }
 
-fn standard_runtime_worker_get(
-    solution: &StandardRuntimePlan,
-    entity_index: usize,
-) -> Option<usize> {
+fn scalar_runtime_worker_get(solution: &ScalarRuntimePlan, entity_index: usize) -> Option<usize> {
     solution.tasks[entity_index].worker_idx
 }
 
-fn standard_runtime_worker_set(
-    solution: &mut StandardRuntimePlan,
+fn scalar_runtime_worker_set(
+    solution: &mut ScalarRuntimePlan,
     entity_index: usize,
     value: Option<usize>,
 ) {
     solution.tasks[entity_index].worker_idx = value;
 }
 
-fn standard_runtime_model_with_allows_unassigned(
+fn scalar_runtime_model_with_allows_unassigned(
     allows_unassigned: bool,
-) -> ModelContext<StandardRuntimePlan, usize, DefaultMeter, DefaultMeter> {
+) -> ModelContext<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
     ModelContext::new(vec![VariableContext::Scalar(ScalarVariableContext::new(
         0,
         "Task",
-        standard_runtime_task_count,
+        scalar_runtime_task_count,
         "worker_idx",
-        standard_runtime_worker_get,
-        standard_runtime_worker_set,
+        scalar_runtime_worker_get,
+        scalar_runtime_worker_set,
         ValueSource::SolutionCount {
-            count_fn: standard_runtime_worker_count,
+            count_fn: scalar_runtime_worker_count,
         },
         allows_unassigned,
     ))])
 }
 
-fn standard_runtime_model() -> ModelContext<StandardRuntimePlan, usize, DefaultMeter, DefaultMeter>
-{
-    standard_runtime_model_with_allows_unassigned(true)
+fn scalar_runtime_model() -> ModelContext<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
+    scalar_runtime_model_with_allows_unassigned(true)
 }
 
 #[test]
-fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
-    let descriptor = standard_runtime_descriptor();
-    let plan = StandardRuntimePlan {
+fn scalar_runtime_frontier_marks_kept_optional_none_as_complete() {
+    let descriptor = scalar_runtime_descriptor();
+    let plan = ScalarRuntimePlan {
         score: None,
-        workers: vec![StandardRuntimeWorker],
-        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+        workers: vec![ScalarRuntimeWorker],
+        tasks: vec![ScalarRuntimeTask { worker_idx: None }],
     };
-    let director = StandardRuntimeDirector::new(plan, descriptor.clone());
+    let director = ScalarRuntimeDirector::new(plan, descriptor.clone());
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
@@ -316,14 +312,14 @@ fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
             Some("worker_idx"),
         )),
         descriptor.clone(),
-        standard_runtime_model(),
+        scalar_runtime_model(),
     );
     targeted_phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
     assert_eq!(solver_scope.stats().step_count, 1);
     assert!(
-        !standard_work_remaining_with_frontier(
+        !scalar_work_remaining_with_frontier(
             &descriptor,
             solver_scope.construction_frontier(),
             solver_scope.solution_revision(),
@@ -331,10 +327,10 @@ fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
             None,
             solver_scope.working_solution(),
         ),
-        "completed optional None should not be treated as remaining standard work",
+        "completed optional None should not be treated as remaining scalar work",
     );
 
-    let mut untargeted_phase = Construction::new(None, descriptor, standard_runtime_model());
+    let mut untargeted_phase = Construction::new(None, descriptor, scalar_runtime_model());
     untargeted_phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
@@ -344,19 +340,19 @@ fn standard_runtime_frontier_marks_kept_optional_none_as_complete() {
 
 #[test]
 fn no_op_runtime_construction_still_seeds_score_and_best_solution() {
-    let descriptor = standard_runtime_descriptor();
-    let plan = StandardRuntimePlan {
+    let descriptor = scalar_runtime_descriptor();
+    let plan = ScalarRuntimePlan {
         score: None,
-        workers: vec![StandardRuntimeWorker],
-        tasks: vec![StandardRuntimeTask {
+        workers: vec![ScalarRuntimeWorker],
+        tasks: vec![ScalarRuntimeTask {
             worker_idx: Some(0),
         }],
     };
-    let director = StandardRuntimeDirector::new(plan, descriptor.clone());
+    let director = ScalarRuntimeDirector::new(plan, descriptor.clone());
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    let mut phase = Construction::new(None, descriptor, scalar_runtime_model());
     phase.solve(&mut solver_scope);
 
     assert_eq!(
@@ -367,21 +363,21 @@ fn no_op_runtime_construction_still_seeds_score_and_best_solution() {
 }
 
 #[test]
-fn standard_runtime_first_fit_keeps_none_when_optional_baseline_is_not_beaten() {
-    let descriptor = standard_runtime_descriptor();
-    let plan = StandardRuntimePlan {
+fn scalar_runtime_first_fit_keeps_none_when_optional_baseline_is_not_beaten() {
+    let descriptor = scalar_runtime_descriptor();
+    let plan = ScalarRuntimePlan {
         score: None,
         workers: vec![
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
         ],
-        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+        tasks: vec![ScalarRuntimeTask { worker_idx: None }],
     };
-    let director = StandardRuntimeDirector::with_score_mode(
+    let director = ScalarRuntimeDirector::with_score_mode(
         plan,
         descriptor.clone(),
-        StandardRuntimeScoreMode::ByWorker {
+        ScalarRuntimeScoreMode::ByWorker {
             unassigned_score: 0,
             assigned_scores: [-5, -1, -2],
         },
@@ -389,7 +385,7 @@ fn standard_runtime_first_fit_keeps_none_when_optional_baseline_is_not_beaten() 
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    let mut phase = Construction::new(None, descriptor, scalar_runtime_model());
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, None);
@@ -402,21 +398,21 @@ fn standard_runtime_first_fit_keeps_none_when_optional_baseline_is_not_beaten() 
 }
 
 #[test]
-fn standard_runtime_first_fit_skips_worse_candidate_for_later_improvement() {
-    let descriptor = standard_runtime_descriptor();
-    let plan = StandardRuntimePlan {
+fn scalar_runtime_first_fit_skips_worse_candidate_for_later_improvement() {
+    let descriptor = scalar_runtime_descriptor();
+    let plan = ScalarRuntimePlan {
         score: None,
         workers: vec![
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
         ],
-        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+        tasks: vec![ScalarRuntimeTask { worker_idx: None }],
     };
-    let director = StandardRuntimeDirector::with_score_mode(
+    let director = ScalarRuntimeDirector::with_score_mode(
         plan,
         descriptor.clone(),
-        StandardRuntimeScoreMode::ByWorker {
+        ScalarRuntimeScoreMode::ByWorker {
             unassigned_score: 0,
             assigned_scores: [-5, 7, -1],
         },
@@ -424,7 +420,7 @@ fn standard_runtime_first_fit_skips_worse_candidate_for_later_improvement() {
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    let mut phase = Construction::new(None, descriptor, scalar_runtime_model());
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(1));
@@ -436,21 +432,21 @@ fn standard_runtime_first_fit_skips_worse_candidate_for_later_improvement() {
 }
 
 #[test]
-fn standard_runtime_first_fit_takes_first_improving_candidate() {
-    let descriptor = standard_runtime_descriptor();
-    let plan = StandardRuntimePlan {
+fn scalar_runtime_first_fit_takes_first_improving_candidate() {
+    let descriptor = scalar_runtime_descriptor();
+    let plan = ScalarRuntimePlan {
         score: None,
         workers: vec![
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
         ],
-        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+        tasks: vec![ScalarRuntimeTask { worker_idx: None }],
     };
-    let director = StandardRuntimeDirector::with_score_mode(
+    let director = ScalarRuntimeDirector::with_score_mode(
         plan,
         descriptor.clone(),
-        StandardRuntimeScoreMode::ByWorker {
+        ScalarRuntimeScoreMode::ByWorker {
             unassigned_score: 0,
             assigned_scores: [7, -5, 3],
         },
@@ -458,7 +454,7 @@ fn standard_runtime_first_fit_takes_first_improving_candidate() {
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
 
-    let mut phase = Construction::new(None, descriptor, standard_runtime_model());
+    let mut phase = Construction::new(None, descriptor, scalar_runtime_model());
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().tasks[0].worker_idx, Some(0));
@@ -470,21 +466,21 @@ fn standard_runtime_first_fit_takes_first_improving_candidate() {
 }
 
 #[test]
-fn standard_runtime_first_fit_required_slot_still_assigns_first_doable() {
-    let descriptor = standard_runtime_descriptor_with_allows_unassigned(false);
-    let plan = StandardRuntimePlan {
+fn scalar_runtime_first_fit_required_slot_still_assigns_first_doable() {
+    let descriptor = scalar_runtime_descriptor_with_allows_unassigned(false);
+    let plan = ScalarRuntimePlan {
         score: None,
         workers: vec![
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
-            StandardRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
+            ScalarRuntimeWorker,
         ],
-        tasks: vec![StandardRuntimeTask { worker_idx: None }],
+        tasks: vec![ScalarRuntimeTask { worker_idx: None }],
     };
-    let director = StandardRuntimeDirector::with_score_mode(
+    let director = ScalarRuntimeDirector::with_score_mode(
         plan,
         descriptor.clone(),
-        StandardRuntimeScoreMode::ByWorker {
+        ScalarRuntimeScoreMode::ByWorker {
             unassigned_score: 0,
             assigned_scores: [-5, -1, -2],
         },
@@ -495,7 +491,7 @@ fn standard_runtime_first_fit_required_slot_still_assigns_first_doable() {
     let mut phase = Construction::new(
         None,
         descriptor,
-        standard_runtime_model_with_allows_unassigned(false),
+        scalar_runtime_model_with_allows_unassigned(false),
     );
     phase.solve(&mut solver_scope);
 

@@ -188,7 +188,7 @@ fn list_solution_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("ListSolution", TypeId::of::<ListSolution>()).with_entity(entity_desc)
 }
 
-// ==================== Standard Variant Tests ====================
+// ==================== Scalar Variant Tests ====================
 
 #[test]
 fn test_local_search_type_variants() {

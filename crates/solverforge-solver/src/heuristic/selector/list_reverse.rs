@@ -6,7 +6,7 @@ of the tour can eliminate crossing edges and reduce total distance.
 
 For VRP, 2-opt is applied independently within each route (intra-route 2-opt).
 Cross-route 2-opt would require inter-entity reversal, which is a different
-operation modeled by `SubListSwapMove` with same-size segments.
+operation modeled by `SublistSwapMove` with same-size segments.
 
 # Complexity
 
@@ -59,7 +59,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ListMoveImpl, ListReverseMove};
+use crate::heuristic::r#move::ListReverseMove;
 
 use super::entity::EntitySelector;
 use super::move_selector::MoveSelector;
@@ -76,6 +76,7 @@ use super::move_selector::MoveSelector;
 pub struct ListReverseMoveSelector<S, V, ES> {
     entity_selector: ES,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     list_reverse: fn(&mut S, usize, usize, usize),
     variable_name: &'static str,
     descriptor_index: usize,
@@ -104,6 +105,7 @@ impl<S, V, ES> ListReverseMoveSelector<S, V, ES> {
     pub fn new(
         entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_reverse: fn(&mut S, usize, usize, usize),
         variable_name: &'static str,
         descriptor_index: usize,
@@ -111,6 +113,7 @@ impl<S, V, ES> ListReverseMoveSelector<S, V, ES> {
         Self {
             entity_selector,
             list_len,
+            list_get,
             list_reverse,
             variable_name,
             descriptor_index,
@@ -131,6 +134,7 @@ where
     ) -> impl Iterator<Item = ListReverseMove<S, V>> + 'a {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
+        let list_get = self.list_get;
         let list_reverse = self.list_reverse;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
@@ -159,6 +163,7 @@ where
                         start,
                         end,
                         list_len,
+                        list_get,
                         list_reverse,
                         variable_name,
                         descriptor_index,
@@ -187,45 +192,5 @@ where
                 }
             })
             .sum()
-    }
-}
-
-/// Wraps a `ListReverseMoveSelector` to yield `ListMoveImpl::ListReverse`.
-pub struct ListMoveListReverseSelector<S, V, ES> {
-    inner: ListReverseMoveSelector<S, V, ES>,
-}
-
-impl<S, V: Debug, ES: Debug> Debug for ListMoveListReverseSelector<S, V, ES> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ListMoveListReverseSelector")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-impl<S, V, ES> ListMoveListReverseSelector<S, V, ES> {
-    /// Wraps an existing [`ListReverseMoveSelector`].
-    pub fn new(inner: ListReverseMoveSelector<S, V, ES>) -> Self {
-        Self { inner }
-    }
-}
-
-impl<S, V, ES> MoveSelector<S, ListMoveImpl<S, V>> for ListMoveListReverseSelector<S, V, ES>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    ES: EntitySelector<S>,
-{
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
-        self.inner
-            .open_cursor(score_director)
-            .map(ListMoveImpl::ListReverse)
-    }
-
-    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        self.inner.size(score_director)
     }
 }

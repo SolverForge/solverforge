@@ -1,6 +1,6 @@
 // Forager builder and `AnyForager` enum.
 
-use solverforge_config::{ForagerConfig, PickEarlyType};
+use solverforge_config::ForagerConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use std::fmt::Debug;
@@ -108,11 +108,6 @@ pub struct ForagerBuilder;
 
 impl ForagerBuilder {
     /// Builds a concrete [`AnyForager`] from configuration.
-    ///
-    /// - `accepted_count_limit = Some(n)` without pick_early → `AcceptedCount(n)`
-    /// - `pick_early_type = FirstBestScoreImproving` → `BestScoreImproving`
-    /// - `pick_early_type = FirstLastStepScoreImproving` → `LastStepScoreImproving`
-    /// - No config → `AcceptedCount(1)` (default)
     pub fn build<S: PlanningSolution>(config: Option<&ForagerConfig>) -> AnyForager<S>
     where
         S::Score: Score,
@@ -121,16 +116,18 @@ impl ForagerBuilder {
             return AnyForager::AcceptedCount(AcceptedCountForager::new(1));
         };
 
-        match cfg.pick_early_type {
-            Some(PickEarlyType::FirstBestScoreImproving) => {
+        match cfg {
+            ForagerConfig::AcceptedCount(accepted) => {
+                let limit = accepted.limit.unwrap_or(1).max(1);
+                AnyForager::AcceptedCount(AcceptedCountForager::new(limit))
+            }
+            ForagerConfig::BestScore => AnyForager::BestScore(BestScoreForager::new()),
+            ForagerConfig::FirstAccepted => AnyForager::FirstAccepted(FirstAcceptedForager::new()),
+            ForagerConfig::FirstBestScoreImproving => {
                 AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::new())
             }
-            Some(PickEarlyType::FirstLastStepScoreImproving) => {
+            ForagerConfig::FirstLastStepScoreImproving => {
                 AnyForager::LastStepScoreImproving(FirstLastStepScoreImprovingForager::new())
-            }
-            _ => {
-                let limit = cfg.accepted_count_limit.unwrap_or(1).max(1);
-                AnyForager::AcceptedCount(AcceptedCountForager::new(limit))
             }
         }
     }

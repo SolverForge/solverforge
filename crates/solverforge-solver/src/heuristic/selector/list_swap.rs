@@ -60,7 +60,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ListMoveImpl, ListSwapMove};
+use crate::heuristic::r#move::ListSwapMove;
 
 use super::entity::EntitySelector;
 use super::list_support::collect_selected_entities;
@@ -206,45 +206,5 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         collect_selected_entities(&self.entity_selector, score_director, self.list_len)
             .list_swap_move_capacity()
-    }
-}
-
-/// Wraps a `ListSwapMoveSelector` to yield `ListMoveImpl::ListSwap`.
-pub struct ListMoveListSwapSelector<S, V, ES> {
-    inner: ListSwapMoveSelector<S, V, ES>,
-}
-
-impl<S, V: Debug, ES: Debug> Debug for ListMoveListSwapSelector<S, V, ES> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ListMoveListSwapSelector")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-impl<S, V, ES> ListMoveListSwapSelector<S, V, ES> {
-    /// Wraps an existing [`ListSwapMoveSelector`].
-    pub fn new(inner: ListSwapMoveSelector<S, V, ES>) -> Self {
-        Self { inner }
-    }
-}
-
-impl<S, V, ES> MoveSelector<S, ListMoveImpl<S, V>> for ListMoveListSwapSelector<S, V, ES>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    ES: EntitySelector<S>,
-{
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
-        self.inner
-            .open_cursor(score_director)
-            .map(ListMoveImpl::ListSwap)
-    }
-
-    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        self.inner.size(score_director)
     }
 }

@@ -106,6 +106,8 @@ pub struct ListRuinMoveSelector<S, V> {
     entity_count: fn(&S) -> usize,
     // Function to get list length for an entity.
     list_len: fn(&S, usize) -> usize,
+    // Function to read a list element by position for move metadata.
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Function to remove element at index, returning it.
     list_remove: fn(&mut S, usize, usize) -> V,
     // Function to insert element at index.
@@ -157,6 +159,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         max_ruin_count: usize,
         entity_count: fn(&S) -> usize,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> V,
         list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
@@ -174,6 +177,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
             rng: RefCell::new(SmallRng::from_rng(&mut rand::rng())),
             entity_count,
             list_len,
+            list_get,
             list_remove,
             list_insert,
             variable_name,
@@ -209,6 +213,7 @@ where
         let solution = score_director.working_solution();
         let total_entities = (self.entity_count)(solution);
         let list_len = self.list_len;
+        let list_get = self.list_get;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let variable_name = self.variable_name;
@@ -254,6 +259,7 @@ where
                         &indices,
                         self.entity_count,
                         list_len,
+                        list_get,
                         list_remove,
                         list_insert,
                         variable_name,

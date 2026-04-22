@@ -78,7 +78,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ListMoveImpl, ListSwapMove};
+use crate::heuristic::r#move::ListSwapMove;
 
 use super::entity::EntitySelector;
 use super::list_support::collect_selected_entities;
@@ -250,47 +250,5 @@ where
 
         // Each element generates at most max_nearby canonical swap partners.
         selected.total_elements() * self.max_nearby / 2
-    }
-}
-
-/// Wraps a `NearbyListSwapMoveSelector` to yield `ListMoveImpl::ListSwap`.
-pub struct ListMoveNearbyListSwapSelector<S, V, D, ES> {
-    inner: NearbyListSwapMoveSelector<S, V, D, ES>,
-}
-
-impl<S, V: Debug, D, ES: Debug> Debug for ListMoveNearbyListSwapSelector<S, V, D, ES> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ListMoveNearbyListSwapSelector")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-impl<S, V, D, ES> ListMoveNearbyListSwapSelector<S, V, D, ES> {
-    /// Wraps an existing [`NearbyListSwapMoveSelector`].
-    pub fn new(inner: NearbyListSwapMoveSelector<S, V, D, ES>) -> Self {
-        Self { inner }
-    }
-}
-
-impl<S, V, D, ES> MoveSelector<S, ListMoveImpl<S, V>>
-    for ListMoveNearbyListSwapSelector<S, V, D, ES>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    D: CrossEntityDistanceMeter<S>,
-    ES: EntitySelector<S>,
-{
-    fn open_cursor<'a, SD: Director<S>>(
-        &'a self,
-        score_director: &SD,
-    ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
-        self.inner
-            .open_cursor(score_director)
-            .map(ListMoveImpl::ListSwap)
-    }
-
-    fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
-        self.inner.size(score_director)
     }
 }

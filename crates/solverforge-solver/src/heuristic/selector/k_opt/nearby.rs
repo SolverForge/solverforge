@@ -41,6 +41,7 @@ pub struct NearbyKOptMoveSelector<S, V, D: ListPositionDistanceMeter<S>, ES> {
     // Reconnection patterns.
     patterns: Vec<&'static KOptReconnection>,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove sublist.
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     // Insert sublist.
@@ -75,6 +76,7 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
         max_nearby: usize,
         config: KOptConfig,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
@@ -95,6 +97,7 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
             config,
             patterns,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             variable_name,
@@ -141,6 +144,7 @@ where
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
         let list_len_fn = self.list_len;
+        let list_get = self.list_get;
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
@@ -163,6 +167,7 @@ where
                             &sorted_cuts,
                             pattern,
                             list_len_fn,
+                            list_get,
                             sublist_remove,
                             sublist_insert,
                             variable_name,

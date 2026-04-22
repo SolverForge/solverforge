@@ -20,7 +20,7 @@ use solverforge_scoring::Director;
 /// * `V` - The value type
 pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
     // Returns an iterator over values for the given entity.
-    fn iter_typed<'a, D: Director<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
         descriptor_index: usize,
@@ -81,7 +81,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: Director<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         _score_director: &D,
         _descriptor_index: usize,
@@ -146,7 +146,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: Director<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
         _descriptor_index: usize,
@@ -190,7 +190,7 @@ where
     S: PlanningSolution,
     V: Copy + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: Director<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
         _descriptor_index: usize,
@@ -216,7 +216,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Debug + 'static,
 {
-    fn iter_typed<'a, D: Director<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
         _descriptor_index: usize,
@@ -263,7 +263,7 @@ impl<S> ValueSelector<S, usize> for RangeValueSelector<S>
 where
     S: PlanningSolution,
 {
-    fn iter_typed<'a, D: Director<S>>(
+    fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
         _descriptor_index: usize,

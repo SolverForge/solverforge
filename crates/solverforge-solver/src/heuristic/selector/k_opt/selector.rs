@@ -30,6 +30,7 @@ pub struct KOptMoveSelector<S, V, ES> {
     // Owned reconnection patterns (avoids `Box::leak` for non-k=3 cases).
     owned_patterns: Vec<KOptReconnection>,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove sublist [start, end).
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     // Insert elements at position.
@@ -58,6 +59,7 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
         entity_selector: ES,
         config: KOptConfig,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
@@ -76,6 +78,7 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
             config,
             owned_patterns,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             variable_name,
@@ -99,6 +102,7 @@ where
         let min_seg = self.config.min_segment_len;
         let patterns = &self.owned_patterns;
         let list_len = self.list_len;
+        let list_get = self.list_get;
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
         let variable_name = self.variable_name;
@@ -122,6 +126,7 @@ where
                         &cuts,
                         pattern,
                         list_len,
+                        list_get,
                         sublist_remove,
                         sublist_insert,
                         variable_name,

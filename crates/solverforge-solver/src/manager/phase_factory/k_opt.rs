@@ -74,6 +74,7 @@ use super::super::PhaseFactory;
 ///     DefaultDistanceMeter,
 ///     || FromSolutionEntitySelector::new(0),
 ///     list_len,
+///     |s, idx, pos| s.vehicles.get(idx).and_then(|v| v.visits.get(pos)).copied(),
 ///     sublist_remove,
 ///     sublist_insert,
 ///     "visits",
@@ -86,6 +87,7 @@ where
     V: Clone + Send + Sync + Debug + 'static,
 {
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     variable_name: &'static str,
@@ -104,10 +106,12 @@ where
     ///
     /// The `distance_meter` and `entity_selector_factory` parameters are accepted
     /// for API compatibility but not currently used (reserved for nearby selection).
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         _distance_meter: DM,
         _entity_selector_factory: ESF,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         variable_name: &'static str,
@@ -115,6 +119,7 @@ where
     ) -> Self {
         Self {
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             variable_name,
@@ -168,6 +173,7 @@ where
 {
     config: KOptConfig,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     variable_name: &'static str,
@@ -211,6 +217,7 @@ where
             entity_selector,
             self.config.clone(),
             self.list_len,
+            self.list_get,
             self.sublist_remove,
             self.sublist_insert,
             self.variable_name,
@@ -319,6 +326,7 @@ where
         KOptPhase {
             config: KOptConfig::new(self.k),
             list_len: self.list_len,
+            list_get: self.list_get,
             sublist_remove: self.sublist_remove,
             sublist_insert: self.sublist_insert,
             variable_name: self.variable_name,

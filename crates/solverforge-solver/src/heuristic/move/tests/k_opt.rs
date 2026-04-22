@@ -42,6 +42,12 @@ mod k_opt_tests {
     fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
         s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
     }
+    fn list_get(s: &TspSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+        s.tours
+            .get(entity_idx)
+            .and_then(|t| t.cities.get(pos))
+            .copied()
+    }
     fn sublist_remove(
         s: &mut TspSolution,
         entity_idx: usize,
@@ -94,6 +100,7 @@ mod k_opt_tests {
             &cuts,
             reconnection,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             "cities",
@@ -135,6 +142,7 @@ mod k_opt_tests {
             &cuts,
             reconnection,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             "cities",
@@ -175,6 +183,7 @@ mod k_opt_tests {
             &cuts,
             reconnection,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             "cities",
@@ -202,6 +211,7 @@ mod k_opt_tests {
             &cuts,
             reconnection,
             list_len,
+            list_get,
             sublist_remove,
             sublist_insert,
             "cities",

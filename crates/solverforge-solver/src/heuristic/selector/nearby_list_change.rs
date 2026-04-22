@@ -96,7 +96,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ListChangeMove, ListMoveImpl};
+use crate::heuristic::r#move::ListChangeMove;
 
 use super::entity::EntitySelector;
 use super::list_support::collect_selected_entities;
@@ -174,6 +174,7 @@ pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
     distance_meter: D,
     max_nearby: usize,
     list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     list_insert: fn(&mut S, usize, usize, V),
     variable_name: &'static str,
@@ -212,6 +213,7 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
         distance_meter: D,
         max_nearby: usize,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
@@ -222,6 +224,7 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
             distance_meter,
             max_nearby,
             list_len,
+            list_get,
             list_remove,
             list_insert,
             variable_name,
@@ -244,6 +247,7 @@ where
         score_director: &SD,
     ) -> impl Iterator<Item = ListChangeMove<S, V>> + 'a {
         let list_len = self.list_len;
+        let list_get = self.list_get;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let variable_name = self.variable_name;
@@ -308,6 +312,7 @@ where
                         dst_entity,
                         dst_pos,
                         list_len,
+                        list_get,
                         list_remove,
                         list_insert,
                         variable_name,
@@ -326,47 +331,5 @@ where
 
         // Each element generates at most max_nearby moves
         selected.total_elements() * self.max_nearby
-    }
-}
-
-/// Wraps a `NearbyListChangeMoveSelector` to yield `ListMoveImpl::ListChange`.
-pub struct ListMoveNearbyListChangeSelector<S, V, D, ES> {
-    inner: NearbyListChangeMoveSelector<S, V, D, ES>,
-}
-
-impl<S, V: Debug, D, ES: Debug> Debug for ListMoveNearbyListChangeSelector<S, V, D, ES> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ListMoveNearbyListChangeSelector")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-impl<S, V, D, ES> ListMoveNearbyListChangeSelector<S, V, D, ES> {
-    /// Wraps an existing [`NearbyListChangeMoveSelector`].
-    pub fn new(inner: NearbyListChangeMoveSelector<S, V, D, ES>) -> Self {
-        Self { inner }
-    }
-}
-
-impl<S, V, D, ES> MoveSelector<S, ListMoveImpl<S, V>>
-    for ListMoveNearbyListChangeSelector<S, V, D, ES>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    D: CrossEntityDistanceMeter<S>,
-    ES: EntitySelector<S>,
-{
-    fn open_cursor<'a, SD: Director<S>>(
-        &'a self,
-        score_director: &SD,
-    ) -> impl Iterator<Item = ListMoveImpl<S, V>> + 'a {
-        self.inner
-            .open_cursor(score_director)
-            .map(ListMoveImpl::ListChange)
-    }
-
-    fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
-        self.inner.size(score_director)
     }
 }

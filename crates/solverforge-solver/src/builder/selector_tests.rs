@@ -1,9 +1,9 @@
 use std::any::TypeId;
 
 use solverforge_config::{
-    AcceptorConfig, ChangeMoveConfig, ForagerConfig, LateAcceptanceConfig,
-    LimitedNeighborhoodConfig, LocalSearchConfig, MoveSelectorConfig, PickEarlyType,
-    SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
+    AcceptorConfig, CartesianProductConfig, ChangeMoveConfig, ForagerConfig, LateAcceptanceConfig,
+    LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig, LocalSearchConfig,
+    MoveSelectorConfig, SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -14,7 +14,7 @@ use solverforge_scoring::ScoreDirector;
 
 use super::*;
 use crate::builder::list_selector::ListLeafSelector;
-use crate::builder::standard_selector::StandardLeafSelector;
+use crate::builder::scalar_selector::ScalarLeafSelector;
 use crate::builder::{ListVariableContext, ScalarVariableContext, ValueSource, VariableContext};
 use crate::CrossEntityDistanceMeter;
 
@@ -302,7 +302,7 @@ fn empty_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
 }
 
 #[test]
-fn default_scalar_selector_uses_change_only() {
+fn default_scalar_selector_uses_change_and_swap() {
     let descriptor = descriptor(true);
     let director = create_director(
         MixedPlan {
@@ -315,18 +315,26 @@ fn default_scalar_selector_uses_change_only() {
     let selector = build_move_selector(None, &scalar_only_model(), None);
     let neighborhoods = selector.selectors();
 
-    assert_eq!(neighborhoods.len(), 1);
+    assert_eq!(neighborhoods.len(), 2);
     match &neighborhoods[0] {
         Neighborhood::Flat(leafs) => {
             assert_eq!(leafs.selectors().len(), 1);
             assert!(matches!(
                 &leafs.selectors()[0],
-                NeighborhoodLeaf::Scalar(StandardLeafSelector::Change(_))
+                NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_))
             ));
-            assert_eq!(selector.size(&director), 6);
         }
         Neighborhood::Limited { .. } => panic!("default scalar selector must not wrap a limit"),
+        Neighborhood::Cartesian(_) => {
+            panic!("default scalar selector must not wrap a cartesian neighborhood")
+        }
     }
+    assert!(matches!(
+        &neighborhoods[1],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
+    ));
+    assert_eq!(selector.size(&director), 7);
 }
 
 #[test]
@@ -353,11 +361,11 @@ fn default_list_selector_uses_three_explicit_neighborhoods() {
 }
 
 #[test]
-fn mixed_default_selector_puts_list_neighborhoods_before_scalar_change() {
+fn mixed_default_selector_puts_list_neighborhoods_before_scalar_defaults() {
     let selector = build_move_selector(None, &mixed_model(), None);
     let neighborhoods = selector.selectors();
 
-    assert_eq!(neighborhoods.len(), 4);
+    assert_eq!(neighborhoods.len(), 5);
     assert!(matches!(
         &neighborhoods[0],
         Neighborhood::Flat(leafs)
@@ -376,7 +384,12 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_change() {
     assert!(matches!(
         &neighborhoods[3],
         Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(StandardLeafSelector::Change(_)))
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[4],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
     ));
 }
 
@@ -411,6 +424,9 @@ fn explicit_limited_neighborhood_remains_supported() {
             assert_eq!(selector.size(&director), 2);
         }
         Neighborhood::Flat(_) => panic!("limited_neighborhood must remain a neighborhood wrapper"),
+        Neighborhood::Cartesian(_) => {
+            panic!("limited_neighborhood must not become a cartesian neighborhood")
+        }
     }
 }
 
@@ -434,13 +450,137 @@ fn explicit_scalar_union_selector_remains_supported() {
     assert!(matches!(
         &neighborhoods[0],
         Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(StandardLeafSelector::Change(_)))
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
     ));
     assert!(matches!(
         &neighborhoods[1],
         Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(StandardLeafSelector::Swap(_)))
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
     ));
+}
+
+#[test]
+fn cartesian_scalar_selector_builds_composite_moves() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![
+                Shift { worker: Some(0) },
+                Shift { worker: Some(1) },
+                Shift { worker: Some(2) },
+            ],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+    );
+    let change = MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let swap = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![change.clone(), swap.clone()],
+    });
+
+    let selector = build_move_selector(Some(&config), &scalar_only_model(), None);
+    let neighborhoods = selector.selectors();
+    let left = build_move_selector(Some(&change), &scalar_only_model(), None);
+    let right = build_move_selector(Some(&swap), &scalar_only_model(), None);
+
+    assert_eq!(neighborhoods.len(), 1);
+    assert_eq!(
+        selector.size(&director),
+        left.size(&director) * right.size(&director)
+    );
+    assert!(matches!(&neighborhoods[0], Neighborhood::Cartesian(_)));
+    assert!(selector
+        .open_cursor(&director)
+        .all(|mov| matches!(mov, NeighborhoodMove::Composite(_))));
+}
+
+#[test]
+fn cartesian_list_selector_builds_composite_moves() {
+    let descriptor = descriptor(false);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![],
+            vehicles: vec![
+                Vehicle {
+                    visits: vec![1, 2, 3],
+                },
+                Vehicle { visits: vec![4, 5] },
+            ],
+            score: None,
+        },
+        descriptor,
+    );
+    let list_change = MoveSelectorConfig::ListChangeMoveSelector(ListChangeMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let list_reverse = MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![list_change.clone(), list_reverse.clone()],
+    });
+
+    let selector = build_move_selector(Some(&config), &list_only_model(), None);
+    let neighborhoods = selector.selectors();
+    let moves: Vec<_> = selector.open_cursor(&director).collect();
+
+    assert_eq!(neighborhoods.len(), 1);
+    assert_eq!(moves.len(), selector.size(&director));
+    assert!(!moves.is_empty());
+    assert!(matches!(&neighborhoods[0], Neighborhood::Cartesian(_)));
+    assert!(moves
+        .iter()
+        .all(|mov| matches!(mov, NeighborhoodMove::Composite(_))));
+}
+
+#[test]
+fn cartesian_mixed_selector_supports_limited_children() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![Vehicle {
+                visits: vec![1, 2, 3],
+            }],
+            score: None,
+        },
+        descriptor,
+    );
+    let limited_change = MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
+        selected_count_limit: 2,
+        selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+            target: VariableTargetConfig::default(),
+        })),
+    });
+    let list_reverse = MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![limited_change.clone(), list_reverse.clone()],
+    });
+
+    let selector = build_move_selector(Some(&config), &mixed_model(), None);
+    let left = build_move_selector(Some(&limited_change), &mixed_model(), None);
+    let right = build_move_selector(Some(&list_reverse), &mixed_model(), None);
+    let moves: Vec<_> = selector.open_cursor(&director).collect();
+
+    assert_eq!(
+        selector.size(&director),
+        left.size(&director) * right.size(&director)
+    );
+    assert_eq!(moves.len(), selector.size(&director));
+    assert!(moves
+        .iter()
+        .all(|mov| matches!(mov, NeighborhoodMove::Composite(_))));
+    assert!(moves
+        .iter()
+        .all(|mov| mov.variable_name() == "cartesian_product"));
 }
 
 #[test]
@@ -487,10 +627,7 @@ fn explicit_acceptor_and_forager_configs_override_defaults() {
         acceptor: Some(AcceptorConfig::LateAcceptance(LateAcceptanceConfig {
             late_acceptance_size: Some(17),
         })),
-        forager: Some(ForagerConfig {
-            accepted_count_limit: Some(9),
-            pick_early_type: Some(PickEarlyType::FirstBestScoreImproving),
-        }),
+        forager: Some(ForagerConfig::FirstBestScoreImproving),
         move_selector: None,
         termination: None,
     };

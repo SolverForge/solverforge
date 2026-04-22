@@ -1,27 +1,28 @@
 use serde::{Deserialize, Serialize};
 
 // Forager configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct ForagerConfig {
-    // Maximum number of accepted moves to retain for final selection.
-    pub accepted_count_limit: Option<usize>,
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ForagerConfig {
+    // Retain up to N accepted candidates and pick the best.
+    AcceptedCount(AcceptedCountForagerConfig),
 
-    // Whether to stop neighborhood traversal early if an improving move is found.
-    pub pick_early_type: Option<PickEarlyType>,
-}
+    // Evaluate the full neighborhood and pick the best accepted move.
+    BestScore,
 
-// Pick early type.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PickEarlyType {
-    // Never pick early.
-    #[default]
-    Never,
+    // Pick the first accepted move.
+    FirstAccepted,
 
-    // Pick first improving move.
+    // Stop on the first move improving the phase-best score.
     FirstBestScoreImproving,
 
-    // Pick first last step score improving move.
+    // Stop on the first move improving the previous step score.
     FirstLastStepScoreImproving,
+}
+
+// Accepted-count forager configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct AcceptedCountForagerConfig {
+    pub limit: Option<usize>,
 }

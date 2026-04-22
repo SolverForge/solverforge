@@ -51,18 +51,19 @@ mod solver_config;
 mod termination;
 
 pub use acceptor::{
-    AcceptorConfig, GreatDelugeConfig, LateAcceptanceConfig, SimulatedAnnealingConfig,
-    TabuSearchConfig,
+    AcceptorConfig, DiversifiedLateAcceptanceConfig, GreatDelugeConfig, LateAcceptanceConfig,
+    SimulatedAnnealingConfig, StepCountingHillClimbingConfig, TabuSearchConfig,
 };
 pub use director::DirectorConfig;
 pub use error::ConfigError;
-pub use forager::{ForagerConfig, PickEarlyType};
+pub use forager::{AcceptedCountForagerConfig, ForagerConfig};
 pub use move_selector::{
     CartesianProductConfig, ChangeMoveConfig, KOptMoveSelectorConfig, LimitedNeighborhoodConfig,
     ListChangeMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
-    MoveSelectorConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
-    SubListChangeMoveConfig, SubListSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig,
-    VariableTargetConfig,
+    MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
+    NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
+    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig,
+    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, CustomPhaseConfig,

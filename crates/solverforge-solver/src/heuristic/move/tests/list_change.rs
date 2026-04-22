@@ -33,6 +33,12 @@ fn get_vehicles_mut(s: &mut RoutingSolution) -> &mut Vec<Vehicle> {
 fn list_len(s: &RoutingSolution, entity_idx: usize) -> usize {
     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
 }
+fn list_get(s: &RoutingSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+    s.vehicles
+        .get(entity_idx)
+        .and_then(|v| v.visits.get(pos))
+        .copied()
+}
 fn list_remove(s: &mut RoutingSolution, entity_idx: usize, pos: usize) -> Option<i32> {
     s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
 }
@@ -73,6 +79,7 @@ fn intra_list_move_forward() {
         0,
         3,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",
@@ -108,6 +115,7 @@ fn intra_list_move_backward() {
         0,
         1,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",
@@ -148,6 +156,7 @@ fn inter_list_move() {
         1,
         1,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",
@@ -185,6 +194,7 @@ fn same_position_not_doable() {
         0,
         1,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",
@@ -207,6 +217,7 @@ fn invalid_source_position_not_doable() {
         0,
         0,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",

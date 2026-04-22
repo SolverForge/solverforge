@@ -3,26 +3,26 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::EitherMove;
+use crate::heuristic::r#move::ScalarMoveUnion;
 
 use super::super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::super::value_selector::{StaticValueSelector, ValueSelector};
 use super::{ChangeMoveSelector, MoveSelector, SwapMoveSelector};
 
-pub struct EitherChangeMoveSelector<S, V, ES, VS> {
+pub struct ScalarChangeMoveSelector<S, V, ES, VS> {
     inner: ChangeMoveSelector<S, V, ES, VS>,
 }
 
-impl<S, V: Debug, ES: Debug, VS: Debug> Debug for EitherChangeMoveSelector<S, V, ES, VS> {
+impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ScalarChangeMoveSelector<S, V, ES, VS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EitherChangeMoveSelector")
+        f.debug_struct("ScalarChangeMoveSelector")
             .field("inner", &self.inner)
             .finish()
     }
 }
 
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
-    EitherChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
+    ScalarChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
 {
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
@@ -43,7 +43,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     }
 }
 
-impl<S, V, ES, VS> MoveSelector<S, EitherMove<S, V>> for EitherChangeMoveSelector<S, V, ES, VS>
+impl<S, V, ES, VS> MoveSelector<S, ScalarMoveUnion<S, V>> for ScalarChangeMoveSelector<S, V, ES, VS>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -53,10 +53,10 @@ where
     fn open_cursor<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
+    ) -> impl Iterator<Item = ScalarMoveUnion<S, V>> + 'a {
         self.inner
             .open_cursor(score_director)
-            .map(EitherMove::Change)
+            .map(ScalarMoveUnion::Change)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -64,20 +64,20 @@ where
     }
 }
 
-pub struct EitherSwapMoveSelector<S, V, LES, RES> {
+pub struct ScalarSwapMoveSelector<S, V, LES, RES> {
     inner: SwapMoveSelector<S, V, LES, RES>,
 }
 
-impl<S, V: Debug, LES: Debug, RES: Debug> Debug for EitherSwapMoveSelector<S, V, LES, RES> {
+impl<S, V: Debug, LES: Debug, RES: Debug> Debug for ScalarSwapMoveSelector<S, V, LES, RES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EitherSwapMoveSelector")
+        f.debug_struct("ScalarSwapMoveSelector")
             .field("inner", &self.inner)
             .finish()
     }
 }
 
 impl<S: PlanningSolution, V>
-    EitherSwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
+    ScalarSwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
 {
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
@@ -91,7 +91,8 @@ impl<S: PlanningSolution, V>
     }
 }
 
-impl<S, V, LES, RES> MoveSelector<S, EitherMove<S, V>> for EitherSwapMoveSelector<S, V, LES, RES>
+impl<S, V, LES, RES> MoveSelector<S, ScalarMoveUnion<S, V>>
+    for ScalarSwapMoveSelector<S, V, LES, RES>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -101,8 +102,10 @@ where
     fn open_cursor<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = EitherMove<S, V>> + 'a {
-        self.inner.open_cursor(score_director).map(EitherMove::Swap)
+    ) -> impl Iterator<Item = ScalarMoveUnion<S, V>> + 'a {
+        self.inner
+            .open_cursor(score_director)
+            .map(ScalarMoveUnion::Swap)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

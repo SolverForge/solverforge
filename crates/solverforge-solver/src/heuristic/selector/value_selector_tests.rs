@@ -51,7 +51,7 @@ fn test_static_value_selector_selector() {
     }]);
     let selector = StaticValueSelector::<TaskSolution, i32>::new(vec![1, 2, 3, 4, 5]);
 
-    let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
+    let values: Vec<_> = selector.iter(&director, 0, 0).collect();
     assert_eq!(values, vec![1, 2, 3, 4, 5]);
     assert_eq!(selector.size(&director, 0, 0), 5);
 }
@@ -79,6 +79,6 @@ fn test_from_solution_value_selector_selector() {
 
     let selector = FromSolutionValueSelector::new(extract_priorities);
 
-    let values: Vec<_> = selector.iter_typed(&director, 0, 0).collect();
+    let values: Vec<_> = selector.iter(&director, 0, 0).collect();
     assert_eq!(values, vec![10, 20]);
 }

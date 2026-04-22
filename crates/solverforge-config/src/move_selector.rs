@@ -11,11 +11,26 @@ pub struct VariableTargetConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MoveSelectorConfig {
-    // Change move selector (standard variables).
+    // Change move selector (scalar variables).
     ChangeMoveSelector(ChangeMoveConfig),
 
-    // Swap move selector (standard variables).
+    // Swap move selector (scalar variables).
     SwapMoveSelector(SwapMoveConfig),
+
+    // Nearby change move selector (scalar variables).
+    NearbyChangeMoveSelector(NearbyChangeMoveConfig),
+
+    // Nearby swap move selector (scalar variables).
+    NearbySwapMoveSelector(NearbySwapMoveConfig),
+
+    // Pillar change move selector (scalar variables).
+    PillarChangeMoveSelector(PillarChangeMoveConfig),
+
+    // Pillar swap move selector (scalar variables).
+    PillarSwapMoveSelector(PillarSwapMoveConfig),
+
+    // Ruin-and-recreate move selector (scalar variables).
+    RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig),
 
     // List change move selector — relocates single elements within/between routes.
     ListChangeMoveSelector(ListChangeMoveConfig),
@@ -30,10 +45,10 @@ pub enum MoveSelectorConfig {
     NearbyListSwapMoveSelector(NearbyListSwapMoveConfig),
 
     // Sublist change move selector (Or-opt) — relocates contiguous segments.
-    SubListChangeMoveSelector(SubListChangeMoveConfig),
+    SublistChangeMoveSelector(SublistChangeMoveConfig),
 
     // Sublist swap move selector — swaps contiguous segments between routes.
-    SubListSwapMoveSelector(SubListSwapMoveConfig),
+    SublistSwapMoveSelector(SublistSwapMoveConfig),
 
     // List reverse move selector (2-opt) — reverses segments within a route.
     ListReverseMoveSelector(ListReverseMoveConfig),
@@ -68,6 +83,94 @@ pub struct ChangeMoveConfig {
 pub struct SwapMoveConfig {
     #[serde(flatten)]
     pub target: VariableTargetConfig,
+}
+
+// Nearby change move configuration.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct NearbyChangeMoveConfig {
+    pub max_nearby: usize,
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+impl Default for NearbyChangeMoveConfig {
+    fn default() -> Self {
+        Self {
+            max_nearby: 10,
+            target: VariableTargetConfig::default(),
+        }
+    }
+}
+
+// Nearby swap move configuration.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct NearbySwapMoveConfig {
+    pub max_nearby: usize,
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+impl Default for NearbySwapMoveConfig {
+    fn default() -> Self {
+        Self {
+            max_nearby: 10,
+            target: VariableTargetConfig::default(),
+        }
+    }
+}
+
+// Pillar change move configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PillarChangeMoveConfig {
+    pub minimum_sub_pillar_size: usize,
+    pub maximum_sub_pillar_size: usize,
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+// Pillar swap move configuration.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PillarSwapMoveConfig {
+    pub minimum_sub_pillar_size: usize,
+    pub maximum_sub_pillar_size: usize,
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RecreateHeuristicType {
+    FirstFit,
+    #[default]
+    CheapestInsertion,
+}
+
+// Ruin-and-recreate move configuration.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RuinRecreateMoveSelectorConfig {
+    pub min_ruin_count: usize,
+    pub max_ruin_count: usize,
+    pub moves_per_step: Option<usize>,
+    pub recreate_heuristic_type: RecreateHeuristicType,
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+impl Default for RuinRecreateMoveSelectorConfig {
+    fn default() -> Self {
+        Self {
+            min_ruin_count: 2,
+            max_ruin_count: 5,
+            moves_per_step: None,
+            recreate_heuristic_type: RecreateHeuristicType::CheapestInsertion,
+            target: VariableTargetConfig::default(),
+        }
+    }
 }
 
 // Configuration for `ListChangeMoveSelector`.
@@ -124,10 +227,10 @@ impl Default for NearbyListSwapMoveConfig {
     }
 }
 
-// Configuration for `SubListChangeMoveSelector` (Or-opt).
+// Configuration for `SublistChangeMoveSelector` (Or-opt).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct SubListChangeMoveConfig {
+pub struct SublistChangeMoveConfig {
     // Minimum segment size (inclusive). Default: 1.
     pub min_sublist_size: usize,
     // Maximum segment size (inclusive). Default: 3.
@@ -136,7 +239,7 @@ pub struct SubListChangeMoveConfig {
     pub target: VariableTargetConfig,
 }
 
-impl Default for SubListChangeMoveConfig {
+impl Default for SublistChangeMoveConfig {
     fn default() -> Self {
         Self {
             min_sublist_size: 1,
@@ -146,10 +249,10 @@ impl Default for SubListChangeMoveConfig {
     }
 }
 
-// Configuration for `SubListSwapMoveSelector`.
+// Configuration for `SublistSwapMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct SubListSwapMoveConfig {
+pub struct SublistSwapMoveConfig {
     // Minimum segment size (inclusive). Default: 1.
     pub min_sublist_size: usize,
     // Maximum segment size (inclusive). Default: 3.
@@ -158,7 +261,7 @@ pub struct SubListSwapMoveConfig {
     pub target: VariableTargetConfig,
 }
 
-impl Default for SubListSwapMoveConfig {
+impl Default for SublistSwapMoveConfig {
     fn default() -> Self {
         Self {
             min_sublist_size: 1,

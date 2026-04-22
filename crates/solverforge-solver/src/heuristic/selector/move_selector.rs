@@ -17,13 +17,8 @@ use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector}
 use super::value_selector::{StaticValueSelector, ValueSelector};
 
 mod either;
-mod list_adapters;
 
-pub use either::{EitherChangeMoveSelector, EitherSwapMoveSelector};
-pub use list_adapters::{
-    ListMoveKOptSelector, ListMoveListChangeSelector, ListMoveListRuinSelector,
-    ListMoveNearbyKOptSelector,
-};
+pub use either::{ScalarChangeMoveSelector, ScalarSwapMoveSelector};
 
 /// A typed move selector that yields moves of type `M` directly.
 ///
@@ -168,7 +163,7 @@ where
             .iter(score_director)
             .map(|entity_ref| {
                 let current_assigned = getter(solution, entity_ref.entity_index).is_some();
-                let values = value_selector.iter_typed(
+                let values = value_selector.iter(
                     score_director,
                     entity_ref.descriptor_index,
                     entity_ref.entity_index,

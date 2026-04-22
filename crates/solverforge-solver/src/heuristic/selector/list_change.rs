@@ -78,6 +78,8 @@ pub struct ListChangeMoveSelector<S, V, ES> {
     // Selects entities (vehicles) for moves.
     entity_selector: ES,
     list_len: fn(&S, usize) -> usize,
+    // Read element by position for exact move/value tabu metadata.
+    list_get: fn(&S, usize, usize) -> Option<V>,
     // Remove element at position.
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     // Insert element at position.
@@ -112,6 +114,7 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     pub fn new(
         entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
         variable_name: &'static str,
@@ -120,6 +123,7 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
         Self {
             entity_selector,
             list_len,
+            list_get,
             list_remove,
             list_insert,
             variable_name,
@@ -140,6 +144,7 @@ where
         score_director: &D,
     ) -> impl Iterator<Item = ListChangeMove<S, V>> + 'a {
         let list_len = self.list_len;
+        let list_get = self.list_get;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let variable_name = self.variable_name;
@@ -175,6 +180,7 @@ where
                         src_entity,
                         dst_pos,
                         list_len,
+                        list_get,
                         list_remove,
                         list_insert,
                         variable_name,
@@ -197,6 +203,7 @@ where
                             dst_entity,
                             dst_pos,
                             list_len,
+                            list_get,
                             list_remove,
                             list_insert,
                             variable_name,

@@ -34,6 +34,12 @@ fn entity_count(s: &VrpSolution) -> usize {
 fn list_len(s: &VrpSolution, entity_idx: usize) -> usize {
     s.routes.get(entity_idx).map_or(0, |r| r.stops.len())
 }
+fn list_get(s: &VrpSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+    s.routes
+        .get(entity_idx)
+        .and_then(|r| r.stops.get(pos))
+        .copied()
+}
 fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
     s.routes
         .get_mut(entity_idx)
@@ -65,6 +71,7 @@ fn generates_list_ruin_moves() {
         3,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -91,6 +98,7 @@ fn clamps_to_available_elements() {
         10,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -115,6 +123,7 @@ fn empty_solution_yields_no_moves() {
         2,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -134,6 +143,7 @@ fn empty_list_yields_no_moves_for_that_entity() {
         2,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -160,6 +170,7 @@ fn seeded_selector_advances_between_steps() {
         3,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -182,6 +193,7 @@ fn seeded_selector_advances_between_steps() {
         3,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -210,6 +222,7 @@ fn size_returns_moves_per_step() {
         2,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -228,6 +241,7 @@ fn panics_on_zero_min() {
         2,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -243,6 +257,7 @@ fn panics_on_invalid_range() {
         2,
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",

@@ -3,7 +3,10 @@ use std::any::TypeId;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use solverforge_config::{MoveSelectorConfig, NearbyListSwapMoveConfig, VariableTargetConfig};
+use solverforge_config::{
+    CartesianProductConfig, ListChangeMoveConfig, ListSwapMoveConfig, MoveSelectorConfig,
+    NearbyListSwapMoveConfig, VariableTargetConfig,
+};
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
@@ -232,4 +235,72 @@ fn nearby_list_swap_uses_cross_entity_meter() {
         0,
         "nearby_list_swap must not consult the intra-route meter"
     );
+}
+
+#[test]
+fn public_list_builder_supports_cartesian_product() {
+    let (cross_meter, _) = CountingMeter::new();
+    let (intra_meter, _) = CountingMeter::new();
+    let ctx = ListVariableContext::new(
+        "Vehicle",
+        element_count,
+        assigned_elements,
+        list_len,
+        list_remove,
+        construction_list_remove,
+        list_insert,
+        list_get,
+        list_set,
+        list_reverse,
+        sublist_remove,
+        sublist_insert,
+        ruin_remove,
+        ruin_insert,
+        index_to_element,
+        entity_count,
+        cross_meter,
+        intra_meter,
+        "visits",
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::ListChangeMoveSelector(ListChangeMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::ListSwapMoveSelector(ListSwapMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+    let selector = ListMoveSelectorBuilder::build(Some(&config), &ctx, None);
+    let solution = Plan {
+        vehicles: vec![Vehicle { visits: vec![10] }, Vehicle { visits: vec![20] }],
+        score: None,
+    };
+    let director = ScoreDirector::simple(solution, descriptor(), |s, descriptor_index| {
+        if descriptor_index == 0 {
+            s.vehicles.len()
+        } else {
+            0
+        }
+    });
+
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert!(!moves.is_empty());
+    assert!(moves
+        .iter()
+        .all(|mov| matches!(mov, crate::heuristic::r#move::ListMoveUnion::Composite(_))));
 }

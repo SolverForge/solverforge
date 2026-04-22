@@ -28,7 +28,7 @@ solverforge new my-scheduler
 cd my-scheduler
 solverforge generate fact resource --field category:String --field load:i32
 solverforge generate entity task --field label:String --field priority:i32
-solverforge generate variable resource_idx --entity Task --kind standard --range resources --allows-unassigned
+solverforge generate variable resource_idx --entity Task --kind scalar --range resources --allows-unassigned
 solverforge server
 ```
 
@@ -37,14 +37,14 @@ Open http://localhost:7860 to see your solver in action.
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
-The generated runtime now builds one `ModelContext` for every planning model. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar matches reuse the descriptor-standard scalar path. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
-Standard variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
+The generated runtime now builds one `ModelContext` for every planning model. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar matches reuse the descriptor-scalar scalar path. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
+Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
 Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
 
 ## Extend the Scaffold
 
 - [Extend the solver](docs/extend-solver.md) when you need custom constraints, phases, selectors, termination, or solver configuration beyond the default scaffold.
-- [Extend the domain](docs/extend-domain.md) when you need more entities, facts, variables, scoring, or mixed standard/list modeling inside the generated app.
+- [Extend the domain](docs/extend-domain.md) when you need more entities, facts, variables, scoring, or mixed scalar/list modeling inside the generated app.
 
 ## Documentation Map
 
@@ -75,14 +75,14 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 - **ConstraintStream API**: Declarative constraint definition with fluent builders
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-standard scalar routing for pure scalar matches and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
+  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar scalar routing for pure scalar matches and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
   - VND (Variable Neighborhood Descent)
 - **Move System**: Zero-allocation typed moves with arena-based ownership
-  - Standard: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
-  - List: ListChangeMove, ListSwapMove, SubListChangeMove, SubListSwapMove, KOptMove, ListRuinMove
+  - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
+  - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Nearby selection for list moves
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
@@ -95,16 +95,16 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.8.13", features = ["console"] }
+solverforge = { version = "0.9.0", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
 uses explicit streaming defaults instead of broad exhaustive neighborhoods:
 
-- scalar-only models default to `ChangeMoveSelector`
+- scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
-- mixed models concatenate the list defaults first, then scalar change
+- mixed models concatenate the list defaults first, then the scalar defaults
 
 Runtime telemetry now preserves exact counts and `Duration`s through the whole
 pipeline. Retained status/events expose generated, evaluated, and accepted move
@@ -165,6 +165,12 @@ pub struct Schedule {
     pub score: Option<HardSoftScore>,
 }
 ```
+
+Nearby scalar neighborhoods are model-provided, not inferred. If a solver policy
+uses `nearby_change_move_selector` or `nearby_swap_move_selector`, declare the
+matching hook on the variable with
+`#[planning_variable(nearby_value_distance_meter = "...")]` and/or
+`#[planning_variable(nearby_entity_distance_meter = "...")]`.
 
 ### 2. Define Constraints
 
@@ -283,9 +289,9 @@ fn main() {
 
 With `features = ["console"]`, SolverForge displays colorful progress:
 
-The solve-start line is shape-aware: list models show `elements`, standard
-scalar models show average `candidates`, and legacy/basic solution logging
-keeps `values`.
+The solve-start line is shape-aware: list models show `elements`, scalar
+models show average `candidates`, and legacy/basic solution logging keeps
+`values`.
 
 ```
  ____        _                 _____
@@ -294,7 +300,7 @@ keeps `values`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.8.13 - Zero-Erasure Constraint Solver
+                   v0.9.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -501,17 +507,17 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.8.13
+**Current Version**: 0.9.0
 
-### What's New in 0.8.13
+### What's New in 0.9.0
 
-- **Standard solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels standard solve startup scale as `candidates` rather than generic `values`.
+- **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates` rather than generic `values`.
 
 ### What's New in 0.8.12
 
 - **Optional `FirstFit` now respects `None` as a real baseline**: optional scalar construction keeps `None` unless an assignment is strictly better, matching `CheapestInsertion` semantics while preserving `FirstFit`'s eager search order.
-- **Accepted-count local search now retains the best accepted candidates**: `accepted_count_limit` caps the retained accepted moves for final selection and no longer acts as an implicit early-exit threshold.
-- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, pure-scalar generic construction reuses the descriptor-standard path, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
+- **Accepted-count local search now retains the best accepted candidates**: the accepted-count forager `limit` caps the retained accepted moves for final selection and no longer acts as an implicit early-exit threshold.
+- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, pure-scalar generic construction reuses the descriptor-scalar path, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
 
 ### What's New in 0.8.11
 
@@ -570,7 +576,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - Deleted `ShadowAwareScoreDirector`, `ScoreDirectorFactory` (dead wrappers)
 - Trimmed `ScoreDirector` trait: removed `variable_name` param, `before/after_entity_changed`, `trigger_variable_listeners`, `get_entity`; deleted dead pinning infrastructure
 - Eliminated `Box<dyn Acceptor<S>>` via `AnyAcceptor<S>` enum in `AcceptorBuilder`
-- Removed `run_solver_with_channel`; collapsed `standard.rs` solve overloads
+- Removed `run_solver_with_channel`; collapsed `scalar.rs` solve overloads
 - Deleted dead `termination_fn` field/methods from `SolverScope`
 - Added `WIREFRAME.md` canonical API references for all crates
 
@@ -598,7 +604,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 **New Features:**
 - **Ruin-and-Recreate (LNS)**: `ListRuinMove` for Large Neighborhood Search on list variables
 - **Nearby Selection**: Proximity-based list change/swap selectors for improved VRP solving
-- **EitherMove**: Monomorphized union of ChangeMove + SwapMove with `UnionMoveSelector` for mixed move neighborhoods
+- **ScalarMoveUnion**: Monomorphized union of ChangeMove + SwapMove with `UnionMoveSelector` for mixed move neighborhoods
 - **Simulated Annealing**: Rewritten with true Boltzmann distribution
 - **Telemetry**: `SolveResult` with solve statistics (moves/sec, calc/sec, acceptance rate)
 - **Best Solution Callback**: `with_best_solution_callback()` on Solver for real-time progress streaming
@@ -612,7 +618,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - `PhantomData<fn() -> T>` applied across all types to prevent inherited trait bounds
 
 **Performance:**
-- Eliminated Vec clones in KOptMove, SubListChangeMove, and SubListSwapMove hot paths
+- Eliminated Vec clones in KOptMove, SublistChangeMove, and SublistSwapMove hot paths
 - Fixed 6 hot-path regressions in local search and SA acceptor
 - Score macros (`impl_score_ops!`, `impl_score_scale!`, `impl_score_parse!`) reduce codegen
 

@@ -33,6 +33,12 @@ fn get_tours_mut(s: &mut TspSolution) -> &mut Vec<Tour> {
 fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
     s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
 }
+fn list_get(s: &TspSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+    s.tours
+        .get(entity_idx)
+        .and_then(|t| t.cities.get(pos))
+        .copied()
+}
 fn list_reverse(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize) {
     if let Some(t) = s.tours.get_mut(entity_idx) {
         t.cities[start..end].reverse();
@@ -61,7 +67,16 @@ fn reverse_segment() {
     }];
     let mut director = create_director(tours);
 
-    let m = ListReverseMove::<TspSolution, i32>::new(0, 1, 4, list_len, list_reverse, "cities", 0);
+    let m = ListReverseMove::<TspSolution, i32>::new(
+        0,
+        1,
+        4,
+        list_len,
+        list_get,
+        list_reverse,
+        "cities",
+        0,
+    );
 
     assert!(m.is_doable(&director));
 
@@ -86,7 +101,16 @@ fn reverse_entire_list() {
     }];
     let mut director = create_director(tours);
 
-    let m = ListReverseMove::<TspSolution, i32>::new(0, 0, 4, list_len, list_reverse, "cities", 0);
+    let m = ListReverseMove::<TspSolution, i32>::new(
+        0,
+        0,
+        4,
+        list_len,
+        list_get,
+        list_reverse,
+        "cities",
+        0,
+    );
 
     assert!(m.is_doable(&director));
 
@@ -111,7 +135,16 @@ fn single_element_not_doable() {
     }];
     let director = create_director(tours);
 
-    let m = ListReverseMove::<TspSolution, i32>::new(0, 1, 2, list_len, list_reverse, "cities", 0);
+    let m = ListReverseMove::<TspSolution, i32>::new(
+        0,
+        1,
+        2,
+        list_len,
+        list_get,
+        list_reverse,
+        "cities",
+        0,
+    );
 
     assert!(!m.is_doable(&director));
 }
@@ -123,7 +156,16 @@ fn out_of_bounds_not_doable() {
     }];
     let director = create_director(tours);
 
-    let m = ListReverseMove::<TspSolution, i32>::new(0, 1, 10, list_len, list_reverse, "cities", 0);
+    let m = ListReverseMove::<TspSolution, i32>::new(
+        0,
+        1,
+        10,
+        list_len,
+        list_get,
+        list_reverse,
+        "cities",
+        0,
+    );
 
     assert!(!m.is_doable(&director));
 }

@@ -137,6 +137,7 @@ fn list_change_keeps_canonical_intra_then_inter_order() {
     let selector = ListChangeMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",
@@ -184,6 +185,7 @@ fn list_change_moves_are_doable() {
     let selector = ListChangeMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",
@@ -279,6 +281,7 @@ fn bench_list_change_cursor_enumeration() {
     let selector = ListChangeMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "visits",

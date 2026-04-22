@@ -44,6 +44,12 @@ fn get_tours_mut(s: &mut TspSolution) -> &mut Vec<Tour> {
 fn list_len(s: &TspSolution, entity_idx: usize) -> usize {
     s.tours.get(entity_idx).map_or(0, |t| t.cities.len())
 }
+fn list_get(s: &TspSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+    s.tours
+        .get(entity_idx)
+        .and_then(|t| t.cities.get(pos))
+        .copied()
+}
 fn sublist_remove(s: &mut TspSolution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
     s.tours
         .get_mut(entity_idx)
@@ -122,6 +128,7 @@ fn selector_generates_moves() {
         FromSolutionEntitySelector::new(0),
         config,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "cities",
@@ -152,6 +159,7 @@ fn selector_size_matches_iteration() {
         FromSolutionEntitySelector::new(0),
         config,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "cities",

@@ -125,10 +125,13 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 When `move_selector` is omitted, the canonical runtime resolves explicit
 streaming defaults rather than broad exhaustive search:
 
-- scalar-only models: `ChangeMoveSelector`
+- scalar-only models: `ChangeMoveSelector`, then `SwapMoveSelector`
 - list-only models: `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, `ListReverseMoveSelector`
-- mixed models: the list defaults first, then scalar change
+- mixed models: the list defaults first, then the scalar defaults
+
+When `forager` is omitted, the canonical runtime uses the accepted-count
+forager with `limit = 1`.
 
 ### `VndConfig`
 
@@ -150,14 +153,26 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq`.
 
 ### `ForagerConfig`
 
+Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", rename_all = "snake_case")]`.
+
+| Variant | Payload | Note |
+|---------|---------|------|
+| `AcceptedCount` | `AcceptedCountForagerConfig` | Retain up to `limit` accepted moves and pick the best |
+| `BestScore` | — | Evaluate the full neighborhood and pick the best accepted move |
+| `FirstAccepted` | — | Stop on the first accepted move |
+| `FirstBestScoreImproving` | — | Stop on the first move improving the phase-best score |
+| `FirstLastStepScoreImproving` | — | Stop on the first move improving the previous step score |
+
+### `AcceptedCountForagerConfig`
+
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
-| Field | Type |
-|-------|------|
-| `accepted_count_limit` | `Option<usize>` |
-| `pick_early_type` | `Option<PickEarlyType>` |
+| Field | Type | Default |
+|-------|------|---------|
+| `limit` | `Option<usize>` | `None` |
 
-`accepted_count_limit` caps the accepted moves retained for final selection. It does not imply early neighborhood exit; early stop stays controlled by `pick_early_type` and the explicit `First*Improving` local-search foragers.
+The accepted-count forager keeps up to `limit` accepted moves for final
+selection. It does not imply early neighborhood exit.
 
 ### `TabuSearchConfig`
 
@@ -169,10 +184,19 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `value_tabu_size` | `Option<usize>` |
 | `move_tabu_size` | `Option<usize>` |
 | `undo_move_tabu_size` | `Option<usize>` |
+| `aspiration_enabled` | `Option<bool>` |
 
 Normalization notes:
 - `acceptor = { type = "tabu_search" }` normalizes to move-tabu-only with `move_tabu_size = 10` and `aspiration_enabled = true`.
 - Any explicit `*_tabu_size = 0` is rejected during solver build.
+
+### `StepCountingHillClimbingConfig`
+
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
+
+| Field | Type |
+|-------|------|
+| `step_count_limit` | `Option<u64>` |
 
 ### `SimulatedAnnealingConfig`
 
@@ -181,6 +205,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type |
 |-------|------|
 | `starting_temperature` | `Option<String>` |
+| `decay_rate` | `Option<f64>` |
 
 ### `LateAcceptanceConfig`
 
@@ -189,6 +214,15 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type |
 |-------|------|
 | `late_acceptance_size` | `Option<usize>` |
+
+### `DiversifiedLateAcceptanceConfig`
+
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
+
+| Field | Type |
+|-------|------|
+| `late_acceptance_size` | `Option<usize>` |
+| `tolerance` | `Option<f64>` |
 
 ### `GreatDelugeConfig`
 
@@ -497,19 +531,11 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 |---------|---------|
 | `HillClimbing` | — |
 | `TabuSearch` | `TabuSearchConfig` |
+| `StepCountingHillClimbing` | `StepCountingHillClimbingConfig` |
 | `SimulatedAnnealing` | `SimulatedAnnealingConfig` |
 | `LateAcceptance` | `LateAcceptanceConfig` |
+| `DiversifiedLateAcceptance` | `DiversifiedLateAcceptanceConfig` |
 | `GreatDeluge` | `GreatDelugeConfig` |
-
-### `PickEarlyType`
-
-Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
-
-| Variant | Note |
-|---------|------|
-| `Never` | **Default** |
-| `FirstBestScoreImproving` | |
-| `FirstLastStepScoreImproving` | |
 
 ### `ExhaustiveSearchType`
 

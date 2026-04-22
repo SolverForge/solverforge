@@ -38,6 +38,12 @@ fn entity_count(s: &VrpSolution) -> usize {
 fn list_len(s: &VrpSolution, entity_idx: usize) -> usize {
     s.routes.get(entity_idx).map_or(0, |r| r.stops.len())
 }
+fn list_get(s: &VrpSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+    s.routes
+        .get(entity_idx)
+        .and_then(|r| r.stops.get(pos))
+        .copied()
+}
 fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
     s.routes
         .get_mut(entity_idx)
@@ -78,6 +84,7 @@ fn ruin_single_element() {
         &[2],
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -118,6 +125,7 @@ fn ruin_multiple_elements() {
         &[1, 3],
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -155,6 +163,7 @@ fn ruin_unordered_indices() {
         &[3, 1],
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -188,6 +197,7 @@ fn empty_indices_not_doable() {
         &[],
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",
@@ -206,6 +216,7 @@ fn out_of_bounds_not_doable() {
         &[0, 10],
         entity_count,
         list_len,
+        list_get,
         list_remove,
         list_insert,
         "stops",

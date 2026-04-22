@@ -95,7 +95,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.8.12", features = ["console"] }
+solverforge = { version = "0.8.13", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -283,6 +283,10 @@ fn main() {
 
 With `features = ["console"]`, SolverForge displays colorful progress:
 
+The solve-start line is shape-aware: list models show `elements`, standard
+scalar models show average `candidates`, and legacy/basic solution logging
+keeps `values`.
+
 ```
  ____        _                 _____
 / ___|  ___ | |_   _____ _ __ |  ___|__  _ __ __ _  ___
@@ -290,9 +294,9 @@ With `features = ["console"]`, SolverForge displays colorful progress:
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.8.1 - Zero-Erasure Constraint Solver
+                   v0.8.13 - Zero-Erasure Constraint Solver
 
-  0.000s ▶ Solving │ 14 entities │ 5 values │ scale 9.799 x 10^0
+  0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
   0.002s ◀ Construction Heuristic ended │ 1ms │ 14 steps │ 14,000/s │ 0hard/-50soft
   0.002s ▶ Late Acceptance started
@@ -497,7 +501,11 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.8.12
+**Current Version**: 0.8.13
+
+### What's New in 0.8.13
+
+- **Standard solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels standard solve startup scale as `candidates` rather than generic `values`.
 
 ### What's New in 0.8.12
 

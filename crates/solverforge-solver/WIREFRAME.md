@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.8.12`
+**Workspace Release:** `0.8.13`
 
 ## Dependencies
 
@@ -833,6 +833,12 @@ Scalar-only, list-only, and mixed planning models now target the same canonical 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 
 `AnyTermination` is an enum over all built-in termination types for config-driven dispatch. `build_termination()` constructs an `AnyTermination` from a `SolverConfig`.
+
+`log_solve_start()` in the same module emits shape-specific startup telemetry:
+list solves log `element_count`, standard scalar solves log average
+`candidate_count`, and legacy/basic solution logging falls back to
+`value_count`. Console formatting uses those fields to label startup scale as
+`elements`, `candidates`, or `values`.
 
 ### `run_solver()` / `run_solver_with_config()` — `run.rs`
 

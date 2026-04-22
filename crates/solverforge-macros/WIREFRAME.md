@@ -3,7 +3,7 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.8.12`
+**Workspace Release:** `0.8.13`
 
 ## Dependencies
 
@@ -106,7 +106,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, sort those variable contexts to the descriptor-backed variable order emitted by the macros, and then call hidden `build_phases(config, &descriptor, &model)`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_standard_candidate_count()` for standard scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
 - `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`. Each accessor returns a `UniConstraintStream` backed by `TrackedExtract<fn(&Solution) -> &[Item]>`, using `ChangeSource::Descriptor(idx)` for planning entities and `ChangeSource::Static` for problem facts so generated streams stay compatible with incremental `.if_exists(...)` / `.if_not_exists(...)` and `.unassigned()`.
 
 ### `ProblemFactImpl`

@@ -69,6 +69,7 @@ mod pillar_change;
 mod pillar_swap;
 mod ruin;
 mod ruin_recreate;
+mod segment_layout;
 mod sublist_change;
 mod sublist_swap;
 mod swap;

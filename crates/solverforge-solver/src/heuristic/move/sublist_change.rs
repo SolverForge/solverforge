@@ -19,6 +19,7 @@ use super::metadata::{
     encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
     ScopedValueTabuToken,
 };
+use super::segment_layout::derive_segment_relocation_layout;
 use super::{Move, MoveTabuSignature};
 
 /// A move that relocates a contiguous sublist from one position to another.
@@ -244,6 +245,14 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        let layout = derive_segment_relocation_layout(
+            self.source_entity_index,
+            self.source_start,
+            self.source_end,
+            self.dest_entity_index,
+            self.dest_position,
+        );
+
         // Notify before changes
         score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
         if !self.is_intra_list() {
@@ -259,7 +268,7 @@ where
         );
 
         // dest_position is relative to post-removal list, no adjustment needed
-        let dest_pos = self.dest_position;
+        let dest_pos = layout.exact.dest_position;
 
         // Insert at destination
         (self.sublist_insert)(
@@ -278,16 +287,16 @@ where
         // Register undo
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
-        let src_entity = self.source_entity_index;
-        let src_start = self.source_start;
-        let dest_entity = self.dest_entity_index;
-        let sublist_len = self.sublist_len();
+        let inverse = layout.inverse;
 
         score_director.register_undo(Box::new(move |s: &mut S| {
-            // Remove from where we inserted
-            let removed = sublist_remove(s, dest_entity, dest_pos, dest_pos + sublist_len);
-            // Insert back at original position
-            sublist_insert(s, src_entity, src_start, removed);
+            let removed = sublist_remove(
+                s,
+                inverse.source_entity_index,
+                inverse.source_range.start,
+                inverse.source_range.end,
+            );
+            sublist_insert(s, inverse.dest_entity_index, inverse.dest_position, removed);
         }));
     }
 
@@ -308,6 +317,13 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+        let layout = derive_segment_relocation_layout(
+            self.source_entity_index,
+            self.source_start,
+            self.source_end,
+            self.dest_entity_index,
+            self.dest_position,
+        );
         let mut moved_ids: SmallVec<[u64; 2]> = SmallVec::new();
         for pos in self.source_start..self.source_end {
             let value = (self.list_get)(
@@ -321,7 +337,6 @@ where
         let dest_entity_id = encode_usize(self.dest_entity_index);
         let variable_id = hash_str(self.variable_name);
         let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let len = self.sublist_len();
         let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
             smallvec![scope.entity_token(source_entity_id)];
         if !self.is_intra_list() {
@@ -336,20 +351,20 @@ where
             encode_usize(self.descriptor_index),
             variable_id,
             source_entity_id,
-            encode_usize(self.source_start),
-            encode_usize(self.source_end),
+            encode_usize(layout.exact.source_range.start),
+            encode_usize(layout.exact.source_range.end),
             dest_entity_id,
-            encode_usize(self.dest_position)
+            encode_usize(layout.exact.dest_position)
         ];
         move_id.extend(moved_ids.iter().copied());
         let mut undo_move_id = smallvec![
             encode_usize(self.descriptor_index),
             variable_id,
-            dest_entity_id,
-            encode_usize(self.dest_position),
-            encode_usize(self.dest_position + len),
-            source_entity_id,
-            encode_usize(self.source_start)
+            encode_usize(layout.inverse.source_entity_index),
+            encode_usize(layout.inverse.source_range.start),
+            encode_usize(layout.inverse.source_range.end),
+            encode_usize(layout.inverse.dest_entity_index),
+            encode_usize(layout.inverse.dest_position)
         ];
         undo_move_id.extend(moved_ids.iter().copied());
 

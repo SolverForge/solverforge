@@ -19,6 +19,7 @@ use super::metadata::{
     encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
     ScopedValueTabuToken,
 };
+use super::segment_layout::derive_segment_swap_layout;
 use super::{Move, MoveTabuSignature};
 
 /// A move that swaps two contiguous sublists.
@@ -249,6 +250,15 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        let layout = derive_segment_swap_layout(
+            self.first_entity_index,
+            self.first_start,
+            self.first_end,
+            self.second_entity_index,
+            self.second_start,
+            self.second_end,
+        );
+
         // Notify before changes
         score_director.before_variable_changed(self.descriptor_index, self.first_entity_index);
         if !self.is_intra_list() {
@@ -256,48 +266,31 @@ where
         }
 
         if self.is_intra_list() {
-            // Intra-list swap: need to handle carefully due to index shifts
-            // Always process the later range first to avoid index shifts affecting the earlier range
-            let (early_start, early_end, late_start, late_end) =
-                if self.first_start < self.second_start {
-                    (
-                        self.first_start,
-                        self.first_end,
-                        self.second_start,
-                        self.second_end,
-                    )
-                } else {
-                    (
-                        self.second_start,
-                        self.second_end,
-                        self.first_start,
-                        self.first_end,
-                    )
-                };
+            let (early_range, late_range) = layout.exact.ordered_ranges();
 
             // Remove later range first
             let late_elements = (self.sublist_remove)(
                 score_director.working_solution_mut(),
                 self.first_entity_index,
-                late_start,
-                late_end,
+                late_range.start,
+                late_range.end,
             );
 
             // Remove earlier range
             let early_elements = (self.sublist_remove)(
                 score_director.working_solution_mut(),
                 self.first_entity_index,
-                early_start,
-                early_end,
+                early_range.start,
+                early_range.end,
             );
 
             // Insert late elements at early position
-            let late_len = late_end - late_start;
-            let early_len = early_end - early_start;
+            let late_len = late_range.len();
+            let early_len = early_range.len();
             (self.sublist_insert)(
                 score_director.working_solution_mut(),
                 self.first_entity_index,
-                early_start,
+                early_range.start,
                 late_elements,
             );
 
@@ -305,7 +298,7 @@ where
             After removing early range, late_start shifts by early_len
             After inserting late elements, it shifts back by late_len
             */
-            let new_late_pos = late_start - early_len + late_len;
+            let new_late_pos = late_range.start - early_len + late_len;
             (self.sublist_insert)(
                 score_director.working_solution_mut(),
                 self.first_entity_index,
@@ -317,21 +310,17 @@ where
             let sublist_remove = self.sublist_remove;
             let sublist_insert = self.sublist_insert;
             let entity = self.first_entity_index;
+            let inverse = layout.inverse;
 
             score_director.register_undo(Box::new(move |s: &mut S| {
-                // Remove late elements (now at early position with late_len)
-                let late_at_early = sublist_remove(s, entity, early_start, early_start + late_len);
-                // Remove early elements (now at new_late_pos with early_len)
-                let early_at_late = sublist_remove(
-                    s,
-                    entity,
-                    new_late_pos - late_len,
-                    new_late_pos - late_len + early_len,
-                );
-                // Insert early back at early
-                sublist_insert(s, entity, early_start, early_at_late);
-                // Insert late back at late
-                sublist_insert(s, entity, late_start, late_at_early);
+                let (early_range, late_range) = inverse.ordered_ranges();
+                let late_elements = sublist_remove(s, entity, late_range.start, late_range.end);
+                let early_elements = sublist_remove(s, entity, early_range.start, early_range.end);
+                let late_len = late_range.len();
+                let early_len = early_range.len();
+                sublist_insert(s, entity, early_range.start, late_elements);
+                let new_late_pos = late_range.start - early_len + late_len;
+                sublist_insert(s, entity, new_late_pos, early_elements);
             }));
         } else {
             // Inter-list swap: simpler, no index interaction between lists
@@ -367,23 +356,33 @@ where
             // Register undo
             let sublist_remove = self.sublist_remove;
             let sublist_insert = self.sublist_insert;
-            let first_entity = self.first_entity_index;
-            let first_start = self.first_start;
-            let second_entity = self.second_entity_index;
-            let second_start = self.second_start;
-            let first_len = self.first_len();
-            let second_len = self.second_len();
+            let inverse = layout.inverse;
 
             score_director.register_undo(Box::new(move |s: &mut S| {
-                // Remove second elements from first list
-                let second_at_first =
-                    sublist_remove(s, first_entity, first_start, first_start + second_len);
-                // Remove first elements from second list
-                let first_at_second =
-                    sublist_remove(s, second_entity, second_start, second_start + first_len);
-                // Restore originals
-                sublist_insert(s, first_entity, first_start, first_at_second);
-                sublist_insert(s, second_entity, second_start, second_at_first);
+                let first_elements = sublist_remove(
+                    s,
+                    inverse.first_entity_index,
+                    inverse.first_range.start,
+                    inverse.first_range.end,
+                );
+                let second_elements = sublist_remove(
+                    s,
+                    inverse.second_entity_index,
+                    inverse.second_range.start,
+                    inverse.second_range.end,
+                );
+                sublist_insert(
+                    s,
+                    inverse.first_entity_index,
+                    inverse.first_range.start,
+                    second_elements,
+                );
+                sublist_insert(
+                    s,
+                    inverse.second_entity_index,
+                    inverse.second_range.start,
+                    first_elements,
+                );
             }));
         }
 
@@ -411,22 +410,31 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
+        let layout = derive_segment_swap_layout(
+            self.first_entity_index,
+            self.first_start,
+            self.first_end,
+            self.second_entity_index,
+            self.second_start,
+            self.second_end,
+        );
+        let mut first_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
         for pos in self.first_start..self.first_end {
             let value = (self.list_get)(
                 score_director.working_solution(),
                 self.first_entity_index,
                 pos,
             );
-            value_ids.push(encode_option_debug(value.as_ref()));
+            first_value_ids.push(encode_option_debug(value.as_ref()));
         }
+        let mut second_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
         for pos in self.second_start..self.second_end {
             let value = (self.list_get)(
                 score_director.working_solution(),
                 self.second_entity_index,
                 pos,
             );
-            value_ids.push(encode_option_debug(value.as_ref()));
+            second_value_ids.push(encode_option_debug(value.as_ref()));
         }
         let first_entity_id = encode_usize(self.first_entity_index);
         let second_entity_id = encode_usize(self.second_entity_index);
@@ -437,24 +445,38 @@ where
         if !self.is_intra_list() {
             entity_tokens.push(scope.entity_token(second_entity_id));
         }
-        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = value_ids
+        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = first_value_ids
             .iter()
+            .chain(second_value_ids.iter())
             .copied()
             .map(|value_id| scope.value_token(value_id))
             .collect();
         let mut move_id = smallvec![
             encode_usize(self.descriptor_index),
             variable_id,
-            first_entity_id,
-            encode_usize(self.first_start),
-            encode_usize(self.first_end),
-            second_entity_id,
-            encode_usize(self.second_start),
-            encode_usize(self.second_end)
+            encode_usize(layout.exact.first_entity_index),
+            encode_usize(layout.exact.first_range.start),
+            encode_usize(layout.exact.first_range.end),
+            encode_usize(layout.exact.second_entity_index),
+            encode_usize(layout.exact.second_range.start),
+            encode_usize(layout.exact.second_range.end)
         ];
-        move_id.extend(value_ids.iter().copied());
+        move_id.extend(first_value_ids.iter().copied());
+        move_id.extend(second_value_ids.iter().copied());
+        let mut undo_move_id = smallvec![
+            encode_usize(self.descriptor_index),
+            variable_id,
+            encode_usize(layout.inverse.first_entity_index),
+            encode_usize(layout.inverse.first_range.start),
+            encode_usize(layout.inverse.first_range.end),
+            encode_usize(layout.inverse.second_entity_index),
+            encode_usize(layout.inverse.second_range.start),
+            encode_usize(layout.inverse.second_range.end)
+        ];
+        undo_move_id.extend(second_value_ids.iter().copied());
+        undo_move_id.extend(first_value_ids.iter().copied());
 
-        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+        MoveTabuSignature::new(scope, move_id, undo_move_id)
             .with_entity_tokens(entity_tokens)
             .with_destination_value_tokens(destination_value_tokens)
     }

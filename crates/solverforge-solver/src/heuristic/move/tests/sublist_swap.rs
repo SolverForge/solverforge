@@ -1,4 +1,4 @@
-// Tests for SubListSwapMove operations.
+// Tests for SublistSwapMove operations.
 
 use super::*;
 
@@ -32,6 +32,12 @@ fn get_vehicles_mut(s: &mut RoutingSolution) -> &mut Vec<Vehicle> {
 
 fn list_len(s: &RoutingSolution, entity_idx: usize) -> usize {
     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
+}
+fn list_get(s: &RoutingSolution, entity_idx: usize, pos: usize) -> Option<i32> {
+    s.vehicles
+        .get(entity_idx)
+        .and_then(|v| v.visits.get(pos))
+        .copied()
 }
 fn sublist_remove(
     s: &mut RoutingSolution,
@@ -82,7 +88,7 @@ fn inter_list_swap() {
     ];
     let mut director = create_director(vehicles);
 
-    let m = SubListSwapMove::<RoutingSolution, i32>::new(
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
         0,
         1,
         3,
@@ -90,6 +96,7 @@ fn inter_list_swap() {
         0,
         2,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -121,7 +128,7 @@ fn intra_list_swap() {
     }];
     let mut director = create_director(vehicles);
 
-    let m = SubListSwapMove::<RoutingSolution, i32>::new(
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
         0,
         1,
         3,
@@ -129,6 +136,7 @@ fn intra_list_swap() {
         5,
         7,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -158,7 +166,7 @@ fn overlapping_ranges_not_doable() {
     }];
     let director = create_director(vehicles);
 
-    let m = SubListSwapMove::<RoutingSolution, i32>::new(
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
         0,
         1,
         4,
@@ -166,6 +174,7 @@ fn overlapping_ranges_not_doable() {
         2,
         5,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -182,7 +191,7 @@ fn empty_range_not_doable() {
     }];
     let director = create_director(vehicles);
 
-    let m = SubListSwapMove::<RoutingSolution, i32>::new(
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
         0,
         1,
         1,
@@ -190,6 +199,7 @@ fn empty_range_not_doable() {
         2,
         3,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -206,7 +216,7 @@ fn out_of_bounds_not_doable() {
     }];
     let director = create_director(vehicles);
 
-    let m = SubListSwapMove::<RoutingSolution, i32>::new(
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
         0,
         0,
         2,
@@ -214,6 +224,7 @@ fn out_of_bounds_not_doable() {
         2,
         10,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -221,4 +232,120 @@ fn out_of_bounds_not_doable() {
     );
 
     assert!(!m.is_doable(&director));
+}
+
+#[test]
+fn intra_list_unequal_length_tabu_inverse_matches_reverse_move() {
+    let vehicles = vec![Vehicle {
+        visits: vec![1, 2, 3, 4, 5, 6, 7, 8, 9],
+    }];
+    let mut director = create_director(vehicles);
+
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
+        0,
+        1,
+        3,
+        0,
+        5,
+        8,
+        list_len,
+        list_get,
+        sublist_remove,
+        sublist_insert,
+        "visits",
+        0,
+    );
+    let signature = m.tabu_signature(&director);
+
+    {
+        let mut recording = RecordingDirector::new(&mut director);
+        m.do_move(&mut recording);
+
+        let reverse = SublistSwapMove::<RoutingSolution, i32>::new(
+            0,
+            1,
+            4,
+            0,
+            6,
+            8,
+            list_len,
+            list_get,
+            sublist_remove,
+            sublist_insert,
+            "visits",
+            0,
+        );
+        assert!(reverse.is_doable(&recording));
+
+        let reverse_signature = reverse.tabu_signature(&recording);
+        assert_ne!(signature.move_id, signature.undo_move_id);
+        assert_eq!(signature.undo_move_id, reverse_signature.move_id);
+
+        recording.undo_changes();
+    }
+
+    assert_eq!(
+        director.working_solution().vehicles[0].visits,
+        vec![1, 2, 3, 4, 5, 6, 7, 8, 9]
+    );
+}
+
+#[test]
+fn inter_list_unequal_length_tabu_inverse_matches_reverse_move() {
+    let vehicles = vec![
+        Vehicle {
+            visits: vec![1, 2, 3, 4],
+        },
+        Vehicle {
+            visits: vec![10, 20, 30, 40, 50],
+        },
+    ];
+    let mut director = create_director(vehicles);
+
+    let m = SublistSwapMove::<RoutingSolution, i32>::new(
+        0,
+        1,
+        3,
+        1,
+        2,
+        5,
+        list_len,
+        list_get,
+        sublist_remove,
+        sublist_insert,
+        "visits",
+        0,
+    );
+    let signature = m.tabu_signature(&director);
+
+    {
+        let mut recording = RecordingDirector::new(&mut director);
+        m.do_move(&mut recording);
+
+        let reverse = SublistSwapMove::<RoutingSolution, i32>::new(
+            0,
+            1,
+            4,
+            1,
+            2,
+            4,
+            list_len,
+            list_get,
+            sublist_remove,
+            sublist_insert,
+            "visits",
+            0,
+        );
+        assert!(reverse.is_doable(&recording));
+
+        let reverse_signature = reverse.tabu_signature(&recording);
+        assert_ne!(signature.move_id, signature.undo_move_id);
+        assert_eq!(signature.undo_move_id, reverse_signature.move_id);
+
+        recording.undo_changes();
+    }
+
+    let solution = director.working_solution();
+    assert_eq!(solution.vehicles[0].visits, vec![1, 2, 3, 4]);
+    assert_eq!(solution.vehicles[1].visits, vec![10, 20, 30, 40, 50]);
 }

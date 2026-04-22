@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-use crate::heuristic::selector::sublist_change::SubListChangeMoveSelector;
-use crate::heuristic::selector::sublist_swap::SubListSwapMoveSelector;
+use crate::heuristic::selector::sublist_change::SublistChangeMoveSelector;
+use crate::heuristic::selector::sublist_swap::SublistSwapMoveSelector;
 use crate::heuristic::selector::MoveSelector;
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -69,6 +69,12 @@ fn list_len(plan: &Plan, entity_idx: usize) -> usize {
         .get(entity_idx)
         .map_or(0, |vehicle| vehicle.visits.len())
 }
+fn list_get(plan: &Plan, entity_idx: usize, pos: usize) -> Option<usize> {
+    plan.vehicles
+        .get(entity_idx)
+        .and_then(|vehicle| vehicle.visits.get(pos))
+        .copied()
+}
 
 fn sublist_remove(plan: &mut Plan, entity_idx: usize, start: usize, end: usize) -> Vec<usize> {
     plan.vehicles
@@ -126,11 +132,12 @@ fn sublist_change_keeps_canonical_segment_order() {
         },
     ]);
 
-    let selector = SubListChangeMoveSelector::<Plan, usize, _>::new(
+    let selector = SublistChangeMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         2,
         2,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -182,11 +189,12 @@ fn sublist_change_moves_are_doable() {
         },
     ]);
 
-    let selector = SubListChangeMoveSelector::<Plan, usize, _>::new(
+    let selector = SublistChangeMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         1,
         3,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -212,11 +220,12 @@ fn sublist_swap_emits_canonical_non_overlapping_pairs() {
         },
     ]);
 
-    let selector = SubListSwapMoveSelector::<Plan, usize, _>::new(
+    let selector = SublistSwapMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         2,
         2,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -264,11 +273,12 @@ fn sublist_swap_moves_are_doable() {
         },
     ]);
 
-    let selector = SubListSwapMoveSelector::<Plan, usize, _>::new(
+    let selector = SublistSwapMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         1,
         3,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -286,11 +296,12 @@ fn sublist_swap_moves_are_doable() {
 #[test]
 fn bench_sublist_change_cursor_enumeration() {
     let director = create_director(benchmark_plan(10, 18));
-    let selector = SubListChangeMoveSelector::<Plan, usize, _>::new(
+    let selector = SublistChangeMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         1,
         3,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",
@@ -305,11 +316,12 @@ fn bench_sublist_change_cursor_enumeration() {
 #[test]
 fn bench_sublist_swap_cursor_enumeration() {
     let director = create_director(benchmark_plan(10, 18));
-    let selector = SubListSwapMoveSelector::<Plan, usize, _>::new(
+    let selector = SublistSwapMoveSelector::<Plan, usize, _>::new(
         FromSolutionEntitySelector::new(0),
         1,
         3,
         list_len,
+        list_get,
         sublist_remove,
         sublist_insert,
         "visits",

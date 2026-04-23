@@ -494,6 +494,7 @@ fn assert_cartesian_left_preview_safe(config: &MoveSelectorConfig) {
 fn push_scalar_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     model: &ModelContext<S, V, DM, IDM>,
+    random_seed: Option<u64>,
     out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
 ) where
     S: PlanningSolution + 'static,
@@ -505,7 +506,7 @@ fn push_scalar_selector<S, V, DM, IDM>(
     if scalar_variables.is_empty() {
         return;
     }
-    let selector = build_scalar_flat_selector(config, &scalar_variables);
+    let selector = build_scalar_flat_selector(config, &scalar_variables, random_seed);
     out.extend(
         selector
             .into_selectors()
@@ -557,7 +558,7 @@ where
         | Some(MoveSelectorConfig::PillarChangeMoveSelector(_))
         | Some(MoveSelectorConfig::PillarSwapMoveSelector(_))
         | Some(MoveSelectorConfig::RuinRecreateMoveSelector(_)) => {
-            push_scalar_selector(config, model, &mut leaves);
+            push_scalar_selector(config, model, random_seed, &mut leaves);
         }
         Some(MoveSelectorConfig::ListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::NearbyListChangeMoveSelector(_))
@@ -574,7 +575,7 @@ where
             for child in &union.selectors {
                 match selector_family(child) {
                     SelectorFamily::Scalar => {
-                        push_scalar_selector(Some(child), model, &mut leaves);
+                        push_scalar_selector(Some(child), model, random_seed, &mut leaves);
                     }
                     SelectorFamily::List => {
                         push_list_selector(Some(child), model, random_seed, &mut leaves);

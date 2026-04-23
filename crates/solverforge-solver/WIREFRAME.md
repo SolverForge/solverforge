@@ -30,7 +30,7 @@ src/
 ├── descriptor_scalar/
 │   ├── bindings.rs                      — Scalar-variable binding discovery, matching, and frontier-aware work checks
 │   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorScalarMoveUnion<S>
-│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(); nearby selectors require descriptor-provided nearby meters, optional assigned variables can emit one `Some(v) -> None` change, and top-level cartesian selectors build sequential composites
+│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(config, descriptor, random_seed); nearby selectors require descriptor-provided nearby meters, optional assigned variables can emit one `Some(v) -> None` change, top-level cartesian selectors build sequential composites, and scalar ruin-recreate uses the configured seed when provided
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>, build_descriptor_construction(); descriptor placements carry optional keep-current legality and slot identity
 │   └── tests.rs                         — Tests
 ├── runtime_tests.rs                     — Tests
@@ -111,6 +111,7 @@ src/
 │       ├── pillar.rs                    — PillarSelector trait, DefaultPillarSelector, Pillar, SubPillarConfig
 │       ├── pillar_support.rs            — Deterministic pillar grouping, legal-domain intersection, and mutual swap-compatibility helpers
 │       ├── ruin.rs                      — RuinMoveSelector<S, V>
+│       ├── seed.rs                      — Scoped deterministic selector seed derivation from SolverConfig random_seed
 │       ├── mimic.rs                     — MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector
 │       ├── selection_order.rs          — SelectionOrder enum
 │       ├── selection_order_tests.rs    — Tests
@@ -319,7 +320,7 @@ Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
 - `ScopedValueTabuToken { scope, value_id }`
 - `MoveTabuSignature { scope, entity_tokens, destination_value_tokens, move_id, undo_move_id }`
 
-Entity and destination-value tabu memories compare scoped tokens directly, so equal raw ids from different descriptors or variables do not collide. Exact move memories still store ordered `move_id` and `undo_move_id` sequences without hashing away structure.
+Entity and destination-value tabu memories compare scoped tokens directly, so equal raw ids from different descriptors or variables do not collide. Exact move memories still store ordered `move_id` and `undo_move_id` sequences without hashing away structure. True self-inverse coordinate moves, such as scalar swaps, pillar swaps, list swaps, and list reversals, use canonical coordinate identities for both fields so default move-tabu blocks non-aspirational immediate reversals while value tabu remains value-sensitive through scoped destination-value tokens.
 
 ### `Phase<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S> = ()>` — `phase/mod.rs`
 

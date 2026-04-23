@@ -123,7 +123,7 @@ fn builds_solution_count_scalar_selectors_without_descriptor_bindings() {
         true,
     )];
 
-    let selector = build_scalar_move_selector::<Schedule>(None, &scalar_variables);
+    let selector = build_scalar_move_selector::<Schedule>(None, &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 9);
@@ -173,7 +173,7 @@ fn filters_change_moves_against_entity_slice_candidates() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 5);
@@ -225,7 +225,7 @@ fn builds_nearby_change_selectors_when_meter_is_present() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 4);
@@ -288,7 +288,7 @@ fn nearby_swap_filters_same_value_candidates_before_limiting() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     let swap_pairs: Vec<_> = moves
@@ -338,10 +338,67 @@ fn ruin_recreate_skips_required_entities_without_recreate_values() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert!(moves.is_empty());
+}
+
+#[test]
+fn ruin_recreate_honors_configured_random_seed() {
+    fn batches(seed: Option<u64>) -> Vec<Vec<usize>> {
+        let director = create_director(Schedule {
+            workers: vec![0, 1, 2],
+            shifts: (0..8)
+                .map(|_| Shift {
+                    worker: Some(0),
+                    allowed_workers: vec![0, 1, 2],
+                })
+                .collect(),
+            score: None,
+        });
+        let scalar_variables = vec![ScalarVariableContext::new(
+            0,
+            "Shift",
+            shift_count,
+            "worker",
+            get_worker,
+            set_worker,
+            ValueSource::SolutionCount {
+                count_fn: worker_count,
+            },
+            false,
+        )];
+        let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+            min_ruin_count: 1,
+            max_ruin_count: 3,
+            moves_per_step: Some(16),
+            recreate_heuristic_type: RecreateHeuristicType::FirstFit,
+            target: VariableTargetConfig {
+                entity_class: Some("Shift".to_string()),
+                variable_name: Some("worker".to_string()),
+            },
+        });
+        let selector = build_scalar_move_selector(Some(&config), &scalar_variables, seed);
+
+        selector
+            .iter_moves(&director)
+            .map(|mov| {
+                assert!(matches!(
+                    mov,
+                    crate::heuristic::r#move::ScalarMoveUnion::RuinRecreate(_)
+                ));
+                mov.entity_indices().to_vec()
+            })
+            .collect()
+    }
+
+    let first = batches(Some(17));
+    let repeat = batches(Some(17));
+    let changed = batches(Some(18));
+
+    assert_eq!(first, repeat);
+    assert_ne!(first, changed);
 }
 
 #[test]
@@ -416,7 +473,7 @@ fn pillar_change_uses_public_pillar_semantics() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 2);
@@ -468,7 +525,7 @@ fn pillar_change_intersects_entity_slice_domains() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 1);
@@ -534,7 +591,7 @@ fn pillar_swap_prunes_illegal_entity_slice_partners() {
         },
     });
 
-    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     let mut swap_pairs = Vec::new();

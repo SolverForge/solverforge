@@ -376,7 +376,7 @@ fn solution_level_value_range_builds_change_moves() {
         score: None,
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
-    let selector = build_descriptor_move_selector::<Plan>(None, &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(None, &descriptor, None);
 
     assert_eq!(selector.size(&director), 3);
 }
@@ -392,7 +392,7 @@ fn descriptor_change_selector_adds_to_none_for_assigned_optional_variables() {
         score: None,
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
-    let selector = build_descriptor_move_selector::<Plan>(None, &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(None, &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 4);
@@ -593,7 +593,7 @@ fn descriptor_reopened_optional_slot_is_revisited_by_later_construction() {
         .score_director_mut()
         .set_score_mode(PlanScoreMode::PreferUnassigned);
 
-    let move_selector = build_descriptor_move_selector::<Plan>(None, &descriptor);
+    let move_selector = build_descriptor_move_selector::<Plan>(None, &descriptor, None);
     let mut local_search = LocalSearchPhase::new(
         move_selector,
         HillClimbingAcceptor::new(),
@@ -635,7 +635,7 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 4);
@@ -670,7 +670,7 @@ fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     let swap_pairs: Vec<Vec<_>> = moves
         .iter()
@@ -682,6 +682,47 @@ fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
 
     assert_eq!(swap_pairs, vec![vec![0, 2], vec![1, 2]]);
     assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_swap_tabu_identity_is_direction_stable() {
+    let descriptor = descriptor();
+    let plan = Plan {
+        workers: vec![Worker, Worker],
+        tasks: vec![
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(1),
+            },
+        ],
+        score: None,
+    };
+    let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let forward = moves
+        .iter()
+        .find(|mov| mov.entity_indices() == [0, 1])
+        .expect("forward descriptor swap should be generated");
+    let forward_signature = forward.tabu_signature(&director);
+
+    forward.do_move(&mut director);
+
+    let reverse_selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let reverse_moves: Vec<_> = reverse_selector.iter_moves(&director).collect();
+    let reverse = reverse_moves
+        .iter()
+        .find(|mov| mov.entity_indices() == [0, 1])
+        .expect("reverse descriptor swap should be generated");
+    let reverse_signature = reverse.tabu_signature(&director);
+
+    assert_eq!(forward_signature.move_id, forward_signature.undo_move_id);
+    assert_eq!(forward_signature.move_id, reverse_signature.move_id);
 }
 
 #[test]
@@ -709,7 +750,7 @@ fn descriptor_pillar_change_uses_public_pillar_semantics() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 2);
@@ -747,7 +788,8 @@ fn descriptor_pillar_change_intersects_entity_domains() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor);
+    let selector =
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 1);
@@ -797,11 +839,61 @@ fn descriptor_pillar_swap_prunes_illegal_partners() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor);
+    let selector =
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 2);
     assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_pillar_swap_tabu_identity_is_direction_stable() {
+    let descriptor = descriptor();
+    let plan = Plan {
+        workers: vec![Worker, Worker],
+        tasks: vec![
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(1),
+            },
+            Task {
+                worker_idx: Some(1),
+            },
+        ],
+        score: None,
+    };
+    let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::PillarSwapMoveSelector(PillarSwapMoveConfig {
+        minimum_sub_pillar_size: 0,
+        maximum_sub_pillar_size: 0,
+        target: VariableTargetConfig::default(),
+    });
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let mut moves: Vec<_> = selector.iter_moves(&director).collect();
+    assert_eq!(moves.len(), 1);
+    let forward = moves
+        .pop()
+        .expect("descriptor pillar swap should be generated");
+    let forward_signature = forward.tabu_signature(&director);
+
+    forward.do_move(&mut director);
+
+    let reverse_selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let mut reverse_moves: Vec<_> = reverse_selector.iter_moves(&director).collect();
+    assert_eq!(reverse_moves.len(), 1);
+    let reverse = reverse_moves
+        .pop()
+        .expect("reverse descriptor pillar swap should be generated");
+    let reverse_signature = reverse.tabu_signature(&director);
+
+    assert_eq!(forward_signature.move_id, forward_signature.undo_move_id);
+    assert_eq!(forward_signature.move_id, reverse_signature.move_id);
 }
 
 #[test]
@@ -875,7 +967,7 @@ fn descriptor_cartesian_builds_composite_moves() {
         ],
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert!(!moves.is_empty());
@@ -902,7 +994,7 @@ fn descriptor_cartesian_rejects_score_seeking_left_child() {
         ],
     });
 
-    let _ = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let _ = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
 }
 
 #[test]
@@ -931,7 +1023,7 @@ fn descriptor_ruin_recreate_first_fit_reassigns_to_first_improving_value() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
 
@@ -966,7 +1058,7 @@ fn descriptor_ruin_recreate_cheapest_insertion_picks_best_value() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
 
@@ -994,10 +1086,53 @@ fn descriptor_ruin_recreate_skips_required_entities_without_recreate_values() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert!(moves.is_empty());
+}
+
+#[test]
+fn descriptor_ruin_recreate_honors_configured_random_seed() {
+    fn batches(seed: Option<u64>) -> Vec<Vec<usize>> {
+        let descriptor = descriptor();
+        let plan = Plan {
+            workers: vec![Worker, Worker, Worker],
+            tasks: (0..8)
+                .map(|_| Task {
+                    worker_idx: Some(0),
+                })
+                .collect(),
+            score: None,
+        };
+        let director = PlanScoreDirector::new(plan, descriptor.clone());
+        let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+            min_ruin_count: 1,
+            max_ruin_count: 3,
+            moves_per_step: Some(16),
+            recreate_heuristic_type: RecreateHeuristicType::FirstFit,
+            target: VariableTargetConfig::default(),
+        });
+        let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, seed);
+
+        selector
+            .iter_moves(&director)
+            .map(|mov| {
+                assert!(matches!(
+                    mov,
+                    super::DescriptorScalarMoveUnion::RuinRecreate(_)
+                ));
+                mov.entity_indices().to_vec()
+            })
+            .collect()
+    }
+
+    let first = batches(Some(17));
+    let repeat = batches(Some(17));
+    let changed = batches(Some(18));
+
+    assert_eq!(first, repeat);
+    assert_ne!(first, changed);
 }
 
 #[test]

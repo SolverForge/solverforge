@@ -7,13 +7,14 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{
-    metadata::hash_str, Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove,
-    ScalarMoveUnion, ScalarRecreateValueSource, SequentialCompositeMove,
+    Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove, ScalarMoveUnion,
+    ScalarRecreateValueSource, SequentialCompositeMove,
 };
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::{
     nearby_support::truncate_nearby_candidates,
     pillar_support::{intersect_legal_values_for_pillar, pillars_are_swap_compatible, PillarGroup},
+    seed::scoped_seed,
     ChangeMoveSelector, DefaultPillarSelector, FromSolutionEntitySelector, MoveSelector,
     PerEntitySliceValueSelector, PillarSelector, RangeValueSelector, RuinMoveSelector,
     SwapMoveSelector, ValueSelector,
@@ -829,13 +830,14 @@ where
 pub(super) fn build_scalar_flat_selector<S>(
     config: Option<&MoveSelectorConfig>,
     scalar_variables: &[ScalarVariableContext<S>],
+    random_seed: Option<u64>,
 ) -> ScalarFlatSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     let mut leaves = Vec::new();
-    collect_scalar_leaf_selectors(config, scalar_variables, &mut leaves);
+    collect_scalar_leaf_selectors(config, scalar_variables, random_seed, &mut leaves);
     assert!(
         !leaves.is_empty(),
         "move selector configuration produced no scalar neighborhoods"
@@ -847,6 +849,7 @@ where
 pub fn build_scalar_move_selector<S>(
     config: Option<&MoveSelectorConfig>,
     scalar_variables: &[ScalarVariableContext<S>],
+    random_seed: Option<u64>,
 ) -> ScalarSelector<S>
 where
     S: PlanningSolution + 'static,
@@ -855,6 +858,7 @@ where
     fn collect_nodes<S: PlanningSolution + 'static>(
         config: Option<&MoveSelectorConfig>,
         scalar_variables: &[ScalarVariableContext<S>],
+        random_seed: Option<u64>,
         nodes: &mut Vec<ScalarSelectorNode<S>>,
     ) where
         S::Score: Score,
@@ -862,7 +866,7 @@ where
         match config {
             Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
                 for child in &union.selectors {
-                    collect_nodes(Some(child), scalar_variables, nodes);
+                    collect_nodes(Some(child), scalar_variables, random_seed, nodes);
                 }
             }
             Some(MoveSelectorConfig::CartesianProductMoveSelector(cartesian)) => {
@@ -871,16 +875,22 @@ where
                     2,
                     "cartesian_product move selector requires exactly two child selectors"
                 );
-                let left =
-                    build_scalar_flat_selector(Some(&cartesian.selectors[0]), scalar_variables);
-                let right =
-                    build_scalar_flat_selector(Some(&cartesian.selectors[1]), scalar_variables);
+                let left = build_scalar_flat_selector(
+                    Some(&cartesian.selectors[0]),
+                    scalar_variables,
+                    random_seed,
+                );
+                let right = build_scalar_flat_selector(
+                    Some(&cartesian.selectors[1]),
+                    scalar_variables,
+                    random_seed,
+                );
                 nodes.push(ScalarSelectorNode::Cartesian(
                     CartesianProductSelector::new(left, right, wrap_scalar_composite::<S>),
                 ));
             }
             other => {
-                let flat = build_scalar_flat_selector(other, scalar_variables);
+                let flat = build_scalar_flat_selector(other, scalar_variables, random_seed);
                 nodes.extend(
                     flat.into_selectors()
                         .into_iter()
@@ -891,7 +901,7 @@ where
     }
 
     let mut nodes = Vec::new();
-    collect_nodes(config, scalar_variables, &mut nodes);
+    collect_nodes(config, scalar_variables, random_seed, &mut nodes);
     assert!(
         !nodes.is_empty(),
         "move selector configuration produced no scalar neighborhoods"
@@ -917,6 +927,7 @@ fn build_sub_pillar_config(
 fn collect_scalar_leaf_selectors<S>(
     config: Option<&MoveSelectorConfig>,
     scalar_variables: &[ScalarVariableContext<S>],
+    random_seed: Option<u64>,
     leaves: &mut Vec<ScalarLeafSelector<S>>,
 ) where
     S: PlanningSolution + 'static,
@@ -1031,9 +1042,9 @@ fn collect_scalar_leaf_selectors<S>(
         max_ruin_count: usize,
         moves_per_step: Option<usize>,
         recreate_heuristic_type: RecreateHeuristicType,
+        random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
-        let seed = (ctx.descriptor_index as u64) ^ hash_str(ctx.variable_name);
         let selector = RuinMoveSelector::new(
             min_ruin_count.max(1),
             max_ruin_count.max(1),
@@ -1043,8 +1054,16 @@ fn collect_scalar_leaf_selectors<S>(
             ctx.variable_name,
             ctx.descriptor_index,
         )
-        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1))
-        .with_seed(seed);
+        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1));
+        let selector = match scoped_seed(
+            random_seed,
+            ctx.descriptor_index,
+            ctx.variable_name,
+            "scalar_ruin_recreate_move_selector",
+        ) {
+            Some(seed) => selector.with_seed(seed),
+            None => selector,
+        };
         leaves.push(ScalarLeafSelector::RuinRecreate(RuinRecreateLeafSelector {
             selector,
             getter: ctx.getter,
@@ -1074,6 +1093,7 @@ fn collect_scalar_leaf_selectors<S>(
     fn collect<S: PlanningSolution + 'static>(
         cfg: &MoveSelectorConfig,
         scalar_variables: &[ScalarVariableContext<S>],
+        random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
         match cfg {
@@ -1202,13 +1222,14 @@ fn collect_scalar_leaf_selectors<S>(
                         ruin_recreate.max_ruin_count,
                         ruin_recreate.moves_per_step,
                         ruin_recreate.recreate_heuristic_type,
+                        random_seed,
                         leaves,
                     );
                 }
             }
             MoveSelectorConfig::UnionMoveSelector(union) => {
                 for child in &union.selectors {
-                    collect(child, scalar_variables, leaves);
+                    collect(child, scalar_variables, random_seed, leaves);
                 }
             }
             MoveSelectorConfig::LimitedNeighborhood(_) => {
@@ -1232,7 +1253,7 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     match config {
-        Some(cfg) => collect(cfg, scalar_variables, leaves),
+        Some(cfg) => collect(cfg, scalar_variables, random_seed, leaves),
         None => {
             for ctx in scalar_variables {
                 push_change(ctx, leaves);

@@ -11,7 +11,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{metadata::hash_str, Move};
+use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::entity::EntityReference;
 use crate::heuristic::selector::move_selector::MoveSelector;
@@ -20,6 +20,7 @@ use crate::heuristic::selector::pillar::SubPillarConfig;
 use crate::heuristic::selector::pillar_support::{
     collect_pillar_groups, intersect_legal_values_for_pillar, pillars_are_swap_compatible,
 };
+use crate::heuristic::selector::seed::scoped_seed;
 
 use super::bindings::{collect_bindings, find_binding, VariableBinding};
 use super::move_types::{
@@ -853,6 +854,7 @@ where
 fn build_descriptor_flat_selector<S>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
+    random_seed: Option<u64>,
 ) -> DescriptorFlatSelector<S>
 where
     S: PlanningSolution + 'static,
@@ -882,6 +884,7 @@ where
         cfg: &MoveSelectorConfig,
         descriptor: &SolutionDescriptor,
         bindings: &[VariableBinding],
+        random_seed: Option<u64>,
         leaves: &mut Vec<DescriptorLeafSelector<S>>,
     ) where
         S: PlanningSolution + 'static,
@@ -1043,7 +1046,15 @@ where
                     &matched,
                 );
                 for binding in matched {
-                    let seed = (binding.descriptor_index as u64) ^ hash_str(binding.variable_name);
+                    let rng = match scoped_seed(
+                        random_seed,
+                        binding.descriptor_index,
+                        binding.variable_name,
+                        "descriptor_ruin_recreate_move_selector",
+                    ) {
+                        Some(seed) => SmallRng::seed_from_u64(seed),
+                        None => SmallRng::from_rng(&mut rand::rng()),
+                    };
                     leaves.push(DescriptorLeafSelector::RuinRecreate(
                         DescriptorRuinRecreateMoveSelector {
                             binding,
@@ -1052,7 +1063,7 @@ where
                             max_ruin_count: ruin_recreate.max_ruin_count.max(1),
                             moves_per_step: ruin_recreate.moves_per_step.unwrap_or(10).max(1),
                             recreate_heuristic_type: ruin_recreate.recreate_heuristic_type,
-                            rng: RefCell::new(SmallRng::seed_from_u64(seed)),
+                            rng: RefCell::new(rng),
                             _phantom: PhantomData,
                         },
                     ));
@@ -1060,7 +1071,7 @@ where
             }
             MoveSelectorConfig::UnionMoveSelector(union) => {
                 for child in &union.selectors {
-                    collect::<S>(child, descriptor, bindings, leaves);
+                    collect::<S>(child, descriptor, bindings, random_seed, leaves);
                 }
             }
             MoveSelectorConfig::LimitedNeighborhood(_) => {
@@ -1086,7 +1097,7 @@ where
     }
 
     match config {
-        Some(cfg) => collect::<S>(cfg, descriptor, &bindings, &mut leaves),
+        Some(cfg) => collect::<S>(cfg, descriptor, &bindings, random_seed, &mut leaves),
         None => {
             for binding in bindings {
                 leaves.push(DescriptorLeafSelector::Change(
@@ -1110,6 +1121,7 @@ where
 pub fn build_descriptor_move_selector<S>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
+    random_seed: Option<u64>,
 ) -> DescriptorSelector<S>
 where
     S: PlanningSolution + 'static,
@@ -1140,6 +1152,7 @@ where
     fn collect_nodes<S>(
         config: Option<&MoveSelectorConfig>,
         descriptor: &SolutionDescriptor,
+        random_seed: Option<u64>,
         nodes: &mut Vec<DescriptorSelectorNode<S>>,
     ) where
         S: PlanningSolution + 'static,
@@ -1148,7 +1161,7 @@ where
         match config {
             Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
                 for child in &union.selectors {
-                    collect_nodes::<S>(Some(child), descriptor, nodes);
+                    collect_nodes::<S>(Some(child), descriptor, random_seed, nodes);
                 }
             }
             Some(MoveSelectorConfig::CartesianProductMoveSelector(cartesian)) => {
@@ -1158,16 +1171,22 @@ where
                     "cartesian_product move selector requires exactly two child selectors"
                 );
                 assert_cartesian_left_preview_safe(&cartesian.selectors[0]);
-                let left =
-                    build_descriptor_flat_selector::<S>(Some(&cartesian.selectors[0]), descriptor);
-                let right =
-                    build_descriptor_flat_selector::<S>(Some(&cartesian.selectors[1]), descriptor);
+                let left = build_descriptor_flat_selector::<S>(
+                    Some(&cartesian.selectors[0]),
+                    descriptor,
+                    random_seed,
+                );
+                let right = build_descriptor_flat_selector::<S>(
+                    Some(&cartesian.selectors[1]),
+                    descriptor,
+                    random_seed,
+                );
                 nodes.push(DescriptorSelectorNode::Cartesian(
                     CartesianProductSelector::new(left, right, wrap_descriptor_composite::<S>),
                 ));
             }
             other => {
-                let flat = build_descriptor_flat_selector::<S>(other, descriptor);
+                let flat = build_descriptor_flat_selector::<S>(other, descriptor, random_seed);
                 nodes.extend(
                     flat.into_selectors()
                         .into_iter()
@@ -1178,7 +1197,7 @@ where
     }
 
     let mut nodes = Vec::new();
-    collect_nodes::<S>(config, descriptor, &mut nodes);
+    collect_nodes::<S>(config, descriptor, random_seed, &mut nodes);
     assert!(
         !nodes.is_empty(),
         "move selector configuration produced no scalar neighborhoods"

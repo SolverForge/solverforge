@@ -22,6 +22,7 @@ pub(crate) mod nearby_support;
 pub mod pillar;
 pub(crate) mod pillar_support;
 pub mod ruin;
+pub(crate) mod seed;
 mod selection_order;
 pub mod sublist_change;
 mod sublist_support;

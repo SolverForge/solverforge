@@ -15,6 +15,7 @@ use crate::heuristic::r#move::metadata::hash_str;
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::entity::EntityReference;
 use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::nearby_support::truncate_nearby_candidates;
 use crate::heuristic::selector::pillar::SubPillarConfig;
 use crate::heuristic::selector::pillar_support::{
     collect_pillar_groups, intersect_legal_values_for_pillar, pillars_are_swap_compatible,
@@ -256,20 +257,26 @@ where
                 let entity = descriptor
                     .get_entity(solution, binding.descriptor_index, entity_index)
                     .expect("entity lookup failed for nearby change selector");
-                let current_assigned = (binding.getter)(entity).is_some();
-                let mut candidates: Vec<(usize, f64)> = binding
+                let current_value = (binding.getter)(entity);
+                let current_assigned = current_value.is_some();
+                let mut candidates: Vec<(usize, f64, usize)> = binding
                     .values_for_entity(&descriptor, solution, entity)
                     .into_iter()
-                    .map(|value| (value, distance_meter(solution, entity_index, value)))
-                    .filter(|(_, distance)| distance.is_finite())
+                    .enumerate()
+                    .filter_map(|(order, value)| {
+                        if current_value == Some(value) {
+                            return None;
+                        }
+                        let distance = distance_meter(solution, entity_index, value);
+                        distance.is_finite().then_some((value, distance, order))
+                    })
                     .collect();
-                candidates.sort_by(|left, right| left.1.total_cmp(&right.1));
-                candidates.truncate(max_nearby);
+                truncate_nearby_candidates(&mut candidates, max_nearby);
 
                 let candidate_moves = candidates.into_iter().map({
                     let binding = binding.clone();
                     let descriptor = descriptor.clone();
-                    move |(value, _)| {
+                    move |(value, _, _)| {
                         DescriptorScalarMoveUnion::Change(DescriptorChangeMove::new(
                             binding.clone(),
                             entity_index,
@@ -338,23 +345,35 @@ where
         let binding = self.binding.clone();
         let descriptor = self.solution_descriptor.clone();
         let max_nearby = self.max_nearby;
+        let current_values: Vec<_> = (0..count)
+            .map(|entity_index| {
+                let entity = descriptor
+                    .get_entity(solution, binding.descriptor_index, entity_index)
+                    .expect("entity lookup failed for nearby swap selector");
+                (binding.getter)(entity)
+            })
+            .collect();
         let moves: Vec<_> = (0..count)
             .flat_map(move |left_entity_index| {
-                let mut candidates: Vec<(usize, f64)> = ((left_entity_index + 1)..count)
-                    .map(|right_entity_index| {
-                        (
-                            right_entity_index,
-                            distance_meter(solution, left_entity_index, right_entity_index),
-                        )
+                let left_value = current_values[left_entity_index];
+                let mut candidates: Vec<(usize, f64, usize)> = ((left_entity_index + 1)..count)
+                    .enumerate()
+                    .filter_map(|(order, right_entity_index)| {
+                        if left_value == current_values[right_entity_index] {
+                            return None;
+                        }
+                        let distance =
+                            distance_meter(solution, left_entity_index, right_entity_index);
+                        distance
+                            .is_finite()
+                            .then_some((right_entity_index, distance, order))
                     })
-                    .filter(|(_, distance)| distance.is_finite())
                     .collect();
-                candidates.sort_by(|left, right| left.1.total_cmp(&right.1));
-                candidates.truncate(max_nearby);
+                truncate_nearby_candidates(&mut candidates, max_nearby);
                 candidates.into_iter().map({
                     let binding = binding.clone();
                     let descriptor = descriptor.clone();
-                    move |(right_entity_index, _)| {
+                    move |(right_entity_index, _, _)| {
                         DescriptorScalarMoveUnion::Swap(DescriptorSwapMove::new(
                             binding.clone(),
                             left_entity_index,

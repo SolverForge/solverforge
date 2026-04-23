@@ -1,6 +1,6 @@
 use solverforge_config::{
-    ChangeMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig, PillarChangeMoveConfig,
-    PillarSwapMoveConfig, VariableTargetConfig,
+    ChangeMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig, NearbySwapMoveConfig,
+    PillarChangeMoveConfig, PillarSwapMoveConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -67,6 +67,15 @@ fn allowed_workers(solution: &Schedule, entity_index: usize) -> &[usize] {
 
 fn nearby_worker_value_distance(_solution: &Schedule, entity_index: usize, value: usize) -> f64 {
     entity_index.abs_diff(value) as f64
+}
+
+fn nearby_worker_entity_distance(_solution: &Schedule, left: usize, right: usize) -> f64 {
+    match (left, right) {
+        (0, 1) => 0.0,
+        (0, 2) => 1.0,
+        (1, 2) => 0.5,
+        _ => left.abs_diff(right) as f64,
+    }
 }
 
 fn create_director(solution: Schedule) -> ScoreDirector<Schedule, ()> {
@@ -219,9 +228,80 @@ fn builds_nearby_change_selectors_when_meter_is_present() {
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 4);
-    assert!(moves
+    let change_targets: Vec<_> = moves
         .iter()
-        .all(|mov| matches!(mov, crate::heuristic::r#move::ScalarMoveUnion::Change(_))));
+        .map(|mov| match mov {
+            crate::heuristic::r#move::ScalarMoveUnion::Change(change) => {
+                (change.entity_index(), change.to_value().copied())
+            }
+            other => panic!("expected nearby change move, got {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        change_targets,
+        vec![(0, Some(1)), (0, None), (1, Some(0)), (1, None)]
+    );
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn nearby_swap_filters_same_value_candidates_before_limiting() {
+    let director = create_director(Schedule {
+        workers: vec![0, 1],
+        shifts: vec![
+            Shift {
+                worker: Some(0),
+                allowed_workers: vec![0, 1],
+            },
+            Shift {
+                worker: Some(0),
+                allowed_workers: vec![0, 1],
+            },
+            Shift {
+                worker: Some(1),
+                allowed_workers: vec![0, 1],
+            },
+        ],
+        score: None,
+    });
+
+    let scalar_variables = vec![ScalarVariableContext::new(
+        0,
+        "Shift",
+        shift_count,
+        "worker",
+        get_worker,
+        set_worker,
+        ValueSource::SolutionCount {
+            count_fn: worker_count,
+        },
+        true,
+    )
+    .with_nearby_entity_distance_meter(nearby_worker_entity_distance)];
+
+    let config = MoveSelectorConfig::NearbySwapMoveSelector(NearbySwapMoveConfig {
+        max_nearby: 1,
+        target: VariableTargetConfig {
+            entity_class: Some("Shift".to_string()),
+            variable_name: Some("worker".to_string()),
+        },
+    });
+
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    let swap_pairs: Vec<_> = moves
+        .iter()
+        .map(|mov| match mov {
+            crate::heuristic::r#move::ScalarMoveUnion::Swap(swap) => {
+                (swap.left_entity_index(), swap.right_entity_index())
+            }
+            other => panic!("expected nearby swap move, got {other:?}"),
+        })
+        .collect();
+
+    assert_eq!(swap_pairs, vec![(0, 2), (1, 2)]);
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
 }
 
 #[test]

@@ -18,6 +18,7 @@ pub mod nearby;
 pub mod nearby_list_change;
 mod nearby_list_support;
 pub mod nearby_list_swap;
+pub(crate) mod nearby_support;
 pub mod pillar;
 pub(crate) mod pillar_support;
 pub mod ruin;

@@ -12,6 +12,7 @@ use crate::heuristic::r#move::{
 };
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::{
+    nearby_support::truncate_nearby_candidates,
     pillar_support::{intersect_legal_values_for_pillar, pillars_are_swap_compatible, PillarGroup},
     ChangeMoveSelector, DefaultPillarSelector, FromSolutionEntitySelector, MoveSelector,
     PerEntitySliceValueSelector, PillarSelector, RangeValueSelector, RuinMoveSelector,
@@ -203,17 +204,23 @@ where
         let mut moves = Vec::new();
 
         for entity_index in 0..(self.ctx.entity_count)(solution) {
-            let current_assigned = (self.ctx.getter)(solution, entity_index).is_some();
-            let mut candidates: Vec<(usize, f64)> = value_selector
+            let current_value = (self.ctx.getter)(solution, entity_index);
+            let current_assigned = current_value.is_some();
+            let mut candidates: Vec<(usize, f64, usize)> = value_selector
                 .iter(score_director, self.ctx.descriptor_index, entity_index)
-                .map(|value| (value, distance_meter(solution, entity_index, value)))
-                .filter(|(_, distance)| distance.is_finite())
+                .enumerate()
+                .filter_map(|(order, value)| {
+                    if current_value == Some(value) {
+                        return None;
+                    }
+                    let distance = distance_meter(solution, entity_index, value);
+                    distance.is_finite().then_some((value, distance, order))
+                })
                 .collect();
 
-            candidates.sort_by(|left, right| left.1.total_cmp(&right.1));
-            candidates.truncate(self.max_nearby);
+            truncate_nearby_candidates(&mut candidates, self.max_nearby);
 
-            moves.extend(candidates.into_iter().map(|(value, _)| {
+            moves.extend(candidates.into_iter().map(|(value, _, _)| {
                 ScalarMoveUnion::Change(crate::heuristic::r#move::ChangeMove::new(
                     entity_index,
                     Some(value),
@@ -284,23 +291,29 @@ where
             .nearby_entity_distance_meter
             .expect("nearby swap requires a nearby entity distance meter");
         let entity_count = (self.ctx.entity_count)(solution);
+        let current_values: Vec<_> = (0..entity_count)
+            .map(|entity_index| (self.ctx.getter)(solution, entity_index))
+            .collect();
         let mut moves = Vec::new();
 
         for left_entity_index in 0..entity_count {
-            let mut candidates: Vec<(usize, f64)> = ((left_entity_index + 1)..entity_count)
-                .map(|right_entity_index| {
-                    (
-                        right_entity_index,
-                        distance_meter(solution, left_entity_index, right_entity_index),
-                    )
+            let left_value = current_values[left_entity_index];
+            let mut candidates: Vec<(usize, f64, usize)> = ((left_entity_index + 1)..entity_count)
+                .enumerate()
+                .filter_map(|(order, right_entity_index)| {
+                    if left_value == current_values[right_entity_index] {
+                        return None;
+                    }
+                    let distance = distance_meter(solution, left_entity_index, right_entity_index);
+                    distance
+                        .is_finite()
+                        .then_some((right_entity_index, distance, order))
                 })
-                .filter(|(_, distance)| distance.is_finite())
                 .collect();
 
-            candidates.sort_by(|left, right| left.1.total_cmp(&right.1));
-            candidates.truncate(self.max_nearby);
+            truncate_nearby_candidates(&mut candidates, self.max_nearby);
 
-            moves.extend(candidates.into_iter().map(|(right_entity_index, _)| {
+            moves.extend(candidates.into_iter().map(|(right_entity_index, _, _)| {
                 ScalarMoveUnion::Swap(crate::heuristic::r#move::SwapMove::new(
                     left_entity_index,
                     right_entity_index,

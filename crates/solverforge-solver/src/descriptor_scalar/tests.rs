@@ -2,9 +2,9 @@ use std::any::{Any, TypeId};
 
 use solverforge_config::{
     CartesianProductConfig, ChangeMoveConfig, ConstructionHeuristicConfig,
-    ConstructionHeuristicType, MoveSelectorConfig, NearbyChangeMoveConfig, PillarChangeMoveConfig,
-    PillarSwapMoveConfig, RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SwapMoveConfig,
-    VariableTargetConfig,
+    ConstructionHeuristicType, MoveSelectorConfig, NearbyChangeMoveConfig, NearbySwapMoveConfig,
+    PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
+    RuinRecreateMoveSelectorConfig, SwapMoveConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, ProblemFactDescriptor,
@@ -197,6 +197,15 @@ fn nearby_worker_value_distance(solution: &dyn Any, entity_index: usize, value: 
     current.abs_diff(value) as f64
 }
 
+fn nearby_worker_entity_distance(_solution: &dyn Any, left: usize, right: usize) -> f64 {
+    match (left, right) {
+        (0, 1) => 0.0,
+        (0, 2) => 1.0,
+        (1, 2) => 0.5,
+        _ => left.abs_diff(right) as f64,
+    }
+}
+
 fn restricted_get_worker_idx(entity: &dyn Any) -> Option<usize> {
     entity
         .downcast_ref::<RestrictedTask>()
@@ -268,6 +277,36 @@ fn descriptor_with_nearby_value_meter() -> SolutionDescriptor {
                         .with_value_range("workers")
                         .with_usize_accessors(get_worker_idx, set_worker_idx)
                         .with_nearby_value_distance_meter(nearby_worker_value_distance),
+                ),
+        )
+        .with_problem_fact(
+            ProblemFactDescriptor::new("Worker", TypeId::of::<Worker>(), "workers").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Worker",
+                    "workers",
+                    |s: &Plan| &s.workers,
+                    |s: &mut Plan| &mut s.workers,
+                )),
+            ),
+        )
+}
+
+fn descriptor_with_nearby_entity_meter() -> SolutionDescriptor {
+    SolutionDescriptor::new("Plan", TypeId::of::<Plan>())
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Task",
+                    "tasks",
+                    |s: &Plan| &s.tasks,
+                    |s: &mut Plan| &mut s.tasks,
+                )))
+                .with_variable(
+                    VariableDescriptor::genuine("worker_idx")
+                        .with_allows_unassigned(true)
+                        .with_value_range("workers")
+                        .with_usize_accessors(get_worker_idx, set_worker_idx)
+                        .with_nearby_entity_distance_meter(nearby_worker_entity_distance),
                 ),
         )
         .with_problem_fact(
@@ -604,6 +643,45 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
     assert!(moves
         .iter()
         .all(|mov| matches!(mov, super::DescriptorScalarMoveUnion::Change(_))));
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
+    let descriptor = descriptor_with_nearby_entity_meter();
+    let plan = Plan {
+        workers: vec![Worker, Worker],
+        tasks: vec![
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(1),
+            },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::NearbySwapMoveSelector(NearbySwapMoveConfig {
+        max_nearby: 1,
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let swap_pairs: Vec<Vec<_>> = moves
+        .iter()
+        .map(|mov| {
+            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Swap(_)));
+            mov.entity_indices().to_vec()
+        })
+        .collect();
+
+    assert_eq!(swap_pairs, vec![vec![0, 2], vec![1, 2]]);
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
 }
 
 #[test]

@@ -139,13 +139,32 @@ fn tabu_search_blocks_exact_move_and_undo_move() {
         TabuSearchAcceptor::<DummySolution>::new(policy(None, None, Some(2), Some(2), false));
     let committed = signature(0, "worker", &[], &[], &[10, 20], &[30, 40]);
     let exact_repeat = signature(0, "worker", &[], &[], &[10, 20], &[99]);
-    let undo_repeat = signature(0, "worker", &[], &[], &[77], &[30, 40]);
+    let undo_repeat = signature(0, "worker", &[], &[], &[30, 40], &[10, 20]);
 
     acceptor.phase_started(&SoftScore::of(-10));
     acceptor.step_ended(&SoftScore::of(-9), Some(&committed));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&exact_repeat),));
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&undo_repeat),));
+}
+
+#[test]
+fn tabu_search_undo_memory_matches_candidate_move_identity() {
+    let mut acceptor =
+        TabuSearchAcceptor::<DummySolution>::new(policy(None, None, None, Some(2), false));
+    let committed = signature(0, "worker", &[], &[], &[10], &[20]);
+    let reverse = signature(0, "worker", &[], &[], &[20], &[10]);
+    let unrelated_with_same_undo_id = signature(0, "worker", &[], &[], &[30], &[20]);
+
+    acceptor.phase_started(&SoftScore::of(-10));
+    acceptor.step_ended(&SoftScore::of(-9), Some(&committed));
+
+    assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&reverse)));
+    assert!(acceptor.is_accepted(
+        &SoftScore::of(-9),
+        &SoftScore::of(-8),
+        Some(&unrelated_with_same_undo_id)
+    ));
 }
 
 #[test]

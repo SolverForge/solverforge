@@ -81,7 +81,9 @@ pub struct TabuSearchAcceptor<S: PlanningSolution> {
     entity_memory: TabuMemory<ScopedEntityTabuToken>,
     value_memory: TabuMemory<ScopedValueTabuToken>,
     move_memory: TabuMemory<MoveIdentity>,
-    undo_memory: TabuMemory<MoveIdentity>,
+    // Stores undo identities emitted by accepted moves; future reverse moves
+    // match this memory through their candidate move identity.
+    reverse_move_memory: TabuMemory<MoveIdentity>,
     aspiration_enabled: bool,
     best_score: Option<S::Score>,
 }
@@ -92,7 +94,7 @@ impl<S: PlanningSolution> Debug for TabuSearchAcceptor<S> {
             .field("entity_tabu_size", &self.entity_memory.tenure)
             .field("value_tabu_size", &self.value_memory.tenure)
             .field("move_tabu_size", &self.move_memory.tenure)
-            .field("undo_move_tabu_size", &self.undo_memory.tenure)
+            .field("undo_move_tabu_size", &self.reverse_move_memory.tenure)
             .field("aspiration_enabled", &self.aspiration_enabled)
             .finish()
     }
@@ -104,7 +106,7 @@ impl<S: PlanningSolution> Clone for TabuSearchAcceptor<S> {
             entity_memory: self.entity_memory.clone(),
             value_memory: self.value_memory.clone(),
             move_memory: self.move_memory.clone(),
-            undo_memory: self.undo_memory.clone(),
+            reverse_move_memory: self.reverse_move_memory.clone(),
             aspiration_enabled: self.aspiration_enabled,
             best_score: self.best_score,
         }
@@ -125,7 +127,7 @@ impl<S: PlanningSolution> TabuSearchAcceptor<S> {
             entity_memory: TabuMemory::new(policy.entity_tabu_size),
             value_memory: TabuMemory::new(policy.value_tabu_size),
             move_memory: TabuMemory::new(policy.move_tabu_size),
-            undo_memory: TabuMemory::new(policy.undo_move_tabu_size),
+            reverse_move_memory: TabuMemory::new(policy.undo_move_tabu_size),
             aspiration_enabled: policy.aspiration_enabled,
             best_score: None,
         }
@@ -141,7 +143,7 @@ impl<S: PlanningSolution> TabuSearchAcceptor<S> {
                 .iter()
                 .any(|value_token| self.value_memory.contains(value_token))
             || self.move_memory.contains(&signature.move_id)
-            || self.undo_memory.contains(&signature.undo_move_id)
+            || self.reverse_move_memory.contains(&signature.move_id)
     }
 }
 
@@ -171,7 +173,7 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
         self.entity_memory.clear();
         self.value_memory.clear();
         self.move_memory.clear();
-        self.undo_memory.clear();
+        self.reverse_move_memory.clear();
         self.best_score = Some(*initial_score);
     }
 
@@ -179,7 +181,7 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
         self.entity_memory.clear();
         self.value_memory.clear();
         self.move_memory.clear();
-        self.undo_memory.clear();
+        self.reverse_move_memory.clear();
         self.best_score = None;
     }
 
@@ -194,7 +196,8 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
             self.value_memory
                 .record_many(signature.destination_value_tokens.iter());
             self.move_memory.record(signature.move_id.clone());
-            self.undo_memory.record(signature.undo_move_id.clone());
+            self.reverse_move_memory
+                .record(signature.undo_move_id.clone());
         }
 
         if let Some(best) = &self.best_score {

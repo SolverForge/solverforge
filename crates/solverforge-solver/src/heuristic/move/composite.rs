@@ -12,8 +12,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use smallvec::SmallVec;
-use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_scoring::{Director, DirectorScoreState};
 
 use super::{Move, MoveArena, MoveTabuSignature};
 
@@ -126,93 +126,154 @@ where
     }
 }
 
-/// A cached sequential composite that executes two moves in order.
-///
-/// The underlying moves stay in selector-owned arenas. This move stores raw
-/// pointers into those arenas plus the precomputed metadata needed by the
-/// canonical local-search path.
-pub struct SequentialCompositeMove<S, M> {
-    first_index: usize,
-    second_index: usize,
-    first_arena_addr: usize,
-    second_arena_addr: usize,
-    descriptor_index: usize,
-    entity_indices: SmallVec<[usize; 8]>,
-    variable_name: &'static str,
-    tabu_signature: MoveTabuSignature,
-    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
+pub(crate) struct SequentialPreviewDirector<'a, S: PlanningSolution> {
+    working_solution: S,
+    descriptor: &'a SolutionDescriptor,
+    entity_counts: Vec<Option<usize>>,
+    total_entity_count: Option<usize>,
 }
 
-// SAFETY: the move only stores immutable arena pointers plus cached metadata.
-// The pointed-to arenas live in the selector for the duration of a step, and
-// candidate evaluation never mutates them.
-unsafe impl<S, M> Send for SequentialCompositeMove<S, M> {}
+impl<'a, S: PlanningSolution> SequentialPreviewDirector<'a, S> {
+    pub(crate) fn from_director<D: Director<S>>(score_director: &'a D) -> Self {
+        let descriptor = score_director.solution_descriptor();
+        let entity_counts = (0..descriptor.entity_descriptor_count())
+            .map(|descriptor_index| score_director.entity_count(descriptor_index))
+            .collect();
 
-// SAFETY: see the `Send` impl above; the raw pointers are only dereferenced
-// immutably during move execution and metadata access.
-unsafe impl<S, M> Sync for SequentialCompositeMove<S, M> {}
+        Self {
+            working_solution: score_director.clone_working_solution(),
+            descriptor,
+            entity_counts,
+            total_entity_count: score_director.total_entity_count(),
+        }
+    }
+}
 
-impl<S, M> SequentialCompositeMove<S, M> {
-    #[allow(clippy::too_many_arguments)]
+impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
+    fn working_solution(&self) -> &S {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut S {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> S::Score {
+        panic!("preview directors are only for selector generation")
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> S {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {
+        self.working_solution.set_score(None);
+    }
+
+    fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
+        self.working_solution
+            .update_entity_shadows(descriptor_index, entity_index);
+        self.working_solution.set_score(None);
+    }
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        self.entity_counts.get(descriptor_index).copied().flatten()
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        self.total_entity_count
+    }
+
+    fn is_incremental(&self) -> bool {
+        false
+    }
+
+    fn snapshot_score_state(&self) -> DirectorScoreState<S::Score> {
+        DirectorScoreState {
+            solution_score: self.working_solution.score(),
+            committed_score: self.working_solution.score(),
+            initialized: self.working_solution.score().is_some(),
+        }
+    }
+
+    fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) {
+        self.working_solution.set_score(state.solution_score);
+    }
+
+    fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>) {}
+}
+
+/// A cached sequential composite that owns both child moves.
+///
+/// This keeps cartesian selector output valid even after the selector is
+/// reused or dropped.
+pub struct SequentialCompositeMove<S, M> {
+    moves: MoveArena<M>,
+    descriptor_index: usize,
+    entity_indices: SmallVec<[usize; 8]>,
+    variable_name: String,
+    tabu_signature: MoveTabuSignature,
+    _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, M> SequentialCompositeMove<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     pub fn new(
-        first_index: usize,
-        second_index: usize,
-        first_arena_addr: usize,
-        second_arena_addr: usize,
+        first: M,
+        second: M,
         descriptor_index: usize,
         entity_indices: SmallVec<[usize; 8]>,
-        variable_name: &'static str,
+        variable_name: impl Into<String>,
         tabu_signature: MoveTabuSignature,
     ) -> Self {
+        let mut moves = MoveArena::with_capacity(2);
+        moves.push(first);
+        moves.push(second);
+
         Self {
-            first_index,
-            second_index,
-            first_arena_addr,
-            second_arena_addr,
+            moves,
             descriptor_index,
             entity_indices,
-            variable_name,
+            variable_name: variable_name.into(),
             tabu_signature,
             _phantom: PhantomData,
         }
     }
 
-    pub fn first_index(&self) -> usize {
-        self.first_index
+    fn first_move(&self) -> &M {
+        self.moves
+            .get(0)
+            .expect("sequential composite first move must remain valid")
     }
 
-    pub fn second_index(&self) -> usize {
-        self.second_index
-    }
-
-    fn first_move(&self) -> Option<&M> {
-        let arena = self.first_arena_addr as *const MoveArena<M>;
-        unsafe { arena.as_ref() }.and_then(|arena| arena.get(self.first_index))
-    }
-
-    fn second_move(&self) -> Option<&M> {
-        let arena = self.second_arena_addr as *const MoveArena<M>;
-        unsafe { arena.as_ref() }.and_then(|arena| arena.get(self.second_index))
+    fn second_move(&self) -> &M {
+        self.moves
+            .get(1)
+            .expect("sequential composite second move must remain valid")
     }
 }
 
 impl<S, M> Clone for SequentialCompositeMove<S, M>
 where
     S: PlanningSolution,
-    M: Move<S>,
+    M: Move<S> + Clone,
 {
     fn clone(&self) -> Self {
-        Self {
-            first_index: self.first_index,
-            second_index: self.second_index,
-            first_arena_addr: self.first_arena_addr,
-            second_arena_addr: self.second_arena_addr,
-            descriptor_index: self.descriptor_index,
-            entity_indices: self.entity_indices.clone(),
-            variable_name: self.variable_name,
-            tabu_signature: self.tabu_signature.clone(),
-            _phantom: PhantomData,
-        }
+        Self::new(
+            self.first_move().clone(),
+            self.second_move().clone(),
+            self.descriptor_index,
+            self.entity_indices.clone(),
+            self.variable_name.clone(),
+            self.tabu_signature.clone(),
+        )
     }
 }
 
@@ -223,8 +284,6 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SequentialCompositeMove")
-            .field("first_index", &self.first_index)
-            .field("second_index", &self.second_index)
             .field("descriptor_index", &self.descriptor_index)
             .field("variable_name", &self.variable_name)
             .field("entity_indices", &self.entity_indices)
@@ -237,25 +296,20 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn is_doable<D: Director<S>>(&self, _score_director: &D) -> bool {
-        debug_assert!(
-            self.first_move().is_some() && self.second_move().is_some(),
-            "cartesian product must emit only fully doable composite moves"
-        );
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
+        let first = self.first_move();
+        if !first.is_doable(score_director) {
+            return false;
+        }
 
-        true
+        let mut preview = SequentialPreviewDirector::from_director(score_director);
+        first.do_move(&mut preview);
+        self.second_move().is_doable(&preview)
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        let first = self
-            .first_move()
-            .expect("sequential composite first move must remain valid");
-        let second = self
-            .second_move()
-            .expect("sequential composite second move must remain valid");
-
-        first.do_move(score_director);
-        second.do_move(score_director);
+        self.first_move().do_move(score_director);
+        self.second_move().do_move(score_director);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -267,7 +321,7 @@ where
     }
 
     fn variable_name(&self) -> &str {
-        self.variable_name
+        &self.variable_name
     }
 
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {

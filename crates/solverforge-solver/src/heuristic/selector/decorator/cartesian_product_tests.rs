@@ -142,6 +142,14 @@ fn right_shadow_backed_y(solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
         .collect()
 }
 
+fn left_increment_x(solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+    solution.tasks[0]
+        .x
+        .map(|value| x_move(value + 1))
+        .into_iter()
+        .collect()
+}
+
 #[test]
 fn cartesian_product_arena_yields_all_pairs() {
     let director = create_director(vec![Task {
@@ -274,6 +282,37 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
         director.working_solution().tasks[0].shadow_y_target,
         Some(12)
     );
+}
+
+#[test]
+fn cartesian_product_moves_remain_stable_after_selector_reuse() {
+    let mut director = create_director(vec![Task {
+        x: Some(0),
+        y: Some(0),
+        shadow_y_target: None,
+    }]);
+    let selector = CartesianProductSelector::new(
+        TestSelector {
+            build: left_increment_x,
+        },
+        TestSelector {
+            build: right_shadow_backed_y,
+        },
+        wrap_scalar_composite,
+    );
+
+    let first_pass: Vec<_> = selector.open_cursor(&director).collect();
+    assert_eq!(first_pass.len(), 1);
+
+    set_x(director.working_solution_mut(), 0, Some(5));
+    director.working_solution_mut().update_entity_shadows(0, 0);
+
+    let second_pass: Vec<_> = selector.open_cursor(&director).collect();
+    assert_eq!(second_pass.len(), 1);
+
+    first_pass[0].do_move(&mut director);
+    assert_eq!(get_x(director.working_solution(), 0), Some(1));
+    assert_eq!(get_y(director.working_solution(), 0), Some(11));
 }
 
 #[derive(Debug)]

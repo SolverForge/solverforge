@@ -779,6 +779,7 @@ where
     }
 }
 
+#[allow(clippy::large_enum_variant)] // Inline storage keeps selector assembly zero-erasure.
 pub enum DescriptorSelectorNode<S> {
     Leaf(DescriptorLeafSelector<S>),
     Cartesian(DescriptorCartesianSelector<S>),

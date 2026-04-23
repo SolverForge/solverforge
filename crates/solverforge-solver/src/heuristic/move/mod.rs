@@ -10,7 +10,7 @@ All moves are fully typed with inline value storage for maximum performance:
 - `ChangeMove<S, V>` - assigns a value to a variable
 - `SwapMove<S, V>` - swaps values between two entities
 - `CompositeMove<'a, S, M1, M2>` - applies two moves by reference
-- `SequentialCompositeMove<S, M>` - applies two arena-backed moves in sequence
+- `SequentialCompositeMove<S, M>` - applies two owned moves in sequence
 - `PillarChangeMove<S, V>` - changes multiple entities with same value
 - `PillarSwapMove<S, V>` - swaps between two pillars
 - `ListChangeMove<S, V>` - relocates an element in a list variable
@@ -82,6 +82,7 @@ pub use arena::MoveArena;
 pub use change::ChangeMove;
 pub use composite::CompositeMove;
 pub use composite::SequentialCompositeMove;
+pub(crate) use composite::SequentialPreviewDirector;
 pub use either::ScalarMoveUnion;
 pub use k_opt::{CutPoint, KOptMove};
 pub use list_change::ListChangeMove;

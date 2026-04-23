@@ -620,6 +620,7 @@ pub enum ScalarLeafSelector<S> {
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
+#[allow(clippy::large_enum_variant)] // Inline storage keeps selector assembly zero-erasure.
 pub enum ScalarSelectorNode<S> {
     Leaf(ScalarLeafSelector<S>),
     Cartesian(ScalarCartesianSelector<S>),

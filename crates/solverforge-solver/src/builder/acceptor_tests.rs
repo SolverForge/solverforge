@@ -105,6 +105,18 @@ fn test_acceptor_builder_tabu_search_rejects_zero_sizes() {
 }
 
 #[test]
+fn test_acceptor_builder_tabu_search_helper_rejects_zero_size() {
+    let result = std::panic::catch_unwind(|| {
+        let _ = AcceptorBuilder::tabu_search::<TestSolution>(0);
+    });
+    let message = panic_message(result.expect_err("zero tabu size must panic"));
+    assert_eq!(
+        message,
+        "tabu_search field `move_tabu_size` must be greater than 0"
+    );
+}
+
+#[test]
 fn test_acceptor_builder_simulated_annealing() {
     let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
         starting_temperature: Some("2".to_string()),

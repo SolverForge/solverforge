@@ -33,6 +33,20 @@ pub enum NeighborhoodMove<S, V> {
     Composite(SequentialCompositeMove<S, NeighborhoodMove<S, V>>),
 }
 
+impl<S, V> Clone for NeighborhoodMove<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Scalar(m) => Self::Scalar(m.clone()),
+            Self::List(m) => Self::List(m.clone()),
+            Self::Composite(m) => Self::Composite(m.clone()),
+        }
+    }
+}
+
 impl<S, V> Debug for NeighborhoodMove<S, V>
 where
     S: PlanningSolution + 'static,

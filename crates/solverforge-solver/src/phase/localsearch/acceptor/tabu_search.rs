@@ -18,7 +18,7 @@ pub(crate) struct TabuSearchPolicy {
 }
 
 impl TabuSearchPolicy {
-    pub(crate) const fn move_only(move_tabu_size: usize) -> Self {
+    pub(crate) fn move_only(move_tabu_size: usize) -> Self {
         Self {
             entity_tabu_size: None,
             value_tabu_size: None,
@@ -26,6 +26,38 @@ impl TabuSearchPolicy {
             undo_move_tabu_size: None,
             aspiration_enabled: true,
         }
+        .validated()
+    }
+
+    pub(crate) fn validated(self) -> Self {
+        let entity_tabu_size = validate_tabu_size("entity_tabu_size", self.entity_tabu_size);
+        let value_tabu_size = validate_tabu_size("value_tabu_size", self.value_tabu_size);
+        let move_tabu_size = validate_tabu_size("move_tabu_size", self.move_tabu_size);
+        let undo_move_tabu_size =
+            validate_tabu_size("undo_move_tabu_size", self.undo_move_tabu_size);
+
+        assert!(
+            entity_tabu_size.is_some()
+                || value_tabu_size.is_some()
+                || move_tabu_size.is_some()
+                || undo_move_tabu_size.is_some(),
+            "tabu_search requires at least one tabu dimension"
+        );
+
+        Self {
+            entity_tabu_size,
+            value_tabu_size,
+            move_tabu_size,
+            undo_move_tabu_size,
+            aspiration_enabled: self.aspiration_enabled,
+        }
+    }
+}
+
+fn validate_tabu_size(field_name: &str, value: Option<usize>) -> Option<usize> {
+    match value {
+        Some(0) => panic!("tabu_search field `{field_name}` must be greater than 0"),
+        _ => value,
     }
 }
 
@@ -115,13 +147,7 @@ impl<S: PlanningSolution> Clone for TabuSearchAcceptor<S> {
 
 impl<S: PlanningSolution> TabuSearchAcceptor<S> {
     pub(crate) fn new(policy: TabuSearchPolicy) -> Self {
-        assert!(
-            policy.entity_tabu_size.is_some()
-                || policy.value_tabu_size.is_some()
-                || policy.move_tabu_size.is_some()
-                || policy.undo_move_tabu_size.is_some(),
-            "tabu_search requires at least one tabu dimension"
-        );
+        let policy = policy.validated();
 
         Self {
             entity_memory: TabuMemory::new(policy.entity_tabu_size),

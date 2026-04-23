@@ -1,4 +1,4 @@
-# SolverForge Makefile v0.8.1
+# SolverForge Makefile v0.9.0
 # Rust-only build system with colorized output
 
 # ============== Colors & Symbols ==============
@@ -19,7 +19,7 @@ PROGRESS := →
 
 # ============== Project Metadata ==============
 VERSION := $(shell grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-RUST_VERSION := 1.80+
+RUST_VERSION := 1.92+
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \

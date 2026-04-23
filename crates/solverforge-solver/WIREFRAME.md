@@ -75,7 +75,7 @@ src/
 │   │   ├── k_opt.rs                     — KOptMove<S, V>, CutPoint
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
-│   │   ├── composite.rs                — CompositeMove<S, M1, M2>
+│   │   ├── composite.rs                — CompositeMove<S, M1, M2>, SequentialCompositeMove<S, M>
 │   │   ├── either.rs                    — ScalarMoveUnion<S, V> enum
 │   │   ├── list_either.rs              — ListMoveUnion<S, V> enum
 │   │   └── tests/                       — Additional test modules
@@ -537,6 +537,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `RuinMove` | `<S, V>` | SmallVec entity_indices, getter/setter fn ptrs | Yes (manual) | No |
 | `KOptMove` | `<S, V>` | [CutPoint; 5], KOptReconnection, fn ptrs | Yes (manual) | No |
 | `CompositeMove` | `<S, M1, M2>` | index_1, index_2, PhantomData | Yes | Yes |
+| `SequentialCompositeMove` | `<S, M>` | owned two-move arena plus cached descriptor/entity/tabu metadata | Yes (M: Clone) | No |
 
 ### Move Union Enums
 
@@ -602,7 +603,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 |-----------|-------------|------|
 | `UnionMoveSelector<S, M, A, B>` | Two selectors | Sequential combination |
 | `CartesianProductArena<S, M1, M2>` | Two move types | Cross-product iteration arena |
-| `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition |
+| `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition into owned composite moves |
 | `MapMoveSelector<S, InM, OutM, Inner>` | Concrete selector plus mapping function | Generic typed lifting without wrapper families |
 | `FilteringMoveSelector<S, M, Inner>` | Predicate `fn(&M) -> bool` | Filters moves |
 | `ShufflingMoveSelector<S, M, Inner>` | RNG | Randomizes order |

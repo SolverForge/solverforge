@@ -277,37 +277,29 @@ impl AcceptorBuilder {
     }
 }
 
-fn validate_tabu_size(field_name: &str, value: Option<usize>) -> Option<usize> {
-    match value {
-        Some(0) => panic!("tabu_search field `{field_name}` must be greater than 0"),
-        _ => value,
-    }
-}
-
 fn normalize_tabu_search_policy(config: &TabuSearchConfig) -> TabuSearchPolicy {
-    let entity_tabu_size = validate_tabu_size("entity_tabu_size", config.entity_tabu_size);
-    let value_tabu_size = validate_tabu_size("value_tabu_size", config.value_tabu_size);
-    let move_tabu_size = validate_tabu_size("move_tabu_size", config.move_tabu_size);
-    let undo_move_tabu_size = validate_tabu_size("undo_move_tabu_size", config.undo_move_tabu_size);
     let aspiration_enabled = config.aspiration_enabled.unwrap_or(true);
 
-    if entity_tabu_size.is_none()
-        && value_tabu_size.is_none()
-        && move_tabu_size.is_none()
-        && undo_move_tabu_size.is_none()
-    {
-        return TabuSearchPolicy {
+    match (
+        config.entity_tabu_size,
+        config.value_tabu_size,
+        config.move_tabu_size,
+        config.undo_move_tabu_size,
+    ) {
+        (None, None, None, None) => TabuSearchPolicy {
             aspiration_enabled,
             ..TabuSearchPolicy::move_only(10)
-        };
-    }
-
-    TabuSearchPolicy {
-        entity_tabu_size,
-        value_tabu_size,
-        move_tabu_size,
-        undo_move_tabu_size,
-        aspiration_enabled,
+        },
+        (entity_tabu_size, value_tabu_size, move_tabu_size, undo_move_tabu_size) => {
+            TabuSearchPolicy {
+                entity_tabu_size,
+                value_tabu_size,
+                move_tabu_size,
+                undo_move_tabu_size,
+                aspiration_enabled,
+            }
+            .validated()
+        }
     }
 }
 

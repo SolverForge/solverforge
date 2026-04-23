@@ -1,5 +1,6 @@
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
+use std::any::Any;
 
 use super::*;
 use crate::heuristic::r#move::{metadata::MoveTabuScope, MoveTabuSignature};
@@ -62,6 +63,16 @@ fn policy(
         move_tabu_size,
         undo_move_tabu_size,
         aspiration_enabled,
+    }
+}
+
+fn panic_message(payload: Box<dyn Any + Send>) -> String {
+    match payload.downcast::<String>() {
+        Ok(message) => *message,
+        Err(payload) => match payload.downcast::<&'static str>() {
+            Ok(message) => (*message).to_string(),
+            Err(_) => "<non-string panic>".to_string(),
+        },
     }
 }
 
@@ -207,6 +218,28 @@ fn tabu_search_move_only_policy_blocks_recent_exact_move() {
     acceptor.step_ended(&SoftScore::of(-9), Some(&committed));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-9), Some(&repeated)));
+}
+
+#[test]
+fn tabu_search_rejects_zero_tenures_at_acceptor_boundary() {
+    for (field_name, policy) in [
+        ("entity_tabu_size", policy(Some(0), None, None, None, true)),
+        ("value_tabu_size", policy(None, Some(0), None, None, true)),
+        ("move_tabu_size", policy(None, None, Some(0), None, true)),
+        (
+            "undo_move_tabu_size",
+            policy(None, None, None, Some(0), true),
+        ),
+    ] {
+        let result = std::panic::catch_unwind(|| {
+            let _ = TabuSearchAcceptor::<DummySolution>::new(policy);
+        });
+        let message = panic_message(result.expect_err("zero tabu size must panic"));
+        assert_eq!(
+            message,
+            format!("tabu_search field `{field_name}` must be greater than 0")
+        );
+    }
 }
 
 #[test]

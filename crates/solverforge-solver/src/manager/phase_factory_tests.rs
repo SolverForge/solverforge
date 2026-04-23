@@ -2,13 +2,14 @@
 
 use super::*;
 use crate::heuristic::r#move::ChangeMove;
-use crate::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector};
+use crate::heuristic::selector::{ChangeMoveSelector, FromSolutionEntitySelector, StaticValueSelector};
 use crate::phase::construction::{EntityPlacer, ForagerType, QueuedEntityPlacer};
 use crate::scope::SolverScope;
-use solverforge_core::domain::{EntityDescriptor, SolutionDescriptor, EntityCollectionExtractor};
+use solverforge_core::domain::{EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::{Director, ScoreDirector};
 use std::any::TypeId;
+use std::any::Any;
 
 // ==================== Test Domain ====================
 
@@ -119,6 +120,16 @@ fn create_placer_factory() -> impl Fn() -> TestPlacer + Send + Sync {
     }
 }
 
+fn panic_message(payload: Box<dyn Any + Send>) -> String {
+    match payload.downcast::<String>() {
+        Ok(message) => *message,
+        Err(payload) => match payload.downcast::<&'static str>() {
+            Ok(message) => (*message).to_string(),
+            Err(_) => "<non-string panic>".to_string(),
+        },
+    }
+}
+
 #[derive(Clone, Debug)]
 struct ListVehicle {
     visits: Vec<usize>,
@@ -199,6 +210,21 @@ fn test_local_search_type_variants() {
         decay_rate: 0.99,
     };
     let _late = LocalSearchType::LateAcceptance { size: 100 };
+}
+
+#[test]
+fn test_local_search_phase_factory_tabu_search_rejects_zero_size() {
+    let selector =
+        ChangeMoveSelector::simple(get_task_priority, set_task_priority, 0, "priority", vec![1]);
+
+    let result = std::panic::catch_unwind(|| {
+        let _ = LocalSearchPhaseFactory::tabu_search(selector, 0);
+    });
+    let message = panic_message(result.expect_err("zero tabu size must panic"));
+    assert_eq!(
+        message,
+        "tabu_search field `move_tabu_size` must be greater than 0"
+    );
 }
 
 #[test]

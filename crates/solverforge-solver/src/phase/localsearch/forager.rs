@@ -346,5 +346,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "forager_tests.rs"]
 mod tests;

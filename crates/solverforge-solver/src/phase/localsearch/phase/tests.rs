@@ -11,8 +11,8 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::ChangeMoveSelector;
-use crate::heuristic::selector::MoveSelector;
+use crate::heuristic::selector::move_selector::ArenaMoveCursor;
+use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 use crate::phase::localsearch::{AcceptedCountForager, HillClimbingAcceptor};
 use crate::test_utils::{
     create_minimal_director, create_nqueens_director, get_queen_row, set_queen_row,
@@ -282,12 +282,17 @@ impl Move<TestSolution> for NoopMove {
 struct SlowOpenSelector;
 
 impl MoveSelector<TestSolution, NoopMove> for SlowOpenSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<TestSolution, NoopMove>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: Director<TestSolution>>(
         &'a self,
         _score_director: &D,
-    ) -> impl Iterator<Item = NoopMove> + 'a {
+    ) -> Self::Cursor<'a> {
         thread::sleep(Duration::from_millis(20));
-        std::iter::once(NoopMove)
+        ArenaMoveCursor::from_moves(std::iter::once(NoopMove))
     }
 
     fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {

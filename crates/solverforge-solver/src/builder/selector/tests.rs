@@ -17,6 +17,10 @@ use super::*;
 use crate::builder::list_selector::ListLeafSelector;
 use crate::builder::scalar_selector::ScalarLeafSelector;
 use crate::builder::{ListVariableContext, ScalarVariableContext, ValueSource, VariableContext};
+use crate::heuristic::selector::decorator::FilteringMoveSelector;
+use crate::heuristic::selector::move_selector::{
+    collect_cursor_indices, MoveCandidateRef, MoveCursor,
+};
 use crate::CrossEntityDistanceMeter;
 
 #[derive(Clone, Debug)]
@@ -490,14 +494,25 @@ fn cartesian_scalar_selector_builds_composite_moves() {
     let left = build_move_selector(Some(&change), &scalar_only_model(), None);
     let right = build_move_selector(Some(&swap), &scalar_only_model(), None);
 
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
+
     assert_eq!(neighborhoods.len(), 1);
     assert!(selector.size(&director) <= left.size(&director) * right.size(&director));
     assert!(matches!(&neighborhoods[0], Neighborhood::Cartesian(_)));
-    let moves: Vec<_> = selector.open_cursor(&director).collect();
-    assert!(moves
-        .iter()
-        .all(|mov| matches!(mov, NeighborhoodMove::Composite(_))));
-    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+    assert!(!indices.is_empty());
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+    assert!(indices.iter().all(|&index| cursor
+        .candidate(index)
+        .is_some_and(|mov| mov.is_doable(&director))));
+    assert!(matches!(
+        cursor.take_candidate(indices[0]),
+        NeighborhoodMove::Composite(_)
+    ));
 }
 
 #[test]
@@ -528,15 +543,24 @@ fn cartesian_list_selector_builds_composite_moves() {
 
     let selector = build_move_selector(Some(&config), &list_only_model(), None);
     let neighborhoods = selector.selectors();
-    let moves: Vec<_> = selector.open_cursor(&director).collect();
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
 
     assert_eq!(neighborhoods.len(), 1);
-    assert!(!moves.is_empty());
+    assert!(!indices.is_empty());
     assert!(matches!(&neighborhoods[0], Neighborhood::Cartesian(_)));
-    assert!(moves
-        .iter()
-        .all(|mov| matches!(mov, NeighborhoodMove::Composite(_))));
-    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+    assert!(indices.iter().all(|&index| cursor
+        .candidate(index)
+        .is_some_and(|mov| mov.is_doable(&director))));
+    assert!(matches!(
+        cursor.take_candidate(indices[0]),
+        NeighborhoodMove::Composite(_)
+    ));
 }
 
 #[test]
@@ -568,16 +592,72 @@ fn cartesian_mixed_selector_supports_limited_children() {
     let selector = build_move_selector(Some(&config), &mixed_model(), None);
     let left = build_move_selector(Some(&limited_change), &mixed_model(), None);
     let right = build_move_selector(Some(&list_reverse), &mixed_model(), None);
-    let moves: Vec<_> = selector.open_cursor(&director).collect();
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
 
     assert!(selector.size(&director) <= left.size(&director) * right.size(&director));
-    assert!(moves
-        .iter()
-        .all(|mov| matches!(mov, NeighborhoodMove::Composite(_))));
-    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
-    assert!(moves
-        .iter()
-        .all(|mov| mov.variable_name() == "cartesian_product"));
+    assert!(!indices.is_empty());
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+    assert!(indices.iter().all(|&index| cursor
+        .candidate(index)
+        .is_some_and(|mov| mov.is_doable(&director))));
+    assert!(indices.iter().all(|&index| {
+        cursor
+            .candidate(index)
+            .is_some_and(|mov| mov.variable_name() == "cartesian_product")
+    }));
+    assert!(matches!(
+        cursor.take_candidate(indices[0]),
+        NeighborhoodMove::Composite(_)
+    ));
+}
+
+fn keep_all_mixed_cartesian_candidates(
+    candidate: MoveCandidateRef<'_, MixedPlan, NeighborhoodMove<MixedPlan, usize>>,
+) -> bool {
+    matches!(candidate, MoveCandidateRef::Sequential(_))
+}
+
+#[test]
+fn mixed_builder_cartesian_selector_survives_filtering_wrapper() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![Vehicle {
+                visits: vec![1, 2, 3],
+            }],
+            score: None,
+        },
+        descriptor,
+    );
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+
+    let selector = build_move_selector(Some(&config), &mixed_model(), None);
+    let filtered = FilteringMoveSelector::new(selector, keep_all_mixed_cartesian_candidates);
+    let mut cursor = filtered.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
+
+    assert!(!indices.is_empty());
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
 }
 
 #[test]

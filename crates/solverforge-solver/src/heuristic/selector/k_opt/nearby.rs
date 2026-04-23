@@ -12,7 +12,7 @@ use crate::heuristic::r#move::k_opt_reconnection::{
 use crate::heuristic::r#move::{CutPoint, KOptMove};
 
 use super::super::entity::EntitySelector;
-use super::super::move_selector::MoveSelector;
+use super::super::move_selector::{ArenaMoveCursor, MoveSelector};
 use super::config::KOptConfig;
 use super::distance_meter::ListPositionDistanceMeter;
 
@@ -136,10 +136,12 @@ where
     DM: ListPositionDistanceMeter<S> + 'static,
     ES: EntitySelector<S>,
 {
-    fn open_cursor<'a, SD: Director<S>>(
-        &'a self,
-        score_director: &SD,
-    ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, KOptMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, SD: Director<S>>(&'a self, score_director: &SD) -> Self::Cursor<'a> {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.patterns;
@@ -177,7 +179,7 @@ where
                 })
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {

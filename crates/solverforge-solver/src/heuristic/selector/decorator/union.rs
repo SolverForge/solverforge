@@ -10,7 +10,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
 
 /// Combines moves from two selectors into a single stream.
 ///
@@ -83,13 +83,16 @@ where
     A: MoveSelector<S, M>,
     B: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
-        self.first
-            .open_cursor(score_director)
-            .chain(self.second.open_cursor(score_director))
+    type Cursor<'a>
+        = UnionMoveCursor<S, M, A::Cursor<'a>, B::Cursor<'a>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        UnionMoveCursor::new(
+            self.first.open_cursor(score_director),
+            self.second.open_cursor(score_director),
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -101,6 +104,119 @@ where
     }
 }
 
+enum ActiveSource {
+    First,
+    Second,
+    Done,
+}
+
+pub struct UnionMoveCursor<S, M, A, B>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    A: MoveCursor<S, M>,
+    B: MoveCursor<S, M>,
+{
+    first: A,
+    second: B,
+    discovered: Vec<(u8, usize)>,
+    active: ActiveSource,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
+}
+
+impl<S, M, A, B> UnionMoveCursor<S, M, A, B>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    A: MoveCursor<S, M>,
+    B: MoveCursor<S, M>,
+{
+    fn new(first: A, second: B) -> Self {
+        Self {
+            first,
+            second,
+            discovered: Vec::new(),
+            active: ActiveSource::First,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M, A, B> MoveCursor<S, M> for UnionMoveCursor<S, M, A, B>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    A: MoveCursor<S, M>,
+    B: MoveCursor<S, M>,
+{
+    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+        match self.active {
+            ActiveSource::First => {
+                let Some((child_index, _)) = self.first.next_candidate() else {
+                    self.active = ActiveSource::Second;
+                    return self.next_candidate();
+                };
+                let global_index = self.discovered.len();
+                self.discovered.push((0, child_index));
+                let candidate = self
+                    .first
+                    .candidate(child_index)
+                    .expect("union first candidate must remain valid");
+                Some((global_index, candidate))
+            }
+            ActiveSource::Second => {
+                let Some((child_index, _)) = self.second.next_candidate() else {
+                    self.active = ActiveSource::Done;
+                    return None;
+                };
+                let global_index = self.discovered.len();
+                self.discovered.push((1, child_index));
+                let candidate = self
+                    .second
+                    .candidate(child_index)
+                    .expect("union second candidate must remain valid");
+                Some((global_index, candidate))
+            }
+            ActiveSource::Done => None,
+        }
+    }
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
+        let (source, child_index) = *self.discovered.get(index)?;
+        match source {
+            0 => self.first.candidate(child_index),
+            1 => self.second.candidate(child_index),
+            _ => None,
+        }
+    }
+
+    fn take_candidate(&mut self, index: usize) -> M {
+        let (source, child_index) = self.discovered[index];
+        match source {
+            0 => self.first.take_candidate(child_index),
+            1 => self.second.take_candidate(child_index),
+            _ => unreachable!("union cursor source id must remain valid"),
+        }
+    }
+}
+
+impl<S, M, A, B> Iterator for UnionMoveCursor<S, M, A, B>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    A: MoveCursor<S, M>,
+    B: MoveCursor<S, M>,
+{
+    type Item = M;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = {
+            let (index, _) = self.next_candidate()?;
+            index
+        };
+        Some(self.take_candidate(index))
+    }
+}
+
 #[cfg(test)]
-#[path = "union_tests.rs"]
 mod tests;

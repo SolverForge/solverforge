@@ -1,7 +1,8 @@
-/* Typed move selectors for zero-allocation move generation.
+/* Typed move selectors for zero-erasure move generation.
 
-Typed move selectors yield concrete move types directly, enabling
-monomorphization and arena allocation.
+Selectors now expose cursor-owned storage plus borrowable candidates.
+The solver evaluates candidates by reference and only takes ownership of the
+selected move once the forager commits to an index.
 */
 
 use std::fmt::Debug;
@@ -10,54 +11,336 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::MoveArena;
-use crate::heuristic::r#move::{ChangeMove, Move, SwapMove};
+use crate::heuristic::r#move::{ChangeMove, Move, MoveArena, SequentialCompositeMoveRef, SwapMove};
 
-use super::entity::{EntityReference, EntitySelector, FromSolutionEntitySelector};
+use super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::value_selector::{StaticValueSelector, ValueSelector};
 
 mod either;
 
 pub use either::{ScalarChangeMoveSelector, ScalarSwapMoveSelector};
 
-/// A typed move selector that yields moves of type `M` directly.
-///
-/// Unlike erased selectors, this returns concrete moves inline,
-/// eliminating heap allocation per move.
-///
-/// # Type Parameters
-/// * `S` - The planning solution type
-/// * `M` - The move type
-pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
-    // Opens an owned move cursor that must not borrow the score director.
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a;
+impl<S, M> Move<S> for &M
+where
+    S: PlanningSolution,
+    M: Move<S> + ?Sized,
+{
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
+        (**self).is_doable(score_director)
+    }
 
-    // Returns an iterator over typed moves.
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        (**self).do_move(score_director)
+    }
+
+    fn descriptor_index(&self) -> usize {
+        (**self).descriptor_index()
+    }
+
+    fn entity_indices(&self) -> &[usize] {
+        (**self).entity_indices()
+    }
+
+    fn variable_name(&self) -> &str {
+        (**self).variable_name()
+    }
+
+    fn tabu_signature<D: Director<S>>(
+        &self,
+        score_director: &D,
+    ) -> crate::heuristic::r#move::MoveTabuSignature {
+        (**self).tabu_signature(score_director)
+    }
+}
+
+pub enum MoveCandidateRef<'a, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    Borrowed(&'a M),
+    Sequential(SequentialCompositeMoveRef<'a, S, M>),
+}
+
+impl<S, M> Debug for MoveCandidateRef<'_, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Borrowed(_) => write!(f, "MoveCandidateRef::Borrowed(..)"),
+            Self::Sequential(mov) => write!(f, "MoveCandidateRef::Sequential({mov:?})"),
+        }
+    }
+}
+
+impl<S, M> Move<S> for MoveCandidateRef<'_, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
+        match self {
+            Self::Borrowed(mov) => mov.is_doable(score_director),
+            Self::Sequential(mov) => mov.is_doable(score_director),
+        }
+    }
+
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        match self {
+            Self::Borrowed(mov) => mov.do_move(score_director),
+            Self::Sequential(mov) => mov.do_move(score_director),
+        }
+    }
+
+    fn descriptor_index(&self) -> usize {
+        match self {
+            Self::Borrowed(mov) => mov.descriptor_index(),
+            Self::Sequential(mov) => mov.descriptor_index(),
+        }
+    }
+
+    fn entity_indices(&self) -> &[usize] {
+        match self {
+            Self::Borrowed(mov) => mov.entity_indices(),
+            Self::Sequential(mov) => mov.entity_indices(),
+        }
+    }
+
+    fn variable_name(&self) -> &str {
+        match self {
+            Self::Borrowed(mov) => mov.variable_name(),
+            Self::Sequential(mov) => mov.variable_name(),
+        }
+    }
+
+    fn tabu_signature<D: Director<S>>(
+        &self,
+        score_director: &D,
+    ) -> crate::heuristic::r#move::MoveTabuSignature {
+        match self {
+            Self::Borrowed(mov) => mov.tabu_signature(score_director),
+            Self::Sequential(mov) => mov.tabu_signature(score_director),
+        }
+    }
+}
+
+pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
+    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)>;
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>>;
+
+    fn take_candidate(&mut self, index: usize) -> M;
+}
+
+pub struct ArenaMoveCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    moves: Vec<Option<M>>,
+    next_index: usize,
+    _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, M> ArenaMoveCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub fn new() -> Self {
+        Self {
+            moves: Vec::new(),
+            next_index: 0,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            moves: Vec::with_capacity(capacity),
+            next_index: 0,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn from_moves<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = M>,
+    {
+        let mut cursor = Self::new();
+        cursor.extend(iter);
+        cursor
+    }
+
+    pub fn push(&mut self, mov: M) {
+        self.moves.push(Some(mov));
+    }
+
+    pub fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = M>,
+    {
+        self.moves.extend(iter.into_iter().map(Some));
+    }
+}
+
+impl<S, M> Default for ArenaMoveCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<S, M> Debug for ArenaMoveCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S> + Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ArenaMoveCursor")
+            .field("move_count", &self.moves.len())
+            .field("next_index", &self.next_index)
+            .finish()
+    }
+}
+
+impl<S, M> MoveCursor<S, M> for ArenaMoveCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+        while self.next_index < self.moves.len() {
+            let index = self.next_index;
+            self.next_index += 1;
+            if let Some(mov) = self.moves[index].as_ref() {
+                return Some((index, MoveCandidateRef::Borrowed(mov)));
+            }
+        }
+        None
+    }
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.moves
+            .get(index)
+            .and_then(|mov| mov.as_ref())
+            .map(MoveCandidateRef::Borrowed)
+    }
+
+    fn take_candidate(&mut self, index: usize) -> M {
+        self.moves
+            .get_mut(index)
+            .and_then(Option::take)
+            .expect("move cursor candidate index must remain valid")
+    }
+}
+
+impl<S, M> Iterator for ArenaMoveCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    type Item = M;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = {
+            let (index, _) = self.next_candidate()?;
+            index
+        };
+        Some(self.take_candidate(index))
+    }
+}
+
+pub(crate) fn collect_cursor_indices<S, M, C>(cursor: &mut C) -> Vec<usize>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    let mut indices = Vec::new();
+    while let Some((index, _)) = cursor.next_candidate() {
+        indices.push(index);
+    }
+    indices
+}
+
+pub struct MoveSelectorIter<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    cursor: C,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
+}
+
+impl<S, M, C> MoveSelectorIter<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn new(cursor: C) -> Self {
+        Self {
+            cursor,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M, C> Iterator for MoveSelectorIter<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    type Item = M;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = {
+            let (index, _) = self.cursor.next_candidate()?;
+            index
+        };
+        Some(self.cursor.take_candidate(index))
+    }
+}
+
+/// A typed move selector that yields stable candidate indices plus borrowable
+/// move views. Ownership is transferred only via `take_candidate`.
+pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
+    type Cursor<'a>: MoveCursor<S, M> + 'a
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>;
+
     fn iter_moves<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
-        self.open_cursor(score_director)
+    ) -> MoveSelectorIter<S, M, Self::Cursor<'a>> {
+        MoveSelectorIter::new(self.open_cursor(score_director))
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
-        arena.extend(self.open_cursor(score_director));
+        let mut cursor = self.open_cursor(score_director);
+        for index in collect_cursor_indices::<S, M, _>(&mut cursor) {
+            arena.push(cursor.take_candidate(index));
+        }
     }
 
-    // Returns true if this selector may return the same move multiple times.
     fn is_never_ending(&self) -> bool {
         false
     }
 }
 
 /// A change move selector that generates `ChangeMove` instances.
-///
-/// Stores typed function pointers for zero-erasure move generation.
 pub struct ChangeMoveSelector<S, V, ES, VS> {
     entity_selector: ES,
     value_selector: VS,
@@ -82,15 +365,6 @@ impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, V
 }
 
 impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
-    /// Creates a new change move selector with typed function pointers.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities to modify
-    /// * `value_selector` - Selects values to assign
-    /// * `getter` - Function pointer to get current value from solution
-    /// * `setter` - Function pointer to set value on solution
-    /// * `descriptor_index` - Index of the entity descriptor
-    /// * `variable_name` - Name of the variable
     pub fn new(
         entity_selector: ES,
         value_selector: VS,
@@ -147,10 +421,12 @@ where
     ES: EntitySelector<S>,
     VS: ValueSelector<S, V>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ChangeMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ChangeMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let descriptor_index = self.descriptor_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
@@ -172,32 +448,34 @@ where
             })
             .collect();
 
-        entity_values
-            .into_iter()
-            .flat_map(move |(entity_ref, values, current_assigned)| {
-                let to_none = (allows_unassigned && current_assigned).then(|| {
-                    ChangeMove::new(
-                        entity_ref.entity_index,
-                        None,
-                        getter,
-                        setter,
-                        variable_name,
-                        descriptor_index,
-                    )
-                });
-                values
-                    .map(move |value| {
+        let iter =
+            entity_values
+                .into_iter()
+                .flat_map(move |(entity_ref, values, current_assigned)| {
+                    let to_none = (allows_unassigned && current_assigned).then(|| {
                         ChangeMove::new(
                             entity_ref.entity_index,
-                            Some(value),
+                            None,
                             getter,
                             setter,
                             variable_name,
                             descriptor_index,
                         )
-                    })
-                    .chain(to_none)
-            })
+                    });
+                    values
+                        .map(move |value| {
+                            ChangeMove::new(
+                                entity_ref.entity_index,
+                                Some(value),
+                                getter,
+                                setter,
+                                variable_name,
+                                descriptor_index,
+                            )
+                        })
+                        .chain(to_none)
+                });
+        ArenaMoveCursor::from_moves(iter)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -222,14 +500,10 @@ where
 }
 
 /// A swap move selector that generates `SwapMove` instances.
-///
-/// Uses typed function pointers for zero-erasure access to variable values.
 pub struct SwapMoveSelector<S, V, LES, RES> {
     left_entity_selector: LES,
     right_entity_selector: RES,
-    // Typed getter function pointer - zero erasure.
     getter: fn(&S, usize) -> Option<V>,
-    // Typed setter function pointer - zero erasure.
     setter: fn(&mut S, usize, Option<V>),
     descriptor_index: usize,
     variable_name: &'static str,
@@ -271,13 +545,6 @@ impl<S: PlanningSolution, V, LES, RES> SwapMoveSelector<S, V, LES, RES> {
 impl<S: PlanningSolution, V>
     SwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
 {
-    /// Creates a simple selector for swapping within a single entity type.
-    ///
-    /// # Arguments
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
-    /// * `descriptor_index` - Index in the entity descriptor
-    /// * `variable_name` - Name of the variable to swap
     pub fn simple(
         getter: fn(&S, usize) -> Option<V>,
         setter: fn(&mut S, usize, Option<V>),
@@ -303,32 +570,24 @@ where
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = SwapMove<S, V>> + 'a {
-        let descriptor_index = self.descriptor_index;
-        let variable_name = self.variable_name;
+    type Cursor<'a>
+        = ArenaMoveCursor<S, SwapMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let getter = self.getter;
         let setter = self.setter;
-
-        // Collect entities once — needed for triangular pairing.
-        let left_entities: Vec<EntityReference> =
-            self.left_entity_selector.iter(score_director).collect();
-        let right_entities: Vec<EntityReference> =
-            self.right_entity_selector.iter(score_director).collect();
-
-        // Eager triangular pairing — no Rc, no shared pointers.
-        let mut moves =
-            Vec::with_capacity(left_entities.len() * left_entities.len().saturating_sub(1) / 2);
-        for (i, left) in left_entities.iter().enumerate() {
-            for right in &right_entities[i + 1..] {
-                if left.descriptor_index == right.descriptor_index
-                    && left.descriptor_index == descriptor_index
-                {
+        let variable_name = self.variable_name;
+        let descriptor_index = self.descriptor_index;
+        let right_entities: Vec<_> = self.right_entity_selector.iter(score_director).collect();
+        let mut moves = Vec::new();
+        for left_entity_ref in self.left_entity_selector.iter(score_director) {
+            for right_entity_ref in &right_entities {
+                if left_entity_ref.entity_index < right_entity_ref.entity_index {
                     moves.push(SwapMove::new(
-                        left.entity_index,
-                        right.entity_index,
+                        left_entity_ref.entity_index,
+                        right_entity_ref.entity_index,
                         getter,
                         setter,
                         variable_name,
@@ -337,18 +596,12 @@ where
                 }
             }
         }
-
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let left_count = self.left_entity_selector.size(score_director);
-        let right_count = self.right_entity_selector.size(score_director);
-
-        if left_count == right_count {
-            left_count * left_count.saturating_sub(1) / 2
-        } else {
-            left_count * right_count / 2
-        }
+        let left_count = self.left_entity_selector.iter(score_director).count();
+        let right_count = self.right_entity_selector.iter(score_director).count();
+        left_count.saturating_mul(right_count.saturating_sub(1)) / 2
     }
 }

@@ -12,9 +12,13 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
+use crate::heuristic::selector::decorator::{
+    CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
+};
 use crate::heuristic::selector::entity::EntityReference;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{
+    ArenaMoveCursor, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 use crate::heuristic::selector::nearby_support::truncate_nearby_candidates;
 use crate::heuristic::selector::pillar::SubPillarConfig;
 use crate::heuristic::selector::pillar_support::{
@@ -72,10 +76,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let count = score_director
             .entity_count(self.binding.descriptor_index)
             .unwrap_or(0);
@@ -119,7 +125,7 @@ where
                     .chain(unassign_move)
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -180,10 +186,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let count = score_director
             .entity_count(self.binding.descriptor_index)
             .unwrap_or(0);
@@ -205,7 +213,7 @@ where
                 })
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -238,10 +246,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let distance_meter = self
             .binding
             .nearby_value_distance_meter
@@ -301,7 +311,7 @@ where
                 candidate_moves.chain(unassign)
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -331,10 +341,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let distance_meter = self
             .binding
             .nearby_entity_distance_meter
@@ -385,7 +397,7 @@ where
                 })
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -429,10 +441,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution() as &dyn Any;
         let binding = self.binding.clone();
         let descriptor = self.solution_descriptor.clone();
@@ -475,7 +489,7 @@ where
             })
         })
         .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -507,10 +521,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let binding = self.binding.clone();
         let descriptor = self.solution_descriptor.clone();
         let solution = score_director.working_solution() as &dyn Any;
@@ -556,7 +572,7 @@ where
                 ));
             }
         }
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -593,10 +609,12 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution() as &dyn Any;
         let count = score_director
             .entity_count(self.binding.descriptor_index)
@@ -657,7 +675,7 @@ where
                 }
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -704,64 +722,33 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
-        enum DescriptorLeafIter<A, B, C, Dd, E, F, G> {
-            Change(A),
-            Swap(B),
-            NearbyChange(C),
-            NearbySwap(Dd),
-            PillarChange(E),
-            PillarSwap(F),
-            RuinRecreate(G),
-        }
+    type Cursor<'a>
+        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+    where
+        Self: 'a;
 
-        impl<T, A, B, C, Dd, E, F, G> Iterator for DescriptorLeafIter<A, B, C, Dd, E, F, G>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-            C: Iterator<Item = T>,
-            Dd: Iterator<Item = T>,
-            E: Iterator<Item = T>,
-            F: Iterator<Item = T>,
-            G: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Change(iter) => iter.next(),
-                    Self::Swap(iter) => iter.next(),
-                    Self::NearbyChange(iter) => iter.next(),
-                    Self::NearbySwap(iter) => iter.next(),
-                    Self::PillarChange(iter) => iter.next(),
-                    Self::PillarSwap(iter) => iter.next(),
-                    Self::RuinRecreate(iter) => iter.next(),
-                }
-            }
-        }
-
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
             Self::Change(selector) => {
-                DescriptorLeafIter::Change(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
-            Self::Swap(selector) => DescriptorLeafIter::Swap(selector.open_cursor(score_director)),
+            Self::Swap(selector) => {
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
+            }
             Self::NearbyChange(selector) => {
-                DescriptorLeafIter::NearbyChange(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::NearbySwap(selector) => {
-                DescriptorLeafIter::NearbySwap(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::PillarChange(selector) => {
-                DescriptorLeafIter::PillarChange(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::PillarSwap(selector) => {
-                DescriptorLeafIter::PillarSwap(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::RuinRecreate(selector) => {
-                DescriptorLeafIter::RuinRecreate(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
         }
     }
@@ -785,6 +772,45 @@ pub enum DescriptorSelectorNode<S> {
     Cartesian(DescriptorCartesianSelector<S>),
 }
 
+pub enum DescriptorSelectorCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    Leaf(ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>),
+    Cartesian(CartesianProductCursor<S, DescriptorScalarMoveUnion<S>>),
+}
+
+impl<S> MoveCursor<S, DescriptorScalarMoveUnion<S>> for DescriptorSelectorCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(
+        &mut self,
+    ) -> Option<(usize, MoveCandidateRef<'_, S, DescriptorScalarMoveUnion<S>>)> {
+        match self {
+            Self::Leaf(cursor) => cursor.next_candidate(),
+            Self::Cartesian(cursor) => cursor.next_candidate(),
+        }
+    }
+
+    fn candidate(
+        &self,
+        index: usize,
+    ) -> Option<MoveCandidateRef<'_, S, DescriptorScalarMoveUnion<S>>> {
+        match self {
+            Self::Leaf(cursor) => cursor.candidate(index),
+            Self::Cartesian(cursor) => cursor.candidate(index),
+        }
+    }
+
+    fn take_candidate(&mut self, index: usize) -> DescriptorScalarMoveUnion<S> {
+        match self {
+            Self::Leaf(cursor) => cursor.take_candidate(index),
+            Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+}
+
 impl<S> Debug for DescriptorSelectorNode<S>
 where
     S: PlanningSolution + 'static,
@@ -802,34 +828,18 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = DescriptorScalarMoveUnion<S>> + 'a {
-        enum DescriptorNodeIter<A, B> {
-            Leaf(A),
-            Cartesian(B),
-        }
+    type Cursor<'a>
+        = DescriptorSelectorCursor<S>
+    where
+        Self: 'a;
 
-        impl<T, A, B> Iterator for DescriptorNodeIter<A, B>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Leaf(iter) => iter.next(),
-                    Self::Cartesian(iter) => iter.next(),
-                }
-            }
-        }
-
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
-            Self::Leaf(selector) => DescriptorNodeIter::Leaf(selector.open_cursor(score_director)),
+            Self::Leaf(selector) => {
+                DescriptorSelectorCursor::Leaf(selector.open_cursor(score_director))
+            }
             Self::Cartesian(selector) => {
-                DescriptorNodeIter::Cartesian(selector.open_cursor(score_director))
+                DescriptorSelectorCursor::Cartesian(selector.open_cursor(score_director))
             }
         }
     }

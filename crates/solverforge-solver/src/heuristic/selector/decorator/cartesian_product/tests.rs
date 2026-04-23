@@ -1,6 +1,10 @@
 use super::*;
 use crate::heuristic::r#move::{ChangeMove, Move, ScalarMoveUnion};
+use crate::heuristic::selector::move_selector::{
+    collect_cursor_indices, ArenaMoveCursor, MoveCandidateRef, MoveCursor,
+};
 use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
+use crate::phase::localsearch::{Acceptor, TabuSearchAcceptor, TabuSearchPolicy};
 use solverforge_core::domain::{EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -96,11 +100,16 @@ struct TestSelector {
 }
 
 impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for TestSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<Sol, ScalarMoveUnion<Sol, i32>>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: solverforge_scoring::Director<Sol>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<Sol, i32>> + 'a {
-        (self.build)(score_director.working_solution()).into_iter()
+    ) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves((self.build)(score_director.working_solution()))
     }
 
     fn size<D: solverforge_scoring::Director<Sol>>(&self, score_director: &D) -> usize {
@@ -112,6 +121,13 @@ fn wrap_scalar_composite(
     mov: crate::heuristic::r#move::SequentialCompositeMove<Sol, ScalarMoveUnion<Sol, i32>>,
 ) -> ScalarMoveUnion<Sol, i32> {
     ScalarMoveUnion::Composite(mov)
+}
+
+fn collect_indices<C>(cursor: &mut C) -> Vec<usize>
+where
+    C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>,
+{
+    collect_cursor_indices::<Sol, ScalarMoveUnion<Sol, i32>, _>(cursor)
 }
 
 fn x_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
@@ -212,13 +228,19 @@ fn cartesian_product_skips_rows_with_illegal_left_moves() {
         wrap_scalar_composite,
     );
 
-    let moves: Vec<_> = selector.open_cursor(&director).collect();
+    let mut cursor = selector.open_cursor(&director);
+    let indices = collect_indices(&mut cursor);
 
     assert_eq!(selector.size(&director), 2);
-    assert_eq!(moves.len(), 1);
-    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+    assert_eq!(indices.len(), 1);
+    assert!(indices.iter().all(|&index| cursor
+        .candidate(index)
+        .is_some_and(|mov| mov.is_doable(&director))));
 
-    moves[0].do_move(&mut director);
+    cursor
+        .candidate(indices[0])
+        .expect("cartesian candidate must remain valid")
+        .do_move(&mut director);
     assert_eq!(get_x(director.working_solution(), 0), Some(2));
     assert_eq!(get_y(director.working_solution(), 0), Some(10));
 }
@@ -240,14 +262,23 @@ fn cartesian_product_skips_pairs_with_illegal_right_moves() {
         wrap_scalar_composite,
     );
 
-    let moves: Vec<_> = selector.open_cursor(&director).collect();
+    let mut cursor = selector.open_cursor(&director);
+    let indices = collect_indices(&mut cursor);
 
     assert_eq!(selector.size(&director), 2);
-    assert_eq!(moves.len(), 1);
-    assert!(matches!(moves[0], ScalarMoveUnion::Composite(_)));
-    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+    assert_eq!(indices.len(), 1);
+    assert!(matches!(
+        cursor.candidate(indices[0]),
+        Some(MoveCandidateRef::Sequential(_))
+    ));
+    assert!(indices.iter().all(|&index| cursor
+        .candidate(index)
+        .is_some_and(|mov| mov.is_doable(&director))));
 
-    moves[0].do_move(&mut director);
+    cursor
+        .candidate(indices[0])
+        .expect("cartesian candidate must remain valid")
+        .do_move(&mut director);
     assert_eq!(get_x(director.working_solution(), 0), Some(1));
 }
 
@@ -268,14 +299,20 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
         wrap_scalar_composite,
     );
 
-    let moves: Vec<_> = selector.open_cursor(&director).collect();
+    let mut cursor = selector.open_cursor(&director);
+    let indices = collect_indices(&mut cursor);
 
     assert_eq!(selector.size(&director), 1);
-    assert_eq!(moves.len(), 1);
-    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+    assert_eq!(indices.len(), 1);
+    assert!(indices.iter().all(|&index| cursor
+        .candidate(index)
+        .is_some_and(|mov| mov.is_doable(&director))));
 
     let _ = director.calculate_score();
-    moves[0].do_move(&mut director);
+    cursor
+        .candidate(indices[0])
+        .expect("cartesian candidate must remain valid")
+        .do_move(&mut director);
     assert_eq!(get_x(director.working_solution(), 0), Some(2));
     assert_eq!(get_y(director.working_solution(), 0), Some(12));
     assert_eq!(
@@ -301,16 +338,21 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
         wrap_scalar_composite,
     );
 
-    let first_pass: Vec<_> = selector.open_cursor(&director).collect();
-    assert_eq!(first_pass.len(), 1);
+    let mut first_cursor = selector.open_cursor(&director);
+    let first_indices = collect_indices(&mut first_cursor);
+    assert_eq!(first_indices.len(), 1);
 
     set_x(director.working_solution_mut(), 0, Some(5));
     director.working_solution_mut().update_entity_shadows(0, 0);
 
-    let second_pass: Vec<_> = selector.open_cursor(&director).collect();
-    assert_eq!(second_pass.len(), 1);
+    let mut second_cursor = selector.open_cursor(&director);
+    let second_indices = collect_indices(&mut second_cursor);
+    assert_eq!(second_indices.len(), 1);
 
-    first_pass[0].do_move(&mut director);
+    first_cursor
+        .candidate(first_indices[0])
+        .expect("first cartesian candidate must remain valid")
+        .do_move(&mut director);
     assert_eq!(get_x(director.working_solution(), 0), Some(1));
     assert_eq!(get_y(director.working_solution(), 0), Some(11));
 }
@@ -329,12 +371,17 @@ impl CountingSelector {
 }
 
 impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for CountingSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<Sol, ScalarMoveUnion<Sol, i32>>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: solverforge_scoring::Director<Sol>>(
         &'a self,
         _score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<Sol, i32>> + 'a {
+    ) -> Self::Cursor<'a> {
         self.open_count.set(self.open_count.get() + 1);
-        vec![x_move(1), x_move(2)].into_iter()
+        ArenaMoveCursor::from_moves(vec![x_move(1), x_move(2)])
     }
 
     fn size<D: solverforge_scoring::Director<Sol>>(&self, _score_director: &D) -> usize {
@@ -356,4 +403,66 @@ fn cartesian_product_size_does_not_open_child_cursors() {
     assert_eq!(selector.size(&director), 4);
     assert_eq!(selector.left.open_count.get(), 0);
     assert_eq!(selector.right.open_count.get(), 0);
+}
+
+#[test]
+fn cartesian_product_reverse_signature_matches_true_inverse_order() {
+    let mut director = create_director(vec![Task {
+        x: Some(0),
+        y: Some(0),
+        shadow_y_target: None,
+    }]);
+    let forward_selector = CartesianProductSelector::new(
+        TestSelector {
+            build: |_| vec![x_move(1)],
+        },
+        TestSelector {
+            build: |_| vec![y_move(10)],
+        },
+        wrap_scalar_composite,
+    );
+
+    let mut forward_cursor = forward_selector.open_cursor(&director);
+    let forward_index = collect_indices(&mut forward_cursor)[0];
+    let forward_move = forward_cursor.take_candidate(forward_index);
+    let forward_signature = forward_move.tabu_signature(&director);
+    forward_move.do_move(&mut director);
+
+    let reverse_selector = CartesianProductSelector::new(
+        TestSelector {
+            build: |_| vec![y_move(0)],
+        },
+        TestSelector {
+            build: |_| vec![x_move(0)],
+        },
+        wrap_scalar_composite,
+    );
+
+    let mut reverse_cursor = reverse_selector.open_cursor(&director);
+    let reverse_index = collect_indices(&mut reverse_cursor)[0];
+    let reverse_signature = reverse_cursor
+        .candidate(reverse_index)
+        .expect("reverse cartesian candidate must remain valid")
+        .tabu_signature(&director);
+
+    assert_eq!(forward_signature.undo_move_id, reverse_signature.move_id);
+
+    let mut acceptor = TabuSearchAcceptor::<Sol>::new(
+        TabuSearchPolicy {
+            entity_tabu_size: None,
+            value_tabu_size: None,
+            move_tabu_size: None,
+            undo_move_tabu_size: Some(2),
+            aspiration_enabled: false,
+        }
+        .validated(),
+    );
+    acceptor.phase_started(&SoftScore::of(0));
+    acceptor.step_ended(&SoftScore::of(0), Some(&forward_signature));
+
+    assert!(!acceptor.is_accepted(
+        &SoftScore::of(0),
+        &SoftScore::of(0),
+        Some(&reverse_signature),
+    ));
 }

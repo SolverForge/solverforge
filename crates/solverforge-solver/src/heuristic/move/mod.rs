@@ -82,6 +82,7 @@ pub use arena::MoveArena;
 pub use change::ChangeMove;
 pub use composite::CompositeMove;
 pub use composite::SequentialCompositeMove;
+pub(crate) use composite::SequentialCompositeMoveRef;
 pub(crate) use composite::SequentialPreviewDirector;
 pub use either::ScalarMoveUnion;
 pub use k_opt::{CutPoint, KOptMove};

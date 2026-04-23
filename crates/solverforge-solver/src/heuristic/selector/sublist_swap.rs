@@ -71,7 +71,7 @@ use crate::heuristic::r#move::SublistSwapMove;
 
 use super::entity::EntitySelector;
 use super::list_support::collect_selected_entities;
-use super::move_selector::MoveSelector;
+use super::move_selector::{ArenaMoveCursor, MoveSelector};
 use super::sublist_support::{count_intra_sublist_swap_moves_for_len, count_sublist_segments};
 
 /// A move selector that generates sublist swap moves.
@@ -164,10 +164,12 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = SublistSwapMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, SublistSwapMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let list_len = self.list_len;
         let sublist_remove = self.sublist_remove;
         let sublist_insert = self.sublist_insert;
@@ -260,7 +262,7 @@ where
             }
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

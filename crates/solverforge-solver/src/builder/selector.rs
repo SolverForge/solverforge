@@ -10,8 +10,12 @@ use solverforge_core::score::{ParseableScore, Score};
 use crate::heuristic::r#move::{
     ListMoveUnion, Move, MoveArena, MoveTabuSignature, ScalarMoveUnion, SequentialCompositeMove,
 };
-use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::decorator::{
+    CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
+};
+use crate::heuristic::selector::move_selector::{
+    ArenaMoveCursor, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::dynamic_vnd::DynamicVndPhase;
 use crate::phase::localsearch::{
@@ -151,39 +155,24 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, NeighborhoodMove<S, V>>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: solverforge_scoring::Director<S>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = NeighborhoodMove<S, V>> + 'a {
-        enum LeafIter<A, B> {
-            Scalar(A),
-            List(B),
-        }
-
-        impl<T, A, B> Iterator for LeafIter<A, B>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Scalar(iter) => iter.next(),
-                    Self::List(iter) => iter.next(),
-                }
-            }
-        }
-
+    ) -> Self::Cursor<'a> {
         match self {
-            Self::Scalar(selector) => LeafIter::Scalar(
+            Self::Scalar(selector) => ArenaMoveCursor::from_moves(
                 selector
-                    .open_cursor(score_director)
+                    .iter_moves(score_director)
                     .map(NeighborhoodMove::Scalar),
             ),
-            Self::List(selector) => LeafIter::List(
+            Self::List(selector) => ArenaMoveCursor::from_moves(
                 selector
-                    .open_cursor(score_director)
+                    .iter_moves(score_director)
                     .map(NeighborhoodMove::List),
             ),
         }
@@ -201,22 +190,7 @@ where
         score_director: &D,
         arena: &mut MoveArena<NeighborhoodMove<S, V>>,
     ) {
-        match self {
-            Self::Scalar(selector) => {
-                arena.extend(
-                    selector
-                        .open_cursor(score_director)
-                        .map(NeighborhoodMove::Scalar),
-                );
-            }
-            Self::List(selector) => {
-                arena.extend(
-                    selector
-                        .open_cursor(score_director)
-                        .map(NeighborhoodMove::List),
-                );
-            }
-        }
+        arena.extend(self.open_cursor(score_director));
     }
 }
 
@@ -256,6 +230,86 @@ type CartesianNeighborhoodSelector<S, V, DM, IDM> = CartesianProductSelector<
     CartesianChildSelector<S, V, DM, IDM>,
 >;
 
+pub enum CartesianChildCursor<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    Flat(ArenaMoveCursor<S, NeighborhoodMove<S, V>>),
+    Limited(ArenaMoveCursor<S, NeighborhoodMove<S, V>>),
+}
+
+impl<S, V> MoveCursor<S, NeighborhoodMove<S, V>> for CartesianChildCursor<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(
+        &mut self,
+    ) -> Option<(usize, MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>)> {
+        match self {
+            Self::Flat(cursor) => cursor.next_candidate(),
+            Self::Limited(cursor) => cursor.next_candidate(),
+        }
+    }
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>> {
+        match self {
+            Self::Flat(cursor) => cursor.candidate(index),
+            Self::Limited(cursor) => cursor.candidate(index),
+        }
+    }
+
+    fn take_candidate(&mut self, index: usize) -> NeighborhoodMove<S, V> {
+        match self {
+            Self::Flat(cursor) => cursor.take_candidate(index),
+            Self::Limited(cursor) => cursor.take_candidate(index),
+        }
+    }
+}
+
+pub enum NeighborhoodCursor<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    Flat(ArenaMoveCursor<S, NeighborhoodMove<S, V>>),
+    Limited(ArenaMoveCursor<S, NeighborhoodMove<S, V>>),
+    Cartesian(CartesianProductCursor<S, NeighborhoodMove<S, V>>),
+}
+
+impl<S, V> MoveCursor<S, NeighborhoodMove<S, V>> for NeighborhoodCursor<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(
+        &mut self,
+    ) -> Option<(usize, MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>)> {
+        match self {
+            Self::Flat(cursor) => cursor.next_candidate(),
+            Self::Limited(cursor) => cursor.next_candidate(),
+            Self::Cartesian(cursor) => cursor.next_candidate(),
+        }
+    }
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>> {
+        match self {
+            Self::Flat(cursor) => cursor.candidate(index),
+            Self::Limited(cursor) => cursor.candidate(index),
+            Self::Cartesian(cursor) => cursor.candidate(index),
+        }
+    }
+
+    fn take_candidate(&mut self, index: usize) -> NeighborhoodMove<S, V> {
+        match self {
+            Self::Flat(cursor) => cursor.take_candidate(index),
+            Self::Limited(cursor) => cursor.take_candidate(index),
+            Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+}
+
 impl<S, V, DM, IDM> Debug for Neighborhood<S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
@@ -286,45 +340,29 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
+    type Cursor<'a>
+        = NeighborhoodCursor<S, V>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: solverforge_scoring::Director<S>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = NeighborhoodMove<S, V>> + 'a {
-        enum NeighborhoodIter<A, B, C> {
-            Flat(A),
-            Limited(B),
-            Cartesian(C),
-        }
-
-        impl<T, A, B, C> Iterator for NeighborhoodIter<A, B, C>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-            C: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Flat(iter) => iter.next(),
-                    Self::Limited(iter) => iter.next(),
-                    Self::Cartesian(iter) => iter.next(),
-                }
-            }
-        }
-
+    ) -> Self::Cursor<'a> {
         match self {
-            Self::Flat(selector) => NeighborhoodIter::Flat(selector.open_cursor(score_director)),
+            Self::Flat(selector) => NeighborhoodCursor::Flat(ArenaMoveCursor::from_moves(
+                selector.iter_moves(score_director),
+            )),
             Self::Limited {
                 selector,
                 selected_count_limit,
-            } => NeighborhoodIter::Limited(
+            } => NeighborhoodCursor::Limited(ArenaMoveCursor::from_moves(
                 selector
-                    .open_cursor(score_director)
+                    .iter_moves(score_director)
                     .take(*selected_count_limit),
-            ),
+            )),
             Self::Cartesian(selector) => {
-                NeighborhoodIter::Cartesian(selector.open_cursor(score_director))
+                NeighborhoodCursor::Cartesian(selector.open_cursor(score_director))
             }
         }
     }
@@ -371,40 +409,27 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
+    type Cursor<'a>
+        = CartesianChildCursor<S, V>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: solverforge_scoring::Director<S>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = NeighborhoodMove<S, V>> + 'a {
-        enum ChildIter<A, B> {
-            Flat(A),
-            Limited(B),
-        }
-
-        impl<T, A, B> Iterator for ChildIter<A, B>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Flat(iter) => iter.next(),
-                    Self::Limited(iter) => iter.next(),
-                }
-            }
-        }
-
+    ) -> Self::Cursor<'a> {
         match self {
-            Self::Flat(selector) => ChildIter::Flat(selector.open_cursor(score_director)),
+            Self::Flat(selector) => CartesianChildCursor::Flat(ArenaMoveCursor::from_moves(
+                selector.iter_moves(score_director),
+            )),
             Self::Limited {
                 selector,
                 selected_count_limit,
-            } => ChildIter::Limited(
+            } => CartesianChildCursor::Limited(ArenaMoveCursor::from_moves(
                 selector
-                    .open_cursor(score_director)
+                    .iter_moves(score_director)
                     .take(*selected_count_limit),
-            ),
+            )),
         }
     }
 
@@ -889,5 +914,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "selector_tests.rs"]
 mod tests;

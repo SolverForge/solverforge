@@ -125,5 +125,4 @@ impl<S: PlanningSolution> Acceptor<S> for ValueTabuAcceptor {
 }
 
 #[cfg(test)]
-#[path = "value_tabu_tests.rs"]
 mod tests;

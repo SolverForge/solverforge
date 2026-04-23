@@ -14,7 +14,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
+
+use super::indexed_cursor::IndexedMoveCursor;
 
 /// Probabilistically filters moves from an inner selector.
 ///
@@ -25,6 +27,7 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 ///
 /// ```
 /// use solverforge_solver::heuristic::selector::decorator::ProbabilityMoveSelector;
+/// use solverforge_solver::heuristic::selector::move_selector::MoveCandidateRef;
 /// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
@@ -46,8 +49,13 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 /// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// // Weight function: higher values have higher probability
-/// fn weight_by_value(m: &ChangeMove<Solution, i32>) -> f64 {
-///     m.to_value().map_or(0.0, |&v| v as f64)
+/// fn weight_by_value(
+///     m: MoveCandidateRef<'_, Solution, ChangeMove<Solution, i32>>,
+/// ) -> f64 {
+///     match m {
+///         MoveCandidateRef::Borrowed(mov) => mov.to_value().map_or(0.0, |&v| v as f64),
+///         _ => 0.0,
+///     }
 /// }
 ///
 /// let inner = ChangeMoveSelector::simple(
@@ -58,18 +66,31 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 ///     ProbabilityMoveSelector::with_seed(inner, weight_by_value, 42);
 /// assert!(!probabilistic.is_never_ending());
 /// ```
-pub struct ProbabilityMoveSelector<S, M, Inner> {
+pub struct ProbabilityMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     inner: Inner,
-    weight_fn: fn(&M) -> f64,
+    weight_fn: for<'a> fn(MoveCandidateRef<'a, S, M>) -> f64,
     rng: RefCell<StdRng>,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 // SAFETY: RefCell<StdRng> is only accessed from a single thread at a time
-unsafe impl<S, M, Inner: Send> Send for ProbabilityMoveSelector<S, M, Inner> {}
+unsafe impl<S, M, Inner: Send> Send for ProbabilityMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+}
 
-impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner> {
-    pub fn new(inner: Inner, weight_fn: fn(&M) -> f64) -> Self {
+impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub fn new(inner: Inner, weight_fn: for<'a> fn(MoveCandidateRef<'a, S, M>) -> f64) -> Self {
         Self {
             inner,
             weight_fn,
@@ -78,7 +99,11 @@ impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner> {
         }
     }
 
-    pub fn with_seed(inner: Inner, weight_fn: fn(&M) -> f64, seed: u64) -> Self {
+    pub fn with_seed(
+        inner: Inner,
+        weight_fn: for<'a> fn(MoveCandidateRef<'a, S, M>) -> f64,
+        seed: u64,
+    ) -> Self {
         Self {
             inner,
             weight_fn,
@@ -88,7 +113,11 @@ impl<S, M, Inner> ProbabilityMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, M, Inner: Debug> Debug for ProbabilityMoveSelector<S, M, Inner> {
+impl<S, M, Inner: Debug> Debug for ProbabilityMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProbabilityMoveSelector")
             .field("inner", &self.inner)
@@ -102,38 +131,35 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
+    type Cursor<'a>
+        = IndexedMoveCursor<S, M, Inner::Cursor<'a>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        let mut inner = self.inner.open_cursor(score_director);
         let weight_fn = self.weight_fn;
+        let mut weighted_indices = Vec::new();
+        while let Some((child_index, candidate)) = inner.next_candidate() {
+            weighted_indices.push((child_index, weight_fn(candidate)));
+        }
 
-        let moves_with_weights: Vec<(M, f64)> = self
-            .inner
-            .open_cursor(score_director)
-            .map(|m| {
-                let w = weight_fn(&m);
-                (m, w)
-            })
-            .collect();
-
-        let total_weight: f64 = moves_with_weights.iter().map(|(_, w)| w).sum();
-
+        let total_weight: f64 = weighted_indices.iter().map(|(_, weight)| weight).sum();
         let mut selected = Vec::new();
 
         if total_weight > 0.0 {
             let mut rng = self.rng.borrow_mut();
-            selected.reserve(moves_with_weights.len());
+            selected.reserve(weighted_indices.len());
 
-            for (m, weight) in moves_with_weights {
+            for (child_index, weight) in weighted_indices {
                 let probability = weight / total_weight;
                 if rng.random::<f64>() < probability {
-                    selected.push(m);
+                    selected.push(child_index);
                 }
             }
         }
 
-        selected.into_iter()
+        IndexedMoveCursor::new(inner, selected)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -146,5 +172,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "probability_tests.rs"]
 mod tests;

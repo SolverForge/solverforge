@@ -13,7 +13,7 @@ use crate::heuristic::r#move::k_opt_reconnection::{
 use crate::heuristic::r#move::KOptMove;
 
 use super::super::entity::EntitySelector;
-use super::super::move_selector::MoveSelector;
+use super::super::move_selector::{ArenaMoveCursor, MoveSelector};
 use super::config::KOptConfig;
 use super::iterators::count_cut_combinations;
 use super::iterators::CutCombinationIterator;
@@ -94,10 +94,12 @@ where
     ES: EntitySelector<S>,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = KOptMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, KOptMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let k = self.config.k;
         let min_seg = self.config.min_segment_len;
         let patterns = &self.owned_patterns;
@@ -117,7 +119,7 @@ where
             })
             .collect();
 
-        entity_lens.into_iter().flat_map(move |(entity_idx, len)| {
+        ArenaMoveCursor::from_moves(entity_lens.into_iter().flat_map(move |(entity_idx, len)| {
             let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
 
             cuts_iter.flat_map(move |cuts| {
@@ -134,7 +136,7 @@ where
                     )
                 })
             })
-        })
+        }))
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

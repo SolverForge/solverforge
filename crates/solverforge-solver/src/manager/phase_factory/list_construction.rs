@@ -99,9 +99,7 @@ where
                     ctx.cw_capacity_fn,
                     ctx.cw_assign_route_fn,
                 ) else {
-                    panic!(
-                        "list_clarke_wright requires depot_fn, distance_fn, element_load_fn, capacity_fn, and assign_route_fn"
-                    );
+                    unreachable!("validated list_clarke_wright hooks must be present");
                 };
                 ListClarkeWrightPhase::new(
                     ctx.element_count,
@@ -126,9 +124,7 @@ where
                     ctx.k_opt_depot_fn,
                     ctx.k_opt_distance_fn,
                 ) else {
-                    panic!(
-                        "list_k_opt requires k_opt_get_route, k_opt_set_route, k_opt_depot_fn, and k_opt_distance_fn"
-                    );
+                    unreachable!("validated list_k_opt hooks must be present");
                 };
                 ListKOptPhase::<S, V>::new(
                     k,
@@ -142,8 +138,8 @@ where
                 )
                 .solve(solver_scope);
             }
-            other => panic!(
-                "list construction heuristic {:?} configured against a list variable",
+            other => unreachable!(
+                "specialized list construction only dispatches list heuristics, got {:?}",
                 other
             ),
         }

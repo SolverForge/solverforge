@@ -304,5 +304,4 @@ fn normalize_tabu_search_policy(config: &TabuSearchConfig) -> TabuSearchPolicy {
 }
 
 #[cfg(test)]
-#[path = "acceptor_tests.rs"]
 mod tests;

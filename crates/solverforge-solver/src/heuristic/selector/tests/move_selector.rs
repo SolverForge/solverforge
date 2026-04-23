@@ -251,7 +251,7 @@ fn change_selector_does_not_emit_to_none_without_unassigned_support() {
 }
 
 #[test]
-fn change_selector_clones_values_as_cursor_advances() {
+fn change_selector_materializes_values_when_cursor_opens() {
     let director = create_counted_director(vec![CountedTask { value: None }]);
     let cloned = Arc::new(AtomicUsize::new(0));
     let values = (0..10)
@@ -265,12 +265,12 @@ fn change_selector_clones_values_as_cursor_advances() {
 
     let mut cursor = selector.open_cursor(&director);
 
-    assert_eq!(cloned.load(Ordering::SeqCst), 0);
+    assert_eq!(cloned.load(Ordering::SeqCst), 10);
 
     let first = cursor.next().expect("first move should be available");
     assert_eq!(first.entity_index(), 0);
     assert_eq!(first.to_value().map(|value| value.id), Some(0));
-    assert_eq!(cloned.load(Ordering::SeqCst), 1);
+    assert_eq!(cloned.load(Ordering::SeqCst), 10);
 
     let next_two: Vec<_> = cursor.by_ref().take(2).collect();
     assert_eq!(next_two.len(), 2);
@@ -281,7 +281,7 @@ fn change_selector_clones_values_as_cursor_advances() {
             .collect::<Vec<_>>(),
         vec![Some(1), Some(2)]
     );
-    assert_eq!(cloned.load(Ordering::SeqCst), 3);
+    assert_eq!(cloned.load(Ordering::SeqCst), 10);
 }
 
 #[test]

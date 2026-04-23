@@ -1,7 +1,7 @@
 use solverforge_config::{
-    ChangeMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig, NearbySwapMoveConfig,
-    PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
-    RuinRecreateMoveSelectorConfig, VariableTargetConfig,
+    CartesianProductConfig, ChangeMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
+    NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
+    RuinRecreateMoveSelectorConfig, SwapMoveConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -12,6 +12,9 @@ use std::any::TypeId;
 
 use super::*;
 use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::decorator::FilteringMoveSelector;
+use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
+use crate::heuristic::selector::MoveSelector;
 
 #[derive(Clone, Debug)]
 struct Shift {
@@ -608,4 +611,70 @@ fn pillar_swap_prunes_illegal_entity_slice_partners() {
     swap_pairs.sort_unstable();
 
     assert_eq!(swap_pairs, vec![(0, 2), (1, 2)]);
+}
+
+fn keep_all_cartesian_scalar_candidates(
+    candidate: MoveCandidateRef<
+        '_,
+        Schedule,
+        crate::heuristic::r#move::ScalarMoveUnion<Schedule, usize>,
+    >,
+) -> bool {
+    matches!(candidate, MoveCandidateRef::Sequential(_))
+}
+
+#[test]
+fn scalar_builder_cartesian_selector_survives_filtering_wrapper() {
+    let director = create_director(Schedule {
+        workers: vec![0, 1, 2],
+        shifts: vec![
+            Shift {
+                worker: Some(0),
+                allowed_workers: vec![0, 1, 2],
+            },
+            Shift {
+                worker: Some(1),
+                allowed_workers: vec![0, 1, 2],
+            },
+        ],
+        score: None,
+    });
+    let scalar_variables = vec![ScalarVariableContext::new(
+        0,
+        "Shift",
+        shift_count,
+        "worker",
+        get_worker,
+        set_worker,
+        ValueSource::EntitySlice {
+            values_for_entity: allowed_workers,
+        },
+        true,
+    )];
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
+    let filtered = FilteringMoveSelector::new(selector, keep_all_cartesian_scalar_candidates);
+    let mut cursor = filtered.open_cursor(&director);
+    let indices = collect_cursor_indices::<
+        Schedule,
+        crate::heuristic::r#move::ScalarMoveUnion<Schedule, usize>,
+        _,
+    >(&mut cursor);
+
+    assert!(!indices.is_empty());
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
 }

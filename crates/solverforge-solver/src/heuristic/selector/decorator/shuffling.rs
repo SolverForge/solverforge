@@ -15,7 +15,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCursor, MoveSelector};
+
+use super::indexed_cursor::IndexedMoveCursor;
 
 /// Shuffles moves from an inner selector randomly.
 ///
@@ -100,13 +102,19 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
-        let mut moves: Vec<M> = self.inner.open_cursor(score_director).collect();
-        moves.shuffle(&mut *self.rng.borrow_mut());
-        moves.into_iter()
+    type Cursor<'a>
+        = IndexedMoveCursor<S, M, Inner::Cursor<'a>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        let mut inner = self.inner.open_cursor(score_director);
+        let mut indices = Vec::new();
+        while let Some((child_index, _)) = inner.next_candidate() {
+            indices.push(child_index);
+        }
+        indices.shuffle(&mut *self.rng.borrow_mut());
+        IndexedMoveCursor::new(inner, indices)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -119,5 +127,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "shuffling_tests.rs"]
 mod tests;

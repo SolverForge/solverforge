@@ -129,5 +129,4 @@ impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
 }
 
 #[cfg(test)]
-#[path = "great_deluge_tests.rs"]
 mod tests;

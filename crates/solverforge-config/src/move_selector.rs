@@ -59,13 +59,16 @@ pub enum MoveSelectorConfig {
     // List ruin move selector (LNS) — removes elements for reinsertion.
     ListRuinMoveSelector(ListRuinMoveSelectorConfig),
 
-    // Neighborhood that limits the number of moves yielded from a child selector.
+    // Neighborhood that limits the number of yielded candidates from a child selector while
+    // preserving selector order.
     LimitedNeighborhood(LimitedNeighborhoodConfig),
 
     // Union of multiple selectors.
     UnionMoveSelector(UnionMoveSelectorConfig),
 
-    // Cartesian product of selectors.
+    // Cartesian product of selectors. Evaluates the right child on the left preview state,
+    // composes tabu ids in selector order, and rejects left children that require full score
+    // evaluation during preview.
     CartesianProductMoveSelector(CartesianProductConfig),
 }
 

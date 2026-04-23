@@ -13,8 +13,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::r#move::MoveArena;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
 
 /// Combines moves from an arbitrary number of leaf selectors into a single stream.
 pub struct VecUnionSelector<S, M, Leaf> {
@@ -53,25 +52,100 @@ where
     M: Move<S>,
     Leaf: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
-        let cursors: Vec<_> = self
-            .selectors
-            .iter()
-            .map(|selector| selector.open_cursor(score_director))
-            .collect();
-        cursors.into_iter().flatten()
+    type Cursor<'a>
+        = VecUnionMoveCursor<S, M, Leaf::Cursor<'a>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        VecUnionMoveCursor::new(
+            self.selectors
+                .iter()
+                .map(|selector| selector.open_cursor(score_director))
+                .collect(),
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         self.selectors.iter().map(|s| s.size(score_director)).sum()
     }
+}
 
-    fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
-        for selector in &self.selectors {
-            selector.append_moves(score_director, arena);
+pub struct VecUnionMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    cursors: Vec<C>,
+    current_cursor: usize,
+    discovered: Vec<(usize, usize)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
+}
+
+impl<S, M, C> VecUnionMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn new(cursors: Vec<C>) -> Self {
+        Self {
+            cursors,
+            current_cursor: 0,
+            discovered: Vec::new(),
+            _phantom: PhantomData,
         }
+    }
+}
+
+impl<S, M, C> MoveCursor<S, M> for VecUnionMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+        if self.current_cursor >= self.cursors.len() {
+            return None;
+        }
+        let cursor_index = self.current_cursor;
+        let Some((child_index, _)) = self.cursors[cursor_index].next_candidate() else {
+            self.current_cursor += 1;
+            return self.next_candidate();
+        };
+        let global_index = self.discovered.len();
+        self.discovered.push((cursor_index, child_index));
+        let candidate = self.cursors[cursor_index]
+            .candidate(child_index)
+            .expect("vec union candidate must remain valid");
+        Some((global_index, candidate))
+    }
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
+        let (cursor_index, child_index) = *self.discovered.get(index)?;
+        self.cursors[cursor_index].candidate(child_index)
+    }
+
+    fn take_candidate(&mut self, index: usize) -> M {
+        let (cursor_index, child_index) = self.discovered[index];
+        self.cursors[cursor_index].take_candidate(child_index)
+    }
+}
+
+impl<S, M, C> Iterator for VecUnionMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    type Item = M;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = {
+            let (index, _) = self.next_candidate()?;
+            index
+        };
+        Some(self.take_candidate(index))
     }
 }

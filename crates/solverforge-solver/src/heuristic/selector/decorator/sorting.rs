@@ -11,7 +11,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
+
+use super::indexed_cursor::IndexedMoveCursor;
 
 /// Sorts moves from an inner selector using a comparator function.
 ///
@@ -22,6 +24,7 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 ///
 /// ```
 /// use solverforge_solver::heuristic::selector::decorator::SortingMoveSelector;
+/// use solverforge_solver::heuristic::selector::move_selector::MoveCandidateRef;
 /// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
@@ -44,8 +47,16 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 /// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// // Sort by target value descending
-/// fn by_value_desc(a: &ChangeMove<Solution, i32>, b: &ChangeMove<Solution, i32>) -> Ordering {
-///     b.to_value().cmp(&a.to_value())
+/// fn by_value_desc(
+///     a: MoveCandidateRef<'_, Solution, ChangeMove<Solution, i32>>,
+///     b: MoveCandidateRef<'_, Solution, ChangeMove<Solution, i32>>,
+/// ) -> Ordering {
+///     match (a, b) {
+///         (MoveCandidateRef::Borrowed(a), MoveCandidateRef::Borrowed(b)) => {
+///             b.to_value().cmp(&a.to_value())
+///         }
+///         _ => Ordering::Equal,
+///     }
 /// }
 ///
 /// let inner = ChangeMoveSelector::simple(
@@ -55,14 +66,25 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 ///     SortingMoveSelector::new(inner, by_value_desc);
 /// assert!(!sorted.is_never_ending());
 /// ```
-pub struct SortingMoveSelector<S, M, Inner> {
+pub struct SortingMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     inner: Inner,
-    comparator: fn(&M, &M) -> Ordering,
+    comparator: for<'a> fn(MoveCandidateRef<'a, S, M>, MoveCandidateRef<'a, S, M>) -> Ordering,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
-impl<S, M, Inner> SortingMoveSelector<S, M, Inner> {
-    pub fn new(inner: Inner, comparator: fn(&M, &M) -> Ordering) -> Self {
+impl<S, M, Inner> SortingMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub fn new(
+        inner: Inner,
+        comparator: for<'a> fn(MoveCandidateRef<'a, S, M>, MoveCandidateRef<'a, S, M>) -> Ordering,
+    ) -> Self {
         Self {
             inner,
             comparator,
@@ -71,7 +93,11 @@ impl<S, M, Inner> SortingMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, M, Inner: Debug> Debug for SortingMoveSelector<S, M, Inner> {
+impl<S, M, Inner: Debug> Debug for SortingMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SortingMoveSelector")
             .field("inner", &self.inner)
@@ -85,14 +111,29 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
+    type Cursor<'a>
+        = IndexedMoveCursor<S, M, Inner::Cursor<'a>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        let mut inner = self.inner.open_cursor(score_director);
         let comparator = self.comparator;
-        let mut moves: Vec<M> = self.inner.open_cursor(score_director).collect();
-        moves.sort_by(comparator);
-        moves.into_iter()
+        let mut indices = Vec::new();
+        while let Some((child_index, _)) = inner.next_candidate() {
+            indices.push(child_index);
+        }
+        indices.sort_by(|left, right| {
+            comparator(
+                inner
+                    .candidate(*left)
+                    .expect("sorting candidate must remain valid"),
+                inner
+                    .candidate(*right)
+                    .expect("sorting candidate must remain valid"),
+            )
+        });
+        IndexedMoveCursor::new(inner, indices)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -105,5 +146,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "sorting_tests.rs"]
 mod tests;

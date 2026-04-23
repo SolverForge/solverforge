@@ -7,7 +7,7 @@ use crate::heuristic::r#move::ScalarMoveUnion;
 
 use super::super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::super::value_selector::{StaticValueSelector, ValueSelector};
-use super::{ChangeMoveSelector, MoveSelector, SwapMoveSelector};
+use super::{ArenaMoveCursor, ChangeMoveSelector, MoveSelector, SwapMoveSelector};
 
 pub struct ScalarChangeMoveSelector<S, V, ES, VS> {
     inner: ChangeMoveSelector<S, V, ES, VS>,
@@ -50,13 +50,17 @@ where
     ES: EntitySelector<S>,
     VS: ValueSelector<S, V>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, V>> + 'a {
-        self.inner
-            .open_cursor(score_director)
-            .map(ScalarMoveUnion::Change)
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves(
+            self.inner
+                .iter_moves(score_director)
+                .map(ScalarMoveUnion::Change),
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -99,13 +103,17 @@ where
     LES: EntitySelector<S>,
     RES: EntitySelector<S>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, V>> + 'a {
-        self.inner
-            .open_cursor(score_director)
-            .map(ScalarMoveUnion::Swap)
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves(
+            self.inner
+                .iter_moves(score_director)
+                .map(ScalarMoveUnion::Swap),
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

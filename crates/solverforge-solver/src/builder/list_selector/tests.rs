@@ -14,7 +14,9 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 use crate::builder::ListVariableContext;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{
+    collect_cursor_indices, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 use crate::CrossEntityDistanceMeter;
 
 #[derive(Clone, Debug)]
@@ -297,10 +299,19 @@ fn public_list_builder_supports_cartesian_product() {
         }
     });
 
-    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<Plan, crate::heuristic::r#move::ListMoveUnion<Plan, usize>, _>(
+            &mut cursor,
+        );
 
-    assert!(!moves.is_empty());
-    assert!(moves
-        .iter()
-        .all(|mov| matches!(mov, crate::heuristic::r#move::ListMoveUnion::Composite(_))));
+    assert!(!indices.is_empty());
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+    assert!(matches!(
+        cursor.take_candidate(indices[0]),
+        crate::heuristic::r#move::ListMoveUnion::Composite(_)
+    ));
 }

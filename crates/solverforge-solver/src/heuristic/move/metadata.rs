@@ -164,3 +164,47 @@ pub(crate) fn append_canonical_usize_slice_pair(
     identity.push(NONE_ID);
     identity.extend(second.iter().map(|&idx| encode_usize(idx)));
 }
+
+fn append_unique_tokens<T>(target: &mut SmallVec<[T; 2]>, tokens: &[T])
+where
+    T: Copy + PartialEq,
+{
+    for &token in tokens {
+        if !target.contains(&token) {
+            target.push(token);
+        }
+    }
+}
+
+pub(crate) fn compose_sequential_tabu_signature(
+    prefix: &'static str,
+    left: &MoveTabuSignature,
+    right: &MoveTabuSignature,
+) -> MoveTabuSignature {
+    let mut entity_tokens = left.entity_tokens.clone();
+    append_unique_tokens(&mut entity_tokens, &right.entity_tokens);
+
+    let mut destination_value_tokens = left.destination_value_tokens.clone();
+    append_unique_tokens(
+        &mut destination_value_tokens,
+        &right.destination_value_tokens,
+    );
+
+    let mut move_id = smallvec![hash_str(prefix)];
+    move_id.extend(left.move_id.iter().copied());
+    move_id.extend(right.move_id.iter().copied());
+
+    let mut undo_move_id = smallvec![hash_str(prefix)];
+    undo_move_id.extend(right.undo_move_id.iter().copied());
+    undo_move_id.extend(left.undo_move_id.iter().copied());
+
+    let scope = if left.scope == right.scope {
+        left.scope
+    } else {
+        MoveTabuScope::new(left.scope.descriptor_index, prefix)
+    };
+
+    MoveTabuSignature::new(scope, move_id, undo_move_id)
+        .with_entity_tokens(entity_tokens)
+        .with_destination_value_tokens(destination_value_tokens)
+}

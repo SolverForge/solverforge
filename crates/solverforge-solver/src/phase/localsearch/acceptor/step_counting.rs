@@ -129,5 +129,4 @@ impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
 }
 
 #[cfg(test)]
-#[path = "step_counting_tests.rs"]
 mod tests;

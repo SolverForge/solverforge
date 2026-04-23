@@ -8,7 +8,8 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
 
-use crate::heuristic::r#move::{Move, MoveArena};
+use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::MoveCursor;
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
@@ -51,7 +52,6 @@ where
     move_selector: MS,
     acceptor: A,
     forager: Fo,
-    arena: MoveArena<M>,
     step_limit: Option<u64>,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
@@ -69,7 +69,6 @@ where
             move_selector,
             acceptor,
             forager,
-            arena: MoveArena::new(),
             step_limit,
             _phantom: PhantomData,
         }
@@ -89,7 +88,6 @@ where
             .field("move_selector", &self.move_selector)
             .field("acceptor", &self.acceptor)
             .field("forager", &self.forager)
-            .field("arena", &self.arena)
             .field("step_limit", &self.step_limit)
             .finish()
     }
@@ -155,7 +153,6 @@ where
             self.acceptor.step_started();
             let requires_move_signatures = self.acceptor.requires_move_signatures();
 
-            self.arena.reset();
             let mut interrupted_step = false;
             let mut generated_moves = 0usize;
             let mut evaluated_moves = 0usize;
@@ -172,7 +169,7 @@ where
                 }
 
                 let generation_started = Instant::now();
-                let Some(mov) = cursor.next() else {
+                let Some((candidate_index, mov)) = cursor.next_candidate() else {
                     break;
                 };
                 let generation_elapsed = generation_started.elapsed();
@@ -257,15 +254,13 @@ where
                 trace!(
                     event = "step",
                     step = step_scope.step_index(),
-                    move_index = evaluated_moves - 1,
+                    move_index = candidate_index,
                     score = %move_score,
                     accepted = accepted,
                 );
 
                 if accepted {
-                    let accepted_index = self.arena.len();
-                    self.arena.push(mov);
-                    self.forager.add_move_index(accepted_index, move_score);
+                    self.forager.add_move_index(candidate_index, move_score);
                 }
             }
 
@@ -279,7 +274,7 @@ where
             // Pick the best accepted move index
             let mut accepted_move_signature = None;
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
-                let selected_move = self.arena.take(selected_index);
+                let selected_move = cursor.take_candidate(selected_index);
                 if requires_move_signatures {
                     accepted_move_signature =
                         Some(selected_move.tabu_signature(step_scope.score_director()));
@@ -350,5 +345,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "phase_tests.rs"]
 mod tests;

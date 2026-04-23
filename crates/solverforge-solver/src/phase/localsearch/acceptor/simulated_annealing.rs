@@ -187,5 +187,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "simulated_annealing_tests.rs"]
 mod tests;

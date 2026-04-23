@@ -6,11 +6,14 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ListMoveUnion, MoveArena, SequentialCompositeMove};
 use crate::heuristic::selector::decorator::{
-    CartesianProductSelector, MapMoveSelector, VecUnionSelector,
+    CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
 };
 use crate::heuristic::selector::k_opt::KOptConfig;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::heuristic::selector::{FromSolutionEntitySelector, MoveSelector};
+use crate::heuristic::selector::{
+    move_selector::{ArenaMoveCursor, MoveCandidateRef, MoveCursor},
+    FromSolutionEntitySelector, MoveSelector,
+};
 
 use super::super::context::{IntraDistanceAdapter, ListVariableContext};
 use super::leaf::ListLeafSelector;
@@ -38,6 +41,42 @@ where
     Cartesian(ListCartesianSelector<S, V, DM, IDM>),
 }
 
+pub enum ListSelectorCursor<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    Leaf(ArenaMoveCursor<S, ListMoveUnion<S, V>>),
+    Cartesian(CartesianProductCursor<S, ListMoveUnion<S, V>>),
+}
+
+impl<S, V> MoveCursor<S, ListMoveUnion<S, V>> for ListSelectorCursor<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, ListMoveUnion<S, V>>)> {
+        match self {
+            Self::Leaf(cursor) => cursor.next_candidate(),
+            Self::Cartesian(cursor) => cursor.next_candidate(),
+        }
+    }
+
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, ListMoveUnion<S, V>>> {
+        match self {
+            Self::Leaf(cursor) => cursor.candidate(index),
+            Self::Cartesian(cursor) => cursor.candidate(index),
+        }
+    }
+
+    fn take_candidate(&mut self, index: usize) -> ListMoveUnion<S, V> {
+        match self {
+            Self::Leaf(cursor) => cursor.take_candidate(index),
+            Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+}
+
 impl<S, V, DM, IDM> Debug for ListSelectorNode<S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
@@ -60,34 +99,16 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ListMoveUnion<S, V>> + 'a {
-        enum ListSelectorIter<A, B> {
-            Leaf(A),
-            Cartesian(B),
-        }
+    type Cursor<'a>
+        = ListSelectorCursor<S, V>
+    where
+        Self: 'a;
 
-        impl<T, A, B> Iterator for ListSelectorIter<A, B>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Leaf(iter) => iter.next(),
-                    Self::Cartesian(iter) => iter.next(),
-                }
-            }
-        }
-
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
-            Self::Leaf(selector) => ListSelectorIter::Leaf(selector.open_cursor(score_director)),
+            Self::Leaf(selector) => ListSelectorCursor::Leaf(selector.open_cursor(score_director)),
             Self::Cartesian(selector) => {
-                ListSelectorIter::Cartesian(selector.open_cursor(score_director))
+                ListSelectorCursor::Cartesian(selector.open_cursor(score_director))
             }
         }
     }
@@ -344,10 +365,7 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::NearbyListChange(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::ListChange,
-        )));
+        out.push(ListLeafSelector::NearbyListChange(inner));
     }
 
     fn push_nearby_swap<S, V, DM, IDM>(
@@ -372,10 +390,7 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::NearbyListSwap(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::ListSwap,
-        )));
+        out.push(ListLeafSelector::NearbyListSwap(inner));
     }
 
     fn push_list_reverse<S, V, DM, IDM>(
@@ -397,10 +412,7 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::ListReverse(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::ListReverse,
-        )));
+        out.push(ListLeafSelector::ListReverse(inner));
     }
 
     fn push_sublist_change<S, V, DM, IDM>(
@@ -427,10 +439,7 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::SublistChange(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::SublistChange,
-        )));
+        out.push(ListLeafSelector::SublistChange(inner));
     }
 
     fn push_sublist_swap<S, V, DM, IDM>(
@@ -457,10 +466,7 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::SublistSwap(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::SublistSwap,
-        )));
+        out.push(ListLeafSelector::SublistSwap(inner));
     }
 
     fn push_kopt<S, V, DM, IDM>(
@@ -492,10 +498,7 @@ impl ListMoveSelectorBuilder {
                 ctx.variable_name,
                 ctx.descriptor_index,
             );
-            out.push(ListLeafSelector::NearbyKOpt(MapMoveSelector::new(
-                inner,
-                ListMoveUnion::KOpt,
-            )));
+            out.push(ListLeafSelector::NearbyKOpt(inner));
         } else {
             let inner = KOptMoveSelector::new(
                 FromSolutionEntitySelector::new(ctx.descriptor_index),
@@ -507,10 +510,7 @@ impl ListMoveSelectorBuilder {
                 ctx.variable_name,
                 ctx.descriptor_index,
             );
-            out.push(ListLeafSelector::KOpt(MapMoveSelector::new(
-                inner,
-                ListMoveUnion::KOpt,
-            )));
+            out.push(ListLeafSelector::KOpt(inner));
         }
     }
 
@@ -546,10 +546,7 @@ impl ListMoveSelectorBuilder {
         } else {
             inner
         };
-        out.push(ListLeafSelector::ListRuin(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::ListRuin,
-        )));
+        out.push(ListLeafSelector::ListRuin(inner));
     }
 
     fn push_list_change<S, V, DM, IDM>(
@@ -572,10 +569,7 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::ListChange(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::ListChange,
-        )));
+        out.push(ListLeafSelector::ListChange(inner));
     }
 
     fn push_list_swap<S, V, DM, IDM>(
@@ -597,9 +591,6 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        out.push(ListLeafSelector::ListSwap(MapMoveSelector::new(
-            inner,
-            ListMoveUnion::ListSwap,
-        )));
+        out.push(ListLeafSelector::ListSwap(inner));
     }
 }

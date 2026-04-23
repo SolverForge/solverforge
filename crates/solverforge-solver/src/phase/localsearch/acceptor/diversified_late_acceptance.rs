@@ -173,5 +173,4 @@ impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
 }
 
 #[cfg(test)]
-#[path = "diversified_late_acceptance_tests.rs"]
 mod tests;

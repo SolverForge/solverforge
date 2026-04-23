@@ -82,7 +82,7 @@ use crate::heuristic::r#move::ListSwapMove;
 
 use super::entity::EntitySelector;
 use super::list_support::collect_selected_entities;
-use super::move_selector::MoveSelector;
+use super::move_selector::{ArenaMoveCursor, MoveSelector};
 use super::nearby_list_change::CrossEntityDistanceMeter;
 use super::nearby_list_support::{sort_and_limit_nearby_candidates, NearbyCandidate};
 
@@ -165,10 +165,12 @@ where
     D: CrossEntityDistanceMeter<S>,
     ES: EntitySelector<S>,
 {
-    fn open_cursor<'a, SD: Director<S>>(
-        &'a self,
-        score_director: &SD,
-    ) -> impl Iterator<Item = ListSwapMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ListSwapMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, SD: Director<S>>(&'a self, score_director: &SD) -> Self::Cursor<'a> {
         let list_len = self.list_len;
         let list_get = self.list_get;
         let list_set = self.list_set;
@@ -241,7 +243,7 @@ where
             }
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {

@@ -188,5 +188,4 @@ impl<S: PlanningSolution> Acceptor<S> for MoveTabuAcceptor {
 }
 
 #[cfg(test)]
-#[path = "move_tabu_tests.rs"]
 mod tests;

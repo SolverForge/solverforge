@@ -62,7 +62,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListReverseMove;
 
 use super::entity::EntitySelector;
-use super::move_selector::MoveSelector;
+use super::move_selector::{ArenaMoveCursor, MoveSelector};
 
 /// A move selector that generates 2-opt segment reversal moves.
 ///
@@ -128,10 +128,12 @@ where
     V: Clone + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ListReverseMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ListReverseMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
         let list_len = self.list_len;
         let list_get = self.list_get;
@@ -172,7 +174,7 @@ where
             }
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

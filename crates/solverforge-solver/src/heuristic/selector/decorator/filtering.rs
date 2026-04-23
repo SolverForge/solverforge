@@ -10,7 +10,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
+
+use super::indexed_cursor::IndexedMoveCursor;
 
 /// Filters moves from an inner selector using a predicate function.
 ///
@@ -21,6 +23,7 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 ///
 /// ```
 /// use solverforge_solver::heuristic::selector::decorator::FilteringMoveSelector;
+/// use solverforge_solver::heuristic::selector::move_selector::MoveCandidateRef;
 /// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 /// use solverforge_solver::heuristic::r#move::ChangeMove;
 /// use solverforge_core::domain::PlanningSolution;
@@ -42,8 +45,10 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 /// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// // Filter to only high-priority moves (value > 50)
-/// fn high_priority_filter(m: &ChangeMove<Solution, i32>) -> bool {
-///     m.to_value().map_or(false, |v| *v > 50)
+/// fn high_priority_filter(
+///     m: MoveCandidateRef<'_, Solution, ChangeMove<Solution, i32>>,
+/// ) -> bool {
+///     matches!(m, MoveCandidateRef::Borrowed(mov) if mov.to_value().is_some_and(|v| *v > 50))
 /// }
 ///
 /// let inner = ChangeMoveSelector::simple(
@@ -53,14 +58,22 @@ use crate::heuristic::selector::move_selector::MoveSelector;
 ///     FilteringMoveSelector::new(inner, high_priority_filter);
 /// assert!(!filtered.is_never_ending());
 /// ```
-pub struct FilteringMoveSelector<S, M, Inner> {
+pub struct FilteringMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     inner: Inner,
-    predicate: fn(&M) -> bool,
+    predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
-impl<S, M, Inner> FilteringMoveSelector<S, M, Inner> {
-    pub fn new(inner: Inner, predicate: fn(&M) -> bool) -> Self {
+impl<S, M, Inner> FilteringMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub fn new(inner: Inner, predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool) -> Self {
         Self {
             inner,
             predicate,
@@ -69,7 +82,11 @@ impl<S, M, Inner> FilteringMoveSelector<S, M, Inner> {
     }
 }
 
-impl<S, M, Inner: Debug> Debug for FilteringMoveSelector<S, M, Inner> {
+impl<S, M, Inner: Debug> Debug for FilteringMoveSelector<S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FilteringMoveSelector")
             .field("inner", &self.inner)
@@ -83,12 +100,21 @@ where
     M: Move<S>,
     Inner: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
+    type Cursor<'a>
+        = IndexedMoveCursor<S, M, Inner::Cursor<'a>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        let mut inner = self.inner.open_cursor(score_director);
         let predicate = self.predicate;
-        self.inner.open_cursor(score_director).filter(predicate)
+        let mut indices = Vec::new();
+        while let Some((child_index, candidate)) = inner.next_candidate() {
+            if predicate(candidate) {
+                indices.push(child_index);
+            }
+        }
+        IndexedMoveCursor::new(inner, indices)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -101,5 +127,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "filtering_tests.rs"]
 mod tests;

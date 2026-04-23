@@ -77,7 +77,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListRuinMove;
 
-use super::MoveSelector;
+use super::move_selector::{ArenaMoveCursor, MoveSelector};
 
 /// A move selector that generates `ListRuinMove` instances for Large Neighborhood Search.
 ///
@@ -206,10 +206,12 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ListRuinMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ListRuinMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
         let total_entities = (self.entity_count)(solution);
         let list_len = self.list_len;
@@ -269,7 +271,7 @@ where
                 .collect()
         };
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

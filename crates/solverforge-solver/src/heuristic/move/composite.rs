@@ -260,6 +260,122 @@ where
     }
 }
 
+pub struct SequentialCompositeMoveRef<'a, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    first: &'a M,
+    second: &'a M,
+    descriptor_index: usize,
+    entity_indices: &'a [usize],
+    variable_name: &'a str,
+    tabu_signature: &'a MoveTabuSignature,
+    _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, M> Debug for SequentialCompositeMoveRef<'_, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SequentialCompositeMoveRef")
+            .field("descriptor_index", &self.descriptor_index)
+            .field("variable_name", &self.variable_name)
+            .field("entity_indices", &self.entity_indices)
+            .finish()
+    }
+}
+
+impl<'a, S, M> SequentialCompositeMoveRef<'a, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub fn new(
+        first: &'a M,
+        second: &'a M,
+        descriptor_index: usize,
+        entity_indices: &'a [usize],
+        variable_name: &'a str,
+        tabu_signature: &'a MoveTabuSignature,
+    ) -> Self {
+        Self {
+            first,
+            second,
+            descriptor_index,
+            entity_indices,
+            variable_name,
+            tabu_signature,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn first(&self) -> &'a M {
+        self.first
+    }
+
+    pub fn second(&self) -> &'a M {
+        self.second
+    }
+}
+
+impl<S, M> Clone for SequentialCompositeMoveRef<'_, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            first: self.first,
+            second: self.second,
+            descriptor_index: self.descriptor_index,
+            entity_indices: self.entity_indices,
+            variable_name: self.variable_name,
+            tabu_signature: self.tabu_signature,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M> Move<S> for SequentialCompositeMoveRef<'_, S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
+        if !self.first.is_doable(score_director) {
+            return false;
+        }
+
+        let mut preview = SequentialPreviewDirector::from_director(score_director);
+        self.first.do_move(&mut preview);
+        self.second.is_doable(&preview)
+    }
+
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        self.first.do_move(score_director);
+        self.second.do_move(score_director);
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
+    }
+
+    fn entity_indices(&self) -> &[usize] {
+        self.entity_indices
+    }
+
+    fn variable_name(&self) -> &str {
+        self.variable_name
+    }
+
+    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
+        self.tabu_signature.clone()
+    }
+}
+
 impl<S, M> Clone for SequentialCompositeMove<S, M>
 where
     S: PlanningSolution,

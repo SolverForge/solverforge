@@ -1,4 +1,4 @@
-/* Move selector decorators for filtering and transforming moves.
+/* Move selector decorators for filtering and ordering moves.
 
 Decorators wrap an inner [`MoveSelector`] to modify its behavior without
 changing the move type. All decorators preserve the zero-erasure architecture.
@@ -13,7 +13,7 @@ changing the move type. All decorators preserve the zero-erasure architecture.
 
 mod cartesian_product;
 mod filtering;
-mod map;
+mod indexed_cursor;
 mod probability;
 mod shuffling;
 mod sorting;
@@ -22,9 +22,9 @@ mod test_utils;
 mod union;
 mod vec_union;
 
+pub(crate) use cartesian_product::CartesianProductCursor;
 pub use cartesian_product::{CartesianProductArena, CartesianProductSelector};
 pub use filtering::FilteringMoveSelector;
-pub use map::MapMoveSelector;
 pub use probability::ProbabilityMoveSelector;
 pub use shuffling::ShufflingMoveSelector;
 pub use sorting::SortingMoveSelector;

@@ -64,7 +64,7 @@ use crate::heuristic::r#move::ListSwapMove;
 
 use super::entity::EntitySelector;
 use super::list_support::collect_selected_entities;
-use super::move_selector::MoveSelector;
+use super::move_selector::{ArenaMoveCursor, MoveSelector};
 
 /// A move selector that generates list swap moves.
 ///
@@ -132,10 +132,12 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     ES: EntitySelector<S>,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ListSwapMove<S, V>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ListSwapMove<S, V>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let list_len = self.list_len;
         let list_get = self.list_get;
         let list_set = self.list_set;
@@ -200,7 +202,7 @@ where
             }
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

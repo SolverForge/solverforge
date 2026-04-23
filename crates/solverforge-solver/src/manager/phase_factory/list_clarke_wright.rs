@@ -411,5 +411,4 @@ where
 }
 
 #[cfg(test)]
-#[path = "list_clarke_wright_tests.rs"]
 mod tests;

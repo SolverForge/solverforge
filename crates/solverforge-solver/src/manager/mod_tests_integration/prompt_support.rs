@@ -8,7 +8,7 @@ use solverforge_scoring::Director;
 use super::super::{Solvable, SolverRuntime, SolverTerminalReason};
 use super::gates::{BlockingEvaluationGate, BlockingPoint};
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::MoveSelector;
+use crate::heuristic::selector::{move_selector::ArenaMoveCursor, MoveSelector};
 use crate::phase::localsearch::{BestScoreForager, HillClimbingAcceptor, LocalSearchPhase};
 use crate::phase::Phase;
 use crate::scope::SolverScope;
@@ -187,16 +187,21 @@ enum PromptControlSelector {
 }
 
 impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingGenerationSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<PromptControlSolution, NoOpMove>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: Director<PromptControlSolution>>(
         &'a self,
         _score_director: &D,
-    ) -> impl Iterator<Item = NoOpMove> + 'a {
-        (0..self.total_moves).map(move |index| {
+    ) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves((0..self.total_moves).map(move |index| {
             if index == self.block_at {
                 self.blocker.block();
             }
             NoOpMove::new(None)
-        })
+        }))
     }
 
     fn size<D: Director<PromptControlSolution>>(&self, _score_director: &D) -> usize {
@@ -205,11 +210,18 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingGenerationSelecto
 }
 
 impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingEvaluationSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<PromptControlSolution, NoOpMove>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: Director<PromptControlSolution>>(
         &'a self,
         _score_director: &D,
-    ) -> impl Iterator<Item = NoOpMove> + 'a {
-        (0..self.total_moves).map(move |_| NoOpMove::new(Some(self.gate.clone())))
+    ) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves(
+            (0..self.total_moves).map(move |_| NoOpMove::new(Some(self.gate.clone()))),
+        )
     }
 
     fn size<D: Director<PromptControlSolution>>(&self, _score_director: &D) -> usize {
@@ -218,36 +230,21 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for BlockingEvaluationSelecto
 }
 
 impl MoveSelector<PromptControlSolution, NoOpMove> for PromptControlSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<PromptControlSolution, NoOpMove>
+    where
+        Self: 'a;
+
     fn open_cursor<'a, D: Director<PromptControlSolution>>(
         &'a self,
         score_director: &D,
-    ) -> impl Iterator<Item = NoOpMove> + 'a {
-        enum PromptControlIter<A, B> {
-            Generation(A),
-            Evaluation(B),
-        }
-
-        impl<T, A, B> Iterator for PromptControlIter<A, B>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Generation(iter) => iter.next(),
-                    Self::Evaluation(iter) => iter.next(),
-                }
-            }
-        }
-
+    ) -> Self::Cursor<'a> {
         match self {
             Self::Generation(selector) => {
-                PromptControlIter::Generation(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::Evaluation(selector) => {
-                PromptControlIter::Evaluation(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
         }
     }

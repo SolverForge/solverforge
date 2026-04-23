@@ -1,34 +1,27 @@
 /* Cartesian product move selector.
 
-Combines moves from two selectors and yields owned sequential composites for
-each legal pair.
-
-# Zero-Erasure Design
-
-Moves are stored in typed arenas. The cartesian product iterator
-yields indices into both arenas. The caller creates CompositeMove
-references on-the-fly for each evaluation - no cloning.
+Combines moves from two selectors and exposes borrowable sequential candidates.
+The selected winner is materialized by ownership only after the search phase
+chooses a stable candidate index.
 */
 
-use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use crate::heuristic::r#move::{
-    Move, MoveArena, MoveTabuSignature, SequentialCompositeMove, SequentialPreviewDirector,
-};
-use crate::heuristic::selector::MoveSelector;
+use smallvec::SmallVec;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::Director;
 
-/// Holds two arenas of moves and provides iteration over all pairs.
-///
-/// This is NOT a MoveSelector - it's a specialized structure for
-/// cartesian product iteration that preserves zero-erasure.
-///
-/// # Type Parameters
-/// * `S` - The planning solution type
-/// * `M1` - First move type
-/// * `M2` - Second move type
+use crate::heuristic::r#move::metadata::compose_sequential_tabu_signature;
+use crate::heuristic::r#move::{
+    Move, MoveArena, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
+    SequentialPreviewDirector,
+};
+use crate::heuristic::selector::move_selector::{
+    collect_cursor_indices, MoveCandidateRef, MoveCursor, MoveSelector, MoveSelectorIter,
+};
+
+/// Holds two owned move arenas and provides indexed pair iteration.
 pub struct CartesianProductArena<S, M1, M2>
 where
     S: PlanningSolution,
@@ -54,28 +47,25 @@ where
         }
     }
 
-    /// Resets both arenas for the next step.
     pub fn reset(&mut self) {
         self.arena_1.reset();
         self.arena_2.reset();
     }
 
-    /// Populates arena 1 from a move selector.
     pub fn populate_first<D, MS>(&mut self, selector: &MS, score_director: &D)
     where
         D: Director<S>,
         MS: MoveSelector<S, M1>,
     {
-        self.arena_1.extend(selector.open_cursor(score_director));
+        self.arena_1.extend(selector.iter_moves(score_director));
     }
 
-    /// Populates arena 2 from a move selector.
     pub fn populate_second<D, MS>(&mut self, selector: &MS, score_director: &D)
     where
         D: Director<S>,
         MS: MoveSelector<S, M2>,
     {
-        self.arena_2.extend(selector.open_cursor(score_director));
+        self.arena_2.extend(selector.iter_moves(score_director));
     }
 
     pub fn len(&self) -> usize {
@@ -94,14 +84,12 @@ where
         self.arena_2.get(index)
     }
 
-    /// Returns an iterator over all (i, j) index pairs.
     pub fn iter_indices(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
         let len_1 = self.arena_1.len();
         let len_2 = self.arena_2.len();
         (0..len_1).flat_map(move |i| (0..len_2).map(move |j| (i, j)))
     }
 
-    /// Returns an iterator over all (i, j) pairs with references to both moves.
     pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, usize, &M1, &M2)> + '_ {
         self.iter_indices().filter_map(|(i, j)| {
             let m1 = self.arena_1.get(i)?;
@@ -136,67 +124,193 @@ where
     }
 }
 
-fn append_unique_entities(target: &mut smallvec::SmallVec<[usize; 8]>, entities: &[usize]) {
-    for &entity in entities {
-        if !target.contains(&entity) {
-            target.push(entity);
-        }
-    }
+struct CartesianRow<M> {
+    right_moves: Vec<Option<M>>,
 }
 
-fn append_unique_tokens<A>(target: &mut smallvec::SmallVec<A>, tokens: &[A::Item])
+struct CartesianPair {
+    left_index: usize,
+    right_index: usize,
+    entity_indices: SmallVec<[usize; 8]>,
+    tabu_signature: MoveTabuSignature,
+}
+
+pub struct CartesianProductCursor<S, M>
 where
-    A: smallvec::Array,
-    A::Item: Copy + PartialEq,
+    S: PlanningSolution,
+    M: Move<S>,
 {
-    for &token in tokens {
-        if !target.contains(&token) {
-            target.push(token);
+    wrap: fn(SequentialCompositeMove<S, M>) -> M,
+    left_moves: Vec<Option<M>>,
+    rows: Vec<CartesianRow<M>>,
+    pairs: Vec<CartesianPair>,
+    next_pair: usize,
+    selected: bool,
+    _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, M> CartesianProductCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn new<LeftCursor, Right, D>(
+        wrap: fn(SequentialCompositeMove<S, M>) -> M,
+        mut left_cursor: LeftCursor,
+        right_selector: &Right,
+        score_director: &D,
+    ) -> Self
+    where
+        LeftCursor: MoveCursor<S, M>,
+        Right: MoveSelector<S, M>,
+        D: Director<S>,
+    {
+        let mut left_moves = Vec::new();
+        let mut rows = Vec::new();
+        let mut pairs = Vec::new();
+
+        for left_index in collect_cursor_indices::<S, M, _>(&mut left_cursor) {
+            let left_signature = left_cursor
+                .candidate(left_index)
+                .expect("left cartesian candidate must remain valid")
+                .tabu_signature(score_director);
+            let left_move = left_cursor.take_candidate(left_index);
+            let row_index = left_moves.len();
+
+            let mut row = CartesianRow {
+                right_moves: Vec::new(),
+            };
+
+            if left_move.is_doable(score_director) {
+                let mut preview = SequentialPreviewDirector::from_director(score_director);
+                left_move.do_move(&mut preview);
+                let mut right_cursor = right_selector.open_cursor(&preview);
+                for right_index in collect_cursor_indices::<S, M, _>(&mut right_cursor) {
+                    let right_signature = right_cursor
+                        .candidate(right_index)
+                        .expect("right cartesian candidate must remain valid")
+                        .tabu_signature(&preview);
+                    let right_move = right_cursor.take_candidate(right_index);
+                    if !right_move.is_doable(&preview) {
+                        continue;
+                    }
+                    let right_local_index = row.right_moves.len();
+                    let entity_indices = combined_entity_indices(
+                        left_move.entity_indices(),
+                        right_move.entity_indices(),
+                    );
+                    let tabu_signature = compose_sequential_tabu_signature(
+                        "cartesian_product",
+                        &left_signature,
+                        &right_signature,
+                    );
+                    row.right_moves.push(Some(right_move));
+                    pairs.push(CartesianPair {
+                        left_index: row_index,
+                        right_index: right_local_index,
+                        entity_indices,
+                        tabu_signature,
+                    });
+                }
+            }
+
+            left_moves.push(Some(left_move));
+            rows.push(row);
         }
+
+        Self {
+            wrap,
+            left_moves,
+            rows,
+            pairs,
+            next_pair: 0,
+            selected: false,
+            _phantom: PhantomData,
+        }
+    }
+
+    fn build_candidate(&self, pair_index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
+        let pair = self.pairs.get(pair_index)?;
+        let left = self.left_moves.get(pair.left_index)?.as_ref()?;
+        let row = self.rows.get(pair.left_index)?;
+        let right = row.right_moves.get(pair.right_index)?.as_ref()?;
+        let variable_name = if left.variable_name() == right.variable_name() {
+            left.variable_name()
+        } else {
+            "cartesian_product"
+        };
+        Some(MoveCandidateRef::Sequential(
+            SequentialCompositeMoveRef::new(
+                left,
+                right,
+                left.descriptor_index(),
+                pair.entity_indices.as_slice(),
+                variable_name,
+                &pair.tabu_signature,
+            ),
+        ))
     }
 }
 
-fn combine_tabu_signatures(
-    first: &MoveTabuSignature,
-    second: &MoveTabuSignature,
-) -> MoveTabuSignature {
-    let mut entity_tokens = first.entity_tokens.clone();
-    append_unique_tokens(&mut entity_tokens, &second.entity_tokens);
+impl<S, M> MoveCursor<S, M> for CartesianProductCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+        let index = self.next_pair;
+        self.next_pair = index + 1;
+        self.build_candidate(index)
+            .map(|candidate| (index, candidate))
+    }
 
-    let mut destination_value_tokens = first.destination_value_tokens.clone();
-    append_unique_tokens(
-        &mut destination_value_tokens,
-        &second.destination_value_tokens,
-    );
+    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.build_candidate(index)
+    }
 
-    let mut move_id = smallvec::smallvec![crate::heuristic::r#move::metadata::hash_str(
-        "cartesian_product"
-    )];
-    move_id.extend(first.move_id.iter().copied());
-    move_id.extend(second.move_id.iter().copied());
+    fn take_candidate(&mut self, index: usize) -> M {
+        assert!(
+            !self.selected,
+            "cartesian product cursors only support materializing one selected winner",
+        );
+        let pair = &self.pairs[index];
+        let left = self.left_moves[pair.left_index]
+            .take()
+            .expect("selected left cartesian move must remain valid");
+        let row = &mut self.rows[pair.left_index];
+        let right = row.right_moves[pair.right_index]
+            .take()
+            .expect("selected right cartesian move must remain valid");
+        self.selected = true;
 
-    let mut undo_move_id = smallvec::smallvec![crate::heuristic::r#move::metadata::hash_str(
-        "cartesian_product"
-    )];
-    undo_move_id.extend(second.undo_move_id.iter().copied());
-    undo_move_id.extend(first.undo_move_id.iter().copied());
+        let variable_name = if left.variable_name() == right.variable_name() {
+            left.variable_name().to_string()
+        } else {
+            "cartesian_product".to_string()
+        };
+        (self.wrap)(SequentialCompositeMove::new(
+            left,
+            right,
+            pair.tabu_signature.scope.descriptor_index,
+            pair.entity_indices.clone(),
+            variable_name,
+            pair.tabu_signature.clone(),
+        ))
+    }
+}
 
-    let scope = if first.scope == second.scope {
-        first.scope
-    } else {
-        crate::heuristic::r#move::metadata::MoveTabuScope::new(
-            first.scope.descriptor_index,
-            "cartesian_product",
-        )
-    };
-
-    MoveTabuSignature::new(scope, move_id, undo_move_id)
-        .with_entity_tokens(entity_tokens)
-        .with_destination_value_tokens(destination_value_tokens)
+fn combined_entity_indices(left: &[usize], right: &[usize]) -> SmallVec<[usize; 8]> {
+    let mut entity_indices = SmallVec::<[usize; 8]>::new();
+    for &entity_index in left.iter().chain(right.iter()) {
+        if !entity_indices.contains(&entity_index) {
+            entity_indices.push(entity_index);
+        }
+    }
+    entity_indices
 }
 
 /// Cartesian product selector that evaluates the right child after the left
-/// child on a preview solution and yields cached sequential composites.
+/// child on a preview solution and yields borrowable sequential candidates.
 pub struct CartesianProductSelector<S, M, Left, Right> {
     left: Left,
     right: Right,
@@ -207,7 +321,7 @@ pub struct CartesianProductSelector<S, M, Left, Right> {
 impl<S, M, Left, Right> CartesianProductSelector<S, M, Left, Right>
 where
     S: PlanningSolution,
-    M: Move<S> + Clone + 'static,
+    M: Move<S> + 'static,
     Left: MoveSelector<S, M>,
     Right: MoveSelector<S, M>,
 {
@@ -219,56 +333,12 @@ where
             _phantom: PhantomData,
         }
     }
-
-    fn build_moves<D: Director<S>>(&self, score_director: &D) -> Vec<M> {
-        let wrap = self.wrap;
-        let mut composites = Vec::new();
-
-        for first_move in self.left.open_cursor(score_director) {
-            if !first_move.is_doable(score_director) {
-                continue;
-            }
-
-            let first_signature = first_move.tabu_signature(score_director);
-            let first_descriptor_index = first_move.descriptor_index();
-            let first_variable_name = first_move.variable_name().to_string();
-            let first_entity_indices = first_move.entity_indices().to_vec();
-            let mut preview = SequentialPreviewDirector::from_director(score_director);
-            first_move.do_move(&mut preview);
-
-            for second_move in self.right.open_cursor(&preview) {
-                if !second_move.is_doable(&preview) {
-                    continue;
-                }
-                let second_signature = second_move.tabu_signature(&preview);
-                let second_variable_name = second_move.variable_name().to_string();
-                let mut entity_indices = smallvec::SmallVec::<[usize; 8]>::new();
-                append_unique_entities(&mut entity_indices, &first_entity_indices);
-                append_unique_entities(&mut entity_indices, second_move.entity_indices());
-
-                composites.push(wrap(SequentialCompositeMove::<S, M>::new(
-                    first_move.clone(),
-                    second_move,
-                    first_descriptor_index,
-                    entity_indices,
-                    if first_variable_name == second_variable_name {
-                        first_variable_name.clone()
-                    } else {
-                        "cartesian_product".to_string()
-                    },
-                    combine_tabu_signatures(&first_signature, &second_signature),
-                )));
-            }
-        }
-
-        composites
-    }
 }
 
 impl<S, M, Left, Right> Debug for CartesianProductSelector<S, M, Left, Right>
 where
     S: PlanningSolution,
-    M: Move<S> + Clone + 'static,
+    M: Move<S> + 'static,
     Left: MoveSelector<S, M> + Debug,
     Right: MoveSelector<S, M> + Debug,
 {
@@ -283,30 +353,45 @@ where
 impl<S, M, Left, Right> MoveSelector<S, M> for CartesianProductSelector<S, M, Left, Right>
 where
     S: PlanningSolution,
-    M: Move<S> + Clone + 'static,
+    M: Move<S> + 'static,
     Left: MoveSelector<S, M>,
     Right: MoveSelector<S, M>,
 {
-    fn open_cursor<'a, D: Director<S>>(
+    type Cursor<'a>
+        = CartesianProductCursor<S, M>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        CartesianProductCursor::new(
+            self.wrap,
+            self.left.open_cursor(score_director),
+            &self.right,
+            score_director,
+        )
+    }
+
+    fn iter_moves<'a, D: Director<S>>(
         &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = M> + 'a {
-        self.build_moves(score_director).into_iter()
+        _score_director: &D,
+    ) -> MoveSelectorIter<S, M, Self::Cursor<'a>> {
+        panic!(
+            "cartesian selectors do not support owned iter_moves(); use open_cursor() and take_candidate() to materialize only the selected winner",
+        );
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        // Preview can prune or expand rows when the right selector depends on
-        // post-left state; size must remain pure and never open child cursors.
         self.left
             .size(score_director)
             .saturating_mul(self.right.size(score_director))
     }
 
-    fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
-        arena.extend(self.build_moves(score_director));
+    fn append_moves<D: Director<S>>(&self, _score_director: &D, _arena: &mut MoveArena<M>) {
+        panic!(
+            "cartesian selectors do not support append_moves(); use open_cursor() and take_candidate() to materialize only the selected winner",
+        );
     }
 }
 
 #[cfg(test)]
-#[path = "cartesian_product_tests.rs"]
 mod tests;

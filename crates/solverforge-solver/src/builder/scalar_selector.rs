@@ -10,8 +10,11 @@ use crate::heuristic::r#move::{
     Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove, ScalarMoveUnion,
     ScalarRecreateValueSource, SequentialCompositeMove,
 };
-use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
+use crate::heuristic::selector::decorator::{
+    CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
+};
 use crate::heuristic::selector::{
+    move_selector::{ArenaMoveCursor, MoveCandidateRef, MoveCursor},
     nearby_support::truncate_nearby_candidates,
     pillar_support::{intersect_legal_values_for_pillar, pillars_are_swap_compatible, PillarGroup},
     seed::scoped_seed,
@@ -192,10 +195,12 @@ impl<S> MoveSelector<S, ScalarMoveUnion<S, usize>> for NearbyChangeLeafSelector<
 where
     S: PlanningSolution + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
         let distance_meter = self
             .ctx
@@ -246,7 +251,7 @@ where
             }
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -282,10 +287,12 @@ impl<S> MoveSelector<S, ScalarMoveUnion<S, usize>> for NearbySwapLeafSelector<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
         let distance_meter = self
             .ctx
@@ -326,7 +333,7 @@ where
             }));
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -364,10 +371,12 @@ impl<S> MoveSelector<S, ScalarMoveUnion<S, usize>> for PillarChangeLeafSelector<
 where
     S: PlanningSolution + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let pillar_selector = DefaultPillarSelector::<S, usize, _, _>::new(
             FromSolutionEntitySelector::new(self.ctx.descriptor_index),
             self.ctx.descriptor_index,
@@ -419,7 +428,7 @@ where
             );
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -457,10 +466,12 @@ impl<S> MoveSelector<S, ScalarMoveUnion<S, usize>> for PillarSwapLeafSelector<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let pillar_selector = DefaultPillarSelector::<S, usize, _, _>::new(
             FromSolutionEntitySelector::new(self.ctx.descriptor_index),
             self.ctx.descriptor_index,
@@ -526,7 +537,7 @@ where
             }
         }
 
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -570,14 +581,16 @@ where
     S: PlanningSolution + 'static,
     S::Score: solverforge_core::score::Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let value_source = self.value_source;
         let moves: Vec<_> = self
             .selector
-            .open_cursor(score_director)
+            .iter_moves(score_director)
             .filter_map(move |ruin| {
                 let mov = RuinRecreateMove::new(
                     ruin.entity_indices_slice(),
@@ -593,7 +606,7 @@ where
                     .then_some(ScalarMoveUnion::RuinRecreate(mov))
             })
             .collect();
-        moves.into_iter()
+        ArenaMoveCursor::from_moves(moves)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -626,6 +639,45 @@ pub enum ScalarSelectorNode<S> {
     Cartesian(ScalarCartesianSelector<S>),
 }
 
+pub enum ScalarSelectorCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    Leaf(ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>),
+    Cartesian(CartesianProductCursor<S, ScalarMoveUnion<S, usize>>),
+}
+
+impl<S> MoveCursor<S, ScalarMoveUnion<S, usize>> for ScalarSelectorCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(
+        &mut self,
+    ) -> Option<(usize, MoveCandidateRef<'_, S, ScalarMoveUnion<S, usize>>)> {
+        match self {
+            Self::Leaf(cursor) => cursor.next_candidate(),
+            Self::Cartesian(cursor) => cursor.next_candidate(),
+        }
+    }
+
+    fn candidate(
+        &self,
+        index: usize,
+    ) -> Option<MoveCandidateRef<'_, S, ScalarMoveUnion<S, usize>>> {
+        match self {
+            Self::Leaf(cursor) => cursor.candidate(index),
+            Self::Cartesian(cursor) => cursor.candidate(index),
+        }
+    }
+
+    fn take_candidate(&mut self, index: usize) -> ScalarMoveUnion<S, usize> {
+        match self {
+            Self::Leaf(cursor) => cursor.take_candidate(index),
+            Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+}
+
 impl<S> Debug for ScalarSelectorNode<S>
 where
     S: PlanningSolution + 'static,
@@ -643,34 +695,18 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
-        enum ScalarNodeIter<A, B> {
-            Leaf(A),
-            Cartesian(B),
-        }
+    type Cursor<'a>
+        = ScalarSelectorCursor<S>
+    where
+        Self: 'a;
 
-        impl<T, A, B> Iterator for ScalarNodeIter<A, B>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Leaf(iter) => iter.next(),
-                    Self::Cartesian(iter) => iter.next(),
-                }
-            }
-        }
-
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
-            Self::Leaf(selector) => ScalarNodeIter::Leaf(selector.open_cursor(score_director)),
+            Self::Leaf(selector) => {
+                ScalarSelectorCursor::Leaf(selector.open_cursor(score_director))
+            }
             Self::Cartesian(selector) => {
-                ScalarNodeIter::Cartesian(selector.open_cursor(score_director))
+                ScalarSelectorCursor::Cartesian(selector.open_cursor(score_director))
             }
         }
     }
@@ -713,70 +749,37 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn open_cursor<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
-        enum ScalarLeafIter<A, B, C, Dd, E, F, G> {
-            Change(A),
-            Swap(B),
-            NearbyChange(C),
-            NearbySwap(Dd),
-            PillarChange(E),
-            PillarSwap(F),
-            RuinRecreate(G),
-        }
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
 
-        impl<T, A, B, C, Dd, E, F, G> Iterator for ScalarLeafIter<A, B, C, Dd, E, F, G>
-        where
-            A: Iterator<Item = T>,
-            B: Iterator<Item = T>,
-            C: Iterator<Item = T>,
-            Dd: Iterator<Item = T>,
-            E: Iterator<Item = T>,
-            F: Iterator<Item = T>,
-            G: Iterator<Item = T>,
-        {
-            type Item = T;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                match self {
-                    Self::Change(iter) => iter.next(),
-                    Self::Swap(iter) => iter.next(),
-                    Self::NearbyChange(iter) => iter.next(),
-                    Self::NearbySwap(iter) => iter.next(),
-                    Self::PillarChange(iter) => iter.next(),
-                    Self::PillarSwap(iter) => iter.next(),
-                    Self::RuinRecreate(iter) => iter.next(),
-                }
-            }
-        }
-
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
-            Self::Change(selector) => ScalarLeafIter::Change(
+            Self::Change(selector) => ArenaMoveCursor::from_moves(
                 selector
-                    .open_cursor(score_director)
+                    .iter_moves(score_director)
                     .map(ScalarMoveUnion::Change),
             ),
-            Self::Swap(selector) => ScalarLeafIter::Swap(
+            Self::Swap(selector) => ArenaMoveCursor::from_moves(
                 selector
-                    .open_cursor(score_director)
+                    .iter_moves(score_director)
                     .map(ScalarMoveUnion::Swap),
             ),
             Self::NearbyChange(selector) => {
-                ScalarLeafIter::NearbyChange(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::NearbySwap(selector) => {
-                ScalarLeafIter::NearbySwap(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::PillarChange(selector) => {
-                ScalarLeafIter::PillarChange(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::PillarSwap(selector) => {
-                ScalarLeafIter::PillarSwap(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
             Self::RuinRecreate(selector) => {
-                ScalarLeafIter::RuinRecreate(selector.open_cursor(score_director))
+                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
         }
     }
@@ -1265,5 +1268,4 @@ fn collect_scalar_leaf_selectors<S>(
 }
 
 #[cfg(test)]
-#[path = "scalar_selector_tests.rs"]
 mod tests;

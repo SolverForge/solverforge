@@ -7,7 +7,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{
-    metadata::hash_str, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove,
+    metadata::hash_str, Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove,
     ScalarMoveUnion, ScalarRecreateValueSource, SequentialCompositeMove,
 };
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
@@ -574,18 +574,25 @@ where
         score_director: &D,
     ) -> impl Iterator<Item = ScalarMoveUnion<S, usize>> + 'a {
         let value_source = self.value_source;
-        self.selector.open_cursor(score_director).map(move |ruin| {
-            ScalarMoveUnion::RuinRecreate(RuinRecreateMove::new(
-                ruin.entity_indices_slice(),
-                self.getter,
-                self.setter,
-                self.descriptor_index,
-                self.variable_name,
-                value_source,
-                self.recreate_heuristic_type,
-                self.allows_unassigned,
-            ))
-        })
+        let moves: Vec<_> = self
+            .selector
+            .open_cursor(score_director)
+            .filter_map(move |ruin| {
+                let mov = RuinRecreateMove::new(
+                    ruin.entity_indices_slice(),
+                    self.getter,
+                    self.setter,
+                    self.descriptor_index,
+                    self.variable_name,
+                    value_source,
+                    self.recreate_heuristic_type,
+                    self.allows_unassigned,
+                );
+                mov.is_doable(score_director)
+                    .then_some(ScalarMoveUnion::RuinRecreate(mov))
+            })
+            .collect();
+        moves.into_iter()
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

@@ -1,6 +1,8 @@
 use crate::planning_solution::expand_derive;
 use syn::parse_quote;
 
+use crate::planning_entity;
+
 #[test]
 fn golden_solution_expansion_emits_constraint_streams_and_descriptor() {
     let input = parse_quote! {
@@ -135,4 +137,41 @@ fn golden_solution_expansion_sorts_runtime_variables_by_descriptor_order() {
         expanded.contains("position (| descriptor_var | descriptor_var . name == variable_name)")
     );
     assert!(expanded.contains(":: solverforge :: __internal :: build_phases"));
+}
+
+#[test]
+fn solution_descriptor_carries_derived_scalar_nearby_meters() {
+    let entity_input = parse_quote! {
+        struct Task {
+            #[planning_variable(
+                value_range = "workers",
+                nearby_value_distance_meter = "worker_value_distance",
+                nearby_entity_distance_meter = "worker_entity_distance"
+            )]
+            worker_idx: Option<usize>,
+        }
+    };
+    planning_entity::expand_derive(entity_input)
+        .expect("entity expansion should register scalar metadata");
+
+    let input = parse_quote! {
+        #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+        struct Plan {
+            #[problem_fact_collection]
+            workers: Vec<Worker>,
+            #[planning_entity_collection]
+            tasks: Vec<Task>,
+            #[planning_score]
+            score: Option<HardSoftScore>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("solution expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("__solverforge_descriptor_nearby_value_distance_tasks_worker_idx"));
+    assert!(expanded.contains("__solverforge_descriptor_nearby_entity_distance_tasks_worker_idx"));
+    assert!(expanded.contains("nearby_value_distance_meter = :: core :: option :: Option :: Some"));
+    assert!(expanded.contains("nearby_entity_distance_meter = :: core :: option :: Option :: Some"));
 }

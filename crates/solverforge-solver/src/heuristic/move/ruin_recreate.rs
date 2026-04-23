@@ -59,6 +59,17 @@ impl<S> ScalarRecreateValueSource<S> {
             }
         }
     }
+
+    pub fn has_values_for_entity(&self, solution: &S, entity_index: usize) -> bool {
+        match self {
+            Self::Empty => false,
+            Self::CountableRange { from, to } => from < to,
+            Self::SolutionCount { count_fn } => count_fn(solution) > 0,
+            Self::EntitySlice { values_for_entity } => {
+                !values_for_entity(solution, entity_index).is_empty()
+            }
+        }
+    }
 }
 
 pub struct RuinRecreateMove<S> {
@@ -237,6 +248,16 @@ where
                 .then_some(value)
         })
     }
+
+    fn required_assignments_can_be_recreated(&self, solution: &S) -> bool {
+        self.allows_unassigned
+            || self.entity_indices.iter().all(|&entity_index| {
+                (self.getter)(solution, entity_index).is_none()
+                    || self
+                        .value_source
+                        .has_values_for_entity(solution, entity_index)
+            })
+    }
 }
 
 impl<S> Move<S> for RuinRecreateMove<S>
@@ -246,12 +267,18 @@ where
 {
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
-        self.entity_indices
-            .iter()
-            .any(|&entity_index| (self.getter)(solution, entity_index).is_some())
+        self.required_assignments_can_be_recreated(solution)
+            && self
+                .entity_indices
+                .iter()
+                .any(|&entity_index| (self.getter)(solution, entity_index).is_some())
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        if !self.is_doable(score_director) {
+            return;
+        }
+
         let old_values: SmallVec<[(usize, Option<usize>); 8]> = self
             .entity_indices
             .iter()

@@ -1,6 +1,7 @@
 use solverforge_config::{
     ChangeMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig, NearbySwapMoveConfig,
-    PillarChangeMoveConfig, PillarSwapMoveConfig, VariableTargetConfig,
+    PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
+    RuinRecreateMoveSelectorConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -302,6 +303,74 @@ fn nearby_swap_filters_same_value_candidates_before_limiting() {
 
     assert_eq!(swap_pairs, vec![(0, 2), (1, 2)]);
     assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn ruin_recreate_skips_required_entities_without_recreate_values() {
+    let director = create_director(Schedule {
+        workers: vec![],
+        shifts: vec![Shift {
+            worker: Some(0),
+            allowed_workers: vec![],
+        }],
+        score: None,
+    });
+    let scalar_variables = vec![ScalarVariableContext::new(
+        0,
+        "Shift",
+        shift_count,
+        "worker",
+        get_worker,
+        set_worker,
+        ValueSource::EntitySlice {
+            values_for_entity: allowed_workers,
+        },
+        false,
+    )];
+    let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+        min_ruin_count: 1,
+        max_ruin_count: 1,
+        moves_per_step: Some(4),
+        recreate_heuristic_type: RecreateHeuristicType::FirstFit,
+        target: VariableTargetConfig {
+            entity_class: Some("Shift".to_string()),
+            variable_name: Some("worker".to_string()),
+        },
+    });
+
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert!(moves.is_empty());
+}
+
+#[test]
+fn ruin_recreate_do_move_preserves_required_assignment_when_recreate_values_are_empty() {
+    let mut director = create_director(Schedule {
+        workers: vec![],
+        shifts: vec![Shift {
+            worker: Some(0),
+            allowed_workers: vec![],
+        }],
+        score: None,
+    });
+    let mov = crate::heuristic::r#move::RuinRecreateMove::new(
+        &[0],
+        get_worker,
+        set_worker,
+        0,
+        "worker",
+        crate::heuristic::r#move::ScalarRecreateValueSource::EntitySlice {
+            values_for_entity: allowed_workers,
+        },
+        RecreateHeuristicType::FirstFit,
+        false,
+    );
+
+    assert!(!mov.is_doable(&director));
+    mov.do_move(&mut director);
+
+    assert_eq!(director.working_solution().shifts[0].worker, Some(0));
 }
 
 #[test]

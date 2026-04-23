@@ -873,6 +873,18 @@ where
             }
         }
     }
+
+    fn required_assignments_can_be_recreated(&self, solution: &S) -> bool {
+        self.binding.allows_unassigned
+            || self.entity_indices.iter().all(|&entity_index| {
+                self.current_value(solution, entity_index).is_none()
+                    || self.binding.has_values_for_entity_index(
+                        &self.solution_descriptor,
+                        solution as &dyn Any,
+                        entity_index,
+                    )
+            })
+    }
 }
 
 impl<S> Move<S> for DescriptorRuinRecreateMove<S>
@@ -881,13 +893,19 @@ where
     S::Score: Score,
 {
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        self.entity_indices.iter().any(|&entity_index| {
-            self.current_value(score_director.working_solution(), entity_index)
-                .is_some()
-        })
+        let solution = score_director.working_solution();
+        self.required_assignments_can_be_recreated(solution)
+            && self
+                .entity_indices
+                .iter()
+                .any(|&entity_index| self.current_value(solution, entity_index).is_some())
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+        if !self.is_doable(score_director) {
+            return;
+        }
+
         let old_values: SmallVec<[(usize, Option<usize>); 8]> = self
             .entity_indices
             .iter()

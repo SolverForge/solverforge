@@ -103,6 +103,38 @@ impl VariableBinding {
         self.values_for_entity(solution_descriptor, solution, entity)
     }
 
+    pub(crate) fn has_values_for_entity_index(
+        &self,
+        solution_descriptor: &SolutionDescriptor,
+        solution: &dyn Any,
+        entity_index: usize,
+    ) -> bool {
+        let entity = self.entity_for_index(solution_descriptor, solution, entity_index);
+        match (&self.provider, &self.range_type) {
+            (Some(provider), _) => !provider(entity).is_empty(),
+            (_, ValueRangeType::CountableRange { from, to }) => from < to,
+            _ => self
+                .value_range_provider
+                .and_then(|provider_name| {
+                    solution_descriptor
+                        .problem_fact_descriptors
+                        .iter()
+                        .find(|descriptor| descriptor.solution_field == provider_name)
+                        .and_then(|descriptor| descriptor.extractor.as_ref())
+                        .and_then(|extractor| extractor.count(solution))
+                        .or_else(|| {
+                            solution_descriptor
+                                .entity_descriptors
+                                .iter()
+                                .find(|descriptor| descriptor.solution_field == provider_name)
+                                .and_then(|descriptor| descriptor.extractor.as_ref())
+                                .and_then(|extractor| extractor.count(solution))
+                        })
+                })
+                .is_some_and(|count| count > 0),
+        }
+    }
+
     pub(crate) fn value_is_legal_for_entity_index(
         &self,
         solution_descriptor: &SolutionDescriptor,

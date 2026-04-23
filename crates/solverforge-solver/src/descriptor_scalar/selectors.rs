@@ -11,7 +11,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::metadata::hash_str;
+use crate::heuristic::r#move::{metadata::hash_str, Move};
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::entity::EntityReference;
 use crate::heuristic::selector::move_selector::MoveSelector;
@@ -636,21 +636,27 @@ where
             })
             .collect();
 
-        subsets
+        let moves: Vec<_> = subsets
             .into_iter()
-            .filter(|indices| !indices.is_empty())
-            .map({
+            .filter_map({
                 let binding = binding.clone();
                 let descriptor = descriptor.clone();
                 move |indices| {
-                    DescriptorScalarMoveUnion::RuinRecreate(DescriptorRuinRecreateMove::new(
+                    if indices.is_empty() {
+                        return None;
+                    }
+                    let mov = DescriptorRuinRecreateMove::new(
                         binding.clone(),
                         &indices,
                         descriptor.clone(),
                         recreate_heuristic_type,
-                    ))
+                    );
+                    mov.is_doable(score_director)
+                        .then_some(DescriptorScalarMoveUnion::RuinRecreate(mov))
                 }
             })
+            .collect();
+        moves.into_iter()
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

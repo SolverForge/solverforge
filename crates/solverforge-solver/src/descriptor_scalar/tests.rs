@@ -888,6 +888,24 @@ fn descriptor_cartesian_builds_composite_moves() {
 }
 
 #[test]
+#[should_panic(
+    expected = "cartesian_product left child cannot contain ruin_recreate_move_selector"
+)]
+fn descriptor_cartesian_rejects_score_seeking_left_child() {
+    let descriptor = descriptor();
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig::default()),
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+
+    let _ = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+}
+
+#[test]
 fn descriptor_ruin_recreate_first_fit_reassigns_to_first_improving_value() {
     let descriptor = descriptor();
     let plan = Plan {
@@ -955,4 +973,57 @@ fn descriptor_ruin_recreate_cheapest_insertion_picks_best_value() {
     moves[0].do_move(&mut director);
 
     assert_eq!(director.working_solution().tasks[0].worker_idx, Some(1));
+}
+
+#[test]
+fn descriptor_ruin_recreate_skips_required_entities_without_recreate_values() {
+    let descriptor = descriptor_with_allows_unassigned(false);
+    let plan = Plan {
+        workers: vec![],
+        tasks: vec![Task {
+            worker_idx: Some(0),
+        }],
+        score: None,
+    };
+    let director = PlanScoreDirector::new(plan, descriptor.clone());
+    let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+        min_ruin_count: 1,
+        max_ruin_count: 1,
+        moves_per_step: Some(4),
+        recreate_heuristic_type: RecreateHeuristicType::FirstFit,
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert!(moves.is_empty());
+}
+
+#[test]
+fn descriptor_ruin_recreate_do_move_preserves_required_assignment_when_recreate_values_are_empty() {
+    let descriptor = descriptor_with_allows_unassigned(false);
+    let plan = Plan {
+        workers: vec![],
+        tasks: vec![Task {
+            worker_idx: Some(0),
+        }],
+        score: None,
+    };
+    let mut director = PlanScoreDirector::new(plan, descriptor.clone());
+    let binding = super::bindings::collect_bindings(&descriptor)
+        .into_iter()
+        .next()
+        .expect("descriptor binding");
+    let mov = super::DescriptorRuinRecreateMove::new(
+        binding,
+        &[0],
+        descriptor,
+        RecreateHeuristicType::FirstFit,
+    );
+
+    assert!(!mov.is_doable(&director));
+    mov.do_move(&mut director);
+
+    assert_eq!(director.working_solution().tasks[0].worker_idx, Some(0));
 }

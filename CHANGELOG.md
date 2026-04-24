@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.9.0](///compare/v0.8.13...v0.9.0) (2026-04-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **macros:** generated retained-runtime domains now require a planning_model! manifest for model-owned runtime metadata instead of relying on derive expansion order or proc-macro global registries.
+* **solver:** direct solver APIs for scalar getter/setter callbacks, ScalarVariableContext::new, scalar move constructors, scalar selector constructors, and RuinMoveSelector now require variable-index-aware access metadata.
+
+* **solver:** index scalar runtime and selector legality 037cf66
+
+
+### Features
+
+* **config:** expose canonical selector and forager schemas eb3334b
+* **macros:** add planning_model manifest support 9e4211b
+* **selector:** add scalar selector runtime and canonical pillar legality 887de6c
+* **solver:** resolve scalar construction from live model hooks 47fa178
+* **solver:** scope tabu signatures and normalize tabu policy 04781e4
+
+
+### Bug Fixes
+
+* **acceptor:** match undo tabu against candidate moves c226b53
+* **localsearch:** thread move signatures through acceptor hooks ef08864
+* **move:** derive sublist inverse identities from segment layout b85608f
+* **scalar:** align nearby metadata and ruin-recreate legality a162e11
+* **selector:** bound cartesian preview semantics b521bb8
+* **selector:** enforce cartesian composite legality 52d13cb
+* **selector:** honor seeded scalar ruin-recreate streams c416fba
+* **selector:** own cartesian composites and validate tabu tenures 39c2e94
+* **selector:** prune scalar nearby candidates before limiting 3b85bfc
+* **tabu:** canonicalize self-inverse move identities af00d5e
+
 ## [0.8.13](///compare/v0.8.12...v0.8.13) (2026-04-22)
 
 

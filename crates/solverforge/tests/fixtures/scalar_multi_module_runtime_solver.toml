@@ -1,0 +1,23 @@
+[termination]
+seconds_spent_limit = 2
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "first_fit"
+
+[[phases]]
+type = "local_search"
+
+[phases.termination]
+seconds_spent_limit = 2
+step_count_limit = 2
+
+[phases.move_selector]
+type = "union_move_selector"
+
+[[phases.move_selector.selectors]]
+type = "limited_neighborhood"
+selected_count_limit = 8
+
+[phases.move_selector.selectors.selector]
+type = "change_move_selector"

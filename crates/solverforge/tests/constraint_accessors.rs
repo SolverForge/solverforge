@@ -4,30 +4,10 @@
 use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
 
-#[problem_fact]
-pub struct Employee {
-    #[planning_id]
-    pub id: i64,
-    pub name: String,
-}
+#[path = "constraint_accessors/domain/mod.rs"]
+mod domain;
 
-#[planning_entity]
-pub struct Shift {
-    #[planning_id]
-    pub id: i64,
-    #[planning_variable]
-    pub employee: Option<i64>,
-}
-
-#[planning_solution]
-pub struct Schedule {
-    #[problem_fact_collection]
-    pub employees: Vec<Employee>,
-    #[planning_entity_collection]
-    pub shifts: Vec<Shift>,
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
+use domain::{Schedule, ScheduleConstraintStreams, ShiftUnassignedFilter};
 
 #[test]
 fn test_one_hard_returns_correct_score() {
@@ -49,9 +29,6 @@ fn test_soft_score_one_soft() {
 
 #[test]
 fn test_constraint_stream_accessors_compile() {
-    use ScheduleConstraintStreams;
-    use ShiftUnassignedFilter;
-
     // Test that the generated .shifts() and .employees() methods exist and compile.
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
     let _shifts_stream = factory.shifts();
@@ -64,8 +41,6 @@ fn test_constraint_stream_accessors_compile() {
 
 #[test]
 fn test_penalize_hard_compiles_on_stream() {
-    use ScheduleConstraintStreams;
-
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
     let constraint = factory.shifts().penalize_hard().named("Test penalize hard");
 
@@ -74,8 +49,6 @@ fn test_penalize_hard_compiles_on_stream() {
 
 #[test]
 fn test_penalize_soft_compiles_on_stream() {
-    use ScheduleConstraintStreams;
-
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
     let constraint = factory.shifts().penalize_soft().named("Test penalize soft");
 
@@ -84,8 +57,6 @@ fn test_penalize_soft_compiles_on_stream() {
 
 #[test]
 fn test_named_alias_compiles() {
-    use ScheduleConstraintStreams;
-
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
     let constraint = factory.shifts().penalize_hard().named("Test named alias");
 

@@ -3,165 +3,21 @@
 use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
 use solverforge::prelude::*;
 
-// A problem fact representing an employee.
-#[problem_fact]
-pub struct Employee {
-    #[planning_id]
-    pub id: i64,
-    pub name: String,
-}
+#[path = "derive_macros/aliased_route_plan/mod.rs"]
+mod aliased_route_plan_domain;
+#[path = "derive_macros/duplicate_names/mod.rs"]
+mod duplicate_names;
+#[path = "derive_macros/route_plan/mod.rs"]
+mod route_plan_domain;
+#[path = "derive_macros/schedule/mod.rs"]
+mod schedule_domain;
+#[path = "derive_macros/shadow_plan/mod.rs"]
+mod shadow_plan_domain;
 
-#[problem_fact]
-pub struct Visit {
-    #[planning_id]
-    pub id: i64,
-}
-
-#[problem_fact]
-pub struct RoutedVisit {
-    #[planning_id]
-    pub id: usize,
-    pub route: Option<usize>,
-}
-
-#[problem_fact]
-pub struct ShiftVisit {
-    #[planning_id]
-    pub id: usize,
-}
-
-// A planning entity representing a shift.
-#[planning_entity]
-pub struct Shift {
-    #[planning_id]
-    pub id: i64,
-
-    #[planning_variable(value_range = "employees", allows_unassigned = true)]
-    pub employee_id: Option<i64>,
-}
-
-#[planning_entity]
-pub struct Route {
-    #[planning_id]
-    pub id: i64,
-
-    #[planning_list_variable(element_collection = "visits")]
-    pub visits: Vec<usize>,
-}
-
-#[planning_entity]
-pub struct ShadowRoute {
-    #[planning_id]
-    pub id: usize,
-
-    #[planning_list_variable(element_collection = "routed_visits")]
-    pub visits: Vec<usize>,
-}
-
-#[planning_entity]
-pub struct ShadowShift {
-    #[planning_id]
-    pub id: usize,
-
-    #[planning_list_variable(element_collection = "shift_visits")]
-    pub visits: Vec<usize>,
-}
-
-// A planning solution representing a schedule.
-#[planning_solution]
-pub struct Schedule {
-    #[problem_fact_collection]
-    pub employees: Vec<Employee>,
-
-    #[planning_entity_collection]
-    pub shifts: Vec<Shift>,
-
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
-
-#[planning_solution]
-pub struct RoutePlan {
-    #[problem_fact_collection]
-    pub visits: Vec<Visit>,
-
-    #[planning_entity_collection]
-    pub routes: Vec<Route>,
-
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
-
-type VehicleRoute = Route;
-
-#[planning_solution]
-pub struct AliasedRoutePlan {
-    #[problem_fact_collection]
-    pub visits: Vec<Visit>,
-
-    #[planning_entity_collection]
-    pub routes: Vec<VehicleRoute>,
-
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
-
-#[planning_solution]
-#[shadow_variable_updates(list_owner = "routes", inverse_field = "route")]
-pub struct MultiOwnerShadowPlan {
-    #[planning_entity_collection]
-    pub routes: Vec<ShadowRoute>,
-
-    #[planning_entity_collection]
-    pub shifts: Vec<ShadowShift>,
-
-    #[problem_fact_collection]
-    pub routed_visits: Vec<RoutedVisit>,
-
-    #[problem_fact_collection]
-    pub shift_visits: Vec<ShiftVisit>,
-
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
-
-mod duplicate_names {
-    use solverforge::prelude::*;
-
-    use super::Visit;
-
-    #[planning_entity]
-    pub struct Route {
-        #[planning_id]
-        pub id: usize,
-
-        #[planning_list_variable(element_collection = "visits")]
-        pub visits: Vec<usize>,
-    }
-
-    #[planning_entity]
-    pub struct PlainRoute {
-        #[planning_id]
-        pub id: usize,
-    }
-
-    pub type RenamedPlainRoute = PlainRoute;
-
-    #[planning_solution]
-    pub struct Plan {
-        #[problem_fact_collection]
-        pub visits: Vec<Visit>,
-
-        #[planning_entity_collection]
-        pub listed_routes: Vec<Route>,
-
-        #[planning_entity_collection]
-        pub plain_routes: Vec<RenamedPlainRoute>,
-
-        #[planning_score]
-        pub score: Option<HardSoftScore>,
-    }
-}
+use aliased_route_plan_domain::{AliasedRoutePlan, Route as AliasedRoute, Visit as AliasedVisit};
+use route_plan_domain::{Route, RoutePlan, Visit};
+use schedule_domain::{Employee, Schedule, Shift};
+use shadow_plan_domain::{MultiOwnerShadowPlan, RoutedVisit, ShadowRoute, ShadowShift, ShiftVisit};
 
 #[test]
 fn test_problem_fact_derives_correctly() {
@@ -370,8 +226,8 @@ fn test_multi_owner_list_helpers_are_owner_scoped() {
 #[test]
 fn test_list_helpers_work_for_aliased_single_owner_types() {
     let mut plan = AliasedRoutePlan {
-        visits: vec![Visit { id: 10 }],
-        routes: vec![Route {
+        visits: vec![AliasedVisit { id: 10 }],
+        routes: vec![AliasedRoute {
             id: 1,
             visits: vec![0],
         }],
@@ -390,7 +246,7 @@ fn test_list_helpers_work_for_aliased_single_owner_types() {
 #[test]
 fn test_duplicate_short_names_do_not_confuse_list_helper_binding() {
     let plan = duplicate_names::Plan {
-        visits: vec![Visit { id: 10 }],
+        visits: vec![duplicate_names::Visit { id: 10 }],
         listed_routes: vec![duplicate_names::Route {
             id: 1,
             visits: vec![0],

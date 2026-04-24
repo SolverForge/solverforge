@@ -3,7 +3,14 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use solverforge::prelude::*;
-use solverforge::{SolverConfig, SolverEvent, SolverManager, SolverTerminalReason};
+use solverforge::{SolverEvent, SolverManager, SolverTerminalReason};
+
+#[path = "configurable_solvable/domain/mod.rs"]
+mod domain;
+
+use domain::{
+    ConfigurableSolution, ExplicitConfigurableSolution, ExplicitListConfigurableSolution,
+};
 
 static LAST_CONFIG_SECONDS: AtomicU64 = AtomicU64::new(0);
 static LAST_BASE_RANDOM_SEED: AtomicU64 = AtomicU64::new(0);
@@ -16,149 +23,6 @@ static LAST_EXPLICIT_BASE_PHASE_COUNT: AtomicUsize = AtomicUsize::new(0);
 static LAST_EXPLICIT_FINAL_RANDOM_SEED: AtomicU64 = AtomicU64::new(0);
 static LAST_EXPLICIT_FINAL_PHASE_COUNT: AtomicUsize = AtomicUsize::new(0);
 static LAST_EXPLICIT_FINAL_TERMINATION_SECONDS: AtomicU64 = AtomicU64::new(0);
-
-#[planning_entity]
-struct DummyEntity {
-    #[planning_id]
-    id: usize,
-}
-
-#[problem_fact]
-struct DummyVisit {
-    #[planning_id]
-    id: usize,
-}
-
-#[planning_entity]
-struct DummyRoute {
-    #[planning_id]
-    id: usize,
-
-    #[planning_list_variable(element_collection = "visits")]
-    visits: Vec<usize>,
-}
-
-#[planning_solution(
-    constraints = "define_constraints",
-    config = "solver_config_for_solution"
-)]
-struct ConfigurableSolution {
-    #[planning_entity_collection]
-    entities: Vec<DummyEntity>,
-
-    #[planning_score]
-    score: Option<HardSoftScore>,
-
-    time_limit_secs: u64,
-}
-
-#[planning_solution(
-    constraints = "define_explicit_constraints",
-    config = "solver_config_for_explicit_solution",
-    solver_toml = "fixtures/configurable_solvable_solver.toml"
-)]
-struct ExplicitConfigurableSolution {
-    #[planning_entity_collection]
-    entities: Vec<DummyEntity>,
-
-    #[planning_score]
-    score: Option<HardSoftScore>,
-
-    time_limit_secs: u64,
-}
-
-#[planning_solution(
-    constraints = "define_explicit_list_constraints",
-    config = "solver_config_for_explicit_list_solution",
-    solver_toml = "fixtures/configurable_solvable_solver.toml"
-)]
-struct ExplicitListConfigurableSolution {
-    #[problem_fact_collection]
-    visits: Vec<DummyVisit>,
-
-    #[planning_entity_collection]
-    routes: Vec<DummyRoute>,
-
-    #[planning_score]
-    score: Option<HardSoftScore>,
-
-    time_limit_secs: u64,
-}
-
-fn define_constraints() -> impl ConstraintSet<ConfigurableSolution, HardSoftScore> {
-    (
-        ConstraintFactory::<ConfigurableSolution, HardSoftScore>::new()
-            .entities()
-            .penalize_with(|_| HardSoftScore::of(0, 0))
-            .named("noop"),
-    )
-}
-
-fn define_explicit_constraints() -> impl ConstraintSet<ExplicitConfigurableSolution, HardSoftScore>
-{
-    (
-        ConstraintFactory::<ExplicitConfigurableSolution, HardSoftScore>::new()
-            .entities()
-            .penalize_with(|_| HardSoftScore::of(0, 0))
-            .named("noop"),
-    )
-}
-
-fn define_explicit_list_constraints(
-) -> impl ConstraintSet<ExplicitListConfigurableSolution, HardSoftScore> {
-}
-
-fn solver_config_for_solution(
-    solution: &ConfigurableSolution,
-    config: SolverConfig,
-) -> SolverConfig {
-    LAST_CONFIG_SECONDS.store(solution.time_limit_secs, Ordering::SeqCst);
-    LAST_BASE_RANDOM_SEED.store(config.random_seed.unwrap_or_default(), Ordering::SeqCst);
-    LAST_BASE_PHASE_COUNT.store(config.phases.len(), Ordering::SeqCst);
-
-    let config = config.with_termination_seconds(solution.time_limit_secs);
-
-    LAST_FINAL_RANDOM_SEED.store(config.random_seed.unwrap_or_default(), Ordering::SeqCst);
-    LAST_FINAL_PHASE_COUNT.store(config.phases.len(), Ordering::SeqCst);
-    LAST_FINAL_TERMINATION_SECONDS.store(
-        config
-            .time_limit()
-            .map(|duration| duration.as_secs())
-            .unwrap_or(0),
-        Ordering::SeqCst,
-    );
-
-    config
-}
-
-fn solver_config_for_explicit_solution(
-    solution: &ExplicitConfigurableSolution,
-    config: SolverConfig,
-) -> SolverConfig {
-    LAST_EXPLICIT_BASE_RANDOM_SEED.store(config.random_seed.unwrap_or_default(), Ordering::SeqCst);
-    LAST_EXPLICIT_BASE_PHASE_COUNT.store(config.phases.len(), Ordering::SeqCst);
-
-    let config = config.with_termination_seconds(solution.time_limit_secs);
-
-    LAST_EXPLICIT_FINAL_RANDOM_SEED.store(config.random_seed.unwrap_or_default(), Ordering::SeqCst);
-    LAST_EXPLICIT_FINAL_PHASE_COUNT.store(config.phases.len(), Ordering::SeqCst);
-    LAST_EXPLICIT_FINAL_TERMINATION_SECONDS.store(
-        config
-            .time_limit()
-            .map(|duration| duration.as_secs())
-            .unwrap_or(0),
-        Ordering::SeqCst,
-    );
-
-    config
-}
-
-fn solver_config_for_explicit_list_solution(
-    solution: &ExplicitListConfigurableSolution,
-    config: SolverConfig,
-) -> SolverConfig {
-    config.with_termination_seconds(solution.time_limit_secs)
-}
 
 fn cwd_test_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();

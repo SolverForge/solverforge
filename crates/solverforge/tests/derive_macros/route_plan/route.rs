@@ -1,0 +1,10 @@
+use solverforge::prelude::*;
+
+#[planning_entity]
+pub struct Route {
+    #[planning_id]
+    pub id: i64,
+
+    #[planning_list_variable(element_collection = "visits")]
+    pub visits: Vec<usize>,
+}

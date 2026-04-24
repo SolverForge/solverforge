@@ -1,43 +1,9 @@
-use solverforge::prelude::*;
 use solverforge::{SolverEvent, SolverManager, SolverTerminalReason};
 
-#[problem_fact]
-struct Resource {
-    #[planning_id]
-    id: String,
-}
+#[path = "scalar_runtime_publication/domain/mod.rs"]
+mod domain;
 
-#[planning_entity]
-struct Task {
-    #[planning_id]
-    id: String,
-
-    #[planning_variable(value_range = "resources", allows_unassigned = true)]
-    resource_idx: Option<usize>,
-}
-
-#[planning_solution(
-    constraints = "define_constraints",
-    solver_toml = "fixtures/scalar_runtime_publication_solver.toml"
-)]
-struct Plan {
-    #[problem_fact_collection]
-    resources: Vec<Resource>,
-
-    #[planning_entity_collection]
-    tasks: Vec<Task>,
-
-    #[planning_score]
-    score: Option<HardSoftScore>,
-}
-
-fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
-    (ConstraintFactory::<Plan, HardSoftScore>::new()
-        .tasks()
-        .filter(|task: &Task| task.resource_idx.is_none())
-        .penalize(HardSoftScore::of(0, 1))
-        .named("unassigned task"),)
-}
+use domain::{Plan, Resource, Task};
 
 fn seeded_plan() -> Plan {
     let resources = (0..4)

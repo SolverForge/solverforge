@@ -24,7 +24,8 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes pure scalar generic construction to the descriptor-scalar path, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
+├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes pure scalar construction through the descriptor-scalar construction boundary, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
+├── model_support.rs                     — Hidden `PlanningModelSupport` trait implemented by `planning_model!` for model-owned scalar hook attachment, model validation, and shadow updates
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
 │   └── list_tests.rs                    — Specialized list-construction runtime tests
@@ -42,8 +43,8 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>, expanded scalar/list construction capability hooks
-│   ├── scalar_selector.rs               — Canonical typed scalar selector assembly, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
+│   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar metadata, expanded scalar/list construction capability hooks
+│   ├── scalar_selector.rs               — Canonical typed scalar selector assembly over index-addressed scalar contexts, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── scalar_selector/tests.rs         — Tests
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published ModelContext variable contexts
 │   ├── selector/tests.rs                — Tests
@@ -114,7 +115,7 @@ src/
 │       ├── sublist_swap.rs             — SublistSwapMoveSelector<S, V, ES>
 │       ├── pillar.rs                    — PillarSelector trait, DefaultPillarSelector, Pillar, SubPillarConfig
 │       ├── pillar_support.rs            — Deterministic pillar grouping, legal-domain intersection, and mutual swap-compatibility helpers
-│       ├── ruin.rs                      — RuinMoveSelector<S, V>
+│       ├── ruin.rs                      — RuinMoveSelector<S, V>, RuinVariableAccess<S, V>
 │       ├── seed.rs                      — Scoped deterministic selector seed derivation from SolverConfig random_seed
 │       ├── mimic.rs                     — MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector
 │       ├── selection_order.rs          — SelectionOrder enum
@@ -607,7 +608,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `NearbyKOptMoveSelector<S, V, D, ES>` | `KOptMove<S, V>` | Distance-pruned k-opt |
 | `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation with stable tie ordering |
 | `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap with canonical pair ordering |
-| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Scalar variable LNS |
+| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Scalar variable LNS using `RuinVariableAccess<S, V>` |
 
 List-selector lifting is direct union assembly. The canonical list builder opens
 concrete list leaves straight into `ListMoveUnion<S, V>` at leaf-open time, so
@@ -641,16 +642,18 @@ on a generic type-lifting map adapter.
 
 **`KOptConfig`** — `{ k: usize, min_segment_len: usize, limited_patterns: bool }`. Methods: `new(k)`, `with_min_segment_len()`, `with_limited_patterns()`.
 
-**`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the typed runtime. In addition to getter/setter/value-source hooks it now carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
-- `with_nearby_value_distance_meter(fn(&S, usize, usize) -> f64)` for nearby change
-- `with_nearby_entity_distance_meter(fn(&S, usize, usize) -> f64)` for nearby swap
-- `with_construction_entity_order_key(fn(&S, usize) -> i64)` for decreasing or queue-style entity ordering
-- `with_construction_value_order_key(fn(&S, usize, usize) -> i64)` for weakest-fit, strongest-fit, or queue-style value ordering
+**`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Typed scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
+
+**`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the typed runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
+- `with_nearby_value_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` for nearby change
+- `with_nearby_entity_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` for nearby swap
+- `with_construction_entity_order_key(fn(&S, usize, usize) -> Option<i64>)` for decreasing or queue-style entity ordering
+- `with_construction_value_order_key(fn(&S, usize, usize, usize) -> Option<i64>)` for weakest-fit, strongest-fit, or queue-style value ordering
 
 Runtime scalar construction resolves one canonical binding set per variable by
 overlaying these runtime hooks onto descriptor-discovered scalar bindings by
-descriptor index, entity type name, and variable name. Validation and execution
-use that same resolved binding set.
+descriptor index and variable name. Validation and execution use that
+same resolved binding set.
 
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
@@ -663,7 +666,7 @@ use that same resolved binding set.
 **`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. `with_live_placement_refresh()` switches order-sensitive scalar heuristics from phase-start placement snapshots to per-step recomputation.
 
 Runtime routing is capability-driven:
-- pure scalar `FirstFit` and `CheapestInsertion` reuse the descriptor-scalar path
+- pure scalar `FirstFit` and `CheapestInsertion` use the descriptor-scalar construction boundary
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -878,12 +881,16 @@ formatting edges.
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, reuse the descriptor-scalar path for pure scalar targets, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor-scalar construction boundary for pure scalar targets, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`
+- `PlanningModelSupport` — hidden support trait with no default impl; generated by
+  `planning_model!` so solution derives can attach descriptor scalar hooks,
+  runtime scalar hooks, validate the manifest-backed model, and delegate
+  list-shadow updates without proc-macro registries
 
-Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `ModelContext`. Generic construction order is the descriptor-backed variable order emitted by the macros; specialized list heuristics remain explicit non-generic phases.
+Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `ModelContext`. Generic construction order is the descriptor-backed variable order emitted by the macros, and scalar runtime assembly does not depend on Rust module declaration order. Specialized list heuristics remain explicit non-generic phases.
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 
@@ -902,8 +909,8 @@ Canonical solve entrypoints used by macro-generated solving. They accept generat
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
 - **Typed runtime selectors.** `builder/selector.rs` consumes the typed `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
-- **Explicit descriptor-scalar boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_scalar/*` and are used only by callers that intentionally choose that engine.
-- **Function pointer storage.** Moves and selectors store `fn` pointers (e.g., `fn(&S, usize) -> Option<V>`) instead of trait objects for solution access.
+- **Explicit descriptor-scalar boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_scalar/*`; canonical local search stays on typed `ModelContext`, while descriptor-scalar selectors are only for callers that intentionally choose that engine.
+- **Function pointer storage.** Moves and selectors store index-aware `fn` pointers (e.g., `fn(&S, usize, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.
 - **Tuple-based composition.** Phases, terminations, and VND neighborhoods compose via nested tuples with macro-generated impls, avoiding `Vec<Box<dyn Phase>>`.

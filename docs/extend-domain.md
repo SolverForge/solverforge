@@ -7,6 +7,16 @@ Use the scaffold as a thin starter, then model the real problem in your app.
 - Add entities, problem facts, and planning variables for the real data shape.
 - Use field metadata to model scalar variables and one or more independent
   list owners in the same project when needed.
+- Keep `src/domain/mod.rs` as a `solverforge::planning_model!` manifest with
+  `root = "src/domain"`, normal `mod name;` declarations, and the public
+  exports for the model. Entity, fact, and solution files stay separate.
+- Keep normal Rust module organization. SolverForge does not require entity
+  modules to be declared before solution modules; scalar runtime metadata is
+  generated from descriptor order and variable names, not expansion order. The
+  compact scalar `variable_index` remains an internal getter/setter index.
+- Public aliases are fine at the Rust boundary, including `type Alias = Type;`
+  and `pub use module::Type as Alias;`. Solver configuration targets still use
+  the canonical descriptor type name, not the alias used by a collection field.
 - When a scalar variable will use nearby local-search selectors, declare the
   nearby distance hook directly on that variable so the solver policy stays
   explicit and model-owned.

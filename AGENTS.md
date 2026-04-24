@@ -20,7 +20,7 @@ solverforge (facade + re-exports)
     |
     `-> solverforge-core     - Score types, domain traits, descriptors
          |
-         `-> solverforge-macros - #[planning_solution], #[planning_entity], #[problem_fact]
+         `-> solverforge-macros - planning_model!, #[planning_solution], #[planning_entity], #[problem_fact]
 ```
 
 Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> console -> facade`
@@ -30,6 +30,10 @@ Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `sol
 Current workspace release version: `0.9.0`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
+
+Canonical generated domains use `solverforge::planning_model!` in
+`src/domain/mod.rs` as the model-owned metadata manifest. Entity, fact, and
+solution files remain normal separate Rust modules listed in that manifest.
 
 ## Documentation Layer
 

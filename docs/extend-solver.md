@@ -31,15 +31,17 @@ Construction heuristics now route by validated model capability rather than
 ad hoc special cases:
 
 - `first_fit` and `cheapest_insertion` stay generic for mixed or list-bearing
-  targets, but pure scalar targets reuse the descriptor-scalar path.
+  targets, but pure scalar construction targets use the descriptor-scalar
+  construction boundary.
 - `first_fit_decreasing`, `weakest_fit*`, `strongest_fit*`,
   `allocate_entity_from_queue`, and `allocate_to_value_from_queue` are scalar-only.
   The targeted scalar variable must declare the required
   `construction_entity_order_key` and/or `construction_value_order_key`.
   Manual `ModelContext` assembly can provide the same hooks at runtime; the
   scalar route resolves one binding set from descriptor metadata plus runtime
-  scalar-variable hooks and uses that same resolved set for validation and
-  execution.
+  scalar-variable hooks by descriptor index and variable name, then uses that
+  same resolved set for validation and execution. The compact scalar
+  `variable_index` remains the generated getter/setter dispatch index.
 - `list_round_robin`, `list_cheapest_insertion`, `list_regret_insertion`,
   `list_clarke_wright`, and `list_k_opt` are list-only. The runtime validates
   the required list hooks before phase build instead of failing deep inside the
@@ -59,6 +61,11 @@ Nearby scalar selectors are explicit model capabilities. If the search policy
 uses `nearby_change_move_selector` or `nearby_swap_move_selector`, the matching
 scalar variable must provide the corresponding nearby distance hook; the runtime
 does not guess one.
+
+Canonical local search uses the typed `ModelContext` published by macro runtime
+assembly. The descriptor-scalar engine remains the explicit descriptor boundary
+for scalar construction and callers that intentionally assemble descriptor
+selectors; it is not a fallback path for normal local search.
 
 `limited_neighborhood` applies a fixed move cap to one configured neighborhood
 when that cap is part of the search policy. The canonical defaults are already

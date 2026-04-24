@@ -37,7 +37,7 @@ Open http://localhost:7860 to see your solver in action.
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
-The generated runtime now builds one `ModelContext` for every planning model. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar targets reuse the descriptor-scalar path. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
+The generated runtime now builds one `ModelContext` for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar construction uses the descriptor-scalar boundary. Canonical local search still runs over the typed `ModelContext`; descriptor-scalar selectors remain an explicit descriptor engine. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
 Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
 Scalar construction heuristics that sort entities or values declare those capabilities explicitly on `#[planning_variable]`: use `construction_entity_order_key = "fn_name"` for entity-priority ordering and `construction_value_order_key = "fn_name"` for weakest/strongest-fit and queue-style value ordering. Those hooks are evaluated against the live working solution at each construction step, not cached once at phase start.
 Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
@@ -77,7 +77,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 - **ConstraintStream API**: Declarative constraint definition with fluent builders
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar routing for pure scalar targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
+  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar construction routing for pure scalar targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
@@ -87,7 +87,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Nearby selection for list moves
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
-- **Derive Macros**: `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
+- **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Configuration**: TOML support with builder API
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 
@@ -136,26 +136,48 @@ The workspace release checklist, publish order, and crate stability matrix live 
 ### 1. Define Your Domain Model
 
 ```rust
+// src/domain/mod.rs
+solverforge::planning_model! {
+    root = "src/domain";
+
+    mod employee;
+    mod shift;
+    mod schedule;
+
+    pub use employee::Employee;
+    pub use shift::Shift;
+    pub use schedule::Schedule;
+}
+
+// src/domain/employee.rs
 use solverforge::prelude::*;
 
 #[problem_fact]
 pub struct Employee {
     #[planning_id]
-    pub id: i64,
+    pub id: usize,
     pub name: String,
     pub skills: Vec<String>,
 }
 
+// src/domain/shift.rs
+use solverforge::prelude::*;
+
 #[planning_entity]
 pub struct Shift {
     #[planning_id]
-    pub id: i64,
+    pub id: usize,
     pub required_skill: String,
     pub start: i64,
     pub end: i64,
     #[planning_variable]
-    pub employee: Option<i64>,
+    pub employee: Option<usize>,
 }
+
+// src/domain/schedule.rs
+use solverforge::prelude::*;
+
+use super::{Employee, Shift};
 
 #[planning_solution]
 pub struct Schedule {
@@ -167,6 +189,15 @@ pub struct Schedule {
     pub score: Option<HardSoftScore>,
 }
 ```
+
+`planning_model!` is the canonical domain manifest. It preserves normal
+separate Rust files while making model metadata deterministic and owned by the
+model instead of by proc-macro expansion order.
+
+Public Rust aliases are accepted at the manifest boundary, including
+`type Alias = Type;` and `pub use module::Type as Alias;`. Solver configuration
+targets still use canonical descriptor type names such as `Task.worker`, not
+alias names from collection fields.
 
 Nearby scalar neighborhoods are model-provided, not inferred. If a solver policy
 uses `nearby_change_move_selector` or `nearby_swap_move_selector`, declare the
@@ -375,6 +406,7 @@ models show average `candidates`.
         ┌──────────────────────────────┐
         │      solverforge-macros      │
         │                              │
+        │ • planning_model!           │
         │ • #[planning_solution]       │
         │ • #[planning_entity]         │
         │ • #[problem_fact]            │
@@ -433,8 +465,9 @@ Or programmatically:
 let config = SolverConfig::load("solver.toml").unwrap_or_default();
 ```
 
-For macro-generated retained solves, `config = "..."` decorates the loaded
-`solver.toml` config instead of replacing it:
+For macro-generated retained solves, the solution module listed by
+`planning_model!` can use `config = "..."` to decorate the loaded `solver.toml`
+config instead of replacing it:
 
 ```rust
 #[planning_solution(
@@ -522,6 +555,10 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 ### What's New in 0.9.0
 
 - **Scalar is now the canonical public name for non-list planning variables**: runtime metadata, macro-generated helpers, solve-shape output, and the coordinated docs surface now use `scalar` terminology consistently.
+- **`planning_model!` is the canonical domain manifest**: `src/domain/mod.rs`
+  lists normal Rust modules and exports, and the macro derives deterministic
+  model-owned metadata for scalar, list, and mixed models.
+- **Scalar runtime assembly is descriptor-addressed**: generated scalar helpers keep a compact `variable_index` for getter/setter dispatch, while runtime hook attachment and ordering use descriptor index plus variable name, so module declaration order is not a modeling contract.
 - **Scalar nearby selectors are model-declared capabilities**: `#[planning_variable]` supports `nearby_value_distance_meter` and `nearby_entity_distance_meter`, and runtime assembly threads those hooks through the canonical typed scalar contexts.
 - **Scalar construction ordering is model-declared too**: `#[planning_variable]` now supports `construction_entity_order_key` and `construction_value_order_key`, and scalar-only construction heuristics validate those hooks before phase build.
 - **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor-scalar engine, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
@@ -532,7 +569,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 - **Optional `FirstFit` now respects `None` as a real baseline**: optional scalar construction keeps `None` unless an assignment is strictly better, matching `CheapestInsertion` semantics while preserving `FirstFit`'s eager search order.
 - **Accepted-count local search now retains the best accepted candidates**: the accepted-count forager `limit` caps the retained accepted moves for final selection and no longer acts as an implicit early-exit threshold.
-- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, pure-scalar generic construction reuses the descriptor-scalar path, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
+- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, pure-scalar construction uses the descriptor-scalar construction boundary, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
 
 ### What's New in 0.8.11
 

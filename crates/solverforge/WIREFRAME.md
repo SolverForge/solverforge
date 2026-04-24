@@ -39,8 +39,9 @@ src/
 
 ## Public Re-exports
 
-### Attribute Macros (from `solverforge-macros`)
+### Model Macros (from `solverforge-macros`)
 
+- `planning_model`
 - `planning_entity`
 - `planning_solution`
 - `problem_fact`
@@ -124,7 +125,7 @@ Convenient single import for user code:
 ```rust
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
-    planning_entity, planning_solution, problem_fact,
+    planning_entity, planning_model, planning_solution, problem_fact,
     BendableScore, ConstraintSet, HardMediumSoftScore,
     HardSoftDecimalScore, HardSoftScore, Score, Director,
     SoftScore, ScoreDirector,
@@ -176,6 +177,7 @@ Used exclusively by macro-generated code. Not public API.
 - `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
 - `build_phases`, `descriptor_has_bindings`, `log_solve_start`, `run_solver`, `run_solver_with_config`
 - `ListVariableEntity`, `ListVariableMetadata`
+- `PlanningModelSupport`
 
 **Config (from `solverforge-config`):**
 - `PhaseConfig`, `SolverConfig`
@@ -203,10 +205,10 @@ Used exclusively by macro-generated code. Not public API.
 - **Pure re-export crate.** Contains zero implementation logic — only `pub use` statements and the `__internal` module.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
 - **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
-- **Macro-built runtime contexts stay model-owned.** Hidden `ScalarVariableContext`
-  assembly carries nearby hooks plus scalar construction order-key hooks from
-  `#[planning_variable]`, while list construction capabilities continue to come
-  from `#[planning_list_variable]`.
+- **Macro-built runtime contexts stay model-owned.** `planning_model!` generates
+  the hidden `PlanningModelSupport` impl that attaches nearby hooks plus scalar
+  construction order-key hooks from `#[planning_variable]`, while list
+  construction capabilities continue to come from `#[planning_list_variable]`.
 - **Retained lifecycle surface.** The facade re-exports the retained job / snapshot / checkpoint lifecycle contract from `solverforge-solver`, including exact pause/resume, lifecycle-complete events, and snapshot-bound analysis types.
 - **Prelude** provides the minimal set of types needed for defining domain models and constraints. Users import `use solverforge::prelude::*` and get attribute macros, score types, constraint traits, and the stream API.
 - **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.

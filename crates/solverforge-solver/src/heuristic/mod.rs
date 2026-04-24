@@ -28,7 +28,7 @@ pub use selector::{
     MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
     NearbyKOptMoveSelector, NearbyListChangeMoveSelector, NearbyListSwapMoveSelector,
     NearbySelectionConfig, PerEntitySliceValueSelector, PerEntityValueSelector, Pillar,
-    PillarSelector, RuinMoveSelector, ScalarChangeMoveSelector, ScalarSwapMoveSelector,
-    SelectionOrder, StaticValueSelector, SubPillarConfig, SublistChangeMoveSelector,
-    SublistSwapMoveSelector, SwapMoveSelector, ValueSelector,
+    PillarSelector, RuinMoveSelector, RuinVariableAccess, ScalarChangeMoveSelector,
+    ScalarSwapMoveSelector, SelectionOrder, StaticValueSelector, SubPillarConfig,
+    SublistChangeMoveSelector, SublistSwapMoveSelector, SwapMoveSelector, ValueSelector,
 };

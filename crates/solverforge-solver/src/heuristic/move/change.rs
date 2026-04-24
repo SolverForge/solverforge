@@ -29,8 +29,9 @@ use super::{Move, MoveTabuSignature};
 pub struct ChangeMove<S, V> {
     entity_index: usize,
     to_value: Option<V>,
-    getter: fn(&S, usize) -> Option<V>,
-    setter: fn(&mut S, usize, Option<V>),
+    getter: fn(&S, usize, usize) -> Option<V>,
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -42,6 +43,7 @@ impl<S, V: Clone> Clone for ChangeMove<S, V> {
             to_value: self.to_value.clone(),
             getter: self.getter,
             setter: self.setter,
+            variable_index: self.variable_index,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
         }
@@ -55,6 +57,7 @@ impl<S, V: Debug> Debug for ChangeMove<S, V> {
         f.debug_struct("ChangeMove")
             .field("entity_index", &self.entity_index)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .field("to_value", &self.to_value)
             .finish()
@@ -74,8 +77,9 @@ impl<S, V> ChangeMove<S, V> {
     pub fn new(
         entity_index: usize,
         to_value: Option<V>,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -84,6 +88,7 @@ impl<S, V> ChangeMove<S, V> {
             to_value,
             getter,
             setter,
+            variable_index,
             variable_name,
             descriptor_index,
         }
@@ -97,12 +102,16 @@ impl<S, V> ChangeMove<S, V> {
         self.to_value.as_ref()
     }
 
-    pub fn getter(&self) -> fn(&S, usize) -> Option<V> {
+    pub fn getter(&self) -> fn(&S, usize, usize) -> Option<V> {
         self.getter
     }
 
-    pub fn setter(&self) -> fn(&mut S, usize, Option<V>) {
+    pub fn setter(&self) -> fn(&mut S, usize, usize, Option<V>) {
         self.setter
+    }
+
+    pub fn variable_index(&self) -> usize {
+        self.variable_index
     }
 }
 
@@ -113,7 +122,11 @@ where
 {
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         // Get current value using typed getter - no boxing, no downcast
-        let current = (self.getter)(score_director.working_solution(), self.entity_index);
+        let current = (self.getter)(
+            score_director.working_solution(),
+            self.entity_index,
+            self.variable_index,
+        );
 
         // Compare directly - fully typed comparison
         match (&current, &self.to_value) {
@@ -125,7 +138,11 @@ where
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         // Capture old value using typed getter - zero erasure
-        let old_value = (self.getter)(score_director.working_solution(), self.entity_index);
+        let old_value = (self.getter)(
+            score_director.working_solution(),
+            self.entity_index,
+            self.variable_index,
+        );
 
         // Notify before change
         score_director.before_variable_changed(self.descriptor_index, self.entity_index);
@@ -134,6 +151,7 @@ where
         (self.setter)(
             score_director.working_solution_mut(),
             self.entity_index,
+            self.variable_index,
             self.to_value.clone(),
         );
 
@@ -143,8 +161,9 @@ where
         // Register typed undo closure - zero erasure
         let setter = self.setter;
         let idx = self.entity_index;
+        let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |s: &mut S| {
-            setter(s, idx, old_value);
+            setter(s, idx, variable_index, old_value);
         }));
     }
 
@@ -161,7 +180,11 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let current = (self.getter)(score_director.working_solution(), self.entity_index);
+        let current = (self.getter)(
+            score_director.working_solution(),
+            self.entity_index,
+            self.variable_index,
+        );
         let from_id = encode_option_debug(current.as_ref());
         let to_id = encode_option_debug(self.to_value.as_ref());
         let entity_id = encode_usize(self.entity_index);

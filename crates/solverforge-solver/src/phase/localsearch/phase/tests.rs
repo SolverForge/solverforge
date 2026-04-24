@@ -29,7 +29,7 @@ fn create_move_selector(
     crate::heuristic::selector::FromSolutionEntitySelector,
     crate::heuristic::selector::StaticValueSelector<NQueensSolution, i64>,
 > {
-    ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
+    ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, 0, "row", values)
 }
 
 #[derive(Clone, Debug)]
@@ -120,13 +120,18 @@ fn get_optional_tasks_mut(solution: &mut OptionalTaskSolution) -> &mut Vec<Optio
     &mut solution.tasks
 }
 
-fn get_optional_worker(solution: &OptionalTaskSolution, entity_index: usize) -> Option<i64> {
+fn get_optional_worker(
+    solution: &OptionalTaskSolution,
+    entity_index: usize,
+    _variable_index: usize,
+) -> Option<i64> {
     solution.tasks[entity_index].worker
 }
 
 fn set_optional_worker(
     solution: &mut OptionalTaskSolution,
     entity_index: usize,
+    _variable_index: usize,
     value: Option<i64>,
 ) {
     solution.tasks[entity_index].worker = value;
@@ -207,6 +212,7 @@ fn local_search_can_improve_by_unassigning_optional_variable() {
     let move_selector = ChangeMoveSelector::simple(
         get_optional_worker,
         set_optional_worker,
+        0,
         0,
         "worker",
         vec![5],

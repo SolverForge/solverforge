@@ -34,9 +34,10 @@ pub struct PillarChangeMove<S, V> {
     variable_name: &'static str,
     to_value: Option<V>,
     // Typed getter function pointer - zero erasure.
-    getter: fn(&S, usize) -> Option<V>,
+    getter: fn(&S, usize, usize) -> Option<V>,
     // Typed setter function pointer - zero erasure.
-    setter: fn(&mut S, usize, Option<V>),
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
 }
 
 impl<S, V: Clone> Clone for PillarChangeMove<S, V> {
@@ -48,6 +49,7 @@ impl<S, V: Clone> Clone for PillarChangeMove<S, V> {
             to_value: self.to_value.clone(),
             getter: self.getter,
             setter: self.setter,
+            variable_index: self.variable_index,
         }
     }
 }
@@ -57,6 +59,7 @@ impl<S, V: Debug> Debug for PillarChangeMove<S, V> {
         f.debug_struct("PillarChangeMove")
             .field("entity_indices", &self.entity_indices)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .field("to_value", &self.to_value)
             .finish()
@@ -76,8 +79,9 @@ impl<S, V> PillarChangeMove<S, V> {
     pub fn new(
         entity_indices: Vec<usize>,
         to_value: Option<V>,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -88,6 +92,7 @@ impl<S, V> PillarChangeMove<S, V> {
             to_value,
             getter,
             setter,
+            variable_index,
         }
     }
 
@@ -118,7 +123,11 @@ where
             }
 
             // Get current value using typed getter - zero erasure
-            let current = (self.getter)(score_director.working_solution(), first_idx);
+            let current = (self.getter)(
+                score_director.working_solution(),
+                first_idx,
+                self.variable_index,
+            );
 
             match (&current, &self.to_value) {
                 (None, None) => false,
@@ -135,7 +144,12 @@ where
         let old_values: Vec<(usize, Option<V>)> = self
             .entity_indices
             .iter()
-            .map(|&idx| (idx, (self.getter)(score_director.working_solution(), idx)))
+            .map(|&idx| {
+                (
+                    idx,
+                    (self.getter)(score_director.working_solution(), idx, self.variable_index),
+                )
+            })
             .collect();
 
         // Notify before changes for all entities
@@ -148,6 +162,7 @@ where
             (self.setter)(
                 score_director.working_solution_mut(),
                 idx,
+                self.variable_index,
                 self.to_value.clone(),
             );
         }
@@ -159,9 +174,10 @@ where
 
         // Register typed undo closure
         let setter = self.setter;
+        let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, old_value) in old_values {
-                setter(s, idx, old_value);
+                setter(s, idx, variable_index, old_value);
             }
         }));
     }
@@ -179,10 +195,9 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let from_value = self
-            .entity_indices
-            .first()
-            .and_then(|&idx| (self.getter)(score_director.working_solution(), idx));
+        let from_value = self.entity_indices.first().and_then(|&idx| {
+            (self.getter)(score_director.working_solution(), idx, self.variable_index)
+        });
         let from_id = encode_option_debug(from_value.as_ref());
         let to_id = encode_option_debug(self.to_value.as_ref());
         let variable_id = hash_str(self.variable_name);

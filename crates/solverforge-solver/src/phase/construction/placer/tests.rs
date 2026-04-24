@@ -41,12 +41,12 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
 }
 
 // Typed getter - zero erasure
-fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i32> {
+fn get_queen_row(s: &NQueensSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.queens.get(idx).and_then(|q| q.row)
 }
 
 // Typed setter - zero erasure
-fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i32>) {
+fn set_queen_row(s: &mut NQueensSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(queen) = s.queens.get_mut(idx) {
         queen.row = v;
     }
@@ -94,6 +94,7 @@ fn test_queued_placer_all_uninitialized() {
         get_queen_row,
         set_queen_row,
         0,
+        0,
         "row",
     );
 
@@ -122,6 +123,7 @@ fn test_queued_placer_some_initialized() {
         get_queen_row,
         set_queen_row,
         0,
+        0,
         "row",
     );
 
@@ -145,6 +147,7 @@ fn test_queued_placer_all_initialized() {
         get_queen_row,
         set_queen_row,
         0,
+        0,
         "row",
     );
 
@@ -167,6 +170,7 @@ fn test_sorted_entity_placer_descending() {
         value_selector,
         get_queen_row,
         set_queen_row,
+        0,
         0,
         "row",
     );

@@ -59,21 +59,21 @@ fn get_tasks_mut(s: &mut Sol) -> &mut Vec<Task> {
     &mut s.tasks
 }
 
-fn get_x(s: &Sol, i: usize) -> Option<i32> {
+fn get_x(s: &Sol, i: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(i).and_then(|t| t.x)
 }
 
-fn set_x(s: &mut Sol, i: usize, v: Option<i32>) {
+fn set_x(s: &mut Sol, i: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(t) = s.tasks.get_mut(i) {
         t.x = v;
     }
 }
 
-fn get_y(s: &Sol, i: usize) -> Option<i32> {
+fn get_y(s: &Sol, i: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(i).and_then(|t| t.y)
 }
 
-fn set_y(s: &mut Sol, i: usize, v: Option<i32>) {
+fn set_y(s: &mut Sol, i: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(t) = s.tasks.get_mut(i) {
         t.y = v;
     }
@@ -131,11 +131,11 @@ where
 }
 
 fn x_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
-    ScalarMoveUnion::Change(ChangeMove::new(0, Some(value), get_x, set_x, "x", 0))
+    ScalarMoveUnion::Change(ChangeMove::new(0, Some(value), get_x, set_x, 0, "x", 0))
 }
 
 fn y_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
-    ScalarMoveUnion::Change(ChangeMove::new(0, Some(value), get_y, set_y, "y", 0))
+    ScalarMoveUnion::Change(ChangeMove::new(0, Some(value), get_y, set_y, 0, "y", 0))
 }
 
 fn left_x_to_one_then_two(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
@@ -174,8 +174,8 @@ fn cartesian_product_arena_yields_all_pairs() {
         shadow_y_target: None,
     }]);
 
-    let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
-    let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20, 30]);
+    let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, 0, "x", vec![1, 2]);
+    let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, 0, "y", vec![10, 20, 30]);
 
     let mut arena: CartesianProductArena<Sol, ChangeMove<Sol, i32>, ChangeMove<Sol, i32>> =
         CartesianProductArena::new();
@@ -196,8 +196,8 @@ fn reset_clears_both_arenas() {
         shadow_y_target: None,
     }]);
 
-    let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, "x", vec![1, 2]);
-    let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, "y", vec![10, 20]);
+    let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, 0, "x", vec![1, 2]);
+    let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, 0, "y", vec![10, 20]);
 
     let mut arena: CartesianProductArena<Sol, ChangeMove<Sol, i32>, ChangeMove<Sol, i32>> =
         CartesianProductArena::new();
@@ -241,8 +241,8 @@ fn cartesian_product_skips_rows_with_illegal_left_moves() {
         .candidate(indices[0])
         .expect("cartesian candidate must remain valid")
         .do_move(&mut director);
-    assert_eq!(get_x(director.working_solution(), 0), Some(2));
-    assert_eq!(get_y(director.working_solution(), 0), Some(10));
+    assert_eq!(get_x(director.working_solution(), 0, 0), Some(2));
+    assert_eq!(get_y(director.working_solution(), 0, 0), Some(10));
 }
 
 #[test]
@@ -279,7 +279,7 @@ fn cartesian_product_skips_pairs_with_illegal_right_moves() {
         .candidate(indices[0])
         .expect("cartesian candidate must remain valid")
         .do_move(&mut director);
-    assert_eq!(get_x(director.working_solution(), 0), Some(1));
+    assert_eq!(get_x(director.working_solution(), 0, 0), Some(1));
 }
 
 #[test]
@@ -313,8 +313,8 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
         .candidate(indices[0])
         .expect("cartesian candidate must remain valid")
         .do_move(&mut director);
-    assert_eq!(get_x(director.working_solution(), 0), Some(2));
-    assert_eq!(get_y(director.working_solution(), 0), Some(12));
+    assert_eq!(get_x(director.working_solution(), 0, 0), Some(2));
+    assert_eq!(get_y(director.working_solution(), 0, 0), Some(12));
     assert_eq!(
         director.working_solution().tasks[0].shadow_y_target,
         Some(12)
@@ -342,7 +342,7 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
     let first_indices = collect_indices(&mut first_cursor);
     assert_eq!(first_indices.len(), 1);
 
-    set_x(director.working_solution_mut(), 0, Some(5));
+    set_x(director.working_solution_mut(), 0, 0, Some(5));
     director.working_solution_mut().update_entity_shadows(0, 0);
 
     let mut second_cursor = selector.open_cursor(&director);
@@ -353,8 +353,8 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
         .candidate(first_indices[0])
         .expect("first cartesian candidate must remain valid")
         .do_move(&mut director);
-    assert_eq!(get_x(director.working_solution(), 0), Some(1));
-    assert_eq!(get_y(director.working_solution(), 0), Some(11));
+    assert_eq!(get_x(director.working_solution(), 0, 0), Some(1));
+    assert_eq!(get_y(director.working_solution(), 0, 0), Some(11));
 }
 
 #[derive(Debug)]

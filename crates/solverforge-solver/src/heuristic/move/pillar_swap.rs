@@ -35,9 +35,10 @@ pub struct PillarSwapMove<S, V> {
     descriptor_index: usize,
     variable_name: &'static str,
     // Typed getter function pointer - zero erasure.
-    getter: fn(&S, usize) -> Option<V>,
+    getter: fn(&S, usize, usize) -> Option<V>,
     // Typed setter function pointer - zero erasure.
-    setter: fn(&mut S, usize, Option<V>),
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
 }
 
 impl<S, V: Clone> Clone for PillarSwapMove<S, V> {
@@ -49,6 +50,7 @@ impl<S, V: Clone> Clone for PillarSwapMove<S, V> {
             variable_name: self.variable_name,
             getter: self.getter,
             setter: self.setter,
+            variable_index: self.variable_index,
         }
     }
 }
@@ -59,6 +61,7 @@ impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
             .field("left_indices", &self.left_indices)
             .field("right_indices", &self.right_indices)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .finish()
     }
@@ -77,8 +80,9 @@ impl<S, V> PillarSwapMove<S, V> {
     pub fn new(
         left_indices: Vec<usize>,
         right_indices: Vec<usize>,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -89,6 +93,7 @@ impl<S, V> PillarSwapMove<S, V> {
             variable_name,
             getter,
             setter,
+            variable_index,
         }
     }
 
@@ -125,11 +130,11 @@ where
         let left_val = self
             .left_indices
             .first()
-            .map(|&idx| (self.getter)(score_director.working_solution(), idx));
+            .map(|&idx| (self.getter)(score_director.working_solution(), idx, self.variable_index));
         let right_val = self
             .right_indices
             .first()
-            .map(|&idx| (self.getter)(score_director.working_solution(), idx));
+            .map(|&idx| (self.getter)(score_director.working_solution(), idx, self.variable_index));
 
         left_val != right_val
     }
@@ -139,12 +144,22 @@ where
         let left_old: Vec<(usize, Option<V>)> = self
             .left_indices
             .iter()
-            .map(|&idx| (idx, (self.getter)(score_director.working_solution(), idx)))
+            .map(|&idx| {
+                (
+                    idx,
+                    (self.getter)(score_director.working_solution(), idx, self.variable_index),
+                )
+            })
             .collect();
         let right_old: Vec<(usize, Option<V>)> = self
             .right_indices
             .iter()
-            .map(|&idx| (idx, (self.getter)(score_director.working_solution(), idx)))
+            .map(|&idx| {
+                (
+                    idx,
+                    (self.getter)(score_director.working_solution(), idx, self.variable_index),
+                )
+            })
             .collect();
 
         // Get representative values for the swap
@@ -161,6 +176,7 @@ where
             (self.setter)(
                 score_director.working_solution_mut(),
                 idx,
+                self.variable_index,
                 right_value.clone(),
             );
         }
@@ -169,6 +185,7 @@ where
             (self.setter)(
                 score_director.working_solution_mut(),
                 idx,
+                self.variable_index,
                 left_value.clone(),
             );
         }
@@ -180,12 +197,13 @@ where
 
         // Register typed undo closure - restore all original values
         let setter = self.setter;
+        let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, old_value) in left_old {
-                setter(s, idx, old_value);
+                setter(s, idx, variable_index, old_value);
             }
             for (idx, old_value) in right_old {
-                setter(s, idx, old_value);
+                setter(s, idx, variable_index, old_value);
             }
         }));
     }
@@ -204,14 +222,12 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let left_value = self
-            .left_indices
-            .first()
-            .and_then(|&idx| (self.getter)(score_director.working_solution(), idx));
-        let right_value = self
-            .right_indices
-            .first()
-            .and_then(|&idx| (self.getter)(score_director.working_solution(), idx));
+        let left_value = self.left_indices.first().and_then(|&idx| {
+            (self.getter)(score_director.working_solution(), idx, self.variable_index)
+        });
+        let right_value = self.right_indices.first().and_then(|&idx| {
+            (self.getter)(score_director.working_solution(), idx, self.variable_index)
+        });
         let left_id = encode_option_debug(left_value.as_ref());
         let right_id = encode_option_debug(right_value.as_ref());
         let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);

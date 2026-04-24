@@ -33,6 +33,7 @@ fn preserves_all_moves() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![10, 20, 30, 40, 50],
     );
@@ -58,6 +59,7 @@ fn same_seed_produces_same_order() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![10, 20, 30, 40, 50],
     );
@@ -66,6 +68,7 @@ fn same_seed_produces_same_order() {
     let inner2 = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
+        0,
         0,
         "priority",
         vec![10, 20, 30, 40, 50],
@@ -92,6 +95,7 @@ fn different_seeds_produce_different_order() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
     );
@@ -100,6 +104,7 @@ fn different_seeds_produce_different_order() {
     let inner2 = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
+        0,
         0,
         "priority",
         vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
@@ -121,10 +126,22 @@ fn different_seeds_produce_different_order() {
 #[test]
 fn shuffles_cartesian_candidates_without_dropping_borrowable_access() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
-    let right =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 40]);
+    let left = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20],
+    );
+    let right = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![30, 40],
+    );
     let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
     let shuffled = ShufflingMoveSelector::with_seed(cartesian, 17);
 

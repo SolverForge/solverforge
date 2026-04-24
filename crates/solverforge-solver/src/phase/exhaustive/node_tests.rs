@@ -20,11 +20,11 @@ impl PlanningSolution for TestSolution {
     }
 }
 
-fn get_value(s: &TestSolution, idx: usize) -> Option<i32> {
+fn get_value(s: &TestSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.values.get(idx).copied().flatten()
 }
 
-fn set_value(s: &mut TestSolution, idx: usize, v: Option<i32>) {
+fn set_value(s: &mut TestSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(val) = s.values.get_mut(idx) {
         *val = v;
     }
@@ -90,6 +90,7 @@ fn test_move_sequence() {
         Some(42),
         get_value,
         set_value,
+        0,
         "test",
         0,
     ));

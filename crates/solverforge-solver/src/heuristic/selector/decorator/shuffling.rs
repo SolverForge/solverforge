@@ -44,11 +44,11 @@ use super::indexed_cursor::IndexedMoveCursor;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
+/// fn get_priority(s: &Solution, i: usize, _variable_index: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
+/// fn set_priority(s: &mut Solution, i: usize, _variable_index: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// let inner = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![1, 2, 3, 4, 5],
+///     get_priority, set_priority, 0,  0, "priority", vec![1, 2, 3, 4, 5],
 /// );
 /// // Shuffle with a fixed seed for reproducibility
 /// let shuffled: ShufflingMoveSelector<Solution, _, _> =

@@ -30,10 +30,10 @@ fn get_tasks_mut(s: &mut Schedule) -> &mut Vec<Task> {
     &mut s.tasks
 }
 
-fn get_assigned(s: &Schedule, idx: usize) -> Option<i32> {
+fn get_assigned(s: &Schedule, idx: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(idx).and_then(|t| t.assigned_to)
 }
-fn set_assigned(s: &mut Schedule, idx: usize, v: Option<i32>) {
+fn set_assigned(s: &mut Schedule, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(t) = s.tasks.get_mut(idx) {
         t.assigned_to = v;
     }
@@ -62,7 +62,7 @@ fn create_director(assignments: &[Option<i32>]) -> ScoreDirector<Schedule, ()> {
 fn ruin_single_entity() {
     let mut director = create_director(&[Some(1), Some(2), Some(3)]);
 
-    let m = RuinMove::<Schedule, i32>::new(&[1], get_assigned, set_assigned, "assigned_to", 0);
+    let m = RuinMove::<Schedule, i32>::new(&[1], get_assigned, set_assigned, 0, "assigned_to", 0);
 
     assert!(m.is_doable(&director));
 
@@ -70,14 +70,14 @@ fn ruin_single_entity() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_assigned(recording.working_solution(), 0), Some(1));
-        assert_eq!(get_assigned(recording.working_solution(), 1), None);
-        assert_eq!(get_assigned(recording.working_solution(), 2), Some(3));
+        assert_eq!(get_assigned(recording.working_solution(), 0, 0), Some(1));
+        assert_eq!(get_assigned(recording.working_solution(), 1, 0), None);
+        assert_eq!(get_assigned(recording.working_solution(), 2, 0), Some(3));
 
         recording.undo_changes();
     }
 
-    assert_eq!(get_assigned(director.working_solution(), 1), Some(2));
+    assert_eq!(get_assigned(director.working_solution(), 1, 0), Some(2));
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn ruin_multiple_entities() {
     let mut director = create_director(&[Some(1), Some(2), Some(3), Some(4)]);
 
     let m =
-        RuinMove::<Schedule, i32>::new(&[0, 2, 3], get_assigned, set_assigned, "assigned_to", 0);
+        RuinMove::<Schedule, i32>::new(&[0, 2, 3], get_assigned, set_assigned, 0, "assigned_to", 0);
 
     assert!(m.is_doable(&director));
     assert_eq!(m.ruin_count(), 3);
@@ -94,24 +94,25 @@ fn ruin_multiple_entities() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_assigned(recording.working_solution(), 0), None);
-        assert_eq!(get_assigned(recording.working_solution(), 1), Some(2));
-        assert_eq!(get_assigned(recording.working_solution(), 2), None);
-        assert_eq!(get_assigned(recording.working_solution(), 3), None);
+        assert_eq!(get_assigned(recording.working_solution(), 0, 0), None);
+        assert_eq!(get_assigned(recording.working_solution(), 1, 0), Some(2));
+        assert_eq!(get_assigned(recording.working_solution(), 2, 0), None);
+        assert_eq!(get_assigned(recording.working_solution(), 3, 0), None);
 
         recording.undo_changes();
     }
 
-    assert_eq!(get_assigned(director.working_solution(), 0), Some(1));
-    assert_eq!(get_assigned(director.working_solution(), 2), Some(3));
-    assert_eq!(get_assigned(director.working_solution(), 3), Some(4));
+    assert_eq!(get_assigned(director.working_solution(), 0, 0), Some(1));
+    assert_eq!(get_assigned(director.working_solution(), 2, 0), Some(3));
+    assert_eq!(get_assigned(director.working_solution(), 3, 0), Some(4));
 }
 
 #[test]
 fn ruin_already_unassigned_is_doable() {
     let director = create_director(&[Some(1), None]);
 
-    let m = RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+    let m =
+        RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, 0, "assigned_to", 0);
 
     assert!(m.is_doable(&director));
 }
@@ -120,7 +121,8 @@ fn ruin_already_unassigned_is_doable() {
 fn ruin_all_unassigned_not_doable() {
     let director = create_director(&[None, None]);
 
-    let m = RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, "assigned_to", 0);
+    let m =
+        RuinMove::<Schedule, i32>::new(&[0, 1], get_assigned, set_assigned, 0, "assigned_to", 0);
 
     assert!(!m.is_doable(&director));
 }

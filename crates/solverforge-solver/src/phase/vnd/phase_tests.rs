@@ -27,7 +27,7 @@ fn create_move_selector(
     crate::heuristic::selector::FromSolutionEntitySelector,
     crate::heuristic::selector::StaticValueSelector<NQueensSolution, i64>,
 > {
-    ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, "row", values)
+    ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, 0, "row", values)
 }
 
 #[test]

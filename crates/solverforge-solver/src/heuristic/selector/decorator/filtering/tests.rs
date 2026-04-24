@@ -49,6 +49,7 @@ fn filters_moves_by_predicate() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![10, 60, 80, 30],
     );
@@ -63,8 +64,14 @@ fn filters_moves_by_predicate() {
 #[test]
 fn empty_when_no_moves_pass() {
     let director = create_director(vec![Task { priority: Some(1) }]);
-    let inner =
-        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
+    let inner = ChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20, 30],
+    );
     let filtered = FilteringMoveSelector::new(inner, high_value_filter);
 
     let moves: Vec<_> = filtered.iter_moves(&director).collect();
@@ -74,10 +81,22 @@ fn empty_when_no_moves_pass() {
 #[test]
 fn filters_cartesian_candidates_without_materializing_the_full_stream() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
-    let right =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 40]);
+    let left = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20],
+    );
+    let right = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![30, 40],
+    );
     let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
     let filtered = FilteringMoveSelector::new(cartesian, keep_first_value_10);
 

@@ -15,6 +15,7 @@ use crate::phase::construction::{ConstructionFrontier, ConstructionSlotId};
 pub(crate) struct VariableBinding {
     pub(crate) binding_index: usize,
     pub(crate) descriptor_index: usize,
+    pub(crate) variable_index: usize,
     pub(crate) entity_type_name: &'static str,
     pub(crate) variable_name: &'static str,
     pub(crate) allows_unassigned: bool,
@@ -36,6 +37,7 @@ impl Debug for VariableBinding {
         f.debug_struct("VariableBinding")
             .field("binding_index", &self.binding_index)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("entity_type_name", &self.entity_type_name)
             .field("variable_name", &self.variable_name)
             .field("allows_unassigned", &self.allows_unassigned)
@@ -76,23 +78,7 @@ impl VariableBinding {
                     .collect()
             }
             _ => self
-                .value_range_provider
-                .and_then(|provider_name| {
-                    solution_descriptor
-                        .problem_fact_descriptors
-                        .iter()
-                        .find(|descriptor| descriptor.solution_field == provider_name)
-                        .and_then(|descriptor| descriptor.extractor.as_ref())
-                        .and_then(|extractor| extractor.count(solution))
-                        .or_else(|| {
-                            solution_descriptor
-                                .entity_descriptors
-                                .iter()
-                                .find(|descriptor| descriptor.solution_field == provider_name)
-                                .and_then(|descriptor| descriptor.extractor.as_ref())
-                                .and_then(|extractor| extractor.count(solution))
-                        })
-                })
+                .solution_value_count(solution_descriptor, solution)
                 .map(|count| (0..count).collect())
                 .unwrap_or_default(),
         }
@@ -119,25 +105,42 @@ impl VariableBinding {
             (Some(provider), _) => !provider(entity).is_empty(),
             (_, ValueRangeType::CountableRange { from, to }) => from < to,
             _ => self
-                .value_range_provider
-                .and_then(|provider_name| {
+                .solution_value_count(solution_descriptor, solution)
+                .is_some_and(|count| count > 0),
+        }
+    }
+
+    pub(crate) fn solution_value_count(
+        &self,
+        solution_descriptor: &SolutionDescriptor,
+        solution: &dyn Any,
+    ) -> Option<usize> {
+        self.value_range_provider.and_then(|provider_name| {
+            solution_descriptor
+                .problem_fact_descriptors
+                .iter()
+                .find(|descriptor| descriptor.solution_field == provider_name)
+                .and_then(|descriptor| descriptor.extractor.as_ref())
+                .and_then(|extractor| extractor.count(solution))
+                .or_else(|| {
                     solution_descriptor
-                        .problem_fact_descriptors
+                        .entity_descriptors
                         .iter()
                         .find(|descriptor| descriptor.solution_field == provider_name)
                         .and_then(|descriptor| descriptor.extractor.as_ref())
                         .and_then(|extractor| extractor.count(solution))
-                        .or_else(|| {
-                            solution_descriptor
-                                .entity_descriptors
-                                .iter()
-                                .find(|descriptor| descriptor.solution_field == provider_name)
-                                .and_then(|descriptor| descriptor.extractor.as_ref())
-                                .and_then(|extractor| extractor.count(solution))
-                        })
                 })
-                .is_some_and(|count| count > 0),
-        }
+        })
+    }
+
+    pub(crate) fn has_unspecified_value_range(&self) -> bool {
+        self.provider.is_none()
+            && self.value_range_provider.is_none()
+            && !matches!(self.range_type, ValueRangeType::CountableRange { .. })
+    }
+
+    pub(crate) fn countable_range_contains(from: i64, to: i64, value: usize) -> bool {
+        i64::try_from(value).is_ok_and(|value| from <= value && value < to)
     }
 
     pub(crate) fn value_is_legal_for_entity_index(
@@ -147,12 +150,28 @@ impl VariableBinding {
         entity_index: usize,
         candidate: Option<usize>,
     ) -> bool {
-        match candidate {
-            None => self.allows_unassigned,
-            Some(value) => self
-                .values_for_entity_index(solution_descriptor, solution, entity_index)
-                .into_iter()
-                .any(|allowed| allowed == value),
+        let entity = self.entity_for_index(solution_descriptor, solution, entity_index);
+        self.value_is_legal_for_entity(solution_descriptor, solution, entity, candidate)
+    }
+
+    pub(crate) fn value_is_legal_for_entity(
+        &self,
+        solution_descriptor: &SolutionDescriptor,
+        solution: &dyn Any,
+        entity: &dyn Any,
+        candidate: Option<usize>,
+    ) -> bool {
+        let Some(value) = candidate else {
+            return self.allows_unassigned;
+        };
+        match (&self.provider, &self.range_type) {
+            (Some(provider), _) => provider(entity).into_iter().any(|allowed| allowed == value),
+            (_, ValueRangeType::CountableRange { from, to }) => {
+                Self::countable_range_contains(*from, *to, value)
+            }
+            _ => self
+                .solution_value_count(solution_descriptor, solution)
+                .is_some_and(|count| value < count),
         }
     }
 
@@ -256,7 +275,7 @@ where
 {
     pub(crate) fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
         self.runtime_construction_entity_order_key
-            .map(|order_key| order_key(solution, entity_index))
+            .and_then(|order_key| order_key(solution, entity_index, self.binding.variable_index))
             .or_else(|| {
                 self.binding
                     .entity_order_key(solution as &dyn Any, entity_index)
@@ -270,7 +289,9 @@ where
         value: usize,
     ) -> Option<i64> {
         self.runtime_construction_value_order_key
-            .map(|order_key| order_key(solution, entity_index, value))
+            .and_then(|order_key| {
+                order_key(solution, entity_index, self.binding.variable_index, value)
+            })
             .or_else(|| {
                 self.binding
                     .value_order_key(solution as &dyn Any, entity_index, value)
@@ -281,6 +302,7 @@ where
 pub(crate) fn collect_bindings(descriptor: &SolutionDescriptor) -> Vec<VariableBinding> {
     let mut bindings = Vec::new();
     for (descriptor_index, entity_descriptor) in descriptor.entity_descriptors.iter().enumerate() {
+        let mut variable_index = 0usize;
         for variable in entity_descriptor.genuine_variable_descriptors() {
             let Some(getter) = variable.usize_getter else {
                 continue;
@@ -291,6 +313,7 @@ pub(crate) fn collect_bindings(descriptor: &SolutionDescriptor) -> Vec<VariableB
             bindings.push(VariableBinding {
                 binding_index: bindings.len(),
                 descriptor_index,
+                variable_index,
                 entity_type_name: entity_descriptor.type_name,
                 variable_name: variable.name,
                 allows_unassigned: variable.allows_unassigned,
@@ -304,6 +327,7 @@ pub(crate) fn collect_bindings(descriptor: &SolutionDescriptor) -> Vec<VariableB
                 construction_entity_order_key: variable.construction_entity_order_key,
                 construction_value_order_key: variable.construction_value_order_key,
             });
+            variable_index += 1;
         }
     }
     bindings

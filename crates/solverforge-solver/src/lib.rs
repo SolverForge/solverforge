@@ -22,6 +22,7 @@ pub mod builder;
 pub mod descriptor_scalar;
 pub mod heuristic;
 pub mod manager;
+pub mod model_support;
 pub mod phase;
 pub mod realtime;
 pub mod run;
@@ -84,6 +85,7 @@ pub use heuristic::{
     PillarSwapMove,
     RuinMove,
     RuinMoveSelector,
+    RuinVariableAccess,
     SelectionOrder,
     StaticValueSelector,
     SubPillarConfig,
@@ -101,6 +103,7 @@ pub use manager::{
     SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager, SolverManagerError,
     SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTerminalReason,
 };
+pub use model_support::PlanningModelSupport;
 pub use phase::{
     construction::{
         BestFitForager, ConstructionChoice, ConstructionForager, ConstructionHeuristicConfig,

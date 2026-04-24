@@ -45,19 +45,20 @@ use super::{Move, MoveTabuSignature};
 /// }
 ///
 /// // Typed getter/setter with zero erasure
-/// fn get_v(s: &Sol, idx: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
-/// fn set_v(s: &mut Sol, idx: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
+/// fn get_v(s: &Sol, idx: usize, _var: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
+/// fn set_v(s: &mut Sol, idx: usize, _var: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
 ///
 /// // Swap values between entities 0 and 1
-/// let swap = SwapMove::<Sol, i32>::new(0, 1, get_v, set_v, "value", 0);
+/// let swap = SwapMove::<Sol, i32>::new(0, 1, get_v, set_v, 0, "value", 0);
 /// ```
 pub struct SwapMove<S, V> {
     left_entity_index: usize,
     right_entity_index: usize,
     // Typed getter function pointer - zero erasure.
-    getter: fn(&S, usize) -> Option<V>,
+    getter: fn(&S, usize, usize) -> Option<V>,
     // Typed setter function pointer - zero erasure.
-    setter: fn(&mut S, usize, Option<V>),
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
     variable_name: &'static str,
     descriptor_index: usize,
     // Store indices inline for entity_indices() to return a slice.
@@ -78,6 +79,7 @@ impl<S, V: Debug> Debug for SwapMove<S, V> {
             .field("left_entity_index", &self.left_entity_index)
             .field("right_entity_index", &self.right_entity_index)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .finish()
     }
@@ -96,8 +98,9 @@ impl<S, V> SwapMove<S, V> {
     pub fn new(
         left_entity_index: usize,
         right_entity_index: usize,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -106,6 +109,7 @@ impl<S, V> SwapMove<S, V> {
             right_entity_index,
             getter,
             setter,
+            variable_index,
             variable_name,
             descriptor_index,
             indices: [left_entity_index, right_entity_index],
@@ -133,8 +137,16 @@ where
         }
 
         // Get current values using typed getter - zero erasure
-        let left_val = (self.getter)(score_director.working_solution(), self.left_entity_index);
-        let right_val = (self.getter)(score_director.working_solution(), self.right_entity_index);
+        let left_val = (self.getter)(
+            score_director.working_solution(),
+            self.left_entity_index,
+            self.variable_index,
+        );
+        let right_val = (self.getter)(
+            score_director.working_solution(),
+            self.right_entity_index,
+            self.variable_index,
+        );
 
         // Swap only makes sense if values differ
         left_val != right_val
@@ -142,8 +154,16 @@ where
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         // Get both values using typed getter - zero erasure
-        let left_value = (self.getter)(score_director.working_solution(), self.left_entity_index);
-        let right_value = (self.getter)(score_director.working_solution(), self.right_entity_index);
+        let left_value = (self.getter)(
+            score_director.working_solution(),
+            self.left_entity_index,
+            self.variable_index,
+        );
+        let right_value = (self.getter)(
+            score_director.working_solution(),
+            self.right_entity_index,
+            self.variable_index,
+        );
 
         // Notify before changes
         score_director.before_variable_changed(self.descriptor_index, self.left_entity_index);
@@ -153,11 +173,13 @@ where
         (self.setter)(
             score_director.working_solution_mut(),
             self.left_entity_index,
+            self.variable_index,
             right_value.clone(),
         );
         (self.setter)(
             score_director.working_solution_mut(),
             self.right_entity_index,
+            self.variable_index,
             left_value.clone(),
         );
 
@@ -169,10 +191,11 @@ where
         let setter = self.setter;
         let left_idx = self.left_entity_index;
         let right_idx = self.right_entity_index;
+        let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |s: &mut S| {
             // Restore original values
-            setter(s, left_idx, left_value);
-            setter(s, right_idx, right_value);
+            setter(s, left_idx, variable_index, left_value);
+            setter(s, right_idx, variable_index, right_value);
         }));
     }
 
@@ -189,8 +212,16 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let left_val = (self.getter)(score_director.working_solution(), self.left_entity_index);
-        let right_val = (self.getter)(score_director.working_solution(), self.right_entity_index);
+        let left_val = (self.getter)(
+            score_director.working_solution(),
+            self.left_entity_index,
+            self.variable_index,
+        );
+        let right_val = (self.getter)(
+            score_director.working_solution(),
+            self.right_entity_index,
+            self.variable_index,
+        );
         let left_id = encode_option_debug(left_val.as_ref());
         let right_id = encode_option_debug(right_val.as_ref());
         let left_entity_id = encode_usize(self.left_entity_index);

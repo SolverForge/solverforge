@@ -41,8 +41,8 @@ use super::indexed_cursor::IndexedMoveCursor;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
+/// fn get_priority(s: &Solution, i: usize, _variable_index: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
+/// fn set_priority(s: &mut Solution, i: usize, _variable_index: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// // Filter to only high-priority moves (value > 50)
 /// fn high_priority_filter(
@@ -52,7 +52,7 @@ use super::indexed_cursor::IndexedMoveCursor;
 /// }
 ///
 /// let inner = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![10, 60, 80],
+///     get_priority, set_priority, 0,  0, "priority", vec![10, 60, 80],
 /// );
 /// let filtered: FilteringMoveSelector<Solution, _, _> =
 ///     FilteringMoveSelector::new(inner, high_priority_filter);

@@ -258,17 +258,22 @@ fn scalar_runtime_task_count(solution: &ScalarRuntimePlan) -> usize {
     solution.tasks.len()
 }
 
-fn scalar_runtime_worker_count(solution: &ScalarRuntimePlan) -> usize {
+fn scalar_runtime_worker_count(solution: &ScalarRuntimePlan, _provider_index: usize) -> usize {
     solution.workers.len()
 }
 
-fn scalar_runtime_worker_get(solution: &ScalarRuntimePlan, entity_index: usize) -> Option<usize> {
+fn scalar_runtime_worker_get(
+    solution: &ScalarRuntimePlan,
+    entity_index: usize,
+    _variable_index: usize,
+) -> Option<usize> {
     solution.tasks[entity_index].worker_idx
 }
 
 fn scalar_runtime_worker_set(
     solution: &mut ScalarRuntimePlan,
     entity_index: usize,
+    _variable_index: usize,
     value: Option<usize>,
 ) {
     solution.tasks[entity_index].worker_idx = value;
@@ -277,9 +282,10 @@ fn scalar_runtime_worker_set(
 fn scalar_runtime_value_order_key(
     _solution: &ScalarRuntimePlan,
     _entity_index: usize,
+    _variable_index: usize,
     value: usize,
-) -> i64 {
-    value as i64
+) -> Option<i64> {
+    Some(value as i64)
 }
 
 fn scalar_runtime_model_with_allows_unassigned(
@@ -290,9 +296,10 @@ fn scalar_runtime_model_with_allows_unassigned(
 
 fn scalar_runtime_model_with_hooks(
     allows_unassigned: bool,
-    value_order_key: Option<fn(&ScalarRuntimePlan, usize, usize) -> i64>,
+    value_order_key: Option<fn(&ScalarRuntimePlan, usize, usize, usize) -> Option<i64>>,
 ) -> ModelContext<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
     let mut ctx = ScalarVariableContext::new(
+        0,
         0,
         "Task",
         scalar_runtime_task_count,
@@ -301,6 +308,7 @@ fn scalar_runtime_model_with_hooks(
         scalar_runtime_worker_set,
         ValueSource::SolutionCount {
             count_fn: scalar_runtime_worker_count,
+            provider_index: 0,
         },
         allows_unassigned,
     );
@@ -811,13 +819,18 @@ fn queue_runtime_task_count(solution: &QueueRuntimePlan) -> usize {
     solution.tasks.len()
 }
 
-fn queue_runtime_worker_get(solution: &QueueRuntimePlan, entity_index: usize) -> Option<usize> {
+fn queue_runtime_worker_get(
+    solution: &QueueRuntimePlan,
+    entity_index: usize,
+    _variable_index: usize,
+) -> Option<usize> {
     solution.tasks[entity_index].worker_idx
 }
 
 fn queue_runtime_worker_set(
     solution: &mut QueueRuntimePlan,
     entity_index: usize,
+    _variable_index: usize,
     value: Option<usize>,
 ) {
     solution.tasks[entity_index].worker_idx = value;
@@ -826,36 +839,47 @@ fn queue_runtime_worker_set(
 fn queue_runtime_allowed_workers_for_entity(
     solution: &QueueRuntimePlan,
     entity_index: usize,
+    _variable_index: usize,
 ) -> &[usize] {
     &solution.tasks[entity_index].allowed_workers
 }
 
-fn queue_runtime_entity_order_key(solution: &QueueRuntimePlan, entity_index: usize) -> i64 {
+fn queue_runtime_entity_order_key(
+    solution: &QueueRuntimePlan,
+    entity_index: usize,
+    _variable_index: usize,
+) -> Option<i64> {
     let preferred_worker = solution.tasks[entity_index].preferred_worker;
-    solution
-        .tasks
-        .iter()
-        .filter(|task| task.worker_idx == Some(preferred_worker))
-        .count() as i64
+    Some(
+        solution
+            .tasks
+            .iter()
+            .filter(|task| task.worker_idx == Some(preferred_worker))
+            .count() as i64,
+    )
 }
 
 fn queue_runtime_value_load_key(
     solution: &QueueRuntimePlan,
     _entity_index: usize,
+    _variable_index: usize,
     value: usize,
-) -> i64 {
-    solution
-        .tasks
-        .iter()
-        .filter(|task| task.worker_idx == Some(value))
-        .count() as i64
+) -> Option<i64> {
+    Some(
+        solution
+            .tasks
+            .iter()
+            .filter(|task| task.worker_idx == Some(value))
+            .count() as i64,
+    )
 }
 
 fn queue_runtime_model(
-    entity_order_key: Option<fn(&QueueRuntimePlan, usize) -> i64>,
-    value_order_key: Option<fn(&QueueRuntimePlan, usize, usize) -> i64>,
+    entity_order_key: Option<fn(&QueueRuntimePlan, usize, usize) -> Option<i64>>,
+    value_order_key: Option<fn(&QueueRuntimePlan, usize, usize, usize) -> Option<i64>>,
 ) -> ModelContext<QueueRuntimePlan, usize, DefaultMeter, DefaultMeter> {
     let mut ctx = ScalarVariableContext::new(
+        0,
         0,
         "QueueTask",
         queue_runtime_task_count,
@@ -1106,15 +1130,24 @@ fn revision_task_count(solution: &RevisionPlan) -> usize {
     solution.tasks.len()
 }
 
-fn revision_worker_count(solution: &RevisionPlan) -> usize {
+fn revision_worker_count(solution: &RevisionPlan, _provider_index: usize) -> usize {
     solution.workers.len()
 }
 
-fn revision_worker_get(solution: &RevisionPlan, entity_index: usize) -> Option<usize> {
+fn revision_worker_get(
+    solution: &RevisionPlan,
+    entity_index: usize,
+    _variable_index: usize,
+) -> Option<usize> {
     solution.tasks[entity_index].worker_idx
 }
 
-fn revision_worker_set(solution: &mut RevisionPlan, entity_index: usize, value: Option<usize>) {
+fn revision_worker_set(
+    solution: &mut RevisionPlan,
+    entity_index: usize,
+    _variable_index: usize,
+    value: Option<usize>,
+) {
     solution.tasks[entity_index].worker_idx = value;
 }
 
@@ -1224,6 +1257,7 @@ fn revision_model() -> ModelContext<RevisionPlan, usize, DefaultMeter, DefaultMe
     ModelContext::new(vec![
         VariableContext::Scalar(ScalarVariableContext::new(
             0,
+            0,
             "Task",
             revision_task_count,
             "worker_idx",
@@ -1231,6 +1265,7 @@ fn revision_model() -> ModelContext<RevisionPlan, usize, DefaultMeter, DefaultMe
             revision_worker_set,
             ValueSource::SolutionCount {
                 count_fn: revision_worker_count,
+                provider_index: 0,
             },
             true,
         )),
@@ -1881,13 +1916,18 @@ fn mixed_target_route_count(solution: &MixedTargetPlan) -> usize {
     solution.routes.len()
 }
 
-fn mixed_target_worker_get(solution: &MixedTargetPlan, entity_index: usize) -> Option<usize> {
+fn mixed_target_worker_get(
+    solution: &MixedTargetPlan,
+    entity_index: usize,
+    _variable_index: usize,
+) -> Option<usize> {
     solution.routes[entity_index].worker_idx
 }
 
 fn mixed_target_worker_set(
     solution: &mut MixedTargetPlan,
     entity_index: usize,
+    _variable_index: usize,
     value: Option<usize>,
 ) {
     solution.routes[entity_index].worker_idx = value;
@@ -2019,7 +2059,11 @@ fn mixed_target_index_to_element(solution: &MixedTargetPlan, idx: usize) -> usiz
 
 static MIXED_TARGET_AVAILABLE_WORKERS: [usize; 1] = [0];
 
-fn mixed_target_available_workers(solution: &MixedTargetPlan, entity_index: usize) -> &[usize] {
+fn mixed_target_available_workers(
+    solution: &MixedTargetPlan,
+    entity_index: usize,
+    _variable_index: usize,
+) -> &[usize] {
     if solution.routes[entity_index].tasks.is_empty() {
         &MIXED_TARGET_AVAILABLE_WORKERS
     } else {
@@ -2030,6 +2074,7 @@ fn mixed_target_available_workers(solution: &MixedTargetPlan, entity_index: usiz
 fn mixed_target_model() -> ModelContext<MixedTargetPlan, usize, DefaultMeter, DefaultMeter> {
     ModelContext::new(vec![
         VariableContext::Scalar(ScalarVariableContext::new(
+            0,
             0,
             "Route",
             mixed_target_route_count,

@@ -19,8 +19,7 @@ use crate::heuristic::selector::{
     pillar_support::{intersect_legal_values_for_pillar, pillars_are_swap_compatible, PillarGroup},
     seed::scoped_seed,
     ChangeMoveSelector, DefaultPillarSelector, FromSolutionEntitySelector, MoveSelector,
-    PerEntitySliceValueSelector, PillarSelector, RangeValueSelector, RuinMoveSelector,
-    SwapMoveSelector, ValueSelector,
+    PillarSelector, RuinMoveSelector, RuinVariableAccess, ValueSelector,
 };
 
 use super::context::{ScalarVariableContext, ValueSource};
@@ -39,38 +38,57 @@ type ScalarCartesianSelector<S> = CartesianProductSelector<
 
 pub enum ScalarValueSelector<S> {
     Empty,
-    CountableRange { from: usize, to: usize },
-    SolutionCount(RangeValueSelector<S>),
-    EntitySlice(PerEntitySliceValueSelector<S, usize>),
+    CountableRange {
+        from: usize,
+        to: usize,
+    },
+    SolutionCount {
+        count_fn: fn(&S, usize) -> usize,
+        provider_index: usize,
+    },
+    EntitySlice {
+        values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize],
+        variable_index: usize,
+    },
 }
 
 impl<S> ScalarValueSelector<S> {
-    fn from_source(source: ValueSource<S>) -> Self {
-        match source {
+    fn from_context(ctx: ScalarVariableContext<S>) -> Self {
+        match ctx.value_source {
             ValueSource::Empty => Self::Empty,
             ValueSource::CountableRange { from, to } => Self::CountableRange { from, to },
-            ValueSource::SolutionCount { count_fn } => {
-                Self::SolutionCount(RangeValueSelector::new(count_fn))
-            }
-            ValueSource::EntitySlice { values_for_entity } => {
-                Self::EntitySlice(PerEntitySliceValueSelector::new(values_for_entity))
-            }
+            ValueSource::SolutionCount {
+                count_fn,
+                provider_index,
+            } => Self::SolutionCount {
+                count_fn,
+                provider_index,
+            },
+            ValueSource::EntitySlice { values_for_entity } => Self::EntitySlice {
+                values_for_entity,
+                variable_index: ctx.variable_index,
+            },
         }
     }
 }
 
-fn scalar_recreate_value_source<S>(source: ValueSource<S>) -> ScalarRecreateValueSource<S> {
-    match source {
+fn scalar_recreate_value_source<S>(ctx: ScalarVariableContext<S>) -> ScalarRecreateValueSource<S> {
+    match ctx.value_source {
         ValueSource::Empty => ScalarRecreateValueSource::Empty,
         ValueSource::CountableRange { from, to } => {
             ScalarRecreateValueSource::CountableRange { from, to }
         }
-        ValueSource::SolutionCount { count_fn } => {
-            ScalarRecreateValueSource::SolutionCount { count_fn }
-        }
-        ValueSource::EntitySlice { values_for_entity } => {
-            ScalarRecreateValueSource::EntitySlice { values_for_entity }
-        }
+        ValueSource::SolutionCount {
+            count_fn,
+            provider_index,
+        } => ScalarRecreateValueSource::SolutionCount {
+            count_fn,
+            provider_index,
+        },
+        ValueSource::EntitySlice { values_for_entity } => ScalarRecreateValueSource::EntitySlice {
+            values_for_entity,
+            variable_index: ctx.variable_index,
+        },
     }
 }
 
@@ -95,8 +113,11 @@ impl<S> Debug for ScalarValueSelector<S> {
             Self::CountableRange { from, to } => {
                 write!(f, "ScalarValueSelector::CountableRange({from}..{to})")
             }
-            Self::SolutionCount(_) => write!(f, "ScalarValueSelector::SolutionCount(..)"),
-            Self::EntitySlice(_) => write!(f, "ScalarValueSelector::EntitySlice(..)"),
+            Self::SolutionCount { provider_index, .. } => write!(
+                f,
+                "ScalarValueSelector::SolutionCount(provider={provider_index})"
+            ),
+            Self::EntitySlice { .. } => write!(f, "ScalarValueSelector::EntitySlice(..)"),
         }
     }
 }
@@ -108,56 +129,67 @@ where
     fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
-        descriptor_index: usize,
+        _descriptor_index: usize,
         entity_index: usize,
     ) -> impl Iterator<Item = usize> + 'a {
         match self {
             Self::Empty => ScalarValueIter::Empty,
             Self::CountableRange { from, to } => ScalarValueIter::CountableRange(*from..*to),
-            Self::SolutionCount(selector) => ScalarValueIter::SolutionCount(selector.iter(
-                score_director,
-                descriptor_index,
-                entity_index,
-            )),
-            Self::EntitySlice(selector) => ScalarValueIter::EntitySlice(selector.iter(
-                score_director,
-                descriptor_index,
-                entity_index,
-            )),
+            Self::SolutionCount {
+                count_fn,
+                provider_index,
+            } => ScalarValueIter::SolutionCount(
+                0..count_fn(score_director.working_solution(), *provider_index),
+            ),
+            Self::EntitySlice {
+                values_for_entity,
+                variable_index,
+            } => ScalarValueIter::EntitySlice(
+                values_for_entity(
+                    score_director.working_solution(),
+                    entity_index,
+                    *variable_index,
+                )
+                .to_vec()
+                .into_iter(),
+            ),
         }
     }
 
     fn size<D: Director<S>>(
         &self,
         score_director: &D,
-        descriptor_index: usize,
+        _descriptor_index: usize,
         entity_index: usize,
     ) -> usize {
         match self {
             Self::Empty => 0,
             Self::CountableRange { from, to } => to.saturating_sub(*from),
-            Self::SolutionCount(selector) => {
-                selector.size(score_director, descriptor_index, entity_index)
-            }
-            Self::EntitySlice(selector) => {
-                selector.size(score_director, descriptor_index, entity_index)
-            }
+            Self::SolutionCount {
+                count_fn,
+                provider_index,
+            } => count_fn(score_director.working_solution(), *provider_index),
+            Self::EntitySlice {
+                values_for_entity,
+                variable_index,
+            } => values_for_entity(
+                score_director.working_solution(),
+                entity_index,
+                *variable_index,
+            )
+            .len(),
         }
     }
 }
 
-enum ScalarValueIter<A, B> {
+enum ScalarValueIter {
     Empty,
     CountableRange(Range<usize>),
-    SolutionCount(A),
-    EntitySlice(B),
+    SolutionCount(Range<usize>),
+    EntitySlice(std::vec::IntoIter<usize>),
 }
 
-impl<A, B> Iterator for ScalarValueIter<A, B>
-where
-    A: Iterator<Item = usize>,
-    B: Iterator<Item = usize>,
-{
+impl Iterator for ScalarValueIter {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -172,8 +204,110 @@ where
 
 type ScalarChangeSelector<S> =
     ChangeMoveSelector<S, usize, FromSolutionEntitySelector, ScalarValueSelector<S>>;
-type ScalarSwapSelector<S> =
-    SwapMoveSelector<S, usize, FromSolutionEntitySelector, FromSolutionEntitySelector>;
+type ScalarSwapSelector<S> = SwapLeafSelector<S>;
+
+fn scalar_value_is_legal(
+    legal_values: &[usize],
+    allows_unassigned: bool,
+    value: Option<usize>,
+) -> bool {
+    match value {
+        None => allows_unassigned,
+        Some(value) => legal_values.contains(&value),
+    }
+}
+
+fn scalar_swap_is_legal<S>(
+    ctx: ScalarVariableContext<S>,
+    legal_values: &[usize],
+    value: Option<usize>,
+) -> bool {
+    if matches!(ctx.value_source, ValueSource::Empty) {
+        return value.is_some();
+    }
+    scalar_value_is_legal(legal_values, ctx.allows_unassigned, value)
+}
+
+#[derive(Clone, Copy)]
+pub struct SwapLeafSelector<S> {
+    ctx: ScalarVariableContext<S>,
+}
+
+impl<S> Debug for SwapLeafSelector<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SwapLeafSelector")
+            .field("descriptor_index", &self.ctx.descriptor_index)
+            .field("variable_index", &self.ctx.variable_index)
+            .field("variable_name", &self.ctx.variable_name)
+            .finish()
+    }
+}
+
+impl<S> MoveSelector<S, ScalarMoveUnion<S, usize>> for SwapLeafSelector<S>
+where
+    S: PlanningSolution + 'static,
+{
+    type Cursor<'a>
+        = ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        let solution = score_director.working_solution();
+        let entity_count = (self.ctx.entity_count)(solution);
+        let current_values: Vec<_> = (0..entity_count)
+            .map(|entity_index| self.ctx.current_value(solution, entity_index))
+            .collect();
+        let legal_values: Vec<_> = (0..entity_count)
+            .map(|entity_index| self.ctx.values_for_entity(solution, entity_index))
+            .collect();
+        let mut moves = Vec::new();
+
+        for left_entity_index in 0..entity_count {
+            let left_value = current_values[left_entity_index];
+            for right_entity_index in (left_entity_index + 1)..entity_count {
+                let right_value = current_values[right_entity_index];
+                if left_value == right_value {
+                    continue;
+                }
+                if !scalar_swap_is_legal(self.ctx, &legal_values[left_entity_index], right_value)
+                    || !scalar_swap_is_legal(
+                        self.ctx,
+                        &legal_values[right_entity_index],
+                        left_value,
+                    )
+                {
+                    continue;
+                }
+                moves.push(ScalarMoveUnion::Swap(
+                    crate::heuristic::r#move::SwapMove::new(
+                        left_entity_index,
+                        right_entity_index,
+                        self.ctx.getter,
+                        self.ctx.setter,
+                        self.ctx.variable_index,
+                        self.ctx.variable_name,
+                        self.ctx.descriptor_index,
+                    ),
+                ));
+            }
+        }
+
+        ArenaMoveCursor::from_moves(moves)
+    }
+
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
+        self.open_cursor(score_director).count()
+    }
+
+    fn append_moves<D: Director<S>>(
+        &self,
+        score_director: &D,
+        arena: &mut MoveArena<ScalarMoveUnion<S, usize>>,
+    ) {
+        arena.extend(self.open_cursor(score_director));
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct NearbyChangeLeafSelector<S> {
@@ -206,11 +340,11 @@ where
             .ctx
             .nearby_value_distance_meter
             .expect("nearby change requires a nearby value distance meter");
-        let value_selector = ScalarValueSelector::from_source(self.ctx.value_source);
+        let value_selector = ScalarValueSelector::from_context(self.ctx);
         let mut moves = Vec::new();
 
         for entity_index in 0..(self.ctx.entity_count)(solution) {
-            let current_value = (self.ctx.getter)(solution, entity_index);
+            let current_value = self.ctx.current_value(solution, entity_index);
             let current_assigned = current_value.is_some();
             let mut candidates: Vec<(usize, f64, usize)> = value_selector
                 .iter(score_director, self.ctx.descriptor_index, entity_index)
@@ -219,7 +353,8 @@ where
                     if current_value == Some(value) {
                         return None;
                     }
-                    let distance = distance_meter(solution, entity_index, value);
+                    let distance =
+                        distance_meter(solution, entity_index, self.ctx.variable_index, value)?;
                     distance.is_finite().then_some((value, distance, order))
                 })
                 .collect();
@@ -232,6 +367,7 @@ where
                     Some(value),
                     self.ctx.getter,
                     self.ctx.setter,
+                    self.ctx.variable_index,
                     self.ctx.variable_name,
                     self.ctx.descriptor_index,
                 ))
@@ -244,6 +380,7 @@ where
                         None,
                         self.ctx.getter,
                         self.ctx.setter,
+                        self.ctx.variable_index,
                         self.ctx.variable_name,
                         self.ctx.descriptor_index,
                     ),
@@ -300,7 +437,10 @@ where
             .expect("nearby swap requires a nearby entity distance meter");
         let entity_count = (self.ctx.entity_count)(solution);
         let current_values: Vec<_> = (0..entity_count)
-            .map(|entity_index| (self.ctx.getter)(solution, entity_index))
+            .map(|entity_index| self.ctx.current_value(solution, entity_index))
+            .collect();
+        let legal_values: Vec<_> = (0..entity_count)
+            .map(|entity_index| self.ctx.values_for_entity(solution, entity_index))
             .collect();
         let mut moves = Vec::new();
 
@@ -312,7 +452,23 @@ where
                     if left_value == current_values[right_entity_index] {
                         return None;
                     }
-                    let distance = distance_meter(solution, left_entity_index, right_entity_index);
+                    if !scalar_swap_is_legal(
+                        self.ctx,
+                        &legal_values[left_entity_index],
+                        current_values[right_entity_index],
+                    ) || !scalar_swap_is_legal(
+                        self.ctx,
+                        &legal_values[right_entity_index],
+                        left_value,
+                    ) {
+                        return None;
+                    }
+                    let distance = distance_meter(
+                        solution,
+                        left_entity_index,
+                        right_entity_index,
+                        self.ctx.variable_index,
+                    )?;
                     distance
                         .is_finite()
                         .then_some((right_entity_index, distance, order))
@@ -327,6 +483,7 @@ where
                     right_entity_index,
                     self.ctx.getter,
                     self.ctx.setter,
+                    self.ctx.variable_index,
                     self.ctx.variable_name,
                     self.ctx.descriptor_index,
                 ))
@@ -382,7 +539,7 @@ where
             self.ctx.descriptor_index,
             self.ctx.variable_name,
             |sd: &dyn Director<S>, _descriptor_index, entity_index| {
-                (self.ctx.getter)(sd.working_solution(), entity_index)
+                self.ctx.current_value(sd.working_solution(), entity_index)
             },
         )
         .with_sub_pillar_config(build_sub_pillar_config(
@@ -390,14 +547,15 @@ where
             self.maximum_sub_pillar_size,
         ));
 
-        let value_selector = ScalarValueSelector::from_source(self.ctx.value_source);
+        let value_selector = ScalarValueSelector::from_context(self.ctx);
         let mut moves = Vec::new();
         for pillar in pillar_selector.iter(score_director) {
             let Some(first) = pillar.first() else {
                 continue;
             };
-            let Some(current_value) =
-                (self.ctx.getter)(score_director.working_solution(), first.entity_index)
+            let Some(current_value) = self
+                .ctx
+                .current_value(score_director.working_solution(), first.entity_index)
             else {
                 continue;
             };
@@ -421,6 +579,7 @@ where
                             Some(value),
                             self.ctx.getter,
                             self.ctx.setter,
+                            self.ctx.variable_index,
                             self.ctx.variable_name,
                             self.ctx.descriptor_index,
                         ))
@@ -477,7 +636,7 @@ where
             self.ctx.descriptor_index,
             self.ctx.variable_name,
             |sd: &dyn Director<S>, _descriptor_index, entity_index| {
-                (self.ctx.getter)(sd.working_solution(), entity_index)
+                self.ctx.current_value(sd.working_solution(), entity_index)
             },
         )
         .with_sub_pillar_config(build_sub_pillar_config(
@@ -485,15 +644,16 @@ where
             self.maximum_sub_pillar_size,
         ));
 
-        let value_selector = ScalarValueSelector::from_source(self.ctx.value_source);
+        let value_selector = ScalarValueSelector::from_context(self.ctx);
         let pillars: Vec<_> = pillar_selector.iter(score_director).collect();
         let mut moves = Vec::new();
         for left_index in 0..pillars.len() {
             let Some(left_first) = pillars[left_index].first() else {
                 continue;
             };
-            let Some(left_value) =
-                (self.ctx.getter)(score_director.working_solution(), left_first.entity_index)
+            let Some(left_value) = self
+                .ctx
+                .current_value(score_director.working_solution(), left_first.entity_index)
             else {
                 continue;
             };
@@ -505,21 +665,24 @@ where
                 let Some(right_first) = right_pillar.first() else {
                     continue;
                 };
-                let Some(right_value) =
-                    (self.ctx.getter)(score_director.working_solution(), right_first.entity_index)
+                let Some(right_value) = self
+                    .ctx
+                    .current_value(score_director.working_solution(), right_first.entity_index)
                 else {
                     continue;
                 };
                 let left_group = PillarGroup::new(left_value, pillars[left_index].clone());
                 let right_group = PillarGroup::new(right_value, right_pillar.clone());
-                if !pillars_are_swap_compatible(&left_group, &right_group, |entity_index| {
-                    scalar_legal_values_for_entity(
-                        &value_selector,
-                        score_director,
-                        self.ctx.descriptor_index,
-                        entity_index,
-                    )
-                }) {
+                if !matches!(self.ctx.value_source, ValueSource::Empty)
+                    && !pillars_are_swap_compatible(&left_group, &right_group, |entity_index| {
+                        scalar_legal_values_for_entity(
+                            &value_selector,
+                            score_director,
+                            self.ctx.descriptor_index,
+                            entity_index,
+                        )
+                    })
+                {
                     continue;
                 }
                 let right_entities: Vec<usize> = right_pillar
@@ -531,6 +694,7 @@ where
                     right_entities,
                     self.ctx.getter,
                     self.ctx.setter,
+                    self.ctx.variable_index,
                     self.ctx.variable_name,
                     self.ctx.descriptor_index,
                 )));
@@ -555,9 +719,10 @@ where
 
 pub struct RuinRecreateLeafSelector<S> {
     selector: RuinMoveSelector<S, usize>,
-    getter: fn(&S, usize) -> Option<usize>,
-    setter: fn(&mut S, usize, Option<usize>),
+    getter: fn(&S, usize, usize) -> Option<usize>,
+    setter: fn(&mut S, usize, usize, Option<usize>),
     descriptor_index: usize,
+    variable_index: usize,
     variable_name: &'static str,
     value_source: ScalarRecreateValueSource<S>,
     recreate_heuristic_type: RecreateHeuristicType,
@@ -569,6 +734,7 @@ impl<S> Debug for RuinRecreateLeafSelector<S> {
         f.debug_struct("RuinRecreateLeafSelector")
             .field("selector", &self.selector)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .field("recreate_heuristic_type", &self.recreate_heuristic_type)
             .field("allows_unassigned", &self.allows_unassigned)
@@ -597,6 +763,7 @@ where
                     self.getter,
                     self.setter,
                     self.descriptor_index,
+                    self.variable_index,
                     self.variable_name,
                     value_source,
                     self.recreate_heuristic_type,
@@ -761,11 +928,7 @@ where
                     .iter_moves(score_director)
                     .map(ScalarMoveUnion::Change),
             ),
-            Self::Swap(selector) => ArenaMoveCursor::from_moves(
-                selector
-                    .iter_moves(score_director)
-                    .map(ScalarMoveUnion::Swap),
-            ),
+            Self::Swap(selector) => selector.open_cursor(score_director),
             Self::NearbyChange(selector) => {
                 ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
             }
@@ -807,11 +970,7 @@ where
                     .open_cursor(score_director)
                     .map(ScalarMoveUnion::Change),
             ),
-            Self::Swap(selector) => arena.extend(
-                selector
-                    .open_cursor(score_director)
-                    .map(ScalarMoveUnion::Swap),
-            ),
+            Self::Swap(selector) => selector.append_moves(score_director, arena),
             Self::NearbyChange(selector) => selector.append_moves(score_director, arena),
             Self::NearbySwap(selector) => selector.append_moves(score_director, arena),
             Self::PillarChange(selector) => selector.append_moves(score_director, arena),
@@ -956,10 +1115,11 @@ fn collect_scalar_leaf_selectors<S>(
         leaves.push(ScalarLeafSelector::Change(
             ChangeMoveSelector::new(
                 FromSolutionEntitySelector::new(ctx.descriptor_index),
-                ScalarValueSelector::from_source(ctx.value_source),
+                ScalarValueSelector::from_context(*ctx),
                 ctx.getter,
                 ctx.setter,
                 ctx.descriptor_index,
+                ctx.variable_index,
                 ctx.variable_name,
             )
             .with_allows_unassigned(ctx.allows_unassigned),
@@ -970,14 +1130,7 @@ fn collect_scalar_leaf_selectors<S>(
         ctx: &ScalarVariableContext<S>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
-        leaves.push(ScalarLeafSelector::Swap(SwapMoveSelector::new(
-            FromSolutionEntitySelector::new(ctx.descriptor_index),
-            FromSolutionEntitySelector::new(ctx.descriptor_index),
-            ctx.getter,
-            ctx.setter,
-            ctx.descriptor_index,
-            ctx.variable_name,
-        )));
+        leaves.push(ScalarLeafSelector::Swap(SwapLeafSelector { ctx: *ctx }));
     }
 
     fn push_nearby_change<S: PlanningSolution + 'static>(
@@ -1049,16 +1202,16 @@ fn collect_scalar_leaf_selectors<S>(
         random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
-        let selector = RuinMoveSelector::new(
-            min_ruin_count.max(1),
-            max_ruin_count.max(1),
+        let access = RuinVariableAccess::new(
             ctx.entity_count,
             ctx.getter,
             ctx.setter,
+            ctx.variable_index,
             ctx.variable_name,
             ctx.descriptor_index,
-        )
-        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1));
+        );
+        let selector = RuinMoveSelector::new(min_ruin_count, max_ruin_count, access)
+            .with_moves_per_step(moves_per_step.unwrap_or(10).max(1));
         let selector = match scoped_seed(
             random_seed,
             ctx.descriptor_index,
@@ -1073,8 +1226,9 @@ fn collect_scalar_leaf_selectors<S>(
             getter: ctx.getter,
             setter: ctx.setter,
             descriptor_index: ctx.descriptor_index,
+            variable_index: ctx.variable_index,
             variable_name: ctx.variable_name,
-            value_source: scalar_recreate_value_source(ctx.value_source),
+            value_source: scalar_recreate_value_source(*ctx),
             recreate_heuristic_type,
             allows_unassigned: ctx.allows_unassigned,
         }));

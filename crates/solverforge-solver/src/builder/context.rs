@@ -11,10 +11,11 @@ pub enum ValueSource<S> {
         to: usize,
     },
     SolutionCount {
-        count_fn: fn(&S) -> usize,
+        count_fn: fn(&S, usize) -> usize,
+        provider_index: usize,
     },
     EntitySlice {
-        values_for_entity: for<'a> fn(&'a S, usize) -> &'a [usize],
+        values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize],
     },
 }
 
@@ -33,24 +34,29 @@ impl<S> fmt::Debug for ValueSource<S> {
             Self::CountableRange { from, to } => {
                 write!(f, "ValueSource::CountableRange({from}..{to})")
             }
-            Self::SolutionCount { .. } => write!(f, "ValueSource::SolutionCount(..)"),
+            Self::SolutionCount { provider_index, .. } => {
+                write!(f, "ValueSource::SolutionCount(provider={provider_index})")
+            }
             Self::EntitySlice { .. } => write!(f, "ValueSource::EntitySlice(..)"),
         }
     }
 }
 
-pub type NearbyValueDistanceMeter<S> = fn(&S, usize, usize) -> f64;
-pub type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize) -> f64;
-pub type ConstructionEntityOrderKey<S> = fn(&S, usize) -> i64;
-pub type ConstructionValueOrderKey<S> = fn(&S, usize, usize) -> i64;
+pub type ScalarGetter<S> = fn(&S, usize, usize) -> Option<usize>;
+pub type ScalarSetter<S> = fn(&mut S, usize, usize, Option<usize>);
+pub type NearbyValueDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
+pub type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
+pub type ConstructionEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
+pub type ConstructionValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
 
 pub struct ScalarVariableContext<S> {
     pub descriptor_index: usize,
+    pub variable_index: usize,
     pub entity_type_name: &'static str,
     pub entity_count: fn(&S) -> usize,
     pub variable_name: &'static str,
-    pub getter: fn(&S, usize) -> Option<usize>,
-    pub setter: fn(&mut S, usize, Option<usize>),
+    pub getter: ScalarGetter<S>,
+    pub setter: ScalarSetter<S>,
     pub value_source: ValueSource<S>,
     pub allows_unassigned: bool,
     pub nearby_value_distance_meter: Option<NearbyValueDistanceMeter<S>>,
@@ -71,16 +77,18 @@ impl<S> ScalarVariableContext<S> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         descriptor_index: usize,
+        variable_index: usize,
         entity_type_name: &'static str,
         entity_count: fn(&S) -> usize,
         variable_name: &'static str,
-        getter: fn(&S, usize) -> Option<usize>,
-        setter: fn(&mut S, usize, Option<usize>),
+        getter: ScalarGetter<S>,
+        setter: ScalarSetter<S>,
         value_source: ValueSource<S>,
         allows_unassigned: bool,
     ) -> Self {
         Self {
             descriptor_index,
+            variable_index,
             entity_type_name,
             entity_count,
             variable_name,
@@ -128,12 +136,90 @@ impl<S> ScalarVariableContext<S> {
         entity_class.is_none_or(|name| name == self.entity_type_name)
             && variable_name.is_none_or(|name| name == self.variable_name)
     }
+
+    pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
+        (self.getter)(solution, entity_index, self.variable_index)
+    }
+
+    pub fn set_value(&self, solution: &mut S, entity_index: usize, value: Option<usize>) {
+        (self.setter)(solution, entity_index, self.variable_index, value);
+    }
+
+    pub fn values_for_entity(&self, solution: &S, entity_index: usize) -> Vec<usize> {
+        match self.value_source {
+            ValueSource::Empty => Vec::new(),
+            ValueSource::CountableRange { from, to } => (from..to).collect(),
+            ValueSource::SolutionCount {
+                count_fn,
+                provider_index,
+            } => (0..count_fn(solution, provider_index)).collect(),
+            ValueSource::EntitySlice { values_for_entity } => {
+                values_for_entity(solution, entity_index, self.variable_index).to_vec()
+            }
+        }
+    }
+
+    pub fn has_values_for_entity(&self, solution: &S, entity_index: usize) -> bool {
+        match self.value_source {
+            ValueSource::Empty => false,
+            ValueSource::CountableRange { from, to } => from < to,
+            ValueSource::SolutionCount {
+                count_fn,
+                provider_index,
+            } => count_fn(solution, provider_index) > 0,
+            ValueSource::EntitySlice { values_for_entity } => {
+                !values_for_entity(solution, entity_index, self.variable_index).is_empty()
+            }
+        }
+    }
+
+    pub fn nearby_value_distance(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<f64> {
+        self.nearby_value_distance_meter
+            .and_then(|meter| meter(solution, entity_index, self.variable_index, value))
+    }
+
+    pub fn nearby_entity_distance(
+        &self,
+        solution: &S,
+        left_entity_index: usize,
+        right_entity_index: usize,
+    ) -> Option<f64> {
+        self.nearby_entity_distance_meter.and_then(|meter| {
+            meter(
+                solution,
+                left_entity_index,
+                right_entity_index,
+                self.variable_index,
+            )
+        })
+    }
+
+    pub fn construction_entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
+        self.construction_entity_order_key
+            .and_then(|order_key| order_key(solution, entity_index, self.variable_index))
+    }
+
+    pub fn construction_value_order_key(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<i64> {
+        self.construction_value_order_key
+            .and_then(|order_key| order_key(solution, entity_index, self.variable_index, value))
+    }
 }
 
 impl<S> fmt::Debug for ScalarVariableContext<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ScalarVariableContext")
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("entity_type_name", &self.entity_type_name)
             .field("variable_name", &self.variable_name)
             .field("value_source", &self.value_source)

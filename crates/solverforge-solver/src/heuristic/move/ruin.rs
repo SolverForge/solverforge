@@ -48,10 +48,10 @@ use super::{Move, MoveTabuSignature};
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_task(s: &Schedule, idx: usize) -> Option<i32> {
+/// fn get_task(s: &Schedule, idx: usize, _var: usize) -> Option<i32> {
 ///     s.tasks.get(idx).and_then(|t| t.assigned_to)
 /// }
-/// fn set_task(s: &mut Schedule, idx: usize, v: Option<i32>) {
+/// fn set_task(s: &mut Schedule, idx: usize, _var: usize, v: Option<i32>) {
 ///     if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
 /// }
 ///
@@ -59,15 +59,16 @@ use super::{Move, MoveTabuSignature};
 /// let m = RuinMove::<Schedule, i32>::new(
 ///     &[0, 2, 4],
 ///     get_task, set_task,
-///     "assigned_to", 0,
+///     0, "assigned_to", 0,
 /// );
 /// ```
 pub struct RuinMove<S, V> {
     // Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
-    getter: fn(&S, usize) -> Option<V>,
+    getter: fn(&S, usize, usize) -> Option<V>,
     // Set value for an entity
-    setter: fn(&mut S, usize, Option<V>),
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -78,6 +79,7 @@ impl<S, V> Clone for RuinMove<S, V> {
             entity_indices: self.entity_indices.clone(),
             getter: self.getter,
             setter: self.setter,
+            variable_index: self.variable_index,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
         }
@@ -88,6 +90,7 @@ impl<S, V: Debug> Debug for RuinMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMove")
             .field("entities", &self.entity_indices.as_slice())
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .finish()
     }
@@ -104,8 +107,9 @@ impl<S, V> RuinMove<S, V> {
     /// * `descriptor_index` - Entity descriptor index
     pub fn new(
         entity_indices: &[usize],
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -113,6 +117,7 @@ impl<S, V> RuinMove<S, V> {
             entity_indices: SmallVec::from_slice(entity_indices),
             getter,
             setter,
+            variable_index,
             variable_name,
             descriptor_index,
         }
@@ -137,20 +142,21 @@ where
         let solution = score_director.working_solution();
         self.entity_indices
             .iter()
-            .any(|&idx| (self.getter)(solution, idx).is_some())
+            .any(|&idx| (self.getter)(solution, idx, self.variable_index).is_some())
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;
+        let variable_index = self.variable_index;
 
         // Collect old values for undo
         let old_values: SmallVec<[(usize, Option<V>); 8]> = self
             .entity_indices
             .iter()
             .map(|&idx| {
-                let old = getter(score_director.working_solution(), idx);
+                let old = getter(score_director.working_solution(), idx, variable_index);
                 (idx, old)
             })
             .collect();
@@ -158,14 +164,19 @@ where
         // Unassign all entities
         for &idx in &self.entity_indices {
             score_director.before_variable_changed(descriptor, idx);
-            setter(score_director.working_solution_mut(), idx, None);
+            setter(
+                score_director.working_solution_mut(),
+                idx,
+                variable_index,
+                None,
+            );
             score_director.after_variable_changed(descriptor, idx);
         }
 
         // Register undo to restore old values
         score_director.register_undo(Box::new(move |s: &mut S| {
             for (idx, old_value) in old_values {
-                setter(s, idx, old_value);
+                setter(s, idx, variable_index, old_value);
             }
         }));
     }
@@ -196,7 +207,7 @@ where
             .collect();
         let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
         for &idx in &self.entity_indices {
-            let value = (self.getter)(score_director.working_solution(), idx);
+            let value = (self.getter)(score_director.working_solution(), idx, self.variable_index);
             value_ids.push(encode_option_debug(value.as_ref()));
         }
         let variable_id = hash_str(self.variable_name);

@@ -49,17 +49,17 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_value(s: &MySolution, idx: usize) -> Option<i32> {
+/// fn get_value(s: &MySolution, idx: usize, _variable_index: usize) -> Option<i32> {
 ///     s.values.get(idx).copied().flatten()
 /// }
-/// fn set_value(s: &mut MySolution, idx: usize, v: Option<i32>) {
+/// fn set_value(s: &mut MySolution, idx: usize, _variable_index: usize, v: Option<i32>) {
 ///     if let Some(slot) = s.values.get_mut(idx) { *slot = v; }
 /// }
 ///
 /// type MyMove = ChangeMove<MySolution, i32>;
 ///
 /// let selector = ChangeMoveSelector::simple(
-///     get_value, set_value, 0, "value", vec![1, 2, 3]
+///     get_value, set_value, 0,  0, "value", vec![1, 2, 3]
 /// );
 ///
 /// // Single neighborhood VND

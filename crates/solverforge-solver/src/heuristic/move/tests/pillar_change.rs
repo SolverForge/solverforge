@@ -24,11 +24,11 @@ impl PlanningSolution for ScheduleSolution {
     }
 }
 
-fn get_shift(s: &ScheduleSolution, idx: usize) -> Option<i32> {
+fn get_shift(s: &ScheduleSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.employees.get(idx).and_then(|e| e.shift)
 }
 
-fn set_shift(s: &mut ScheduleSolution, idx: usize, v: Option<i32>) {
+fn set_shift(s: &mut ScheduleSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(e) = s.employees.get_mut(idx) {
         e.shift = v;
     }
@@ -77,6 +77,7 @@ fn test_pillar_change_all_entities() {
         Some(5),
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );
@@ -88,16 +89,16 @@ fn test_pillar_change_all_entities() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_shift(recording.working_solution(), 0), Some(5));
-        assert_eq!(get_shift(recording.working_solution(), 1), Some(5));
-        assert_eq!(get_shift(recording.working_solution(), 2), Some(2));
+        assert_eq!(get_shift(recording.working_solution(), 0, 0), Some(5));
+        assert_eq!(get_shift(recording.working_solution(), 1, 0), Some(5));
+        assert_eq!(get_shift(recording.working_solution(), 2, 0), Some(2));
 
         recording.undo_changes();
     }
 
-    assert_eq!(get_shift(director.working_solution(), 0), Some(1));
-    assert_eq!(get_shift(director.working_solution(), 1), Some(1));
-    assert_eq!(get_shift(director.working_solution(), 2), Some(2));
+    assert_eq!(get_shift(director.working_solution(), 0, 0), Some(1));
+    assert_eq!(get_shift(director.working_solution(), 1, 0), Some(1));
+    assert_eq!(get_shift(director.working_solution(), 2, 0), Some(2));
 
     let solution = director.working_solution();
     assert_eq!(solution.employees[0].id, 0);
@@ -123,6 +124,7 @@ fn test_pillar_change_same_value_not_doable() {
         Some(5),
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );
@@ -142,6 +144,7 @@ fn test_pillar_change_empty_pillar_not_doable() {
         Some(5),
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );
@@ -156,6 +159,7 @@ fn test_pillar_change_entity_indices() {
         Some(5),
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );

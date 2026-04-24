@@ -46,6 +46,7 @@ fn selects_some_moves_with_uniform_weight() {
             get_priority,
             set_priority,
             0,
+            0,
             "priority",
             vec![10, 20, 30, 40, 50],
         );
@@ -58,8 +59,14 @@ fn selects_some_moves_with_uniform_weight() {
 #[test]
 fn zero_weight_selects_nothing() {
     let director = create_director(vec![Task { priority: Some(1) }]);
-    let inner =
-        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
+    let inner = ChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20, 30],
+    );
     let prob = ProbabilityMoveSelector::with_seed(inner, zero_weight, 42);
 
     let moves: Vec<_> = prob.iter_moves(&director).collect();
@@ -74,6 +81,7 @@ fn same_seed_produces_same_selection() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![10, 20, 30, 40, 50],
     );
@@ -82,6 +90,7 @@ fn same_seed_produces_same_selection() {
     let inner2 = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
+        0,
         0,
         "priority",
         vec![10, 20, 30, 40, 50],
@@ -103,10 +112,22 @@ fn same_seed_produces_same_selection() {
 #[test]
 fn probabilistic_filter_keeps_cartesian_candidates_borrowable() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
-    let right =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 40]);
+    let left = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20],
+    );
+    let right = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![30, 40],
+    );
     let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
     let probabilistic = ProbabilityMoveSelector::with_seed(cartesian, biased_cartesian_weight, 9);
 

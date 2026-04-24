@@ -507,6 +507,16 @@ fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
     }
 }
 
+fn selector_family_name(config: Option<&MoveSelectorConfig>) -> &'static str {
+    match config.map(selector_family) {
+        None => "default",
+        Some(SelectorFamily::Scalar) => "scalar",
+        Some(SelectorFamily::List) => "list",
+        Some(SelectorFamily::Mixed) => "mixed",
+        Some(SelectorFamily::Unsupported) => "unsupported",
+    }
+}
+
 fn selector_requires_score_during_move(config: &MoveSelectorConfig) -> bool {
     match config {
         MoveSelectorConfig::RuinRecreateMoveSelector(_)
@@ -642,7 +652,11 @@ where
     }
     assert!(
         !leaves.is_empty(),
-        "move selector configuration produced no neighborhoods",
+        "move selector configuration produced no neighborhoods \
+         (scalar_contexts_present={}, list_contexts_present={}, requested_selector_family={})",
+        model.scalar_variables().next().is_some(),
+        model.has_list_variables(),
+        selector_family_name(config),
     );
     VecUnionSelector::new(leaves)
 }
@@ -825,7 +839,11 @@ where
     collect_neighborhoods(config, model, random_seed, &mut neighborhoods);
     assert!(
         !neighborhoods.is_empty(),
-        "move selector configuration produced no neighborhoods",
+        "move selector configuration produced no neighborhoods \
+         (scalar_contexts_present={}, list_contexts_present={}, requested_selector_family={})",
+        model.scalar_variables().next().is_some(),
+        model.has_list_variables(),
+        selector_family_name(config),
     );
     VecUnionSelector::new(neighborhoods)
 }
@@ -878,8 +896,11 @@ where
         model,
         random_seed,
     );
+    let step_limit = config
+        .and_then(|ls| ls.termination.as_ref())
+        .and_then(|termination| termination.step_count_limit);
 
-    LocalSearchPhase::new(move_selector, acceptor, forager, None)
+    LocalSearchPhase::new(move_selector, acceptor, forager, step_limit)
 }
 
 pub fn build_vnd<S, V, DM, IDM>(

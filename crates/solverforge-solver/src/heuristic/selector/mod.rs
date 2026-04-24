@@ -54,7 +54,7 @@ pub use nearby_list_change::{
 };
 pub use nearby_list_swap::NearbyListSwapMoveSelector;
 pub use pillar::{DefaultPillarSelector, Pillar, PillarSelector, SubPillarConfig};
-pub use ruin::RuinMoveSelector;
+pub use ruin::{RuinMoveSelector, RuinVariableAccess};
 pub use selection_order::SelectionOrder;
 pub use sublist_change::SublistChangeMoveSelector;
 pub use sublist_swap::SublistSwapMoveSelector;

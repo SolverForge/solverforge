@@ -24,11 +24,11 @@ impl PlanningSolution for Solution {
     }
 }
 
-fn get_shift(s: &Solution, idx: usize) -> Option<i32> {
+fn get_shift(s: &Solution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.employees.get(idx).and_then(|e| e.shift)
 }
 
-fn set_shift(s: &mut Solution, idx: usize, v: Option<i32>) {
+fn set_shift(s: &mut Solution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(e) = s.employees.get_mut(idx) {
         e.shift = v;
     }
@@ -78,6 +78,7 @@ fn test_pillar_swap_all_entities() {
         vec![2, 3],
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );
@@ -87,18 +88,18 @@ fn test_pillar_swap_all_entities() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_shift(recording.working_solution(), 0), Some(2));
-        assert_eq!(get_shift(recording.working_solution(), 1), Some(2));
-        assert_eq!(get_shift(recording.working_solution(), 2), Some(1));
-        assert_eq!(get_shift(recording.working_solution(), 3), Some(1));
+        assert_eq!(get_shift(recording.working_solution(), 0, 0), Some(2));
+        assert_eq!(get_shift(recording.working_solution(), 1, 0), Some(2));
+        assert_eq!(get_shift(recording.working_solution(), 2, 0), Some(1));
+        assert_eq!(get_shift(recording.working_solution(), 3, 0), Some(1));
 
         recording.undo_changes();
     }
 
-    assert_eq!(get_shift(director.working_solution(), 0), Some(1));
-    assert_eq!(get_shift(director.working_solution(), 1), Some(1));
-    assert_eq!(get_shift(director.working_solution(), 2), Some(2));
-    assert_eq!(get_shift(director.working_solution(), 3), Some(2));
+    assert_eq!(get_shift(director.working_solution(), 0, 0), Some(1));
+    assert_eq!(get_shift(director.working_solution(), 1, 0), Some(1));
+    assert_eq!(get_shift(director.working_solution(), 2, 0), Some(2));
+    assert_eq!(get_shift(director.working_solution(), 3, 0), Some(2));
 
     let solution = director.working_solution();
     assert_eq!(solution.employees[0].id, 0);
@@ -120,7 +121,7 @@ fn test_pillar_swap_same_value_not_doable() {
         },
     ]);
     let m =
-        PillarSwapMove::<Solution, i32>::new(vec![0], vec![1], get_shift, set_shift, "shift", 0);
+        PillarSwapMove::<Solution, i32>::new(vec![0], vec![1], get_shift, set_shift, 0, "shift", 0);
     assert!(!m.is_doable(&director));
 }
 
@@ -130,7 +131,8 @@ fn test_pillar_swap_empty_pillar_not_doable() {
         id: 0,
         shift: Some(1),
     }]);
-    let m = PillarSwapMove::<Solution, i32>::new(vec![], vec![0], get_shift, set_shift, "shift", 0);
+    let m =
+        PillarSwapMove::<Solution, i32>::new(vec![], vec![0], get_shift, set_shift, 0, "shift", 0);
     assert!(!m.is_doable(&director));
 }
 
@@ -159,6 +161,7 @@ fn pillar_swap_tabu_identity_is_direction_stable() {
         vec![2, 3],
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );
@@ -174,6 +177,7 @@ fn pillar_swap_tabu_identity_is_direction_stable() {
         vec![2, 3],
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );
@@ -182,6 +186,7 @@ fn pillar_swap_tabu_identity_is_direction_stable() {
         vec![0, 1],
         get_shift,
         set_shift,
+        0,
         "shift",
         0,
     );

@@ -530,8 +530,8 @@ impl ListMoveSelectorBuilder {
         use crate::heuristic::selector::list_ruin::ListRuinMoveSelector;
 
         let inner = ListRuinMoveSelector::new(
-            min_ruin_count.max(1),
-            max_ruin_count.max(1),
+            min_ruin_count,
+            max_ruin_count,
             ctx.entity_count,
             ctx.list_len,
             ctx.list_get,

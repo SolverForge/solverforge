@@ -56,6 +56,7 @@ fn sorts_ascending() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![30, 10, 50, 20, 40],
     );
@@ -75,6 +76,7 @@ fn sorts_descending() {
         get_priority,
         set_priority,
         0,
+        0,
         "priority",
         vec![30, 10, 50, 20, 40],
     );
@@ -90,8 +92,14 @@ fn sorts_descending() {
 #[test]
 fn preserves_size() {
     let director = create_director(vec![Task { priority: Some(1) }]);
-    let inner =
-        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 10, 50]);
+    let inner = ChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![30, 10, 50],
+    );
     let sorted = SortingMoveSelector::new(inner, by_value_asc);
 
     assert_eq!(sorted.size(&director), 3);
@@ -100,10 +108,22 @@ fn preserves_size() {
 #[test]
 fn sorts_cartesian_candidates_by_borrowed_preview_data() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
-    let right =
-        ScalarChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![30, 40]);
+    let left = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20],
+    );
+    let right = ScalarChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![30, 40],
+    );
     let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
     let sorted = SortingMoveSelector::new(cartesian, composite_second_value_desc);
 

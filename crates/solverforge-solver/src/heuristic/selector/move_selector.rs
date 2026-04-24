@@ -344,9 +344,10 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
 pub struct ChangeMoveSelector<S, V, ES, VS> {
     entity_selector: ES,
     value_selector: VS,
-    getter: fn(&S, usize) -> Option<V>,
-    setter: fn(&mut S, usize, Option<V>),
+    getter: fn(&S, usize, usize) -> Option<V>,
+    setter: fn(&mut S, usize, usize, Option<V>),
     descriptor_index: usize,
+    variable_index: usize,
     variable_name: &'static str,
     allows_unassigned: bool,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -358,6 +359,7 @@ impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, V
             .field("entity_selector", &self.entity_selector)
             .field("value_selector", &self.value_selector)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .field("allows_unassigned", &self.allows_unassigned)
             .finish()
@@ -368,9 +370,10 @@ impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
     pub fn new(
         entity_selector: ES,
         value_selector: VS,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
     ) -> Self {
         Self {
@@ -379,6 +382,7 @@ impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
             getter,
             setter,
             descriptor_index,
+            variable_index,
             variable_name,
             allows_unassigned: false,
             _phantom: PhantomData,
@@ -395,9 +399,10 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
 {
     pub fn simple(
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
         values: Vec<V>,
     ) -> Self {
@@ -407,6 +412,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
             getter,
             setter,
             descriptor_index,
+            variable_index,
             variable_name,
             allows_unassigned: false,
             _phantom: PhantomData,
@@ -428,6 +434,7 @@ where
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let descriptor_index = self.descriptor_index;
+        let variable_index = self.variable_index;
         let variable_name = self.variable_name;
         let getter = self.getter;
         let setter = self.setter;
@@ -438,7 +445,8 @@ where
             .entity_selector
             .iter(score_director)
             .map(|entity_ref| {
-                let current_assigned = getter(solution, entity_ref.entity_index).is_some();
+                let current_assigned =
+                    getter(solution, entity_ref.entity_index, variable_index).is_some();
                 let values = value_selector.iter(
                     score_director,
                     entity_ref.descriptor_index,
@@ -458,6 +466,7 @@ where
                             None,
                             getter,
                             setter,
+                            variable_index,
                             variable_name,
                             descriptor_index,
                         )
@@ -469,6 +478,7 @@ where
                                 Some(value),
                                 getter,
                                 setter,
+                                variable_index,
                                 variable_name,
                                 descriptor_index,
                             )
@@ -491,6 +501,7 @@ where
                         && (self.getter)(
                             score_director.working_solution(),
                             entity_ref.entity_index,
+                            self.variable_index,
                         )
                         .is_some(),
                 )
@@ -503,9 +514,10 @@ where
 pub struct SwapMoveSelector<S, V, LES, RES> {
     left_entity_selector: LES,
     right_entity_selector: RES,
-    getter: fn(&S, usize) -> Option<V>,
-    setter: fn(&mut S, usize, Option<V>),
+    getter: fn(&S, usize, usize) -> Option<V>,
+    setter: fn(&mut S, usize, usize, Option<V>),
     descriptor_index: usize,
+    variable_index: usize,
     variable_name: &'static str,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
@@ -516,6 +528,7 @@ impl<S, V, LES: Debug, RES: Debug> Debug for SwapMoveSelector<S, V, LES, RES> {
             .field("left_entity_selector", &self.left_entity_selector)
             .field("right_entity_selector", &self.right_entity_selector)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .finish()
     }
@@ -525,9 +538,10 @@ impl<S: PlanningSolution, V, LES, RES> SwapMoveSelector<S, V, LES, RES> {
     pub fn new(
         left_entity_selector: LES,
         right_entity_selector: RES,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
     ) -> Self {
         Self {
@@ -536,6 +550,7 @@ impl<S: PlanningSolution, V, LES, RES> SwapMoveSelector<S, V, LES, RES> {
             getter,
             setter,
             descriptor_index,
+            variable_index,
             variable_name,
             _phantom: PhantomData,
         }
@@ -546,9 +561,10 @@ impl<S: PlanningSolution, V>
     SwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
 {
     pub fn simple(
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
     ) -> Self {
         Self {
@@ -557,6 +573,7 @@ impl<S: PlanningSolution, V>
             getter,
             setter,
             descriptor_index,
+            variable_index,
             variable_name,
             _phantom: PhantomData,
         }
@@ -578,6 +595,7 @@ where
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let getter = self.getter;
         let setter = self.setter;
+        let variable_index = self.variable_index;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let right_entities: Vec<_> = self.right_entity_selector.iter(score_director).collect();
@@ -590,6 +608,7 @@ where
                         right_entity_ref.entity_index,
                         getter,
                         setter,
+                        variable_index,
                         variable_name,
                         descriptor_index,
                     ));

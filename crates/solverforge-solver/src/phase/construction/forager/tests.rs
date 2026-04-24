@@ -41,11 +41,11 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
     &mut s.queens
 }
 
-fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
+fn get_queen_row(s: &NQueensSolution, idx: usize, _variable_index: usize) -> Option<i64> {
     s.queens.get(idx).and_then(|q| q.row)
 }
 
-fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
+fn set_queen_row(s: &mut NQueensSolution, idx: usize, _variable_index: usize, v: Option<i64>) {
     if let Some(queen) = s.queens.get_mut(idx) {
         queen.row = v;
     }
@@ -137,7 +137,7 @@ fn create_placement_with_values(
     let entity_ref = EntityReference::new(0, 0);
     let moves: Vec<TestMove> = values
         .into_iter()
-        .map(|value| ChangeMove::new(0, Some(value), get_queen_row, set_queen_row, "row", 0))
+        .map(|value| ChangeMove::new(0, Some(value), get_queen_row, set_queen_row, 0, "row", 0))
         .collect();
     Placement::new(entity_ref, moves)
 }

@@ -44,7 +44,7 @@ fn test_get_set_value() {
     let mut solution =
         TestSolution::with_entities(vec![TestEntity::unassigned(1), TestEntity::unassigned(2)]);
 
-    assert_eq!(get_entity_value(&solution, 0), None);
-    set_entity_value(&mut solution, 0, Some(42));
-    assert_eq!(get_entity_value(&solution, 0), Some(42));
+    assert_eq!(get_entity_value(&solution, 0, 0), None);
+    set_entity_value(&mut solution, 0, 0, Some(42));
+    assert_eq!(get_entity_value(&solution, 0, 0), Some(42));
 }

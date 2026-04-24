@@ -37,14 +37,14 @@ use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, Mo
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
+/// fn get_priority(s: &Solution, i: usize, _variable_index: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
+/// fn set_priority(s: &mut Solution, i: usize, _variable_index: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// let low_values = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![1, 2, 3],
+///     get_priority, set_priority, 0,  0, "priority", vec![1, 2, 3],
 /// );
 /// let high_values = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![100, 200],
+///     get_priority, set_priority, 0,  0, "priority", vec![100, 200],
 /// );
 /// // Union yields moves with values: 1, 2, 3, 100, 200
 /// let combined: UnionMoveSelector<Solution, _, _, _> =

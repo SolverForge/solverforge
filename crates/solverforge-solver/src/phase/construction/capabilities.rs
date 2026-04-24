@@ -119,8 +119,7 @@ where
         .map(|binding| {
             let runtime_ctx = model.scalar_variables().find(|ctx| {
                 ctx.descriptor_index == binding.descriptor_index
-                    && ctx.entity_type_name == binding.entity_type_name
-                    && ctx.variable_name == binding.variable_name
+                    && ctx.variable_index == binding.variable_index
             });
             ResolvedVariableBinding::new(binding).with_runtime_construction_hooks(
                 runtime_ctx.and_then(|ctx| ctx.construction_entity_order_key),

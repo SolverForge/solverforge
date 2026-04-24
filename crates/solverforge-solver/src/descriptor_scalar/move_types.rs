@@ -79,7 +79,14 @@ impl<S: 'static> DescriptorChangeMove<S> {
     pub(crate) fn live_value_order_key(&self, solution: &S) -> Option<i64> {
         self.to_value.map(|value| {
             self.construction_value_order_key
-                .map(|order_key| order_key(solution, self.entity_index, value))
+                .and_then(|order_key| {
+                    order_key(
+                        solution,
+                        self.entity_index,
+                        self.binding.variable_index,
+                        value,
+                    )
+                })
                 .or_else(|| {
                     self.binding
                         .value_order_key(solution as &dyn Any, self.entity_index, value)
@@ -172,7 +179,9 @@ where
 pub struct DescriptorSwapMove<S> {
     binding: VariableBinding,
     left_entity_index: usize,
+    left_value: Option<usize>,
     right_entity_index: usize,
+    right_value: Option<usize>,
     indices: [usize; 2],
     solution_descriptor: SolutionDescriptor,
     _phantom: PhantomData<fn() -> S>,
@@ -190,16 +199,20 @@ impl<S> Debug for DescriptorSwapMove<S> {
 }
 
 impl<S: 'static> DescriptorSwapMove<S> {
-    pub(crate) fn new(
+    pub(crate) fn new_validated(
         binding: VariableBinding,
         left_entity_index: usize,
+        left_value: Option<usize>,
         right_entity_index: usize,
+        right_value: Option<usize>,
         solution_descriptor: SolutionDescriptor,
     ) -> Self {
         Self {
             binding,
             left_entity_index,
+            left_value,
             right_entity_index,
+            right_value,
             indices: [left_entity_index, right_entity_index],
             solution_descriptor,
             _phantom: PhantomData,
@@ -224,9 +237,11 @@ where
     S: PlanningSolution + 'static,
 {
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
+        let solution = score_director.working_solution();
         self.left_entity_index != self.right_entity_index
-            && self.current_value(score_director.working_solution(), self.left_entity_index)
-                != self.current_value(score_director.working_solution(), self.right_entity_index)
+            && self.left_value != self.right_value
+            && self.current_value(solution, self.left_entity_index) == self.left_value
+            && self.current_value(solution, self.right_entity_index) == self.right_value
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {

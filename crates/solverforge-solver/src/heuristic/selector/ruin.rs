@@ -11,7 +11,7 @@ No `Arc<dyn Fn>`, no trait objects in hot paths.
 # Example
 
 ```
-use solverforge_solver::heuristic::selector::{MoveSelector, RuinMoveSelector};
+use solverforge_solver::heuristic::selector::{MoveSelector, RuinMoveSelector, RuinVariableAccess};
 use solverforge_solver::heuristic::r#move::RuinMove;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
@@ -32,19 +32,23 @@ fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 }
 
 fn entity_count(s: &Schedule) -> usize { s.tasks.len() }
-fn get_task(s: &Schedule, idx: usize) -> Option<i32> {
+fn get_task(s: &Schedule, idx: usize, _variable_index: usize) -> Option<i32> {
 s.tasks.get(idx).and_then(|t| t.assigned_to)
 }
-fn set_task(s: &mut Schedule, idx: usize, v: Option<i32>) {
+fn set_task(s: &mut Schedule, idx: usize, _variable_index: usize, v: Option<i32>) {
 if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
 }
 
 // Create selector that ruins 2-3 entities at a time
-let selector = RuinMoveSelector::<Schedule, i32>::new(
-2, 3,
+let access = RuinVariableAccess::new(
 entity_count,
 get_task, set_task,
+0,
 "assigned_to", 0,
+);
+let selector = RuinMoveSelector::<Schedule, i32>::new(
+2, 3,
+access,
 );
 
 // Use with a score director
@@ -80,6 +84,51 @@ use crate::heuristic::r#move::RuinMove;
 
 use super::move_selector::{ArenaMoveCursor, MoveSelector};
 
+pub struct RuinVariableAccess<S, V> {
+    // Function to get entity count from solution.
+    entity_count: fn(&S) -> usize,
+    // Function to get current value.
+    getter: fn(&S, usize, usize) -> Option<V>,
+    // Function to set value.
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
+    // Variable name.
+    variable_name: &'static str,
+    // Entity descriptor index.
+    descriptor_index: usize,
+    _phantom: PhantomData<fn() -> V>,
+}
+
+impl<S, V> Clone for RuinVariableAccess<S, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S, V> Copy for RuinVariableAccess<S, V> {}
+
+impl<S, V> RuinVariableAccess<S, V> {
+    /// Creates typed variable access metadata for scalar ruin moves.
+    pub fn new(
+        entity_count: fn(&S) -> usize,
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            entity_count,
+            getter,
+            setter,
+            variable_index,
+            variable_name,
+            descriptor_index,
+            _phantom: PhantomData,
+        }
+    }
+}
+
 /// A move selector that generates `RuinMove` instances for Large Neighborhood Search.
 ///
 /// Selects random subsets of entities to "ruin" (unassign), enabling a construction
@@ -92,8 +141,8 @@ use super::move_selector::{ArenaMoveCursor, MoveSelector};
 /// # Zero-Erasure
 ///
 /// All variable access uses `fn` pointers:
-/// - `getter: fn(&S, usize) -> Option<V>` - gets current value
-/// - `setter: fn(&mut S, usize, Option<V>)` - sets value
+/// - `getter: fn(&S, usize, usize) -> Option<V>` - gets current value
+/// - `setter: fn(&mut S, usize, usize, Option<V>)` - sets value
 /// - `entity_count: fn(&S) -> usize` - counts entities
 pub struct RuinMoveSelector<S, V> {
     // Minimum entities to include in each ruin move.
@@ -102,19 +151,9 @@ pub struct RuinMoveSelector<S, V> {
     max_ruin_count: usize,
     // RNG state for reproducible subset selection.
     rng: RefCell<SmallRng>,
-    // Function to get entity count from solution.
-    entity_count: fn(&S) -> usize,
-    // Function to get current value.
-    getter: fn(&S, usize) -> Option<V>,
-    // Function to set value.
-    setter: fn(&mut S, usize, Option<V>),
-    // Variable name.
-    variable_name: &'static str,
-    // Entity descriptor index.
-    descriptor_index: usize,
+    access: RuinVariableAccess<S, V>,
     // Number of ruin moves to generate per iteration.
     moves_per_step: usize,
-    _phantom: PhantomData<fn() -> V>,
 }
 
 // SAFETY: RefCell<SmallRng> is only accessed while pre-generating a move batch
@@ -127,8 +166,8 @@ impl<S, V: Debug> Debug for RuinMoveSelector<S, V> {
             .field("min_ruin_count", &self.min_ruin_count)
             .field("max_ruin_count", &self.max_ruin_count)
             .field("moves_per_step", &self.moves_per_step)
-            .field("variable_name", &self.variable_name)
-            .field("descriptor_index", &self.descriptor_index)
+            .field("variable_name", &self.access.variable_name)
+            .field("descriptor_index", &self.access.descriptor_index)
             .finish()
     }
 }
@@ -139,22 +178,14 @@ impl<S, V> RuinMoveSelector<S, V> {
     /// # Arguments
     /// * `min_ruin_count` - Minimum entities to ruin (at least 1)
     /// * `max_ruin_count` - Maximum entities to ruin
-    /// * `entity_count` - Function to get total entity count
-    /// * `getter` - Function to get current value
-    /// * `setter` - Function to set value
-    /// * `variable_name` - Name of the planning variable
-    /// * `descriptor_index` - Entity descriptor index
+    /// * `access` - Typed variable access metadata for the scalar variable
     ///
     /// # Panics
     /// Panics if `min_ruin_count` is 0 or `max_ruin_count < min_ruin_count`.
     pub fn new(
         min_ruin_count: usize,
         max_ruin_count: usize,
-        entity_count: fn(&S) -> usize,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
-        variable_name: &'static str,
-        descriptor_index: usize,
+        access: RuinVariableAccess<S, V>,
     ) -> Self {
         assert!(min_ruin_count >= 1, "min_ruin_count must be at least 1");
         assert!(
@@ -166,13 +197,8 @@ impl<S, V> RuinMoveSelector<S, V> {
             min_ruin_count,
             max_ruin_count,
             rng: RefCell::new(SmallRng::from_rng(&mut rand::rng())),
-            entity_count,
-            getter,
-            setter,
-            variable_name,
-            descriptor_index,
+            access,
             moves_per_step: 10, // Default: generate 10 ruin moves per step
-            _phantom: PhantomData,
         }
     }
 
@@ -201,11 +227,8 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let total_entities = (self.entity_count)(score_director.working_solution());
-        let getter = self.getter;
-        let setter = self.setter;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
+        let access = self.access;
+        let total_entities = (access.entity_count)(score_director.working_solution());
 
         let min = self.min_ruin_count.min(total_entities);
         let max = self.max_ruin_count.min(total_entities);
@@ -234,12 +257,19 @@ where
             .collect();
 
         ArenaMoveCursor::from_moves(subsets.into_iter().map(move |indices| {
-            RuinMove::new(&indices, getter, setter, variable_name, descriptor_index)
+            RuinMove::new(
+                &indices,
+                access.getter,
+                access.setter,
+                access.variable_index,
+                access.variable_name,
+                access.descriptor_index,
+            )
         }))
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let total = (self.entity_count)(score_director.working_solution());
+        let total = (self.access.entity_count)(score_director.working_solution());
         if total == 0 {
             return 0;
         }

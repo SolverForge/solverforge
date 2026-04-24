@@ -4,7 +4,8 @@ use solverforge_config::{
     AcceptorConfig, CartesianProductConfig, ChangeMoveConfig, ForagerConfig, LateAcceptanceConfig,
     LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig,
     ListRuinMoveSelectorConfig, LocalSearchConfig, MoveSelectorConfig,
-    RuinRecreateMoveSelectorConfig, SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
+    RuinRecreateMoveSelectorConfig, SwapMoveConfig, TerminationConfig, UnionMoveSelectorConfig,
+    VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -145,15 +146,20 @@ fn shift_count(solution: &MixedPlan) -> usize {
     solution.shifts.len()
 }
 
-fn get_worker(solution: &MixedPlan, entity_index: usize) -> Option<usize> {
+fn get_worker(solution: &MixedPlan, entity_index: usize, _variable_index: usize) -> Option<usize> {
     solution.shifts[entity_index].worker
 }
 
-fn set_worker(solution: &mut MixedPlan, entity_index: usize, value: Option<usize>) {
+fn set_worker(
+    solution: &mut MixedPlan,
+    entity_index: usize,
+    _variable_index: usize,
+    value: Option<usize>,
+) {
     solution.shifts[entity_index].worker = value;
 }
 
-fn worker_count(solution: &MixedPlan) -> usize {
+fn worker_count(solution: &MixedPlan, _provider_index: usize) -> usize {
     solution.shifts.len().max(1)
 }
 
@@ -239,6 +245,7 @@ fn index_to_visit(solution: &MixedPlan, idx: usize) -> usize {
 fn scalar_context() -> ScalarVariableContext<MixedPlan> {
     ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -246,6 +253,7 @@ fn scalar_context() -> ScalarVariableContext<MixedPlan> {
         set_worker,
         ValueSource::SolutionCount {
             count_fn: worker_count,
+            provider_index: 0,
         },
         true,
     )
@@ -432,6 +440,49 @@ fn explicit_limited_neighborhood_remains_supported() {
         Neighborhood::Cartesian(_) => {
             panic!("limited_neighborhood must not become a cartesian neighborhood")
         }
+    }
+}
+
+#[test]
+fn union_child_limited_neighborhood_keeps_scalar_change_context() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor.clone(),
+    );
+    let config = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selectors: vec![MoveSelectorConfig::LimitedNeighborhood(
+            LimitedNeighborhoodConfig {
+                selected_count_limit: 2,
+                selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                    target: VariableTargetConfig::default(),
+                })),
+            },
+        )],
+    });
+
+    let selector = build_move_selector(Some(&config), &scalar_only_model(), None);
+    let neighborhoods = selector.selectors();
+
+    assert_eq!(neighborhoods.len(), 1);
+    match &neighborhoods[0] {
+        Neighborhood::Limited {
+            selector: leaves,
+            selected_count_limit,
+        } => {
+            assert_eq!(*selected_count_limit, 2);
+            assert!(matches!(
+                &leaves.selectors()[0],
+                NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_))
+            ));
+            assert_eq!(selector.size(&director), 2);
+        }
+        Neighborhood::Flat(_) => panic!("limited union child must remain a neighborhood wrapper"),
+        Neighborhood::Cartesian(_) => panic!("limited union child must not become cartesian"),
     }
 }
 
@@ -753,4 +804,26 @@ fn explicit_acceptor_and_forager_configs_override_defaults() {
     assert!(debug.contains("LateAcceptance"));
     assert!(debug.contains("size: 17"));
     assert!(debug.contains("BestScoreImproving"));
+}
+
+#[test]
+fn local_search_phase_uses_configured_step_count_limit() {
+    let config = LocalSearchConfig {
+        acceptor: None,
+        forager: None,
+        move_selector: None,
+        termination: Some(TerminationConfig {
+            step_count_limit: Some(3),
+            ..TerminationConfig::default()
+        }),
+    };
+
+    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &scalar_only_model(),
+        None,
+    );
+    let debug = format!("{phase:?}");
+
+    assert!(debug.contains("step_limit: Some(3)"));
 }

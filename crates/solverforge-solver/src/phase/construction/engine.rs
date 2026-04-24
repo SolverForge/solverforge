@@ -8,9 +8,8 @@ use solverforge_core::score::Score;
 use solverforge_scoring::{Director, RecordingDirector};
 use tracing::info;
 
-use crate::builder::{
-    ListVariableContext, ModelContext, ScalarVariableContext, ValueSource, VariableContext,
-};
+use crate::builder::context::{ScalarGetter, ScalarSetter};
+use crate::builder::{ListVariableContext, ModelContext, ScalarVariableContext, VariableContext};
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
@@ -27,10 +26,11 @@ where
     S: PlanningSolution,
 {
     Scalar {
-        getter: fn(&S, usize) -> Option<usize>,
-        setter: fn(&mut S, usize, Option<usize>),
+        getter: ScalarGetter<S>,
+        setter: ScalarSetter<S>,
         variable_name: &'static str,
         descriptor_index: usize,
+        variable_index: usize,
         entity_index: usize,
         value: usize,
         order_key: [usize; 4],
@@ -294,12 +294,12 @@ where
     let entity_count = (ctx.entity_count)(phase_scope.score_director().working_solution());
 
     for entity_index in 0..entity_count {
-        let slot_id = ConstructionSlotId::new(ctx.descriptor_index, entity_index);
+        let slot_id = ConstructionSlotId::new(variable_index, entity_index);
         if phase_scope.solver_scope().is_scalar_slot_completed(slot_id) {
             continue;
         }
 
-        let current = (ctx.getter)(
+        let current = ctx.current_value(
             phase_scope.score_director().working_solution(),
             entity_index,
         );
@@ -307,8 +307,7 @@ where
             continue;
         }
 
-        let values = scalar_values_for_entity(
-            ctx,
+        let values = ctx.values_for_entity(
             phase_scope.score_director().working_solution(),
             entity_index,
         );
@@ -329,6 +328,7 @@ where
                 Some(value),
                 ctx.getter,
                 ctx.setter,
+                ctx.variable_index,
                 ctx.variable_name,
                 ctx.descriptor_index,
             );
@@ -367,6 +367,7 @@ where
                     setter: ctx.setter,
                     variable_name: ctx.variable_name,
                     descriptor_index: ctx.descriptor_index,
+                    variable_index: ctx.variable_index,
                     entity_index,
                     value,
                     order_key: [variable_index, entity_index, value_index, 0],
@@ -457,12 +458,12 @@ where
     let entity_count = (ctx.entity_count)(phase_scope.score_director().working_solution());
 
     for entity_index in 0..entity_count {
-        let slot_id = ConstructionSlotId::new(ctx.descriptor_index, entity_index);
+        let slot_id = ConstructionSlotId::new(variable_index, entity_index);
         if phase_scope.solver_scope().is_scalar_slot_completed(slot_id) {
             continue;
         }
 
-        let current = (ctx.getter)(
+        let current = ctx.current_value(
             phase_scope.score_director().working_solution(),
             entity_index,
         );
@@ -470,8 +471,7 @@ where
             continue;
         }
 
-        let values = scalar_values_for_entity(
-            ctx,
+        let values = ctx.values_for_entity(
             phase_scope.score_director().working_solution(),
             entity_index,
         );
@@ -493,6 +493,7 @@ where
                 Some(value),
                 ctx.getter,
                 ctx.setter,
+                ctx.variable_index,
                 ctx.variable_name,
                 ctx.descriptor_index,
             );
@@ -526,6 +527,7 @@ where
                     setter: ctx.setter,
                     variable_name: ctx.variable_name,
                     descriptor_index: ctx.descriptor_index,
+                    variable_index: ctx.variable_index,
                     entity_index,
                     value,
                     order_key: [variable_index, entity_index, value_index, 0],
@@ -643,6 +645,7 @@ fn commit_candidate<S, V, D, ProgressCb>(
             setter,
             variable_name,
             descriptor_index,
+            variable_index,
             entity_index,
             value,
             ..
@@ -652,6 +655,7 @@ fn commit_candidate<S, V, D, ProgressCb>(
                 Some(value),
                 getter,
                 setter,
+                variable_index,
                 variable_name,
                 descriptor_index,
             );
@@ -706,21 +710,6 @@ fn complete_scalar_slot<S, D, ProgressCb>(
     let step_score = step_scope.calculate_score();
     step_scope.set_step_score(step_score);
     step_scope.complete();
-}
-
-fn scalar_values_for_entity<S>(
-    ctx: ScalarVariableContext<S>,
-    solution: &S,
-    entity_index: usize,
-) -> Vec<usize> {
-    match ctx.value_source {
-        ValueSource::Empty => Vec::new(),
-        ValueSource::CountableRange { from, to } => (from..to).collect(),
-        ValueSource::SolutionCount { count_fn } => (0..count_fn(solution)).collect(),
-        ValueSource::EntitySlice { values_for_entity } => {
-            values_for_entity(solution, entity_index).to_vec()
-        }
-    }
 }
 
 fn evaluate_list_insertion<S, V, DM, IDM, D, ProgressCb>(

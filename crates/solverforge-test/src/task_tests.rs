@@ -26,7 +26,7 @@ fn test_solution_creation() {
 fn test_get_set_priority() {
     let mut solution = TaskSolution::new(vec![Task::unassigned(), Task::unassigned()]);
 
-    assert_eq!(get_priority(&solution, 0), None);
-    set_priority(&mut solution, 0, Some(5));
-    assert_eq!(get_priority(&solution, 0), Some(5));
+    assert_eq!(get_priority(&solution, 0, 0), None);
+    set_priority(&mut solution, 0, 0, Some(5));
+    assert_eq!(get_priority(&solution, 0, 0), Some(5));
 }

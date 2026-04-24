@@ -134,9 +134,10 @@ where
     // The value selector.
     value_selector: VS,
     // Typed getter function pointer.
-    getter: fn(&S, usize) -> Option<V>,
+    getter: fn(&S, usize, usize) -> Option<V>,
     // Typed setter function pointer.
-    setter: fn(&mut S, usize, Option<V>),
+    setter: fn(&mut S, usize, usize, Option<V>),
+    variable_index: usize,
     // The variable name.
     variable_name: &'static str,
     // The descriptor index.
@@ -155,9 +156,10 @@ where
     pub fn new(
         entity_selector: ES,
         value_selector: VS,
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
     ) -> Self {
         Self {
@@ -165,6 +167,7 @@ where
             value_selector,
             getter,
             setter,
+            variable_index,
             variable_name,
             descriptor_index,
             allows_unassigned: false,
@@ -209,14 +212,18 @@ where
         let descriptor_index = self.descriptor_index;
         let getter = self.getter;
         let setter = self.setter;
+        let variable_index = self.variable_index;
         let allows_unassigned = self.allows_unassigned;
 
         self.entity_selector
             .iter(score_director)
             .filter_map(|entity_ref| {
                 // Check if entity is uninitialized using typed getter - zero erasure
-                let current_value =
-                    getter(score_director.working_solution(), entity_ref.entity_index);
+                let current_value = getter(
+                    score_director.working_solution(),
+                    entity_ref.entity_index,
+                    variable_index,
+                );
 
                 // Only include uninitialized entities
                 if current_value.is_some() {
@@ -237,6 +244,7 @@ where
                             Some(value),
                             getter,
                             setter,
+                            variable_index,
                             variable_name,
                             descriptor_index,
                         )

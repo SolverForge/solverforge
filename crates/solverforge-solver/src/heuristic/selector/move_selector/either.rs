@@ -25,9 +25,10 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     ScalarChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
 {
     pub fn simple(
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
         values: Vec<V>,
     ) -> Self {
@@ -36,6 +37,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
                 getter,
                 setter,
                 descriptor_index,
+                variable_index,
                 variable_name,
                 values,
             ),
@@ -84,13 +86,20 @@ impl<S: PlanningSolution, V>
     ScalarSwapMoveSelector<S, V, FromSolutionEntitySelector, FromSolutionEntitySelector>
 {
     pub fn simple(
-        getter: fn(&S, usize) -> Option<V>,
-        setter: fn(&mut S, usize, Option<V>),
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
     ) -> Self {
         Self {
-            inner: SwapMoveSelector::simple(getter, setter, descriptor_index, variable_name),
+            inner: SwapMoveSelector::simple(
+                getter,
+                setter,
+                descriptor_index,
+                variable_index,
+                variable_name,
+            ),
         }
     }
 }

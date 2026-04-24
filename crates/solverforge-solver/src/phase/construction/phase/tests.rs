@@ -29,7 +29,7 @@ fn create_placer(
 > {
     let es = FromSolutionEntitySelector::new(0);
     let vs = StaticValueSelector::new(values);
-    QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, "row")
+    QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, 0, "row")
 }
 
 #[derive(Clone, Debug)]

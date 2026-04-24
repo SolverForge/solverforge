@@ -105,11 +105,11 @@ pub fn get_test_entities_mut(s: &mut TestSolution) -> &mut Vec<TestEntity> {
     &mut s.entities
 }
 
-pub fn get_entity_value(s: &TestSolution, idx: usize) -> Option<i32> {
+pub fn get_entity_value(s: &TestSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.entities.get(idx).and_then(|e| e.value)
 }
 
-pub fn set_entity_value(s: &mut TestSolution, idx: usize, v: Option<i32>) {
+pub fn set_entity_value(s: &mut TestSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(entity) = s.entities.get_mut(idx) {
         entity.value = v;
     }

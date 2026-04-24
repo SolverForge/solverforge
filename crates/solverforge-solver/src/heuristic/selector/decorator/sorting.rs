@@ -43,8 +43,8 @@ use super::indexed_cursor::IndexedMoveCursor;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// fn get_priority(s: &Solution, i: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
+/// fn get_priority(s: &Solution, i: usize, _variable_index: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
+/// fn set_priority(s: &mut Solution, i: usize, _variable_index: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
 ///
 /// // Sort by target value descending
 /// fn by_value_desc(
@@ -60,7 +60,7 @@ use super::indexed_cursor::IndexedMoveCursor;
 /// }
 ///
 /// let inner = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0, "priority", vec![30, 10, 50, 20],
+///     get_priority, set_priority, 0,  0, "priority", vec![30, 10, 50, 20],
 /// );
 /// let sorted: SortingMoveSelector<Solution, _, _> =
 ///     SortingMoveSelector::new(inner, by_value_desc);

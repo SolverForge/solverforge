@@ -32,11 +32,11 @@ fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
     &mut s.tasks
 }
 
-fn get_priority(s: &TaskSolution, idx: usize) -> Option<i32> {
+fn get_priority(s: &TaskSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(idx).and_then(|t| t.priority)
 }
 
-fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
+fn set_priority(s: &mut TaskSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(task) = s.tasks.get_mut(idx) {
         task.priority = v;
     }
@@ -74,21 +74,21 @@ fn test_swap_move_do_and_undo() {
     ];
     let mut director = create_director(tasks);
 
-    let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+    let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, 0, "priority", 0);
     assert!(m.is_doable(&director));
 
     {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_priority(recording.working_solution(), 0), Some(5));
-        assert_eq!(get_priority(recording.working_solution(), 1), Some(1));
+        assert_eq!(get_priority(recording.working_solution(), 0, 0), Some(5));
+        assert_eq!(get_priority(recording.working_solution(), 1, 0), Some(1));
 
         recording.undo_changes();
     }
 
-    assert_eq!(get_priority(director.working_solution(), 0), Some(1));
-    assert_eq!(get_priority(director.working_solution(), 1), Some(5));
+    assert_eq!(get_priority(director.working_solution(), 0, 0), Some(1));
+    assert_eq!(get_priority(director.working_solution(), 1, 0), Some(5));
 
     let solution = director.working_solution();
     assert_eq!(solution.tasks[0].id, 0);
@@ -109,7 +109,7 @@ fn test_swap_same_value_not_doable() {
     ];
     let director = create_director(tasks);
 
-    let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+    let m = SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, 0, "priority", 0);
     assert!(
         !m.is_doable(&director),
         "swapping same values should not be doable"
@@ -124,13 +124,13 @@ fn test_swap_self_not_doable() {
     }];
     let director = create_director(tasks);
 
-    let m = SwapMove::<TaskSolution, i32>::new(0, 0, get_priority, set_priority, "priority", 0);
+    let m = SwapMove::<TaskSolution, i32>::new(0, 0, get_priority, set_priority, 0, "priority", 0);
     assert!(!m.is_doable(&director), "self-swap should not be doable");
 }
 
 #[test]
 fn test_swap_entity_indices() {
-    let m = SwapMove::<TaskSolution, i32>::new(2, 5, get_priority, set_priority, "priority", 0);
+    let m = SwapMove::<TaskSolution, i32>::new(2, 5, get_priority, set_priority, 0, "priority", 0);
     assert_eq!(m.entity_indices(), &[2, 5]);
 }
 
@@ -150,7 +150,7 @@ fn swap_tabu_identity_is_direction_stable() {
     ];
     let mut director = create_director(tasks);
     let forward =
-        SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+        SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, 0, "priority", 0);
     let forward_signature = forward.tabu_signature(&director);
 
     {
@@ -159,9 +159,9 @@ fn swap_tabu_identity_is_direction_stable() {
     }
 
     let reverse_same_coordinates =
-        SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, "priority", 0);
+        SwapMove::<TaskSolution, i32>::new(0, 1, get_priority, set_priority, 0, "priority", 0);
     let reverse_flipped_coordinates =
-        SwapMove::<TaskSolution, i32>::new(1, 0, get_priority, set_priority, "priority", 0);
+        SwapMove::<TaskSolution, i32>::new(1, 0, get_priority, set_priority, 0, "priority", 0);
     let reverse_signature = reverse_same_coordinates.tabu_signature(&director);
     let flipped_signature = reverse_flipped_coordinates.tabu_signature(&director);
 

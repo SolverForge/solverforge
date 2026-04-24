@@ -53,33 +53,48 @@ fn shift_count(solution: &Schedule) -> usize {
     solution.shifts.len()
 }
 
-fn get_worker(solution: &Schedule, entity_index: usize) -> Option<usize> {
+fn get_worker(solution: &Schedule, entity_index: usize, _variable_index: usize) -> Option<usize> {
     solution.shifts[entity_index].worker
 }
 
-fn set_worker(solution: &mut Schedule, entity_index: usize, value: Option<usize>) {
+fn set_worker(
+    solution: &mut Schedule,
+    entity_index: usize,
+    _variable_index: usize,
+    value: Option<usize>,
+) {
     solution.shifts[entity_index].worker = value;
 }
 
-fn worker_count(solution: &Schedule) -> usize {
+fn worker_count(solution: &Schedule, _provider_index: usize) -> usize {
     solution.workers.len()
 }
 
-fn allowed_workers(solution: &Schedule, entity_index: usize) -> &[usize] {
+fn allowed_workers(solution: &Schedule, entity_index: usize, _variable_index: usize) -> &[usize] {
     &solution.shifts[entity_index].allowed_workers
 }
 
-fn nearby_worker_value_distance(_solution: &Schedule, entity_index: usize, value: usize) -> f64 {
-    entity_index.abs_diff(value) as f64
+fn nearby_worker_value_distance(
+    _solution: &Schedule,
+    entity_index: usize,
+    _variable_index: usize,
+    value: usize,
+) -> Option<f64> {
+    Some(entity_index.abs_diff(value) as f64)
 }
 
-fn nearby_worker_entity_distance(_solution: &Schedule, left: usize, right: usize) -> f64 {
-    match (left, right) {
+fn nearby_worker_entity_distance(
+    _solution: &Schedule,
+    left: usize,
+    right: usize,
+    _variable_index: usize,
+) -> Option<f64> {
+    Some(match (left, right) {
         (0, 1) => 0.0,
         (0, 2) => 1.0,
         (1, 2) => 0.5,
         _ => left.abs_diff(right) as f64,
-    }
+    })
 }
 
 fn create_director(solution: Schedule) -> ScoreDirector<Schedule, ()> {
@@ -115,6 +130,7 @@ fn builds_solution_count_scalar_selectors_without_descriptor_bindings() {
 
     let scalar_variables = vec![ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -122,6 +138,7 @@ fn builds_solution_count_scalar_selectors_without_descriptor_bindings() {
         set_worker,
         ValueSource::SolutionCount {
             count_fn: worker_count,
+            provider_index: 0,
         },
         true,
     )];
@@ -158,6 +175,7 @@ fn filters_change_moves_against_entity_slice_candidates() {
 
     let scalar_variables = vec![ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -190,6 +208,155 @@ fn filters_change_moves_against_entity_slice_candidates() {
 }
 
 #[test]
+fn filters_swap_moves_against_entity_slice_candidates_before_evaluation() {
+    let director = create_director(Schedule {
+        workers: vec![0, 1, 2],
+        shifts: vec![
+            Shift {
+                worker: Some(0),
+                allowed_workers: vec![0, 1],
+            },
+            Shift {
+                worker: Some(1),
+                allowed_workers: vec![0, 1],
+            },
+            Shift {
+                worker: Some(2),
+                allowed_workers: vec![2],
+            },
+        ],
+        score: None,
+    });
+
+    let scalar_variables = vec![ScalarVariableContext::new(
+        0,
+        0,
+        "Shift",
+        shift_count,
+        "worker",
+        get_worker,
+        set_worker,
+        ValueSource::EntitySlice {
+            values_for_entity: allowed_workers,
+        },
+        true,
+    )];
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig {
+            entity_class: Some("Shift".to_string()),
+            variable_name: Some("worker".to_string()),
+        },
+    });
+
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let swap_pairs: Vec<_> = moves
+        .iter()
+        .map(|mov| match mov {
+            crate::heuristic::r#move::ScalarMoveUnion::Swap(swap) => {
+                (swap.left_entity_index(), swap.right_entity_index())
+            }
+            other => panic!("expected swap move, got {other:?}"),
+        })
+        .collect();
+
+    assert_eq!(swap_pairs, vec![(0, 1)]);
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn swap_selector_emits_complete_assignment_swaps_without_domain() {
+    let director = create_director(Schedule {
+        workers: vec![],
+        shifts: vec![
+            Shift {
+                worker: Some(0),
+                allowed_workers: vec![],
+            },
+            Shift {
+                worker: Some(1),
+                allowed_workers: vec![],
+            },
+        ],
+        score: None,
+    });
+
+    let scalar_variables = vec![ScalarVariableContext::new(
+        0,
+        0,
+        "Shift",
+        shift_count,
+        "worker",
+        get_worker,
+        set_worker,
+        ValueSource::Empty,
+        false,
+    )];
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig {
+            entity_class: Some("Shift".to_string()),
+            variable_name: Some("worker".to_string()),
+        },
+    });
+
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(selector.size(&director), 1);
+    assert_eq!(moves.len(), 1);
+    assert!(matches!(
+        &moves[0],
+        crate::heuristic::r#move::ScalarMoveUnion::Swap(swap)
+            if (swap.left_entity_index(), swap.right_entity_index()) == (0, 1)
+    ));
+    assert!(moves[0].is_doable(&director));
+}
+
+#[test]
+fn swap_selector_rejects_explicit_empty_entity_slice_domain() {
+    let director = create_director(Schedule {
+        workers: vec![],
+        shifts: vec![
+            Shift {
+                worker: Some(0),
+                allowed_workers: vec![],
+            },
+            Shift {
+                worker: Some(1),
+                allowed_workers: vec![],
+            },
+        ],
+        score: None,
+    });
+
+    let scalar_variables = vec![ScalarVariableContext::new(
+        0,
+        0,
+        "Shift",
+        shift_count,
+        "worker",
+        get_worker,
+        set_worker,
+        ValueSource::EntitySlice {
+            values_for_entity: allowed_workers,
+        },
+        false,
+    )];
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig {
+            entity_class: Some("Shift".to_string()),
+            variable_name: Some("worker".to_string()),
+        },
+    });
+
+    let selector = build_scalar_move_selector(Some(&config), &scalar_variables, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(selector.size(&director), 0);
+    assert!(moves.is_empty());
+}
+
+#[test]
 fn builds_nearby_change_selectors_when_meter_is_present() {
     let director = create_director(Schedule {
         workers: vec![0, 1, 2],
@@ -208,6 +375,7 @@ fn builds_nearby_change_selectors_when_meter_is_present() {
 
     let scalar_variables = vec![ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -215,6 +383,7 @@ fn builds_nearby_change_selectors_when_meter_is_present() {
         set_worker,
         ValueSource::SolutionCount {
             count_fn: worker_count,
+            provider_index: 0,
         },
         true,
     )
@@ -271,6 +440,7 @@ fn nearby_swap_filters_same_value_candidates_before_limiting() {
 
     let scalar_variables = vec![ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -278,6 +448,7 @@ fn nearby_swap_filters_same_value_candidates_before_limiting() {
         set_worker,
         ValueSource::SolutionCount {
             count_fn: worker_count,
+            provider_index: 0,
         },
         true,
     )
@@ -319,6 +490,7 @@ fn ruin_recreate_skips_required_entities_without_recreate_values() {
         score: None,
     });
     let scalar_variables = vec![ScalarVariableContext::new(
+        0,
         0,
         "Shift",
         shift_count,
@@ -362,6 +534,7 @@ fn ruin_recreate_honors_configured_random_seed() {
         });
         let scalar_variables = vec![ScalarVariableContext::new(
             0,
+            0,
             "Shift",
             shift_count,
             "worker",
@@ -369,6 +542,7 @@ fn ruin_recreate_honors_configured_random_seed() {
             set_worker,
             ValueSource::SolutionCount {
                 count_fn: worker_count,
+                provider_index: 0,
             },
             false,
         )];
@@ -419,9 +593,11 @@ fn ruin_recreate_do_move_preserves_required_assignment_when_recreate_values_are_
         get_worker,
         set_worker,
         0,
+        0,
         "worker",
         crate::heuristic::r#move::ScalarRecreateValueSource::EntitySlice {
             values_for_entity: allowed_workers,
+            variable_index: 0,
         },
         RecreateHeuristicType::FirstFit,
         false,
@@ -456,6 +632,7 @@ fn pillar_change_uses_public_pillar_semantics() {
 
     let scalar_variables = vec![ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -463,6 +640,7 @@ fn pillar_change_uses_public_pillar_semantics() {
         set_worker,
         ValueSource::SolutionCount {
             count_fn: worker_count,
+            provider_index: 0,
         },
         true,
     )];
@@ -508,6 +686,7 @@ fn pillar_change_intersects_entity_slice_domains() {
     });
 
     let scalar_variables = vec![ScalarVariableContext::new(
+        0,
         0,
         "Shift",
         shift_count,
@@ -575,6 +754,7 @@ fn pillar_swap_prunes_illegal_entity_slice_partners() {
 
     let scalar_variables = vec![ScalarVariableContext::new(
         0,
+        0,
         "Shift",
         shift_count,
         "worker",
@@ -602,9 +782,9 @@ fn pillar_swap_prunes_illegal_entity_slice_partners() {
         assert!(mov.is_doable(&director));
         if let crate::heuristic::r#move::ScalarMoveUnion::PillarSwap(swap) = mov {
             let left_value =
-                get_worker(director.working_solution(), swap.left_indices()[0]).unwrap();
+                get_worker(director.working_solution(), swap.left_indices()[0], 0).unwrap();
             let right_value =
-                get_worker(director.working_solution(), swap.right_indices()[0]).unwrap();
+                get_worker(director.working_solution(), swap.right_indices()[0], 0).unwrap();
             swap_pairs.push((left_value, right_value));
         }
     }
@@ -640,6 +820,7 @@ fn scalar_builder_cartesian_selector_survives_filtering_wrapper() {
         score: None,
     });
     let scalar_variables = vec![ScalarVariableContext::new(
+        0,
         0,
         "Shift",
         shift_count,

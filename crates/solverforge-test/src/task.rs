@@ -83,11 +83,11 @@ pub fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
     &mut s.tasks
 }
 
-pub fn get_priority(s: &TaskSolution, idx: usize) -> Option<i32> {
+pub fn get_priority(s: &TaskSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(idx).and_then(|t| t.priority)
 }
 
-pub fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
+pub fn set_priority(s: &mut TaskSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(task) = s.tasks.get_mut(idx) {
         task.priority = v;
     }

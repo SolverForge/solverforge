@@ -24,11 +24,11 @@ impl PlanningSolution for TaskSolution {
     }
 }
 
-fn get_priority(s: &TaskSolution, i: usize) -> Option<i32> {
+fn get_priority(s: &TaskSolution, i: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(i).and_then(|t| t.priority)
 }
 
-fn set_priority(s: &mut TaskSolution, i: usize, v: Option<i32>) {
+fn set_priority(s: &mut TaskSolution, i: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(task) = s.tasks.get_mut(i) {
         task.priority = v;
     }
@@ -55,11 +55,11 @@ fn test_change_move_is_doable() {
     let director = create_director(tasks);
 
     // Different value - doable
-    let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
+    let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, 0, "priority", 0);
     assert!(m.is_doable(&director));
 
     // Same value - not doable
-    let m = ChangeMove::<_, i32>::new(0, Some(1), get_priority, set_priority, "priority", 0);
+    let m = ChangeMove::<_, i32>::new(0, Some(1), get_priority, set_priority, 0, "priority", 0);
     assert!(!m.is_doable(&director));
 }
 
@@ -71,10 +71,10 @@ fn test_change_move_do_move() {
     }];
     let mut director = create_director(tasks);
 
-    let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
+    let m = ChangeMove::<_, i32>::new(0, Some(5), get_priority, set_priority, 0, "priority", 0);
     m.do_move(&mut director);
 
-    let val = get_priority(director.working_solution(), 0);
+    let val = get_priority(director.working_solution(), 0, 0);
     assert_eq!(val, Some(5));
 }
 
@@ -86,26 +86,40 @@ fn test_change_move_to_none() {
     }];
     let mut director = create_director(tasks);
 
-    let m = ChangeMove::<_, i32>::new(0, None, get_priority, set_priority, "priority", 0);
+    let m = ChangeMove::<_, i32>::new(0, None, get_priority, set_priority, 0, "priority", 0);
     assert!(m.is_doable(&director));
 
     m.do_move(&mut director);
 
-    let val = get_priority(director.working_solution(), 0);
+    let val = get_priority(director.working_solution(), 0, 0);
     assert_eq!(val, None);
 }
 
 #[test]
 fn test_change_move_entity_indices() {
-    let m =
-        ChangeMove::<TaskSolution, i32>::new(3, Some(5), get_priority, set_priority, "priority", 0);
+    let m = ChangeMove::<TaskSolution, i32>::new(
+        3,
+        Some(5),
+        get_priority,
+        set_priority,
+        0,
+        "priority",
+        0,
+    );
     assert_eq!(m.entity_indices(), &[3]);
 }
 
 #[test]
 fn test_change_move_copy() {
-    let m1 =
-        ChangeMove::<TaskSolution, i32>::new(0, Some(5), get_priority, set_priority, "priority", 0);
+    let m1 = ChangeMove::<TaskSolution, i32>::new(
+        0,
+        Some(5),
+        get_priority,
+        set_priority,
+        0,
+        "priority",
+        0,
+    );
     let m2 = m1;
     assert_eq!(m1.entity_index(), m2.entity_index());
     assert_eq!(m1.to_value(), m2.to_value());

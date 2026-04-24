@@ -138,14 +138,14 @@ pub fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
     &mut s.queens
 }
 
-pub fn get_queen_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
+pub fn get_queen_row(s: &NQueensSolution, idx: usize, _variable_index: usize) -> Option<i64> {
     s.queens.get(idx).and_then(|q| q.row)
 }
 
 /// Sets the row value for a queen at the given index.
 ///
 /// This is the typed setter for the planning variable.
-pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
+pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, _variable_index: usize, v: Option<i64>) {
     if let Some(queen) = s.queens.get_mut(idx) {
         queen.row = v;
     }
@@ -203,14 +203,14 @@ pub fn create_nqueens_solution(rows: &[Option<i64>]) -> NQueensSolution {
     NQueensSolution::with_optional_rows(rows)
 }
 
-/// Alias for `get_queen_row` for backward compatibility.
-pub fn get_row(s: &NQueensSolution, idx: usize) -> Option<i64> {
-    get_queen_row(s, idx)
+/// Alias for `get_queen_row`.
+pub fn get_row(s: &NQueensSolution, idx: usize, variable_index: usize) -> Option<i64> {
+    get_queen_row(s, idx, variable_index)
 }
 
-/// Alias for `set_queen_row` for backward compatibility.
-pub fn set_row(s: &mut NQueensSolution, idx: usize, v: Option<i64>) {
-    set_queen_row(s, idx, v)
+/// Alias for `set_queen_row`.
+pub fn set_row(s: &mut NQueensSolution, idx: usize, variable_index: usize, v: Option<i64>) {
+    set_queen_row(s, idx, variable_index, v)
 }
 
 #[cfg(test)]

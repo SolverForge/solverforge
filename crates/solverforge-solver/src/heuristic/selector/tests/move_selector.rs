@@ -47,12 +47,12 @@ fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
 }
 
 // Typed getter - zero erasure
-fn get_priority(s: &TaskSolution, idx: usize) -> Option<i32> {
+fn get_priority(s: &TaskSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(idx).and_then(|t| t.priority)
 }
 
 // Typed setter - zero erasure
-fn set_priority(s: &mut TaskSolution, idx: usize, v: Option<i32>) {
+fn set_priority(s: &mut TaskSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(task) = s.tasks.get_mut(idx) {
         task.priority = v;
     }
@@ -129,11 +129,20 @@ fn get_counted_tasks_mut(s: &mut CountedSolution) -> &mut Vec<CountedTask> {
     &mut s.tasks
 }
 
-fn get_counted_value(s: &CountedSolution, idx: usize) -> Option<CountedValue> {
+fn get_counted_value(
+    s: &CountedSolution,
+    idx: usize,
+    _variable_index: usize,
+) -> Option<CountedValue> {
     s.tasks.get(idx).and_then(|task| task.value.clone())
 }
 
-fn set_counted_value(s: &mut CountedSolution, idx: usize, v: Option<CountedValue>) {
+fn set_counted_value(
+    s: &mut CountedSolution,
+    idx: usize,
+    _variable_index: usize,
+    v: Option<CountedValue>,
+) {
     if let Some(task) = s.tasks.get_mut(idx) {
         task.value = v;
     }
@@ -180,8 +189,14 @@ fn test_change_move_selector() {
     assert_eq!(solution.tasks[1].id, 1);
     assert_eq!(solution.tasks[2].id, 2);
 
-    let selector =
-        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20, 30]);
+    let selector = ChangeMoveSelector::simple(
+        get_priority,
+        set_priority,
+        0,
+        0,
+        "priority",
+        vec![10, 20, 30],
+    );
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -209,7 +224,7 @@ fn change_selector_emits_single_to_none_move_for_assigned_entities_when_enabled(
     ]);
 
     let selector =
-        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20])
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, 0, "priority", vec![10, 20])
             .with_allows_unassigned(true);
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
@@ -242,7 +257,7 @@ fn change_selector_does_not_emit_to_none_without_unassigned_support() {
     }]);
 
     let selector =
-        ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![10, 20]);
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, 0, "priority", vec![10, 20]);
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -260,8 +275,14 @@ fn change_selector_materializes_values_when_cursor_opens() {
             cloned: Arc::clone(&cloned),
         })
         .collect();
-    let selector =
-        ChangeMoveSelector::simple(get_counted_value, set_counted_value, 0, "counted", values);
+    let selector = ChangeMoveSelector::simple(
+        get_counted_value,
+        set_counted_value,
+        0,
+        0,
+        "counted",
+        values,
+    );
 
     let mut cursor = selector.open_cursor(&director);
 
@@ -305,7 +326,7 @@ fn test_swap_move_selector() {
         },
     ]);
 
-    let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, "priority");
+    let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, 0, "priority");
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
@@ -326,7 +347,8 @@ fn test_change_do_and_undo() {
         priority: Some(1),
     }]);
 
-    let selector = ChangeMoveSelector::simple(get_priority, set_priority, 0, "priority", vec![99]);
+    let selector =
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, 0, "priority", vec![99]);
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
@@ -339,7 +361,7 @@ fn test_change_do_and_undo() {
         m.do_move(&mut recording);
 
         // Verify change using typed getter - zero erasure
-        let val = get_priority(recording.working_solution(), 0);
+        let val = get_priority(recording.working_solution(), 0, 0);
         assert_eq!(val, Some(99));
 
         // Undo
@@ -347,7 +369,7 @@ fn test_change_do_and_undo() {
     }
 
     // Verify restored using typed getter
-    let val = get_priority(director.working_solution(), 0);
+    let val = get_priority(director.working_solution(), 0, 0);
     assert_eq!(val, Some(1));
 }
 
@@ -364,7 +386,7 @@ fn test_swap_do_and_undo() {
         },
     ]);
 
-    let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, "priority");
+    let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, 0, "priority");
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
@@ -377,8 +399,8 @@ fn test_swap_do_and_undo() {
         m.do_move(&mut recording);
 
         // Verify swap using typed getter
-        let val0 = get_priority(recording.working_solution(), 0);
-        let val1 = get_priority(recording.working_solution(), 1);
+        let val0 = get_priority(recording.working_solution(), 0, 0);
+        let val1 = get_priority(recording.working_solution(), 1, 0);
         assert_eq!(val0, Some(20));
         assert_eq!(val1, Some(10));
 
@@ -387,8 +409,8 @@ fn test_swap_do_and_undo() {
     }
 
     // Verify restored using typed getter
-    let val0 = get_priority(director.working_solution(), 0);
-    let val1 = get_priority(director.working_solution(), 1);
+    let val0 = get_priority(director.working_solution(), 0, 0);
+    let val1 = get_priority(director.working_solution(), 1, 0);
     assert_eq!(val0, Some(10));
     assert_eq!(val1, Some(20));
 }

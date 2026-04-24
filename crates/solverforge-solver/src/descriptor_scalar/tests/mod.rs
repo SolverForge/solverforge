@@ -1,4 +1,5 @@
 use std::any::{Any, TypeId};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use solverforge_config::{
     CartesianProductConfig, ChangeMoveConfig, ConstructionHeuristicConfig,
@@ -8,7 +9,7 @@ use solverforge_config::{
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, ProblemFactDescriptor,
-    SolutionDescriptor, VariableDescriptor,
+    SolutionDescriptor, ValueRangeType, VariableDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::{Director, ScoreDirector};
@@ -359,6 +360,31 @@ fn restricted_allowed_workers(entity: &dyn Any) -> Vec<usize> {
         .clone()
 }
 
+static PANIC_ON_RESTRICTED_ALLOWED_WORKERS: AtomicBool = AtomicBool::new(false);
+
+struct RestrictedAllowedWorkersPanicGuard;
+
+impl RestrictedAllowedWorkersPanicGuard {
+    fn enable() -> Self {
+        PANIC_ON_RESTRICTED_ALLOWED_WORKERS.store(true, Ordering::SeqCst);
+        Self
+    }
+}
+
+impl Drop for RestrictedAllowedWorkersPanicGuard {
+    fn drop(&mut self) {
+        PANIC_ON_RESTRICTED_ALLOWED_WORKERS.store(false, Ordering::SeqCst);
+    }
+}
+
+fn restricted_allowed_workers_panic_after_index(entity: &dyn Any) -> Vec<usize> {
+    assert!(
+        !PANIC_ON_RESTRICTED_ALLOWED_WORKERS.load(Ordering::SeqCst),
+        "descriptor swap move rescanned entity value ranges after selector indexing"
+    );
+    restricted_allowed_workers(entity)
+}
+
 fn queue_descriptor(
     entity_order_key: Option<solverforge_core::domain::UsizeConstructionEntityOrderKey>,
     value_order_key: Option<solverforge_core::domain::UsizeConstructionValueOrderKey>,
@@ -426,6 +452,41 @@ fn descriptor_with_allows_unassigned(allows_unassigned: bool) -> SolutionDescrip
         )
 }
 
+fn descriptor_without_value_range() -> SolutionDescriptor {
+    SolutionDescriptor::new("Plan", TypeId::of::<Plan>()).with_entity(
+        EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
+            .with_extractor(Box::new(EntityCollectionExtractor::new(
+                "Task",
+                "tasks",
+                |s: &Plan| &s.tasks,
+                |s: &mut Plan| &mut s.tasks,
+            )))
+            .with_variable(
+                VariableDescriptor::genuine("worker_idx")
+                    .with_allows_unassigned(false)
+                    .with_usize_accessors(get_worker_idx, set_worker_idx),
+            ),
+    )
+}
+
+fn descriptor_with_empty_countable_range() -> SolutionDescriptor {
+    SolutionDescriptor::new("Plan", TypeId::of::<Plan>()).with_entity(
+        EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
+            .with_extractor(Box::new(EntityCollectionExtractor::new(
+                "Task",
+                "tasks",
+                |s: &Plan| &s.tasks,
+                |s: &mut Plan| &mut s.tasks,
+            )))
+            .with_variable(
+                VariableDescriptor::genuine("worker_idx")
+                    .with_allows_unassigned(false)
+                    .with_value_range_type(ValueRangeType::CountableRange { from: 0, to: 0 })
+                    .with_usize_accessors(get_worker_idx, set_worker_idx),
+            ),
+    )
+}
+
 fn descriptor() -> SolutionDescriptor {
     descriptor_with_allows_unassigned(true)
 }
@@ -490,7 +551,7 @@ fn descriptor_with_nearby_entity_meter() -> SolutionDescriptor {
         )
 }
 
-fn restricted_descriptor() -> SolutionDescriptor {
+fn restricted_descriptor_with_variable(variable: VariableDescriptor) -> SolutionDescriptor {
     SolutionDescriptor::new("RestrictedPlan", TypeId::of::<RestrictedPlan>())
         .with_entity(
             EntityDescriptor::new("Task", TypeId::of::<RestrictedTask>(), "tasks")
@@ -500,12 +561,7 @@ fn restricted_descriptor() -> SolutionDescriptor {
                     |s: &RestrictedPlan| &s.tasks,
                     |s: &mut RestrictedPlan| &mut s.tasks,
                 )))
-                .with_variable(
-                    VariableDescriptor::genuine("worker_idx")
-                        .with_allows_unassigned(true)
-                        .with_usize_accessors(restricted_get_worker_idx, restricted_set_worker_idx)
-                        .with_entity_value_provider(restricted_allowed_workers),
-                ),
+                .with_variable(variable),
         )
         .with_problem_fact(
             ProblemFactDescriptor::new("Worker", TypeId::of::<Worker>(), "workers").with_extractor(
@@ -517,6 +573,30 @@ fn restricted_descriptor() -> SolutionDescriptor {
                 )),
             ),
         )
+}
+
+fn restricted_variable() -> VariableDescriptor {
+    VariableDescriptor::genuine("worker_idx")
+        .with_allows_unassigned(true)
+        .with_usize_accessors(restricted_get_worker_idx, restricted_set_worker_idx)
+        .with_entity_value_provider(restricted_allowed_workers)
+}
+
+fn restricted_panic_after_index_variable() -> VariableDescriptor {
+    VariableDescriptor::genuine("worker_idx")
+        .with_allows_unassigned(true)
+        .with_usize_accessors(restricted_get_worker_idx, restricted_set_worker_idx)
+        .with_entity_value_provider(restricted_allowed_workers_panic_after_index)
+}
+
+fn restricted_descriptor() -> SolutionDescriptor {
+    restricted_descriptor_with_variable(restricted_variable())
+}
+
+fn restricted_descriptor_with_nearby_entity_meter() -> SolutionDescriptor {
+    restricted_descriptor_with_variable(
+        restricted_variable().with_nearby_entity_distance_meter(nearby_worker_entity_distance),
+    )
 }
 
 #[test]
@@ -1069,6 +1149,185 @@ fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
         })
         .collect();
 
+    assert_eq!(swap_pairs, vec![vec![0, 2], vec![1, 2]]);
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_swap_move_uses_indexed_legality_after_generation() {
+    let descriptor = restricted_descriptor_with_variable(restricted_panic_after_index_variable());
+    let plan = RestrictedPlan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![
+            RestrictedTask {
+                worker_idx: Some(0),
+                allowed_workers: vec![0, 2],
+            },
+            RestrictedTask {
+                worker_idx: Some(1),
+                allowed_workers: vec![1, 2],
+            },
+            RestrictedTask {
+                worker_idx: Some(2),
+                allowed_workers: vec![0, 1, 2],
+            },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+    let selector =
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(moves.len(), 2);
+    let _panic_guard = RestrictedAllowedWorkersPanicGuard::enable();
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_swap_selector_prunes_illegal_entity_ranges() {
+    let descriptor = restricted_descriptor();
+    let plan = RestrictedPlan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![
+            RestrictedTask {
+                worker_idx: Some(0),
+                allowed_workers: vec![0, 2],
+            },
+            RestrictedTask {
+                worker_idx: Some(1),
+                allowed_workers: vec![1, 2],
+            },
+            RestrictedTask {
+                worker_idx: Some(2),
+                allowed_workers: vec![0, 1, 2],
+            },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector =
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let swap_pairs: Vec<_> = moves
+        .iter()
+        .map(|mov| {
+            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Swap(_)));
+            mov.entity_indices().to_vec()
+        })
+        .collect();
+
+    assert_eq!(selector.size(&director), 2);
+    assert_eq!(swap_pairs, vec![vec![0, 2], vec![1, 2]]);
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_swap_selector_emits_complete_assignment_swaps_without_domain() {
+    let descriptor = descriptor_without_value_range();
+    let plan = Plan {
+        workers: Vec::new(),
+        tasks: vec![
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(1),
+            },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(selector.size(&director), 1);
+    assert_eq!(moves.len(), 1);
+    assert!(matches!(
+        moves[0],
+        super::DescriptorScalarMoveUnion::Swap(_)
+    ));
+    assert_eq!(moves[0].entity_indices(), [0, 1]);
+    assert!(moves[0].is_doable(&director));
+}
+
+#[test]
+fn descriptor_swap_selector_rejects_explicit_empty_domain() {
+    let descriptor = descriptor_with_empty_countable_range();
+    let plan = Plan {
+        workers: Vec::new(),
+        tasks: vec![
+            Task {
+                worker_idx: Some(0),
+            },
+            Task {
+                worker_idx: Some(1),
+            },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(selector.size(&director), 0);
+    assert!(moves.is_empty());
+}
+
+#[test]
+fn descriptor_nearby_swap_prunes_illegal_entity_ranges_before_limiting() {
+    let descriptor = restricted_descriptor_with_nearby_entity_meter();
+    let plan = RestrictedPlan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![
+            RestrictedTask {
+                worker_idx: Some(0),
+                allowed_workers: vec![0, 2],
+            },
+            RestrictedTask {
+                worker_idx: Some(1),
+                allowed_workers: vec![1, 2],
+            },
+            RestrictedTask {
+                worker_idx: Some(2),
+                allowed_workers: vec![0, 1, 2],
+            },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::NearbySwapMoveSelector(NearbySwapMoveConfig {
+        max_nearby: 1,
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector =
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let swap_pairs: Vec<_> = moves
+        .iter()
+        .map(|mov| {
+            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Swap(_)));
+            mov.entity_indices().to_vec()
+        })
+        .collect();
+
+    assert_eq!(selector.size(&director), 2);
     assert_eq!(swap_pairs, vec![vec![0, 2], vec![1, 2]]);
     assert!(moves.iter().all(|mov| mov.is_doable(&director)));
 }

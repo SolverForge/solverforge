@@ -27,20 +27,20 @@ fn test_recording_register_undo() {
         let mut recording = RecordingDirector::new(&mut inner);
 
         // Capture old value using typed getter
-        let old_value = get_row(recording.working_solution(), 0);
+        let old_value = get_row(recording.working_solution(), 0, 0);
 
         // Apply change using typed setter
-        set_row(recording.working_solution_mut(), 0, Some(5));
+        set_row(recording.working_solution_mut(), 0, 0, Some(5));
 
         // Register typed undo closure
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-            set_row(s, 0, old_value);
+            set_row(s, 0, 0, old_value);
         }));
 
         assert_eq!(recording.change_count(), 1);
 
         // Verify change was applied
-        assert_eq!(get_row(recording.working_solution(), 0), Some(5));
+        assert_eq!(get_row(recording.working_solution(), 0, 0), Some(5));
 
         // Undo
         recording.undo_changes();
@@ -48,7 +48,7 @@ fn test_recording_register_undo() {
     }
 
     // Verify original value restored
-    assert_eq!(get_row(inner.working_solution(), 0), Some(0));
+    assert_eq!(get_row(inner.working_solution(), 0, 0), Some(0));
 }
 
 #[test]
@@ -64,10 +64,10 @@ fn test_recording_multiple_undo() {
 
         // Change multiple entities, registering typed undo for each
         for i in 0..3 {
-            let old = get_row(recording.working_solution(), i);
-            set_row(recording.working_solution_mut(), i, Some(10 + i as i64));
+            let old = get_row(recording.working_solution(), i, 0);
+            set_row(recording.working_solution_mut(), i, 0, Some(10 + i as i64));
             recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-                set_row(s, i, old);
+                set_row(s, i, 0, old);
             }));
         }
 
@@ -78,9 +78,9 @@ fn test_recording_multiple_undo() {
     }
 
     // Verify all restored
-    assert_eq!(get_row(inner.working_solution(), 0), Some(0));
-    assert_eq!(get_row(inner.working_solution(), 1), Some(1));
-    assert_eq!(get_row(inner.working_solution(), 2), Some(2));
+    assert_eq!(get_row(inner.working_solution(), 0, 0), Some(0));
+    assert_eq!(get_row(inner.working_solution(), 1, 0), Some(1));
+    assert_eq!(get_row(inner.working_solution(), 2, 0), Some(2));
 }
 
 #[test]
@@ -91,17 +91,17 @@ fn test_recording_undo_same_entity_twice() {
         let mut recording = RecordingDirector::new(&mut inner);
 
         // First change: 0 -> 5
-        let old1 = get_row(recording.working_solution(), 0);
-        set_row(recording.working_solution_mut(), 0, Some(5));
+        let old1 = get_row(recording.working_solution(), 0, 0);
+        set_row(recording.working_solution_mut(), 0, 0, Some(5));
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-            set_row(s, 0, old1);
+            set_row(s, 0, 0, old1);
         }));
 
         // Second change: 5 -> 10
-        let old2 = get_row(recording.working_solution(), 0);
-        set_row(recording.working_solution_mut(), 0, Some(10));
+        let old2 = get_row(recording.working_solution(), 0, 0);
+        set_row(recording.working_solution_mut(), 0, 0, Some(10));
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-            set_row(s, 0, old2);
+            set_row(s, 0, 0, old2);
         }));
 
         assert_eq!(recording.change_count(), 2);
@@ -110,7 +110,7 @@ fn test_recording_undo_same_entity_twice() {
         recording.undo_changes();
     }
 
-    assert_eq!(get_row(inner.working_solution(), 0), Some(0));
+    assert_eq!(get_row(inner.working_solution(), 0, 0), Some(0));
 }
 
 #[test]
@@ -137,10 +137,10 @@ fn test_recording_calculate_score() {
     assert_eq!(score1, SoftScore::of(0));
 
     // Change a queen row and verify score is still computable
-    let old = get_row(recording.working_solution(), 1);
-    set_row(recording.working_solution_mut(), 1, Some(3));
+    let old = get_row(recording.working_solution(), 1, 0);
+    set_row(recording.working_solution_mut(), 1, 0, Some(3));
     recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-        set_row(s, 1, old);
+        set_row(s, 1, 0, old);
     }));
 
     let score2 = recording.calculate_score();
@@ -160,10 +160,10 @@ fn test_recording_undo_none_to_some() {
         let mut recording = RecordingDirector::new(&mut inner);
 
         // Set from None to Some
-        let old = get_row(recording.working_solution(), 0);
-        set_row(recording.working_solution_mut(), 0, Some(5));
+        let old = get_row(recording.working_solution(), 0, 0);
+        set_row(recording.working_solution_mut(), 0, 0, Some(5));
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-            set_row(s, 0, old);
+            set_row(s, 0, 0, old);
         }));
 
         // Undo
@@ -171,7 +171,7 @@ fn test_recording_undo_none_to_some() {
     }
 
     // Should be None again
-    assert_eq!(get_row(inner.working_solution(), 0), None);
+    assert_eq!(get_row(inner.working_solution(), 0, 0), None);
 }
 
 #[test]
@@ -182,10 +182,10 @@ fn test_recording_undo_some_to_none() {
         let mut recording = RecordingDirector::new(&mut inner);
 
         // Set from Some to None
-        let old = get_row(recording.working_solution(), 0);
-        set_row(recording.working_solution_mut(), 0, None);
+        let old = get_row(recording.working_solution(), 0, 0);
+        set_row(recording.working_solution_mut(), 0, 0, None);
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
-            set_row(s, 0, old);
+            set_row(s, 0, 0, old);
         }));
 
         // Undo
@@ -193,7 +193,7 @@ fn test_recording_undo_some_to_none() {
     }
 
     // Should be Some(5) again
-    assert_eq!(get_row(inner.working_solution(), 0), Some(5));
+    assert_eq!(get_row(inner.working_solution(), 0, 0), Some(5));
 }
 
 #[test]

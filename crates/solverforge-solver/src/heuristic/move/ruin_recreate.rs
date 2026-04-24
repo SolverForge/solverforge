@@ -18,10 +18,12 @@ pub enum ScalarRecreateValueSource<S> {
         to: usize,
     },
     SolutionCount {
-        count_fn: fn(&S) -> usize,
+        count_fn: fn(&S, usize) -> usize,
+        provider_index: usize,
     },
     EntitySlice {
-        values_for_entity: for<'a> fn(&'a S, usize) -> &'a [usize],
+        values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize],
+        variable_index: usize,
     },
 }
 
@@ -40,8 +42,11 @@ impl<S> Debug for ScalarRecreateValueSource<S> {
             Self::CountableRange { from, to } => {
                 write!(f, "ScalarRecreateValueSource::CountableRange({from}..{to})")
             }
-            Self::SolutionCount { .. } => {
-                write!(f, "ScalarRecreateValueSource::SolutionCount(..)")
+            Self::SolutionCount { provider_index, .. } => {
+                write!(
+                    f,
+                    "ScalarRecreateValueSource::SolutionCount(provider={provider_index})"
+                )
             }
             Self::EntitySlice { .. } => write!(f, "ScalarRecreateValueSource::EntitySlice(..)"),
         }
@@ -53,10 +58,14 @@ impl<S> ScalarRecreateValueSource<S> {
         match self {
             Self::Empty => Vec::new(),
             Self::CountableRange { from, to } => (*from..*to).collect(),
-            Self::SolutionCount { count_fn } => (0..count_fn(solution)).collect(),
-            Self::EntitySlice { values_for_entity } => {
-                values_for_entity(solution, entity_index).to_vec()
-            }
+            Self::SolutionCount {
+                count_fn,
+                provider_index,
+            } => (0..count_fn(solution, *provider_index)).collect(),
+            Self::EntitySlice {
+                values_for_entity,
+                variable_index,
+            } => values_for_entity(solution, entity_index, *variable_index).to_vec(),
         }
     }
 
@@ -64,19 +73,24 @@ impl<S> ScalarRecreateValueSource<S> {
         match self {
             Self::Empty => false,
             Self::CountableRange { from, to } => from < to,
-            Self::SolutionCount { count_fn } => count_fn(solution) > 0,
-            Self::EntitySlice { values_for_entity } => {
-                !values_for_entity(solution, entity_index).is_empty()
-            }
+            Self::SolutionCount {
+                count_fn,
+                provider_index,
+            } => count_fn(solution, *provider_index) > 0,
+            Self::EntitySlice {
+                values_for_entity,
+                variable_index,
+            } => !values_for_entity(solution, entity_index, *variable_index).is_empty(),
         }
     }
 }
 
 pub struct RuinRecreateMove<S> {
     entity_indices: SmallVec<[usize; 8]>,
-    getter: fn(&S, usize) -> Option<usize>,
-    setter: fn(&mut S, usize, Option<usize>),
+    getter: fn(&S, usize, usize) -> Option<usize>,
+    setter: fn(&mut S, usize, usize, Option<usize>),
     descriptor_index: usize,
+    variable_index: usize,
     variable_name: &'static str,
     value_source: ScalarRecreateValueSource<S>,
     recreate_heuristic_type: RecreateHeuristicType,
@@ -90,6 +104,7 @@ impl<S> Clone for RuinRecreateMove<S> {
             getter: self.getter,
             setter: self.setter,
             descriptor_index: self.descriptor_index,
+            variable_index: self.variable_index,
             variable_name: self.variable_name,
             value_source: self.value_source,
             recreate_heuristic_type: self.recreate_heuristic_type,
@@ -103,6 +118,7 @@ impl<S> Debug for RuinRecreateMove<S> {
         f.debug_struct("RuinRecreateMove")
             .field("entity_indices", &self.entity_indices)
             .field("descriptor_index", &self.descriptor_index)
+            .field("variable_index", &self.variable_index)
             .field("variable_name", &self.variable_name)
             .field("recreate_heuristic_type", &self.recreate_heuristic_type)
             .field("allows_unassigned", &self.allows_unassigned)
@@ -117,9 +133,10 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_indices: &[usize],
-        getter: fn(&S, usize) -> Option<usize>,
-        setter: fn(&mut S, usize, Option<usize>),
+        getter: fn(&S, usize, usize) -> Option<usize>,
+        setter: fn(&mut S, usize, usize, Option<usize>),
         descriptor_index: usize,
+        variable_index: usize,
         variable_name: &'static str,
         value_source: ScalarRecreateValueSource<S>,
         recreate_heuristic_type: RecreateHeuristicType,
@@ -130,6 +147,7 @@ where
             getter,
             setter,
             descriptor_index,
+            variable_index,
             variable_name,
             value_source,
             recreate_heuristic_type,
@@ -144,7 +162,12 @@ where
         value: Option<usize>,
     ) {
         score_director.before_variable_changed(self.descriptor_index, entity_index);
-        (self.setter)(score_director.working_solution_mut(), entity_index, value);
+        (self.setter)(
+            score_director.working_solution_mut(),
+            entity_index,
+            self.variable_index,
+            value,
+        );
         score_director.after_variable_changed(self.descriptor_index, entity_index);
     }
 
@@ -185,6 +208,7 @@ where
                 Some(value),
                 self.getter,
                 self.setter,
+                self.variable_index,
                 self.variable_name,
                 self.descriptor_index,
             );
@@ -224,6 +248,7 @@ where
                 Some(value),
                 self.getter,
                 self.setter,
+                self.variable_index,
                 self.variable_name,
                 self.descriptor_index,
             );
@@ -252,7 +277,7 @@ where
     fn required_assignments_can_be_recreated(&self, solution: &S) -> bool {
         self.allows_unassigned
             || self.entity_indices.iter().all(|&entity_index| {
-                (self.getter)(solution, entity_index).is_none()
+                (self.getter)(solution, entity_index, self.variable_index).is_none()
                     || self
                         .value_source
                         .has_values_for_entity(solution, entity_index)
@@ -268,10 +293,9 @@ where
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         self.required_assignments_can_be_recreated(solution)
-            && self
-                .entity_indices
-                .iter()
-                .any(|&entity_index| (self.getter)(solution, entity_index).is_some())
+            && self.entity_indices.iter().any(|&entity_index| {
+                (self.getter)(solution, entity_index, self.variable_index).is_some()
+            })
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
@@ -285,7 +309,11 @@ where
             .map(|&entity_index| {
                 (
                     entity_index,
-                    (self.getter)(score_director.working_solution(), entity_index),
+                    (self.getter)(
+                        score_director.working_solution(),
+                        entity_index,
+                        self.variable_index,
+                    ),
                 )
             })
             .collect();
@@ -295,7 +323,13 @@ where
         }
 
         for &entity_index in &self.entity_indices {
-            if (self.getter)(score_director.working_solution(), entity_index).is_some() {
+            if (self.getter)(
+                score_director.working_solution(),
+                entity_index,
+                self.variable_index,
+            )
+            .is_some()
+            {
                 continue;
             }
 
@@ -314,9 +348,10 @@ where
         }
 
         let setter = self.setter;
+        let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |solution: &mut S| {
             for (entity_index, old_value) in old_values {
-                setter(solution, entity_index, old_value);
+                setter(solution, entity_index, variable_index, old_value);
             }
         }));
     }
@@ -361,7 +396,11 @@ where
         for &entity_index in &self.entity_indices {
             move_id.push(encode_usize(entity_index));
             undo_move_id.push(encode_usize(entity_index));
-            let current = (self.getter)(score_director.working_solution(), entity_index);
+            let current = (self.getter)(
+                score_director.working_solution(),
+                entity_index,
+                self.variable_index,
+            );
             move_id.push(encode_option_usize(current));
             undo_move_id.push(encode_option_usize(current));
         }

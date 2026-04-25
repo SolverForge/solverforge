@@ -135,7 +135,7 @@ fn empty_solution_yields_no_moves() {
 }
 
 #[test]
-fn empty_list_yields_no_moves_for_that_entity() {
+fn empty_lists_should_not_reduce_moves_per_step() {
     let director = create_director(vec![vec![], vec![1, 2, 3]]);
 
     let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
@@ -154,10 +154,17 @@ fn empty_list_yields_no_moves_for_that_entity() {
 
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
+    assert_eq!(
+        moves.len(),
+        10,
+        "empty routes should not consume moves_per_step attempts when non-empty routes exist"
+    );
+
     // Some moves may be None due to empty list selection
     // All returned moves should be valid
     for m in &moves {
-        assert!(m.ruin_count() >= 1);
+        assert_eq!(m.entity_index(), 1);
+        assert!((1..=2).contains(&m.ruin_count()));
     }
 }
 

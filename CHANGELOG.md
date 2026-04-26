@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.9.1](///compare/v0.9.0...v0.9.1) (2026-04-26)
+
+
+### Features
+
+* **console:** show score on local-search phase start 2b048ff
+
 ## [0.9.0](///compare/v0.8.13...v0.9.0) (2026-04-24)
 
 

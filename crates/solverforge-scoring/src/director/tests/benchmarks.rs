@@ -1,9 +1,15 @@
+use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::constraint::IncrementalBiConstraint;
 use crate::director::score_director::ScoreDirector;
+use crate::stream::collection_extract::ChangeSource;
+use crate::stream::joiner::equal_bi;
+use crate::stream::ConstraintFactory;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
+use std::hash::Hash;
+use std::hint::black_box;
 use std::time::Instant;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -234,4 +240,143 @@ fn bench_compare_approaches() {
             n, full_rate, incr_rate, speedup
         );
     }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct ExistsBenchKey(usize);
+
+#[derive(Clone, Debug)]
+struct ExistsBenchState<K> {
+    customers: Vec<K>,
+    routes: Vec<Vec<K>>,
+}
+
+fn exists_bench_customers<K>(state: &ExistsBenchState<K>) -> &[K] {
+    state.customers.as_slice()
+}
+
+fn exists_bench_routes<K>(state: &ExistsBenchState<K>) -> &[Vec<K>] {
+    state.routes.as_slice()
+}
+
+fn make_exists_bench_state<K, F>(
+    customer_count: usize,
+    route_count: usize,
+    route_len: usize,
+    make_key: F,
+) -> ExistsBenchState<K>
+where
+    K: Copy,
+    F: Fn(usize) -> K + Copy,
+{
+    let customers = (0..customer_count).map(make_key).collect();
+    let mut routes = Vec::with_capacity(route_count);
+    for route_idx in 0..route_count {
+        let mut route = Vec::with_capacity(route_len);
+        for offset in 0..route_len {
+            route.push(make_key((route_idx * route_len + offset) % customer_count));
+        }
+        routes.push(route);
+    }
+    ExistsBenchState { customers, routes }
+}
+
+fn rewrite_exists_bench_route<K, F>(
+    route: &mut Vec<K>,
+    move_idx: usize,
+    customer_count: usize,
+    make_key: F,
+) where
+    K: Copy,
+    F: Fn(usize) -> K + Copy,
+{
+    let base = (move_idx * 37) % customer_count;
+    for (offset, value) in route.iter_mut().enumerate() {
+        *value = make_key((base + offset * 17) % customer_count);
+    }
+}
+
+fn run_flattened_exists_storage_bench<K, F>(label: &str, make_key: F) -> (SoftScore, f64)
+where
+    K: Copy + Clone + Eq + Hash + Send + Sync + 'static,
+    F: Fn(usize) -> K + Copy,
+{
+    const CUSTOMER_COUNT: usize = 12_000;
+    const ROUTE_COUNT: usize = 96;
+    const ROUTE_LEN: usize = 96;
+    const MOVES: usize = 25_000;
+
+    let mut state = make_exists_bench_state(CUSTOMER_COUNT, ROUTE_COUNT, ROUTE_LEN, make_key);
+    let mut constraint = ConstraintFactory::<ExistsBenchState<K>, SoftScore>::new()
+        .for_each_tracked(
+            exists_bench_customers::<K> as fn(&ExistsBenchState<K>) -> &[K],
+            ChangeSource::Static,
+        )
+        .if_not_exists((
+            ConstraintFactory::<ExistsBenchState<K>, SoftScore>::new()
+                .for_each_tracked(
+                    exists_bench_routes::<K> as fn(&ExistsBenchState<K>) -> &[Vec<K>],
+                    ChangeSource::Descriptor(0),
+                )
+                .flattened(|route: &Vec<K>| route),
+            equal_bi(|customer: &K| *customer, |assigned: &K| *assigned),
+        ))
+        .penalize(SoftScore::of(1))
+        .named(label);
+
+    let mut total = constraint.initialize(&state);
+    assert_eq!(total, constraint.evaluate(&state));
+
+    let start = Instant::now();
+    for move_idx in 0..MOVES {
+        let route_idx = move_idx % ROUTE_COUNT;
+        total = total + constraint.on_retract(&state, route_idx, 0);
+        rewrite_exists_bench_route(
+            &mut state.routes[route_idx],
+            move_idx,
+            CUSTOMER_COUNT,
+            make_key,
+        );
+        total = total + constraint.on_insert(&state, route_idx, 0);
+
+        if move_idx % 5_000 == 0 {
+            assert_eq!(total, constraint.evaluate(&state));
+        }
+        black_box(total);
+    }
+    let elapsed = start.elapsed();
+
+    assert_eq!(total, constraint.evaluate(&state));
+    let moves_per_sec = MOVES as f64 / elapsed.as_secs_f64();
+    eprintln!(
+        "{label}: {MOVES} route rewrites in {:?} ({:.0} moves/sec), final score {}",
+        elapsed, moves_per_sec, total
+    );
+    (total, moves_per_sec)
+}
+
+#[test]
+#[ignore = "release-only storage comparison; run with --release -- --ignored --nocapture"]
+fn bench_exists_usize_storage() {
+    let (usize_score, usize_rate) =
+        run_flattened_exists_storage_bench("exists usize indexed", |idx| idx);
+    let (key_score, key_rate) =
+        run_flattened_exists_storage_bench("exists newtype hashed", ExistsBenchKey);
+
+    assert_eq!(usize_score, key_score);
+    eprintln!(
+        "exists storage comparison: usize indexed {:.0} moves/sec, newtype hashed {:.0} moves/sec",
+        usize_rate, key_rate
+    );
+}
+
+#[test]
+#[ignore = "release-only indexed-storage profile; run with perf in release mode"]
+fn bench_exists_indexed_usize_storage_only() {
+    let (score, moves_per_sec) =
+        run_flattened_exists_storage_bench("exists usize indexed only", |idx| idx);
+    eprintln!(
+        "exists indexed-only profile target: {:.0} moves/sec, final score {}",
+        moves_per_sec, score
+    );
 }

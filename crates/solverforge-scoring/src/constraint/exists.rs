@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::slice;
@@ -10,6 +9,12 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{ChangeSource, TrackedCollectionExtract};
 use crate::stream::filter::UniFilter;
 use crate::stream::{ExistenceMode, FlattenExtract};
+
+mod key_state;
+
+use key_state::ExistsKeyState;
+#[cfg(test)]
+pub(crate) use key_state::ExistsStorageKind;
 
 #[derive(Debug, Clone)]
 struct ASlot<K, Sc>
@@ -53,8 +58,7 @@ where
     a_source: ChangeSource,
     parent_source: ChangeSource,
     a_slots: Vec<ASlot<K, Sc>>,
-    a_indices_by_key: HashMap<K, Vec<usize>>,
-    b_key_counts: HashMap<K, usize>,
+    key_state: ExistsKeyState<K>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> P, fn() -> B)>,
 }
 
@@ -65,7 +69,7 @@ where
     A: Clone + 'static,
     P: Clone + 'static,
     B: Clone + 'static,
-    K: Eq + Hash + Clone,
+    K: Eq + Hash + Clone + 'static,
     EA: TrackedCollectionExtract<S, Item = A>,
     EP: TrackedCollectionExtract<S, Item = P>,
     KA: Fn(&A) -> K,
@@ -109,10 +113,14 @@ where
             a_source,
             parent_source,
             a_slots: Vec::new(),
-            a_indices_by_key: HashMap::new(),
-            b_key_counts: HashMap::new(),
+            key_state: ExistsKeyState::new(),
             _phantom: PhantomData,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn storage_kind(&self) -> ExistsStorageKind {
+        self.key_state.storage_kind()
     }
 
     #[inline]
@@ -126,7 +134,11 @@ where
 
     #[inline]
     fn matches_existence(&self, key: &K) -> bool {
-        let count = self.b_key_counts.get(key).copied().unwrap_or(0);
+        self.matches_count(self.key_state.b_count(key))
+    }
+
+    #[inline]
+    fn matches_count(&self, count: usize) -> bool {
         match self.mode {
             ExistenceMode::Exists => count > 0,
             ExistenceMode::NotExists => count == 0,
@@ -134,30 +146,21 @@ where
     }
 
     fn rebuild_b_counts(&mut self, solution: &S) {
-        self.b_key_counts.clear();
+        self.key_state.clear_b_counts();
         for parent in self.extractor_parent.extract(solution) {
             if !self.filter_parent.test(solution, parent) {
                 continue;
             }
             for item in self.flatten.extract(parent) {
-                *self.b_key_counts.entry((self.key_b)(item)).or_insert(0) += 1;
+                let key = (self.key_b)(item);
+                self.key_state.increment_b_count(&key, 1);
             }
         }
     }
 
     fn remove_a_from_bucket(&mut self, idx: usize, key: &K, bucket_pos: usize) {
-        let mut remove_key = false;
-        if let Some(bucket) = self.a_indices_by_key.get_mut(key) {
-            let removed = bucket.swap_remove(bucket_pos);
-            debug_assert_eq!(removed, idx);
-            if bucket_pos < bucket.len() {
-                let moved_idx = bucket[bucket_pos];
-                self.a_slots[moved_idx].bucket_pos = bucket_pos;
-            }
-            remove_key = bucket.is_empty();
-        }
-        if remove_key {
-            self.a_indices_by_key.remove(key);
+        if let Some(moved) = self.key_state.remove_a_index(key, idx, bucket_pos) {
+            self.a_slots[moved.idx].bucket_pos = moved.bucket_pos;
         }
     }
 
@@ -190,9 +193,7 @@ where
         }
 
         let key = (self.key_a)(a);
-        let bucket = self.a_indices_by_key.entry(key.clone()).or_default();
-        let bucket_pos = bucket.len();
-        bucket.push(idx);
+        let bucket_pos = self.key_state.insert_a_index(key.clone(), idx);
 
         let contribution = if self.matches_existence(&key) {
             self.compute_score(a)
@@ -209,7 +210,8 @@ where
     }
 
     fn reevaluate_key(&mut self, solution: &S, key: &K) -> Sc {
-        let Some(indices) = self.a_indices_by_key.get(key).cloned() else {
+        let indices = self.key_state.a_indices(key);
+        if indices.is_empty() {
             return Sc::zero();
         };
         let entities_a = self.extractor_a.extract(solution);
@@ -231,56 +233,52 @@ where
         total
     }
 
-    fn update_key_counts(
-        &mut self,
-        solution: &S,
-        key_multiset: &HashMap<K, usize>,
-        insert: bool,
-    ) -> Sc {
+    fn update_key_counts(&mut self, solution: &S, key_counts: &[(K, usize)], insert: bool) -> Sc {
         let mut total = Sc::zero();
 
-        for (key, count) in key_multiset {
+        for (key, count) in key_counts {
             if insert {
-                *self.b_key_counts.entry(key.clone()).or_insert(0) += *count;
+                self.key_state.increment_b_count(key, *count);
             } else {
-                let mut remove_key = false;
-                if let Some(entry) = self.b_key_counts.get_mut(key) {
-                    *entry = entry.saturating_sub(*count);
-                    remove_key = *entry == 0;
-                }
-                if remove_key {
-                    self.b_key_counts.remove(key);
-                }
+                self.key_state.decrement_b_count(key, *count);
             }
         }
 
-        for key in key_multiset.keys() {
+        for (key, _) in key_counts {
             total = total + self.reevaluate_key(solution, key);
         }
 
         total
     }
 
-    fn parent_key_multiset(&self, solution: &S, idx: usize) -> HashMap<K, usize> {
+    fn parent_key_counts(&self, solution: &S, idx: usize) -> Vec<(K, usize)> {
         let parents = self.extractor_parent.extract(solution);
         if idx >= parents.len() {
-            return HashMap::new();
+            return Vec::new();
         }
         let parent = &parents[idx];
         if !self.filter_parent.test(solution, parent) {
-            return HashMap::new();
+            return Vec::new();
         }
 
-        let mut multiset = HashMap::new();
+        let mut key_counts = Vec::<(K, usize)>::new();
         for item in self.flatten.extract(parent) {
-            *multiset.entry((self.key_b)(item)).or_insert(0) += 1;
+            let key = (self.key_b)(item);
+            if let Some((_, count)) = key_counts
+                .iter_mut()
+                .find(|(existing_key, _)| existing_key == &key)
+            {
+                *count += 1;
+            } else {
+                key_counts.push((key, 1));
+            }
         }
-        multiset
+        key_counts
     }
 
     fn initialize_a_state(&mut self, solution: &S) -> Sc {
         self.a_slots.clear();
-        self.a_indices_by_key.clear();
+        self.key_state.clear_a_buckets();
 
         let len = self.extractor_a.extract(solution).len();
         self.a_slots.resize(len, ASlot::default());
@@ -292,30 +290,32 @@ where
         total
     }
 
-    fn full_match_count(&self, solution: &S) -> usize {
-        let mut key_counts = HashMap::<K, usize>::new();
+    fn build_b_counts(&self, solution: &S) -> ExistsKeyState<K> {
+        let mut key_state = ExistsKeyState::new();
         for parent in self.extractor_parent.extract(solution) {
             if !self.filter_parent.test(solution, parent) {
                 continue;
             }
             for item in self.flatten.extract(parent) {
-                *key_counts.entry((self.key_b)(item)).or_insert(0) += 1;
+                let key = (self.key_b)(item);
+                key_state.increment_b_count(&key, 1);
             }
         }
+        key_state
+    }
+
+    fn full_match_count(&self, solution: &S) -> usize {
+        let key_state = self.build_b_counts(solution);
 
         self.extractor_a
             .extract(solution)
             .iter()
             .filter(|a| {
-                self.filter_a.test(solution, a)
-                    && match self.mode {
-                        ExistenceMode::Exists => {
-                            key_counts.get(&(self.key_a)(a)).copied().unwrap_or(0) > 0
-                        }
-                        ExistenceMode::NotExists => {
-                            key_counts.get(&(self.key_a)(a)).copied().unwrap_or(0) == 0
-                        }
-                    }
+                if !self.filter_a.test(solution, a) {
+                    return false;
+                }
+                let key = (self.key_a)(a);
+                self.matches_count(key_state.b_count(&key))
             })
             .count()
     }
@@ -328,7 +328,7 @@ where
     A: Clone + Send + Sync + 'static,
     P: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
-    K: Eq + Hash + Clone + Send + Sync,
+    K: Eq + Hash + Clone + Send + Sync + 'static,
     EA: TrackedCollectionExtract<S, Item = A> + Send + Sync,
     EP: TrackedCollectionExtract<S, Item = P> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
@@ -340,15 +340,7 @@ where
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let mut counts = HashMap::<K, usize>::new();
-        for parent in self.extractor_parent.extract(solution) {
-            if !self.filter_parent.test(solution, parent) {
-                continue;
-            }
-            for item in self.flatten.extract(parent) {
-                *counts.entry((self.key_b)(item)).or_insert(0) += 1;
-            }
-        }
+        let key_state = self.build_b_counts(solution);
 
         let mut total = Sc::zero();
         for a in self.extractor_a.extract(solution) {
@@ -356,11 +348,7 @@ where
                 continue;
             }
             let key = (self.key_a)(a);
-            let matches = match self.mode {
-                ExistenceMode::Exists => counts.get(&key).copied().unwrap_or(0) > 0,
-                ExistenceMode::NotExists => counts.get(&key).copied().unwrap_or(0) == 0,
-            };
-            if matches {
+            if self.matches_count(key_state.b_count(&key)) {
                 total = total + self.compute_score(a);
             }
         }
@@ -386,14 +374,14 @@ where
 
         let mut total = Sc::zero();
         if same_source {
-            let keys = self.parent_key_multiset(solution, entity_index);
+            let keys = self.parent_key_counts(solution, entity_index);
             total = total + self.update_key_counts(solution, &keys, true);
             total = total + self.insert_a(solution, entity_index);
             return total;
         }
 
         if parent_changed {
-            let keys = self.parent_key_multiset(solution, entity_index);
+            let keys = self.parent_key_counts(solution, entity_index);
             total = total + self.update_key_counts(solution, &keys, true);
         }
         if a_changed {
@@ -411,7 +399,7 @@ where
 
         let mut total = Sc::zero();
         if same_source {
-            let keys = self.parent_key_multiset(solution, entity_index);
+            let keys = self.parent_key_counts(solution, entity_index);
             total = total + self.retract_a(entity_index);
             total = total + self.update_key_counts(solution, &keys, false);
             return total;
@@ -421,7 +409,7 @@ where
             total = total + self.retract_a(entity_index);
         }
         if parent_changed {
-            let keys = self.parent_key_multiset(solution, entity_index);
+            let keys = self.parent_key_counts(solution, entity_index);
             total = total + self.update_key_counts(solution, &keys, false);
         }
         total
@@ -429,8 +417,8 @@ where
 
     fn reset(&mut self) {
         self.a_slots.clear();
-        self.a_indices_by_key.clear();
-        self.b_key_counts.clear();
+        self.key_state.clear_a_buckets();
+        self.key_state.clear_b_counts();
     }
 
     fn name(&self) -> &str {

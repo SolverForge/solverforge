@@ -3,6 +3,7 @@ mod bi_incr;
 mod complemented;
 mod cross_bi_incr;
 mod exists;
+mod exists_storage;
 mod flattened_bi;
 mod grouped;
 mod penta_incr;

@@ -41,6 +41,8 @@ src/
 │   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint<S,A,B,K,EA,EB,KA,KB,F,W,Sc>
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint<S,A,B,C,K,CK,EA,EB,KA,KB,Flatten,CKeyFn,ALookup,F,W,Sc>
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
+│   ├── exists/
+│   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -59,7 +61,8 @@ src/
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — ComplementedGroupConstraint tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
-│       └── exists.rs                               — IncrementalExistsConstraint tests
+│       ├── exists.rs                               — IncrementalExistsConstraint update tests
+│       └── exists_storage.rs                       — Existence storage selection and parity tests
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
@@ -330,7 +333,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening.
 
-**`IncrementalExistsConstraint<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>`** — Existence/non-existence check over a tracked direct or flattened collection source.
+**`IncrementalExistsConstraint<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>`** — Existence/non-existence check over a tracked direct or flattened collection source. The constraint owns one scoring algorithm and delegates only key bookkeeping to an internal `ExistsKeyState`: exact `usize` keys use indexed `Vec` storage, while all other key types use hashed storage.
 
 **`ExistenceMode`** — `enum { Exists, NotExists }`
 
@@ -402,7 +405,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `FlattenedBiConstraint`
 
-**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over tracked direct or flattened collection targets. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IncrementalExistsConstraint`
+**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over tracked direct or flattened collection targets. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IncrementalExistsConstraint`. There is no separate public indexed existence stream; storage selection is internal to `IncrementalExistsConstraint`.
 
 ### Extractor Types
 

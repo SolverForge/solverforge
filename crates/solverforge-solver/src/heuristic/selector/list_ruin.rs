@@ -224,16 +224,23 @@ where
         let max_ruin = self.max_ruin_count;
         let moves_count = self.moves_per_step;
 
+        let non_empty_entities: Vec<(usize, usize)> = (0..total_entities)
+            .filter_map(|entity_idx| {
+                let len = list_len(solution, entity_idx);
+                (len > 0).then_some((entity_idx, len))
+            })
+            .collect();
+
         // Pre-generate moves using RNG (empty if no entities)
         let mut rng = self.rng.borrow_mut();
-        let moves: Vec<ListRuinMove<S, V>> = if total_entities == 0 {
+        let moves: Vec<ListRuinMove<S, V>> = if non_empty_entities.is_empty() {
             Vec::new()
         } else {
             (0..moves_count)
                 .filter_map(|_| {
                     // Pick a random entity
-                    let entity_idx = rng.random_range(0..total_entities);
-                    let list_length = list_len(solution, entity_idx);
+                    let (entity_idx, list_length) =
+                        non_empty_entities[rng.random_range(0..non_empty_entities.len())];
 
                     if list_length == 0 {
                         return None;

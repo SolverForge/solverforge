@@ -114,6 +114,7 @@ where
             event = "phase_start",
             phase = "Local Search",
             phase_index = phase_index,
+            score = %last_step_score,
         );
 
         // Notify acceptor of phase start

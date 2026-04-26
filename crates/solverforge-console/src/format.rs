@@ -264,12 +264,18 @@ fn format_solve_end(v: &EventVisitor) -> String {
 
 fn format_phase_start(v: &EventVisitor) -> String {
     let phase = v.phase.as_deref().unwrap_or("Unknown");
+    let score = v
+        .score
+        .as_deref()
+        .map(|score| format!(" │ {}", format_score(score)))
+        .unwrap_or_default();
 
     format!(
-        "{} {} {} started",
+        "{} {} {} started{}",
         format_elapsed(),
         "▶".bright_blue(),
-        phase.white().bold()
+        phase.white().bold(),
+        score,
     )
 }
 

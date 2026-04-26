@@ -153,6 +153,22 @@ fn format_event_renders_solve_start_and_end_summaries() {
 }
 
 #[test]
+fn format_event_renders_phase_start_score_when_present() {
+    let event = EventVisitor {
+        event: Some("phase_start".to_string()),
+        phase: Some("Local Search".to_string()),
+        score: Some("-3hard/-9soft".to_string()),
+        ..EventVisitor::default()
+    };
+
+    let output = format_event(&event, Level::INFO);
+    assert!(output.contains("Local Search"));
+    assert!(output.contains("started"));
+    assert!(output.contains("-3hard"));
+    assert!(output.contains("-9soft"));
+}
+
+#[test]
 fn format_event_renders_phase_end_with_exact_duration_string() {
     let event = EventVisitor {
         event: Some("phase_end".to_string()),

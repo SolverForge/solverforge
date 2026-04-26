@@ -911,6 +911,11 @@ list solves log `element_count`, scalar solves log average
 `candidate_count`. Console formatting uses those fields to label startup scale
 as `elements` or `candidates`.
 
+`LocalSearchPhase` emits `phase_start` with the current score after calculating
+the starting local-search score, and emits `phase_end` with the best score. The
+console layer renders phase-start scores when present; construction and
+partitioned phase starts currently omit a score field.
+
 ### `run_solver()` / `run_solver_with_config()` — `run.rs`
 
 Canonical solve entrypoints used by macro-generated solving. They accept generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume. `ScoreDirector` now calls `PlanningSolution::update_all_shadows()` before initialization and `PlanningSolution::update_entity_shadows()` before reinsertion, so the canonical solver path stays fully monomorphized.

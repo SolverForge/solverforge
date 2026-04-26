@@ -346,10 +346,10 @@ models show average `candidates`.
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
   0.002s ◀ Construction Heuristic ended │ 1ms │ 14 steps │ 14,000/s │ 0hard/-50soft
-  0.002s ▶ Late Acceptance started
+  0.002s ▶ Local Search started │ 0hard/-50soft
   1.002s ⚡    12,456 steps │      445,000/s │ -2hard/8soft
   2.003s ⚡    24,891 steps │      448,000/s │ 0hard/12soft
- 30.001s ◀ Late Acceptance ended │ 30.00s │ 104,864 steps │ 456,000/s │ 0hard/15soft
+ 30.001s ◀ Local Search ended │ 30.00s │ 104,864 steps │ 456,000/s │ 0hard/15soft
  30.001s ■ Solving complete │ 0hard/15soft │ FEASIBLE
 
 ╔══════════════════════════════════════════════════════════╗

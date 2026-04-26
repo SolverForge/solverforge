@@ -17,13 +17,22 @@ Serde-based configuration system for loading solver settings from TOML or YAML f
 
 ```
 src/
-├── lib.rs    — All public types, enums, config structs, error type, SolverConfig impl
-├── tests.rs  — Unit tests for TOML/YAML parsing and builder API
+├── lib.rs           — Private module declarations and crate-root re-exports
+├── acceptor.rs      — AcceptorConfig and acceptor-specific config structs
+├── director.rs      — DirectorConfig
+├── error.rs         — ConfigError
+├── forager.rs       — ForagerConfig and AcceptedCountForagerConfig
+├── move_selector.rs — MoveSelectorConfig and selector-specific config structs
+├── phase.rs         — PhaseConfig plus construction/local-search/VND/exhaustive configs
+├── solver_config.rs — SolverConfig, SolverConfigOverride, environment/thread settings
+├── termination.rs   — TerminationConfig
+└── tests.rs         — Unit tests for TOML/YAML parsing and builder API
 ```
 
 ## Public Re-exports (lib.rs)
 
-Everything is defined directly in `lib.rs` — no submodules to re-export from. All structs and enums listed below are publicly available at crate root.
+Implementation is split by configuration family. The modules stay private, and
+`lib.rs` re-exports the public structs and enums listed below at crate root.
 
 ## Error Type
 

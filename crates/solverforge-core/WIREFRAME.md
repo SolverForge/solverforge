@@ -25,14 +25,14 @@ src/
 │   ├── traits.rs                          — Score trait, ParseableScore trait, ScoreParseError
 │   ├── macros.rs                          — Declarative macros: impl_score_ops!, impl_score_scale!, impl_score_parse!
 │   ├── level.rs                           — ScoreLevel enum (Hard, Medium, Soft)
-│   ├── simple.rs                          — SoftScore: single i64 level
+│   ├── soft.rs                            — SoftScore: single i64 level
 │   ├── hard_soft.rs                       — HardSoftScore: two i64 levels (hard, soft)
 │   ├── hard_medium_soft.rs                — HardMediumSoftScore: three i64 levels
 │   ├── hard_soft_decimal.rs               — HardSoftDecimalScore: two levels with x100000 scaling
 │   ├── bendable.rs                        — BendableScore<H, S>: const-generic multi-level score
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
-│       ├── simple_score.rs                — SoftScore tests
+│       ├── soft_score.rs                  — SoftScore tests
 │       ├── hard_soft_score.rs             — HardSoftScore tests
 │       ├── hard_medium_soft_score.rs      — HardMediumSoftScore tests
 │       ├── hard_soft_decimal_score.rs     — HardSoftDecimalScore tests

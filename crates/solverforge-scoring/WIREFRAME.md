@@ -48,6 +48,7 @@ src/
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
 │   │   ├── higher_arity.rs                         — Re-exports tri/quad/penta incremental constraint macros
 │   │   └── higher_arity/
+│   │       ├── shared.rs                           — Shared higher-arity detailed-match helpers
 │   │       ├── tri.rs                              — impl_incremental_tri_constraint! macro → IncrementalTriConstraint
 │   │       ├── quad.rs                             — impl_incremental_quad_constraint! macro → IncrementalQuadConstraint
 │   │       └── penta.rs                            — impl_incremental_penta_constraint! macro → IncrementalPentaConstraint
@@ -75,9 +76,9 @@ src/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── bench.rs                                — Benchmark test module declarations
 │       ├── benchmarks.rs                           — Performance comparison tests
-│       ├── typed.rs                                — ScoreDirector tests
+│       ├── score_director.rs                       — ScoreDirector tests
 │       ├── recording.rs                            — RecordingDirector tests
-│       ├── shadow.rs                               — Shadow-aware director tests
+│       └── shadow.rs                               — Shadow-aware director tests
 
 ├── stream/
 │   ├── mod.rs                                      — Module declarations and re-exports for all stream types
@@ -110,6 +111,7 @@ src/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
 │   │   ├── nary_stream.rs                          — Module declarations for arity stream macros
 │   │   └── nary_stream/
+│   │       ├── shared.rs                           — Shared arity stream macro helpers
 │   │       ├── bi.rs                               — impl_bi_arity_stream! macro
 │   │       ├── tri.rs                              — impl_tri_arity_stream! macro
 │   │       ├── quad.rs                             — impl_quad_arity_stream! macro

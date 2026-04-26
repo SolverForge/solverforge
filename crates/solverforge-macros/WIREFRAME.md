@@ -17,17 +17,21 @@ No solverforge crate dependencies. Generated code references `::solverforge::__i
 
 ```
 src/
+├── attr_parse.rs          — Shared attribute parsing helpers
 ├── entrypoints.rs          — Shared proc-macro wrapper logic used by the crate root
 ├── lib.rs                  — Crate root; required proc-macro entry points only
 ├── planning_model.rs       — `planning_model!` manifest parser, file reader, metadata validator, and model-support generator
 ├── planning_model/*.rs     — Manifest parsing, module loading, metadata validation, support generation, shadow generation, and tests split by responsibility
 ├── planning_entity.rs      — PlanningEntityImpl derive module root
-├── planning_entity/*.rs    — Entity derive expansion, list-variable helpers, and tests
+├── planning_entity/*.rs    — Entity derive expansion, scalar/list-variable helpers, and utilities
 ├── planning_entity/expand/*.rs — Entity derive expansion and validation helpers
+├── planning_entity_tests.rs — PlanningEntity derive tests
 ├── planning_solution.rs    — PlanningSolutionImpl derive module root
-├── planning_solution/*.rs  — Solution derive expansion, runtime/shadow helpers, list operations, and tests
+├── planning_solution/*.rs  — Solution derive expansion, config/shadow/runtime/list roots, stream extensions, and type helpers
 ├── planning_solution/list_operations/*.rs — Entity-collection list runtime helpers and public list-method generation
-├── planning_solution/runtime/*.rs — Runtime solve, scalar setup, phase support, and solvable/analyzable generation
+├── planning_solution/runtime/*.rs — Runtime module root, solve generation, scalar setup, and helper declarations
+├── planning_solution/runtime/helpers/*.rs — Runtime helper code split by candidate counts, phase support, and generated trait impls
+├── planning_solution_tests.rs — PlanningSolution derive tests
 └── problem_fact.rs         — ProblemFactImpl derive: ProblemFact, PlanningId, problem_fact_descriptor()
 ```
 

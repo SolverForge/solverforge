@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.9.0`
+**Workspace Release:** `0.9.1`
 
 ## Dependencies
 

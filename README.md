@@ -97,7 +97,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.9.0", features = ["console"] }
+solverforge = { version = "0.9.1", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -341,7 +341,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.9.0 - Zero-Erasure Constraint Solver
+                   v0.9.1 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -550,7 +550,12 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.9.0
+**Current Version**: 0.9.1
+
+### What's New in 0.9.1
+
+- **Existence scoring now indexes exact `usize` keys internally**: direct and flattened `if_exists` / `if_not_exists` constraints keep the same public stream API, while exact `usize` join keys use dense vector bookkeeping and all other key types retain hashed storage.
+- **Local-search phase starts include the current score in console output**: solver telemetry emits the score on `phase_start`, and `solverforge-console` renders it when present so phase transitions preserve score context.
 
 ### What's New in 0.9.0
 

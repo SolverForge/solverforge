@@ -1,6 +1,6 @@
 # Naming Charter
 
-SolverForge v0.9.0 uses `scalar` as the only canonical opposite of `list`.
+Since SolverForge v0.9.0, `scalar` is the only canonical opposite of `list`.
 
 ## Core rules
 

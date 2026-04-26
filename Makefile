@@ -1,4 +1,4 @@
-# SolverForge Makefile v0.9.0
+# SolverForge Makefile v0.9.1
 # Rust-only build system with colorized output
 
 # ============== Colors & Symbols ==============

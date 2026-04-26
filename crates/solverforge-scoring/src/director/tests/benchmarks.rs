@@ -282,7 +282,7 @@ where
 }
 
 fn rewrite_exists_bench_route<K, F>(
-    route: &mut Vec<K>,
+    route: &mut [K],
     move_idx: usize,
     customer_count: usize,
     make_key: F,

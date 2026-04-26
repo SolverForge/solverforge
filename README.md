@@ -7,7 +7,7 @@
 [![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)
 [![Documentation](https://docs.rs/solverforge/badge.svg)](https://docs.rs/solverforge)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Rust Version](https://img.shields.io/badge/rust-1.92%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.95%2B-orange.svg)](https://www.rust-lang.org)
 [![Downloads](https://img.shields.io/crates/d/solverforge.svg)](https://crates.io/crates/solverforge)
 
 </div>
@@ -723,7 +723,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Minimum Rust Version
 
-Rust 1.92 or later.
+Rust 1.95 or later.
 
 ## License
 

@@ -19,7 +19,7 @@ PROGRESS := →
 
 # ============== Project Metadata ==============
 VERSION := $(shell grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-RUST_VERSION := 1.92+
+RUST_VERSION := 1.95+
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \

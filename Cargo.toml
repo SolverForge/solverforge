@@ -17,7 +17,7 @@ version = "0.9.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/solverforge/solverforge-rs"
-rust-version = "1.92"
+rust-version = "1.95"
 
 [workspace.dependencies]
 # Internal crates (path-only; versions specified per-crate for publishing)
@@ -38,13 +38,13 @@ toml = "1.1.2"
 serde_yaml = "0.9.34"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-tokio = { version = "1.51.1", features = ["full"] }
+tokio = { version = "1.52.1", features = ["full"] }
 crossbeam = "0.8.4"
 num-traits = "0.2.19"
 rust_decimal = "1.41.0"
 rand = "0.10.1"
 rand_chacha = "0.10.0"
-rayon = "1.11.0"
+rayon = "1.12.0"
 smallvec = "1.15.1"
 owo-colors = "4.3.0"
 

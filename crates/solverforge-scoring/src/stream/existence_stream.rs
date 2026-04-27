@@ -5,7 +5,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::exists::{IncrementalExistsConstraint, SelfFlatten};
-use crate::stream::collection_extract::{FlattenExtract, TrackedCollectionExtract};
+use crate::stream::collection_extract::{CollectionExtract, FlattenExtract};
 use crate::stream::filter::UniFilter;
 use crate::stream::weighting_support::fixed_weight_is_hard;
 
@@ -45,8 +45,8 @@ where
     P: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync + 'static,
-    EA: TrackedCollectionExtract<S, Item = A>,
-    EP: TrackedCollectionExtract<S, Item = P>,
+    EA: CollectionExtract<S, Item = A>,
+    EP: CollectionExtract<S, Item = P>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     FA: UniFilter<S, A>,
@@ -340,8 +340,8 @@ where
     P: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync + 'static,
-    EA: TrackedCollectionExtract<S, Item = A>,
-    EP: TrackedCollectionExtract<S, Item = P>,
+    EA: CollectionExtract<S, Item = A>,
+    EP: CollectionExtract<S, Item = P>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     FA: UniFilter<S, A> + Send + Sync,

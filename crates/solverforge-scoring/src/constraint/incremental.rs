@@ -26,7 +26,7 @@ where
     filter: F,
     weight: W,
     is_hard: bool,
-    expected_descriptor: Option<usize>,
+    change_source: crate::stream::collection_extract::ChangeSource,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
@@ -48,6 +48,7 @@ where
         weight: W,
         is_hard: bool,
     ) -> Self {
+        let change_source = extractor.change_source();
         Self {
             constraint_ref,
             impact_type,
@@ -55,14 +56,9 @@ where
             filter,
             weight,
             is_hard,
-            expected_descriptor: None,
+            change_source,
             _phantom: PhantomData,
         }
-    }
-
-    pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
-        self.expected_descriptor = Some(descriptor_index);
-        self
     }
 
     #[inline]
@@ -122,10 +118,8 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        if let Some(expected) = self.expected_descriptor {
-            if descriptor_index != expected {
-                return Sc::zero();
-            }
+        if !self.change_source.reacts_to(descriptor_index) {
+            return Sc::zero();
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
@@ -140,10 +134,8 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        if let Some(expected) = self.expected_descriptor {
-            if descriptor_index != expected {
-                return Sc::zero();
-            }
+        if !self.change_source.reacts_to(descriptor_index) {
+            return Sc::zero();
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {

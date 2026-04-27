@@ -93,7 +93,7 @@ where
     collector: C,
     weight_fn: W,
     is_hard: bool,
-    expected_descriptor: Option<usize>,
+    change_source: crate::stream::collection_extract::ChangeSource,
     // Group key -> accumulator (scores computed on-the-fly, no cloning)
     groups: HashMap<K, C::Accumulator>,
     // Group key -> number of entities in the group (for empty-group detection)
@@ -143,6 +143,7 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
+        let change_source = extractor.change_source();
         Self {
             constraint_ref,
             impact_type,
@@ -152,18 +153,13 @@ where
             collector,
             weight_fn,
             is_hard,
-            expected_descriptor: None,
+            change_source,
             groups: HashMap::new(),
             group_counts: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
             _phantom: PhantomData,
         }
-    }
-
-    pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
-        self.expected_descriptor = Some(descriptor_index);
-        self
     }
 
     // Computes the score contribution for a group's result.
@@ -253,10 +249,8 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        if let Some(expected) = self.expected_descriptor {
-            if descriptor_index != expected {
-                return Sc::zero();
-            }
+        if !self.change_source.reacts_to(descriptor_index) {
+            return Sc::zero();
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
@@ -271,10 +265,8 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        if let Some(expected) = self.expected_descriptor {
-            if descriptor_index != expected {
-                return Sc::zero();
-            }
+        if !self.change_source.reacts_to(descriptor_index) {
+            return Sc::zero();
         }
         let entities = self.extractor.extract(solution);
         self.retract_entity(entities, entity_index)

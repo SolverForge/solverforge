@@ -87,7 +87,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
             filter: F,
             weight: W,
             is_hard: bool,
-            expected_descriptor: Option<usize>,
+            change_source: $crate::stream::collection_extract::ChangeSource,
             entity_to_matches:
                 HashMap<usize, HashSet<($(repeat_nary_constraint_tokens!($match_idx => usize)),+)>>,
             matches: HashSet<($(repeat_nary_constraint_tokens!($match_idx => usize)),+)>,
@@ -116,6 +116,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                 weight: W,
                 is_hard: bool,
             ) -> Self {
+                let change_source = extractor.change_source();
                 Self {
                     constraint_ref,
                     impact_type,
@@ -124,18 +125,13 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                     filter,
                     weight,
                     is_hard,
-                    expected_descriptor: None,
+                    change_source,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
                     index_to_key: HashMap::new(),
                     _phantom: PhantomData,
                 }
-            }
-
-            pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
-                self.expected_descriptor = Some(descriptor_index);
-                self
             }
 
             #[inline]
@@ -340,10 +336,8 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                 entity_index: usize,
                 descriptor_index: usize,
             ) -> Sc {
-                if let Some(expected) = self.expected_descriptor {
-                    if descriptor_index != expected {
-                        return Sc::zero();
-                    }
+                if !self.change_source.reacts_to(descriptor_index) {
+                    return Sc::zero();
                 }
                 let entities = $crate::stream::collection_extract::CollectionExtract::extract(
                     &self.extractor,
@@ -358,10 +352,8 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                 entity_index: usize,
                 descriptor_index: usize,
             ) -> Sc {
-                if let Some(expected) = self.expected_descriptor {
-                    if descriptor_index != expected {
-                        return Sc::zero();
-                    }
+                if !self.change_source.reacts_to(descriptor_index) {
+                    return Sc::zero();
                 }
                 let entities = $crate::stream::collection_extract::CollectionExtract::extract(
                     &self.extractor,

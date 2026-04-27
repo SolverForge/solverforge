@@ -56,7 +56,6 @@ where
             impact_type,
             weight_fn,
             is_hard,
-            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }

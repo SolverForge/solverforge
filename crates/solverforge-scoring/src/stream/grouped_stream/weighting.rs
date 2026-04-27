@@ -21,7 +21,6 @@ where
     pub(super) impact_type: ImpactType,
     pub(super) weight_fn: W,
     pub(super) is_hard: bool,
-    pub(super) expected_descriptor: Option<usize>,
     pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
@@ -41,7 +40,7 @@ where
 {
     /* Finalizes the builder into a zero-erasure `GroupedUniConstraint`. */
     pub fn named(self, name: &str) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
-        let mut constraint = GroupedUniConstraint::new(
+        GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor,
@@ -50,16 +49,7 @@ where
             self.collector,
             self.weight_fn,
             self.is_hard,
-        );
-        if let Some(d) = self.expected_descriptor {
-            constraint = constraint.with_descriptor(d);
-        }
-        constraint
-    }
-
-    pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
-        self.expected_descriptor = Some(descriptor_index);
-        self
+        )
     }
 }
 

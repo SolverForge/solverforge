@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
-use super::collection_extract::{FlattenExtract, TrackedCollectionExtract};
+use super::collection_extract::{CollectionExtract, FlattenExtract};
 use super::existence_stream::{DirectExistenceStream, ExistenceMode, ExistsConstraintStream};
 use super::filter::UniFilter;
 use super::joiner::EqualJoiner;
@@ -21,7 +21,7 @@ where
 
 pub trait ExistenceTarget<S, A, EA, FA, Sc: Score>
 where
-    EA: TrackedCollectionExtract<S, Item = A>,
+    EA: CollectionExtract<S, Item = A>,
     FA: UniFilter<S, A>,
 {
     type Output;
@@ -38,9 +38,9 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
-    EA: TrackedCollectionExtract<S, Item = A>,
+    EA: CollectionExtract<S, Item = A>,
     FA: UniFilter<S, A>,
-    EP: TrackedCollectionExtract<S, Item = B>,
+    EP: CollectionExtract<S, Item = B>,
     FP: UniFilter<S, B>,
     K: Eq + Hash + Clone + Send + Sync + 'static,
     KA: Fn(&A) -> K + Send + Sync,
@@ -75,9 +75,9 @@ where
     A: Clone + Send + Sync + 'static,
     P: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
-    EA: TrackedCollectionExtract<S, Item = A>,
+    EA: CollectionExtract<S, Item = A>,
     FA: UniFilter<S, A>,
-    EP: TrackedCollectionExtract<S, Item = P>,
+    EP: CollectionExtract<S, Item = P>,
     FP: UniFilter<S, P>,
     K: Eq + Hash + Clone + Send + Sync + 'static,
     KA: Fn(&A) -> K + Send + Sync,

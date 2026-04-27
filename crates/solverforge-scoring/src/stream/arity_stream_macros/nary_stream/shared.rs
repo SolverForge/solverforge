@@ -78,7 +78,6 @@ macro_rules! impl_nary_arity_stream_common {
                     impact_type,
                     weight,
                     is_hard,
-                    expected_descriptor: None,
                     _phantom: std::marker::PhantomData,
                 }
             }
@@ -296,7 +295,6 @@ macro_rules! impl_nary_arity_stream_common {
             pub(crate) impact_type: solverforge_core::ImpactType,
             pub(crate) weight: W,
             pub(crate) is_hard: bool,
-            pub(crate) expected_descriptor: Option<usize>,
             pub(crate) _phantom:
                 std::marker::PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
         }
@@ -312,11 +310,6 @@ macro_rules! impl_nary_arity_stream_common {
             W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
-            pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
-                self.expected_descriptor = Some(descriptor_index);
-                self
-            }
-
             pub fn named(
                 self,
                 name: &str,
@@ -352,7 +345,7 @@ macro_rules! impl_nary_arity_stream_common {
                     user_weight($(&entities[$weight_idx]),+)
                 };
 
-                let mut constraint = $constraint::new(
+                $constraint::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type,
                     self.extractor,
@@ -360,11 +353,7 @@ macro_rules! impl_nary_arity_stream_common {
                     combined_filter,
                     adapted_weight,
                     self.is_hard,
-                );
-                if let Some(d) = self.expected_descriptor {
-                    constraint = constraint.with_descriptor(d);
-                }
-                constraint
+                )
             }
         }
 

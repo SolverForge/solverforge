@@ -1,7 +1,7 @@
 use solverforge_core::score::SoftScore;
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::collection_extract::ChangeSource;
+use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 
@@ -33,14 +33,17 @@ fn workers(schedule: &TaskSchedule) -> &[Worker] {
 #[test]
 fn test_exists_updates_all_matching_a_entities_when_b_descriptor_changes() {
     let mut constraint = ConstraintFactory::<TaskSchedule, SoftScore>::new()
-        .for_each_tracked(tasks as fn(&TaskSchedule) -> &[Task], ChangeSource::Static)
+        .for_each(source(
+            tasks as fn(&TaskSchedule) -> &[Task],
+            ChangeSource::Static,
+        ))
         .filter(|task: &Task| task.assignee.is_some())
         .if_exists((
             ConstraintFactory::<TaskSchedule, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     workers as fn(&TaskSchedule) -> &[Worker],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .filter(|worker: &Worker| !worker.available),
             equal_bi(
                 |task: &Task| task.assignee,
@@ -96,16 +99,16 @@ fn routes(state: &CustomerState) -> &[Vec<usize>] {
 #[test]
 fn test_flattened_not_exists_updates_all_matching_a_entities_when_route_changes() {
     let mut constraint = ConstraintFactory::<CustomerState, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             customers as fn(&CustomerState) -> &[usize],
             ChangeSource::Static,
-        )
+        ))
         .if_not_exists((
             ConstraintFactory::<CustomerState, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     routes as fn(&CustomerState) -> &[Vec<usize>],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .flattened(|route: &Vec<usize>| route),
             equal_bi(|customer: &usize| *customer, |assigned: &usize| *assigned),
         ))
@@ -146,16 +149,16 @@ fn tagged_items(state: &TaggedItems) -> &[TaggedItem] {
 #[test]
 fn test_exists_same_source_updates_consistently() {
     let mut constraint = ConstraintFactory::<TaggedItems, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             tagged_items as fn(&TaggedItems) -> &[TaggedItem],
             ChangeSource::Descriptor(0),
-        )
+        ))
         .if_exists((
             ConstraintFactory::<TaggedItems, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     tagged_items as fn(&TaggedItems) -> &[TaggedItem],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .filter(|item: &TaggedItem| item.enabled),
             equal_bi(|item: &TaggedItem| item.key, |item: &TaggedItem| item.key),
         ))

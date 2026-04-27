@@ -32,16 +32,29 @@ pub trait CollectionExtract<S>: Send + Sync {
 
     // Extracts the entity slice from the solution.
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item];
+
+    // Identifies the solution source for descriptor-scoped incremental updates.
+    fn change_source(&self) -> ChangeSource {
+        ChangeSource::Unknown
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeSource {
+    Unknown,
     Static,
     Descriptor(usize),
 }
 
-pub trait TrackedCollectionExtract<S>: CollectionExtract<S> {
-    fn change_source(&self) -> ChangeSource;
+impl ChangeSource {
+    #[inline]
+    pub fn reacts_to(self, descriptor_index: usize) -> bool {
+        match self {
+            Self::Unknown => true,
+            Self::Static => false,
+            Self::Descriptor(index) => index == descriptor_index,
+        }
+    }
 }
 
 pub trait FlattenExtract<P>: Send + Sync {
@@ -90,12 +103,12 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub struct TrackedExtract<E> {
+pub struct SourceExtract<E> {
     extractor: E,
     change_source: ChangeSource,
 }
 
-impl<E> TrackedExtract<E> {
+impl<E> SourceExtract<E> {
     pub fn new(extractor: E, change_source: ChangeSource) -> Self {
         Self {
             extractor,
@@ -108,7 +121,7 @@ impl<E> TrackedExtract<E> {
     }
 }
 
-impl<S, E> CollectionExtract<S> for TrackedExtract<E>
+impl<S, E> CollectionExtract<S> for SourceExtract<E>
 where
     E: CollectionExtract<S>,
 {
@@ -118,12 +131,7 @@ where
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item] {
         self.extractor.extract(s)
     }
-}
 
-impl<S, E> TrackedCollectionExtract<S> for TrackedExtract<E>
-where
-    E: CollectionExtract<S>,
-{
     fn change_source(&self) -> ChangeSource {
         self.change_source
     }
@@ -172,6 +180,6 @@ where
     VecExtract(f)
 }
 
-pub fn tracked<E>(extractor: E, change_source: ChangeSource) -> TrackedExtract<E> {
-    TrackedExtract::new(extractor, change_source)
+pub fn source<E>(extractor: E, change_source: ChangeSource) -> SourceExtract<E> {
+    SourceExtract::new(extractor, change_source)
 }

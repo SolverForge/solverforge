@@ -20,7 +20,7 @@ macro_rules! impl_incremental_bi_constraint {
             filter: F,
             weight: W,
             is_hard: bool,
-            expected_descriptor: Option<usize>,
+            change_source: $crate::stream::collection_extract::ChangeSource,
             entity_to_matches: HashMap<usize, HashSet<(usize, usize)>>,
             matches: HashSet<(usize, usize)>,
             key_to_indices: HashMap<K, HashSet<usize>>,
@@ -48,6 +48,7 @@ macro_rules! impl_incremental_bi_constraint {
                 weight: W,
                 is_hard: bool,
             ) -> Self {
+                let change_source = extractor.change_source();
                 Self {
                     constraint_ref,
                     impact_type,
@@ -56,18 +57,13 @@ macro_rules! impl_incremental_bi_constraint {
                     filter,
                     weight,
                     is_hard,
-                    expected_descriptor: None,
+                    change_source,
                     entity_to_matches: HashMap::new(),
                     matches: HashSet::new(),
                     key_to_indices: HashMap::new(),
                     index_to_key: HashMap::new(),
                     _phantom: PhantomData,
                 }
-            }
-
-            pub fn with_descriptor(mut self, descriptor_index: usize) -> Self {
-                self.expected_descriptor = Some(descriptor_index);
-                self
             }
 
             #[inline]
@@ -250,10 +246,8 @@ macro_rules! impl_incremental_bi_constraint {
                 entity_index: usize,
                 descriptor_index: usize,
             ) -> Sc {
-                if let Some(expected) = self.expected_descriptor {
-                    if descriptor_index != expected {
-                        return Sc::zero();
-                    }
+                if !self.change_source.reacts_to(descriptor_index) {
+                    return Sc::zero();
                 }
                 let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.insert_entity(solution, entities, entity_index)
@@ -265,10 +259,8 @@ macro_rules! impl_incremental_bi_constraint {
                 entity_index: usize,
                 descriptor_index: usize,
             ) -> Sc {
-                if let Some(expected) = self.expected_descriptor {
-                    if descriptor_index != expected {
-                        return Sc::zero();
-                    }
+                if !self.change_source.reacts_to(descriptor_index) {
+                    return Sc::zero();
                 }
                 let entities = $crate::stream::collection_extract::CollectionExtract::extract(&self.extractor, solution);
                 self.retract_entity(solution, entities, entity_index)

@@ -6,7 +6,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::collection_extract::{ChangeSource, TrackedCollectionExtract};
+use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::filter::UniFilter;
 use crate::stream::{ExistenceMode, FlattenExtract};
 
@@ -70,8 +70,8 @@ where
     P: Clone + 'static,
     B: Clone + 'static,
     K: Eq + Hash + Clone + 'static,
-    EA: TrackedCollectionExtract<S, Item = A>,
-    EP: TrackedCollectionExtract<S, Item = P>,
+    EA: CollectionExtract<S, Item = A>,
+    EP: CollectionExtract<S, Item = P>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
     FA: UniFilter<S, A>,
@@ -329,8 +329,8 @@ where
     P: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync + 'static,
-    EA: TrackedCollectionExtract<S, Item = A> + Send + Sync,
-    EP: TrackedCollectionExtract<S, Item = P> + Send + Sync,
+    EA: CollectionExtract<S, Item = A> + Send + Sync,
+    EP: CollectionExtract<S, Item = P> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     FA: UniFilter<S, A> + Send + Sync,
@@ -366,10 +366,8 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        let a_changed =
-            matches!(self.a_source, ChangeSource::Descriptor(idx) if idx == descriptor_index);
-        let parent_changed =
-            matches!(self.parent_source, ChangeSource::Descriptor(idx) if idx == descriptor_index);
+        let a_changed = self.a_source.reacts_to(descriptor_index);
+        let parent_changed = self.parent_source.reacts_to(descriptor_index);
         let same_source = self.a_source == self.parent_source && a_changed && parent_changed;
 
         let mut total = Sc::zero();
@@ -391,10 +389,8 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        let a_changed =
-            matches!(self.a_source, ChangeSource::Descriptor(idx) if idx == descriptor_index);
-        let parent_changed =
-            matches!(self.parent_source, ChangeSource::Descriptor(idx) if idx == descriptor_index);
+        let a_changed = self.a_source.reacts_to(descriptor_index);
+        let parent_changed = self.parent_source.reacts_to(descriptor_index);
         let same_source = self.a_source == self.parent_source && a_changed && parent_changed;
 
         let mut total = Sc::zero();

@@ -4,9 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 
 use super::super::balance_stream::BalanceConstraintStream;
-use super::super::collection_extract::{
-    CollectionExtract, FlattenVecExtract, TrackedCollectionExtract,
-};
+use super::super::collection_extract::{CollectionExtract, FlattenVecExtract};
 use super::super::collector::UniCollector;
 use super::super::existence_stream::ExistenceMode;
 use super::super::existence_target::ExistenceTarget;
@@ -69,7 +67,7 @@ where
         flatten: Flat,
     ) -> FlattenedCollectionTarget<S, A, B, E, F, FlattenVecExtract<Flat>, Sc>
     where
-        E: TrackedCollectionExtract<S, Item = A>,
+        E: CollectionExtract<S, Item = A>,
         B: Clone + Send + Sync + 'static,
         Flat: for<'a> Fn(&'a A) -> &'a Vec<B> + Send + Sync,
     {
@@ -142,7 +140,7 @@ impl<S, A, E, F, Sc> UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
-    E: TrackedCollectionExtract<S, Item = A>,
+    E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {

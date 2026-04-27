@@ -2,7 +2,7 @@ use solverforge_core::score::SoftScore;
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::exists::ExistsStorageKind;
-use crate::stream::collection_extract::ChangeSource;
+use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 
@@ -54,15 +54,15 @@ fn key_values(state: &KeyValues) -> &[Key] {
 #[test]
 fn test_exists_storage_selects_indexed_only_for_exact_usize_keys() {
     let usize_constraint = ConstraintFactory::<CustomerState, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             customers as fn(&CustomerState) -> &[usize],
             ChangeSource::Static,
-        )
+        ))
         .if_exists((
-            ConstraintFactory::<CustomerState, SoftScore>::new().for_each_tracked(
+            ConstraintFactory::<CustomerState, SoftScore>::new().for_each(source(
                 customers as fn(&CustomerState) -> &[usize],
                 ChangeSource::Static,
-            ),
+            )),
             equal_bi(|left: &usize| *left, |right: &usize| *right),
         ))
         .penalize(SoftScore::of(1))
@@ -73,12 +73,15 @@ fn test_exists_storage_selects_indexed_only_for_exact_usize_keys() {
     );
 
     let option_constraint = ConstraintFactory::<TaskSchedule, SoftScore>::new()
-        .for_each_tracked(tasks as fn(&TaskSchedule) -> &[Task], ChangeSource::Static)
+        .for_each(source(
+            tasks as fn(&TaskSchedule) -> &[Task],
+            ChangeSource::Static,
+        ))
         .if_exists((
-            ConstraintFactory::<TaskSchedule, SoftScore>::new().for_each_tracked(
+            ConstraintFactory::<TaskSchedule, SoftScore>::new().for_each(source(
                 workers as fn(&TaskSchedule) -> &[Worker],
                 ChangeSource::Static,
-            ),
+            )),
             equal_bi(
                 |task: &Task| task.assignee,
                 |worker: &Worker| Some(worker.id),
@@ -89,10 +92,15 @@ fn test_exists_storage_selects_indexed_only_for_exact_usize_keys() {
     assert_eq!(option_constraint.storage_kind(), ExistsStorageKind::Hashed);
 
     let newtype_constraint = ConstraintFactory::<KeyValues, SoftScore>::new()
-        .for_each_tracked(key_values as fn(&KeyValues) -> &[Key], ChangeSource::Static)
+        .for_each(source(
+            key_values as fn(&KeyValues) -> &[Key],
+            ChangeSource::Static,
+        ))
         .if_exists((
-            ConstraintFactory::<KeyValues, SoftScore>::new()
-                .for_each_tracked(key_values as fn(&KeyValues) -> &[Key], ChangeSource::Static),
+            ConstraintFactory::<KeyValues, SoftScore>::new().for_each(source(
+                key_values as fn(&KeyValues) -> &[Key],
+                ChangeSource::Static,
+            )),
             equal_bi(|left: &Key| *left, |right: &Key| *right),
         ))
         .penalize(SoftScore::of(1))
@@ -127,16 +135,16 @@ fn direct_assignments<K>(state: &DirectState<K>) -> &[DirectAssignment<K>] {
 #[test]
 fn test_direct_if_exists_indexed_and_hashed_newtype_parity() {
     let mut usize_constraint = ConstraintFactory::<DirectState<usize>, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             direct_tasks::<usize> as fn(&DirectState<usize>) -> &[DirectTask<usize>],
             ChangeSource::Static,
-        )
+        ))
         .if_exists((
-            ConstraintFactory::<DirectState<usize>, SoftScore>::new().for_each_tracked(
+            ConstraintFactory::<DirectState<usize>, SoftScore>::new().for_each(source(
                 direct_assignments::<usize>
                     as fn(&DirectState<usize>) -> &[DirectAssignment<usize>],
                 ChangeSource::Descriptor(0),
-            ),
+            )),
             equal_bi(
                 |task: &DirectTask<usize>| task.key,
                 |assignment: &DirectAssignment<usize>| assignment.key,
@@ -145,15 +153,15 @@ fn test_direct_if_exists_indexed_and_hashed_newtype_parity() {
         .penalize(SoftScore::of(1))
         .named("direct usize exists");
     let mut key_constraint = ConstraintFactory::<DirectState<Key>, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             direct_tasks::<Key> as fn(&DirectState<Key>) -> &[DirectTask<Key>],
             ChangeSource::Static,
-        )
+        ))
         .if_exists((
-            ConstraintFactory::<DirectState<Key>, SoftScore>::new().for_each_tracked(
+            ConstraintFactory::<DirectState<Key>, SoftScore>::new().for_each(source(
                 direct_assignments::<Key> as fn(&DirectState<Key>) -> &[DirectAssignment<Key>],
                 ChangeSource::Descriptor(0),
-            ),
+            )),
             equal_bi(
                 |task: &DirectTask<Key>| task.key,
                 |assignment: &DirectAssignment<Key>| assignment.key,
@@ -233,32 +241,32 @@ fn flattened_routes<K>(state: &FlattenedState<K>) -> &[Vec<K>] {
 #[test]
 fn test_flattened_if_not_exists_indexed_and_hashed_newtype_parity() {
     let mut usize_constraint = ConstraintFactory::<FlattenedState<usize>, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             flattened_customers::<usize> as fn(&FlattenedState<usize>) -> &[usize],
             ChangeSource::Static,
-        )
+        ))
         .if_not_exists((
             ConstraintFactory::<FlattenedState<usize>, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     flattened_routes::<usize> as fn(&FlattenedState<usize>) -> &[Vec<usize>],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .flattened(|route: &Vec<usize>| route),
             equal_bi(|customer: &usize| *customer, |assigned: &usize| *assigned),
         ))
         .penalize(SoftScore::of(1))
         .named("flattened usize missing assignment");
     let mut key_constraint = ConstraintFactory::<FlattenedState<Key>, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             flattened_customers::<Key> as fn(&FlattenedState<Key>) -> &[Key],
             ChangeSource::Static,
-        )
+        ))
         .if_not_exists((
             ConstraintFactory::<FlattenedState<Key>, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     flattened_routes::<Key> as fn(&FlattenedState<Key>) -> &[Vec<Key>],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .flattened(|route: &Vec<Key>| route),
             equal_bi(|customer: &Key| *customer, |assigned: &Key| *assigned),
         ))
@@ -319,16 +327,16 @@ fn test_flattened_if_not_exists_indexed_and_hashed_newtype_parity() {
 #[test]
 fn test_flattened_if_exists_uses_indexed_usize_storage() {
     let mut constraint = ConstraintFactory::<FlattenedState<usize>, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             flattened_customers::<usize> as fn(&FlattenedState<usize>) -> &[usize],
             ChangeSource::Static,
-        )
+        ))
         .if_exists((
             ConstraintFactory::<FlattenedState<usize>, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     flattened_routes::<usize> as fn(&FlattenedState<usize>) -> &[Vec<usize>],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .flattened(|route: &Vec<usize>| route),
             equal_bi(|customer: &usize| *customer, |assigned: &usize| *assigned),
         ))

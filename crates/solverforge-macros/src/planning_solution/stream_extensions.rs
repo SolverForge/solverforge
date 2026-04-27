@@ -38,7 +38,7 @@ pub(super) fn generate_constraint_stream_extensions(
             fn #field_name(self) -> ::solverforge::__internal::UniConstraintStream<
                 #solution_name,
                 #element_type,
-                ::solverforge::__internal::TrackedExtract<fn(&#solution_name) -> &[#element_type]>,
+                ::solverforge::__internal::SourceExtract<fn(&#solution_name) -> &[#element_type]>,
                 ::solverforge::__internal::TrueFilter,
                 Sc>;
         });
@@ -47,14 +47,14 @@ pub(super) fn generate_constraint_stream_extensions(
             fn #field_name(self) -> ::solverforge::__internal::UniConstraintStream<
                 #solution_name,
                 #element_type,
-                ::solverforge::__internal::TrackedExtract<fn(&#solution_name) -> &[#element_type]>,
+                ::solverforge::__internal::SourceExtract<fn(&#solution_name) -> &[#element_type]>,
                 ::solverforge::__internal::TrueFilter,
                 Sc>
             {
-                self.for_each_tracked(
+                self.for_each(::solverforge::__internal::source(
                     (|s: &#solution_name| s.#field_name.as_slice()) as fn(&#solution_name) -> &[#element_type],
                     ::solverforge::__internal::ChangeSource::Descriptor(#descriptor_index_lit),
-                )
+                ))
             }
         });
     }
@@ -73,7 +73,7 @@ pub(super) fn generate_constraint_stream_extensions(
             fn #field_name(self) -> ::solverforge::__internal::UniConstraintStream<
                 #solution_name,
                 #element_type,
-                ::solverforge::__internal::TrackedExtract<fn(&#solution_name) -> &[#element_type]>,
+                ::solverforge::__internal::SourceExtract<fn(&#solution_name) -> &[#element_type]>,
                 ::solverforge::__internal::TrueFilter,
                 Sc>;
         });
@@ -82,14 +82,14 @@ pub(super) fn generate_constraint_stream_extensions(
             fn #field_name(self) -> ::solverforge::__internal::UniConstraintStream<
                 #solution_name,
                 #element_type,
-                ::solverforge::__internal::TrackedExtract<fn(&#solution_name) -> &[#element_type]>,
+                ::solverforge::__internal::SourceExtract<fn(&#solution_name) -> &[#element_type]>,
                 ::solverforge::__internal::TrueFilter,
                 Sc>
             {
-                self.for_each_tracked(
+                self.for_each(::solverforge::__internal::source(
                     (|s: &#solution_name| s.#field_name.as_slice()) as fn(&#solution_name) -> &[#element_type],
                     ::solverforge::__internal::ChangeSource::Static,
-                )
+                ))
             }
         });
     }

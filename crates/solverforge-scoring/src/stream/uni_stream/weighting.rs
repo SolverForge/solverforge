@@ -33,7 +33,6 @@ where
             impact_type,
             weight,
             is_hard,
-            expected_descriptor: None,
             _phantom: PhantomData,
         }
     }
@@ -151,7 +150,6 @@ where
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
-    expected_descriptor: Option<usize>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
 }
 
@@ -164,12 +162,6 @@ where
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /* Restricts this constraint to only fire for the given descriptor index. */
-    pub fn for_descriptor(mut self, descriptor_index: usize) -> Self {
-        self.expected_descriptor = Some(descriptor_index);
-        self
-    }
-
     // Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.
     pub fn named(
         self,
@@ -178,18 +170,14 @@ where
         let filter = self.filter;
         let combined_filter = move |s: &S, a: &A| filter.test(s, a);
 
-        let mut constraint = IncrementalUniConstraint::new(
+        IncrementalUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor,
             combined_filter,
             self.weight,
             self.is_hard,
-        );
-        if let Some(d) = self.expected_descriptor {
-            constraint = constraint.with_descriptor(d);
-        }
-        constraint
+        )
     }
 }
 

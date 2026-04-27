@@ -2,7 +2,7 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::constraint::IncrementalBiConstraint;
 use crate::director::score_director::ScoreDirector;
-use crate::stream::collection_extract::ChangeSource;
+use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 use solverforge_core::domain::PlanningSolution;
@@ -308,16 +308,16 @@ where
 
     let mut state = make_exists_bench_state(CUSTOMER_COUNT, ROUTE_COUNT, ROUTE_LEN, make_key);
     let mut constraint = ConstraintFactory::<ExistsBenchState<K>, SoftScore>::new()
-        .for_each_tracked(
+        .for_each(source(
             exists_bench_customers::<K> as fn(&ExistsBenchState<K>) -> &[K],
             ChangeSource::Static,
-        )
+        ))
         .if_not_exists((
             ConstraintFactory::<ExistsBenchState<K>, SoftScore>::new()
-                .for_each_tracked(
+                .for_each(source(
                     exists_bench_routes::<K> as fn(&ExistsBenchState<K>) -> &[Vec<K>],
                     ChangeSource::Descriptor(0),
-                )
+                ))
                 .flattened(|route: &Vec<K>| route),
             equal_bi(|customer: &K| *customer, |assigned: &K| *assigned),
         ))

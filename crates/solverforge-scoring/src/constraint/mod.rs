@@ -23,6 +23,7 @@ pub mod exists;
 pub mod flattened_bi;
 pub mod grouped;
 pub mod incremental;
+pub mod projected;
 pub mod shared;
 
 #[cfg(test)]
@@ -39,3 +40,4 @@ pub use nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,
 };
+pub use projected::{ProjectedGroupedConstraint, ProjectedUniConstraint};

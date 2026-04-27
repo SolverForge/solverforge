@@ -104,7 +104,8 @@ src/
 │   ├── flattened_bi_stream/weighting.rs            — Weighting helpers for flattened streams
 │   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode, FlattenExtract
 │   ├── existence_target.rs                         — ExistenceTarget trait for direct and flattened existence targets
-│   ├── collection_extract.rs                       — CollectionExtract trait, tracked extractors, VecExtract wrapper, vec() constructor
+│   ├── projected_stream.rs                         — ProjectedConstraintStream, merge/filter/group/weighting for derived rows
+│   ├── collection_extract.rs                       — CollectionExtract trait, source-aware extractors, VecExtract wrapper, vec() constructor
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
@@ -335,7 +336,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening.
 
-**`IncrementalExistsConstraint<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>`** — Existence/non-existence check over a tracked direct or flattened collection source. The constraint owns one scoring algorithm and delegates only key bookkeeping to an internal `ExistsKeyState`: exact `usize` keys use indexed `Vec` storage, while all other key types use hashed storage.
+**`IncrementalExistsConstraint<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>`** — Existence/non-existence check over a source-aware direct or flattened collection source. The constraint owns one scoring algorithm and delegates only key bookkeeping to an internal `ExistsKeyState`: exact `usize` keys use indexed `Vec` storage, while all other key types use hashed storage.
 
 **`ExistenceMode`** — `enum { Exists, NotExists }`
 
@@ -371,14 +372,19 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ConstraintFactory<S, Sc: Score>`** — Entry point.
 - `new()`, `for_each()` → `UniConstraintStream`
-- `for_each_tracked()` → `UniConstraintStream` with descriptor-aware change source metadata
+- Generated domain accessors call the same `for_each()` with hidden descriptor/static source metadata.
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `flattened(flatten)` → `FlattenedCollectionTarget` (tracked streams only), `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
-**`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `for_descriptor()`, `named()` → `IncrementalUniConstraint`
+**`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
+
+**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from `project(...)`; rows are cached per source/entity and updated incrementally when the owning entity changes.
+- Operations: `filter()`, `merge(other)`, `group_by()`, `penalize_with()`, `penalize_hard_with()`
+
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
@@ -407,7 +413,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `FlattenedBiConstraint`
 
-**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over tracked direct or flattened collection targets. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IncrementalExistsConstraint`. There is no separate public indexed existence stream; storage selection is internal to `IncrementalExistsConstraint`.
+**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over source-aware direct or flattened collection targets. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IncrementalExistsConstraint`. There is no separate public indexed existence stream; storage selection is internal to `IncrementalExistsConstraint`.
 
 ### Extractor Types
 
@@ -426,9 +432,9 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
-**`ChangeSource`** — Enum describing incremental invalidation origin for tracked streams: `Static` or `Descriptor(idx)`.
+**`ChangeSource`** — Enum describing incremental invalidation origin for source-aware streams: `Unknown`, `Static`, or `Descriptor(idx)`.
 
-**`TrackedCollectionExtract<S>` / `TrackedExtract<E>` / `tracked(...)`** — Descriptor-aware collection extraction used by structured existence filtering. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact collections carry `ChangeSource::Static`.
+**`SourceExtract<E>` / `source(...)`** — Descriptor-aware collection extraction used by generated accessors and structured existence filtering. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact collections carry `ChangeSource::Static`. Raw `for_each` closure extractors use `ChangeSource::Unknown` and conservatively react to any descriptor update.
 
 **`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 

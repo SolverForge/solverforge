@@ -79,6 +79,7 @@ pub mod join_target;
 pub mod joiner;
 pub mod key_extract;
 mod penta_stream;
+mod projected_stream;
 mod quad_stream;
 mod tri_stream;
 mod uni_stream;
@@ -87,8 +88,7 @@ mod weighting_support;
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};
 pub use collection_extract::{
-    tracked, ChangeSource, CollectionExtract, FlattenExtract, TrackedCollectionExtract,
-    TrackedExtract, VecExtract,
+    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
 };
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
 pub use cross_bi_stream::{CrossBiConstraintBuilder, CrossBiConstraintStream};
@@ -100,6 +100,10 @@ pub use grouped_stream::{GroupedConstraintBuilder, GroupedConstraintStream};
 pub use join_target::JoinTarget;
 pub use key_extract::{EntityKeyAdapter, KeyExtract};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
+pub use projected_stream::{
+    ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
+    ProjectedGroupedConstraintStream, ProjectedSource,
+};
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};
 pub use uni_stream::{UniConstraintBuilder, UniConstraintStream};

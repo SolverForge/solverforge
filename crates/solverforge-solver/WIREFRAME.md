@@ -924,6 +924,7 @@ Canonical solve entrypoints used by macro-generated solving. They accept generat
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
 - **Typed runtime selectors.** `builder/selector.rs` consumes the typed `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
+- **Projected scoring rows are never planning entities.** Streams created with `.project(...)` are scoring-only internal cache rows owned by scoring constraints. They are not surfaced in `ModelContext`, value ranges, construction heuristics, or move selectors.
 - **Explicit descriptor-scalar boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_scalar/*`; canonical local search stays on typed `ModelContext`, while descriptor-scalar selectors are only for callers that intentionally choose that engine.
 - **Function pointer storage.** Moves and selectors store index-aware `fn` pointers (e.g., `fn(&S, usize, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.

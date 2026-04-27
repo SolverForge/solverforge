@@ -139,8 +139,7 @@ Re-exports the fluent constraint stream API:
 ```rust
 pub use solverforge_scoring::stream::collection_extract::vec;
 pub use solverforge_scoring::stream::collection_extract::{
-    tracked, ChangeSource, CollectionExtract, FlattenExtract, TrackedCollectionExtract,
-    TrackedExtract, VecExtract,
+    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
 };
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```
@@ -149,7 +148,9 @@ Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penal
 
 Extractor ergonomics: all `for_each` and join extractor params accept `CollectionExtract<S, Item = A>`. Use `|s| s.field.as_slice()` for slices, or `vec(|s| &s.field)` when the field is a `Vec<A>` and you prefer `&field` syntax.
 
-Tracked existence ergonomics: `ConstraintFactory::for_each_tracked()` and generated `{Name}ConstraintStreams` accessors produce tracked uni streams, exposing `ChangeSource` metadata for incremental `.if_exists(...)` / `.if_not_exists(...)`. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
+Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. Generated `{Name}ConstraintStreams` accessors call it with hidden `ChangeSource` metadata so incremental `.if_exists(...)` / `.if_not_exists(...)` can react only to the owning entity collection. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
+
+Projected scoring ergonomics: `factory.assignments().project(|assignment| assignment.derived_rows())` creates derived scoring rows without materializing facts or entities. Projected streams can be filtered, merged, grouped, and weighted like normal scoring state.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 
@@ -186,7 +187,7 @@ Used exclusively by macro-generated code. Not public API.
 - `tokio::sync::mpsc::UnboundedSender`
 
 **Stream types for macro-generated extension traits (from `solverforge-scoring`):**
-- `ChangeSource`, `CollectionExtract`, `TrackedExtract`
+- `ChangeSource`, `CollectionExtract`, `SourceExtract`
 - `UniConstraintStream`, `UniConstraintBuilder`
 - `TrueFilter`, `UniFilter`, `FnUniFilter`, `AndUniFilter`
 

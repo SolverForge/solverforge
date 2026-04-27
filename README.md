@@ -611,12 +611,13 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities
+- **Projected derived rows**: generated accessors support `.project(...)` for stock incremental derived scoring state — e.g., `factory.assignments().project(|a| a.capacity_entries())` can be merged, grouped, and penalized without materialized facts
 - **Convenience scoring**: `penalize_hard()`, `penalize_soft()`, `reward_hard()`, `reward_soft()` on all stream types
 - **Single `.join(target)`**: one join method dispatching on argument type — `equal(|a| key)` for self-join, `(extractor_b, equal_bi(ka, kb))` for keyed cross-join, `(other_stream, |a, b| pred)` for predicate join
 - **`.named("name")`**: sole finalization method on all builders (replaces `as_constraint`)
 - **Score trait**: `one_hard()`, `one_soft()`, `one_medium()` default methods
 - **Joiners**: `equal`, `equal_bi`, `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `overlapping`, `filtering`, with `.and()` composition
-- **Conditional existence**: `if_exists(...)`, `if_not_exists(...)` over tracked collection targets, including flattened collection existence for nested list membership
+- **Conditional existence**: `if_exists(...)`, `if_not_exists(...)` over generated/source-aware collection targets, including flattened collection existence for nested list membership
 
 ### What's New in 0.5.15
 

@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
-use super::collection_extract::{tracked, ChangeSource, CollectionExtract, TrackedExtract};
+use super::collection_extract::CollectionExtract;
 use super::filter::TrueFilter;
 use super::UniConstraintStream;
 
@@ -68,18 +68,6 @@ where
         E: CollectionExtract<S, Item = A>,
     {
         UniConstraintStream::new(extractor)
-    }
-
-    pub fn for_each_tracked<A, E>(
-        self,
-        extractor: E,
-        change_source: ChangeSource,
-    ) -> UniConstraintStream<S, A, TrackedExtract<E>, TrueFilter, Sc>
-    where
-        A: Clone + Send + Sync + 'static,
-        E: CollectionExtract<S, Item = A>,
-    {
-        UniConstraintStream::new(tracked(extractor, change_source))
     }
 }
 

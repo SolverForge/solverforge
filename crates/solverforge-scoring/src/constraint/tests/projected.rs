@@ -248,6 +248,55 @@ fn projected_rows_can_self_join_by_key() {
 }
 
 #[test]
+fn projected_self_join_reuses_row_slots_after_repeated_updates() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .join(equal(|entry: &Entry| entry.bucket))
+        .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
+        .penalize_with(|_left: &Entry, _right: &Entry| SoftScore::of(1))
+        .named("projected duplicate bucket");
+
+    let mut plan = Plan {
+        work: vec![
+            Work {
+                bucket: 0,
+                demand: 1,
+                enabled: true,
+            },
+            Work {
+                bucket: 0,
+                demand: 2,
+                enabled: true,
+            },
+            Work {
+                bucket: 1,
+                demand: 3,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    let initial_row_storage_len = constraint.debug_row_storage_len();
+    assert_eq!(initial_row_storage_len, 3);
+
+    for bucket in [0, 1, 2, 0, 3, 0] {
+        total = total + constraint.on_retract(&plan, 2, 0);
+        plan.work[2].bucket = bucket;
+        total = total + constraint.on_insert(&plan, 2, 0);
+
+        assert_eq!(total, constraint.evaluate(&plan));
+        assert_eq!(constraint.debug_row_storage_len(), initial_row_storage_len);
+        assert_eq!(constraint.debug_free_row_count(), 0);
+    }
+}
+
+#[test]
 fn projected_merged_descriptor_sources_update_only_owning_slot() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(

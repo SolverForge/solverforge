@@ -216,6 +216,7 @@ where
     weight: W,
     is_hard: bool,
     rows: Vec<Option<ProjectedJoinRow<Out, K>>>,
+    free_row_ids: Vec<usize>,
     rows_by_entity: HashMap<(usize, usize), Vec<usize>>,
     rows_by_key: HashMap<K, Vec<usize>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
@@ -254,6 +255,7 @@ where
             weight,
             is_hard,
             rows: Vec::new(),
+            free_row_ids: Vec::new(),
             rows_by_entity: HashMap::new(),
             rows_by_key: HashMap::new(),
             _phantom: PhantomData,
@@ -286,12 +288,20 @@ where
 
     fn insert_row(&mut self, solution: &S, source: (usize, usize), output: Out) -> Sc {
         let key = (self.key_fn)(&output);
-        let row_id = self.rows.len();
         let existing = self.rows_by_key.get(&key).cloned().unwrap_or_default();
-        self.rows.push(Some(ProjectedJoinRow {
+        let row = Some(ProjectedJoinRow {
             key: key.clone(),
             output,
-        }));
+        });
+        let row_id = if let Some(row_id) = self.free_row_ids.pop() {
+            debug_assert!(self.rows[row_id].is_none());
+            self.rows[row_id] = row;
+            row_id
+        } else {
+            let row_id = self.rows.len();
+            self.rows.push(row);
+            row_id
+        };
         self.rows_by_entity.entry(source).or_default().push(row_id);
 
         let mut total = Sc::zero();
@@ -333,6 +343,7 @@ where
             }
         }
         self.rows[row_id] = None;
+        self.free_row_ids.push(row_id);
         total
     }
 
@@ -371,6 +382,16 @@ where
             }
         }
         slots
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_row_storage_len(&self) -> usize {
+        self.rows.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_free_row_count(&self) -> usize {
+        self.free_row_ids.len()
     }
 }
 
@@ -446,9 +467,10 @@ where
             }
         });
 
-        rows.into_iter().fold(Sc::zero(), |total, (source, output)| {
-            total + self.insert_row(solution, source, output)
-        })
+        rows.into_iter()
+            .fold(Sc::zero(), |total, (source, output)| {
+                total + self.insert_row(solution, source, output)
+            })
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
@@ -469,6 +491,7 @@ where
 
     fn reset(&mut self) {
         self.rows.clear();
+        self.free_row_ids.clear();
         self.rows_by_entity.clear();
         self.rows_by_key.clear();
     }

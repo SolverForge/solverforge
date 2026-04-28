@@ -83,6 +83,21 @@ where
     let heuristic = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
+    let value_candidate_limit = config.and_then(|cfg| cfg.value_candidate_limit);
+    if heuristic == ConstructionHeuristicType::CheapestInsertion {
+        let unbounded = model.variables().iter().any(|variable| {
+            matches_target(variable, entity_class, variable_name)
+                && matches!(
+                    variable,
+                    VariableContext::Scalar(ctx)
+                        if ctx.candidate_values.is_none() && value_candidate_limit.is_none()
+                )
+        });
+        assert!(
+            !unbounded,
+            "cheapest_insertion scalar construction requires candidate_values or value_candidate_limit",
+        );
+    }
 
     let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "Construction Heuristic");
     let phase_index = phase_scope.phase_index();
@@ -105,10 +120,22 @@ where
 
         let progress = match heuristic {
             ConstructionHeuristicType::FirstFit => {
-                solve_first_fit_iteration(model, &mut phase_scope, entity_class, variable_name)
+                solve_first_fit_iteration(
+                    model,
+                    &mut phase_scope,
+                    entity_class,
+                    variable_name,
+                    value_candidate_limit,
+                )
             }
             ConstructionHeuristicType::CheapestInsertion => {
-                solve_best_fit_iteration(model, &mut phase_scope, entity_class, variable_name)
+                solve_best_fit_iteration(
+                    model,
+                    &mut phase_scope,
+                    entity_class,
+                    variable_name,
+                    value_candidate_limit,
+                )
             }
             other => panic!("unsupported generic construction heuristic {other:?}"),
         };
@@ -161,4 +188,3 @@ where
 
     ran_step
 }
-

@@ -76,6 +76,7 @@ fn filters_change_moves_against_entity_slice_candidates() {
     )];
 
     let config = MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+        value_candidate_limit: None,
         target: VariableTargetConfig {
             entity_class: Some("Shift".to_string()),
             variable_name: Some("worker".to_string()),

@@ -175,6 +175,7 @@ fn test_new_scalar_selector_variants_and_cartesian_roundtrip() {
         [[phases.move_selector.selectors]]
         type = "nearby_change_move_selector"
         max_nearby = 7
+        value_candidate_limit = 3
         entity_class = "Shift"
         variable_name = "employee_id"
 
@@ -234,6 +235,7 @@ fn test_new_scalar_selector_variants_and_cartesian_roundtrip() {
         panic!("first selector should be nearby_change");
     };
     assert_eq!(nearby_change.max_nearby, 7);
+    assert_eq!(nearby_change.value_candidate_limit, Some(3));
 
     let MoveSelectorConfig::NearbySwapMoveSelector(nearby_swap) = &union.selectors[1] else {
         panic!("second selector should be nearby_swap");

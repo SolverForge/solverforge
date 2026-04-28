@@ -109,6 +109,7 @@ pub struct DescriptorEntityPlacer<S> {
     solution_descriptor: SolutionDescriptor,
     entity_order: EntityOrder,
     value_order: ValueOrder,
+    value_candidate_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -118,6 +119,7 @@ impl<S> Debug for DescriptorEntityPlacer<S> {
             .field("bindings", &self.bindings)
             .field("entity_order", &self.entity_order)
             .field("value_order", &self.value_order)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .finish()
     }
 }
@@ -131,12 +133,14 @@ where
         solution_descriptor: SolutionDescriptor,
         entity_order: EntityOrder,
         value_order: ValueOrder,
+        value_candidate_limit: Option<usize>,
     ) -> Self {
         Self {
             bindings,
             solution_descriptor,
             entity_order,
             value_order,
+            value_candidate_limit,
             _phantom: PhantomData,
         }
     }
@@ -216,7 +220,12 @@ where
                 }
 
                 let mut values: Vec<_> = binding
-                    .values_for_entity(&self.solution_descriptor, solution, entity)
+                    .candidate_values_for_entity_index(
+                        &self.solution_descriptor,
+                        erased_solution,
+                        entity_index,
+                        self.value_candidate_limit,
+                    )
                     .into_iter()
                     .enumerate()
                     .collect();
@@ -345,11 +354,22 @@ where
     let construction_type = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
+    let value_candidate_limit = config.and_then(|cfg| cfg.value_candidate_limit);
+    if construction_type == ConstructionHeuristicType::CheapestInsertion {
+        let unbounded = bindings
+            .iter()
+            .any(|binding| binding.candidate_values.is_none() && value_candidate_limit.is_none());
+        assert!(
+            !unbounded,
+            "cheapest_insertion descriptor scalar construction requires candidate_values or value_candidate_limit",
+        );
+    }
     let placer = DescriptorEntityPlacer::new(
         bindings,
         descriptor.clone(),
         entity_order_for_heuristic(construction_type),
         value_order_for_heuristic(construction_type),
+        value_candidate_limit,
     );
 
     match construction_type {

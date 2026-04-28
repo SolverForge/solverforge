@@ -1,6 +1,7 @@
 fn solve_scalar_first_fit<S, V, D, ProgressCb>(
     variable_index: usize,
     ctx: ScalarVariableContext<S>,
+    value_candidate_limit: Option<usize>,
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
 ) -> IterationProgress<S, V>
 where
@@ -25,9 +26,10 @@ where
             continue;
         }
 
-        let values = ctx.values_for_entity(
+        let values = ctx.candidate_values_for_entity(
             phase_scope.score_director().working_solution(),
             entity_index,
+            value_candidate_limit,
         );
         if values.is_empty() {
             if ctx.allows_unassigned {
@@ -161,4 +163,3 @@ where
 
     IterationProgress::None
 }
-

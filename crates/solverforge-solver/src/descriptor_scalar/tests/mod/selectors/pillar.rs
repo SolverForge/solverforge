@@ -21,6 +21,7 @@ fn descriptor_pillar_change_uses_public_pillar_semantics() {
     let config = MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
+        value_candidate_limit: None,
         target: VariableTargetConfig::default(),
     });
 
@@ -59,6 +60,7 @@ fn descriptor_pillar_change_intersects_entity_domains() {
     let config = MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
+        value_candidate_limit: None,
         target: VariableTargetConfig::default(),
     });
 

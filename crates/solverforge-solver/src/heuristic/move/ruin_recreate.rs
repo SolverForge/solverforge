@@ -20,10 +20,17 @@ pub enum ScalarRecreateValueSource<S> {
     SolutionCount {
         count_fn: fn(&S, usize) -> usize,
         provider_index: usize,
+        value_candidate_limit: Option<usize>,
     },
     EntitySlice {
         values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize],
         variable_index: usize,
+        value_candidate_limit: Option<usize>,
+    },
+    CandidateSlice {
+        candidate_values: for<'a> fn(&'a S, usize, usize) -> &'a [usize],
+        variable_index: usize,
+        value_candidate_limit: Option<usize>,
     },
 }
 
@@ -49,6 +56,13 @@ impl<S> Debug for ScalarRecreateValueSource<S> {
                 )
             }
             Self::EntitySlice { .. } => write!(f, "ScalarRecreateValueSource::EntitySlice(..)"),
+            Self::CandidateSlice {
+                value_candidate_limit,
+                ..
+            } => f
+                .debug_struct("ScalarRecreateValueSource::CandidateSlice")
+                .field("value_candidate_limit", value_candidate_limit)
+                .finish(),
         }
     }
 }
@@ -61,11 +75,35 @@ impl<S> ScalarRecreateValueSource<S> {
             Self::SolutionCount {
                 count_fn,
                 provider_index,
-            } => (0..count_fn(solution, *provider_index)).collect(),
+                value_candidate_limit,
+            } => match value_candidate_limit {
+                Some(limit) => (0..count_fn(solution, *provider_index))
+                    .take(*limit)
+                    .collect(),
+                None => (0..count_fn(solution, *provider_index)).collect(),
+            },
             Self::EntitySlice {
                 values_for_entity,
                 variable_index,
-            } => values_for_entity(solution, entity_index, *variable_index).to_vec(),
+                value_candidate_limit,
+            } => {
+                let values = values_for_entity(solution, entity_index, *variable_index);
+                match value_candidate_limit {
+                    Some(limit) => values.iter().copied().take(*limit).collect(),
+                    None => values.to_vec(),
+                }
+            }
+            Self::CandidateSlice {
+                candidate_values,
+                variable_index,
+                value_candidate_limit,
+            } => {
+                let values = candidate_values(solution, entity_index, *variable_index);
+                match value_candidate_limit {
+                    Some(limit) => values.iter().copied().take(*limit).collect(),
+                    None => values.to_vec(),
+                }
+            }
         }
     }
 
@@ -76,11 +114,33 @@ impl<S> ScalarRecreateValueSource<S> {
             Self::SolutionCount {
                 count_fn,
                 provider_index,
-            } => count_fn(solution, *provider_index) > 0,
+                value_candidate_limit,
+            } => {
+                let count = count_fn(solution, *provider_index);
+                value_candidate_limit.map_or_else(|| count > 0, |limit| limit > 0 && count > 0)
+            }
             Self::EntitySlice {
                 values_for_entity,
                 variable_index,
-            } => !values_for_entity(solution, entity_index, *variable_index).is_empty(),
+                value_candidate_limit,
+            } => {
+                let values = values_for_entity(solution, entity_index, *variable_index);
+                value_candidate_limit.map_or_else(
+                    || !values.is_empty(),
+                    |limit| limit > 0 && !values.is_empty(),
+                )
+            }
+            Self::CandidateSlice {
+                candidate_values,
+                variable_index,
+                value_candidate_limit,
+            } => {
+                let values = candidate_values(solution, entity_index, *variable_index);
+                value_candidate_limit.map_or_else(
+                    || !values.is_empty(),
+                    |limit| limit > 0 && !values.is_empty(),
+                )
+            }
         }
     }
 }

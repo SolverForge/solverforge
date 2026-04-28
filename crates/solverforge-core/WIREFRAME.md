@@ -3,7 +3,7 @@
 Core types and traits for the SolverForge constraint solver framework.
 
 **Location:** `crates/solverforge-core/`
-**Workspace Release:** `0.9.1`
+**Workspace Release:** `0.9.2`
 
 ## Dependencies
 
@@ -478,6 +478,9 @@ pub struct VariableDescriptor {
     pub usize_getter: Option<UsizeGetter>,
     pub usize_setter: Option<UsizeSetter>,
     pub entity_value_provider: Option<UsizeEntityValueProvider>,
+    pub candidate_values: Option<UsizeCandidateValues>,
+    pub nearby_value_candidates: Option<UsizeCandidateValues>,
+    pub nearby_entity_candidates: Option<UsizeCandidateValues>,
     pub nearby_value_distance_meter: Option<UsizeNearbyValueDistanceMeter>,
     pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>,
     pub construction_entity_order_key: Option<UsizeConstructionEntityOrderKey>,
@@ -487,7 +490,7 @@ pub struct VariableDescriptor {
 
 Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
 
-Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
+Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
 
 ### Supply Types
 

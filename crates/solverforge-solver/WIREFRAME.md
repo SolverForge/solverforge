@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.9.1`
+**Workspace Release:** `0.9.2`
 
 ## Dependencies
 
@@ -35,7 +35,7 @@ src/
 │   ├── bindings.rs                      — Scalar-variable binding discovery, nearby hooks, scalar construction order keys, and frontier-aware work checks
 │   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorScalarMoveUnion<S>
 │   ├── move_types/*.rs                  — Descriptor scalar move implementations split by move family
-│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(config, descriptor, random_seed); nearby selectors require descriptor-provided nearby meters, optional assigned variables can emit one `Some(v) -> None` change, top-level cartesian selectors expose borrowable sequential candidates, and scalar ruin-recreate uses the configured seed when provided
+│   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(config, descriptor, random_seed); nearby scalar selectors require descriptor-provided nearby candidate hooks, optional meters rank/filter those candidates, optional assigned variables can emit one `Some(v) -> None` change, top-level cartesian selectors expose borrowable sequential candidates, and scalar ruin-recreate uses the configured seed when provided
 │   ├── selectors/*.rs                   — Descriptor scalar selector legality, leaf, dispatch, and builder chunks split by neighborhood family
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>; runtime-only descriptor-scalar construction assembly from resolved scalar bindings with optional keep-current legality and slot identity
 │   └── tests.rs                         — Descriptor-scalar test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
@@ -655,8 +655,11 @@ on a generic type-lifting map adapter.
 **`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Typed scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
 
 **`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the typed runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
-- `with_nearby_value_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` for nearby change
-- `with_nearby_entity_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` for nearby swap
+- `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates
+- `with_nearby_value_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar change
+- `with_nearby_entity_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar swap
+- `with_nearby_value_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` to rank/filter nearby value candidates
+- `with_nearby_entity_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` to rank/filter nearby entity candidates
 - `with_construction_entity_order_key(fn(&S, usize, usize) -> Option<i64>)` for decreasing or queue-style entity ordering
 - `with_construction_value_order_key(fn(&S, usize, usize, usize) -> Option<i64>)` for weakest-fit, strongest-fit, or queue-style value ordering
 

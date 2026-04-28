@@ -29,6 +29,9 @@ fn scalar_variable(name: &'static str) -> VariableDescriptor {
         usize_getter: Some(|_| None),
         usize_setter: Some(|_, _| {}),
         entity_value_provider: Some(|_| vec![1]),
+        candidate_values: None,
+        nearby_value_candidates: None,
+        nearby_entity_candidates: None,
         nearby_value_distance_meter: None,
         nearby_entity_distance_meter: None,
         construction_entity_order_key: None,
@@ -55,6 +58,7 @@ fn config(
     variable_name: Option<&str>,
 ) -> ConstructionHeuristicConfig {
     ConstructionHeuristicConfig {
+        value_candidate_limit: Some(usize::MAX),
         construction_heuristic_type,
         target: VariableTargetConfig {
             entity_class: entity_class.map(str::to_owned),

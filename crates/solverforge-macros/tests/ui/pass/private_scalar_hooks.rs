@@ -15,6 +15,9 @@ fn main() {
     let _ = (
         worker_variable.nearby_value_distance_meter.is_some(),
         worker_variable.nearby_entity_distance_meter.is_some(),
+        worker_variable.candidate_values.is_some(),
+        worker_variable.nearby_value_candidates.is_some(),
+        worker_variable.nearby_entity_candidates.is_some(),
         worker_variable.construction_entity_order_key.is_some(),
         worker_variable.construction_value_order_key.is_some(),
     );

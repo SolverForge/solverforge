@@ -7,14 +7,16 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{
-    Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove, ScalarMoveUnion,
-    ScalarRecreateValueSource, SequentialCompositeMove,
+    ChangeMove, Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove,
+    ScalarMoveUnion, ScalarRecreateValueSource, SequentialCompositeMove,
 };
 use crate::heuristic::selector::decorator::{
-    CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
+    CartesianProductCursor, CartesianProductSelector, MappedMoveCursor, VecUnionSelector,
 };
 use crate::heuristic::selector::{
-    move_selector::{ArenaMoveCursor, MoveCandidateRef, MoveCursor},
+    move_selector::{
+        collect_cursor_indices, ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
+    },
     nearby_support::truncate_nearby_candidates,
     pillar_support::{intersect_legal_values_for_pillar, pillars_are_swap_compatible, PillarGroup},
     seed::scoped_seed,

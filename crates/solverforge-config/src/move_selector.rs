@@ -76,6 +76,7 @@ pub enum MoveSelectorConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ChangeMoveConfig {
+    pub value_candidate_limit: Option<usize>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -93,6 +94,7 @@ pub struct SwapMoveConfig {
 #[serde(rename_all = "snake_case")]
 pub struct NearbyChangeMoveConfig {
     pub max_nearby: usize,
+    pub value_candidate_limit: Option<usize>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -101,6 +103,7 @@ impl Default for NearbyChangeMoveConfig {
     fn default() -> Self {
         Self {
             max_nearby: 10,
+            value_candidate_limit: None,
             target: VariableTargetConfig::default(),
         }
     }
@@ -130,6 +133,7 @@ impl Default for NearbySwapMoveConfig {
 pub struct PillarChangeMoveConfig {
     pub minimum_sub_pillar_size: usize,
     pub maximum_sub_pillar_size: usize,
+    pub value_candidate_limit: Option<usize>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -147,8 +151,8 @@ pub struct PillarSwapMoveConfig {
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RecreateHeuristicType {
-    FirstFit,
     #[default]
+    FirstFit,
     CheapestInsertion,
 }
 
@@ -159,6 +163,7 @@ pub struct RuinRecreateMoveSelectorConfig {
     pub min_ruin_count: usize,
     pub max_ruin_count: usize,
     pub moves_per_step: Option<usize>,
+    pub value_candidate_limit: Option<usize>,
     pub recreate_heuristic_type: RecreateHeuristicType,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
@@ -170,7 +175,8 @@ impl Default for RuinRecreateMoveSelectorConfig {
             min_ruin_count: 2,
             max_ruin_count: 5,
             moves_per_step: None,
-            recreate_heuristic_type: RecreateHeuristicType::CheapestInsertion,
+            value_candidate_limit: None,
+            recreate_heuristic_type: RecreateHeuristicType::FirstFit,
             target: VariableTargetConfig::default(),
         }
     }

@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
 use smallvec::SmallVec;
-use solverforge_config::MoveSelectorConfig;
+use solverforge_config::{MoveSelectorConfig, RecreateHeuristicType};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor, ValueRangeType};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
@@ -18,7 +18,7 @@ use crate::heuristic::selector::decorator::{
 };
 use crate::heuristic::selector::entity::EntityReference;
 use crate::heuristic::selector::move_selector::{
-    ArenaMoveCursor, MoveCandidateRef, MoveCursor, MoveSelector,
+    ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
 };
 use crate::heuristic::selector::nearby_support::truncate_nearby_candidates;
 use crate::heuristic::selector::pillar::SubPillarConfig;

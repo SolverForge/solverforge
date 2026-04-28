@@ -38,6 +38,7 @@ fn pillar_change_uses_public_pillar_semantics() {
     let config = MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
+        value_candidate_limit: None,
         target: VariableTargetConfig {
             entity_class: Some("Shift".to_string()),
             variable_name: Some("worker".to_string()),
@@ -91,6 +92,7 @@ fn pillar_change_intersects_entity_slice_domains() {
     let config = MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
+        value_candidate_limit: None,
         target: VariableTargetConfig {
             entity_class: Some("Shift".to_string()),
             variable_name: Some("worker".to_string()),
@@ -225,6 +227,7 @@ fn scalar_builder_cartesian_selector_survives_filtering_wrapper() {
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {

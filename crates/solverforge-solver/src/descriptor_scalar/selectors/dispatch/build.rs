@@ -52,7 +52,11 @@ where
                 );
                 for binding in matched {
                     leaves.push(DescriptorLeafSelector::Change(
-                        DescriptorChangeMoveSelector::new(binding, descriptor.clone()),
+                        DescriptorChangeMoveSelector::new(
+                            binding,
+                            descriptor.clone(),
+                            change.value_candidate_limit,
+                        ),
                     ));
                 }
             }
@@ -88,8 +92,8 @@ where
                 );
                 for binding in matched {
                     assert!(
-                        binding.nearby_value_distance_meter.is_some(),
-                        "nearby_change_move selector requires nearby_value_distance_meter for {}::{}",
+                        binding.nearby_value_candidates.is_some(),
+                        "nearby_change_move selector requires nearby_value_candidates for {}::{}",
                         binding.entity_type_name,
                         binding.variable_name,
                     );
@@ -98,6 +102,7 @@ where
                             binding,
                             solution_descriptor: descriptor.clone(),
                             max_nearby: nearby_change.max_nearby,
+                            value_candidate_limit: nearby_change.value_candidate_limit,
                             _phantom: PhantomData,
                         },
                     ));
@@ -117,8 +122,8 @@ where
                 );
                 for binding in matched {
                     assert!(
-                        binding.nearby_entity_distance_meter.is_some(),
-                        "nearby_swap_move selector requires nearby_entity_distance_meter for {}::{}",
+                        binding.nearby_entity_candidates.is_some(),
+                        "nearby_swap_move selector requires nearby_entity_candidates for {}::{}",
                         binding.entity_type_name,
                         binding.variable_name,
                     );
@@ -151,6 +156,7 @@ where
                             solution_descriptor: descriptor.clone(),
                             minimum_sub_pillar_size: pillar_change.minimum_sub_pillar_size,
                             maximum_sub_pillar_size: pillar_change.maximum_sub_pillar_size,
+                            value_candidate_limit: pillar_change.value_candidate_limit,
                             _phantom: PhantomData,
                         },
                     ));
@@ -197,6 +203,15 @@ where
                     &matched,
                 );
                 for binding in matched {
+                    if ruin_recreate.recreate_heuristic_type == RecreateHeuristicType::CheapestInsertion {
+                        assert!(
+                            binding.candidate_values.is_some()
+                                || ruin_recreate.value_candidate_limit.is_some(),
+                            "cheapest_insertion descriptor scalar ruin_recreate requires candidate_values or value_candidate_limit for {}::{}",
+                            binding.entity_type_name,
+                            binding.variable_name,
+                        );
+                    }
                     let rng = match scoped_seed(
                         random_seed,
                         binding.descriptor_index,
@@ -213,6 +228,7 @@ where
                             min_ruin_count: ruin_recreate.min_ruin_count,
                             max_ruin_count: ruin_recreate.max_ruin_count,
                             moves_per_step: ruin_recreate.moves_per_step.unwrap_or(10).max(1),
+                            value_candidate_limit: ruin_recreate.value_candidate_limit,
                             recreate_heuristic_type: ruin_recreate.recreate_heuristic_type,
                             rng: RefCell::new(rng),
                             _phantom: PhantomData,
@@ -252,7 +268,7 @@ where
         None => {
             for binding in bindings {
                 leaves.push(DescriptorLeafSelector::Change(
-                    DescriptorChangeMoveSelector::new(binding.clone(), descriptor.clone()),
+                    DescriptorChangeMoveSelector::new(binding.clone(), descriptor.clone(), None),
                 ));
                 leaves.push(DescriptorLeafSelector::Swap(
                     DescriptorSwapMoveSelector::new(binding, descriptor.clone()),

@@ -1,5 +1,8 @@
 fn validate_scalar_hook_targets(planning_variables: &[&syn::Field]) -> Result<(), Error> {
     const SCALAR_HOOK_ATTRIBUTES: &[&str] = &[
+        "candidate_values",
+        "nearby_value_candidates",
+        "nearby_entity_candidates",
         "nearby_value_distance_meter",
         "nearby_entity_distance_meter",
         "construction_entity_order_key",

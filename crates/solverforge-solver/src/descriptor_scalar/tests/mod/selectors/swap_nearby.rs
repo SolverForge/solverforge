@@ -16,6 +16,7 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
         max_nearby: 1,
+        value_candidate_limit: None,
         target: VariableTargetConfig::default(),
     });
 
@@ -28,6 +29,51 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
         .iter()
         .all(|mov| matches!(mov, super::DescriptorScalarMoveUnion::Change(_))));
     assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+fn descriptor_nearby_change_applies_value_candidate_limit_before_ranking() {
+    let descriptor = descriptor_with_nearby_value_meter();
+    let plan = Plan {
+        workers: vec![Worker, Worker, Worker],
+        tasks: vec![Task {
+            worker_idx: Some(0),
+        }],
+        score: None,
+    };
+    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
+        max_nearby: 3,
+        value_candidate_limit: Some(1),
+        target: VariableTargetConfig::default(),
+    });
+
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+    let targets: Vec<_> = moves
+        .iter()
+        .map(|mov| {
+            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Change(_)));
+            mov.entity_indices().to_vec()
+        })
+        .collect();
+
+    assert_eq!(targets, vec![vec![0], vec![0]]);
+    assert_eq!(moves.len(), 2);
+    assert!(moves.iter().all(|mov| mov.is_doable(&director)));
+}
+
+#[test]
+#[should_panic(expected = "nearby_change_move selector requires nearby_value_candidates")]
+fn descriptor_nearby_change_rejects_distance_meter_without_candidate_hook() {
+    let descriptor = descriptor_with_nearby_value_meter_only();
+    let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
+        max_nearby: 1,
+        value_candidate_limit: None,
+        target: VariableTargetConfig::default(),
+    });
+
+    let _ = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
 }
 
 #[test]

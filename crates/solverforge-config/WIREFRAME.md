@@ -3,7 +3,7 @@
 Serde-based configuration system for loading solver settings from TOML or YAML files.
 
 **Location:** `crates/solverforge-config/`
-**Workspace Release:** `0.9.1`
+**Workspace Release:** `0.9.2`
 
 ## Dependencies
 
@@ -117,6 +117,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
 | `target` | `VariableTargetConfig` | empty target |
 | `k` | `usize` | `2` (for `ListKOpt`) |
+| `value_candidate_limit` | `Option<usize>` | `None` |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 `target` is flattened in serde, so configuration files still use top-level
@@ -591,6 +592,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 Decorator notes:
 - `LimitedNeighborhood` caps yielded candidates while preserving the wrapped selector order.
 - `CartesianProductMoveSelector` uses sequential preview, selector-order tabu ids, and selected-winner materialization rather than exposing an owned composite iterator.
+- Scalar `ChangeMoveSelector`, `NearbyChangeMoveSelector`, `PillarChangeMoveSelector`, and `RuinRecreateMoveSelector` accept `value_candidate_limit` for bounded scalar value candidate generation. Scalar `cheapest_insertion` requires either `candidate_values` on the model or this limit in config.
 
 ## Architectural Notes
 

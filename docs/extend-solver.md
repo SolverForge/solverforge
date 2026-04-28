@@ -72,6 +72,12 @@ when that cap is part of the search policy. The canonical defaults are already
 explicit streaming neighborhoods, so use the cap deliberately instead of
 wrapping broad generation by default.
 
+Scalar value generation is separate from scalar legality. `value_candidate_limit`
+caps candidate values for scalar construction, scalar change, pillar change, and
+scalar ruin-recreate. Nearby scalar selectors require `nearby_*_candidates`;
+distance meters only rank or filter those bounded candidates. Scalar
+`cheapest_insertion` is accepted only when a bounded candidate source is present.
+
 Cartesian neighborhoods compose selectors sequentially. The left child is
 previewed first, the right child is opened against that preview state, and the
 runtime only materializes the selected winning composite move by ownership after

@@ -15,6 +15,64 @@ pub enum ScalarValueSelector<S> {
     },
 }
 
+pub struct ScalarCandidateSelector<S> {
+    ctx: ScalarVariableContext<S>,
+    value_candidate_limit: Option<usize>,
+}
+
+impl<S> ScalarCandidateSelector<S> {
+    pub fn new(ctx: ScalarVariableContext<S>, value_candidate_limit: Option<usize>) -> Self {
+        Self {
+            ctx,
+            value_candidate_limit,
+        }
+    }
+}
+
+impl<S> Debug for ScalarCandidateSelector<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ScalarCandidateSelector")
+            .field("ctx", &self.ctx)
+            .field("value_candidate_limit", &self.value_candidate_limit)
+            .finish()
+    }
+}
+
+impl<S> ValueSelector<S, usize> for ScalarCandidateSelector<S>
+where
+    S: PlanningSolution,
+{
+    fn iter<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        _descriptor_index: usize,
+        entity_index: usize,
+    ) -> impl Iterator<Item = usize> + 'a {
+        self.ctx
+            .candidate_values_for_entity(
+                score_director.working_solution(),
+                entity_index,
+                self.value_candidate_limit,
+            )
+            .into_iter()
+    }
+
+    fn size<D: Director<S>>(
+        &self,
+        score_director: &D,
+        _descriptor_index: usize,
+        entity_index: usize,
+    ) -> usize {
+        self.ctx
+            .candidate_values_for_entity(
+                score_director.working_solution(),
+                entity_index,
+                self.value_candidate_limit,
+            )
+            .len()
+    }
+}
+
 impl<S> ScalarValueSelector<S> {
     fn from_context(ctx: ScalarVariableContext<S>) -> Self {
         match ctx.value_source {
@@ -35,11 +93,27 @@ impl<S> ScalarValueSelector<S> {
     }
 }
 
-fn scalar_recreate_value_source<S>(ctx: ScalarVariableContext<S>) -> ScalarRecreateValueSource<S> {
+fn scalar_recreate_candidate_source<S>(
+    ctx: ScalarVariableContext<S>,
+    value_candidate_limit: Option<usize>,
+) -> ScalarRecreateValueSource<S> {
+    if let Some(candidate_values) = ctx.candidate_values {
+        return ScalarRecreateValueSource::CandidateSlice {
+            candidate_values,
+            variable_index: ctx.variable_index,
+            value_candidate_limit,
+        };
+    }
     match ctx.value_source {
         ValueSource::Empty => ScalarRecreateValueSource::Empty,
         ValueSource::CountableRange { from, to } => {
-            ScalarRecreateValueSource::CountableRange { from, to }
+            let bounded_to = value_candidate_limit
+                .map(|limit| from.saturating_add(limit).min(to))
+                .unwrap_or(to);
+            ScalarRecreateValueSource::CountableRange {
+                from,
+                to: bounded_to,
+            }
         }
         ValueSource::SolutionCount {
             count_fn,
@@ -47,22 +121,26 @@ fn scalar_recreate_value_source<S>(ctx: ScalarVariableContext<S>) -> ScalarRecre
         } => ScalarRecreateValueSource::SolutionCount {
             count_fn,
             provider_index,
+            value_candidate_limit,
         },
         ValueSource::EntitySlice { values_for_entity } => ScalarRecreateValueSource::EntitySlice {
             values_for_entity,
             variable_index: ctx.variable_index,
+            value_candidate_limit,
         },
     }
 }
 
-fn scalar_legal_values_for_entity<S, D: Director<S>>(
-    value_selector: &ScalarValueSelector<S>,
+fn scalar_legal_values_for_entity<S, VS, D>(
+    value_selector: &VS,
     score_director: &D,
     descriptor_index: usize,
     entity_index: usize,
 ) -> Vec<usize>
 where
     S: PlanningSolution,
+    VS: ValueSelector<S, usize>,
+    D: Director<S>,
 {
     value_selector
         .iter(score_director, descriptor_index, entity_index)
@@ -166,7 +244,7 @@ impl Iterator for ScalarValueIter {
 }
 
 type ScalarChangeSelector<S> =
-    ChangeMoveSelector<S, usize, FromSolutionEntitySelector, ScalarValueSelector<S>>;
+    ChangeMoveSelector<S, usize, FromSolutionEntitySelector, ScalarCandidateSelector<S>>;
 type ScalarSwapSelector<S> = SwapLeafSelector<S>;
 
 fn scalar_value_is_legal(
@@ -190,4 +268,3 @@ fn scalar_swap_is_legal<S>(
     }
     scalar_value_is_legal(legal_values, ctx.allows_unassigned, value)
 }
-

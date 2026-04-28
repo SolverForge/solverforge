@@ -7,6 +7,7 @@ use crate::domain::variable::{ShadowVariableKind, ValueRangeType, VariableType};
 pub type UsizeGetter = for<'a> fn(&'a dyn Any) -> Option<usize>;
 pub type UsizeSetter = fn(&mut dyn Any, Option<usize>);
 pub type UsizeEntityValueProvider = for<'a> fn(&'a dyn Any) -> Vec<usize>;
+pub type UsizeCandidateValues = for<'a> fn(&'a dyn Any, usize, usize) -> &'a [usize];
 pub type UsizeNearbyValueDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
 pub type UsizeNearbyEntityDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
 pub type UsizeConstructionEntityOrderKey = fn(&dyn Any, usize) -> i64;
@@ -33,6 +34,9 @@ pub struct VariableDescriptor {
     pub usize_getter: Option<UsizeGetter>,
     pub usize_setter: Option<UsizeSetter>,
     pub entity_value_provider: Option<UsizeEntityValueProvider>,
+    pub candidate_values: Option<UsizeCandidateValues>,
+    pub nearby_value_candidates: Option<UsizeCandidateValues>,
+    pub nearby_entity_candidates: Option<UsizeCandidateValues>,
     pub nearby_value_distance_meter: Option<UsizeNearbyValueDistanceMeter>,
     pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>,
     pub construction_entity_order_key: Option<UsizeConstructionEntityOrderKey>,
@@ -52,6 +56,9 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            candidate_values: None,
+            nearby_value_candidates: None,
+            nearby_entity_candidates: None,
             nearby_value_distance_meter: None,
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
@@ -75,6 +82,9 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            candidate_values: None,
+            nearby_value_candidates: None,
+            nearby_entity_candidates: None,
             nearby_value_distance_meter: None,
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
@@ -94,6 +104,9 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            candidate_values: None,
+            nearby_value_candidates: None,
+            nearby_entity_candidates: None,
             nearby_value_distance_meter: None,
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
@@ -113,6 +126,9 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            candidate_values: None,
+            nearby_value_candidates: None,
+            nearby_entity_candidates: None,
             nearby_value_distance_meter: None,
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
@@ -146,6 +162,9 @@ impl VariableDescriptor {
             usize_getter: None,
             usize_setter: None,
             entity_value_provider: None,
+            candidate_values: None,
+            nearby_value_candidates: None,
+            nearby_entity_candidates: None,
             nearby_value_distance_meter: None,
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
@@ -172,6 +191,21 @@ impl VariableDescriptor {
 
     pub fn with_entity_value_provider(mut self, provider: UsizeEntityValueProvider) -> Self {
         self.entity_value_provider = Some(provider);
+        self
+    }
+
+    pub fn with_candidate_values(mut self, provider: UsizeCandidateValues) -> Self {
+        self.candidate_values = Some(provider);
+        self
+    }
+
+    pub fn with_nearby_value_candidates(mut self, provider: UsizeCandidateValues) -> Self {
+        self.nearby_value_candidates = Some(provider);
+        self
+    }
+
+    pub fn with_nearby_entity_candidates(mut self, provider: UsizeCandidateValues) -> Self {
+        self.nearby_entity_candidates = Some(provider);
         self
     }
 

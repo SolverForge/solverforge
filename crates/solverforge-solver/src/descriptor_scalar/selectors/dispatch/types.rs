@@ -37,27 +37,13 @@ where
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
-            Self::Change(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
-            Self::Swap(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
-            Self::NearbyChange(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
-            Self::NearbySwap(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
-            Self::PillarChange(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
-            Self::PillarSwap(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
-            Self::RuinRecreate(selector) => {
-                ArenaMoveCursor::from_moves(selector.iter_moves(score_director))
-            }
+            Self::Change(selector) => selector.open_cursor(score_director),
+            Self::Swap(selector) => selector.open_cursor(score_director),
+            Self::NearbyChange(selector) => selector.open_cursor(score_director),
+            Self::NearbySwap(selector) => selector.open_cursor(score_director),
+            Self::PillarChange(selector) => selector.open_cursor(score_director),
+            Self::PillarSwap(selector) => selector.open_cursor(score_director),
+            Self::RuinRecreate(selector) => selector.open_cursor(score_director),
         }
     }
 
@@ -92,9 +78,7 @@ impl<S> MoveCursor<S, DescriptorScalarMoveUnion<S>> for DescriptorSelectorCursor
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(
-        &mut self,
-    ) -> Option<(usize, MoveCandidateRef<'_, S, DescriptorScalarMoveUnion<S>>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         match self {
             Self::Leaf(cursor) => cursor.next_candidate(),
             Self::Cartesian(cursor) => cursor.next_candidate(),
@@ -103,7 +87,7 @@ where
 
     fn candidate(
         &self,
-        index: usize,
+        index: CandidateId,
     ) -> Option<MoveCandidateRef<'_, S, DescriptorScalarMoveUnion<S>>> {
         match self {
             Self::Leaf(cursor) => cursor.candidate(index),
@@ -111,7 +95,7 @@ where
         }
     }
 
-    fn take_candidate(&mut self, index: usize) -> DescriptorScalarMoveUnion<S> {
+    fn take_candidate(&mut self, index: CandidateId) -> DescriptorScalarMoveUnion<S> {
         match self {
             Self::Leaf(cursor) => cursor.take_candidate(index),
             Self::Cartesian(cursor) => cursor.take_candidate(index),
@@ -169,4 +153,3 @@ where
 {
     DescriptorScalarMoveUnion::Composite(mov)
 }
-

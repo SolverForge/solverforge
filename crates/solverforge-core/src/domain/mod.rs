@@ -19,9 +19,10 @@ mod variable;
 mod tests;
 
 pub use descriptor::{
-    EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, UsizeConstructionEntityOrderKey,
-    UsizeConstructionValueOrderKey, UsizeEntityValueProvider, UsizeGetter,
-    UsizeNearbyEntityDistanceMeter, UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor,
+    EntityDescriptor, ProblemFactDescriptor, SolutionDescriptor, UsizeCandidateValues,
+    UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey, UsizeEntityValueProvider,
+    UsizeGetter, UsizeNearbyEntityDistanceMeter, UsizeNearbyValueDistanceMeter, UsizeSetter,
+    VariableDescriptor,
 };
 pub use entity_ref::{EntityCollectionExtractor, EntityExtractor, EntityRef};
 pub use listener::{

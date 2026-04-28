@@ -70,6 +70,9 @@ struct ModuleSource {
 
 #[derive(Clone)]
 struct HookPaths {
+    candidate_values: Option<syn::Path>,
+    nearby_value_candidates: Option<syn::Path>,
+    nearby_entity_candidates: Option<syn::Path>,
     nearby_value_distance_meter: Option<syn::Path>,
     nearby_entity_distance_meter: Option<syn::Path>,
     construction_entity_order_key: Option<syn::Path>,

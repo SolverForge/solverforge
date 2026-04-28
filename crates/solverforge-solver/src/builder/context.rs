@@ -44,6 +44,7 @@ impl<S> fmt::Debug for ValueSource<S> {
 
 pub type ScalarGetter<S> = fn(&S, usize, usize) -> Option<usize>;
 pub type ScalarSetter<S> = fn(&mut S, usize, usize, Option<usize>);
+pub type ScalarCandidateValues<S> = for<'a> fn(&'a S, usize, usize) -> &'a [usize];
 pub type NearbyValueDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
 pub type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
 pub type ConstructionEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
@@ -59,6 +60,9 @@ pub struct ScalarVariableContext<S> {
     pub setter: ScalarSetter<S>,
     pub value_source: ValueSource<S>,
     pub allows_unassigned: bool,
+    pub candidate_values: Option<ScalarCandidateValues<S>>,
+    pub nearby_value_candidates: Option<ScalarCandidateValues<S>>,
+    pub nearby_entity_candidates: Option<ScalarCandidateValues<S>>,
     pub nearby_value_distance_meter: Option<NearbyValueDistanceMeter<S>>,
     pub nearby_entity_distance_meter: Option<NearbyEntityDistanceMeter<S>>,
     pub construction_entity_order_key: Option<ConstructionEntityOrderKey<S>>,
@@ -96,6 +100,9 @@ impl<S> ScalarVariableContext<S> {
             setter,
             value_source,
             allows_unassigned,
+            candidate_values: None,
+            nearby_value_candidates: None,
+            nearby_entity_candidates: None,
             nearby_value_distance_meter: None,
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
@@ -105,6 +112,21 @@ impl<S> ScalarVariableContext<S> {
 
     pub fn with_nearby_value_distance_meter(mut self, meter: NearbyValueDistanceMeter<S>) -> Self {
         self.nearby_value_distance_meter = Some(meter);
+        self
+    }
+
+    pub fn with_candidate_values(mut self, provider: ScalarCandidateValues<S>) -> Self {
+        self.candidate_values = Some(provider);
+        self
+    }
+
+    pub fn with_nearby_value_candidates(mut self, provider: ScalarCandidateValues<S>) -> Self {
+        self.nearby_value_candidates = Some(provider);
+        self
+    }
+
+    pub fn with_nearby_entity_candidates(mut self, provider: ScalarCandidateValues<S>) -> Self {
+        self.nearby_entity_candidates = Some(provider);
         self
     }
 
@@ -159,6 +181,48 @@ impl<S> ScalarVariableContext<S> {
         }
     }
 
+    pub fn candidate_values_for_entity(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value_candidate_limit: Option<usize>,
+    ) -> Vec<usize> {
+        if let Some(provider) = self.candidate_values {
+            let values = provider(solution, entity_index, self.variable_index);
+            return match value_candidate_limit {
+                Some(limit) => values.iter().copied().take(limit).collect(),
+                None => values.to_vec(),
+            };
+        }
+
+        match self.value_source {
+            ValueSource::Empty => Vec::new(),
+            ValueSource::CountableRange { from, to } => {
+                let end = value_candidate_limit
+                    .map(|limit| from.saturating_add(limit).min(to))
+                    .unwrap_or(to);
+                (from..end).collect()
+            }
+            ValueSource::SolutionCount {
+                count_fn,
+                provider_index,
+            } => {
+                let count = count_fn(solution, provider_index);
+                let end = value_candidate_limit
+                    .map(|limit| limit.min(count))
+                    .unwrap_or(count);
+                (0..end).collect()
+            }
+            ValueSource::EntitySlice { values_for_entity } => {
+                let values = values_for_entity(solution, entity_index, self.variable_index);
+                match value_candidate_limit {
+                    Some(limit) => values.iter().copied().take(limit).collect(),
+                    None => values.to_vec(),
+                }
+            }
+        }
+    }
+
     pub fn has_values_for_entity(&self, solution: &S, entity_index: usize) -> bool {
         match self.value_source {
             ValueSource::Empty => false,
@@ -169,6 +233,28 @@ impl<S> ScalarVariableContext<S> {
             } => count_fn(solution, provider_index) > 0,
             ValueSource::EntitySlice { values_for_entity } => {
                 !values_for_entity(solution, entity_index, self.variable_index).is_empty()
+            }
+        }
+    }
+
+    pub fn value_is_legal(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        candidate: Option<usize>,
+    ) -> bool {
+        let Some(value) = candidate else {
+            return self.allows_unassigned;
+        };
+        match self.value_source {
+            ValueSource::Empty => false,
+            ValueSource::CountableRange { from, to } => from <= value && value < to,
+            ValueSource::SolutionCount {
+                count_fn,
+                provider_index,
+            } => value < count_fn(solution, provider_index),
+            ValueSource::EntitySlice { values_for_entity } => {
+                values_for_entity(solution, entity_index, self.variable_index).contains(&value)
             }
         }
     }
@@ -224,6 +310,15 @@ impl<S> fmt::Debug for ScalarVariableContext<S> {
             .field("variable_name", &self.variable_name)
             .field("value_source", &self.value_source)
             .field("allows_unassigned", &self.allows_unassigned)
+            .field("has_candidate_values", &self.candidate_values.is_some())
+            .field(
+                "has_nearby_value_candidates",
+                &self.nearby_value_candidates.is_some(),
+            )
+            .field(
+                "has_nearby_entity_candidates",
+                &self.nearby_entity_candidates.is_some(),
+            )
             .field(
                 "has_nearby_value_distance_meter",
                 &self.nearby_value_distance_meter.is_some(),

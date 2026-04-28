@@ -18,6 +18,7 @@ fn descriptor_cartesian_builds_composite_moves() {
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
@@ -66,6 +67,7 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
@@ -98,6 +100,7 @@ fn descriptor_cartesian_rejects_score_seeking_left_child() {
         selectors: vec![
             MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig::default()),
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
         ],

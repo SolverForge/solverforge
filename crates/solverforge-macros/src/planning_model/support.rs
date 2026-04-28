@@ -65,6 +65,159 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 }
             });
 
+            if let Some(path) = &variable.hooks.candidate_values {
+                let helper = format_ident!(
+                    "__solverforge_descriptor_candidate_values_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                let runtime_helper = format_ident!(
+                    "__solverforge_runtime_candidate_values_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                descriptor_helpers.push(quote! {
+                    fn #helper(
+                        solution: &dyn ::std::any::Any,
+                        entity_index: usize,
+                        variable_index: usize,
+                    ) -> &[usize] {
+                        let solution = solution
+                            .downcast_ref::<#solution_path>()
+                            .expect("solution type mismatch for scalar candidate values");
+                        #path(solution, entity_index, variable_index)
+                    }
+                });
+                descriptor_attachments.push(quote! {
+                    attach_scalar_variable_hook(
+                        descriptor,
+                        #descriptor_index,
+                        #variable_name,
+                        |variable| {
+                            variable.candidate_values = ::core::option::Option::Some(#helper);
+                        },
+                    );
+                });
+                runtime_helpers.push(quote! {
+                    fn #runtime_helper(
+                        solution: &#solution_path,
+                        entity_index: usize,
+                        variable_index: usize,
+                    ) -> &[usize] {
+                        #path(solution, entity_index, variable_index)
+                    }
+                });
+                runtime_attachments.push(quote! {
+                    if context.descriptor_index == #descriptor_index
+                        && context.variable_name == #variable_name
+                    {
+                        context = context.with_candidate_values(#runtime_helper);
+                    }
+                });
+            }
+
+            if let Some(path) = &variable.hooks.nearby_value_candidates {
+                let helper = format_ident!(
+                    "__solverforge_descriptor_nearby_value_candidates_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                let runtime_helper = format_ident!(
+                    "__solverforge_runtime_nearby_value_candidates_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                descriptor_helpers.push(quote! {
+                    fn #helper(
+                        solution: &dyn ::std::any::Any,
+                        entity_index: usize,
+                        variable_index: usize,
+                    ) -> &[usize] {
+                        let solution = solution
+                            .downcast_ref::<#solution_path>()
+                            .expect("solution type mismatch for nearby value candidates");
+                        #path(solution, entity_index, variable_index)
+                    }
+                });
+                descriptor_attachments.push(quote! {
+                    attach_scalar_variable_hook(
+                        descriptor,
+                        #descriptor_index,
+                        #variable_name,
+                        |variable| {
+                            variable.nearby_value_candidates = ::core::option::Option::Some(#helper);
+                        },
+                    );
+                });
+                runtime_helpers.push(quote! {
+                    fn #runtime_helper(
+                        solution: &#solution_path,
+                        entity_index: usize,
+                        variable_index: usize,
+                    ) -> &[usize] {
+                        #path(solution, entity_index, variable_index)
+                    }
+                });
+                runtime_attachments.push(quote! {
+                    if context.descriptor_index == #descriptor_index
+                        && context.variable_name == #variable_name
+                    {
+                        context = context.with_nearby_value_candidates(#runtime_helper);
+                    }
+                });
+            }
+
+            if let Some(path) = &variable.hooks.nearby_entity_candidates {
+                let helper = format_ident!(
+                    "__solverforge_descriptor_nearby_entity_candidates_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                let runtime_helper = format_ident!(
+                    "__solverforge_runtime_nearby_entity_candidates_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                descriptor_helpers.push(quote! {
+                    fn #helper(
+                        solution: &dyn ::std::any::Any,
+                        entity_index: usize,
+                        variable_index: usize,
+                    ) -> &[usize] {
+                        let solution = solution
+                            .downcast_ref::<#solution_path>()
+                            .expect("solution type mismatch for nearby entity candidates");
+                        #path(solution, entity_index, variable_index)
+                    }
+                });
+                descriptor_attachments.push(quote! {
+                    attach_scalar_variable_hook(
+                        descriptor,
+                        #descriptor_index,
+                        #variable_name,
+                        |variable| {
+                            variable.nearby_entity_candidates = ::core::option::Option::Some(#helper);
+                        },
+                    );
+                });
+                runtime_helpers.push(quote! {
+                    fn #runtime_helper(
+                        solution: &#solution_path,
+                        entity_index: usize,
+                        variable_index: usize,
+                    ) -> &[usize] {
+                        #path(solution, entity_index, variable_index)
+                    }
+                });
+                runtime_attachments.push(quote! {
+                    if context.descriptor_index == #descriptor_index
+                        && context.variable_name == #variable_name
+                    {
+                        context = context.with_nearby_entity_candidates(#runtime_helper);
+                    }
+                });
+            }
+
             if let Some(path) = &variable.hooks.nearby_value_distance_meter {
                 let helper = format_ident!(
                     "__solverforge_descriptor_nearby_value_distance_{}_{}",
@@ -330,4 +483,3 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
         }
     })
 }
-

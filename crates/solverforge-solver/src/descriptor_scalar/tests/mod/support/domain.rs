@@ -302,6 +302,41 @@ fn nearby_worker_value_distance(solution: &dyn Any, entity_index: usize, value: 
     current.abs_diff(value) as f64
 }
 
+fn nearby_worker_candidates(solution: &dyn Any, entity_index: usize, _variable_index: usize) -> &[usize] {
+    let plan = solution.downcast_ref::<Plan>().expect("plan expected");
+    match (entity_index, plan.workers.len()) {
+        (0, 3..) => &[1, 2],
+        (1, 3..) => &[0, 2],
+        (0, 2..) => &[1],
+        (1, 2..) => &[0],
+        _ => &[],
+    }
+}
+
+fn nearby_task_candidates(solution: &dyn Any, entity_index: usize, _variable_index: usize) -> &[usize] {
+    let _ = solution.downcast_ref::<Plan>().expect("plan expected");
+    match entity_index {
+        0 => &[1, 2],
+        1 => &[2],
+        _ => &[],
+    }
+}
+
+fn restricted_nearby_task_candidates(
+    solution: &dyn Any,
+    entity_index: usize,
+    _variable_index: usize,
+) -> &[usize] {
+    let _ = solution
+        .downcast_ref::<RestrictedPlan>()
+        .expect("restricted plan expected");
+    match entity_index {
+        0 => &[1, 2],
+        1 => &[2],
+        _ => &[],
+    }
+}
+
 fn nearby_worker_entity_distance(_solution: &dyn Any, left: usize, right: usize) -> f64 {
     match (left, right) {
         (0, 1) => 0.0,
@@ -357,4 +392,3 @@ fn restricted_allowed_workers_panic_after_index(entity: &dyn Any) -> Vec<usize> 
     );
     restricted_allowed_workers(entity)
 }
-

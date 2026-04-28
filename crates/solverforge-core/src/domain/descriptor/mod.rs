@@ -14,9 +14,9 @@ pub use entity::EntityDescriptor;
 pub use problem_fact::ProblemFactDescriptor;
 pub use solution::SolutionDescriptor;
 pub use var_descriptor::{
-    UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey, UsizeEntityValueProvider,
-    UsizeGetter, UsizeNearbyEntityDistanceMeter, UsizeNearbyValueDistanceMeter, UsizeSetter,
-    VariableDescriptor,
+    UsizeCandidateValues, UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey,
+    UsizeEntityValueProvider, UsizeGetter, UsizeNearbyEntityDistanceMeter,
+    UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor,
 };
 
 #[cfg(test)]

@@ -18,8 +18,12 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   and `pub use module::Type as Alias;`. Solver configuration targets still use
   the canonical descriptor type name, not the alias used by a collection field.
 - When a scalar variable will use nearby local-search selectors, declare the
-  nearby distance hook directly on that variable so the solver policy stays
-  explicit and model-owned.
+  nearby candidate hook directly on that variable so the solver policy stays
+  explicit and model-owned. Use `nearby_value_candidates` for nearby scalar
+  change and `nearby_entity_candidates` for nearby scalar swap.
+- Use `candidate_values` when construction, scalar change, pillar change, or
+  scalar ruin-recreate should consume an ordered bounded value neighborhood
+  instead of the full legal domain.
 - When a scalar construction heuristic needs sorted entity or value order,
   declare that on the same `#[planning_variable]` with
   `construction_entity_order_key = "fn_name"` and/or
@@ -31,8 +35,9 @@ Use the scaffold as a thin starter, then model the real problem in your app.
 
 ## Choose the right hook
 
-- Use `nearby_entity_distance_meter` or `nearby_value_distance_meter` when the
-  search neighborhood itself should be distance-pruned.
+- Use `nearby_entity_distance_meter` or `nearby_value_distance_meter` only to
+  rank or filter the bounded nearby candidates. A distance meter by itself does
+  not bound candidate generation.
 - Use `construction_entity_order_key` when construction must rank entities
   before generating placements.
 - Use `construction_value_order_key` when construction must rank candidate

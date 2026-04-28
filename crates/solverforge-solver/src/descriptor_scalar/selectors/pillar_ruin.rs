@@ -16,6 +16,7 @@ pub struct DescriptorPillarChangeMoveSelector<S> {
     solution_descriptor: SolutionDescriptor,
     minimum_sub_pillar_size: usize,
     maximum_sub_pillar_size: usize,
+    value_candidate_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -25,6 +26,7 @@ impl<S> Debug for DescriptorPillarChangeMoveSelector<S> {
             .field("binding", &self.binding)
             .field("minimum_sub_pillar_size", &self.minimum_sub_pillar_size)
             .field("maximum_sub_pillar_size", &self.maximum_sub_pillar_size)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .finish()
     }
 }
@@ -63,7 +65,12 @@ where
                 .map(|entity| entity.entity_index)
                 .collect();
             intersect_legal_values_for_pillar(&group.pillar, |entity_index| {
-                binding.values_for_entity_index(&descriptor, solution, entity_index)
+                binding.candidate_values_for_entity_index(
+                    &descriptor,
+                    solution,
+                    entity_index,
+                    self.value_candidate_limit,
+                )
             })
             .into_iter()
             .filter(move |&value| value != group.shared_value)
@@ -182,6 +189,7 @@ pub struct DescriptorRuinRecreateMoveSelector<S> {
     min_ruin_count: usize,
     max_ruin_count: usize,
     moves_per_step: usize,
+    value_candidate_limit: Option<usize>,
     recreate_heuristic_type: solverforge_config::RecreateHeuristicType,
     rng: RefCell<SmallRng>,
     _phantom: PhantomData<fn() -> S>,
@@ -194,6 +202,7 @@ impl<S> Debug for DescriptorRuinRecreateMoveSelector<S> {
             .field("min_ruin_count", &self.min_ruin_count)
             .field("max_ruin_count", &self.max_ruin_count)
             .field("moves_per_step", &self.moves_per_step)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .field("recreate_heuristic_type", &self.recreate_heuristic_type)
             .finish()
     }
@@ -229,6 +238,7 @@ where
         let max = self.max_ruin_count.min(total);
         let moves_per_step = self.moves_per_step;
         let recreate_heuristic_type = self.recreate_heuristic_type;
+        let value_candidate_limit = self.value_candidate_limit;
         let mut rng = self.rng.borrow_mut();
         let subsets: Vec<SmallVec<[usize; 8]>> = (0..moves_per_step)
             .map(|_| {
@@ -264,6 +274,7 @@ where
                         &indices,
                         descriptor.clone(),
                         recreate_heuristic_type,
+                        value_candidate_limit,
                     );
                     mov.is_doable(score_director)
                         .then_some(DescriptorScalarMoveUnion::RuinRecreate(mov))
@@ -284,4 +295,3 @@ where
         }
     }
 }
-

@@ -88,6 +88,24 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
             scalar_variables.push(ScalarVariableMetadata {
                 field_name: field_ident.to_string(),
                 hooks: HookPaths {
+                    candidate_values: parse_hook_path(
+                        attr,
+                        "candidate_values",
+                        &module.ident,
+                        field,
+                    )?,
+                    nearby_value_candidates: parse_hook_path(
+                        attr,
+                        "nearby_value_candidates",
+                        &module.ident,
+                        field,
+                    )?,
+                    nearby_entity_candidates: parse_hook_path(
+                        attr,
+                        "nearby_entity_candidates",
+                        &module.ident,
+                        field,
+                    )?,
                     nearby_value_distance_meter: parse_hook_path(
                         attr,
                         "nearby_value_distance_meter",
@@ -280,4 +298,3 @@ fn field_is_option_usize(ty: &Type) -> bool {
         .last()
         .is_some_and(|segment| segment.ident == "usize")
 }
-

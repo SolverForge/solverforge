@@ -3,7 +3,7 @@ use std::fmt::{self, Debug};
 use std::ops::Deref;
 
 use solverforge_core::domain::{
-    PlanningSolution, SolutionDescriptor, UsizeConstructionEntityOrderKey,
+    PlanningSolution, SolutionDescriptor, UsizeCandidateValues, UsizeConstructionEntityOrderKey,
     UsizeConstructionValueOrderKey, UsizeEntityValueProvider, UsizeGetter, UsizeSetter,
     ValueRangeType,
 };
@@ -23,6 +23,9 @@ pub(crate) struct VariableBinding {
     pub(crate) setter: UsizeSetter,
     pub(crate) value_range_provider: Option<&'static str>,
     pub(crate) provider: Option<UsizeEntityValueProvider>,
+    pub(crate) candidate_values: Option<UsizeCandidateValues>,
+    pub(crate) nearby_value_candidates: Option<UsizeCandidateValues>,
+    pub(crate) nearby_entity_candidates: Option<UsizeCandidateValues>,
     pub(crate) range_type: ValueRangeType,
     pub(crate) nearby_value_distance_meter:
         Option<solverforge_core::domain::UsizeNearbyValueDistanceMeter>,
@@ -94,6 +97,49 @@ impl VariableBinding {
         self.values_for_entity(solution_descriptor, solution, entity)
     }
 
+    pub(crate) fn candidate_values_for_entity_index(
+        &self,
+        solution_descriptor: &SolutionDescriptor,
+        solution: &dyn Any,
+        entity_index: usize,
+        value_candidate_limit: Option<usize>,
+    ) -> Vec<usize> {
+        if let Some(provider) = self.candidate_values {
+            let values = provider(solution, entity_index, self.variable_index);
+            return match value_candidate_limit {
+                Some(limit) => values.iter().copied().take(limit).collect(),
+                None => values.to_vec(),
+            };
+        }
+
+        let entity = self.entity_for_index(solution_descriptor, solution, entity_index);
+        match (&self.provider, &self.range_type) {
+            (Some(provider), _) => {
+                let values = provider(entity);
+                match value_candidate_limit {
+                    Some(limit) => values.into_iter().take(limit).collect(),
+                    None => values,
+                }
+            }
+            (_, ValueRangeType::CountableRange { from, to }) => {
+                let iter = (*from..*to).filter_map(|value| usize::try_from(value).ok());
+                match value_candidate_limit {
+                    Some(limit) => iter.take(limit).collect(),
+                    None => iter.collect(),
+                }
+            }
+            _ => {
+                let count = self
+                    .solution_value_count(solution_descriptor, solution)
+                    .unwrap_or_default();
+                let end = value_candidate_limit
+                    .map(|limit| limit.min(count))
+                    .unwrap_or(count);
+                (0..end).collect()
+            }
+        }
+    }
+
     pub(crate) fn has_values_for_entity_index(
         &self,
         solution_descriptor: &SolutionDescriptor,
@@ -108,6 +154,23 @@ impl VariableBinding {
                 .solution_value_count(solution_descriptor, solution)
                 .is_some_and(|count| count > 0),
         }
+    }
+
+    pub(crate) fn has_candidate_values_for_entity_index(
+        &self,
+        solution_descriptor: &SolutionDescriptor,
+        solution: &dyn Any,
+        entity_index: usize,
+        value_candidate_limit: Option<usize>,
+    ) -> bool {
+        if matches!(value_candidate_limit, Some(0)) {
+            return false;
+        }
+        if let Some(provider) = self.candidate_values {
+            return !provider(solution, entity_index, self.variable_index).is_empty();
+        }
+
+        self.has_values_for_entity_index(solution_descriptor, solution, entity_index)
     }
 
     pub(crate) fn solution_value_count(
@@ -321,6 +384,9 @@ pub(crate) fn collect_bindings(descriptor: &SolutionDescriptor) -> Vec<VariableB
                 setter,
                 value_range_provider: variable.value_range_provider,
                 provider: variable.entity_value_provider,
+                candidate_values: variable.candidate_values,
+                nearby_value_candidates: variable.nearby_value_candidates,
+                nearby_entity_candidates: variable.nearby_entity_candidates,
                 range_type: variable.value_range_type.clone(),
                 nearby_value_distance_meter: variable.nearby_value_distance_meter,
                 nearby_entity_distance_meter: variable.nearby_entity_distance_meter,

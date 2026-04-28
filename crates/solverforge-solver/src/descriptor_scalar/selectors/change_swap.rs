@@ -3,6 +3,7 @@ pub struct DescriptorChangeMoveSelector<S> {
     binding: VariableBinding,
     solution_descriptor: SolutionDescriptor,
     allows_unassigned: bool,
+    value_candidate_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -15,12 +16,17 @@ impl<S> Debug for DescriptorChangeMoveSelector<S> {
 }
 
 impl<S> DescriptorChangeMoveSelector<S> {
-    fn new(binding: VariableBinding, solution_descriptor: SolutionDescriptor) -> Self {
+    fn new(
+        binding: VariableBinding,
+        solution_descriptor: SolutionDescriptor,
+        value_candidate_limit: Option<usize>,
+    ) -> Self {
         let allows_unassigned = binding.allows_unassigned;
         Self {
             binding,
             solution_descriptor,
             allows_unassigned,
+            value_candidate_limit,
             _phantom: PhantomData,
         }
     }
@@ -63,7 +69,12 @@ where
                     }
                 });
                 binding
-                    .values_for_entity(&descriptor, solution, entity)
+                    .candidate_values_for_entity_index(
+                        &descriptor,
+                        solution,
+                        entity_index,
+                        self.value_candidate_limit,
+                    )
                     .into_iter()
                     .map({
                         let binding = binding.clone();
@@ -99,10 +110,11 @@ where
                 .expect("entity lookup failed for change selector");
             total += self
                 .binding
-                .values_for_entity(
+                .candidate_values_for_entity_index(
                     &self.solution_descriptor,
                     score_director.working_solution() as &dyn Any,
-                    entity,
+                    entity_index,
+                    self.value_candidate_limit,
                 )
                 .len()
                 + usize::from(self.allows_unassigned && (self.binding.getter)(entity).is_some());
@@ -204,6 +216,7 @@ pub struct DescriptorNearbyChangeMoveSelector<S> {
     binding: VariableBinding,
     solution_descriptor: SolutionDescriptor,
     max_nearby: usize,
+    value_candidate_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -212,6 +225,7 @@ impl<S> Debug for DescriptorNearbyChangeMoveSelector<S> {
         f.debug_struct("DescriptorNearbyChangeMoveSelector")
             .field("binding", &self.binding)
             .field("max_nearby", &self.max_nearby)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .finish()
     }
 }
@@ -227,10 +241,11 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let distance_meter = self
+        let distance_meter = self.binding.nearby_value_distance_meter;
+        let candidate_values = self
             .binding
-            .nearby_value_distance_meter
-            .expect("nearby change requires a nearby value distance meter");
+            .nearby_value_candidates
+            .expect("nearby change requires nearby_value_candidates");
         let solution = score_director.working_solution() as &dyn Any;
         let count = score_director
             .entity_count(self.binding.descriptor_index)
@@ -238,6 +253,7 @@ where
         let binding = self.binding.clone();
         let descriptor = self.solution_descriptor.clone();
         let max_nearby = self.max_nearby;
+        let value_candidate_limit = self.value_candidate_limit;
         let moves: Vec<_> = (0..count)
             .flat_map(move |entity_index| {
                 let entity = descriptor
@@ -245,15 +261,24 @@ where
                     .expect("entity lookup failed for nearby change selector");
                 let current_value = (binding.getter)(entity);
                 let current_assigned = current_value.is_some();
-                let mut candidates: Vec<(usize, f64, usize)> = binding
-                    .values_for_entity(&descriptor, solution, entity)
-                    .into_iter()
+                let values = candidate_values(
+                    solution,
+                    entity_index,
+                    binding.variable_index,
+                );
+                let limit = value_candidate_limit.unwrap_or(values.len());
+                let mut candidates: Vec<(usize, f64, usize)> = values
+                    .iter()
+                    .copied()
+                    .take(limit)
                     .enumerate()
                     .filter_map(|(order, value)| {
                         if current_value == Some(value) {
                             return None;
                         }
-                        let distance = distance_meter(solution, entity_index, value);
+                        let distance = distance_meter
+                            .map(|meter| meter(solution, entity_index, value))
+                            .unwrap_or(order as f64);
                         distance.is_finite().then_some((value, distance, order))
                     })
                     .collect();
@@ -322,10 +347,11 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let distance_meter = self
+        let distance_meter = self.binding.nearby_entity_distance_meter;
+        let entity_candidates = self
             .binding
-            .nearby_entity_distance_meter
-            .expect("nearby swap requires a nearby entity distance meter");
+            .nearby_entity_candidates
+            .expect("nearby swap requires nearby_entity_candidates");
         let solution = score_director.working_solution() as &dyn Any;
         let count = score_director
             .entity_count(self.binding.descriptor_index)
@@ -342,13 +368,24 @@ where
         );
         let mut moves = Vec::new();
         for left_entity_index in 0..count {
-            let mut candidates: Vec<(usize, f64, usize)> = ((left_entity_index + 1)..count)
+            let mut candidates: Vec<(usize, f64, usize)> = entity_candidates(
+                solution,
+                left_entity_index,
+                binding.variable_index,
+            )
+                .iter()
+                .copied()
                 .enumerate()
                 .filter_map(|(order, right_entity_index)| {
+                    if right_entity_index <= left_entity_index || right_entity_index >= count {
+                        return None;
+                    }
                     if !legality_index.can_swap(left_entity_index, right_entity_index) {
                         return None;
                     }
-                    let distance = distance_meter(solution, left_entity_index, right_entity_index);
+                    let distance = distance_meter
+                        .map(|meter| meter(solution, left_entity_index, right_entity_index))
+                        .unwrap_or(order as f64);
                     distance
                         .is_finite()
                         .then_some((right_entity_index, distance, order))
@@ -380,4 +417,3 @@ where
         self.open_cursor(score_director).count()
     }
 }
-

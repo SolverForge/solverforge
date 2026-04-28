@@ -119,6 +119,37 @@ fn descriptor_with_nearby_value_meter() -> SolutionDescriptor {
                         .with_allows_unassigned(true)
                         .with_value_range("workers")
                         .with_usize_accessors(get_worker_idx, set_worker_idx)
+                        .with_nearby_value_candidates(nearby_worker_candidates)
+                        .with_nearby_value_distance_meter(nearby_worker_value_distance),
+                ),
+        )
+        .with_problem_fact(
+            ProblemFactDescriptor::new("Worker", TypeId::of::<Worker>(), "workers").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Worker",
+                    "workers",
+                    |s: &Plan| &s.workers,
+                    |s: &mut Plan| &mut s.workers,
+                )),
+            ),
+        )
+}
+
+fn descriptor_with_nearby_value_meter_only() -> SolutionDescriptor {
+    SolutionDescriptor::new("Plan", TypeId::of::<Plan>())
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<Task>(), "tasks")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Task",
+                    "tasks",
+                    |s: &Plan| &s.tasks,
+                    |s: &mut Plan| &mut s.tasks,
+                )))
+                .with_variable(
+                    VariableDescriptor::genuine("worker_idx")
+                        .with_allows_unassigned(true)
+                        .with_value_range("workers")
+                        .with_usize_accessors(get_worker_idx, set_worker_idx)
                         .with_nearby_value_distance_meter(nearby_worker_value_distance),
                 ),
         )
@@ -149,6 +180,7 @@ fn descriptor_with_nearby_entity_meter() -> SolutionDescriptor {
                         .with_allows_unassigned(true)
                         .with_value_range("workers")
                         .with_usize_accessors(get_worker_idx, set_worker_idx)
+                        .with_nearby_entity_candidates(nearby_task_candidates)
                         .with_nearby_entity_distance_meter(nearby_worker_entity_distance),
                 ),
         )
@@ -208,6 +240,8 @@ fn restricted_descriptor() -> SolutionDescriptor {
 
 fn restricted_descriptor_with_nearby_entity_meter() -> SolutionDescriptor {
     restricted_descriptor_with_variable(
-        restricted_variable().with_nearby_entity_distance_meter(nearby_worker_entity_distance),
+        restricted_variable()
+            .with_nearby_entity_candidates(restricted_nearby_task_candidates)
+            .with_nearby_entity_distance_meter(nearby_worker_entity_distance),
     )
 }

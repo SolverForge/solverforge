@@ -3,7 +3,7 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.9.1`
+**Workspace Release:** `0.9.2`
 
 ## Dependencies
 
@@ -88,7 +88,9 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `#[planning_id]` — marks the unique ID field
 - `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable
   `value_range = "name"` is accepted as an alias for `value_range_provider`
-  canonical scalar nearby hooks are declared here as well:
+  canonical scalar candidate and nearby hooks are declared here as well:
+  `candidate_values = "fn_name"`, `nearby_value_candidates = "fn_name"`,
+  `nearby_entity_candidates = "fn_name"`,
   `nearby_value_distance_meter = "fn_name"` and `nearby_entity_distance_meter = "fn_name"`
   scalar construction ordering hooks are declared here too:
   `construction_entity_order_key = "fn_name"` and

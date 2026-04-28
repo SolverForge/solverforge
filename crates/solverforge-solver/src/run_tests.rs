@@ -1,6 +1,26 @@
-use super::{load_solver_config_from, log_solve_start};
+use super::{build_termination, load_solver_config_from, log_solve_start, AnyTermination};
+use solverforge_config::SolverConfig;
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::SoftScore;
 use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+#[derive(Clone)]
+struct TestSolution {
+    score: Option<SoftScore>,
+}
+
+impl PlanningSolution for TestSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
 
 fn temp_config_path() -> std::path::PathBuf {
     let suffix = SystemTime::now()
@@ -42,6 +62,15 @@ construction_heuristic_type = "first_fit"
     assert_eq!(config.phases.len(), 1);
 
     fs::remove_dir_all(parent).expect("temp directory should be removed");
+}
+
+#[test]
+fn build_termination_preserves_missing_time_limit_as_unlimited() {
+    let config = SolverConfig::default();
+    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+    assert!(matches!(termination, AnyTermination::None(_)));
+    assert_eq!(time_limit, None);
 }
 
 #[test]

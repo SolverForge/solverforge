@@ -83,6 +83,7 @@ where
 pub struct NearbyChangeLeafSelector<S> {
     ctx: ScalarVariableContext<S>,
     max_nearby: usize,
+    value_candidate_limit: Option<usize>,
 }
 
 impl<S> Debug for NearbyChangeLeafSelector<S> {
@@ -91,6 +92,7 @@ impl<S> Debug for NearbyChangeLeafSelector<S> {
             .field("descriptor_index", &self.ctx.descriptor_index)
             .field("variable_name", &self.ctx.variable_name)
             .field("max_nearby", &self.max_nearby)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .finish()
     }
 }
@@ -108,23 +110,36 @@ where
         let solution = score_director.working_solution();
         let distance_meter = self
             .ctx
-            .nearby_value_distance_meter
-            .expect("nearby change requires a nearby value distance meter");
-        let value_selector = ScalarValueSelector::from_context(self.ctx);
+            .nearby_value_distance_meter;
+        let candidate_values = self
+            .ctx
+            .nearby_value_candidates
+            .expect("nearby change requires nearby_value_candidates");
         let mut moves = Vec::new();
 
         for entity_index in 0..(self.ctx.entity_count)(solution) {
             let current_value = self.ctx.current_value(solution, entity_index);
             let current_assigned = current_value.is_some();
-            let mut candidates: Vec<(usize, f64, usize)> = value_selector
-                .iter(score_director, self.ctx.descriptor_index, entity_index)
+            let values = candidate_values(
+                solution,
+                entity_index,
+                self.ctx.variable_index,
+            );
+            let limit = self.value_candidate_limit.unwrap_or(values.len());
+            let mut candidates: Vec<(usize, f64, usize)> = values
+                .iter()
+                .copied()
+                .take(limit)
                 .enumerate()
                 .filter_map(|(order, value)| {
                     if current_value == Some(value) {
                         return None;
                     }
-                    let distance =
-                        distance_meter(solution, entity_index, self.ctx.variable_index, value)?;
+                    let distance = distance_meter
+                        .and_then(|meter| {
+                            meter(solution, entity_index, self.ctx.variable_index, value)
+                        })
+                        .unwrap_or(order as f64);
                     distance.is_finite().then_some((value, distance, order))
                 })
                 .collect();
@@ -203,42 +218,53 @@ where
         let solution = score_director.working_solution();
         let distance_meter = self
             .ctx
-            .nearby_entity_distance_meter
-            .expect("nearby swap requires a nearby entity distance meter");
+            .nearby_entity_distance_meter;
+        let entity_candidates = self
+            .ctx
+            .nearby_entity_candidates
+            .expect("nearby swap requires nearby_entity_candidates");
         let entity_count = (self.ctx.entity_count)(solution);
         let current_values: Vec<_> = (0..entity_count)
             .map(|entity_index| self.ctx.current_value(solution, entity_index))
-            .collect();
-        let legal_values: Vec<_> = (0..entity_count)
-            .map(|entity_index| self.ctx.values_for_entity(solution, entity_index))
             .collect();
         let mut moves = Vec::new();
 
         for left_entity_index in 0..entity_count {
             let left_value = current_values[left_entity_index];
-            let mut candidates: Vec<(usize, f64, usize)> = ((left_entity_index + 1)..entity_count)
+            let mut candidates: Vec<(usize, f64, usize)> = entity_candidates(
+                solution,
+                left_entity_index,
+                self.ctx.variable_index,
+            )
+                .iter()
+                .copied()
                 .enumerate()
                 .filter_map(|(order, right_entity_index)| {
+                    if right_entity_index <= left_entity_index || right_entity_index >= entity_count
+                    {
+                        return None;
+                    }
                     if left_value == current_values[right_entity_index] {
                         return None;
                     }
-                    if !scalar_swap_is_legal(
-                        self.ctx,
-                        &legal_values[left_entity_index],
-                        current_values[right_entity_index],
-                    ) || !scalar_swap_is_legal(
-                        self.ctx,
-                        &legal_values[right_entity_index],
-                        left_value,
-                    ) {
-                        return None;
-                    }
-                    let distance = distance_meter(
+                    if !self.ctx.value_is_legal(
                         solution,
                         left_entity_index,
-                        right_entity_index,
-                        self.ctx.variable_index,
-                    )?;
+                        current_values[right_entity_index],
+                    ) || !self.ctx.value_is_legal(solution, right_entity_index, left_value)
+                    {
+                        return None;
+                    }
+                    let distance = distance_meter
+                        .and_then(|meter| {
+                            meter(
+                                solution,
+                                left_entity_index,
+                                right_entity_index,
+                                self.ctx.variable_index,
+                            )
+                        })
+                        .unwrap_or(order as f64);
                     distance
                         .is_finite()
                         .then_some((right_entity_index, distance, order))
@@ -275,4 +301,3 @@ where
         arena.extend(self.open_cursor(score_director));
     }
 }
-

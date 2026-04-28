@@ -175,6 +175,7 @@ fn descriptor_best_fit_assigns_optional_variable_when_candidate_improves_score()
     solver_scope.start_solving();
 
     let config = ConstructionHeuristicConfig {
+        value_candidate_limit: Some(3),
         construction_heuristic_type: ConstructionHeuristicType::CheapestInsertion,
         target: VariableTargetConfig::default(),
         k: 1,
@@ -201,6 +202,7 @@ fn descriptor_completed_optional_none_is_skipped_by_later_construction_passes() 
     solver_scope.start_solving();
 
     let best_fit_config = ConstructionHeuristicConfig {
+        value_candidate_limit: Some(3),
         construction_heuristic_type: ConstructionHeuristicType::CheapestInsertion,
         target: VariableTargetConfig::default(),
         k: 1,
@@ -293,6 +295,7 @@ fn descriptor_first_fit_decreasing_reevaluates_entity_order_each_step() {
     solver_scope.start_solving();
 
     let config = ConstructionHeuristicConfig {
+        value_candidate_limit: None,
         construction_heuristic_type: ConstructionHeuristicType::FirstFitDecreasing,
         target: VariableTargetConfig::default(),
         k: 1,
@@ -337,6 +340,7 @@ fn descriptor_allocate_entity_from_queue_reevaluates_entity_order_each_step() {
     solver_scope.start_solving();
 
     let config = ConstructionHeuristicConfig {
+        value_candidate_limit: None,
         construction_heuristic_type: ConstructionHeuristicType::AllocateEntityFromQueue,
         target: VariableTargetConfig::default(),
         k: 1,
@@ -376,6 +380,7 @@ fn descriptor_allocate_to_value_from_queue_uses_live_value_order() {
     solver_scope.start_solving();
 
     let config = ConstructionHeuristicConfig {
+        value_candidate_limit: None,
         construction_heuristic_type: ConstructionHeuristicType::AllocateToValueFromQueue,
         target: VariableTargetConfig::default(),
         k: 1,
@@ -420,6 +425,7 @@ fn descriptor_weakest_fit_uses_live_value_order_key() {
     solver_scope.start_solving();
 
     let config = ConstructionHeuristicConfig {
+        value_candidate_limit: None,
         construction_heuristic_type: ConstructionHeuristicType::WeakestFit,
         target: VariableTargetConfig::default(),
         k: 1,
@@ -464,6 +470,7 @@ fn descriptor_strongest_fit_uses_live_value_order_key() {
     solver_scope.start_solving();
 
     let config = ConstructionHeuristicConfig {
+        value_candidate_limit: None,
         construction_heuristic_type: ConstructionHeuristicType::StrongestFit,
         target: VariableTargetConfig::default(),
         k: 1,

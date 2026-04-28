@@ -56,6 +56,22 @@ fn allowed_workers(solution: &Schedule, entity_index: usize, _variable_index: us
     &solution.shifts[entity_index].allowed_workers
 }
 
+fn nearby_worker_candidates(
+    solution: &Schedule,
+    entity_index: usize,
+    variable_index: usize,
+) -> &[usize] {
+    allowed_workers(solution, entity_index, variable_index)
+}
+
+fn nearby_shift_candidates(
+    solution: &Schedule,
+    entity_index: usize,
+    _variable_index: usize,
+) -> &[usize] {
+    &solution.shifts[entity_index].allowed_workers
+}
+
 fn nearby_worker_value_distance(
     _solution: &Schedule,
     entity_index: usize,

@@ -3,6 +3,7 @@ pub struct PillarChangeLeafSelector<S> {
     ctx: ScalarVariableContext<S>,
     minimum_sub_pillar_size: usize,
     maximum_sub_pillar_size: usize,
+    value_candidate_limit: Option<usize>,
 }
 
 impl<S> Debug for PillarChangeLeafSelector<S> {
@@ -12,6 +13,7 @@ impl<S> Debug for PillarChangeLeafSelector<S> {
             .field("variable_name", &self.ctx.variable_name)
             .field("minimum_sub_pillar_size", &self.minimum_sub_pillar_size)
             .field("maximum_sub_pillar_size", &self.maximum_sub_pillar_size)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .finish()
     }
 }
@@ -39,7 +41,7 @@ where
             self.maximum_sub_pillar_size,
         ));
 
-        let value_selector = ScalarValueSelector::from_context(self.ctx);
+        let value_selector = ScalarCandidateSelector::new(self.ctx, self.value_candidate_limit);
         let mut moves = Vec::new();
         for pillar in pillar_selector.iter(score_director) {
             let Some(first) = pillar.first() else {
@@ -280,4 +282,3 @@ where
         arena.extend(self.open_cursor(score_director));
     }
 }
-

@@ -100,12 +100,13 @@ fn collect_scalar_leaf_selectors<S>(
 
     fn push_change<S: PlanningSolution + 'static>(
         ctx: &ScalarVariableContext<S>,
+        value_candidate_limit: Option<usize>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
         leaves.push(ScalarLeafSelector::Change(
             ChangeMoveSelector::new(
                 FromSolutionEntitySelector::new(ctx.descriptor_index),
-                ScalarValueSelector::from_context(*ctx),
+                ScalarCandidateSelector::new(*ctx, value_candidate_limit),
                 ctx.getter,
                 ctx.setter,
                 ctx.descriptor_index,
@@ -126,17 +127,19 @@ fn collect_scalar_leaf_selectors<S>(
     fn push_nearby_change<S: PlanningSolution + 'static>(
         ctx: &ScalarVariableContext<S>,
         max_nearby: usize,
+        value_candidate_limit: Option<usize>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
         assert!(
-            ctx.nearby_value_distance_meter.is_some(),
-            "nearby_change_move selector requires nearby_value_distance_meter for {}::{}",
+            ctx.nearby_value_candidates.is_some(),
+            "nearby_change_move selector requires nearby_value_candidates for {}::{}",
             ctx.entity_type_name,
             ctx.variable_name,
         );
         leaves.push(ScalarLeafSelector::NearbyChange(NearbyChangeLeafSelector {
             ctx: *ctx,
             max_nearby,
+            value_candidate_limit,
         }));
     }
 
@@ -146,8 +149,8 @@ fn collect_scalar_leaf_selectors<S>(
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
         assert!(
-            ctx.nearby_entity_distance_meter.is_some(),
-            "nearby_swap_move selector requires nearby_entity_distance_meter for {}::{}",
+            ctx.nearby_entity_candidates.is_some(),
+            "nearby_swap_move selector requires nearby_entity_candidates for {}::{}",
             ctx.entity_type_name,
             ctx.variable_name,
         );
@@ -161,12 +164,14 @@ fn collect_scalar_leaf_selectors<S>(
         ctx: &ScalarVariableContext<S>,
         minimum_sub_pillar_size: usize,
         maximum_sub_pillar_size: usize,
+        value_candidate_limit: Option<usize>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
         leaves.push(ScalarLeafSelector::PillarChange(PillarChangeLeafSelector {
             ctx: *ctx,
             minimum_sub_pillar_size,
             maximum_sub_pillar_size,
+            value_candidate_limit,
         }));
     }
 
@@ -188,10 +193,19 @@ fn collect_scalar_leaf_selectors<S>(
         min_ruin_count: usize,
         max_ruin_count: usize,
         moves_per_step: Option<usize>,
+        value_candidate_limit: Option<usize>,
         recreate_heuristic_type: RecreateHeuristicType,
         random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
+        if recreate_heuristic_type == RecreateHeuristicType::CheapestInsertion {
+            assert!(
+                ctx.candidate_values.is_some() || value_candidate_limit.is_some(),
+                "cheapest_insertion scalar ruin_recreate requires candidate_values or value_candidate_limit for {}::{}",
+                ctx.entity_type_name,
+                ctx.variable_name,
+            );
+        }
         let access = RuinVariableAccess::new(
             ctx.entity_count,
             ctx.getter,
@@ -218,7 +232,7 @@ fn collect_scalar_leaf_selectors<S>(
             descriptor_index: ctx.descriptor_index,
             variable_index: ctx.variable_index,
             variable_name: ctx.variable_name,
-            value_source: scalar_recreate_value_source(*ctx),
+            value_source: scalar_recreate_candidate_source(*ctx, value_candidate_limit),
             recreate_heuristic_type,
             allows_unassigned: ctx.allows_unassigned,
         }));
@@ -258,7 +272,7 @@ fn collect_scalar_leaf_selectors<S>(
                     &matched,
                 );
                 for ctx in matched {
-                    push_change(&ctx, leaves);
+                    push_change(&ctx, change.value_candidate_limit, leaves);
                 }
             }
             MoveSelectorConfig::SwapMoveSelector(swap) => {
@@ -290,7 +304,12 @@ fn collect_scalar_leaf_selectors<S>(
                     &matched,
                 );
                 for ctx in matched {
-                    push_nearby_change(&ctx, nearby_change.max_nearby, leaves);
+                    push_nearby_change(
+                        &ctx,
+                        nearby_change.max_nearby,
+                        nearby_change.value_candidate_limit,
+                        leaves,
+                    );
                 }
             }
             MoveSelectorConfig::NearbySwapMoveSelector(nearby_swap) => {
@@ -326,6 +345,7 @@ fn collect_scalar_leaf_selectors<S>(
                         &ctx,
                         pillar_change.minimum_sub_pillar_size,
                         pillar_change.maximum_sub_pillar_size,
+                        pillar_change.value_candidate_limit,
                         leaves,
                     );
                 }
@@ -369,6 +389,7 @@ fn collect_scalar_leaf_selectors<S>(
                         ruin_recreate.min_ruin_count,
                         ruin_recreate.max_ruin_count,
                         ruin_recreate.moves_per_step,
+                        ruin_recreate.value_candidate_limit,
                         ruin_recreate.recreate_heuristic_type,
                         random_seed,
                         leaves,
@@ -404,7 +425,7 @@ fn collect_scalar_leaf_selectors<S>(
         Some(cfg) => collect(cfg, scalar_variables, random_seed, leaves),
         None => {
             for ctx in scalar_variables {
-                push_change(ctx, leaves);
+                push_change(ctx, None, leaves);
                 push_swap(ctx, leaves);
             }
         }

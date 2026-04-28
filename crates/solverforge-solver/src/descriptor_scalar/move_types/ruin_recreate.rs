@@ -4,6 +4,7 @@ pub struct DescriptorRuinRecreateMove<S> {
     entity_indices: SmallVec<[usize; 8]>,
     solution_descriptor: SolutionDescriptor,
     recreate_heuristic_type: RecreateHeuristicType,
+    value_candidate_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -14,6 +15,7 @@ impl<S> Debug for DescriptorRuinRecreateMove<S> {
             .field("entity_indices", &self.entity_indices)
             .field("variable_name", &self.binding.variable_name)
             .field("recreate_heuristic_type", &self.recreate_heuristic_type)
+            .field("value_candidate_limit", &self.value_candidate_limit)
             .finish()
     }
 }
@@ -27,12 +29,14 @@ where
         entity_indices: &[usize],
         solution_descriptor: SolutionDescriptor,
         recreate_heuristic_type: RecreateHeuristicType,
+        value_candidate_limit: Option<usize>,
     ) -> Self {
         Self {
             binding,
             entity_indices: SmallVec::from_slice(entity_indices),
             solution_descriptor,
             recreate_heuristic_type,
+            value_candidate_limit,
             _phantom: PhantomData,
         }
     }
@@ -50,16 +54,13 @@ where
     }
 
     fn values_for_entity(&self, solution: &S, entity_index: usize) -> Vec<usize> {
-        let entity = self
-            .solution_descriptor
-            .get_entity(
-                solution as &dyn Any,
-                self.binding.descriptor_index,
-                entity_index,
-            )
-            .expect("entity lookup failed for descriptor ruin_recreate move");
         self.binding
-            .values_for_entity(&self.solution_descriptor, solution as &dyn Any, entity)
+            .candidate_values_for_entity_index(
+                &self.solution_descriptor,
+                solution as &dyn Any,
+                entity_index,
+                self.value_candidate_limit,
+            )
     }
 
     fn apply_value<D: Director<S>>(
@@ -162,10 +163,11 @@ where
         self.binding.allows_unassigned
             || self.entity_indices.iter().all(|&entity_index| {
                 self.current_value(solution, entity_index).is_none()
-                    || self.binding.has_values_for_entity_index(
+                    || self.binding.has_candidate_values_for_entity_index(
                         &self.solution_descriptor,
                         solution as &dyn Any,
                         entity_index,
+                        self.value_candidate_limit,
                     )
             })
     }
@@ -274,4 +276,3 @@ where
         MoveTabuSignature::new(scope, move_id, undo_move_id).with_entity_tokens(entity_tokens)
     }
 }
-

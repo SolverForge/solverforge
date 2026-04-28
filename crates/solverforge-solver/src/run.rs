@@ -14,7 +14,7 @@ use tracing::info;
 use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::{Phase, PhaseSequence};
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
-use crate::solver::Solver;
+use crate::solver::{NoTermination, Solver};
 use crate::stats::{format_duration, whole_units_per_second};
 use crate::termination::{
     BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
@@ -26,6 +26,7 @@ use crate::termination::{
 /// Avoids repeated branching across termination overloads by capturing the
 /// selected termination variant upfront.
 pub enum AnyTermination<S: PlanningSolution, D: Director<S>> {
+    None(NoTermination),
     Default(OrTermination<(TimeTermination,), S, D>),
     WithBestScore(OrTermination<(TimeTermination, BestScoreTermination<S::Score>), S, D>),
     WithStepCount(OrTermination<(TimeTermination, StepCountTermination), S, D>),
@@ -81,6 +82,7 @@ impl<S: PlanningSolution> ProgressCallback<S> for ChannelProgressCallback<S> {
 impl<S: PlanningSolution, D: Director<S>> fmt::Debug for AnyTermination<S, D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::None(_) => write!(f, "AnyTermination::None"),
             Self::Default(_) => write!(f, "AnyTermination::Default"),
             Self::WithBestScore(_) => write!(f, "AnyTermination::WithBestScore"),
             Self::WithStepCount(_) => write!(f, "AnyTermination::WithStepCount"),
@@ -97,6 +99,7 @@ where
 {
     fn is_terminated(&self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool {
         match self {
+            Self::None(t) => t.is_terminated(solver_scope),
             Self::Default(t) => t.is_terminated(solver_scope),
             Self::WithBestScore(t) => t.is_terminated(solver_scope),
             Self::WithStepCount(t) => t.is_terminated(solver_scope),
@@ -107,6 +110,7 @@ where
 
     fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>) {
         match self {
+            Self::None(t) => t.install_inphase_limits(solver_scope),
             Self::Default(t) => t.install_inphase_limits(solver_scope),
             Self::WithBestScore(t) => t.install_inphase_limits(solver_scope),
             Self::WithStepCount(t) => t.install_inphase_limits(solver_scope),
@@ -120,28 +124,28 @@ where
 pub fn build_termination<S, C>(
     config: &SolverConfig,
     default_secs: u64,
-) -> (AnyTermination<S, ScoreDirector<S, C>>, Duration)
+) -> (AnyTermination<S, ScoreDirector<S, C>>, Option<Duration>)
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
 {
     let term_config = config.termination.as_ref();
-    let time_limit = term_config
-        .and_then(|c| c.time_limit())
-        .unwrap_or(Duration::from_secs(default_secs));
-    let time = TimeTermination::new(time_limit);
+    let time_limit = term_config.and_then(|c| c.time_limit());
+    let fallback_time_limit = Duration::from_secs(default_secs);
 
     let best_score_target: Option<S::Score> = term_config
         .and_then(|c| c.best_score_limit.as_ref())
         .and_then(|s| S::Score::parse(s).ok());
 
     let termination = if let Some(target) = best_score_target {
+        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
         AnyTermination::WithBestScore(OrTermination::new((
             time,
             BestScoreTermination::new(target),
         )))
     } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
+        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
         AnyTermination::WithStepCount(OrTermination::new((
             time,
             StepCountTermination::new(step_limit),
@@ -149,17 +153,22 @@ where
     } else if let Some(unimproved_step_limit) =
         term_config.and_then(|c| c.unimproved_step_count_limit)
     {
+        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
         AnyTermination::WithUnimprovedStep(OrTermination::new((
             time,
             UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
         )))
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
+        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
         AnyTermination::WithUnimprovedTime(OrTermination::new((
             time,
             UnimprovedTimeTermination::<S>::new(unimproved_time),
         )))
-    } else {
+    } else if let Some(limit) = time_limit {
+        let time = TimeTermination::new(limit);
         AnyTermination::Default(OrTermination::new((time,)))
+    } else {
+        AnyTermination::None(NoTermination)
     };
 
     (termination, time_limit)
@@ -299,12 +308,14 @@ where
     let callback = ChannelProgressCallback::new(runtime);
 
     let phases = build_phases(&config);
-    let solver = Solver::new((phases,))
+    let mut solver = Solver::new((phases,))
         .with_config(config.clone())
         .with_termination(termination)
-        .with_time_limit(time_limit)
         .with_runtime(runtime)
         .with_progress_callback(callback);
+    if let Some(time_limit) = time_limit {
+        solver = solver.with_time_limit(time_limit);
+    }
 
     let result = solver.with_terminate(runtime.cancel_flag()).solve(director);
 

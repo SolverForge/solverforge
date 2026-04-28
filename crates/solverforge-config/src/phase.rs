@@ -48,6 +48,9 @@ pub struct ConstructionHeuristicConfig {
     #[serde(default = "default_k")]
     pub k: usize,
 
+    // Optional cap for scalar value candidates generated per entity.
+    pub value_candidate_limit: Option<usize>,
+
     // Phase termination configuration.
     pub termination: Option<TerminationConfig>,
 }
@@ -58,6 +61,7 @@ impl Default for ConstructionHeuristicConfig {
             construction_heuristic_type: ConstructionHeuristicType::default(),
             target: VariableTargetConfig::default(),
             k: default_k(),
+            value_candidate_limit: None,
             termination: None,
         }
     }

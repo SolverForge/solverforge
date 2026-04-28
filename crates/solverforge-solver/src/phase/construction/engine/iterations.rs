@@ -3,6 +3,7 @@ fn solve_first_fit_iteration<S, V, DM, IDM, D, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
     entity_class: Option<&str>,
     variable_name: Option<&str>,
+    value_candidate_limit: Option<usize>,
 ) -> IterationProgress<S, V>
 where
     S: PlanningSolution,
@@ -22,7 +23,7 @@ where
 
         let progress = match variable {
             VariableContext::Scalar(ctx) => {
-                solve_scalar_first_fit(variable_index, *ctx, phase_scope)
+                solve_scalar_first_fit(variable_index, *ctx, value_candidate_limit, phase_scope)
             }
             VariableContext::List(ctx) => {
                 solve_list_first_fit(variable_index, ctx.clone(), phase_scope)
@@ -50,6 +51,7 @@ fn solve_best_fit_iteration<S, V, DM, IDM, D, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
     entity_class: Option<&str>,
     variable_name: Option<&str>,
+    value_candidate_limit: Option<usize>,
 ) -> IterationProgress<S, V>
 where
     S: PlanningSolution,
@@ -69,7 +71,9 @@ where
         }
 
         let progress = match variable {
-            VariableContext::Scalar(ctx) => scan_scalar_best_fit(variable_index, *ctx, phase_scope),
+            VariableContext::Scalar(ctx) => {
+                scan_scalar_best_fit(variable_index, *ctx, value_candidate_limit, phase_scope)
+            }
             VariableContext::List(ctx) => {
                 scan_list_best_fit(variable_index, ctx.clone(), phase_scope)
             }
@@ -92,4 +96,3 @@ where
         IterationProgress::None
     }
 }
-

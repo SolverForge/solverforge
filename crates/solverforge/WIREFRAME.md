@@ -95,6 +95,7 @@ src/
 - `SolverSnapshot`
 - `SolverSnapshotAnalysis`
 - `SolverTelemetry`
+- `SelectorTelemetry`
 - `SolverTerminalReason`
 - `ScoreAnalysis`
 - `ConstraintAnalysis`

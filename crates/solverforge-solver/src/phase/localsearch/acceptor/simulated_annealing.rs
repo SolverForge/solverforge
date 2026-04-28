@@ -238,6 +238,7 @@ impl SimulatedAnnealingAcceptor {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn current_temperature_for_level(&self, level: usize) -> f64 {
         self.current_temperatures[level]
     }

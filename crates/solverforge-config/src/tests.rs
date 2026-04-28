@@ -268,6 +268,17 @@ fn test_simulated_annealing_level_aware_config_roundtrip() {
 }
 
 #[test]
+fn test_ruin_recreate_defaults_to_first_fit() {
+    let config = RuinRecreateMoveSelectorConfig::default();
+
+    assert_eq!(RecreateHeuristicType::default(), RecreateHeuristicType::FirstFit);
+    assert_eq!(
+        config.recreate_heuristic_type,
+        RecreateHeuristicType::FirstFit
+    );
+}
+
+#[test]
 fn test_round_robin_union_with_limited_neighborhood_parsing() {
     let toml = r#"
         [[phases]]

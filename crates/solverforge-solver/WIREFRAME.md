@@ -59,7 +59,7 @@ src/
 │       ├── builder_impl/*.rs            — List selector node/cursor and builder implementation chunks
 │       ├── leaf.rs                      — ListLeafSelector<S, V, DM, IDM> enum
 │       └── tests.rs                     — Tests
-├── stats.rs                             — SolverStats, PhaseStats
+├── stats.rs                             — SolverStats, PhaseStats, SolverTelemetry, SelectorTelemetry
 ├── test_utils.rs                        — TestSolution, TestDirector, NQueens helpers
 ├── test_utils_tests.rs                  — Tests
 │
@@ -723,7 +723,7 @@ Local search foragers:
 |----------|------------|------------|
 | `HillClimbingAcceptor` | — | — |
 | `LateAcceptanceAcceptor<S>` | `S: PlanningSolution` | `late_acceptance_size` |
-| `SimulatedAnnealingAcceptor` | — | `starting_temperature`, `decay_rate` |
+| `SimulatedAnnealingAcceptor` | — | `level_temperatures`, `decay_rate`, `hill_climbing_temperature`, `hard_regression_policy`, `calibration` |
 | `TabuSearchAcceptor<S>` | `S: PlanningSolution` | `entity_tabu_size`, `value_tabu_size`, `move_tabu_size`, `undo_move_tabu_size`, `aspiration_enabled`; config with all four sizes omitted normalizes to move-tabu-only with `move_tabu_size = 10` |
 | `EntityTabuAcceptor` | — | `entity_tabu_size` |
 | `ValueTabuAcceptor` | — | `value_tabu_size` |
@@ -884,10 +884,10 @@ Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBo
 ### `SolverStats` / `PhaseStats`
 
 Aggregate and per-phase metrics: step count, moves generated, moves evaluated,
-moves accepted, score calculations, elapsed time, generation time, evaluation
-time, acceptance rate, and exact `Throughput { count, elapsed }` views for
-generated/evaluated work. Human-facing `moves/s` is derived only at log/console
-formatting edges.
+moves accepted, moves applied, score calculations, elapsed time, generation
+time, evaluation time, acceptance rate, selector-level telemetry, and exact
+`Throughput { count, elapsed }` views for generated/evaluated work.
+Human-facing `moves/s` is derived only at log/console formatting edges.
 
 ### `runtime.rs`
 

@@ -217,8 +217,25 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type |
 |-------|------|
-| `starting_temperature` | `Option<String>` |
+| `level_temperatures` | `Option<Vec<f64>>` |
 | `decay_rate` | `Option<f64>` |
+| `hill_climbing_temperature` | `Option<f64>` |
+| `hard_regression_policy` | `Option<HardRegressionPolicyConfig>` |
+| `calibration` | `Option<SimulatedAnnealingCalibrationConfig>` |
+
+### `HardRegressionPolicyConfig`
+
+Enum: `TemperatureControlled` (default), `NeverAcceptHardRegression`.
+
+### `SimulatedAnnealingCalibrationConfig`
+
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
+
+| Field | Type |
+|-------|------|
+| `sample_size` | `Option<usize>` |
+| `target_acceptance_probability` | `Option<f64>` |
+| `fallback_temperature` | `Option<f64>` |
 
 ### `LateAcceptanceConfig`
 
@@ -396,11 +413,13 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `max_ruin_count` | `usize` | `5` |
 | `moves_per_step` | `Option<usize>` | `None` |
 | `entity_class` | `Option<String>` | `None` |
+| `value_candidate_limit` | `Option<usize>` | `None` |
+| `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
 ### `RecreateHeuristicType`
 
-Enum: `FirstFit`, `CheapestInsertion` (default).
+Enum: `FirstFit` (default), `CheapestInsertion`.
 
 ### `RuinRecreateMoveSelectorConfig`
 
@@ -411,7 +430,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `min_ruin_count` | `usize` | `2` |
 | `max_ruin_count` | `usize` | `5` |
 | `moves_per_step` | `Option<usize>` | `None` |
-| `recreate_heuristic_type` | `RecreateHeuristicType` | `CheapestInsertion` |
+| `value_candidate_limit` | `Option<usize>` | `None` |
+| `recreate_heuristic_type` | `RecreateHeuristicType` | `FirstFit` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -428,9 +448,14 @@ Derives: `Debug, Clone, Deserialize, Serialize`.
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
-| Field | Type |
-|-------|------|
+| Field | Type | Default |
+|-------|------|---------|
+| `selection_order` | `UnionSelectionOrder` | `Sequential` |
 | `selectors` | `Vec<MoveSelectorConfig>` |
+
+### `UnionSelectionOrder`
+
+Enum: `Sequential` (default), `RoundRobin`.
 
 ### `CartesianProductConfig`
 

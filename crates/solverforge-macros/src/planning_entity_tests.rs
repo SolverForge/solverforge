@@ -7,7 +7,7 @@ fn golden_entity_expansion_includes_descriptor_and_planning_id() {
         struct Task {
             #[planning_id]
             id: String,
-            #[planning_variable(allows_unassigned = true, value_range = "workers")]
+            #[planning_variable(allows_unassigned = true, value_range_provider = "workers")]
             worker_idx: Option<usize>,
             #[planning_list_variable(element_collection = "all_tasks")]
             chain: Vec<usize>,
@@ -44,9 +44,9 @@ fn entity_descriptor_preserves_mixed_variable_declaration_order() {
             id: String,
             #[planning_list_variable(element_collection = "all_tasks")]
             chain: Vec<usize>,
-            #[planning_variable(allows_unassigned = true, value_range = "workers")]
+            #[planning_variable(allows_unassigned = true, value_range_provider = "workers")]
             worker_idx: Option<usize>,
-            #[planning_variable(allows_unassigned = true, value_range = "workers")]
+            #[planning_variable(allows_unassigned = true, value_range_provider = "workers")]
             backup_idx: Option<usize>,
         }
     };
@@ -95,9 +95,9 @@ fn chained_option_usize_does_not_enter_scalar_helper_indexing() {
         struct Task {
             #[planning_id]
             id: String,
-            #[planning_variable(chained = true, value_range = "tasks")]
+            #[planning_variable(chained = true, value_range_provider = "tasks")]
             previous: Option<usize>,
-            #[planning_variable(allows_unassigned = true, value_range = "workers")]
+            #[planning_variable(allows_unassigned = true, value_range_provider = "workers")]
             worker: Option<usize>,
         }
     };

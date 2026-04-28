@@ -8,7 +8,7 @@ pub struct Task {
     pub id: usize,
 
     #[planning_variable(
-        value_range = "workers",
+        value_range_provider = "workers",
         allows_unassigned = true,
         candidate_values = "worker_candidates",
         nearby_value_candidates = "nearby_worker_candidates",

@@ -3,7 +3,7 @@ error: chained planning variables cannot declare scalar runtime hook attributes
    |
  8 | /     #[planning_variable(
  9 | |         chained = true,
-10 | |         value_range = "tasks",
+10 | |         value_range_provider = "tasks",
 11 | |         nearby_value_distance_meter = "previous_distance"
 12 | |     )]
 13 | |     pub previous: Option<usize>,

@@ -26,8 +26,7 @@ pub(super) fn generate_scalar_helpers(
         let field_name = field.ident.as_ref().unwrap();
         let field_name_str = field_name.to_string();
         let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
-        let value_range_provider = parse_attribute_string(attr, "value_range_provider")
-            .or_else(|| parse_attribute_string(attr, "value_range"));
+        let value_range_provider = parse_attribute_string(attr, "value_range_provider");
         let countable_range = parse_attribute_string(attr, "countable_range");
         let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
 

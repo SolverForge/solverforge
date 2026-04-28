@@ -39,6 +39,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_variable"))
         .collect();
+    validate_planning_variable_arguments(&planning_variables)?;
     validate_scalar_hook_targets(&planning_variables)?;
     let scalar_helpers = generate_scalar_helpers(name, fields, &planning_variables)?;
     let list_variables: Vec<_> = fields
@@ -86,8 +87,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false);
                 let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
                 let supports_scalar_helpers = field_is_option_usize(&field.ty) && !is_chained;
-                let value_range_provider = parse_attribute_string(attr, "value_range_provider")
-                    .or_else(|| parse_attribute_string(attr, "value_range"));
+                let value_range_provider = parse_attribute_string(attr, "value_range_provider");
                 let countable_range = parse_attribute_string(attr, "countable_range");
                 let getter_name = syn::Ident::new(
                     &format!("__solverforge_get_{}", field_name_str),
@@ -194,8 +194,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
             let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
             let supports_scalar_helpers = field_is_option_usize(&field.ty) && !is_chained;
-            let value_range_provider = parse_attribute_string(attr, "value_range_provider")
-                .or_else(|| parse_attribute_string(attr, "value_range"));
+            let value_range_provider = parse_attribute_string(attr, "value_range_provider");
             let provider_helper = value_range_provider
                 .filter(|provider_id| {
                     supports_scalar_helpers && fields.iter().any(|candidate| {
@@ -475,4 +474,3 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
     Ok(expanded)
 }
-

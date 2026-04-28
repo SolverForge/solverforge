@@ -104,6 +104,28 @@ pub(crate) fn has_attribute_argument(attr: &Attribute, key: &str) -> bool {
     false
 }
 
+pub(crate) fn attribute_argument_names(attr: &Attribute) -> Vec<String> {
+    if let Meta::List(meta_list) = &attr.meta {
+        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
+        if let Ok(nested) = parser.parse2(meta_list.tokens.clone()) {
+            return nested
+                .into_iter()
+                .filter_map(|meta| {
+                    let path = match meta {
+                        Meta::Path(path) => path,
+                        Meta::NameValue(nv) => nv.path,
+                        Meta::List(meta_list) => meta_list.path,
+                    };
+                    path.segments
+                        .last()
+                        .map(|segment| segment.ident.to_string())
+                })
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
 pub(crate) fn parse_attribute_bool(attr: &Attribute, key: &str) -> Option<bool> {
     if let Meta::List(meta_list) = &attr.meta {
         let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;

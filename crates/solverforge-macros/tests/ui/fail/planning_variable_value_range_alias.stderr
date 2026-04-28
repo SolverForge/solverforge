@@ -1,0 +1,6 @@
+error: `value_range` is not a supported planning_variable argument; use `value_range_provider`
+ --> tests/ui/fail/planning_variable_value_range_alias.rs:8:5
+  |
+8 | /     #[planning_variable(value_range = "workers")]
+9 | |     pub worker: Option<usize>,
+  | |_____________________________^

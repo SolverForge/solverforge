@@ -8,7 +8,7 @@ pub struct Task {
     pub id: usize,
 
     #[planning_variable(
-        value_range = "workers",
+        value_range_provider = "workers",
         allows_unassigned = true,
         nearby_value_distance_meter = "worker_value_distance",
         nearby_entity_distance_meter = "task_distance",

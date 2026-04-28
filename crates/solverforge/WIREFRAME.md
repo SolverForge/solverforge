@@ -139,7 +139,7 @@ Re-exports the fluent constraint stream API:
 ```rust
 pub use solverforge_scoring::stream::collection_extract::vec;
 pub use solverforge_scoring::stream::collection_extract::{
-    CollectionExtract, FlattenExtract, VecExtract,
+    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
 };
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```

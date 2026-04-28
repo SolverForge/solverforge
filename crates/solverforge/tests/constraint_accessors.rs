@@ -2,13 +2,17 @@
 // and convenience methods (penalize_hard, penalize_soft, etc.) on the Score trait.
 
 use solverforge::prelude::*;
-use solverforge::stream::ConstraintFactory;
+use solverforge::stream::{source, ChangeSource, ConstraintFactory, SourceExtract};
 use solverforge::IncrementalConstraint;
 
 #[path = "constraint_accessors/domain/mod.rs"]
 mod domain;
 
 use domain::{Schedule, ScheduleConstraintStreams, ShiftUnassignedFilter};
+
+fn raw_shifts(schedule: &Schedule) -> &[domain::Shift] {
+    schedule.shifts.as_slice()
+}
 
 #[test]
 fn test_one_hard_returns_correct_score() {
@@ -67,6 +71,36 @@ fn generated_descriptor_stream_localizes_callbacks() {
 
     assert_eq!(constraint.initialize(&schedule), HardSoftScore::of(-2, 0));
     assert_eq!(constraint.on_insert(&schedule, 0, 1), HardSoftScore::zero());
+    assert_eq!(
+        constraint.on_retract(&schedule, 0, 0),
+        HardSoftScore::of(1, 0)
+    );
+}
+
+#[test]
+fn facade_exports_source_aware_extractors() {
+    let extractor: SourceExtract<fn(&Schedule) -> &[domain::Shift]> = source(
+        raw_shifts as fn(&Schedule) -> &[domain::Shift],
+        ChangeSource::Descriptor(0),
+    );
+    let mut constraint = ConstraintFactory::<Schedule, HardSoftScore>::new()
+        .for_each(extractor)
+        .penalize_hard()
+        .named("source aware shifts");
+
+    let schedule = Schedule {
+        employees: vec![domain::Employee {
+            id: 1,
+            name: "Ada".to_string(),
+        }],
+        shifts: vec![domain::Shift {
+            id: 1,
+            employee: Some(1),
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.initialize(&schedule), HardSoftScore::of(-1, 0));
     assert_eq!(
         constraint.on_retract(&schedule, 0, 0),
         HardSoftScore::of(1, 0)

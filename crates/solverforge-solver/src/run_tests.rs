@@ -74,6 +74,77 @@ fn build_termination_preserves_missing_time_limit_as_unlimited() {
 }
 
 #[test]
+fn build_termination_returns_fallback_time_for_best_score_limit() {
+    let mut config = SolverConfig::default();
+    config.termination = Some(solverforge_config::TerminationConfig {
+        best_score_limit: Some("0".to_string()),
+        ..Default::default()
+    });
+
+    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+    assert!(matches!(termination, AnyTermination::WithBestScore(_)));
+    assert_eq!(time_limit, Some(Duration::from_secs(180)));
+}
+
+#[test]
+fn build_termination_returns_fallback_time_for_step_limit() {
+    let mut config = SolverConfig::default();
+    config.termination = Some(solverforge_config::TerminationConfig {
+        step_count_limit: Some(10),
+        ..Default::default()
+    });
+
+    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+    assert!(matches!(termination, AnyTermination::WithStepCount(_)));
+    assert_eq!(time_limit, Some(Duration::from_secs(180)));
+}
+
+#[test]
+fn build_termination_returns_fallback_time_for_unimproved_step_limit() {
+    let mut config = SolverConfig::default();
+    config.termination = Some(solverforge_config::TerminationConfig {
+        unimproved_step_count_limit: Some(10),
+        ..Default::default()
+    });
+
+    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+    assert!(matches!(termination, AnyTermination::WithUnimprovedStep(_)));
+    assert_eq!(time_limit, Some(Duration::from_secs(180)));
+}
+
+#[test]
+fn build_termination_returns_fallback_time_for_unimproved_time_limit() {
+    let mut config = SolverConfig::default();
+    config.termination = Some(solverforge_config::TerminationConfig {
+        unimproved_seconds_spent_limit: Some(10),
+        ..Default::default()
+    });
+
+    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+    assert!(matches!(termination, AnyTermination::WithUnimprovedTime(_)));
+    assert_eq!(time_limit, Some(Duration::from_secs(180)));
+}
+
+#[test]
+fn build_termination_explicit_time_overrides_fallback() {
+    let mut config = SolverConfig::default();
+    config.termination = Some(solverforge_config::TerminationConfig {
+        step_count_limit: Some(10),
+        seconds_spent_limit: Some(5),
+        ..Default::default()
+    });
+
+    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+    assert!(matches!(termination, AnyTermination::WithStepCount(_)));
+    assert_eq!(time_limit, Some(Duration::from_secs(5)));
+}
+
+#[test]
 fn log_solve_start_rejects_missing_scale() {
     let panic = std::panic::catch_unwind(|| log_solve_start(4, None, None))
         .expect_err("missing solve scale must panic");

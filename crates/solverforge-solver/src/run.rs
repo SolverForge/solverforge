@@ -62,7 +62,7 @@ impl<S: PlanningSolution> ProgressCallback<S> for ChannelProgressCallback<S> {
                 self.runtime.emit_progress(
                     progress.current_score.copied(),
                     progress.best_score.copied(),
-                    progress.telemetry,
+                    progress.telemetry.clone(),
                 );
             }
             SolverProgressKind::BestSolution => {
@@ -71,7 +71,7 @@ impl<S: PlanningSolution> ProgressCallback<S> for ChannelProgressCallback<S> {
                         (*solution).clone(),
                         progress.current_score.copied(),
                         *score,
-                        progress.telemetry,
+                        progress.telemetry.clone(),
                     );
                 }
             }
@@ -131,47 +131,63 @@ where
     C: ConstraintSet<S, S::Score>,
 {
     let term_config = config.termination.as_ref();
-    let time_limit = term_config.and_then(|c| c.time_limit());
+    let configured_time_limit = term_config.and_then(|c| c.time_limit());
     let fallback_time_limit = Duration::from_secs(default_secs);
 
     let best_score_target: Option<S::Score> = term_config
         .and_then(|c| c.best_score_limit.as_ref())
         .and_then(|s| S::Score::parse(s).ok());
 
-    let termination = if let Some(target) = best_score_target {
-        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
-        AnyTermination::WithBestScore(OrTermination::new((
-            time,
-            BestScoreTermination::new(target),
-        )))
+    let (termination, effective_time_limit) = if let Some(target) = best_score_target {
+        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+        let time = TimeTermination::new(effective_time_limit);
+        (
+            AnyTermination::WithBestScore(OrTermination::new((
+                time,
+                BestScoreTermination::new(target),
+            ))),
+            Some(effective_time_limit),
+        )
     } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
-        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
-        AnyTermination::WithStepCount(OrTermination::new((
-            time,
-            StepCountTermination::new(step_limit),
-        )))
+        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+        let time = TimeTermination::new(effective_time_limit);
+        (
+            AnyTermination::WithStepCount(OrTermination::new((
+                time,
+                StepCountTermination::new(step_limit),
+            ))),
+            Some(effective_time_limit),
+        )
     } else if let Some(unimproved_step_limit) =
         term_config.and_then(|c| c.unimproved_step_count_limit)
     {
-        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
-        AnyTermination::WithUnimprovedStep(OrTermination::new((
-            time,
-            UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
-        )))
+        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+        let time = TimeTermination::new(effective_time_limit);
+        (
+            AnyTermination::WithUnimprovedStep(OrTermination::new((
+                time,
+                UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
+            ))),
+            Some(effective_time_limit),
+        )
     } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
-        let time = TimeTermination::new(time_limit.unwrap_or(fallback_time_limit));
-        AnyTermination::WithUnimprovedTime(OrTermination::new((
-            time,
-            UnimprovedTimeTermination::<S>::new(unimproved_time),
-        )))
-    } else if let Some(limit) = time_limit {
+        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+        let time = TimeTermination::new(effective_time_limit);
+        (
+            AnyTermination::WithUnimprovedTime(OrTermination::new((
+                time,
+                UnimprovedTimeTermination::<S>::new(unimproved_time),
+            ))),
+            Some(effective_time_limit),
+        )
+    } else if let Some(limit) = configured_time_limit {
         let time = TimeTermination::new(limit);
-        AnyTermination::Default(OrTermination::new((time,)))
+        (AnyTermination::Default(OrTermination::new((time,))), Some(limit))
     } else {
-        AnyTermination::None(NoTermination)
+        (AnyTermination::None(NoTermination), None)
     };
 
-    (termination, time_limit)
+    (termination, effective_time_limit)
 }
 
 pub fn log_solve_start(

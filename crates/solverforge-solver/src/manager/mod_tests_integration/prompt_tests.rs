@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::super::{SolverEvent, SolverLifecycleState, SolverManager, SolverTerminalReason};
+use super::common::recv_event;
 use super::gates::{BlockingEvaluationGate, BlockingPoint};
 use super::prompt_support::PromptControlSolution;
 
@@ -12,7 +13,7 @@ fn retained_job_pause_settles_promptly_during_generation() {
     let solution = PromptControlSolution::generation_blocked(8_000, 512, blocker.clone(), None);
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
@@ -20,7 +21,7 @@ fn retained_job_pause_settles_promptly_during_generation() {
     blocker.wait_until_blocked();
     MANAGER.pause(job_id).expect("pause should be accepted");
 
-    match receiver.blocking_recv().expect("pause requested event") {
+    match recv_event(&mut receiver, "pause requested event") {
         SolverEvent::PauseRequested { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
@@ -28,7 +29,7 @@ fn retained_job_pause_settles_promptly_during_generation() {
     let resumed_at = Instant::now();
     blocker.release();
 
-    match receiver.blocking_recv().expect("paused event") {
+    match recv_event(&mut receiver, "paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
         }
@@ -41,7 +42,7 @@ fn retained_job_pause_settles_promptly_during_generation() {
     );
 
     MANAGER.cancel(job_id).expect("cancel should be accepted");
-    match receiver.blocking_recv().expect("cancelled event") {
+    match recv_event(&mut receiver, "cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
         }
@@ -59,7 +60,7 @@ fn retained_job_cancel_settles_promptly_during_evaluation() {
     let solution = PromptControlSolution::evaluation_blocked(8_000, gate.clone());
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
@@ -70,7 +71,7 @@ fn retained_job_cancel_settles_promptly_during_evaluation() {
     let released_at = Instant::now();
     gate.release();
 
-    match receiver.blocking_recv().expect("cancelled event") {
+    match recv_event(&mut receiver, "cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
         }
@@ -98,7 +99,7 @@ fn retained_job_time_limit_settles_promptly_during_generation() {
     );
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
@@ -109,7 +110,7 @@ fn retained_job_time_limit_settles_promptly_during_generation() {
     let released_at = Instant::now();
     blocker.release();
 
-    match receiver.blocking_recv().expect("completed event") {
+    match recv_event(&mut receiver, "completed event") {
         SolverEvent::Completed { metadata, .. } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
             assert_eq!(

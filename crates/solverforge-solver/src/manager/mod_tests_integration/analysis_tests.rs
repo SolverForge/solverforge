@@ -1,6 +1,7 @@
 use solverforge_core::score::SoftScore;
 
 use super::super::{SolverEvent, SolverLifecycleState, SolverManager, SolverTerminalReason};
+use super::common::recv_event;
 use super::lifecycle_solutions::LifecycleSolution;
 use super::resume_support::{ConfigTerminatedSolution, FailureAfterSnapshotSolution};
 
@@ -12,7 +13,7 @@ fn retained_job_analysis_is_snapshot_bound_across_live_states_and_completion() {
     let gate = solution.gate.clone();
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { metadata, .. } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
         }
@@ -29,7 +30,7 @@ fn retained_job_analysis_is_snapshot_bound_across_live_states_and_completion() {
     assert_eq!(solving_analysis.snapshot_revision, 1);
     assert_eq!(solving_analysis.analysis.score, SoftScore::of(13));
 
-    match receiver.blocking_recv().expect("progress event") {
+    match recv_event(&mut receiver, "progress event") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
         }
@@ -38,7 +39,7 @@ fn retained_job_analysis_is_snapshot_bound_across_live_states_and_completion() {
 
     MANAGER.pause(job_id).expect("pause should be accepted");
 
-    match receiver.blocking_recv().expect("pause requested event") {
+    match recv_event(&mut receiver, "pause requested event") {
         SolverEvent::PauseRequested { metadata } => {
             assert_eq!(
                 metadata.lifecycle_state,
@@ -69,7 +70,7 @@ fn retained_job_analysis_is_snapshot_bound_across_live_states_and_completion() {
 
     gate.allow_next_step();
 
-    match receiver.blocking_recv().expect("paused event") {
+    match recv_event(&mut receiver, "paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.snapshot_revision, Some(2));
         }
@@ -88,24 +89,21 @@ fn retained_job_analysis_is_snapshot_bound_across_live_states_and_completion() {
 
     MANAGER.resume(job_id).expect("resume should be accepted");
 
-    match receiver.blocking_recv().expect("resumed event") {
+    match recv_event(&mut receiver, "resumed event") {
         SolverEvent::Resumed { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
         }
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match receiver
-        .blocking_recv()
-        .expect("post-resume progress event")
-    {
+    match recv_event(&mut receiver, "post-resume progress event") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
         }
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match receiver.blocking_recv().expect("completed event") {
+    match recv_event(&mut receiver, "completed event") {
         SolverEvent::Completed { metadata, .. } => {
             assert_eq!(metadata.snapshot_revision, Some(3));
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
@@ -142,17 +140,11 @@ fn retained_job_analysis_remains_available_after_cancel_failure_and_config_termi
         .solve(cancelled)
         .expect("cancelled job should start");
 
-    match cancelled_receiver
-        .blocking_recv()
-        .expect("cancelled job best solution event")
-    {
+    match recv_event(&mut cancelled_receiver, "cancelled job best solution event") {
         SolverEvent::BestSolution { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
-    match cancelled_receiver
-        .blocking_recv()
-        .expect("cancelled job progress event")
-    {
+    match recv_event(&mut cancelled_receiver, "cancelled job progress event") {
         SolverEvent::Progress { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
@@ -160,20 +152,17 @@ fn retained_job_analysis_remains_available_after_cancel_failure_and_config_termi
     CANCEL_MANAGER
         .pause(cancelled_job_id)
         .expect("pause should be accepted");
-    match cancelled_receiver
-        .blocking_recv()
-        .expect("cancelled job pause requested event")
-    {
+    match recv_event(
+        &mut cancelled_receiver,
+        "cancelled job pause requested event",
+    ) {
         SolverEvent::PauseRequested { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
 
     cancel_gate.allow_next_step();
 
-    match cancelled_receiver
-        .blocking_recv()
-        .expect("cancelled job paused event")
-    {
+    match recv_event(&mut cancelled_receiver, "cancelled job paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.snapshot_revision, Some(2));
         }
@@ -183,10 +172,7 @@ fn retained_job_analysis_remains_available_after_cancel_failure_and_config_termi
     CANCEL_MANAGER
         .cancel(cancelled_job_id)
         .expect("cancel should be accepted");
-    match cancelled_receiver
-        .blocking_recv()
-        .expect("cancelled job cancelled event")
-    {
+    match recv_event(&mut cancelled_receiver, "cancelled job cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
         }
@@ -207,20 +193,14 @@ fn retained_job_analysis_remains_available_after_cancel_failure_and_config_termi
         .solve(FailureAfterSnapshotSolution::new(17))
         .expect("failed job should start");
 
-    match failed_receiver
-        .blocking_recv()
-        .expect("failed job best solution event")
-    {
+    match recv_event(&mut failed_receiver, "failed job best solution event") {
         SolverEvent::BestSolution { metadata, .. } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
         }
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match failed_receiver
-        .blocking_recv()
-        .expect("failed job failed event")
-    {
+    match recv_event(&mut failed_receiver, "failed job failed event") {
         SolverEvent::Failed { metadata, error } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Failed);
             assert!(error.contains("expected retained lifecycle failure"));
@@ -242,20 +222,20 @@ fn retained_job_analysis_remains_available_after_cancel_failure_and_config_termi
         .solve(ConfigTerminatedSolution::new(23))
         .expect("configured-termination job should start");
 
-    match terminated_receiver
-        .blocking_recv()
-        .expect("configured-termination best solution event")
-    {
+    match recv_event(
+        &mut terminated_receiver,
+        "configured-termination best solution event",
+    ) {
         SolverEvent::BestSolution { metadata, .. } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
         }
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match terminated_receiver
-        .blocking_recv()
-        .expect("configured-termination completed event")
-    {
+    match recv_event(
+        &mut terminated_receiver,
+        "configured-termination completed event",
+    ) {
         SolverEvent::Completed { metadata, .. } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
             assert_eq!(metadata.snapshot_revision, Some(2));

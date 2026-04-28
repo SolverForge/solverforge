@@ -6,6 +6,7 @@ use solverforge_core::PlanningSolution;
 use super::super::{
     SolverEvent, SolverLifecycleState, SolverManager, SolverManagerError, SolverTerminalReason,
 };
+use super::common::recv_event;
 use super::lifecycle_solutions::{
     DeleteReservationSolution, LifecycleSolution, PauseOrderingSolution,
     PauseRequestedProgressSolution, TrivialLifecycleSolution,
@@ -19,7 +20,7 @@ fn retained_job_pause_resume_completion_flow() {
     let gate = solution.gate.clone();
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { metadata, .. } => {
             assert_eq!(metadata.event_sequence, 1);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
@@ -28,7 +29,7 @@ fn retained_job_pause_resume_completion_flow() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match receiver.blocking_recv().expect("progress event") {
+    match recv_event(&mut receiver, "progress event") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.event_sequence, 2);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
@@ -39,7 +40,7 @@ fn retained_job_pause_resume_completion_flow() {
 
     MANAGER.pause(job_id).expect("pause should be accepted");
 
-    match receiver.blocking_recv().expect("pause requested event") {
+    match recv_event(&mut receiver, "pause requested event") {
         SolverEvent::PauseRequested { metadata } => {
             assert_eq!(metadata.event_sequence, 3);
             assert_eq!(
@@ -52,7 +53,7 @@ fn retained_job_pause_resume_completion_flow() {
 
     gate.allow_next_step();
 
-    let paused_telemetry = match receiver.blocking_recv().expect("paused event") {
+    let paused_telemetry = match recv_event(&mut receiver, "paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.event_sequence, 4);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
@@ -96,7 +97,7 @@ fn retained_job_pause_resume_completion_flow() {
 
     MANAGER.resume(job_id).expect("resume should be accepted");
 
-    match receiver.blocking_recv().expect("resumed event") {
+    match recv_event(&mut receiver, "resumed event") {
         SolverEvent::Resumed { metadata } => {
             assert_eq!(metadata.event_sequence, 5);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
@@ -104,7 +105,7 @@ fn retained_job_pause_resume_completion_flow() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match receiver.blocking_recv().expect("progress after resume") {
+    match recv_event(&mut receiver, "progress after resume") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.event_sequence, 6);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
@@ -116,7 +117,7 @@ fn retained_job_pause_resume_completion_flow() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    let completed_telemetry = match receiver.blocking_recv().expect("completed event") {
+    let completed_telemetry = match recv_event(&mut receiver, "completed event") {
         SolverEvent::Completed { metadata, .. } => {
             assert_eq!(metadata.event_sequence, 7);
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
@@ -175,11 +176,11 @@ fn retained_job_invalid_transitions_cancel_and_delete() {
         Err(SolverManagerError::InvalidStateTransition { action, .. }) if action == "delete"
     ));
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
-    match receiver.blocking_recv().expect("progress event") {
+    match recv_event(&mut receiver, "progress event") {
         SolverEvent::Progress { .. } => {}
         other => panic!("unexpected event: {other:?}"),
     }
@@ -188,7 +189,7 @@ fn retained_job_invalid_transitions_cancel_and_delete() {
 
     gate.allow_next_step();
 
-    match receiver.blocking_recv().expect("cancelled event") {
+    match recv_event(&mut receiver, "cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
             assert_eq!(
@@ -221,7 +222,7 @@ fn retained_job_progress_reflects_pause_requested_state() {
     let gate = solution.gate.clone();
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { metadata, .. } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
         }
@@ -230,7 +231,7 @@ fn retained_job_progress_reflects_pause_requested_state() {
 
     MANAGER.pause(job_id).expect("pause should be accepted");
 
-    match receiver.blocking_recv().expect("pause requested event") {
+    match recv_event(&mut receiver, "pause requested event") {
         SolverEvent::PauseRequested { metadata } => {
             assert_eq!(
                 metadata.lifecycle_state,
@@ -242,7 +243,7 @@ fn retained_job_progress_reflects_pause_requested_state() {
 
     gate.allow_next_step();
 
-    match receiver.blocking_recv().expect("progress event") {
+    match recv_event(&mut receiver, "progress event") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(
                 metadata.lifecycle_state,
@@ -252,7 +253,7 @@ fn retained_job_progress_reflects_pause_requested_state() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match receiver.blocking_recv().expect("paused event") {
+    match recv_event(&mut receiver, "paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
         }
@@ -261,7 +262,7 @@ fn retained_job_progress_reflects_pause_requested_state() {
 
     MANAGER.cancel(job_id).expect("cancel should be accepted");
 
-    match receiver.blocking_recv().expect("cancelled event") {
+    match recv_event(&mut receiver, "cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
         }
@@ -279,7 +280,7 @@ fn retained_job_pause_requested_event_precedes_worker_pause_events() {
         .solve(PauseOrderingSolution::new(17))
         .expect("job should start");
 
-    match receiver.blocking_recv().expect("best solution event") {
+    match recv_event(&mut receiver, "best solution event") {
         SolverEvent::BestSolution { metadata, .. } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
         }
@@ -288,7 +289,7 @@ fn retained_job_pause_requested_event_precedes_worker_pause_events() {
 
     MANAGER.pause(job_id).expect("pause should be accepted");
 
-    match receiver.blocking_recv().expect("pause requested event") {
+    match recv_event(&mut receiver, "pause requested event") {
         SolverEvent::PauseRequested { metadata } => {
             assert_eq!(metadata.event_sequence, 2);
             assert_eq!(
@@ -301,10 +302,7 @@ fn retained_job_pause_requested_event_precedes_worker_pause_events() {
 
     let mut saw_pause_requested_progress = false;
     loop {
-        match receiver
-            .blocking_recv()
-            .expect("pause lifecycle event after request")
-        {
+        match recv_event(&mut receiver, "pause lifecycle event after request") {
             SolverEvent::Progress { metadata } => {
                 saw_pause_requested_progress = true;
                 assert_eq!(
@@ -328,7 +326,7 @@ fn retained_job_pause_requested_event_precedes_worker_pause_events() {
 
     MANAGER.cancel(job_id).expect("cancel should be accepted");
 
-    match receiver.blocking_recv().expect("cancelled event") {
+    match recv_event(&mut receiver, "cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
         }
@@ -346,7 +344,7 @@ fn retained_job_delete_keeps_slot_reserved_until_worker_exit() {
     let release_return = solution.release_return.clone();
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
-    match receiver.blocking_recv().expect("completed event") {
+    match recv_event(&mut receiver, "completed event") {
         SolverEvent::Completed { metadata, .. } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
         }
@@ -384,7 +382,7 @@ fn trivial_job_cancelled_while_paused_reports_cancelled() {
 
     MANAGER.pause(job_id).expect("pause should be accepted");
 
-    match receiver.blocking_recv().expect("pause requested event") {
+    match recv_event(&mut receiver, "pause requested event") {
         SolverEvent::PauseRequested { metadata } => {
             assert_eq!(
                 metadata.lifecycle_state,
@@ -396,7 +394,7 @@ fn trivial_job_cancelled_while_paused_reports_cancelled() {
 
     gate.allow_next_step();
 
-    match receiver.blocking_recv().expect("paused event") {
+    match recv_event(&mut receiver, "paused event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
         }
@@ -405,7 +403,7 @@ fn trivial_job_cancelled_while_paused_reports_cancelled() {
 
     MANAGER.cancel(job_id).expect("cancel should be accepted");
 
-    match receiver.blocking_recv().expect("cancelled event") {
+    match recv_event(&mut receiver, "cancelled event") {
         SolverEvent::Cancelled { metadata } => {
             assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
             assert_eq!(

@@ -2,6 +2,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_core::PlanningSolution;
 
 use super::super::{SolverEvent, SolverLifecycleState, SolverManager};
+use super::common::recv_event;
 use super::resume_support::DeterministicResumeSolution;
 
 #[test]
@@ -14,10 +15,10 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         .solve(uninterrupted)
         .expect("uninterrupted job should start");
 
-    match uninterrupted_receiver
-        .blocking_recv()
-        .expect("uninterrupted best solution event")
-    {
+    match recv_event(
+        &mut uninterrupted_receiver,
+        "uninterrupted best solution event",
+    ) {
         SolverEvent::BestSolution { metadata, solution } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
             assert_eq!(solution.value, 10);
@@ -25,10 +26,7 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match uninterrupted_receiver
-        .blocking_recv()
-        .expect("uninterrupted progress event")
-    {
+    match recv_event(&mut uninterrupted_receiver, "uninterrupted progress event") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
             assert_eq!(metadata.current_score, Some(SoftScore::of(10)));
@@ -40,10 +38,10 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
 
     uninterrupted_gate.allow_next_step();
 
-    let uninterrupted_boundary_snapshot = match uninterrupted_receiver
-        .blocking_recv()
-        .expect("uninterrupted boundary snapshot event")
-    {
+    let uninterrupted_boundary_snapshot = match recv_event(
+        &mut uninterrupted_receiver,
+        "uninterrupted boundary snapshot event",
+    ) {
         SolverEvent::BestSolution { metadata, solution } => {
             assert_eq!(metadata.snapshot_revision, Some(2));
             assert_eq!(metadata.current_score, Some(SoftScore::of(12)));
@@ -55,10 +53,10 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         other => panic!("unexpected event: {other:?}"),
     };
 
-    let uninterrupted_post_boundary = match uninterrupted_receiver
-        .blocking_recv()
-        .expect("uninterrupted post-boundary progress")
-    {
+    let uninterrupted_post_boundary = match recv_event(
+        &mut uninterrupted_receiver,
+        "uninterrupted post-boundary progress",
+    ) {
         SolverEvent::Progress { metadata } => (
             metadata.snapshot_revision,
             metadata.current_score,
@@ -68,30 +66,25 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         other => panic!("unexpected event: {other:?}"),
     };
 
-    let uninterrupted_completed = match uninterrupted_receiver
-        .blocking_recv()
-        .expect("uninterrupted completed event")
-    {
-        SolverEvent::Completed { metadata, solution } => (
-            metadata.snapshot_revision,
-            metadata.current_score,
-            metadata.best_score,
-            metadata.terminal_reason,
-            metadata.telemetry.step_count,
-            solution.value,
-        ),
-        other => panic!("unexpected event: {other:?}"),
-    };
+    let uninterrupted_completed =
+        match recv_event(&mut uninterrupted_receiver, "uninterrupted completed event") {
+            SolverEvent::Completed { metadata, solution } => (
+                metadata.snapshot_revision,
+                metadata.current_score,
+                metadata.best_score,
+                metadata.terminal_reason,
+                metadata.telemetry.step_count,
+                solution.value,
+            ),
+            other => panic!("unexpected event: {other:?}"),
+        };
 
     let resumed = DeterministicResumeSolution::new();
     let resumed_gate = resumed.gate.clone();
     let (resumed_job_id, mut resumed_receiver) =
         MANAGER.solve(resumed).expect("resumed job should start");
 
-    match resumed_receiver
-        .blocking_recv()
-        .expect("resumed best solution event")
-    {
+    match recv_event(&mut resumed_receiver, "resumed best solution event") {
         SolverEvent::BestSolution { metadata, solution } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
             assert_eq!(solution.value, 10);
@@ -99,10 +92,7 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    match resumed_receiver
-        .blocking_recv()
-        .expect("resumed progress event")
-    {
+    match recv_event(&mut resumed_receiver, "resumed progress event") {
         SolverEvent::Progress { metadata } => {
             assert_eq!(metadata.snapshot_revision, Some(1));
             assert_eq!(metadata.current_score, Some(SoftScore::of(10)));
@@ -116,10 +106,7 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         .pause(resumed_job_id)
         .expect("pause should be accepted");
 
-    match resumed_receiver
-        .blocking_recv()
-        .expect("pause requested event")
-    {
+    match recv_event(&mut resumed_receiver, "pause requested event") {
         SolverEvent::PauseRequested { metadata } => {
             assert_eq!(
                 metadata.lifecycle_state,
@@ -131,10 +118,7 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
 
     resumed_gate.allow_next_step();
 
-    match resumed_receiver
-        .blocking_recv()
-        .expect("paused boundary snapshot event")
-    {
+    match recv_event(&mut resumed_receiver, "paused boundary snapshot event") {
         SolverEvent::Paused { metadata } => {
             assert_eq!(metadata.snapshot_revision, Some(2));
             assert_eq!(metadata.current_score, Some(SoftScore::of(12)));
@@ -176,7 +160,7 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         .resume(resumed_job_id)
         .expect("resume should be accepted");
 
-    match resumed_receiver.blocking_recv().expect("resumed event") {
+    match recv_event(&mut resumed_receiver, "resumed event") {
         SolverEvent::Resumed { metadata } => {
             assert_eq!(metadata.snapshot_revision, Some(2));
             assert_eq!(metadata.best_score, Some(SoftScore::of(12)));
@@ -184,23 +168,18 @@ fn retained_job_exact_resume_matches_uninterrupted_execution_after_boundary() {
         other => panic!("unexpected event: {other:?}"),
     }
 
-    let resumed_post_boundary = match resumed_receiver
-        .blocking_recv()
-        .expect("resumed post-boundary progress")
-    {
-        SolverEvent::Progress { metadata } => (
-            metadata.snapshot_revision,
-            metadata.current_score,
-            metadata.best_score,
-            metadata.telemetry.step_count,
-        ),
-        other => panic!("unexpected event: {other:?}"),
-    };
+    let resumed_post_boundary =
+        match recv_event(&mut resumed_receiver, "resumed post-boundary progress") {
+            SolverEvent::Progress { metadata } => (
+                metadata.snapshot_revision,
+                metadata.current_score,
+                metadata.best_score,
+                metadata.telemetry.step_count,
+            ),
+            other => panic!("unexpected event: {other:?}"),
+        };
 
-    let resumed_completed = match resumed_receiver
-        .blocking_recv()
-        .expect("resumed completed event")
-    {
+    let resumed_completed = match recv_event(&mut resumed_receiver, "resumed completed event") {
         SolverEvent::Completed { metadata, solution } => (
             metadata.snapshot_revision,
             metadata.current_score,

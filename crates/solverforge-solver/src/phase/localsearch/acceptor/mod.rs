@@ -17,7 +17,9 @@ pub use diversified_late_acceptance::DiversifiedLateAcceptanceAcceptor;
 pub use great_deluge::GreatDelugeAcceptor;
 pub use hill_climbing::HillClimbingAcceptor;
 pub use late_acceptance::LateAcceptanceAcceptor;
-pub use simulated_annealing::SimulatedAnnealingAcceptor;
+pub use simulated_annealing::{
+    HardRegressionPolicy, SimulatedAnnealingAcceptor, SimulatedAnnealingCalibration,
+};
 pub use step_counting::StepCountingHillClimbingAcceptor;
 pub use tabu_search::TabuSearchAcceptor;
 pub(crate) use tabu_search::TabuSearchPolicy;

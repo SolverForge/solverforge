@@ -1,13 +1,31 @@
 use super::*;
 use solverforge_config::{
-    AcceptorConfig, LateAcceptanceConfig, SimulatedAnnealingConfig, TabuSearchConfig,
+    AcceptorConfig, HardRegressionPolicyConfig, LateAcceptanceConfig,
+    SimulatedAnnealingCalibrationConfig, SimulatedAnnealingConfig, TabuSearchConfig,
 };
-use solverforge_core::score::SoftScore;
+use solverforge_core::score::{HardSoftScore, SoftScore};
 use std::any::Any;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
     score: Option<SoftScore>,
+}
+
+#[derive(Clone, Debug)]
+struct HardSoftTestSolution {
+    score: Option<HardSoftScore>,
+}
+
+impl PlanningSolution for HardSoftTestSolution {
+    type Score = HardSoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
 }
 
 impl PlanningSolution for TestSolution {
@@ -119,19 +137,78 @@ fn test_acceptor_builder_tabu_search_helper_rejects_zero_size() {
 #[test]
 fn test_acceptor_builder_simulated_annealing() {
     let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
-        starting_temperature: Some("2".to_string()),
+        level_temperatures: Some(vec![2.0]),
         decay_rate: None,
+        hill_climbing_temperature: None,
+        hard_regression_policy: None,
+        calibration: None,
     });
     let _acceptor: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
 }
 
 #[test]
-fn test_acceptor_builder_simulated_annealing_accepts_fractional_scalar() {
+fn test_acceptor_builder_simulated_annealing_accepts_fractional_level_temperature() {
     let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
-        starting_temperature: Some("2.5".to_string()),
+        level_temperatures: Some(vec![2.5]),
         decay_rate: None,
+        hill_climbing_temperature: None,
+        hard_regression_policy: None,
+        calibration: None,
     });
     let _acceptor: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
+}
+
+#[test]
+fn test_acceptor_builder_simulated_annealing_accepts_hard_regression_policy() {
+    let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+        level_temperatures: Some(vec![2.5, 100.0]),
+        hard_regression_policy: Some(HardRegressionPolicyConfig::NeverAcceptHardRegression),
+        ..Default::default()
+    });
+    let acceptor: AnyAcceptor<HardSoftTestSolution> = AcceptorBuilder::build(&config);
+    assert!(format!("{acceptor:?}").contains("NeverAcceptHardRegression"));
+}
+
+#[test]
+fn test_acceptor_builder_simulated_annealing_rejects_wrong_temperature_level_count() {
+    let result = std::panic::catch_unwind(|| {
+        let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+            level_temperatures: Some(vec![2.5]),
+            ..Default::default()
+        });
+        let _: AnyAcceptor<HardSoftTestSolution> = AcceptorBuilder::build(&config);
+    });
+    let message = panic_message(result.expect_err("wrong level count must panic"));
+    assert!(message.contains("level_temperatures length must match score level count"));
+}
+
+#[test]
+fn test_acceptor_builder_simulated_annealing_rejects_invalid_decay_rate() {
+    let result = std::panic::catch_unwind(|| {
+        let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+            decay_rate: Some(0.0),
+            ..Default::default()
+        });
+        let _: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
+    });
+    let message = panic_message(result.expect_err("invalid decay rate must panic"));
+    assert!(message.contains("decay_rate must be finite and in (0, 1]"));
+}
+
+#[test]
+fn test_acceptor_builder_simulated_annealing_rejects_invalid_calibration_probability() {
+    let result = std::panic::catch_unwind(|| {
+        let config = AcceptorConfig::SimulatedAnnealing(SimulatedAnnealingConfig {
+            calibration: Some(SimulatedAnnealingCalibrationConfig {
+                target_acceptance_probability: Some(1.0),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let _: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
+    });
+    let message = panic_message(result.expect_err("invalid calibration probability must panic"));
+    assert!(message.contains("target_acceptance_probability must be in (0, 1)"));
 }
 
 #[test]

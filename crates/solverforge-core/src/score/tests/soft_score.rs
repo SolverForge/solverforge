@@ -61,6 +61,7 @@ fn test_parse() {
 #[test]
 fn test_level_numbers() {
     let score = SoftScore::of(-5);
+    assert_eq!(score.level_number(0), -5);
     assert_eq!(score.to_level_numbers(), vec![-5]);
     assert_eq!(SoftScore::from_level_numbers(&[-5]), score);
 }
@@ -68,4 +69,10 @@ fn test_level_numbers() {
 #[test]
 fn test_level_label() {
     assert_eq!(SoftScore::level_label(0), ScoreLevel::Soft);
+}
+
+#[test]
+#[should_panic(expected = "SoftScore has 1 level")]
+fn test_level_number_out_of_range_panics() {
+    let _ = SoftScore::of(0).level_number(1);
 }

@@ -65,3 +65,18 @@ fn test_level_label() {
     assert_eq!(HardMediumSoftScore::level_label(1), ScoreLevel::Medium);
     assert_eq!(HardMediumSoftScore::level_label(2), ScoreLevel::Soft);
 }
+
+#[test]
+fn test_level_numbers() {
+    let score = HardMediumSoftScore::of(-2, -10, -50);
+    assert_eq!(score.level_number(0), -2);
+    assert_eq!(score.level_number(1), -10);
+    assert_eq!(score.level_number(2), -50);
+    assert_eq!(score.to_level_numbers(), vec![-2, -10, -50]);
+}
+
+#[test]
+#[should_panic(expected = "HardMediumSoftScore has 3 levels")]
+fn test_level_number_out_of_range_panics() {
+    let _ = HardMediumSoftScore::of(0, 0, 0).level_number(3);
+}

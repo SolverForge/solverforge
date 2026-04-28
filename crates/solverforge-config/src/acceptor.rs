@@ -59,11 +59,36 @@ pub struct TabuSearchConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SimulatedAnnealingConfig {
-    // Starting temperature.
-    pub starting_temperature: Option<String>,
+    // Per-score-level delta temperatures, highest priority level first.
+    pub level_temperatures: Option<Vec<f64>>,
 
     // Decay rate.
     pub decay_rate: Option<f64>,
+
+    // Temperature at or below which worsening moves are rejected deterministically.
+    pub hill_climbing_temperature: Option<f64>,
+
+    // Hard-regression policy.
+    pub hard_regression_policy: Option<HardRegressionPolicyConfig>,
+
+    // Sampled auto-calibration settings used when level_temperatures is omitted.
+    pub calibration: Option<SimulatedAnnealingCalibrationConfig>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HardRegressionPolicyConfig {
+    #[default]
+    TemperatureControlled,
+    NeverAcceptHardRegression,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SimulatedAnnealingCalibrationConfig {
+    pub sample_size: Option<usize>,
+    pub target_acceptance_probability: Option<f64>,
+    pub fallback_temperature: Option<f64>,
 }
 
 // Late acceptance configuration.

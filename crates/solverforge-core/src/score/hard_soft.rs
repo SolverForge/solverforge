@@ -97,8 +97,13 @@ impl Score for HardSoftScore {
         2
     }
 
-    fn to_level_numbers(&self) -> Vec<i64> {
-        vec![self.hard, self.soft]
+    #[inline]
+    fn level_number(&self, index: usize) -> i64 {
+        match index {
+            0 => self.hard,
+            1 => self.soft,
+            _ => panic!("HardSoftScore has 2 levels, got index {}", index),
+        }
     }
 
     fn from_level_numbers(levels: &[i64]) -> Self {

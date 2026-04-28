@@ -106,6 +106,8 @@ fn test_display_zero() {
 #[test]
 fn test_level_numbers() {
     let score = HardSoftDecimalScore::of_scaled(-2000, -50000);
+    assert_eq!(score.level_number(0), -2000);
+    assert_eq!(score.level_number(1), -50000);
     assert_eq!(score.to_level_numbers(), vec![-2000, -50000]);
     assert_eq!(
         HardSoftDecimalScore::from_level_numbers(&[-2000, -50000]),
@@ -117,4 +119,10 @@ fn test_level_numbers() {
 fn test_level_label() {
     assert_eq!(HardSoftDecimalScore::level_label(0), ScoreLevel::Hard);
     assert_eq!(HardSoftDecimalScore::level_label(1), ScoreLevel::Soft);
+}
+
+#[test]
+#[should_panic(expected = "HardSoftDecimalScore has 2 levels")]
+fn test_level_number_out_of_range_panics() {
+    let _ = HardSoftDecimalScore::ZERO.level_number(2);
 }

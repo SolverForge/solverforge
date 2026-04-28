@@ -51,8 +51,9 @@ mod solver_config;
 mod termination;
 
 pub use acceptor::{
-    AcceptorConfig, DiversifiedLateAcceptanceConfig, GreatDelugeConfig, LateAcceptanceConfig,
-    SimulatedAnnealingConfig, StepCountingHillClimbingConfig, TabuSearchConfig,
+    AcceptorConfig, DiversifiedLateAcceptanceConfig, GreatDelugeConfig, HardRegressionPolicyConfig,
+    LateAcceptanceConfig, SimulatedAnnealingCalibrationConfig, SimulatedAnnealingConfig,
+    StepCountingHillClimbingConfig, TabuSearchConfig,
 };
 pub use director::DirectorConfig;
 pub use error::ConfigError;

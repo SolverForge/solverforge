@@ -67,3 +67,21 @@ fn test_level_label() {
     assert_eq!(BendableScore::<2, 3>::level_label(3), ScoreLevel::Soft);
     assert_eq!(BendableScore::<2, 3>::level_label(4), ScoreLevel::Soft);
 }
+
+#[test]
+fn test_level_numbers() {
+    let score: BendableScore<2, 3> = BendableScore::of([-1, -2], [-10, -20, -30]);
+    assert_eq!(score.level_number(0), -1);
+    assert_eq!(score.level_number(1), -2);
+    assert_eq!(score.level_number(2), -10);
+    assert_eq!(score.level_number(3), -20);
+    assert_eq!(score.level_number(4), -30);
+    assert_eq!(score.to_level_numbers(), vec![-1, -2, -10, -20, -30]);
+}
+
+#[test]
+#[should_panic(expected = "BendableScore<2, 3> has 5 levels")]
+fn test_level_number_out_of_range_panics() {
+    let score: BendableScore<2, 3> = BendableScore::of([0, 0], [0, 0, 0]);
+    let _ = score.level_number(5);
+}

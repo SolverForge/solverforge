@@ -114,11 +114,20 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
         H + S
     }
 
-    fn to_level_numbers(&self) -> Vec<i64> {
-        let mut levels = Vec::with_capacity(H + S);
-        levels.extend_from_slice(&self.hard);
-        levels.extend_from_slice(&self.soft);
-        levels
+    fn level_number(&self, index: usize) -> i64 {
+        if index < H {
+            self.hard[index]
+        } else if index < H + S {
+            self.soft[index - H]
+        } else {
+            panic!(
+                "BendableScore<{}, {}> has {} levels, got index {}",
+                H,
+                S,
+                H + S,
+                index
+            )
+        }
     }
 
     fn from_level_numbers(levels: &[i64]) -> Self {

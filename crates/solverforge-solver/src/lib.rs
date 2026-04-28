@@ -119,8 +119,9 @@ pub use phase::{
     localsearch::{
         AcceptedCountForager, Acceptor, BestScoreForager, DiversifiedLateAcceptanceAcceptor,
         FirstAcceptedForager, FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager,
-        GreatDelugeAcceptor, HillClimbingAcceptor, LateAcceptanceAcceptor, LocalSearchForager,
-        LocalSearchPhase, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
+        GreatDelugeAcceptor, HardRegressionPolicy, HillClimbingAcceptor, LateAcceptanceAcceptor,
+        LocalSearchForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
+        SimulatedAnnealingCalibration, StepCountingHillClimbingAcceptor,
         TabuSearchAcceptor,
     },
     partitioned::{

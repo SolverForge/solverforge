@@ -10,9 +10,9 @@ mod phase;
 
 pub(crate) use acceptor::TabuSearchPolicy;
 pub use acceptor::{
-    Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HillClimbingAcceptor,
-    LateAcceptanceAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
-    TabuSearchAcceptor,
+    Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HardRegressionPolicy,
+    HillClimbingAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
+    SimulatedAnnealingCalibration, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
 };
 pub use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,

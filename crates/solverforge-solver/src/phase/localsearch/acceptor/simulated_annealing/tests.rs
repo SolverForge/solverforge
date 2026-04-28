@@ -1,4 +1,5 @@
 use super::*;
+use crate::phase::localsearch::HillClimbingAcceptor;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{HardSoftScore, SoftScore};
 
@@ -37,47 +38,27 @@ impl PlanningSolution for HardSoftSol {
 }
 
 #[test]
-fn accepts_improving_moves() {
+fn accepts_improving_and_equal_moves() {
     let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1000.0, 0.99, 42);
     let last = SoftScore::of(-10);
-    let better = SoftScore::of(-5);
     assert!(Acceptor::<SimpleSol>::is_accepted(
         &mut acceptor,
         &last,
-        &better,
+        &SoftScore::of(-5),
         None,
     ));
-}
-
-#[test]
-fn accepts_equal_moves() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1000.0, 0.99, 42);
-    let score = SoftScore::of(-10);
     assert!(Acceptor::<SimpleSol>::is_accepted(
         &mut acceptor,
-        &score,
-        &score,
-        None,
-    ));
-}
-
-#[test]
-fn rejects_at_zero_temperature() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.0, 0.99, 42);
-    acceptor.current_temperature = 0.0;
-    let last = SoftScore::of(-10);
-    let worse = SoftScore::of(-20);
-    assert!(!Acceptor::<SimpleSol>::is_accepted(
-        &mut acceptor,
         &last,
-        &worse,
+        &last,
         None,
     ));
 }
 
 #[test]
-fn high_temperature_accepts_most() {
+fn single_level_high_temperature_accepts_most_worsening_moves() {
     let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1_000_000.0, 0.99, 42);
+    Acceptor::<SimpleSol>::phase_started(&mut acceptor, &SoftScore::of(0));
     let last = SoftScore::of(-10);
     let worse = SoftScore::of(-11);
     let mut accepted = 0;
@@ -90,8 +71,9 @@ fn high_temperature_accepts_most() {
 }
 
 #[test]
-fn low_temperature_rejects_most() {
+fn single_level_low_temperature_rejects_most_worsening_moves() {
     let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.001, 0.99, 42);
+    Acceptor::<SimpleSol>::phase_started(&mut acceptor, &SoftScore::of(0));
     let last = SoftScore::of(-10);
     let worse = SoftScore::of(-20);
     let mut accepted = 0;
@@ -104,46 +86,176 @@ fn low_temperature_rejects_most() {
 }
 
 #[test]
-fn temperature_decays_each_step() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(100.0, 0.5, 42);
-    let score = SoftScore::of(0);
-    Acceptor::<SimpleSol>::phase_started(&mut acceptor, &score);
-    assert!((acceptor.current_temperature - 100.0).abs() < f64::EPSILON);
-    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score, None);
-    assert!((acceptor.current_temperature - 50.0).abs() < f64::EPSILON);
-    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &score, None);
-    assert!((acceptor.current_temperature - 25.0).abs() < f64::EPSILON);
+fn temperature_decays_each_step_until_hill_climbing_threshold() {
+    let mut acceptor = SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![100.0],
+        0.5,
+        20.0,
+        HardRegressionPolicy::TemperatureControlled,
+        42,
+    );
+    Acceptor::<SimpleSol>::phase_started(&mut acceptor, &SoftScore::of(0));
+    assert!((acceptor.current_temperature_for_level(0) - 100.0).abs() < f64::EPSILON);
+    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &SoftScore::of(0), None);
+    assert!((acceptor.current_temperature_for_level(0) - 50.0).abs() < f64::EPSILON);
+    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &SoftScore::of(0), None);
+    assert!((acceptor.current_temperature_for_level(0) - 25.0).abs() < f64::EPSILON);
+    Acceptor::<SimpleSol>::step_ended(&mut acceptor, &SoftScore::of(0), None);
+    assert!((acceptor.current_temperature_for_level(0) - 20.0).abs() < f64::EPSILON);
 }
 
 #[test]
-fn auto_calibrate_sets_temperature_from_initial_score() {
-    let mut acceptor = SimulatedAnnealingAcceptor::auto_calibrate(0.999);
-    let initial = HardSoftScore::of(-576, 0);
-    Acceptor::<HardSoftSol>::phase_started(&mut acceptor, &initial);
-    assert!(acceptor.current_temperature > 10_000_000.0);
-    assert!(acceptor.current_temperature < 20_000_000.0);
+fn huge_soft_improvement_does_not_mask_hard_regression() {
+    let mut acceptor = SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![1.0e-9, 1.0e12],
+        1.0,
+        1.0e-9,
+        HardRegressionPolicy::TemperatureControlled,
+        42,
+    );
+    Acceptor::<HardSoftSol>::phase_started(&mut acceptor, &HardSoftScore::of(-10, -1_000_000));
+
+    let last = HardSoftScore::of(-10, -1_000_000);
+    let worse_hard_better_soft = HardSoftScore::of(-11, 0);
+    for _ in 0..100 {
+        assert!(!Acceptor::<HardSoftSol>::is_accepted(
+            &mut acceptor,
+            &last,
+            &worse_hard_better_soft,
+            None,
+        ));
+    }
 }
 
 #[test]
-fn seeded_auto_calibrate_matches_unseeded_temperature() {
-    let initial = HardSoftScore::of(-576, 0);
-    let mut seeded = SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999, 42);
-    let mut unseeded = SimulatedAnnealingAcceptor::auto_calibrate(0.999);
-
-    Acceptor::<HardSoftSol>::phase_started(&mut seeded, &initial);
-    Acceptor::<HardSoftSol>::phase_started(&mut unseeded, &initial);
-
-    assert_eq!(seeded.starting_temperature, unseeded.starting_temperature);
-    assert_eq!(seeded.current_temperature, unseeded.current_temperature);
+fn hard_improvement_with_soft_regression_is_accepted_as_improving() {
+    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.0, 1.0, 42);
+    let last = HardSoftScore::of(-2, 0);
+    let better_hard_worse_soft = HardSoftScore::of(-1, -1_000_000);
+    assert!(Acceptor::<HardSoftSol>::is_accepted(
+        &mut acceptor,
+        &last,
+        &better_hard_worse_soft,
+        None,
+    ));
 }
 
 #[test]
-fn score_delta_to_scalar_simple() {
-    assert!((score_delta_to_scalar(&[-5]) - -5.0).abs() < f64::EPSILON);
+fn unchanged_hard_soft_regression_uses_soft_temperature() {
+    let mut acceptor = SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![0.0, 1_000_000.0],
+        1.0,
+        1.0e-9,
+        HardRegressionPolicy::TemperatureControlled,
+        42,
+    );
+    Acceptor::<HardSoftSol>::phase_started(&mut acceptor, &HardSoftScore::of(0, 0));
+    let last = HardSoftScore::of(0, -10);
+    let worse_soft = HardSoftScore::of(0, -11);
+    let mut accepted = 0;
+    for _ in 0..100 {
+        if Acceptor::<HardSoftSol>::is_accepted(&mut acceptor, &last, &worse_soft, None) {
+            accepted += 1;
+        }
+    }
+    assert!(accepted > 90);
 }
 
 #[test]
-fn score_delta_to_scalar_hard_soft() {
-    let scalar = score_delta_to_scalar(&[-1, -50]);
-    assert!((scalar - -1_000_050.0).abs() < f64::EPSILON);
+fn never_accept_hard_regression_policy_rejects_hard_regressions_at_high_temperature() {
+    let mut acceptor = SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![1.0e12, 1.0e12],
+        1.0,
+        1.0e-9,
+        HardRegressionPolicy::NeverAcceptHardRegression,
+        42,
+    );
+    Acceptor::<HardSoftSol>::phase_started(&mut acceptor, &HardSoftScore::of(0, 0));
+    assert!(!Acceptor::<HardSoftSol>::is_accepted(
+        &mut acceptor,
+        &HardSoftScore::of(-10, 0),
+        &HardSoftScore::of(-11, 10_000),
+        None,
+    ));
+}
+
+#[test]
+fn cooled_simulated_annealing_matches_hill_climbing() {
+    let mut annealing = SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![100.0, 100.0],
+        0.1,
+        1.1,
+        HardRegressionPolicy::TemperatureControlled,
+        42,
+    );
+    let mut hill = HillClimbingAcceptor::new();
+    let initial = HardSoftScore::of(0, 0);
+    Acceptor::<HardSoftSol>::phase_started(&mut annealing, &initial);
+    Acceptor::<HardSoftSol>::phase_started(&mut hill, &initial);
+    for _ in 0..3 {
+        Acceptor::<HardSoftSol>::step_ended(&mut annealing, &initial, None);
+    }
+
+    for (last, candidate) in [
+        (HardSoftScore::of(0, 0), HardSoftScore::of(0, -1)),
+        (HardSoftScore::of(-1, 0), HardSoftScore::of(-2, 10_000)),
+        (HardSoftScore::of(-1, 0), HardSoftScore::of(0, -10_000)),
+    ] {
+        assert_eq!(
+            Acceptor::<HardSoftSol>::is_accepted(&mut annealing, &last, &candidate, None),
+            Acceptor::<HardSoftSol>::is_accepted(&mut hill, &last, &candidate, None),
+        );
+    }
+}
+
+#[test]
+fn sampled_calibration_derives_temperatures_per_level() {
+    let calibration = SimulatedAnnealingCalibration {
+        sample_size: 2,
+        target_acceptance_probability: 0.5,
+        fallback_temperature: 1.0,
+    };
+    let mut acceptor = SimulatedAnnealingAcceptor::with_calibration_and_seed(
+        1.0,
+        1.0e-9,
+        HardRegressionPolicy::TemperatureControlled,
+        calibration,
+        42,
+    );
+    Acceptor::<HardSoftSol>::phase_started(&mut acceptor, &HardSoftScore::of(0, 0));
+
+    assert!(!Acceptor::<HardSoftSol>::is_accepted(
+        &mut acceptor,
+        &HardSoftScore::of(0, 0),
+        &HardSoftScore::of(-4, 0),
+        None,
+    ));
+    let _ = Acceptor::<HardSoftSol>::is_accepted(
+        &mut acceptor,
+        &HardSoftScore::of(0, 0),
+        &HardSoftScore::of(0, -10),
+        None,
+    );
+
+    assert!(acceptor.current_temperature_for_level(0) > 5.0);
+    assert!(acceptor.current_temperature_for_level(1) > 14.0);
+}
+
+#[test]
+fn seeded_auto_calibration_starts_with_same_temperatures() {
+    let initial = HardSoftScore::of(-576, -1000);
+    let mut first = SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999, 42);
+    let mut second = SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999, 42);
+
+    Acceptor::<HardSoftSol>::phase_started(&mut first, &initial);
+    Acceptor::<HardSoftSol>::phase_started(&mut second, &initial);
+
+    assert_eq!(
+        first.current_temperature_for_level(0),
+        second.current_temperature_for_level(0)
+    );
+    assert_eq!(
+        first.current_temperature_for_level(1),
+        second.current_temperature_for_level(1)
+    );
 }

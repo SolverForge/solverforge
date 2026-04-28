@@ -2,15 +2,19 @@
 
 use std::fmt::Debug;
 
-use solverforge_config::{AcceptorConfig, TabuSearchConfig};
+use solverforge_config::{
+    AcceptorConfig, HardRegressionPolicyConfig, SimulatedAnnealingCalibrationConfig,
+    SimulatedAnnealingConfig, TabuSearchConfig,
+};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::heuristic::r#move::MoveTabuSignature;
 use crate::phase::localsearch::{
-    Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HillClimbingAcceptor,
-    LateAcceptanceAcceptor, SimulatedAnnealingAcceptor, StepCountingHillClimbingAcceptor,
-    TabuSearchAcceptor, TabuSearchPolicy,
+    Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HardRegressionPolicy,
+    HillClimbingAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
+    SimulatedAnnealingCalibration, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
+    TabuSearchPolicy,
 };
 
 /* A concrete enum over all built-in acceptor types.
@@ -219,25 +223,10 @@ impl AcceptorBuilder {
             ),
 
             AcceptorConfig::SimulatedAnnealing(sa_config) => {
-                let starting_temp = sa_config.starting_temperature.as_ref().map(|s| {
-                    s.parse::<f64>()
-                        .ok()
-                        .or_else(|| S::Score::parse(s).ok().map(|score| score.to_scalar().abs()))
-                        .unwrap_or_else(|| {
-                            panic!("Invalid starting_temperature '{}': expected scalar or score string", s)
-                        })
-                });
-                let decay_rate = sa_config.decay_rate.unwrap_or(0.999985);
-                AnyAcceptor::SimulatedAnnealing(match (starting_temp, random_seed) {
-                    (Some(temp), Some(seed)) => {
-                        SimulatedAnnealingAcceptor::with_seed(temp, decay_rate, seed)
-                    }
-                    (Some(temp), None) => SimulatedAnnealingAcceptor::new(temp, decay_rate),
-                    (None, Some(seed)) => {
-                        SimulatedAnnealingAcceptor::auto_calibrate_with_seed(decay_rate, seed)
-                    }
-                    (None, None) => SimulatedAnnealingAcceptor::auto_calibrate(decay_rate),
-                })
+                AnyAcceptor::SimulatedAnnealing(build_simulated_annealing::<S>(
+                    sa_config,
+                    random_seed,
+                ))
             }
 
             AcceptorConfig::LateAcceptance(la_config) => {
@@ -275,6 +264,123 @@ impl AcceptorBuilder {
     pub fn late_acceptance<S: PlanningSolution>(size: usize) -> LateAcceptanceAcceptor<S> {
         LateAcceptanceAcceptor::<S>::new(size)
     }
+}
+
+fn build_simulated_annealing<S>(
+    config: &SimulatedAnnealingConfig,
+    random_seed: Option<u64>,
+) -> SimulatedAnnealingAcceptor
+where
+    S: PlanningSolution,
+    S::Score: Score,
+{
+    let level_count = S::Score::levels_count();
+    let decay_rate = config.decay_rate.unwrap_or(0.999985);
+    assert!(
+        decay_rate.is_finite() && decay_rate > 0.0 && decay_rate <= 1.0,
+        "simulated_annealing decay_rate must be finite and in (0, 1]"
+    );
+    let hill_climbing_temperature = config.hill_climbing_temperature.unwrap_or(1.0e-9);
+    assert!(
+        hill_climbing_temperature.is_finite() && hill_climbing_temperature >= 0.0,
+        "simulated_annealing hill_climbing_temperature must be finite and non-negative"
+    );
+    let hard_regression_policy = match config
+        .hard_regression_policy
+        .unwrap_or(HardRegressionPolicyConfig::TemperatureControlled)
+    {
+        HardRegressionPolicyConfig::TemperatureControlled => {
+            HardRegressionPolicy::TemperatureControlled
+        }
+        HardRegressionPolicyConfig::NeverAcceptHardRegression => {
+            HardRegressionPolicy::NeverAcceptHardRegression
+        }
+    };
+
+    if let Some(level_temperatures) = &config.level_temperatures {
+        validate_level_temperatures(level_temperatures, level_count);
+        return match random_seed {
+            Some(seed) => SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+                level_temperatures.clone(),
+                decay_rate,
+                hill_climbing_temperature,
+                hard_regression_policy,
+                seed,
+            ),
+            None => SimulatedAnnealingAcceptor::with_level_temperatures_and_rng(
+                level_temperatures.clone(),
+                decay_rate,
+                hill_climbing_temperature,
+                hard_regression_policy,
+            ),
+        };
+    }
+
+    let calibration = normalize_simulated_annealing_calibration(config.calibration.as_ref());
+    validate_simulated_annealing_calibration(calibration);
+    match random_seed {
+        Some(seed) => SimulatedAnnealingAcceptor::with_calibration_and_seed(
+            decay_rate,
+            hill_climbing_temperature,
+            hard_regression_policy,
+            calibration,
+            seed,
+        ),
+        None => SimulatedAnnealingAcceptor::with_calibration(
+            decay_rate,
+            hill_climbing_temperature,
+            hard_regression_policy,
+            calibration,
+        ),
+    }
+}
+
+fn validate_level_temperatures(level_temperatures: &[f64], level_count: usize) {
+    assert_eq!(
+        level_temperatures.len(),
+        level_count,
+        "simulated_annealing level_temperatures length must match score level count"
+    );
+    for temperature in level_temperatures {
+        assert!(
+            temperature.is_finite() && *temperature >= 0.0,
+            "simulated_annealing level_temperatures must be finite and non-negative"
+        );
+    }
+}
+
+fn normalize_simulated_annealing_calibration(
+    config: Option<&SimulatedAnnealingCalibrationConfig>,
+) -> SimulatedAnnealingCalibration {
+    let defaults = SimulatedAnnealingCalibration::default();
+    SimulatedAnnealingCalibration {
+        sample_size: config
+            .and_then(|config| config.sample_size)
+            .unwrap_or(defaults.sample_size),
+        target_acceptance_probability: config
+            .and_then(|config| config.target_acceptance_probability)
+            .unwrap_or(defaults.target_acceptance_probability),
+        fallback_temperature: config
+            .and_then(|config| config.fallback_temperature)
+            .unwrap_or(defaults.fallback_temperature),
+    }
+}
+
+fn validate_simulated_annealing_calibration(calibration: SimulatedAnnealingCalibration) {
+    assert!(
+        calibration.sample_size > 0,
+        "simulated_annealing calibration sample_size must be greater than 0"
+    );
+    assert!(
+        calibration.target_acceptance_probability.is_finite()
+            && calibration.target_acceptance_probability > 0.0
+            && calibration.target_acceptance_probability < 1.0,
+        "simulated_annealing calibration target_acceptance_probability must be in (0, 1)"
+    );
+    assert!(
+        calibration.fallback_temperature.is_finite() && calibration.fallback_temperature >= 0.0,
+        "simulated_annealing calibration fallback_temperature must be finite and non-negative"
+    );
 }
 
 fn normalize_tabu_search_policy(config: &TabuSearchConfig) -> TabuSearchPolicy {

@@ -63,8 +63,12 @@ impl Score for SoftScore {
         1
     }
 
-    fn to_level_numbers(&self) -> Vec<i64> {
-        vec![self.score]
+    #[inline]
+    fn level_number(&self, index: usize) -> i64 {
+        match index {
+            0 => self.score,
+            _ => panic!("SoftScore has 1 level, got index {}", index),
+        }
     }
 
     fn from_level_numbers(levels: &[i64]) -> Self {

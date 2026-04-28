@@ -1,7 +1,9 @@
 use std::fmt::{self, Debug};
 use std::ops::Range;
 
-use solverforge_config::{MoveSelectorConfig, RecreateHeuristicType};
+use solverforge_config::{
+    MoveSelectorConfig, RecreateHeuristicType, RuinRecreateMoveSelectorConfig,
+};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;

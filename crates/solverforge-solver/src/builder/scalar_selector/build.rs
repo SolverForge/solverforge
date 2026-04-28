@@ -194,17 +194,13 @@ fn collect_scalar_leaf_selectors<S>(
 
     fn push_ruin_recreate<S: PlanningSolution + 'static>(
         ctx: &ScalarVariableContext<S>,
-        min_ruin_count: usize,
-        max_ruin_count: usize,
-        moves_per_step: Option<usize>,
-        value_candidate_limit: Option<usize>,
-        recreate_heuristic_type: RecreateHeuristicType,
+        config: &RuinRecreateMoveSelectorConfig,
         random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
-        if recreate_heuristic_type == RecreateHeuristicType::CheapestInsertion {
+        if config.recreate_heuristic_type == RecreateHeuristicType::CheapestInsertion {
             assert!(
-                ctx.candidate_values.is_some() || value_candidate_limit.is_some(),
+                ctx.candidate_values.is_some() || config.value_candidate_limit.is_some(),
                 "cheapest_insertion scalar ruin_recreate requires candidate_values or value_candidate_limit for {}::{}",
                 ctx.entity_type_name,
                 ctx.variable_name,
@@ -218,8 +214,8 @@ fn collect_scalar_leaf_selectors<S>(
             ctx.variable_name,
             ctx.descriptor_index,
         );
-        let selector = RuinMoveSelector::new(min_ruin_count, max_ruin_count, access)
-            .with_moves_per_step(moves_per_step.unwrap_or(10).max(1));
+        let selector = RuinMoveSelector::new(config.min_ruin_count, config.max_ruin_count, access)
+            .with_moves_per_step(config.moves_per_step.unwrap_or(10).max(1));
         let selector = match scoped_seed(
             random_seed,
             ctx.descriptor_index,
@@ -236,8 +232,8 @@ fn collect_scalar_leaf_selectors<S>(
             descriptor_index: ctx.descriptor_index,
             variable_index: ctx.variable_index,
             variable_name: ctx.variable_name,
-            value_source: scalar_recreate_candidate_source(*ctx, value_candidate_limit),
-            recreate_heuristic_type,
+            value_source: scalar_recreate_candidate_source(*ctx, config.value_candidate_limit),
+            recreate_heuristic_type: config.recreate_heuristic_type,
             allows_unassigned: ctx.allows_unassigned,
         }));
     }
@@ -388,16 +384,7 @@ fn collect_scalar_leaf_selectors<S>(
                     &matched,
                 );
                 for ctx in matched {
-                    push_ruin_recreate(
-                        &ctx,
-                        ruin_recreate.min_ruin_count,
-                        ruin_recreate.max_ruin_count,
-                        ruin_recreate.moves_per_step,
-                        ruin_recreate.value_candidate_limit,
-                        ruin_recreate.recreate_heuristic_type,
-                        random_seed,
-                        leaves,
-                    );
+                    push_ruin_recreate(&ctx, ruin_recreate, random_seed, leaves);
                 }
             }
             MoveSelectorConfig::UnionMoveSelector(union) => {

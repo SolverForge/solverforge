@@ -75,11 +75,13 @@ fn build_termination_preserves_missing_time_limit_as_unlimited() {
 
 #[test]
 fn build_termination_returns_fallback_time_for_best_score_limit() {
-    let mut config = SolverConfig::default();
-    config.termination = Some(solverforge_config::TerminationConfig {
-        best_score_limit: Some("0".to_string()),
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig {
+            best_score_limit: Some("0".to_string()),
+            ..Default::default()
+        }),
         ..Default::default()
-    });
+    };
 
     let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
 
@@ -89,11 +91,13 @@ fn build_termination_returns_fallback_time_for_best_score_limit() {
 
 #[test]
 fn build_termination_returns_fallback_time_for_step_limit() {
-    let mut config = SolverConfig::default();
-    config.termination = Some(solverforge_config::TerminationConfig {
-        step_count_limit: Some(10),
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig {
+            step_count_limit: Some(10),
+            ..Default::default()
+        }),
         ..Default::default()
-    });
+    };
 
     let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
 
@@ -103,11 +107,13 @@ fn build_termination_returns_fallback_time_for_step_limit() {
 
 #[test]
 fn build_termination_returns_fallback_time_for_unimproved_step_limit() {
-    let mut config = SolverConfig::default();
-    config.termination = Some(solverforge_config::TerminationConfig {
-        unimproved_step_count_limit: Some(10),
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig {
+            unimproved_step_count_limit: Some(10),
+            ..Default::default()
+        }),
         ..Default::default()
-    });
+    };
 
     let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
 
@@ -117,11 +123,13 @@ fn build_termination_returns_fallback_time_for_unimproved_step_limit() {
 
 #[test]
 fn build_termination_returns_fallback_time_for_unimproved_time_limit() {
-    let mut config = SolverConfig::default();
-    config.termination = Some(solverforge_config::TerminationConfig {
-        unimproved_seconds_spent_limit: Some(10),
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig {
+            unimproved_seconds_spent_limit: Some(10),
+            ..Default::default()
+        }),
         ..Default::default()
-    });
+    };
 
     let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
 
@@ -131,12 +139,14 @@ fn build_termination_returns_fallback_time_for_unimproved_time_limit() {
 
 #[test]
 fn build_termination_explicit_time_overrides_fallback() {
-    let mut config = SolverConfig::default();
-    config.termination = Some(solverforge_config::TerminationConfig {
-        step_count_limit: Some(10),
-        seconds_spent_limit: Some(5),
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig {
+            step_count_limit: Some(10),
+            seconds_spent_limit: Some(5),
+            ..Default::default()
+        }),
         ..Default::default()
-    });
+    };
 
     let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
 

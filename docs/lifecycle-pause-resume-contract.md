@@ -431,7 +431,7 @@ This PRD does not require:
 - cross-process checkpoint restore
 - distributed solver migration
 - domain-specific starter templates
-- compatibility aliases for legacy `schedule` / `stop` naming
+- alternate `schedule` / `stop` command names
 
 ## Versioning and Release Governance
 

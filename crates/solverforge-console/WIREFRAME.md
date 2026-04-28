@@ -61,7 +61,7 @@ The formatter recognizes these `event` field values:
 | `phase_start` | Phase start line, including score when the event carries `score` |
 | `phase_end` | Phase end line with duration, steps, throughput, accepted/generated/evaluated counts, score calculations, generation/evaluation time, and score |
 | `progress` | Periodic progress line with steps, speed, evaluated/accepted/generated move counts, score calculations, acceptance rate, current score, and best score when distinct |
-| `step` | TRACE-only individual move evaluation line |
+| `step` | TRACE-only individual move evaluation line keyed by `move_index` |
 | `solve_end` | Final solve line and summary box with score, generated/evaluated/accepted move counts, step count, score calculations, timing, throughput, and acceptance rate |
 
 Startup scale labels are shape-aware: list solves render `elements`; scalar

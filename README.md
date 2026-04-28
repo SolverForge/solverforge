@@ -573,7 +573,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 ### What's New in 0.10.0
 
 - **Projected derived rows keep coordinate-stable self-join order**: retained projected joins reuse sparse row storage without letting storage slots define pair orientation, so multi-output projections with order-sensitive filters stay incrementally consistent with full evaluation.
-- **Score level access is source-compatible and allocation-aware**: custom `Score` types can keep implementing `to_level_numbers()` as the required extension point, while built-in scores override `level_number()` for allocation-free score-level search behavior.
+- **Score level access is allocation-free by contract**: custom `Score` types implement `level_number()` as the required per-level accessor, and `to_level_numbers()` is the derived vector view for callers that need owned level data.
 - **Level-aware simulated annealing is production-ready**: simulated annealing uses per-score-level temperatures, hard-regression policy, calibration, and cooling into hill-climbing behavior for `HardSoftScore` and other multi-level scores.
 
 ### What's New in 0.9.2
@@ -593,7 +593,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor-scalar engine, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
 - **Move selectors are cursor-based**: `open_cursor()` now yields stable candidate indices plus borrowable candidates, cartesian neighborhoods stay preview-safe and cursor-native, and ownership materializes only for the selected winner. Convenience owned-stream helpers such as `iter_moves()` and `append_moves()` are not a cartesian-safe contract.
 - **Large modules stay split by behavior**: solver, descriptor-scalar, runtime, construction, and macro-generated support code keep implementation and test chunks in adjacent subsystem files so each Rust source file stays below the 500 LOC maintenance boundary.
-- **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates` with no legacy `values` fallback.
+- **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates`.
 
 ### What's New in 0.8.12
 

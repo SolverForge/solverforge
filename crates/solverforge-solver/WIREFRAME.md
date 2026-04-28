@@ -855,7 +855,7 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListCheapestInsertionPhase<S, E>` | Self (implements Phase directly) |
 | `ListRegretInsertionPhase<S, E>` | Self (implements Phase directly) |
 | `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
-| `KOptPhaseBuilder<S, V, DM, ESF>` | `KOptPhase` |
+| `KOptPhaseBuilder<S, V>` | `KOptPhase` |
 
 `ListClarkeWrightPhase<S, E>` preserves preassigned routes by pairing its route-construction hooks with an explicit per-entity route-length callback when filling remaining work.
 

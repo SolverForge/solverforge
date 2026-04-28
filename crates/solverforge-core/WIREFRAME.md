@@ -37,7 +37,7 @@ src/
 │       ├── hard_medium_soft_score.rs      — HardMediumSoftScore tests
 │       ├── hard_soft_decimal_score.rs     — HardSoftDecimalScore tests
 │       ├── bendable_score.rs              — BendableScore tests
-│       └── custom_score.rs                — Custom Score implementation compatibility tests
+│       └── custom_score.rs                — Custom Score contract tests
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
@@ -97,8 +97,8 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 | `is_feasible` | `fn is_feasible(&self) -> bool` | True when all hard scores >= 0 |
 | `zero` | `fn zero() -> Self` | Additive identity |
 | `levels_count` | `fn levels_count() -> usize` | Number of score levels |
-| `to_level_numbers` | `fn to_level_numbers(&self) -> Vec<i64>` | Required, high-priority first |
-| `level_number` | `fn level_number(&self, index: usize) -> i64` | Defaulted per-level accessor; built-ins override for allocation-free hot paths |
+| `level_number` | `fn level_number(&self, index: usize) -> i64` | Required allocation-free per-level accessor |
+| `to_level_numbers` | `fn to_level_numbers(&self) -> Vec<i64>` | Defaulted allocating vector view, high-priority first |
 | `from_level_numbers` | `fn from_level_numbers(levels: &[i64]) -> Self` | Panics on wrong count |
 | `multiply` | `fn multiply(&self, multiplicand: f64) -> Self` | Scalar multiply |
 | `divide` | `fn divide(&self, divisor: f64) -> Self` | Scalar divide |
@@ -494,7 +494,7 @@ Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, Shad
 
 Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
 
-Scalar hook aliases:
+Scalar hook type aliases:
 
 | Alias | Signature | Note |
 |-------|-----------|------|
